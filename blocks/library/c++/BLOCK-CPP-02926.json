@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/cordz_info.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/debugging/stacktrace.h\"\n#include \"absl/strings/internal/cord_internal.h\"\n#include \"absl/strings/internal/cord_rep_btree.h\"\n#include \"absl/strings/internal/cord_rep_crc.h\"\n#include \"absl/strings/internal/cordz_handle.h\"\n#include \"absl/strings/internal/cordz_statistics.h\"\n#include \"absl/strings/internal/cordz_update_tracker.h\"\n#include \"absl/synchronization/mutex.h\"\n#include \"absl/time/clock.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02926_execute() {\n    {\n    statistics_.node_count++;\n    statistics_.node_counts.btree++;\n    memory_usage_.Add(sizeof(CordRepBtree), rep.refcount);\n    const CordRepBtree* tree = rep.rep->btree();\n    if (tree->height() > 0) {\n      for (CordRep* edge : tree->Edges()) {\n        AnalyzeBtree(rep.Child(edge));\n      }\n    } else {\n      for (CordRep* edge : tree->Edges()) {\n        CountLinearReps(rep.Child(edge), memory_usage_);\n      }\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02926",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_info.cc",
+  "source_line": 204,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\n\n// equal()\n// rotate()\n//\n// Historical note: Abseil once provided implementations of these algorithms\n// prior to their adoption in C++14. New code should prefer to use the std\n// variants.\n//\n// See the documentation for the STL <algorithm> header for more information:\n// https://en.cppreference.com/w/cpp/header/algorithm\nusing std::equal;\nusing std::rotate;\n\n// linear_search()\n//\n// Performs a linear search for `value` using the iterator `first` up to\n// but not including `last`, returning true if [`first`, `last`) contains an\n// element equal to `value`.\n//\n// A linear search is of O(n) complexity which is guaranteed to make at most\n// n = (`last` - `first`) comparisons. A linear search over short containers\n// may be faster than a binary search, even when the container is sorted.\ntemplate <typename InputIterator, typename EqualityComparable>\nbool linear_search(InputIterator first, InputIterator last,\n                   const EqualityComparable& value) {\n  return std::find(first, last, value) != last;\n}\n\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-03273",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/algorithm/algorithm.h",
+  "source_line": 31,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06546_execute() {\n    {\n  // Optimization for when (non-constexpr) fields are already normalized.\n  if (0 <= ss && ss < 60) {\n    const second_t nss = static_cast<second_t>(ss);\n    if (0 <= mm && mm < 60) {\n      const minute_t nmm = static_cast<minute_t>(mm);\n      if (0 <= hh && hh < 24) {\n        const hour_t nhh = static_cast<hour_t>(hh);\n        if (1 <= d && d <= 28 && 1 <= m && m <= 12) {\n          const day_t nd = static_cast<day_t>(d);\n          const month_t nm = static_cast<month_t>(m);\n          return fields(y, nm, nd, nhh, nmm, nss);\n        }\n        return n_mon(y, m, d, 0, nhh, nmm, nss);\n      }\n      return n_hour(y, m, d, hh / 24, hh % 24, nmm, nss);\n    }\n    return n_min(y, m, d, hh, mm / 60, mm % 60, nss);\n  }\n  diff_t cm = ss / 60;\n  ss %= 60;\n  if (ss < 0) {\n    cm -= 1;\n    ss += 60;\n  }\n  return n_min(y, m, d, hh, mm / 60 + cm / 60, mm % 60 + cm % 60,\n               static_cast<second_t>(ss));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06546",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+  "source_line": 205,
+  "validation_status": "validated"
+}

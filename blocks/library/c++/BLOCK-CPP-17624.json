@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    ASTLoadGuard(unsigned Limit) : Limit(Limit) {}\n\n    /// Indicates, whether a new load operation is permitted, it is within the\n    /// threshold.\n    operator bool() const { return Count < Limit; }\n\n    /// Tell that a new AST was loaded successfully.\n    void indicateLoadSuccess() { ++Count; }\n\n  private:\n    /// The number of ASTs actually imported.\n    unsigned Count{0u};\n    /// The limit (threshold) value for number of loaded ASTs.\n    const unsigned Limit;\n  }",
+  "id": "BLOCK-CPP-17624",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CrossTU/CrossTranslationUnit.h",
+  "source_line": 271,
+  "validation_status": "validated"
+}

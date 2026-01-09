@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  Self *self() { return reinterpret_cast<Self *>(this); }\n\npublic:\n  bool compareByCase(const SExpr *E1, const SExpr* E2) {\n    switch (E1->opcode()) {\n#define TIL_OPCODE_DEF(X)                                                     \\\n    case COP_##X:                                                             \\\n      return cast<X>(E1)->compare(cast<X>(E2), *self());\n#include \"ThreadSafetyOps.def\"\n#undef TIL_OPCODE_DEF\n    }\n    return false;\n  }\n}",
+  "id": "BLOCK-CPP-21800",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTraverse.h",
+  "source_line": 309,
+  "validation_status": "validated"
+}

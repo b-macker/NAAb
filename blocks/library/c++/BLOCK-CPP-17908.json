@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Driver/Action.h\"\n#include \"clang/Driver/Multilib.h\"\n#include \"clang/Driver/Types.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Frontend/Debug/Options.h\"\n#include \"llvm/MC/MCTargetOptions.h\"\n#include \"llvm/Option/Option.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/Target/TargetOptions.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <cassert>\n#include <climits>\n#include <memory>\n#include <string>\n#include <utility>\n\nusing namespace llvm;\nusing namespace opt;\nusing namespace opt;\nusing namespace vfs;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17908_execute() {\n    { return false; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17908",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/ToolChain.h",
+  "source_line": 597,
+  "validation_status": "validated"
+}

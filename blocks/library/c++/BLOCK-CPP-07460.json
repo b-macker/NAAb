@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cstdint>\n#include <utility>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07460_execute() {\n    {\n    return clang::BaseSubobject(\n      DenseMapInfo<const clang::CXXRecordDecl *>::getEmptyKey(),\n      clang::CharUnits::fromQuantity(DenseMapInfo<int64_t>::getEmptyKey()));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07460",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/BaseSubobject.h",
+  "source_line": 58,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstring>\n#include <iterator>\n#include <memory>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/strings/internal/ostringstream.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/str_cat.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06236_execute() {\n    {\n  std::string result;\n  absl::string_view sep(\"\");\n  for (Iterator it = start; it != end; ++it) {\n    result.append(sep.data(), sep.size());\n    f(&result, *it);\n    sep = s;\n  }\n  return result;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06236",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_join_internal.h",
+  "source_line": 195,
+  "validation_status": "validated"
+}

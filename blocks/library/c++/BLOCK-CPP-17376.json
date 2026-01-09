@@ -1,0 +1,8 @@
+{
+  "code": "{\ntemplate <> struct DenseMapInfo<clang::tok::PPKeywordKind> {\n  static inline clang::tok::PPKeywordKind getEmptyKey() {\n    return clang::tok::PPKeywordKind::pp_not_keyword;\n  }\n  static inline clang::tok::PPKeywordKind getTombstoneKey() {\n    return clang::tok::PPKeywordKind::NUM_PP_KEYWORDS;\n  }\n  static unsigned getHashValue(const clang::tok::PPKeywordKind &Val) {\n    return static_cast<unsigned>(Val);\n  }\n  static bool isEqual(const clang::tok::PPKeywordKind &LHS,\n                      const clang::tok::PPKeywordKind &RHS) {\n    return LHS == RHS;\n  }\n};\n}",
+  "id": "BLOCK-CPP-17376",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TokenKinds.h",
+  "source_line": 120,
+  "validation_status": "validated"
+}

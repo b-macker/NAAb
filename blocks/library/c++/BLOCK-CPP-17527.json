@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/ABI.h\"\n#include \"clang/CodeGen/CGFunctionInfo.h\"\n#include \"llvm/IR/BasicBlock.h\"\n\nusing namespace llvm;\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17527_execute() {\n    {\n  /// Implicit arguments to add before the explicit arguments, but after the\n  /// `*this` argument (which always comes first).\n  SmallVector<llvm::Value *, 1> Prefix;\n\n  /// Implicit arguments to add after the explicit arguments.\n  SmallVector<llvm::Value *, 1> Suffix;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17527",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CodeGenABITypes.h",
+  "source_line": 53,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <typeinfo>\n#include \"absl/base/config.h\"\n#include <any>\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04450_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nusing std::bad_any_cast;\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04450",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_any_cast.h",
+  "source_line": 32,
+  "validation_status": "validated"
+}

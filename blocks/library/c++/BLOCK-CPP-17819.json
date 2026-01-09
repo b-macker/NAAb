@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/Support/Error.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17819_execute() {\n    {\npublic:\n  const OffloadBundlerConfig &BundlerConfig;\n\n  // TODO: Add error checking from ClangOffloadBundler.cpp\n  OffloadBundler(const OffloadBundlerConfig &BC) : BundlerConfig(BC) {}\n\n  // List bundle IDs. Return true if an error was found.\n  static llvm::Error\n  ListBundleIDsInFile(llvm::StringRef InputFileName,\n                      const OffloadBundlerConfig &BundlerConfig);\n\n  llvm::Error BundleFiles();\n  llvm::Error UnbundleFiles();\n  llvm::Error UnbundleArchive();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17819",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/OffloadBundler.h",
+  "source_line": 47,
+  "validation_status": "validated"
+}

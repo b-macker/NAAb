@@ -1,0 +1,8 @@
+{
+  "code": "{\n  using is_transparent = void;\n\n  StringBtreeDefaultGreater() = default;\n\n  StringBtreeDefaultGreater(std::greater<std::string>) {}        // NOLINT\n  StringBtreeDefaultGreater(std::greater<absl::string_view>) {}  // NOLINT\n\n  // Allow converting to std::greater for use in key_comp()/value_comp().\n  explicit operator std::greater<std::string>() const { return {}; }\n  explicit operator std::greater<absl::string_view>() const { return {}; }\n  explicit operator std::greater<absl::Cord>() const { return {}; }\n\n  absl::weak_ordering operator()(absl::string_view lhs,\n                                 absl::string_view rhs) const {\n    return compare_internal::compare_result_as_ordering(rhs.compare(lhs));\n  }\n  StringBtreeDefaultGreater(std::greater<absl::Cord>) {}  // NOLINT\n  absl::weak_ordering operator()(const absl::Cord &lhs,\n                                 const absl::Cord &rhs) const {\n    return compare_internal::compare_result_as_ordering(rhs.Compare(lhs));\n  }\n  absl::weak_ordering operator()(const absl::Cord &lhs,\n                                 absl::string_view rhs) const {\n    return compare_internal::compare_result_as_ordering(-lhs.Compare(rhs));\n  }\n  absl::weak_ordering operator()(absl::string_view lhs,\n                                 const absl::Cord &rhs) const {\n    return compare_internal::compare_result_as_ordering(rhs.Compare(lhs));\n  }\n}",
+  "id": "BLOCK-CPP-04882",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
+  "source_line": 138,
+  "validation_status": "validated"
+}

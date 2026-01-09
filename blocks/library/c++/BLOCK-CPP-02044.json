@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  // For each character in wanted, sets the index corresponding\n  // to the ASCII code of that character. This is used by\n  // the find_.*_of methods below to tell whether or not a character is in\n  // the lookup table in constant time.\n  explicit LookupTable(string_view wanted) {\n    for (char c : wanted) {\n      table_[Index(c)] = true;\n    }\n  }\n  bool operator[](char c) const { return table_[Index(c)]; }\n\n private:\n  static unsigned char Index(char c) { return static_cast<unsigned char>(c); }\n  bool table_[UCHAR_MAX + 1] = {};\n}",
+  "id": "BLOCK-CPP-02044",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/string_view.cc",
+  "source_line": 67,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CustomizableOptional.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/Hashing.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorOr.h\"\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace FileMgr;\nusing namespace FileMgr;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16331_execute() {\n    {\n  DirectoryEntry() = default;\n  DirectoryEntry(const DirectoryEntry &) = delete;\n  DirectoryEntry &operator=(const DirectoryEntry &) = delete;\n  friend class FileManager;\n  friend class FileEntryTestHelper;\n\n  // FIXME: We should not be storing a directory entry name here.\n  StringRef Name; // Name of the directory.\n\npublic:\n  LLVM_DEPRECATED(\"Use DirectoryEntryRef::getName() instead.\", \"\")\n  StringRef getName() const { return Name; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16331",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DirectoryEntry.h",
+  "source_line": 38,
+  "validation_status": "validated"
+}

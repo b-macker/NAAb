@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/synchronization/internal/pthread_waiter.h\"\n#include <pthread.h>\n#include <sys/time.h>\n#include <unistd.h>\n#include <cassert>\n#include <cerrno>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/thread_identity.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/synchronization/internal/kernel_timeout.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03180_execute() {\n    {\n    const int err = pthread_mutex_lock(mu_);\n    if (err != 0) {\n      ABSL_RAW_LOG(FATAL, \"pthread_mutex_lock failed: %d\", err);\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03180",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/pthread_waiter.cc",
+  "source_line": 39,
+  "validation_status": "validated"
+}

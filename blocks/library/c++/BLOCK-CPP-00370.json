@@ -1,0 +1,8 @@
+{
+  "code": "    #include <spdlog/sinks/basic_file_sink.h>\n#include <spdlog/common.h>\n#include <spdlog/details/os.h>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00370_execute() {\n    {\nnamespace sinks {\n\ntemplate <typename Mutex>\nSPDLOG_INLINE basic_file_sink<Mutex>::basic_file_sink(const filename_t &filename,\n                                                      bool truncate,\n                                                      const file_event_handlers &event_handlers)\n    : file_helper_{event_handlers} {\n    file_helper_.open(filename, truncate);\n}\n\ntemplate <typename Mutex>\nSPDLOG_INLINE const filename_t &basic_file_sink<Mutex>::filename() const {\n    return file_helper_.filename();\n}\n\ntemplate <typename Mutex>\nSPDLOG_INLINE void basic_file_sink<Mutex>::sink_it_(const details::log_msg &msg) {\n    memory_buf_t formatted;\n    base_sink<Mutex>::formatter_->format(msg, formatted);\n    file_helper_.write(formatted);\n}\n\ntemplate <typename Mutex>\nSPDLOG_INLINE void basic_file_sink<Mutex>::flush_() {\n    file_helper_.flush();\n}\n\n}  // namespace sinks\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00370",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/basic_file_sink-inl.h",
+  "source_line": 13,
+  "validation_status": "validated"
+}

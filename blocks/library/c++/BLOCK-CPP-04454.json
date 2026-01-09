@@ -1,0 +1,8 @@
+{
+  "code": "#include <stdexcept>\n#include \"absl/base/config.h\"\n#include <optional>\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04454_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nusing std::bad_optional_access;\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04454",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_optional_access.h",
+  "source_line": 32,
+  "validation_status": "validated"
+}

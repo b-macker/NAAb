@@ -1,0 +1,8 @@
+{
+  "code": "#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16040_execute() {\n    {\n\nnamespace diag {\nenum class Group;\n}\n\n/// For cl.exe warning IDs that cleany map to clang diagnostic groups,\n/// returns the corresponding group. Else, returns an empty Optional.\nstd::optional<diag::Group> diagGroupFromCLWarningID(unsigned);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16040",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CLWarnings.h",
+  "source_line": 14,
+  "validation_status": "validated"
+}

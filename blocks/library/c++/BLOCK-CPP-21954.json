@@ -1,0 +1,8 @@
+{
+  "code": "#include <ostream>\n#include <string>\n#include <utility>\n#include \"DataflowAnalysis.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowLattice.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21954_execute() {\n    { return MapLattice(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21954",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/MapLattice.h",
+  "source_line": 55,
+  "validation_status": "validated"
+}

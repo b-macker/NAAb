@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16667_execute() {\n    {\n    return hasNativeWeak();\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16667",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/ObjCRuntime.h",
+  "source_line": 283,
+  "validation_status": "validated"
+}

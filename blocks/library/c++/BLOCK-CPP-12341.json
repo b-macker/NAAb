@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CommentOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <map>\n\nusing namespace clang;\nusing namespace comments;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12341_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12341",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/RawCommentList.h",
+  "source_line": 208,
+  "validation_status": "validated"
+}

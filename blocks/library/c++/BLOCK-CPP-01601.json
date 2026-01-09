@@ -1,0 +1,8 @@
+{
+  "code": "#include <cwchar>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace literals;\nusing namespace literals;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01601_execute() {\n    {\n  auto&& buf = detail::get_buffer<Char>(out);\n  vformat_to(buf, detail::to_string_view(format_str), args,\n             detail::locale_ref(loc));\n  return detail::get_iterator(buf);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01601",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/xchar.h",
+  "source_line": 146,
+  "validation_status": "validated"
+}

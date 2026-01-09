@@ -1,0 +1,8 @@
+{
+  "code": "#include <stddef.h>\n#include <stdint.h>\n#include <atomic>\n#include <cstring>\n#include <memory>\n#include <new>\n#include <string>\n#include <type_traits>\n#include <typeinfo>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/call_once.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/flags/commandlineflag.h\"\n#include \"absl/flags/config.h\"\n#include \"absl/flags/internal/commandlineflag.h\"\n#include \"absl/flags/internal/registry.h\"\n#include \"absl/flags/internal/sequence_lock.h\"\n#include \"absl/flags/marshalling.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/synchronization/mutex.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\nusing namespace flags_internal;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05484_execute() {\n    {\n    return (void)str, FixedCharArray<N>({{str[I]..., '\\0'}});\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05484",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/flag.h",
+  "source_line": 180,
+  "validation_status": "validated"
+}

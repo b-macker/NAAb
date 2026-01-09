@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/AST/StmtCXX.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13066_execute() {\n    {\n      if (ChildI != ChildEnd)\n        return;\n      while (this->I != End) {\n        ++this->I;\n        if (this->I != End) {\n          ChildI = (*this->I)->used_children().begin();\n          ChildEnd = (*this->I)->used_children().end();\n          if (ChildI != ChildEnd)\n            return;\n        }\n      }\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-13066",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtOpenMP.h",
+  "source_line": 357,
+  "validation_status": "validated"
+}

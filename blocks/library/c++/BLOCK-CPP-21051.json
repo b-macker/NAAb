@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Module.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/MemoryBuffer.h\"\n#include <memory>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21051_execute() {\n    {\n    assert(!Reader->getFormats().empty() &&\n           \"PCHContainerReader must handle >=1 format\");\n    for (llvm::StringRef Fmt : Reader->getFormats())\n      Readers[Fmt] = Reader.get();\n    OwnedReaders.push_back(std::move(Reader));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21051",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/PCHContainerOperations.h",
+  "source_line": 99,
+  "validation_status": "validated"
+}

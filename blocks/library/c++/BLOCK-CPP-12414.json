@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ExternalASTSource.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12414_execute() {\n    {\n    CanonicalDeclPtr P;\n    P.Ptr = BaseInfo::getTombstoneKey();\n    return P;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12414",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Redeclarable.h",
+  "source_line": 397,
+  "validation_status": "validated"
+}

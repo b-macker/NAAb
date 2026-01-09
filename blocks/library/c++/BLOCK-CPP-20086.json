@@ -1,0 +1,8 @@
+{
+  "code": "{\n    void *Ptr;\n\n    static UnionOpaquePtr make(OpaquePtr<T> P) {\n      UnionOpaquePtr OP = { P.getAsOpaquePtr() };\n      return OP;\n    }\n\n    OpaquePtr<T> get() const { return OpaquePtr<T>::getFromOpaquePtr(Ptr); }\n    operator OpaquePtr<T>() const { return get(); }\n\n    UnionOpaquePtr &operator=(OpaquePtr<T> P) {\n      Ptr = P.getAsOpaquePtr();\n      return *this;\n    }\n  }",
+  "id": "BLOCK-CPP-20086",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Ownership.h",
+  "source_line": 96,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00387_execute() {\n    def visit_ExtensionAttribute(\n        self, node: nodes.ExtensionAttribute, frame: Frame\n    ) -> None:\n        self.write(f\"environment.extensions[{node.identifier!r}].{node.name}\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00387",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1921,
+  "validation_status": "validated"
+}

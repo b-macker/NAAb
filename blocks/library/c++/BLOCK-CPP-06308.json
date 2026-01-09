@@ -1,0 +1,8 @@
+{
+  "code": "#include <string.h>\n#include <wchar.h>\n#include <algorithm>\n#include <cstddef>\n#include <cstdint>\n#include <cstdio>\n#include <limits>\n#include <memory>\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/has_absl_stringify.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/string_view.h\"\n#include <string_view>\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06308_execute() {\n    {\n  template <class T = int>\n  static ArgConvertResult<FormatConversionCharSetInternal::n> ConvertHelper(\n      const FormatCountCapture& v, FormatConversionSpecImpl conv,\n      FormatSinkImpl* sink) {\n    const absl::enable_if_t<sizeof(T) != 0, FormatCountCapture>& v2 = v;\n\n    if (conv.conversion_char() !=\n        str_format_internal::FormatConversionCharInternal::n) {\n      return {false};\n    }\n    *v2.p_ = static_cast<int>(sink->size());\n    return {true};\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06308",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/arg.h",
+  "source_line": 384,
+  "validation_status": "validated"
+}

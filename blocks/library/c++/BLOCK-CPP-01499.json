@@ -1,0 +1,8 @@
+{
+  "code": "#include <fstream>\n#include <ostream>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01499_execute() {\n    {\n  return false;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01499",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ostream.h",
+  "source_line": 102,
+  "validation_status": "validated"
+}

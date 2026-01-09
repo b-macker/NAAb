@@ -1,0 +1,8 @@
+{
+  "code": "{\n  char buffer[kLogBufSize];\n  char* buf = buffer;\n  int size = sizeof(buffer);\n#ifdef ABSL_LOW_LEVEL_WRITE_SUPPORTED\n  bool enabled = true;\n#else\n  bool enabled = false;\n#endif\n\n#ifdef ABSL_MIN_LOG_LEVEL\n  if (severity < static_cast<absl::LogSeverity>(ABSL_MIN_LOG_LEVEL) &&\n      severity < absl::LogSeverity::kFatal) {\n    enabled = false;\n  }\n#endif\n\n  enabled = log_filter_and_prefix_hook(severity, file, line, &buf, &size);\n  const char* const prefix_end = buf;\n\n#ifdef ABSL_LOW_LEVEL_WRITE_SUPPORTED\n  if (enabled) {\n    bool no_chop = VADoRawLog(&buf, &size, format, ap);\n    if (no_chop) {\n      DoRawLog(&buf, &size, \"\\n\");\n    } else {\n      DoRawLog(&buf, &size, \"%s\", kTruncated);\n    }\n    AsyncSignalSafeWriteError(buffer, strlen(buffer));\n  }\n#else\n  static_cast<void>(format);\n  static_cast<void>(ap);\n  static_cast<void>(enabled);\n#endif\n\n  // Abort the process after logging a FATAL message, even if the output itself\n  // was suppressed.\n  if (severity == absl::LogSeverity::kFatal) {\n    abort_hook(file, line, buffer, prefix_end, buffer + kLogBufSize);\n    abort();\n  }\n}",
+  "id": "BLOCK-CPP-02318",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/raw_logging.cc",
+  "source_line": 149,
+  "validation_status": "validated"
+}

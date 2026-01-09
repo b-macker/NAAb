@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-CPP-21643_execute() {\n    { Mutex mu; int dat GUARDED_BY(this->mu); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21643",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 17,
+  "validation_status": "validated"
+}

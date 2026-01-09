@@ -1,0 +1,8 @@
+{
+  "code": "{\n  std::string out;\n  int status = 0;\n  char* demangled = nullptr;\n#if ABSL_INTERNAL_HAS_CXA_DEMANGLE\n  demangled = abi::__cxa_demangle(mangled, nullptr, nullptr, &status);\n#endif\n  if (status == 0 && demangled != nullptr) {\n    out.append(demangled);\n    free(demangled);\n  } else {\n    out.append(mangled);\n  }\n  return out;\n}",
+  "id": "BLOCK-CPP-02586",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 1994,
+  "validation_status": "validated"
+}

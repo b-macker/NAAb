@@ -1,0 +1,8 @@
+{
+  "code": "#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/fastmath.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05914_execute() {\n    {\n    state_type mult = Params::multiplier();\n    state_type inc = Params::increment();\n    state_type m = 1;\n    state_type i = 0;\n    while (n > 0) {\n      if (n & 1) {\n        m *= mult;\n        i = i * mult + inc;\n      }\n      inc = (mult + 1) * inc;\n      mult *= mult;\n      n >>= 1;\n    }\n    return m * s + i;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05914",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pcg_engine.h",
+  "source_line": 185,
+  "validation_status": "validated"
+}

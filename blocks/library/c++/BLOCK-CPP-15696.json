@@ -1,0 +1,8 @@
+{
+  "code": "{\n  // The lambda of which the initializer we capture.\n  const LambdaExpr *LE;\n\n  // Index of the captured element in the captured list.\n  unsigned Index;\n\n  friend class ConstructionContext; // Allows to create<>() itself.\n\n  explicit LambdaCaptureConstructionContext(const LambdaExpr *LE,\n                                            unsigned Index)\n      : ConstructionContext(LambdaCaptureKind), LE(LE), Index(Index) {}\n\npublic:\n  const LambdaExpr *getLambdaExpr() const { return LE; }\n  unsigned getIndex() const { return Index; }\n\n  const Expr *getInitializer() const {\n    return *(LE->capture_init_begin() + Index);\n  }\n\n  const FieldDecl *getFieldDecl() const {\n    auto It = LE->getLambdaClass()->field_begin();\n    std::advance(It, Index);\n    return *It;\n  }\n\n  const ArrayInitLoopExpr *getArrayInitLoop() const override {\n    return dyn_cast_or_null<ArrayInitLoopExpr>(getInitializer());\n  }\n\n  static bool classof(const ConstructionContext *CC) {\n    return CC->getKind() == LambdaCaptureKind;\n  }\n}",
+  "id": "BLOCK-CPP-15696",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
+  "source_line": 684,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/status/status.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_statusor;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06018_execute() {\n    {\n    static const BracesType kRandomBraces = static_cast<BracesType>(\n        (reinterpret_cast<uintptr_t>(&kRandomBraces) >> 4) % 4);\n    return kRandomBraces;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06018",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/internal/statusor_internal.h",
+  "source_line": 395,
+  "validation_status": "validated"
+}

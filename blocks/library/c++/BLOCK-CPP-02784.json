@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/pool_urbg.h\"\n#include <algorithm>\n#include <atomic>\n#include <cstdint>\n#include <cstring>\n#include <iterator>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/call_once.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/sysinfo.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/random/internal/randen.h\"\n#include \"absl/random/internal/seed_material.h\"\n#include \"absl/random/seed_gen_exception.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02784_execute() {\n    {\n  static constexpr size_t kSeedSize =\n      RandenTraits::kStateBytes / sizeof(uint32_t);\n  // Read the seed data from OS entropy once.\n  uint32_t seed_material[kPoolSize * kSeedSize];\n  if (!random_internal::ReadSeedMaterialFromOSEntropy(\n          absl::MakeSpan(seed_material))) {\n    random_internal::ThrowSeedGenException();\n  }\n  for (size_t i = 0; i < kPoolSize; i++) {\n    shared_pools[i] = PoolAlignedAlloc();\n    shared_pools[i]->Init(\n        absl::MakeSpan(&seed_material[i * kSeedSize], kSeedSize));\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02784",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pool_urbg.cc",
+  "source_line": 209,
+  "validation_status": "validated"
+}

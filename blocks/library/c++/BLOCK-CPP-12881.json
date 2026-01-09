@@ -1,0 +1,8 @@
+{
+  "code": "{\n  LabelDecl *TheDecl;\n  Stmt *SubStmt;\n  bool SideEntry = false;\n\npublic:\n  /// Build a label statement.\n  LabelStmt(SourceLocation IL, LabelDecl *D, Stmt *substmt)\n      : ValueStmt(LabelStmtClass), TheDecl(D), SubStmt(substmt) {\n    setIdentLoc(IL);\n  }\n\n  /// Build an empty label statement.\n  explicit LabelStmt(EmptyShell Empty) : ValueStmt(LabelStmtClass, Empty) {}\n\n  SourceLocation getIdentLoc() const { return LabelStmtBits.IdentLoc; }\n  void setIdentLoc(SourceLocation L) { LabelStmtBits.IdentLoc = L; }\n\n  LabelDecl *getDecl() const { return TheDecl; }\n  void setDecl(LabelDecl *D) { TheDecl = D; }\n\n  const char *getName() const;\n  Stmt *getSubStmt() { return SubStmt; }\n\n  const Stmt *getSubStmt() const { return SubStmt; }\n  void setSubStmt(Stmt *SS) { SubStmt = SS; }\n\n  SourceLocation getBeginLoc() const { return getIdentLoc(); }\n  SourceLocation getEndLoc() const LLVM_READONLY { return SubStmt->getEndLoc();}\n\n  child_range children() { return child_range(&SubStmt, &SubStmt + 1); }\n\n  const_child_range children() const {\n    return const_child_range(&SubStmt, &SubStmt + 1);\n  }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == LabelStmtClass;\n  }\n  bool isSideEntry() const { return SideEntry; }\n  void setSideEntry(bool SE) { SideEntry = SE; }\n}",
+  "id": "BLOCK-CPP-12881",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Stmt.h",
+  "source_line": 1852,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n    Handler& handler;\n    int arg_id;\n\n    FMT_CONSTEXPR void operator()() { arg_id = handler.on_arg_id(); }\n    FMT_CONSTEXPR void operator()(int id) { arg_id = handler.on_arg_id(id); }\n    FMT_CONSTEXPR void operator()(basic_string_view<Char> id) {\n      arg_id = handler.on_arg_id(id);\n    }\n    FMT_CONSTEXPR void on_error(const char* message) {\n      if (message) handler.on_error(message);\n    }\n  }",
+  "id": "BLOCK-CPP-01150",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 2636,
+  "validation_status": "validated"
+}

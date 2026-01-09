@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06590_execute() {\n    {\n  CONSTEXPR_M fields(year_t year, month_t month, day_t day, hour_t hour,\n                     minute_t minute, second_t second)\n      : y(year), m(month), d(day), hh(hour), mm(minute), ss(second) {}\n  std::int_least64_t y;\n  std::int_least8_t m;\n  std::int_least8_t d;\n  std::int_least8_t hh;\n  std::int_least8_t mm;\n  std::int_least8_t ss;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06590",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+  "source_line": 58,
+  "validation_status": "validated"
+}

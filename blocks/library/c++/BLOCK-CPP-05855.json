@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/traits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05855_execute() {\n    {\n  using result_type = typename URBG::result_type;\n  static_assert((URBG::max)() != (URBG::min)(), \"URBG range cannot be 0.\");\n  return ((URBG::max)() == (std::numeric_limits<result_type>::max)() &&\n          (URBG::min)() == std::numeric_limits<result_type>::lowest())\n             ? result_type{0}\n             : ((URBG::max)() - (URBG::min)() + result_type{1});\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05855",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/fast_uniform_bits.h",
+  "source_line": 41,
+  "validation_status": "validated"
+}

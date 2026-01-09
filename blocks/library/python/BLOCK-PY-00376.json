@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00376_execute() {\n    def visit_Getitem(self, node: nodes.Getitem, frame: Frame) -> None:\n        # slices bypass the environment getitem method.\n        if isinstance(node.arg, nodes.Slice):\n            self.visit(node.node, frame)\n            self.write(\"[\")\n            self.visit(node.arg, frame)\n            self.write(\"]\")\n        else:\n            if self.environment.is_async:\n                self.write(\"(await auto_await(\")\n\n            self.write(\"environment.getitem(\")\n            self.visit(node.node, frame)\n            self.write(\", \")\n            self.visit(node.arg, frame)\n            self.write(\")\")\n\n            if self.environment.is_async:\n                self.write(\"))\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00376",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1758,
+  "validation_status": "validated"
+}

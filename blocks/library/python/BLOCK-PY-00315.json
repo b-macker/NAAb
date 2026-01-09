@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00315_execute() {\n    def blockvisit(self, nodes: t.Iterable[nodes.Node], frame: Frame) -> None:\n        \"\"\"Visit a list of nodes as block in a frame.  If the current frame\n        is no buffer a dummy ``if 0: yield None`` is written automatically.\n        \"\"\"\n        try:\n            self.writeline(\"pass\")\n            for node in nodes:\n                self.visit(node, frame)\n        except CompilerExit:\n            pass\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00315",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 440,
+  "validation_status": "validated"
+}

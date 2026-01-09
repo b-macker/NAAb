@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00206_execute() {\n    { overrun_counter_ = 0; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00206",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/circular_q.h",
+  "source_line": 95,
+  "validation_status": "validated"
+}

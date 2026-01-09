@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00551_execute() {\n    def from_configuration(\n        cls, *, check: bool, diff: bool, color: bool = False\n    ) -> \"WriteBack\":\n        if check and not diff:\n            return cls.CHECK\n\n        if diff and color:\n            return cls.COLOR_DIFF\n\n        return cls.DIFF if diff else cls.YES\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00551",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 99,
+  "validation_status": "validated"
+}

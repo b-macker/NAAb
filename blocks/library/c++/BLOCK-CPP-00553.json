@@ -1,0 +1,8 @@
+{
+  "code": "{\n  struct dispatcher {\n    std::time_t time_;\n    std::tm tm_;\n\n    dispatcher(std::time_t t) : time_(t) {}\n\n    bool run() {\n      using namespace fmt::detail;\n      return handle(localtime_r(&time_, &tm_));\n    }\n\n    bool handle(std::tm* tm) { return tm != nullptr; }\n\n    bool handle(detail::null<>) {\n      using namespace fmt::detail;\n      return fallback(localtime_s(&tm_, &time_));\n    }\n\n    bool fallback(int res) { return res == 0; }\n\n#if !FMT_MSC_VERSION\n    bool fallback(detail::null<>) {\n      using namespace fmt::detail;\n      std::tm* tm = std::localtime(&time_);\n      if (tm) tm_ = *tm;\n      return tm != nullptr;\n    }\n#endif\n  };\n  dispatcher lt(time);\n  // Too big time values may be unsupported.\n  if (!lt.run()) FMT_THROW(format_error(\"time_t value out of range\"));\n  return lt.tm_;\n}",
+  "id": "BLOCK-CPP-00553",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 451,
+  "validation_status": "validated"
+}

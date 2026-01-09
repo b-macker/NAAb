@@ -1,0 +1,8 @@
+{
+  "code": "#include <fstream>\n#include <ostream>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01504_execute() {\n    {\n  auto buffer = basic_memory_buffer<Char>();\n  detail::vformat_to(buffer, format_str, args);\n  if (detail::write_ostream_unicode(os, {buffer.data(), buffer.size()})) return;\n  detail::write_buffer(os, buffer);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01504",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ostream.h",
+  "source_line": 199,
+  "validation_status": "validated"
+}

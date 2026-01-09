@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01187_execute() {\n    {\n    return static_cast<uint32_t>(cache >> (64 - 1 - beta));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01187",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 346,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <thread>\n#include <type_traits>\n#include <utility>\n#include \"ostream.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01589_execute() {\n    {\n  write_escaped_string<Char>(std::back_inserter(quoted), p.string<Char>());\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01589",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/std.h",
+  "source_line": 35,
+  "validation_status": "validated"
+}

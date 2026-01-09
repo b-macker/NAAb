@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    using DeclsTy = SmallVector<NamedDecl *, 2>;\n\n    DeclsTy::iterator decls_begin() { return Decls.begin(); }\n    DeclsTy::iterator decls_end() { return Decls.end(); }\n\n    void AddDecl(NamedDecl *D) { Decls.push_back(D); }\n\n    /// RemoveDecl - Remove the decl from the scope chain.\n    /// The decl must already be part of the decl chain.\n    void RemoveDecl(NamedDecl *D);\n\n    /// Insert the given declaration at the given position in the list.\n    void InsertDecl(DeclsTy::iterator Pos, NamedDecl *D) {\n      Decls.insert(Pos, D);\n    }\n\n  private:\n    DeclsTy Decls;\n  }",
+  "id": "BLOCK-CPP-19796",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/IdentifierResolver.h",
+  "source_line": 43,
+  "validation_status": "validated"
+}

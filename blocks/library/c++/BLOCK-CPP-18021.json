@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/Lex/MacroInfo.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <vector>\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18021_execute() {\n    {\n    std::string Spelling;\n    FragmentKind Kind;\n\n    /// The USR of the fragment symbol, if applicable.\n    std::string PreciseIdentifier;\n\n    /// The associated declaration, if applicable. This is not intended to be\n    /// used outside of libclang.\n    const Decl *Declaration;\n\n    Fragment(StringRef Spelling, FragmentKind Kind, StringRef PreciseIdentifier,\n             const Decl *Declaration)\n        : Spelling(Spelling), Kind(Kind), PreciseIdentifier(PreciseIdentifier),\n          Declaration(Declaration) {}\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18021",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/DeclarationFragments.h",
+  "source_line": 83,
+  "validation_status": "validated"
+}

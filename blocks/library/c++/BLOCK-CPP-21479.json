@@ -1,0 +1,8 @@
+{
+  "code": "{\n  LExpr *Exp;\n\npublic:\n  Not(LExpr *Exp) : LExpr(LExpr::Not), Exp(Exp) {}\n\n  const LExpr *exp() const { return Exp; }\n  LExpr *exp() { return Exp; }\n\n  static bool classof(const LExpr *E) { return E->kind() == LExpr::Not; }\n}",
+  "id": "BLOCK-CPP-21479",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyLogical.h",
+  "source_line": 82,
+  "validation_status": "validated"
+}

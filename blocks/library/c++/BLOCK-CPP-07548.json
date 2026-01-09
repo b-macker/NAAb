@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/Alignment.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/MathExtras.h\"\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07548_execute() {\n    {\n    return LHS == RHS;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07548",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CharUnits.h",
+  "source_line": 252,
+  "validation_status": "validated"
+}

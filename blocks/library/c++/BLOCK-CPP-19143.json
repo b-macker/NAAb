@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/BitmaskEnum.h\"\n#include \"clang/Basic/FileEntry.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Lex/DependencyDirectivesScanner.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include <functional>\n#include <map>\n#include <memory>\n#include <optional>\n#include <set>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19143_execute() {\n    {\n  /// Perform validation, don't disable it.\n  None = 0,\n\n  /// Disable validation for a precompiled header and the modules it depends on.\n  PCH = 0x1,\n\n  /// Disable validation for module files.\n  Module = 0x2,\n\n  /// Disable validation for all kinds.\n  All = PCH | Module,\n\n  LLVM_MARK_AS_BITMASK_ENUM(Module)\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19143",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PreprocessorOptions.h",
+  "source_line": 48,
+  "validation_status": "validated"
+}

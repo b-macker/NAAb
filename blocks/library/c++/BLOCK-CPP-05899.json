@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstdint>\n#include <iterator>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include \"absl/base/macros.h\"\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/pool_urbg.h\"\n#include \"absl/random/internal/salted_seed_seq.h\"\n#include \"absl/random/internal/seed_material.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05899_execute() {\n    {\n      using U = typename std::iterator_traits<RandomAccessIterator>::value_type;\n      // ContiguousTag indicates the common case of a known contiguous buffer,\n      // which allows directly filling the buffer. In C++20,\n      // std::contiguous_iterator_tag provides a mechanism for testing this\n      // capability, however until Abseil's support requirements allow us to\n      // assume C++20, limit checks to a few common cases.\n      using TagType = absl::conditional_t<\n          (std::is_pointer<RandomAccessIterator>::value ||\n           std::is_same<RandomAccessIterator,\n                        typename std::vector<U>::iterator>::value),\n          ContiguousTag, BufferTag>;\n\n      generate_impl(TagType{}, begin, end);\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05899",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/nonsecure_base.h",
+  "source_line": 74,
+  "validation_status": "validated"
+}

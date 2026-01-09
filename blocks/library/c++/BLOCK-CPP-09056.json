@@ -1,0 +1,8 @@
+{
+  "code": "{\n  ObjCAtDefsFieldDecl(DeclContext *DC, SourceLocation StartLoc,\n                      SourceLocation IdLoc, IdentifierInfo *Id,\n                      QualType T, Expr *BW)\n      : FieldDecl(ObjCAtDefsField, DC, StartLoc, IdLoc, Id, T,\n                  /*TInfo=*/nullptr, // FIXME: Do ObjCAtDefs have declarators ?\n                  BW, /*Mutable=*/false, /*HasInit=*/ICIS_NoInit) {}\n\n  void anchor() override;\n\npublic:\n  static ObjCAtDefsFieldDecl *Create(ASTContext &C, DeclContext *DC,\n                                     SourceLocation StartLoc,\n                                     SourceLocation IdLoc, IdentifierInfo *Id,\n                                     QualType T, Expr *BW);\n\n  static ObjCAtDefsFieldDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == ObjCAtDefsField; }\n}",
+  "id": "BLOCK-CPP-09056",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclObjC.h",
+  "source_line": 2016,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/APFixedPoint.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/APSInt.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/Support/AlignOf.h\"\n\nusing namespace clang;\nusing namespace serialization;\nusing namespace serialization;\nusing namespace llvm;\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22664_execute() {\n    {\ntemplate<> struct DenseMapInfo<clang::APValue::LValueBase> {\n  static clang::APValue::LValueBase getEmptyKey();\n  static clang::APValue::LValueBase getTombstoneKey();\n  static unsigned getHashValue(const clang::APValue::LValueBase &Base);\n  static bool isEqual(const clang::APValue::LValueBase &LHS,\n                      const clang::APValue::LValueBase &RHS);\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22664",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/APValue.h",
+  "source_line": 696,
+  "validation_status": "validated"
+}

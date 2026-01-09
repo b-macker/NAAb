@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/hash/internal/city.h\"\n#include <string.h>  // for memcpy and memset\n#include <algorithm>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02660_execute() {\n    {\n  uint32_t a = static_cast<uint32_t>(len), b = a * 5, c = 9, d = b;\n  a += Fetch32(s);\n  b += Fetch32(s + len - 4);\n  c += Fetch32(s + ((len >> 1) & 4));\n  return fmix(Mur(c, Mur(b, Mur(a, d))));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02660",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/city.cc",
+  "source_line": 116,
+  "validation_status": "validated"
+}

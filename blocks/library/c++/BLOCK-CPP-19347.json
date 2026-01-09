@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Availability.h\"\n#include \"clang/Basic/BitmaskEnum.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/OperatorPrecedence.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Lex/CodeCompletionHandler.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Frontend/OpenMP/OMPContext.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/PrettyStackTrace.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n#include <memory>\n#include <optional>\n#include <stack>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19347_execute() {\n    {\n    /// This appears to be a lambda-introducer, which has been fully parsed.\n    Success,\n    /// This is a lambda-introducer, but has not been fully parsed, and this\n    /// function needs to be called again to parse it.\n    Incomplete,\n    /// This is definitely an Objective-C message send expression, rather than\n    /// a lambda-introducer, attribute-specifier, or array designator.\n    MessageSend,\n    /// This is not a lambda-introducer.\n    Invalid,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19347",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
+  "source_line": 1917,
+  "validation_status": "validated"
+}

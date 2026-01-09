@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Option/OptSpecifier.h\"\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17824_execute() {\n    {\n\nnamespace opt {\n\nclass ArgList;\n\n} // namespace opt\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17824",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/OptionUtils.h",
+  "source_line": 20,
+  "validation_status": "validated"
+}

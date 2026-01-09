@@ -1,0 +1,8 @@
+{
+  "code": "{\n    public:\n      static inline WeakObjectProfileTy getEmptyKey() {\n        return WeakObjectProfileTy();\n      }\n\n      static inline WeakObjectProfileTy getTombstoneKey() {\n        return WeakObjectProfileTy::getSentinel();\n      }\n\n      static unsigned getHashValue(const WeakObjectProfileTy &Val) {\n        using Pair = std::pair<BaseInfoTy, const NamedDecl *>;\n\n        return llvm::DenseMapInfo<Pair>::getHashValue(Pair(Val.Base,\n                                                           Val.Property));\n      }\n\n      static bool isEqual(const WeakObjectProfileTy &LHS,\n                          const WeakObjectProfileTy &RHS) {\n        return LHS == RHS;\n      }\n    }",
+  "id": "BLOCK-CPP-20301",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ScopeInfo.h",
+  "source_line": 319,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ninline bool isTrivial(const SExpr *E) {\n  TIL_Opcode Op = E->opcode();\n  return Op == COP_Variable || Op == COP_Literal || Op == COP_LiteralPtr;\n}\n\n}",
+  "id": "BLOCK-CPP-21681",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 332,
+  "validation_status": "validated"
+}

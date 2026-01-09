@@ -1,0 +1,8 @@
+{
+  "code": "{\n  size_t printed = 0;\n  if (digits) {\n    for (; digits; digits /= 10) out->push_front(digits % 10 + '0');\n    printed = out->size();\n    if (mode == FormatStyle::Precision) {\n      out->push_front(*out->begin);\n      out->begin[1] = '.';\n    } else {\n      out->push_back('.');\n    }\n  } else if (mode == FormatStyle::Fixed) {\n    out->push_front('0');\n    out->push_back('.');\n    printed = 1;\n  }\n  return printed;\n}",
+  "id": "BLOCK-CPP-03086",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
+  "source_line": 1139,
+  "validation_status": "validated"
+}

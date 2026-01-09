@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22071_execute() {\n    {\n    assert(I >= Begin && I <= End && \"Iterator out of bounds.\");\n    if (End + Cnt <= Capacity) {\n    Retry:\n      move_range_right(I, End, Cnt);\n      construct_range(I, I + Cnt, E);\n      End += Cnt;\n      return I + Cnt;\n    }\n    ptrdiff_t D = I - Begin;\n    grow(C, size() + Cnt);\n    I = Begin + D;\n    goto Retry;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22071",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Support/BumpVector.h",
+  "source_line": 181,
+  "validation_status": "validated"
+}

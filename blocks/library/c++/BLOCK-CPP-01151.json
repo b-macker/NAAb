@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01151_execute() {\n    {\n    FMT_CONSTEXPR void operator()(const Char* from, const Char* to) {\n      if (from == to) return;\n      for (;;) {\n        const Char* p = nullptr;\n        if (!find<IS_CONSTEXPR>(from, to, Char('}'), p))\n          return handler_.on_text(from, to);\n        ++p;\n        if (p == to || *p != '}')\n          return handler_.on_error(\"unmatched '}' in format string\");\n        handler_.on_text(from, p);\n        from = p + 1;\n      }\n    }\n    Handler& handler_;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01151",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 2699,
+  "validation_status": "validated"
+}

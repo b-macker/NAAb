@@ -1,0 +1,8 @@
+{
+  "code": "{\n  template <typename CHECKER>\n  static void _checkEvent(void *checker, const void *event) {\n    ((const CHECKER *)checker)->checkEvent(*(const EVENT *)event);\n  }\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerListenerForEvent<EVENT>(\n                 CheckerManager::CheckEventFunc(checker, _checkEvent<CHECKER>));\n  }\n}",
+  "id": "BLOCK-CPP-22317",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 439,
+  "validation_status": "validated"
+}

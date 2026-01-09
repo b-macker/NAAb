@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdio>\n#include <cstring>\n#include <initializer_list>\n#include <iterator>\n#include <string>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/macros.h\"\n#include \"absl/strings/internal/str_join_internal.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04173_execute() {\n    {\n  return strings_internal::JoinRange(start, end, separator);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04173",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_join.h",
+  "source_line": 262,
+  "validation_status": "validated"
+}

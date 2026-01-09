@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CommentOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangStandard.h\"\n#include \"clang/Basic/ObjCRuntime.h\"\n#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/TargetCXXABI.h\"\n#include \"clang/Basic/Visibility.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <optional>\n#include <string>\n#include <vector>\n#include \"clang/Basic/LangOptions.def\"\n#include \"clang/Basic/LangOptions.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16562_execute() {\n    {\n    /// Any trailing array member is a FAM.\n    Default = 0,\n    /// Any trailing array member of undefined, 0, or 1 size is a FAM.\n    OneZeroOrIncomplete = 1,\n    /// Any trailing array member of undefined or 0 size is a FAM.\n    ZeroOrIncomplete = 2,\n    /// Any trailing array member of undefined size is a FAM.\n    IncompleteOnly = 3,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16562",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/LangOptions.h",
+  "source_line": 372,
+  "validation_status": "validated"
+}

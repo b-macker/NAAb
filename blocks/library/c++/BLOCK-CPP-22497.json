@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <climits>\n#include <optional>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace api_notes;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22497_execute() {\n    {\n    SwiftPrivateSpecified = Private.has_value();\n    SwiftPrivate = Private.value_or(0);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22497",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/APINotes/Types.h",
+  "source_line": 82,
+  "validation_status": "validated"
+}

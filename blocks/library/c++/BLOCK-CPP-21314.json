@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21314_execute() {\n    {\n  IfThen,\n  IfElse,\n  Switch,\n  SwitchSkipped,\n  LoopEntered,\n  LoopSkipped,\n  FallbackReason,\n  LARGEST_VALUE = FallbackReason\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21314",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/CalledOnceCheck.h",
+  "source_line": 36,
+  "validation_status": "validated"
+}

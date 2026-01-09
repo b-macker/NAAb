@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstddef>\n#include <string>\n#include <type_traits>\n#include \"absl/algorithm/algorithm.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace span_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06642_execute() {\n    {\n  static_assert(std::is_const<T>::value, \"\");\n  return std::equal(a.begin(), a.end(), b.begin(), b.end());\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06642",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/span.h",
+  "source_line": 89,
+  "validation_status": "validated"
+}

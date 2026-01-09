@@ -1,0 +1,8 @@
+{
+  "code": "{\n  constexpr error_handler() = default;\n  constexpr error_handler(const error_handler&) = default;\n\n  // This function is intentionally not constexpr to give a compile-time error.\n  FMT_NORETURN void on_error(const char* message) {\n    throw_format_error(message);\n  }\n}",
+  "id": "BLOCK-CPP-01130",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 632,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <chrono>\n#include <cstdint>\n#include <memory>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06497_execute() {\n    {\n public:\n  // Factory functions for TimeZoneIf implementations.\n  static std::unique_ptr<TimeZoneIf> UTC();  // never fails\n  static std::unique_ptr<TimeZoneIf> Make(const std::string& name);\n\n  virtual ~TimeZoneIf();\n\n  virtual time_zone::absolute_lookup BreakTime(\n      const time_point<seconds>& tp) const = 0;\n  virtual time_zone::civil_lookup MakeTime(const civil_second& cs) const = 0;\n\n  virtual bool NextTransition(const time_point<seconds>& tp,\n                              time_zone::civil_transition* trans) const = 0;\n  virtual bool PrevTransition(const time_point<seconds>& tp,\n                              time_zone::civil_transition* trans) const = 0;\n\n  virtual std::string Version() const = 0;\n  virtual std::string Description() const = 0;\n\n protected:\n  TimeZoneIf() = default;\n  TimeZoneIf(const TimeZoneIf&) = delete;\n  TimeZoneIf& operator=(const TimeZoneIf&) = delete;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06497",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_if.h",
+  "source_line": 34,
+  "validation_status": "validated"
+}

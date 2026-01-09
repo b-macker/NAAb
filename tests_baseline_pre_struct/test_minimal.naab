@@ -1,0 +1,4 @@
+print("Before logical test")
+let x = true && false
+print("After logical test")
+print(x)

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00440_execute() {\n    class _FilterTestCommon(Expr):\n    fields = (\"node\", \"name\", \"args\", \"kwargs\", \"dyn_args\", \"dyn_kwargs\")\n    node: Expr\n    name: str\n    args: list[Expr]\n    kwargs: list[Pair]\n    dyn_args: Expr | None\n    dyn_kwargs: Expr | None\n    abstract = True\n    _is_filter = True\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        eval_ctx = get_eval_context(self, eval_ctx)\n\n        if eval_ctx.volatile:\n            raise Impossible()\n\n        if self._is_filter:\n            env_map = eval_ctx.environment.filters\n        else:\n            env_map = eval_ctx.environment.tests\n\n        func = env_map.get(self.name)\n        pass_arg = _PassArg.from_obj(func)  # type: ignore\n\n        if func is None or pass_arg is _PassArg.context:\n            raise Impossible()\n\n        if eval_ctx.environment.is_async and (\n            getattr(func, \"jinja_async_variant\", False) is True\n            or inspect.iscoroutinefunction(func)\n        ):\n            raise Impossible()\n\n        args, kwargs = args_as_const(self, eval_ctx)\n        args.insert(0, self.node.as_const(eval_ctx))\n\n        if pass_arg is _PassArg.eval_context:\n            args.insert(0, eval_ctx)\n        elif pass_arg is _PassArg.environment:\n            args.insert(0, eval_ctx.environment)\n\n        try:\n            return func(*args, **kwargs)\n        except Exception as e:\n            raise Impossible() from e\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00440",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 735,
+  "validation_status": "validated"
+}

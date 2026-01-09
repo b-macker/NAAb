@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/sinks/base_sink.h>\n#include <mutex>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00431_execute() {\n    {\nnamespace sinks {\n\ntemplate <typename Mutex>\nclass null_sink : public base_sink<Mutex> {\nprotected:\n    void sink_it_(const details::log_msg &) override {}\n    void flush_() override {}\n};\n\nusing null_sink_mt = null_sink<details::null_mutex>;\nusing null_sink_st = null_sink<details::null_mutex>;\n\n}  // namespace sinks\n\ntemplate <typename Factory = spdlog::synchronous_factory>\ninline std::shared_ptr<logger> null_logger_mt(const std::string &logger_name) {\n    auto null_logger = Factory::template create<sinks::null_sink_mt>(logger_name);\n    null_logger->set_level(level::off);\n    return null_logger;\n}\n\ntemplate <typename Factory = spdlog::synchronous_factory>\ninline std::shared_ptr<logger> null_logger_st(const std::string &logger_name) {\n    auto null_logger = Factory::template create<sinks::null_sink_st>(logger_name);\n    null_logger->set_level(level::off);\n    return null_logger;\n}\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00431",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/null_sink.h",
+  "source_line": 12,
+  "validation_status": "validated"
+}

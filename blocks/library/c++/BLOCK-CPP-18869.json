@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Lex/PPCallbacks.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18869_execute() {\n    {\n    return findConditionalDirectiveRegionLoc(LHS) !=\n        findConditionalDirectiveRegionLoc(RHS);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18869",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PPConditionalDirectiveRecord.h",
+  "source_line": 79,
+  "validation_status": "validated"
+}

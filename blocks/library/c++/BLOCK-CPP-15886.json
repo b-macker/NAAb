@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  ImplicitCallPoint(const Decl *D, SourceLocation Loc, Kind K,\n                    const LocationContext *L, const ProgramPointTag *Tag,\n                    CFGBlock::ConstCFGElementRef ElemRef)\n      : ProgramPoint(Loc.getPtrEncoding(), D, K, L, Tag, ElemRef) {}\n\n  const Decl *getDecl() const { return static_cast<const Decl *>(getData2()); }\n  SourceLocation getLocation() const {\n    return SourceLocation::getFromPtrEncoding(getData1());\n  }\n\nprotected:\n  ImplicitCallPoint() = default;\nprivate:\n  friend class ProgramPoint;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() >= MinImplicitCallKind &&\n           Location.getKind() <= MaxImplicitCallKind;\n  }\n}",
+  "id": "BLOCK-CPP-15886",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 554,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05768_execute() {\n    {\n  return value < 128 ? 1 : 1 + VarintSize(value >> 7);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05768",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/proto.h",
+  "source_line": 188,
+  "validation_status": "validated"
+}

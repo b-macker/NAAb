@@ -1,0 +1,8 @@
+{
+  "code": "// This file provides common API and #includes for the internal\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/Sema/Lookup.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"clang/Sema/SemaDiagnostic.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20635_execute() {\n    {\n  return FTI.NumParams == 1 && !FTI.isVariadic &&\n         FTI.Params[0].Ident == nullptr && FTI.Params[0].Param &&\n         cast<ParmVarDecl>(FTI.Params[0].Param)->getType()->isVoidType();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20635",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaInternal.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

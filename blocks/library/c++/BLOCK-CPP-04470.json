@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include <compare>  // IWYU pragma: export\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include <cstddef>\n#include <cstdint>\n#include <cstdlib>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace compare_internal;\nusing namespace compare_internal;\nusing namespace compare_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04470_execute() {\n    {\n  return c;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04470",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/compare.h",
+  "source_line": 475,
+  "validation_status": "validated"
+}

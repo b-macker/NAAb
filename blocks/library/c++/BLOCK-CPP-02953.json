@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/stringify_sink.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02953_execute() {\n    {\n\nvoid StringifySink::Append(size_t count, char ch) { buffer_.append(count, ch); }\n\nvoid StringifySink::Append(string_view v) {\n  buffer_.append(v.data(), v.size());\n}\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02953",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/stringify_sink.cc",
+  "source_line": 18,
+  "validation_status": "validated"
+}

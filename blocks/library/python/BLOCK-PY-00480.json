@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00480_execute() {\n    def revert(self, old: t.Mapping[str, t.Any]) -> None:\n        self.__dict__.clear()\n        self.__dict__.update(old)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00480",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 89,
+  "validation_status": "validated"
+}

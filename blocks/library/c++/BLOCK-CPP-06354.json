@@ -1,0 +1,8 @@
+{
+  "code": "{\n  // This is a user defined default constructor on purpose to skip the\n  // initialization of parts of the object that are not necessary.\n  UnboundConversion() {}  // NOLINT\n\n  // This constructor is provided for the static checker. We don't want to do\n  // the unnecessary initialization in the normal case.\n  explicit constexpr UnboundConversion(absl::ConstInitType)\n      : arg_position{}, width{}, precision{} {}\n\n  class InputValue {\n   public:\n    constexpr void set_value(int value) {\n      assert(value >= 0);\n      value_ = value;\n    }\n    constexpr int value() const { return value_; }\n\n    // Marks the value as \"from arg\". aka the '*' format.\n    // Requires `value >= 1`.\n    // When set, is_from_arg() return true and get_from_arg() returns the\n    // original value.\n    // `value()`'s return value is unspecified in this state.\n    constexpr void set_from_arg(int value) {\n      assert(value > 0);\n      value_ = -value - 1;\n    }\n    constexpr bool is_from_arg() const { return value_ < -1; }\n    constexpr int get_from_arg() const {\n      assert(is_from_arg());\n      return -value_ - 1;\n    }\n\n   private:\n    int value_ = -1;\n  };\n\n  // No need to initialize. It will always be set in the parser.\n  int arg_position;\n\n  InputValue width;\n  InputValue precision;\n\n  Flags flags = Flags::kBasic;\n  LengthMod length_mod = LengthMod::none;\n  FormatConversionChar conv = FormatConversionCharInternal::kNone;\n}",
+  "id": "BLOCK-CPP-06354",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/constexpr_parser.h",
+  "source_line": 33,
+  "validation_status": "validated"
+}

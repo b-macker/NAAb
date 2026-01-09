@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Error.h\"\n#include <memory>\n#include <utility>\n\nusing namespace llvm;\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21011_execute() {\n    {\n    ModuleInfo() : File(), Size(), ModTime() { }\n\n    /// The module file, once it has been resolved.\n    ModuleFile *File;\n\n    /// The module file name.\n    std::string FileName;\n\n    /// Size of the module file at the time the global index was built.\n    off_t Size;\n\n    /// Modification time of the module file at the time the global\n    /// index was built.\n    time_t ModTime;\n\n    /// The module IDs on which this module directly depends.\n    /// FIXME: We don't really need a vector here.\n    llvm::SmallVector<unsigned, 4> Dependencies;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21011",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/GlobalModuleIndex.h",
+  "source_line": 69,
+  "validation_status": "validated"
+}

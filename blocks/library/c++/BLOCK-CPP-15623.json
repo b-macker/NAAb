@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/StmtVisitor.h\"\n#include \"llvm/Support/Regex.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15623_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15623",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CloneDetection.h",
+  "source_line": 280,
+  "validation_status": "validated"
+}

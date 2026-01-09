@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/AttrSubjectMatchRules.h\"\n#include \"clang/Basic/AttributeCommonInfo.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/ParsedAttrInfo.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <utility>\n\nusing namespace clang;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20158_execute() {\n    {\n  AvailabilityChange Changes[NumAvailabilitySlots];\n  SourceLocation StrictLoc;\n  const Expr *Replacement;\n\n  AvailabilityData(const AvailabilityChange &Introduced,\n                   const AvailabilityChange &Deprecated,\n                   const AvailabilityChange &Obsoleted,\n                   SourceLocation Strict, const Expr *ReplaceExpr)\n    : StrictLoc(Strict), Replacement(ReplaceExpr) {\n    Changes[IntroducedSlot] = Introduced;\n    Changes[DeprecatedSlot] = Deprecated;\n    Changes[ObsoletedSlot] = Obsoleted;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20158",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ParsedAttr.h",
+  "source_line": 66,
+  "validation_status": "validated"
+}

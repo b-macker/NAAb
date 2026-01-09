@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00394_execute() {\n    def visit_Scope(self, node: nodes.Scope, frame: Frame) -> None:\n        scope_frame = frame.inner()\n        scope_frame.symbols.analyze_node(node)\n        self.enter_frame(scope_frame)\n        self.blockvisit(node.body, scope_frame)\n        self.leave_frame(scope_frame)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00394",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1948,
+  "validation_status": "validated"
+}

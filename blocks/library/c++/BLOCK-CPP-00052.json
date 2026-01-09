@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/backtracer.h>\n#include <spdlog/details/log_msg.h>\n    #include <spdlog/details/os.h>\n#include <vector>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00052_execute() {\n    { log(source_loc{}, lvl, msg); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00052",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/logger.h",
+  "source_line": 198,
+  "validation_status": "validated"
+}

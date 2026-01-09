@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17536_execute() {\n    {\n  virtual void anchor();\npublic:\n  EmitCodeGenOnlyAction(llvm::LLVMContext *_VMContext = nullptr);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17536",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CodeGenAction.h",
+  "source_line": 113,
+  "validation_status": "validated"
+}

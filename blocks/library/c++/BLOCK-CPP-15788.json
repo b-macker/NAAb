@@ -1,0 +1,8 @@
+{
+  "code": "{\nprivate:\n  PathDiagnosticLocation Pos;\n\npublic:\n  PathDiagnosticSpotPiece(const PathDiagnosticLocation &pos,\n                          StringRef s,\n                          PathDiagnosticPiece::Kind k,\n                          bool addPosRange = true)\n      : PathDiagnosticPiece(s, k), Pos(pos) {\n    assert(Pos.isValid() && Pos.hasValidLocation() &&\n           \"PathDiagnosticSpotPiece's must have a valid location.\");\n    if (addPosRange && Pos.hasRange()) addRange(Pos.asRange());\n  }\n\n  PathDiagnosticLocation getLocation() const override { return Pos; }\n  void flattenLocations() override { Pos.flatten(); }\n\n  void Profile(llvm::FoldingSetNodeID &ID) const override;\n\n  static bool classof(const PathDiagnosticPiece *P) {\n    return P->getKind() == Event || P->getKind() == Macro ||\n           P->getKind() == Note || P->getKind() == PopUp;\n  }\n}",
+  "id": "BLOCK-CPP-15788",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/PathDiagnostic.h",
+  "source_line": 508,
+  "validation_status": "validated"
+}

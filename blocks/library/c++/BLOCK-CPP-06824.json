@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/ARCMigrate/FileRemapper.h\"\n#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n\nusing namespace clang;\nusing namespace arcmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06824_execute() {\n    {\n  std::string MigrateDir;\n  unsigned    ObjCMigAction;\n  FileRemapper Remapper;\n  CompilerInstance *CompInst;\npublic:\n  ObjCMigrateAction(std::unique_ptr<FrontendAction> WrappedAction,\n                    StringRef migrateDir, unsigned migrateAction);\n\nprotected:\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override;\n  bool BeginInvocation(CompilerInstance &CI) override;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06824",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ARCMigrate/ARCMTActions.h",
+  "source_line": 58,
+  "validation_status": "validated"
+}

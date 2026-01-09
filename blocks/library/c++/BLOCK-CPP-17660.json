@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Driver/Types.h\"\n#include \"clang/Driver/Util.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <string>\n\nusing namespace llvm;\nusing namespace opt;\nusing namespace opt;\nusing namespace llvm;\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17660_execute() {\n    { getInputs().push_back(Input); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17660",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
+  "source_line": 448,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15958_execute() {\n    {\n  return (unsigned)AS >= (unsigned)LangAS::FirstTargetAddressSpace;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15958",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AddressSpaces.h",
+  "source_line": 77,
+  "validation_status": "validated"
+}

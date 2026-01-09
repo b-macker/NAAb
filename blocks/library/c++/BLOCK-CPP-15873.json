@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  PostStmt() = default;\n  PostStmt(const Stmt *S, const void *data, Kind k, const LocationContext *L,\n           const ProgramPointTag *tag = nullptr)\n    : StmtPoint(S, data, k, L, tag) {}\n\npublic:\n  explicit PostStmt(const Stmt *S, Kind k, const LocationContext *L,\n                    const ProgramPointTag *tag = nullptr)\n    : StmtPoint(S, nullptr, k, L, tag) {}\n\n  explicit PostStmt(const Stmt *S, const LocationContext *L,\n                    const ProgramPointTag *tag = nullptr)\n    : StmtPoint(S, nullptr, PostStmtKind, L, tag) {}\n\nprivate:\n  friend class ProgramPoint;\n  static bool isKind(const ProgramPoint &Location) {\n    unsigned k = Location.getKind();\n    return k >= MinPostStmtKind && k <= MaxPostStmtKind;\n  }\n}",
+  "id": "BLOCK-CPP-15873",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 306,
+  "validation_status": "validated"
+}

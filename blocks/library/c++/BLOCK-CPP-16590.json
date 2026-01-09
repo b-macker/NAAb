@@ -1,0 +1,8 @@
+{
+  "code": "#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16590_execute() {\n    {\n  if (L2 == VisibleNoLinkage)\n    std::swap(L1, L2);\n  if (L1 == VisibleNoLinkage) {\n    if (L2 == InternalLinkage)\n      return NoLinkage;\n    if (L2 == UniqueExternalLinkage)\n      return NoLinkage;\n  }\n  return L1 < L2 ? L1 : L2;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16590",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Linkage.h",
+  "source_line": 113,
+  "validation_status": "validated"
+}

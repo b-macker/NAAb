@@ -1,0 +1,8 @@
+{
+  "code": "#include <fstream>\n#include <ostream>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01506_execute() {\n    {\n  vprint(os, fmt, fmt::make_format_args<buffer_context<wchar_t>>(args...));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01506",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ostream.h",
+  "source_line": 228,
+  "validation_status": "validated"
+}

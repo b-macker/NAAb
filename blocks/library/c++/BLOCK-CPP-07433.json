@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  StmtAttr(ASTContext &Context, const AttributeCommonInfo &CommonInfo,\n           attr::Kind AK, bool IsLateParsed)\n      : Attr(Context, CommonInfo, AK, IsLateParsed) {}\n\npublic:\n  static bool classof(const Attr *A) {\n    return A->getKind() >= attr::FirstStmtAttr &&\n           A->getKind() <= attr::LastStmtAttr;\n  }\n}",
+  "id": "BLOCK-CPP-07433",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Attr.h",
+  "source_line": 123,
+  "validation_status": "validated"
+}

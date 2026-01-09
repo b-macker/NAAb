@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <memory>\n#include <new>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n#include <sanitizer/asan_interface.h>\n#include <sanitizer/msan_interface.h>\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace memory_internal;\nusing namespace memory_internal;\nusing namespace memory_internal;\nusing namespace memory_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04973_execute() {\n    {\n    emplace(slot);\n    absl::allocator_traits<Allocator>::construct(*alloc, &slot->value,\n                                                 other->value);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04973",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/container_memory.h",
+  "source_line": 408,
+  "validation_status": "validated"
+}

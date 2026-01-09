@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/FlowSensitive/Formula.h\"\n#include \"clang/Analysis/FlowSensitive/Solver.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include <limits>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22044_execute() {\n    { return MaxIterations == 0; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22044",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/WatchedLiteralsSolver.h",
+  "source_line": 52,
+  "validation_status": "validated"
+}

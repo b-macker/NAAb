@@ -1,0 +1,8 @@
+{
+  "code": "#include <immintrin.h>\n#include <intrin.h>\n#include <array>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <memory>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/prefetch.h\"\n#include \"absl/crc/crc32c.h\"\n#include \"absl/crc/internal/cpu_detect.h\"\n#include \"absl/crc/internal/crc32_x86_arm_combined_simd.h\"\n#include \"absl/crc/internal/crc_memcpy.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02477_execute() {\n    {\n    crc32c_t crc =\n        ExtendCrc32c(initial_crc, absl::string_view(src_bytes, length));\n    memcpy(dst, src, length);\n    return crc;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02477",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_memcpy_x86_arm_combined.cc",
+  "source_line": 189,
+  "validation_status": "validated"
+}

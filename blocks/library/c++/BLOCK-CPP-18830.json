@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/DiagnosticIDs.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"clang/Lex/ModuleLoader.h\"\n#include \"clang/Lex/Pragma.h\"\n#include \"llvm/ADT/StringRef.h\"\n  /// \\param SkippedFile The file that is skipped instead of entering \\#include\n  /// \\param FilenameTok The file name token in \\#include \"FileName\" directive\n  /// or macro expanded file name token from \\#include MACRO(PARAMS) directive.\n  /// any kind (\\c \\#include, \\c \\#import, etc.) has been processed, regardless\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18830_execute() {\n    {\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18830",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PPCallbacks.h",
+  "source_line": 192,
+  "validation_status": "validated"
+}

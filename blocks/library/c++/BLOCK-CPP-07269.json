@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTFwd.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/LambdaCapture.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/AST/TypeLoc.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/AlignOf.h\"\n#include \"clang/AST/TypeLocNodes.def\"\n#include \"clang/AST/DeclNodes.inc\"\n#include \"clang/AST/StmtNodes.inc\"\n#include \"clang/AST/TypeNodes.inc\"\n#include \"llvm/Frontend/OpenMP/OMP.inc\"\n#include \"clang/Basic/AttrList.inc\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07269_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07269",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTTypeTraits.h",
+  "source_line": 170,
+  "validation_status": "validated"
+}

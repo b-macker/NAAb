@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cmath>\n#include <cstdint>\n#include <istream>\n#include <limits>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n#include \"absl/random/internal/generate_real.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03919_execute() {\n    { return param_.a(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03919",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/uniform_real_distribution.h",
+  "source_line": 126,
+  "validation_status": "validated"
+}

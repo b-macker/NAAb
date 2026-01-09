@@ -1,0 +1,21 @@
+// Simple test for map_fn
+
+use stdlib as stdlib;
+
+main {
+    print("Test starting...");
+
+    let numbers = [1, 2, 3];
+    print("Created array");
+
+    function double(x) {
+        print("In double: " + x);
+        return x * 2;
+    }
+
+    print("About to call map_fn");
+    let doubled = stdlib.map_fn(numbers, double);
+    print("Map completed");
+
+    print("Result: " + stdlib.join_arr(doubled, ", "));
+}

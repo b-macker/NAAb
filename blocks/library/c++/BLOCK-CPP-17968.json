@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include <tuple>\n\nusing namespace clang;\nusing namespace edit;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17968_execute() {\n    {\n\nclass FileOffset {\n  FileID FID;\n  unsigned Offs = 0;\n\npublic:\n  FileOffset() = default;\n  FileOffset(FileID fid, unsigned offs) : FID(fid), Offs(offs) {}\n\n  bool isInvalid() const { return FID.isInvalid(); }\n\n  FileID getFID() const { return FID; }\n  unsigned getOffset() const { return Offs; }\n\n  FileOffset getWithOffset(unsigned offset) const {\n    FileOffset NewOffs = *this;\n    NewOffs.Offs += offset;\n    return NewOffs;\n  }\n\n  friend bool operator==(FileOffset LHS, FileOffset RHS) {\n    return LHS.FID == RHS.FID && LHS.Offs == RHS.Offs;\n  }\n\n  friend bool operator!=(FileOffset LHS, FileOffset RHS) {\n    return !(LHS == RHS);\n  }\n\n  friend bool operator<(FileOffset LHS, FileOffset RHS) {\n    return std::tie(LHS.FID, LHS.Offs) < std::tie(RHS.FID, RHS.Offs);\n  }\n\n  friend bool operator>(FileOffset LHS, FileOffset RHS) {\n    return RHS < LHS;\n  }\n\n  friend bool operator>=(FileOffset LHS, FileOffset RHS) {\n    return !(LHS < RHS);\n  }\n\n  friend bool operator<=(FileOffset LHS, FileOffset RHS) {\n    return !(RHS < LHS);\n  }\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17968",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Edit/FileOffset.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

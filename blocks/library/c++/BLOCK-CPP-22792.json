@@ -1,0 +1,8 @@
+{
+  "code": "{\n    TemplateTemplateParmDecl *Parm;\n\n  public:\n    CanonicalTemplateTemplateParm(TemplateTemplateParmDecl *Parm)\n        : Parm(Parm) {}\n\n    TemplateTemplateParmDecl *getParam() const { return Parm; }\n\n    void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &C) {\n      Profile(ID, C, Parm);\n    }\n\n    static void Profile(llvm::FoldingSetNodeID &ID,\n                        const ASTContext &C,\n                        TemplateTemplateParmDecl *Parm);\n  }",
+  "id": "BLOCK-CPP-22792",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTContext.h",
+  "source_line": 311,
+  "validation_status": "validated"
+}

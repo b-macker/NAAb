@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  ScanfConversionSpecifier()\n    : ConversionSpecifier(false, nullptr, InvalidSpecifier) {}\n\n  ScanfConversionSpecifier(const char *pos, Kind k)\n    : ConversionSpecifier(false, pos, k) {}\n\n  static bool classof(const analyze_format_string::ConversionSpecifier *CS) {\n    return !CS->isPrintfKind();\n  }\n}",
+  "id": "BLOCK-CPP-11207",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
+  "source_line": 638,
+  "validation_status": "validated"
+}

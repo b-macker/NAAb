@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  XMLElement(absl::string_view tag, absl::string_view txt)\n      : tag_(tag), txt_(txt) {}\n\n  friend std::ostream& operator<<(std::ostream& out,\n                                  const XMLElement& xml_elem) {\n    out << \"<\" << xml_elem.tag_ << \">\";\n\n    for (auto c : xml_elem.txt_) {\n      switch (c) {\n        case '\"':\n          out << \"&quot;\";\n          break;\n        case '\\'':\n          out << \"&apos;\";\n          break;\n        case '&':\n          out << \"&amp;\";\n          break;\n        case '<':\n          out << \"&lt;\";\n          break;\n        case '>':\n          out << \"&gt;\";\n          break;\n        case '\\n':\n        case '\\v':\n        case '\\f':\n        case '\\t':\n          out << \" \";\n          break;\n        default:\n          if (IsValidXmlCharacter(static_cast<unsigned char>(c))) {\n            out << c;\n          }\n          break;\n      }\n    }\n\n    return out << \"</\" << xml_elem.tag_ << \">\";\n  }\n\n private:\n  static bool IsValidXmlCharacter(unsigned char c) { return c >= 0x20; }\n  absl::string_view tag_;\n  absl::string_view txt_;\n}",
+  "id": "BLOCK-CPP-02649",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/usage.cc",
+  "source_line": 74,
+  "validation_status": "validated"
+}

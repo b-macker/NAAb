@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00311_execute() {\n    def outdent(self, step: int = 1) -> None:\n        \"\"\"Outdent by step.\"\"\"\n        self._indentation -= step\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00311",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 416,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/async_logger.h>\n#include <spdlog/details/registry.h>\n#include <spdlog/details/thread_pool.h>\n#include <functional>\n#include <memory>\n#include <mutex>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00001_execute() {\n    {\n        auto &registry_inst = details::registry::instance();\n\n        // create global thread pool if not already exists..\n\n        auto &mutex = registry_inst.tp_mutex();\n        std::lock_guard<std::recursive_mutex> tp_lock(mutex);\n        auto tp = registry_inst.get_tp();\n        if (tp == nullptr) {\n            tp = std::make_shared<details::thread_pool>(details::default_async_q_size, 1U);\n            registry_inst.set_tp(tp);\n        }\n\n        auto sink = std::make_shared<Sink>(std::forward<SinkArgs>(args)...);\n        auto new_logger = std::make_shared<async_logger>(std::move(logger_name), std::move(sink),\n                                                         std::move(tp), OverflowPolicy);\n        registry_inst.initialize_logger(new_logger);\n        return new_logger;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00001",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/async.h",
+  "source_line": 36,
+  "validation_status": "validated"
+}

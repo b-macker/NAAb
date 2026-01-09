@@ -1,0 +1,8 @@
+{
+  "code": "{\n    /// For a non-type template argument, whether the value was\n    /// deduced from an array bound.\n    bool DeducedFromArrayBound = false;\n\n  public:\n    DeducedTemplateArgument() = default;\n\n    DeducedTemplateArgument(const TemplateArgument &Arg,\n                            bool DeducedFromArrayBound = false)\n        : TemplateArgument(Arg), DeducedFromArrayBound(DeducedFromArrayBound) {}\n\n    /// Construct an integral non-type template argument that\n    /// has been deduced, possibly from an array bound.\n    DeducedTemplateArgument(ASTContext &Ctx,\n                            const llvm::APSInt &Value,\n                            QualType ValueType,\n                            bool DeducedFromArrayBound)\n        : TemplateArgument(Ctx, Value, ValueType),\n          DeducedFromArrayBound(DeducedFromArrayBound) {}\n\n    /// For a non-type template argument, determine whether the\n    /// template argument was deduced from an array bound.\n    bool wasDeducedFromArrayBound() const { return DeducedFromArrayBound; }\n\n    /// Specify whether the given non-type template argument\n    /// was deduced from an array bound.\n    void setDeducedFromArrayBound(bool Deduced) {\n      DeducedFromArrayBound = Deduced;\n    }\n  }",
+  "id": "BLOCK-CPP-20695",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Template.h",
+  "source_line": 325,
+  "validation_status": "validated"
+}

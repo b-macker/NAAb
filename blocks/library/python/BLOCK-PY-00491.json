@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00491_execute() {\n    def dump(self) -> str:\n        def _dump(node: Node | t.Any) -> None:\n            if not isinstance(node, Node):\n                buf.append(repr(node))\n                return\n\n            buf.append(f\"nodes.{type(node).__name__}(\")\n            if not node.fields:\n                buf.append(\")\")\n                return\n            for idx, field in enumerate(node.fields):\n                if idx:\n                    buf.append(\", \")\n                value = getattr(node, field)\n                if isinstance(value, list):\n                    buf.append(\"[\")\n                    for idx, item in enumerate(value):\n                        if idx:\n                            buf.append(\", \")\n                        _dump(item)\n                    buf.append(\"]\")\n                else:\n                    _dump(value)\n            buf.append(\")\")\n\n        buf: list[str] = []\n        _dump(self)\n        return \"\".join(buf)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00491",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 252,
+  "validation_status": "validated"
+}

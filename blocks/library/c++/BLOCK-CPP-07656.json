@@ -1,0 +1,8 @@
+{
+  "code": "{\n  StringRef Text;\n\npublic:\n  TextComment(SourceLocation LocBegin,\n              SourceLocation LocEnd,\n              StringRef Text) :\n      InlineContentComment(TextCommentKind, LocBegin, LocEnd),\n      Text(Text) {\n    TextCommentBits.IsWhitespaceValid = false;\n  }\n\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() == TextCommentKind;\n  }\n\n  child_iterator child_begin() const { return nullptr; }\n\n  child_iterator child_end() const { return nullptr; }\n\n  StringRef getText() const LLVM_READONLY { return Text; }\n\n  bool isWhitespace() const {\n    if (TextCommentBits.IsWhitespaceValid)\n      return TextCommentBits.IsWhitespace;\n\n    TextCommentBits.IsWhitespace = isWhitespaceNoCache();\n    TextCommentBits.IsWhitespaceValid = true;\n    return TextCommentBits.IsWhitespace;\n  }\n\nprivate:\n  bool isWhitespaceNoCache() const;\n}",
+  "id": "BLOCK-CPP-07656",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 266,
+  "validation_status": "validated"
+}

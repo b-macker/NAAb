@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <memory>\n#include <vector>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/prefetch.h\"\n#include \"absl/crc/internal/cpu_detect.h\"\n#include \"absl/crc/internal/crc32_x86_arm_combined_simd.h\"\n#include \"absl/crc/internal/crc_internal.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/numeric/bits.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02485_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02485",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_x86_arm_combined.cc",
+  "source_line": 49,
+  "validation_status": "validated"
+}

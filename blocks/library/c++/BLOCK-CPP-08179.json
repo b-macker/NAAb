@@ -1,0 +1,8 @@
+{
+  "code": "{\n  TypedefDecl(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,\n              SourceLocation IdLoc, IdentifierInfo *Id, TypeSourceInfo *TInfo)\n      : TypedefNameDecl(Typedef, C, DC, StartLoc, IdLoc, Id, TInfo) {}\n\npublic:\n  static TypedefDecl *Create(ASTContext &C, DeclContext *DC,\n                             SourceLocation StartLoc, SourceLocation IdLoc,\n                             IdentifierInfo *Id, TypeSourceInfo *TInfo);\n  static TypedefDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  SourceRange getSourceRange() const override LLVM_READONLY;\n\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == Typedef; }\n}",
+  "id": "BLOCK-CPP-08179",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Decl.h",
+  "source_line": 3421,
+  "validation_status": "validated"
+}

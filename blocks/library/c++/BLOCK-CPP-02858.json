@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/charconv_bigint.h\"\n#include <algorithm>\n#include <cassert>\n#include <string>\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02858_execute() {\n    {\n    // We dropped digits, and aren't sure if they're before or after the decimal\n    // point.  Figure that out now.\n    const char* dp = std::find(begin, end, '.');\n    if (dp != end) {\n      // The dropped trailing digits were after the decimal point, so don't\n      // count them.\n      dropped_digits = 0;\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02858",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_bigint.cc",
+  "source_line": 219,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n#include <time.h>\n#include <cctype>\n#include <chrono>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <ctime>\n#include <limits>\n#include <string>\n#include <vector>\n#include <iomanip>\n#include <sstream>\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"time_zone_if.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03209_execute() {\n    {\n  switch (tm_wday) {\n    case 0:\n      return weekday::sunday;\n    case 1:\n      return weekday::monday;\n    case 2:\n      return weekday::tuesday;\n    case 3:\n      return weekday::wednesday;\n    case 4:\n      return weekday::thursday;\n    case 5:\n      return weekday::friday;\n    case 6:\n      return weekday::saturday;\n  }\n  return weekday::sunday; /*NOTREACHED*/\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03209",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_format.cc",
+  "source_line": 92,
+  "validation_status": "validated"
+}

@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_flags_usage.a CMakeFiles/absl_flags_usage.dir/usage.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_flags_usage.a

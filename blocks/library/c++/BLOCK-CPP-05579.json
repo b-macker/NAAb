@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <exception>\n#include <functional>\n#include <initializer_list>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_any_invocable;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05579_execute() {\n    {\n// This condition handles types that decay into pointers, which includes\n// function references. Since function references cannot be null, GCC warns\n// against comparing their decayed form with nullptr.\n// Since this is template-heavy code, we prefer to disable these warnings\n// locally instead of adding yet another overload of this function.\n#if !defined(__clang__) && defined(__GNUC__)\n#pragma GCC diagnostic push\n#pragma GCC diagnostic ignored \"-Wpragmas\"\n#pragma GCC diagnostic ignored \"-Waddress\"\n#pragma GCC diagnostic ignored \"-Wnonnull-compare\"\n#endif\n    if (static_cast<RemoveCVRef<QualDecayedTRef>>(f) == nullptr) {\n#if !defined(__clang__) && defined(__GNUC__)\n#pragma GCC diagnostic pop\n#endif\n      manager_ = EmptyManager;\n      invoker_ = nullptr;\n      return;\n    }\n    InitializeStorage<QualDecayedTRef>(std::forward<F>(f));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05579",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/internal/any_invocable.h",
+  "source_line": 522,
+  "validation_status": "validated"
+}

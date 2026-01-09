@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include <intrin.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace numeric_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05804_execute() {\n    {\n  static_assert(std::is_unsigned<T>::value, \"T must be unsigned\");\n  static_assert(IsPowerOf2(std::numeric_limits<T>::digits),\n                \"T must have a power-of-2 size\");\n  static_assert(sizeof(x) <= sizeof(uint64_t), \"T is too large\");\n  return sizeof(x) <= sizeof(uint32_t) ? Popcount32(x) : Popcount64(x);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05804",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/internal/bits.h",
+  "source_line": 123,
+  "validation_status": "validated"
+}

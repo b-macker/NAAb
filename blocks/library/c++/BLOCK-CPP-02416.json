@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/hashtablez_sampler.h\"\n#include <algorithm>\n#include <atomic>\n#include <cassert>\n#include <cmath>\n#include <functional>\n#include <limits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/debugging/stacktrace.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/profiling/internal/exponential_biased.h\"\n#include \"absl/profiling/internal/sample_recorder.h\"\n#include \"absl/synchronization/mutex.h\"\n#include \"absl/time/clock.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02416_execute() {\n    {\n  SetHashtablezSampleParameterInternal(rate);\n  TriggerHashtablezConfigListener();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02416",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hashtablez_sampler.cc",
+  "source_line": 252,
+  "validation_status": "validated"
+}

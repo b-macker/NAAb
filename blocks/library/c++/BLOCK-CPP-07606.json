@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"clang/AST/CommentNodes.inc\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07606_execute() {\n    {\n    Args = A;\n    if (Args.size() > 0) {\n      SourceLocation NewLocEnd = Args.back().Range.getEnd();\n      if (NewLocEnd.isValid())\n        setSourceRange(SourceRange(getBeginLoc(), NewLocEnd));\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07606",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 663,
+  "validation_status": "validated"
+}

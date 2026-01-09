@@ -1,0 +1,8 @@
+{
+  "code": "#include <cwchar>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01608_execute() {\n    {\ntemplate <typename T>\nusing is_exotic_char = bool_constant<!std::is_same<T, char>::value>;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01608",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/xchar.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

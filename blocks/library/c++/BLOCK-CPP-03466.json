@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/container/internal/btree.h\"  // IWYU pragma: export\n#include \"absl/container/internal/btree_container.h\"  // IWYU pragma: export\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03466_execute() {\n    {\n  return container_internal::btree_access::erase_if(map, std::move(pred));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03466",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/btree_map.h",
+  "source_line": 845,
+  "validation_status": "validated"
+}

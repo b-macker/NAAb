@@ -1,0 +1,8 @@
+{
+  "code": "{\n  /// The location of the ':'.\n  SourceLocation ColonLoc;\n\n  AccessSpecDecl(AccessSpecifier AS, DeclContext *DC,\n                 SourceLocation ASLoc, SourceLocation ColonLoc)\n    : Decl(AccessSpec, DC, ASLoc), ColonLoc(ColonLoc) {\n    setAccess(AS);\n  }\n\n  AccessSpecDecl(EmptyShell Empty) : Decl(AccessSpec, Empty) {}\n\n  virtual void anchor();\n\npublic:\n  /// The location of the access specifier.\n  SourceLocation getAccessSpecifierLoc() const { return getLocation(); }\n\n  /// Sets the location of the access specifier.\n  void setAccessSpecifierLoc(SourceLocation ASLoc) { setLocation(ASLoc); }\n\n  /// The location of the colon following the access specifier.\n  SourceLocation getColonLoc() const { return ColonLoc; }\n\n  /// Sets the location of the colon.\n  void setColonLoc(SourceLocation CLoc) { ColonLoc = CLoc; }\n\n  SourceRange getSourceRange() const override LLVM_READONLY {\n    return SourceRange(getAccessSpecifierLoc(), getColonLoc());\n  }\n\n  static AccessSpecDecl *Create(ASTContext &C, AccessSpecifier AS,\n                                DeclContext *DC, SourceLocation ASLoc,\n                                SourceLocation ColonLoc) {\n    return new (C, DC) AccessSpecDecl(AS, DC, ASLoc, ColonLoc);\n  }\n\n  static AccessSpecDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == AccessSpec; }\n}",
+  "id": "BLOCK-CPP-08696",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclCXX.h",
+  "source_line": 86,
+  "validation_status": "validated"
+}

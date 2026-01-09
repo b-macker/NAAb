@@ -1,0 +1,63 @@
+# Test program - Comprehensive return value testing
+
+use BLOCK-PY-00001 as ResponseBlock
+
+# User functions with different return types
+function return_int() -> int {
+    return 42
+}
+
+function return_string() -> string {
+    return "Hello from function"
+}
+
+function return_bool() -> bool {
+    return true
+}
+
+function return_float() -> float {
+    return 3.14
+}
+
+function compute(x: int, y: int) -> int {
+    let a = return_int()
+    let b = x + y
+    return a + b
+}
+
+main {
+    print("=== Comprehensive Return Value Testing ===")
+    print("")
+
+    # Test primitive returns
+    print("Test 1: Int return")
+    let num = return_int()
+    print("  Value:", num, "Type:", type(num))
+
+    print("Test 2: String return")
+    let str = return_string()
+    print("  Value:", str, "Type:", type(str))
+
+    print("Test 3: Bool return")
+    let flag = return_bool()
+    print("  Value:", flag, "Type:", type(flag))
+
+    print("Test 4: Float return")
+    let pi = return_float()
+    print("  Value:", pi, "Type:", type(pi))
+
+    print("Test 5: Nested function calls")
+    let result = compute(10, 20)
+    print("  compute(10, 20) =", result)
+    print("  (should be 42 + 10 + 20 = 72)")
+
+    print("")
+    print("Test 6: Python block return (object)")
+    let Response = ResponseBlock.APIResponse
+    let obj = Response(100, "ok")
+    print("  Returned:", obj)
+    print("  Type:", type(obj))
+
+    print("")
+    print("=== All return value tests complete! ===")
+}

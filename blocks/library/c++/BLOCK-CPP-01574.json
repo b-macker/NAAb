@@ -1,0 +1,8 @@
+{
+  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01574_execute() {\n    {\n  template <typename U>\n  static auto check(U* p) -> decltype(std::tuple_size<U>::value, int());\n  template <typename> static void check(...);\n\n public:\n  static constexpr const bool value =\n      !std::is_void<decltype(check<T>(nullptr))>::value;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01574",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
+  "source_line": 171,
+  "validation_status": "validated"
+}

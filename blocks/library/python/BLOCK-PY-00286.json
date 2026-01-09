@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00286_execute() {\n    class UndeclaredNameVisitor(NodeVisitor):\n    \"\"\"A visitor that checks if a name is accessed without being\n    declared.  This is different from the frame visitor as it will\n    not stop at closure frames.\n    \"\"\"\n\n    def __init__(self, names: t.Iterable[str]) -> None:\n        self.names = set(names)\n        self.undeclared: set[str] = set()\n\n    def visit_Name(self, node: nodes.Name) -> None:\n        if node.ctx == \"load\" and node.name in self.names:\n            self.undeclared.add(node.name)\n            if self.undeclared == self.names:\n                raise VisitorExit()\n        else:\n            self.names.discard(node.name)\n\n    def visit_Block(self, node: nodes.Block) -> None:\n        \"\"\"Stop visiting a blocks.\"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00286",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 269,
+  "validation_status": "validated"
+}

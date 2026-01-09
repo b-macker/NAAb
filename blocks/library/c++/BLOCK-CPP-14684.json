@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/ASTMatchers/ASTMatchers.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/Timer.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace ast_matchers;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14684_execute() {\n    {\nclass CollectMatchesCallback : public MatchFinder::MatchCallback {\npublic:\n  void run(const MatchFinder::MatchResult &Result) override {\n    Nodes.push_back(Result.Nodes);\n  }\n\n  std::optional<TraversalKind> getCheckTraversalKind() const override {\n    return std::nullopt;\n  }\n\n  SmallVector<BoundNodes, 1> Nodes;\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14684",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchFinder.h",
+  "source_line": 286,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/GlobalDecl.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/ABI.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/Support/Casting.h\"\n#include <optional>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11294_execute() {\n    {\npublic:\n  explicit ASTNameGenerator(ASTContext &Ctx);\n  ~ASTNameGenerator();\n\n  /// Writes name for \\p D to \\p OS.\n  /// \\returns true on failure, false on success.\n  bool writeName(const Decl *D, raw_ostream &OS);\n\n  /// \\returns name for \\p D\n  std::string getName(const Decl *D);\n\n  /// \\returns all applicable mangled names.\n  /// For example C++ constructors/destructors can have multiple.\n  std::vector<std::string> getAllManglings(const Decl *D);\n\nprivate:\n  class Implementation;\n  std::unique_ptr<Implementation> Impl;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11294",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Mangle.h",
+  "source_line": 298,
+  "validation_status": "validated"
+}

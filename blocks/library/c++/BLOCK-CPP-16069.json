@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/XRayInstr.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/Frontend/Debug/Options.h\"\n#include \"llvm/Support/CodeGen.h\"\n#include \"llvm/Support/Regex.h\"\n#include \"llvm/Target/TargetOptions.h\"\n#include \"llvm/Transforms/Instrumentation/AddressSanitizerOptions.h\"\n#include <map>\n#include <memory>\n#include <string>\n#include <vector>\n#include \"clang/Basic/CodeGenOptions.def\"\n#include \"clang/Basic/CodeGenOptions.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16069_execute() {\n    {\n    switch (Kind) {\n    case FramePointerKind::None:\n      return \"none\";\n    case FramePointerKind::NonLeaf:\n      return \"non-leaf\";\n    case FramePointerKind::All:\n      return \"all\";\n    }\n\n    llvm_unreachable(\"invalid FramePointerKind\");\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16069",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CodeGenOptions.h",
+  "source_line": 141,
+  "validation_status": "validated"
+}

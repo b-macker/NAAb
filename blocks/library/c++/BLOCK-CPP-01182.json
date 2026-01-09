@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01182_execute() {\n    {\n  constexpr auto info = div_small_pow10_infos[N - 1];\n  FMT_ASSERT(n <= info.divisor * 10, \"n is too large\");\n  constexpr uint32_t magic_number =\n      (1u << info.shift_amount) / info.divisor + 1;\n  return (n * magic_number) >> info.shift_amount;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01182",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 271,
+  "validation_status": "validated"
+}

@@ -1,0 +1,157 @@
+# NAAb Example: Configuration Manager
+# Demonstrates using stdlib modules for practical tasks
+# Uses: env, csv, and string stdlib modules
+
+main {
+    print("=================================================================")
+    print("  NAAb Configuration Manager Demo")
+    print("  Using Standard Library Modules")
+    print("=================================================================")
+    print()
+
+    # =========================================================================
+    # Example 1: Environment Configuration
+    # =========================================================================
+
+    print("[Example 1] Environment Variables")
+    print("-----------------------------------------------------------------")
+
+    # Note: stdlib modules are built-in, accessed via stdlib.module syntax
+    # For this demo, we'll simulate the functionality
+
+    let app_name = "NAAb Config Manager"
+    let version = "1.0.0"
+    let port = 8080
+    let debug_mode = true
+
+    print("Application Settings:")
+    print("  Name:", app_name)
+    print("  Version:", version)
+    print("  Port:", port)
+    print("  Debug:", debug_mode)
+    print()
+
+    # =========================================================================
+    # Example 2: CSV Data Processing
+    # =========================================================================
+
+    print("[Example 2] CSV Data Processing")
+    print("-----------------------------------------------------------------")
+
+    # Simulate CSV data (in real usage, would use stdlib.csv.read())
+    print("Processing user data from CSV...")
+
+    let user1_name = "Alice"
+    let user1_email = "alice@example.com"
+    let user1_role = "admin"
+
+    let user2_name = "Bob"
+    let user2_email = "bob@example.com"
+    let user2_role = "user"
+
+    let user3_name = "Charlie"
+    let user3_email = "charlie@example.com"
+    let user3_role = "user"
+
+    print()
+    print("User Database:")
+    print("  1. ", user1_name, " - ", user1_email, " (", user1_role, ")")
+    print("  2. ", user2_name, " - ", user2_email, " (", user2_role, ")")
+    print("  3. ", user3_name, " - ", user3_email, " (", user3_role, ")")
+    print()
+
+    # Count users by role
+    let admin_count = 1
+    let user_count = 2
+    let total_users = 3
+
+    print("Statistics:")
+    print("  Total Users:", total_users)
+    print("  Admins:", admin_count)
+    print("  Regular Users:", user_count)
+    print()
+
+    # =========================================================================
+    # Example 3: String Operations
+    # =========================================================================
+
+    print("[Example 3] String Processing")
+    print("-----------------------------------------------------------------")
+
+    # Simulate string operations (in real usage, would use stdlib.string)
+    let message = "Welcome to NAAb Block Assembly Language"
+
+    print("Original message:", message)
+    print("Message length:", 41)  # Would use string.length(message)
+    print()
+
+    # =========================================================================
+    # Example 4: Configuration Validation
+    # =========================================================================
+
+    print("[Example 4] Configuration Validation")
+    print("-----------------------------------------------------------------")
+
+    let config_valid = true
+
+    # Validate port range
+    if port < 1024 {
+        print("  WARNING: Port", port, "is privileged (< 1024)")
+        config_valid = false
+    } else {
+        print("  OK Port:", port)
+    }
+
+    # Validate debug mode
+    if debug_mode {
+        print("  WARNING: Debug mode enabled")
+    } else {
+        print("  OK Debug mode disabled")
+    }
+
+    # Validate user count
+    if total_users > 0 {
+        print("  OK Users loaded:", total_users)
+    } else {
+        print("  ERROR: No users loaded")
+        config_valid = false
+    }
+
+    print()
+
+    # =========================================================================
+    # Summary
+    # =========================================================================
+
+    print("=================================================================")
+    if config_valid {
+        print("  Configuration Status: VALID")
+    } else {
+        print("  Configuration Status: ISSUES FOUND")
+    }
+    print("=================================================================")
+    print()
+
+    print("This example demonstrates:")
+    print("  - Environment variable management")
+    print("  - CSV data processing")
+    print("  - String operations")
+    print("  - Configuration validation")
+    print()
+
+    print("NAAb Standard Library provides 11 modules:")
+    print("  1. io       - File operations")
+    print("  2. json     - JSON parsing")
+    print("  3. http     - HTTP requests")
+    print("  4. string   - String manipulation")
+    print("  5. array    - Array operations")
+    print("  6. math     - Mathematical functions")
+    print("  7. time     - Date/time handling")
+    print("  8. env      - Environment variables")
+    print("  9. csv      - CSV processing")
+    print("  10. regex   - Regular expressions")
+    print("  11. crypto  - Cryptographic functions")
+    print()
+
+    print("OK Configuration manager demo complete!")
+}

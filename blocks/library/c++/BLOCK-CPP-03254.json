@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n#include <sys/system_properties.h>\n#include <dlfcn.h>\n#include <CoreFoundation/CFTimeZone.h>\n#include <vector>\n#include <fuchsia/intl/cpp/fidl.h>\n#include <lib/async-loop/cpp/loop.h>\n#include <lib/fdio/directory.h>\n#include <zircon/types.h>\n#include <sdkddkver.h>\n#include <roapi.h>\n#include <tchar.h>\n#include <wchar.h>\n#include <windows.globalization.h>\n#include <windows.h>\n#include <cstdlib>\n#include <cstring>\n#include <string>\n#include \"time_zone_fixed.h\"\n#include \"time_zone_impl.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03254_execute() {\n    {\n  return time_zone::Impl::UTC();  // avoid name lookup\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03254",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_lookup.cc",
+  "source_line": 212,
+  "validation_status": "validated"
+}

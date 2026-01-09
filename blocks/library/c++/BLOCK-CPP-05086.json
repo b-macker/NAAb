@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  explicit IteratorValueAdapter(const Iterator& it) : it_(it) {}\n\n  void ConstructNext(A& allocator, Pointer<A> construct_at) {\n    AllocatorTraits<A>::construct(allocator, construct_at, *it_);\n    ++it_;\n  }\n\n  void AssignNext(Pointer<A> assign_at) {\n    *assign_at = *it_;\n    ++it_;\n  }\n\n private:\n  Iterator it_;\n}",
+  "id": "BLOCK-CPP-05086",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/inlined_vector.h",
+  "source_line": 169,
+  "validation_status": "validated"
+}

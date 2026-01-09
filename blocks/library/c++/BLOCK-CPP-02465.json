@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/crc/internal/crc.h\"\n#include <cstdint>\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/prefetch.h\"\n#include \"absl/crc/internal/crc_internal.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02465_execute() {\n    {                        // if they are not zero,\n                                           // multiply by entry in table\n        // Build a table to aid in multiplying 2 bits at a time.\n        // It takes too long to build tables for more bits.\n        uint64_t m = zeroes_table[c + i - 1];\n        m <<= 1;\n        uint64_t m2 = m << 1;\n        uint64_t mtab[4] = {0, m, m2, m2 ^ m};\n\n        // Do the multiply one byte at a time.\n        uint64_t result = 0;\n        for (int x = 0; x < 32; x += 8) {\n          // The carry-less multiply.\n          result ^= mtab[l & 3] ^ (mtab[(l >> 2) & 3] << 2) ^\n                    (mtab[(l >> 4) & 3] << 4) ^ (mtab[(l >> 6) & 3] << 6);\n          l >>= 8;\n\n          // Reduce modulo the polynomial\n          result = (result >> 8) ^ poly_table[result & 0xff];\n        }\n        l = static_cast<uint32_t>(result);\n      }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02465",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc.cc",
+  "source_line": 369,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01056_execute() {\n    {\n  return \"\\1\\1\\1\\1\\1\\1\\1\\1\\1\\1\\1\\1\\1\\1\\1\\1\\0\\0\\0\\0\\0\\0\\0\\0\\2\\2\\2\\2\\3\\3\\4\"\n      [static_cast<unsigned char>(c) >> 3];\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01056",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 2300,
+  "validation_status": "validated"
+}

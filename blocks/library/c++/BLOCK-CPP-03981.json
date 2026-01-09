@@ -1,0 +1,8 @@
+{
+  "code": "#include <system_error>  // NOLINT(build/c++11)\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03981_execute() {\n    {\n  scientific = 1,\n  fixed = 2,\n  hex = 4,\n  general = fixed | scientific,\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03981",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/charconv.h",
+  "source_line": 30,
+  "validation_status": "validated"
+}

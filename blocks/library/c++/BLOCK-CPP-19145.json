@@ -1,0 +1,8 @@
+{
+  "code": "{\n    llvm::StringSet<> Failed;\n\n  public:\n    bool hasAlreadyFailed(StringRef module) {\n      return Failed.count(module) > 0;\n    }\n\n    void addFailed(StringRef module) {\n      Failed.insert(module);\n    }\n  }",
+  "id": "BLOCK-CPP-19145",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PreprocessorOptions.h",
+  "source_line": 187,
+  "validation_status": "validated"
+}

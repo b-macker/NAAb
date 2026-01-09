@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/cord_analysis.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <unordered_set>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/internal/cord_data_edge.h\"\n#include \"absl/strings/internal/cord_internal.h\"\n#include \"absl/strings/internal/cord_rep_btree.h\"\n#include \"absl/strings/internal/cord_rep_crc.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01906_execute() {\n    {\n  // Instantiates a CordRepRef instance.\n  explicit CordRepRef(absl::Nonnull<const CordRep*> r) : rep(r) {}\n\n  // Creates a child reference holding the provided child.\n  // Overloaded to add cumulative reference count for kFairShare.\n  CordRepRef Child(absl::Nonnull<const CordRep*> child) const {\n    return CordRepRef(child);\n  }\n\n  absl::Nonnull<const CordRep*> rep;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01906",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/cord_analysis.cc",
+  "source_line": 39,
+  "validation_status": "validated"
+}

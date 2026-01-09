@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/StaticAnalyzer/Core/CheckerManager.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SVals.h\"\n#include \"llvm/Support/Casting.h\"\n\nusing namespace clang;\nusing namespace ento;\nusing namespace check;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22280_execute() {\n    {\n    mgr._registerForPointerEscape(\n          CheckerManager::CheckPointerEscapeFunc(checker,\n                                                _checkPointerEscape<CHECKER>));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22280",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 390,
+  "validation_status": "validated"
+}

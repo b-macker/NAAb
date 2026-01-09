@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cmath>\n#include <istream>\n#include <limits>\n#include <numeric>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include \"absl/random/bernoulli_distribution.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n#include \"absl/random/uniform_int_distribution.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03821_execute() {\n    {\n      init();\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03821",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/discrete_distribution.h",
+  "source_line": 68,
+  "validation_status": "validated"
+}

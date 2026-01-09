@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00900_execute() {\n    {\n  L lhs;\n  R rhs;\n  using char_type = typename L::char_type;\n\n  template <typename OutputIt, typename... Args>\n  constexpr OutputIt format(OutputIt out, const Args&... args) const {\n    out = lhs.format(out, args...);\n    return rhs.format(out, args...);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00900",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 280,
+  "validation_status": "validated"
+}

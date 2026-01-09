@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include <intrin.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace numeric_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05810_execute() {\n    {\n#if ABSL_NUMERIC_INTERNAL_HAVE_BUILTIN_OR_GCC(__builtin_ctzll)\n  static_assert(sizeof(unsigned long long) == sizeof(x),  // NOLINT(runtime/int)\n                \"__builtin_ctzll does not take 64-bit arg\");\n  return __builtin_ctzll(x);\n#elif defined(_MSC_VER) && !defined(__clang__) && \\\n    (defined(_M_X64) || defined(_M_ARM64))\n  unsigned long result = 0;  // NOLINT(runtime/int)\n  _BitScanForward64(&result, x);\n  return result;\n#elif defined(_MSC_VER) && !defined(__clang__)\n  unsigned long result = 0;  // NOLINT(runtime/int)\n  if (static_cast<uint32_t>(x) == 0) {\n    _BitScanForward(&result, static_cast<unsigned long>(x >> 32));\n    return result + 32;\n  }\n  _BitScanForward(&result, static_cast<unsigned long>(x));\n  return result;\n#else\n  int c = 63;\n  x &= ~x + 1;\n  if (x & 0x00000000FFFFFFFF) c -= 32;\n  if (x & 0x0000FFFF0000FFFF) c -= 16;\n  if (x & 0x00FF00FF00FF00FF) c -= 8;\n  if (x & 0x0F0F0F0F0F0F0F0F) c -= 4;\n  if (x & 0x3333333333333333) c -= 2;\n  if (x & 0x5555555555555555) c -= 1;\n  return c;\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05810",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/internal/bits.h",
+  "source_line": 272,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/StaticAnalyzer/Core/CheckerManager.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SVals.h\"\n#include \"llvm/Support/Casting.h\"\n\nusing namespace clang;\nusing namespace ento;\nusing namespace check;\nusing namespace eval;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22320_execute() {\n    {\n  CheckerNameRef Name;\n  friend class ::clang::ento::CheckerManager;\n\npublic:\n  StringRef getTagDescription() const override;\n  CheckerNameRef getCheckerName() const;\n\n  /// See CheckerManager::runCheckersForPrintState.\n  virtual void printState(raw_ostream &Out, ProgramStateRef State,\n                          const char *NL, const char *Sep) const { }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22320",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 491,
+  "validation_status": "validated"
+}

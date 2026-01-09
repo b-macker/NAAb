@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21371_execute() {\n    {\n  CFGInterval(const CFGBlock *Header) : Header(Header), Blocks({Header}) {}\n\n  // The block from which the interval was constructed. Is either the CFG entry\n  // block or has at least one predecessor outside the interval.\n  const CFGBlock *Header;\n\n  llvm::SmallDenseSet<const CFGBlock *> Blocks;\n\n  // Successor blocks of the *interval*: blocks outside the interval for\n  // reachable (in one edge) from within the interval.\n  llvm::SmallDenseSet<const CFGBlock *> Successors;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21371",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/IntervalPartition.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

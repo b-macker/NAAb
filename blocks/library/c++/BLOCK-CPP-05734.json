@@ -1,0 +1,8 @@
+{
+  "code": "#include <stddef.h>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/log/internal/config.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/civil_time.h\"\n#include \"absl/time/time.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05734_execute() {\n    {\n  kNotRaw,\n  kRaw,\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05734",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/log_format.h",
+  "source_line": 41,
+  "validation_status": "validated"
+}

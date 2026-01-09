@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include <set>\n\nusing namespace clang;\nusing namespace tooling;\nusing namespace internal;\nusing namespace internal;\nusing namespace NodeIntrospection;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21201_execute() {\n    {\nbool hasIntrospectionSupport();\nNodeLocationAccessors GetLocations(clang::Stmt const *Object);\nNodeLocationAccessors GetLocations(clang::Decl const *Object);\nNodeLocationAccessors GetLocations(clang::CXXCtorInitializer const *Object);\nNodeLocationAccessors GetLocations(clang::NestedNameSpecifierLoc const &);\nNodeLocationAccessors GetLocations(clang::TemplateArgumentLoc const &);\nNodeLocationAccessors GetLocations(clang::CXXBaseSpecifier const *);\nNodeLocationAccessors GetLocations(clang::TypeLoc const &);\nNodeLocationAccessors GetLocations(clang::DeclarationNameInfo const &);\nNodeLocationAccessors GetLocations(clang::DynTypedNode const &Node);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21201",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/NodeIntrospection.h",
+  "source_line": 87,
+  "validation_status": "validated"
+}

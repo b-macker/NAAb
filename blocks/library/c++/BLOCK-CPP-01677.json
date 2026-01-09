@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/flags/marshalling.h\"\n#include <stddef.h>\n#include <cmath>\n#include <limits>\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_join.h\"\n#include \"absl/strings/str_split.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01677_execute() {\n    { return absl::StrCat(v); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01677",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/marshalling.cc",
+  "source_line": 198,
+  "validation_status": "validated"
+}

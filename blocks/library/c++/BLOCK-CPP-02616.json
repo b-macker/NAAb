@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/flags/internal/flag.h\"\n#include <assert.h>\n#include <stddef.h>\n#include <stdint.h>\n#include <string.h>\n#include <array>\n#include <atomic>\n#include <memory>\n#include <new>\n#include <string>\n#include <typeinfo>\n#include \"absl/base/call_once.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/flags/config.h\"\n#include \"absl/flags/internal/commandlineflag.h\"\n#include \"absl/flags/usage_config.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02616_execute() {\n    { mu_.Unlock(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02616",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/flag.cc",
+  "source_line": 71,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <functional>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/functional/internal/function_ref.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03632_execute() {\n    {\n    absl::functional_internal::AssertNonNull(f);\n    ptr_.obj = &f;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03632",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/function_ref.h",
+  "source_line": 105,
+  "validation_status": "validated"
+}

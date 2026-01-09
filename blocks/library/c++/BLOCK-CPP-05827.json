@@ -1,0 +1,8 @@
+{
+  "code": "#include <stdint.h>\n#include <atomic>\n#include \"absl/base/optimization.h\"\n#include \"absl/profiling/internal/exponential_biased.h\"\n\nusing namespace absl;\nusing namespace profiling_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05827_execute() {\n    {\n    period_.store(period, std::memory_order_relaxed);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05827",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/profiling/internal/periodic_sampler.h",
+  "source_line": 196,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/chi_square.h\"\n#include <cmath>\n#include \"absl/random/internal/distribution_test_util.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02768_execute() {\n    {\n    double w = y * y;\n    x = EvaluatePolynomial(w, kP1) * y * 2.0;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02768",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/chi_square.cc",
+  "source_line": 75,
+  "validation_status": "validated"
+}

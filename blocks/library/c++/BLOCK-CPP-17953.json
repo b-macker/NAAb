@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Edit/FileOffset.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <map>\n#include <tuple>\n#include <utility>\n\nusing namespace clang;\nusing namespace edit;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17953_execute() {\n    { return str.copy(StrAlloc); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17953",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Edit/EditedSource.h",
+  "source_line": 91,
+  "validation_status": "validated"
+}

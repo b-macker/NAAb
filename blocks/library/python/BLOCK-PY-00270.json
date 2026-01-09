@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00270_execute() {\n    def generic_visit(self, node):\n        \"\"\"Called if no explicit visitor function exists for a node.\"\"\"\n        for field, value in iter_fields(node):\n            if isinstance(value, list):\n                for item in value:\n                    if isinstance(item, AST):\n                        self.visit(item)\n            elif isinstance(value, AST):\n                self.visit(value)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00270",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
+  "source_line": 522,
+  "validation_status": "validated"
+}

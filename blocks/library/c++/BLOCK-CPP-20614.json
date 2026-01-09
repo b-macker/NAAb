@@ -1,0 +1,8 @@
+{
+  "code": "{\n// Hash a FunctionDeclAndLoc by looking at both its FunctionDecl and its\n// SourceLocation.\ntemplate <> struct DenseMapInfo<clang::Sema::FunctionDeclAndLoc> {\n  using FunctionDeclAndLoc = clang::Sema::FunctionDeclAndLoc;\n  using FDBaseInfo =\n      DenseMapInfo<clang::CanonicalDeclPtr<const clang::FunctionDecl>>;\n\n  static FunctionDeclAndLoc getEmptyKey() {\n    return {FDBaseInfo::getEmptyKey(), clang::SourceLocation()};\n  }\n\n  static FunctionDeclAndLoc getTombstoneKey() {\n    return {FDBaseInfo::getTombstoneKey(), clang::SourceLocation()};\n  }\n\n  static unsigned getHashValue(const FunctionDeclAndLoc &FDL) {\n    return hash_combine(FDBaseInfo::getHashValue(FDL.FD),\n                        FDL.Loc.getHashValue());\n  }\n\n  static bool isEqual(const FunctionDeclAndLoc &LHS,\n                      const FunctionDeclAndLoc &RHS) {\n    return LHS.FD == RHS.FD && LHS.Loc == RHS.Loc;\n  }\n};\n}",
+  "id": "BLOCK-CPP-20614",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 14081,
+  "validation_status": "validated"
+}

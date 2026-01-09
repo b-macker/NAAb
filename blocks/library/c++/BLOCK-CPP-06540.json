@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06540_execute() {\n    {\n  return is_leap_year(y + (m > 2)) ? 366 : 365;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06540",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+  "source_line": 96,
+  "validation_status": "validated"
+}

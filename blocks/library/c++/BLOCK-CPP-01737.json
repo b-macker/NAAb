@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  FlagSaverImpl() = default;\n  FlagSaverImpl(const FlagSaverImpl&) = delete;\n  void operator=(const FlagSaverImpl&) = delete;\n\n  // Saves the flag states from the flag registry into this object.\n  // It's an error to call this more than once.\n  void SaveFromRegistry() {\n    assert(backup_registry_.empty());  // call only once!\n    flags_internal::ForEachFlag([&](CommandLineFlag& flag) {\n      if (auto flag_state =\n              flags_internal::PrivateHandleAccessor::SaveState(flag)) {\n        backup_registry_.emplace_back(std::move(flag_state));\n      }\n    });\n  }\n\n  // Restores the saved flag states into the flag registry.\n  void RestoreToRegistry() {\n    for (const auto& flag_state : backup_registry_) {\n      flag_state->Restore();\n    }\n  }\n\n private:\n  std::vector<std::unique_ptr<flags_internal::FlagStateInterface>>\n      backup_registry_;\n}",
+  "id": "BLOCK-CPP-01737",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/reflection.cc",
+  "source_line": 292,
+  "validation_status": "validated"
+}

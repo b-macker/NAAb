@@ -1,0 +1,8 @@
+{
+  "code": "#include <stdexcept>\n#include \"absl/base/config.h\"\n#include <optional>\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04455_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\n// -----------------------------------------------------------------------------\n// bad_optional_access\n// -----------------------------------------------------------------------------\n//\n// An `absl::bad_optional_access` type is an exception type that is thrown when\n// attempting to access an `absl::optional` object that does not contain a\n// value.\n//\n// Example:\n//\n//   absl::optional<int> o;\n//\n//   try {\n//     int n = o.value();\n//   } catch(const absl::bad_optional_access& e) {\n//     std::cout << \"Bad optional access: \" << e.what() << '\\n';\n//   }\nclass bad_optional_access : public std::exception {\n public:\n  bad_optional_access() = default;\n  ~bad_optional_access() override;\n  const char* what() const noexcept override;\n};\n\nnamespace optional_internal {\n\n// throw delegator\n[[noreturn]] ABSL_DLL void throw_bad_optional_access();\n\n}  // namespace optional_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04455",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_optional_access.h",
+  "source_line": 40,
+  "validation_status": "validated"
+}

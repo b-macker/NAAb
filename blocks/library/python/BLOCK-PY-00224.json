@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00224_execute() {\n    def _generate_github_actions(self, request, platform: str, complexity: str) -> CodeGenerationResult:\n        \"\"\"Generate GitHub Actions CI/CD workflow\"\"\"\n        message = request.message.lower()\n        \n        if 'node' in message or 'javascript' in message:\n            workflow = self._generate_nodejs_github_actions(complexity)\n        elif 'python' in message:\n            workflow = self._generate_python_github_actions(complexity)\n        elif 'docker' in message:\n            workflow = self._generate_docker_github_actions(complexity)\n        else:\n            workflow = self._generate_generic_github_actions(complexity)\n        \n        return CodeGenerationResult(\n            success=True,\n            code=workflow,\n            language=\"yaml\",\n            framework=\"github-actions\",\n            code_type=CodeType.PIPELINE\n        )\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00224",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

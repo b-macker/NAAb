@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <ostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/internal/str_format/output.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06381_execute() {\n    {\n    // Keep this field first in the struct . It generates better code when\n    // accessing it when ConversionSpec is passed by value in registers.\n    static_assert(offsetof(FormatConversionSpecImpl, conv_) == 0, \"\");\n    return conv_;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06381",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/extension.h",
+  "source_line": 290,
+  "validation_status": "validated"
+}

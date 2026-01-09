@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <string>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06523_execute() {\n    {\n    struct NonLeapDay {\n      std::int_fast16_t day;  // day of non-leap year [1:365]\n    };\n    struct Day {\n      std::int_fast16_t day;  // day of year [0:365]\n    };\n    struct MonthWeekWeekday {\n      std::int_fast8_t month;    // month of year [1:12]\n      std::int_fast8_t week;     // week of month [1:5] (5==last)\n      std::int_fast8_t weekday;  // 0==Sun, ..., 6=Sat\n    };\n\n    DateFormat fmt;\n\n    union {\n      NonLeapDay j;\n      Day n;\n      MonthWeekWeekday m;\n    };\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06523",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_posix.h",
+  "source_line": 75,
+  "validation_status": "validated"
+}

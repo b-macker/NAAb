@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  explicit btree_iterator_generation_info_disabled(uint32_t) {}\n  static void update_generation(const void *) {}\n  static uint32_t generation() { return 0; }\n  static void assert_valid_generation(const void *) {}\n}",
+  "id": "BLOCK-CPP-04878",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
+  "source_line": 1094,
+  "validation_status": "validated"
+}

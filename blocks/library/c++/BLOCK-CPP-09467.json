@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/BitmaskEnum.h\"\n#include \"llvm/ADT/BitmaskEnum.h\"\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09467_execute() {\n    {\n    return translate(V, UnexpandedPack, ExprDependence::UnexpandedPack) |\n           translate(V, Instantiation, ExprDependence::Instantiation) |\n           translate(V, Type, ExprDependence::Type) |\n           translate(V, Value, ExprDependence::Value) |\n           translate(V, Error, ExprDependence::Error);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-09467",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DependenceFlags.h",
+  "source_line": 202,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n  template <typename CHECKER>\n  static void _checkNewAllocator(void *checker, const CXXAllocatorCall &Call,\n                                 CheckerContext &C) {\n    ((const CHECKER *)checker)->checkNewAllocator(Call, C);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForNewAllocator(\n        CheckerManager::CheckNewAllocatorFunc(checker,\n                                              _checkNewAllocator<CHECKER>));\n  }\n}",
+  "id": "BLOCK-CPP-22311",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 286,
+  "validation_status": "validated"
+}

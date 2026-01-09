@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/Support/VirtualFileSystem.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <optional>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16114_execute() {\n    {\nnamespace json {\nclass Object;\n} // end namespace json\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16114",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DarwinSDKInfo.h",
+  "source_line": 20,
+  "validation_status": "validated"
+}

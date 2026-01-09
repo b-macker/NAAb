@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  /// The location of the \":\".\n  SourceLocation ColonLoc;\n\n  // The location of the \"case\" or \"default\" keyword. Stored in SwitchCaseBits.\n  // SourceLocation KeywordLoc;\n\n  /// A pointer to the following CaseStmt or DefaultStmt class,\n  /// used by SwitchStmt.\n  SwitchCase *NextSwitchCase = nullptr;\n\n  SwitchCase(StmtClass SC, SourceLocation KWLoc, SourceLocation ColonLoc)\n      : Stmt(SC), ColonLoc(ColonLoc) {\n    setKeywordLoc(KWLoc);\n  }\n\n  SwitchCase(StmtClass SC, EmptyShell) : Stmt(SC) {}\n\npublic:\n  const SwitchCase *getNextSwitchCase() const { return NextSwitchCase; }\n  SwitchCase *getNextSwitchCase() { return NextSwitchCase; }\n  void setNextSwitchCase(SwitchCase *SC) { NextSwitchCase = SC; }\n\n  SourceLocation getKeywordLoc() const { return SwitchCaseBits.KeywordLoc; }\n  void setKeywordLoc(SourceLocation L) { SwitchCaseBits.KeywordLoc = L; }\n  SourceLocation getColonLoc() const { return ColonLoc; }\n  void setColonLoc(SourceLocation L) { ColonLoc = L; }\n\n  inline Stmt *getSubStmt();\n  const Stmt *getSubStmt() const {\n    return const_cast<SwitchCase *>(this)->getSubStmt();\n  }\n\n  SourceLocation getBeginLoc() const { return getKeywordLoc(); }\n  inline SourceLocation getEndLoc() const LLVM_READONLY;\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == CaseStmtClass ||\n           T->getStmtClass() == DefaultStmtClass;\n  }\n}",
+  "id": "BLOCK-CPP-12878",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Stmt.h",
+  "source_line": 1575,
+  "validation_status": "validated"
+}

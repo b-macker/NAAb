@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Stmt.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowAnalysisContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowEnvironment.h\"\n#include \"clang/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22008_execute() {\n    {\npublic:\n  StmtToEnvMap(const ControlFlowContext &CFCtx,\n               llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>>\n                   BlockToState)\n      : CFCtx(CFCtx), BlockToState(BlockToState) {}\n\n  /// Returns the environment of the basic block that contains `S`.\n  /// The result is guaranteed never to be null.\n  const Environment *getEnvironment(const Stmt &S) const;\n\nprivate:\n  const ControlFlowContext &CFCtx;\n  llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>> BlockToState;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22008",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Transfer.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

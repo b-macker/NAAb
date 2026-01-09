@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\n\n//////////////////////////\n// [variant.bad.access] //\n//////////////////////////\n\nbad_variant_access::~bad_variant_access() = default;\n\nconst char* bad_variant_access::what() const noexcept {\n  return \"Bad variant access\";\n}\n\nnamespace variant_internal {\n\nvoid ThrowBadVariantAccess() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw bad_variant_access();\n#else\n  ABSL_RAW_LOG(FATAL, \"Bad variant access\");\n  abort();  // TODO(calabrese) Remove once RAW_LOG FATAL is noreturn.\n#endif\n}\n\nvoid Rethrow() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw;\n#else\n  ABSL_RAW_LOG(FATAL,\n               \"Internal error in absl::variant implementation. Attempted to \"\n               \"rethrow an exception when building with exceptions disabled.\");\n  abort();  // TODO(calabrese) Remove once RAW_LOG FATAL is noreturn.\n#endif\n}\n\n}  // namespace variant_internal\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-02290",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_variant_access.cc",
+  "source_line": 25,
+  "validation_status": "validated"
+}

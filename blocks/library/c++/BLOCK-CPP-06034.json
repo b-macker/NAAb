@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstdint>\n#include <iostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/charconv_parse.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06034_execute() {\n    {\n    uint32_t words[2];\n    words[0] = static_cast<uint32_t>(v);\n    words[1] = static_cast<uint32_t>(v >> 32);\n    if (words[1] == 0) {\n      MultiplyBy(words[0]);\n    } else {\n      MultiplyBy(2, words);\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06034",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_bigint.h",
+  "source_line": 152,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <ios>\n#include <memory>\n#include <ostream>\n#include <string>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/log/absl_log.h\"\n#include \"absl/strings/internal/ostringstream.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03681_execute() {\n    {\n  return absl::LogStreamer(absl::LogSeverity::kFatal, file, line);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03681",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/log_streamer.h",
+  "source_line": 164,
+  "validation_status": "validated"
+}

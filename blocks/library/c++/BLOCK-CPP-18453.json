@@ -1,0 +1,8 @@
+{
+  "code": "{\n    DirectiveList Errors;\n    DirectiveList Warnings;\n    DirectiveList Remarks;\n    DirectiveList Notes;\n\n    void Reset() {\n      Errors.clear();\n      Warnings.clear();\n      Remarks.clear();\n      Notes.clear();\n    }\n  }",
+  "id": "BLOCK-CPP-18453",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/VerifyDiagnosticConsumer.h",
+  "source_line": 236,
+  "validation_status": "validated"
+}

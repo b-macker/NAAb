@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstddef>\n#include <cstdlib>\n#include <cstring>\n#include <initializer_list>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n#include <utility>\n#include \"absl/algorithm/algorithm.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"\n#include \"absl/container/internal/inlined_vector.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03548_execute() {\n    {\n    // Fast path: if the other vector is on the heap then we don't worry about\n    // actually move-assigning each element. Instead we only throw away our own\n    // existing elements and adopt the heap allocation of the other vector.\n    if (other.storage_.GetIsAllocated()) {\n      DestroyExistingAndAdopt(std::move(other));\n      return;\n    }\n\n    storage_.Assign(IteratorValueAdapter<A, MoveIterator<A>>(\n                        MoveIterator<A>(other.storage_.GetInlinedData())),\n                    other.size());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03548",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/inlined_vector.h",
+  "source_line": 875,
+  "validation_status": "validated"
+}

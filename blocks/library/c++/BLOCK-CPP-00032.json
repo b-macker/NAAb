@@ -1,0 +1,8 @@
+{
+  "code": "using namespace spdlog;\nusing namespace sinks;\nusing namespace level;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00032_execute() {\n    {\nenum level_enum : int;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00032",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fwd.h",
+  "source_line": 14,
+  "validation_status": "validated"
+}

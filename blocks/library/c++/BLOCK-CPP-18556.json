@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/FileManager.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"clang/Lex/ModuleMap.h\"\n/// specifies the search order for directories in \\#include directives.  It\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18556_execute() {\n    {\n    return getDirCharacteristic() != SrcMgr::C_User;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18556",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/DirectoryLookup.h",
+  "source_line": 141,
+  "validation_status": "validated"
+}

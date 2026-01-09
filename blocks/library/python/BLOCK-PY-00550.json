@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00550_execute() {\n    def patched_main() -> None:\n    # PyInstaller patches multiprocessing to need freeze_support() even in non-Windows\n    # environments so just assume we always need to call it if frozen.\n    if getattr(sys, \"frozen\", False):\n        from multiprocessing import freeze_support\n\n        freeze_support()\n\n    main()\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00550",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 1642,
+  "validation_status": "validated"
+}

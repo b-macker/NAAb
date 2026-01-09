@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/Type.h\"\n#include <functional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14577_execute() {\n    {\n  bool operator()(QualType T1, QualType T2) const {\n    return std::less<void*>()(T1.getAsOpaquePtr(), T2.getAsOpaquePtr());\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14577",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeOrdering.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

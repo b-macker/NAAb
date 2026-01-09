@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include \"absl/base/attributes.h\"\n#include \"absl/synchronization/mutex.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04331_execute() {\n    {\n    return HasBeenNotifiedInternal(&this->notified_yet_);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04331",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/notification.h",
+  "source_line": 77,
+  "validation_status": "validated"
+}

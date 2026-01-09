@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  /// Destroys the visible declaration consumer.\n  virtual ~VisibleDeclConsumer();\n\n  /// Determine whether hidden declarations (from unimported\n  /// modules) should be given to this consumer. By default, they\n  /// are not included.\n  virtual bool includeHiddenDecls() const;\n\n  /// Invoked each time \\p Sema::LookupVisibleDecls() finds a\n  /// declaration visible from the current scope or context.\n  ///\n  /// \\param ND the declaration found.\n  ///\n  /// \\param Hiding a declaration that hides the declaration \\p ND,\n  /// or NULL if no such declaration exists.\n  ///\n  /// \\param Ctx the original context from which the lookup started.\n  ///\n  /// \\param InBaseClass whether this declaration was found in base\n  /// class of the context we searched.\n  virtual void FoundDecl(NamedDecl *ND, NamedDecl *Hiding, DeclContext *Ctx,\n                         bool InBaseClass) = 0;\n\n  /// Callback to inform the client that Sema entered into a new context\n  /// to find a visible declaration.\n  //\n  /// \\param Ctx the context which Sema entered.\n  virtual void EnteredContext(DeclContext *Ctx) {}\n}",
+  "id": "BLOCK-CPP-19953",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Lookup.h",
+  "source_line": 799,
+  "validation_status": "validated"
+}

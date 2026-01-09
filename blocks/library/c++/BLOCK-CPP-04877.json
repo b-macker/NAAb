@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  explicit btree_iterator_generation_info_enabled(uint32_t g)\n      : generation_(g) {}\n\n  // Updates the generation. For use internally right before we return an\n  // iterator to the user.\n  template <typename Node>\n  void update_generation(const Node *node) {\n    if (node != nullptr) generation_ = node->generation();\n  }\n  uint32_t generation() const { return generation_; }\n\n  template <typename Node>\n  void assert_valid_generation(const Node *node) const {\n    if (node != nullptr && node->generation() != generation_) {\n      ABSL_INTERNAL_LOG(\n          FATAL,\n          \"Attempting to use an invalidated iterator. The corresponding b-tree \"\n          \"container has been mutated since this iterator was constructed.\");\n    }\n  }\n\n private:\n  // Used to check that the iterator hasn't been invalidated.\n  uint32_t generation_;\n}",
+  "id": "BLOCK-CPP-04877",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
+  "source_line": 1066,
+  "validation_status": "validated"
+}

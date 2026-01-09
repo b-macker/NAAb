@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/Support/ExtensibleRTTI.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include \"llvm/Support/MD5.h\"\n#include <memory>\n#include <string>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21035_execute() {\n    {\nclass BitstreamCursor;\nclass BitstreamWriter;\nclass raw_ostream;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21035",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ModuleFileExtension.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

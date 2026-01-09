@@ -1,0 +1,336 @@
+# NAAb Sales Report Generator
+# A complete business application written entirely in NAAb
+# Demonstrates: variables, arithmetic, conditionals, loops, reporting
+# Author: NAAb Language Team
+# Version: 1.0.0
+
+main {
+    # =======================================================================
+    # SALES REPORT GENERATOR
+    # =======================================================================
+
+    print("===================================================================")
+    print("  ACME Corp - Quarterly Sales Report Generator")
+    print("  Q4 2024 Revenue Analysis")
+    print("===================================================================")
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 1: Data Input (October, November, December)
+    # -----------------------------------------------------------------------
+
+    print("[Section 1] Loading Sales Data...")
+    print()
+
+    # October sales by region
+    let oct_north = 125000
+    let oct_south = 98000
+    let oct_east = 110000
+    let oct_west = 145000
+
+    # November sales by region
+    let nov_north = 138000
+    let nov_south = 105000
+    let nov_east = 122000
+    let nov_west = 156000
+
+    # December sales by region (holiday boost)
+    let dec_north = 192000
+    let dec_south = 147000
+    let dec_east = 165000
+    let dec_west = 203000
+
+    print("  OK Data loaded: 3 months x 4 regions = 12 data points")
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 2: Calculate Monthly Totals
+    # -----------------------------------------------------------------------
+
+    print("[Section 2] Calculating Monthly Totals...")
+    print()
+
+    let oct_total = oct_north + oct_south + oct_east + oct_west
+    let nov_total = nov_north + nov_south + nov_east + nov_west
+    let dec_total = dec_north + dec_south + dec_east + dec_west
+
+    print("  October Total:  $", oct_total)
+    print("  November Total: $", nov_total)
+    print("  December Total: $", dec_total)
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 3: Calculate Regional Totals
+    # -----------------------------------------------------------------------
+
+    print("[Section 3] Calculating Regional Performance...")
+    print()
+
+    let north_total = oct_north + nov_north + dec_north
+    let south_total = oct_south + nov_south + dec_south
+    let east_total = oct_east + nov_east + dec_east
+    let west_total = oct_west + nov_west + dec_west
+
+    print("  North Region: $", north_total)
+    print("  South Region: $", south_total)
+    print("  East Region:  $", east_total)
+    print("  West Region:  $", west_total)
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 4: Quarter-Level Statistics
+    # -----------------------------------------------------------------------
+
+    print("[Section 4] Quarter-Level Analysis...")
+    print()
+
+    let q4_total = oct_total + nov_total + dec_total
+    let q4_average = q4_total / 3
+
+    print("  Q4 Total Revenue:    $", q4_total)
+    print("  Q4 Monthly Average:  $", q4_average)
+    print()
+
+    # Growth calculations
+    let oct_to_nov_growth = nov_total - oct_total
+    let nov_to_dec_growth = dec_total - nov_total
+    let oct_to_dec_growth = dec_total - oct_total
+
+    print("  Month-over-Month Growth:")
+    print("    Oct -> Nov: $", oct_to_nov_growth)
+    print("    Nov -> Dec: $", nov_to_dec_growth)
+    print("    Oct -> Dec: $", oct_to_dec_growth)
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 5: Regional Performance Analysis
+    # -----------------------------------------------------------------------
+
+    print("[Section 5] Regional Performance Ranking...")
+    print()
+
+    # Find best performing region
+    let best_region = "North"
+    let best_revenue = north_total
+
+    if south_total > best_revenue {
+        best_region = "South"
+        best_revenue = south_total
+    }
+
+    if east_total > best_revenue {
+        best_region = "East"
+        best_revenue = east_total
+    }
+
+    if west_total > best_revenue {
+        best_region = "West"
+        best_revenue = west_total
+    }
+
+    print("  Best Performing Region:  ", best_region)
+    print("  Best Region Revenue:     $", best_revenue)
+    print()
+
+    # Find worst performing region
+    let worst_region = "North"
+    let worst_revenue = north_total
+
+    if south_total < worst_revenue {
+        worst_region = "South"
+        worst_revenue = south_total
+    }
+
+    if east_total < worst_revenue {
+        worst_region = "East"
+        worst_revenue = east_total
+    }
+
+    if west_total < worst_revenue {
+        worst_region = "West"
+        worst_revenue = west_total
+    }
+
+    print("  Worst Performing Region: ", worst_region)
+    print("  Worst Region Revenue:    $", worst_revenue)
+    print()
+
+    let revenue_gap = best_revenue - worst_revenue
+    print("  Revenue Gap:             $", revenue_gap)
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 6: Target Achievement Analysis
+    # -----------------------------------------------------------------------
+
+    print("[Section 6] Target Achievement...")
+    print()
+
+    let q4_target = 2000000
+    let achievement = q4_total - q4_target
+
+    print("  Q4 Target:        $", q4_target)
+    print("  Q4 Actual:        $", q4_total)
+
+    if achievement >= 0 {
+        print("  Status:           TARGET MET!")
+        print("  Over Target By:   $", achievement)
+    } else {
+        let shortfall = 0 - achievement
+        print("  Status:           TARGET MISSED")
+        print("  Shortfall:        $", shortfall)
+    }
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 7: Forecasting (Q1 2025)
+    # -----------------------------------------------------------------------
+
+    print("[Section 7] Q1 2025 Forecast...")
+    print()
+
+    # Simple forecast based on Q4 average + 5% growth
+    let growth_factor = 105
+    let jan_forecast = (q4_average * growth_factor) / 100
+    let feb_forecast = (q4_average * growth_factor) / 100
+    let mar_forecast = (q4_average * growth_factor) / 100
+    let q1_forecast = jan_forecast + feb_forecast + mar_forecast
+
+    print("  Assumption: 5% quarter-over-quarter growth")
+    print()
+    print("  January 2025:   $", jan_forecast)
+    print("  February 2025:  $", feb_forecast)
+    print("  March 2025:     $", mar_forecast)
+    print("  Q1 2025 Total:  $", q1_forecast)
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 8: Performance Grades
+    # -----------------------------------------------------------------------
+
+    print("[Section 8] Performance Grades...")
+    print()
+
+    # Grade each region based on percentage of target (500k per region)
+    let regional_target = 500000
+
+    # North grade
+    if north_total >= regional_target {
+        print("  North: EXCELLENT (target met)")
+    } else {
+        let north_percent = (north_total * 100) / regional_target
+        if north_percent >= 90 {
+            print("  North: GOOD (90%+ of target)")
+        } else {
+            if north_percent >= 75 {
+                print("  North: FAIR (75%+ of target)")
+            } else {
+                print("  North: NEEDS IMPROVEMENT (below 75%)")
+            }
+        }
+    }
+
+    # South grade
+    if south_total >= regional_target {
+        print("  South: EXCELLENT (target met)")
+    } else {
+        let south_percent = (south_total * 100) / regional_target
+        if south_percent >= 90 {
+            print("  South: GOOD (90%+ of target)")
+        } else {
+            if south_percent >= 75 {
+                print("  South: FAIR (75%+ of target)")
+            } else {
+                print("  South: NEEDS IMPROVEMENT (below 75%)")
+            }
+        }
+    }
+
+    # East grade
+    if east_total >= regional_target {
+        print("  East:  EXCELLENT (target met)")
+    } else {
+        let east_percent = (east_total * 100) / regional_target
+        if east_percent >= 90 {
+            print("  East:  GOOD (90%+ of target)")
+        } else {
+            if east_percent >= 75 {
+                print("  East:  FAIR (75%+ of target)")
+            } else {
+                print("  East:  NEEDS IMPROVEMENT (below 75%)")
+            }
+        }
+    }
+
+    # West grade
+    if west_total >= regional_target {
+        print("  West:  EXCELLENT (target met)")
+    } else {
+        let west_percent = (west_total * 100) / regional_target
+        if west_percent >= 90 {
+            print("  West:  GOOD (90%+ of target)")
+        } else {
+            if west_percent >= 75 {
+                print("  West:  FAIR (75%+ of target)")
+            } else {
+                print("  West:  NEEDS IMPROVEMENT (below 75%)")
+            }
+        }
+    }
+
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 9: Final Executive Summary
+    # -----------------------------------------------------------------------
+
+    print("===================================================================")
+    print("  EXECUTIVE SUMMARY - Q4 2024")
+    print("===================================================================")
+    print()
+    print("FINANCIAL PERFORMANCE:")
+    print("  Total Revenue:           $", q4_total)
+    print("  Monthly Average:         $", q4_average)
+    print("  Best Month:              December ($", dec_total, ")")
+    print()
+    print("REGIONAL PERFORMANCE:")
+    print("  Top Performer:           ", best_region, " ($", best_revenue, ")")
+    print("  Bottom Performer:        ", worst_region, " ($", worst_revenue, ")")
+    print("  Performance Gap:         $", revenue_gap)
+    print()
+    print("TARGET ACHIEVEMENT:")
+    print("  Q4 Target:               $", q4_target)
+    print("  Q4 Actual:               $", q4_total)
+
+    if achievement >= 0 {
+        print("  Result:                  TARGET EXCEEDED")
+    } else {
+        print("  Result:                  TARGET MISSED")
+    }
+
+    print()
+    print("Q1 2025 FORECAST:")
+    print("  Projected Revenue:       $", q1_forecast)
+    print("  Growth Assumption:       5%")
+    print()
+    print("===================================================================")
+    print()
+
+    # -----------------------------------------------------------------------
+    # SECTION 10: Completion Status
+    # -----------------------------------------------------------------------
+
+    print("Report Generation Complete!")
+    print()
+    print("This report analyzed:")
+    print("  - 12 data points (3 months x 4 regions)")
+    print("  - 4 regional markets")
+    print("  - 1 quarter of sales data")
+    print("  - Target achievement metrics")
+    print("  - Forward-looking Q1 2025 forecast")
+    print()
+    print("Generated by: NAAb Sales Report Generator v1.0.0")
+    print("Language: NAAb Block Assembly Language")
+    print()
+    print("===================================================================")
+}

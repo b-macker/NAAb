@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstdint>\n#include <iostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/charconv_parse.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06045_execute() {\n    {\n    if (value && index < max_words) {\n      uint32_t high = value >> 32;\n      uint32_t low = value & 0xffffffff;\n      words_[index] += low;\n      if (words_[index] < low) {\n        ++high;\n        if (high == 0) {\n          // Carry from the low word caused our high word to overflow.\n          // Short circuit here to do the right thing.\n          AddWithCarry(index + 2, static_cast<uint32_t>(1));\n          return;\n        }\n      }\n      if (high > 0) {\n        AddWithCarry(index + 1, high);\n      } else {\n        // Normally 32-bit AddWithCarry() sets size_, but since we don't call\n        // it when `high` is 0, do it ourselves here.\n        size_ = (std::min)(max_words, (std::max)(index + 1, size_));\n      }\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06045",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_bigint.h",
+  "source_line": 296,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n  SourceLocation AtThrowLoc;\n  Stmt *Throw;\n\npublic:\n  ObjCAtThrowStmt(SourceLocation atThrowLoc, Stmt *throwExpr)\n  : Stmt(ObjCAtThrowStmtClass), Throw(throwExpr) {\n    AtThrowLoc = atThrowLoc;\n  }\n  explicit ObjCAtThrowStmt(EmptyShell Empty) :\n    Stmt(ObjCAtThrowStmtClass, Empty) { }\n\n  const Expr *getThrowExpr() const { return reinterpret_cast<Expr*>(Throw); }\n  Expr *getThrowExpr() { return reinterpret_cast<Expr*>(Throw); }\n  void setThrowExpr(Stmt *S) { Throw = S; }\n\n  SourceLocation getThrowLoc() const LLVM_READONLY { return AtThrowLoc; }\n  void setThrowLoc(SourceLocation Loc) { AtThrowLoc = Loc; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return AtThrowLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY {\n    return Throw ? Throw->getEndLoc() : AtThrowLoc;\n  }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ObjCAtThrowStmtClass;\n  }\n\n  child_range children() { return child_range(&Throw, &Throw+1); }\n\n  const_child_range children() const {\n    return const_child_range(&Throw, &Throw + 1);\n  }\n}",
+  "id": "BLOCK-CPP-13052",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtObjC.h",
+  "source_line": 357,
+  "validation_status": "validated"
+}

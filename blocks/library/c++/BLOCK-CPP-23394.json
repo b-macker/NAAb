@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23394_execute() {\n    {\n    friend class ParamCommandComment;\n\n    unsigned : NumBlockCommandCommentBits;\n\n    /// Parameter passing direction, see ParamCommandComment::PassDirection.\n    unsigned Direction : 2;\n\n    /// True if direction was specified explicitly in the comment.\n    unsigned IsDirectionExplicit : 1;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23394",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 152,
+  "validation_status": "validated"
+}

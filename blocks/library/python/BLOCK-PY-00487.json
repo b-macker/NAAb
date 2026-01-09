@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00487_execute() {\n    def set_lineno(self, lineno: int, override: bool = False) -> \"Node\":\n        \"\"\"Set the line numbers of the node and children.\"\"\"\n        todo = deque([self])\n        while todo:\n            node = todo.popleft()\n            if \"lineno\" in node.attributes:\n                if node.lineno is None or override:\n                    node.lineno = lineno\n            todo.extend(node.iter_child_nodes())\n        return self\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00487",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 220,
+  "validation_status": "validated"
+}

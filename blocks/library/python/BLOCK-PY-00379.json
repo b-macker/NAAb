@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00379_execute() {\n    def visit_Filter(self, node: nodes.Filter, frame: Frame) -> None:\n        with self._filter_test_common(node, frame, True):\n            # if the filter node is None we are inside a filter block\n            # and want to write to the current buffer\n            if node.node is not None:\n                self.visit(node.node, frame)\n            elif frame.eval_ctx.volatile:\n                self.write(\n                    f\"(Markup(concat({frame.buffer}))\"\n                    f\" if context.eval_ctx.autoescape else concat({frame.buffer}))\"\n                )\n            elif frame.eval_ctx.autoescape:\n                self.write(f\"Markup(concat({frame.buffer}))\")\n            else:\n                self.write(f\"concat({frame.buffer})\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00379",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1831,
+  "validation_status": "validated"
+}

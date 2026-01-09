@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  void Retire(const char* flag_name) {\n    flags_internal::Retire(flag_name, base_internal::FastTypeId<T>(), buf_);\n  }\n\n private:\n  alignas(kRetiredFlagObjAlignment) char buf_[kRetiredFlagObjSize];\n}",
+  "id": "BLOCK-CPP-05545",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/registry.h",
+  "source_line": 82,
+  "validation_status": "validated"
+}

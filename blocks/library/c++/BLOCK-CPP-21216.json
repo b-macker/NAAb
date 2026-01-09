@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Tooling/Refactoring.h\"\n#include \"llvm/Support/YAMLTraits.h\"\n#include <string>\n\nusing namespace llvm;\nusing namespace yaml;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21216_execute() {\n    {\n    MappingNormalization<NormalizedReplacement, clang::tooling::Replacement>\n    Keys(Io, R);\n    Io.mapRequired(\"FilePath\", Keys->FilePath);\n    Io.mapRequired(\"Offset\", Keys->Offset);\n    Io.mapRequired(\"Length\", Keys->Length);\n    Io.mapRequired(\"ReplacementText\", Keys->ReplacementText);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21216",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/ReplacementsYaml.h",
+  "source_line": 50,
+  "validation_status": "validated"
+}

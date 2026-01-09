@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01113_execute() {\n    {\n private:\n  size_t count_ = 0;\n  size_t limit_;\n\n public:\n  explicit fixed_buffer_traits(size_t limit) : limit_(limit) {}\n  auto count() const -> size_t { return count_; }\n  auto limit(size_t size) -> size_t {\n    size_t n = limit_ > count_ ? limit_ - count_ : 0;\n    count_ += size;\n    return size < n ? size : n;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01113",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 954,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  explicit TrivialDeleter(std::size_t) {}\n\n  void operator()(void* target) const { ::operator delete(target); }\n}",
+  "id": "BLOCK-CPP-05592",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/internal/any_invocable.h",
+  "source_line": 416,
+  "validation_status": "validated"
+}

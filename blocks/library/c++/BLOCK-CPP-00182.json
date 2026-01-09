@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/cfg/helpers.h>\n#include <spdlog/details/os.h>\n#include <spdlog/details/registry.h>\n\nusing namespace spdlog;\nusing namespace cfg;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00182_execute() {\n    {\n    auto env_val = details::os::getenv(\"SPDLOG_LEVEL\");\n    if (!env_val.empty()) {\n        helpers::load_levels(env_val);\n    }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00182",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/cfg/env.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

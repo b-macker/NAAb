@@ -1,0 +1,8 @@
+{
+  "code": "#include \"time_zone_info.h\"\n#include <algorithm>\n#include <cassert>\n#include <chrono>\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <cstring>\n#include <fstream>\n#include <functional>\n#include <memory>\n#include <sstream>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"time_zone_fixed.h\"\n#include \"time_zone_posix.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03240_execute() {\n    {\n public:\n  static std::unique_ptr<ZoneInfoSource> Open(const std::string& name);\n\n  std::size_t Read(void* ptr, std::size_t size) override {\n    size = std::min(size, len_);\n    std::size_t nread = fread(ptr, 1, size, fp_.get());\n    len_ -= nread;\n    return nread;\n  }\n  int Skip(std::size_t offset) override {\n    offset = std::min(offset, len_);\n    int rc = fseek(fp_.get(), static_cast<long>(offset), SEEK_CUR);\n    if (rc == 0) len_ -= offset;\n    return rc;\n  }\n  std::string Version() const override {\n    // TODO: It would nice if the zoneinfo data included the tzdb version.\n    return std::string();\n  }\n\n protected:\n  explicit FileZoneInfoSource(\n      FilePtr fp, std::size_t len = std::numeric_limits<std::size_t>::max())\n      : fp_(std::move(fp)), len_(len) {}\n\n private:\n  FilePtr fp_;\n  std::size_t len_;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03240",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_info.cc",
+  "source_line": 398,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/flags/usage_config.h\"\n#include <functional>\n#include <iostream>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/flags/internal/path_util.h\"\n#include \"absl/flags/internal/program_name.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01748_execute() {\n    {\n  absl::MutexLock l(&custom_usage_config_guard);\n\n  if (custom_usage_config) return *custom_usage_config;\n\n  FlagsUsageConfig default_config;\n  default_config.contains_helpshort_flags = &ContainsHelpshortFlags;\n  default_config.contains_help_flags = &ContainsHelppackageFlags;\n  default_config.contains_helppackage_flags = &ContainsHelppackageFlags;\n  default_config.version_string = &VersionString;\n  default_config.normalize_filename = &NormalizeFilename;\n\n  return default_config;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01748",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/usage_config.cc",
+  "source_line": 113,
+  "validation_status": "validated"
+}

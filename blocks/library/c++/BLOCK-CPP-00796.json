@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00796_execute() {\n    {\n    auto begin = ctx.begin(), end = ctx.end();\n    if (begin == end || *begin == '}') return {begin, begin};\n    spec_handler handler{*this, ctx, format_str};\n    begin = detail::parse_align(begin, end, handler);\n    if (begin == end) return {begin, begin};\n    begin = detail::parse_width(begin, end, handler);\n    if (begin == end) return {begin, begin};\n    if (*begin == '.') {\n      if (std::is_floating_point<Rep>::value)\n        begin = detail::parse_precision(begin, end, handler);\n      else\n        handler.on_error(\"precision not allowed for this argument type\");\n    }\n    if (begin != end && *begin == 'L') {\n      ++begin;\n      localized = true;\n    }\n    end = detail::parse_chrono_format(begin, end,\n                                      detail::chrono_format_checker());\n    return {begin, end};\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00796",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1940,
+  "validation_status": "validated"
+}

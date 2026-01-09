@@ -1,0 +1,8 @@
+{
+  "code": "{\n  const CXXBindTemporaryExpr *BTE;\n  const MaterializeTemporaryExpr *MTE;\n\nprotected:\n  explicit TemporaryObjectConstructionContext(\n      ConstructionContext::Kind K, const CXXBindTemporaryExpr *BTE,\n      const MaterializeTemporaryExpr *MTE)\n      : ConstructionContext(K), BTE(BTE), MTE(MTE) {\n    // Both BTE and MTE can be null here, all combinations possible.\n    // Even though for now at least one should be non-null, we simply haven't\n    // implemented the other case yet (this would be a temporary in the middle\n    // of nowhere that doesn't have a non-trivial destructor).\n  }\n\npublic:\n  /// CXXBindTemporaryExpr here is non-null as long as the temporary has\n  /// a non-trivial destructor.\n  const CXXBindTemporaryExpr *getCXXBindTemporaryExpr() const {\n    return BTE;\n  }\n\n  /// MaterializeTemporaryExpr is non-null as long as the temporary is actually\n  /// used after construction, eg. by binding to a reference (lifetime\n  /// extension), accessing a field, calling a method, or passing it into\n  /// a function (an elidable copy or move constructor would be a common\n  /// example) by reference.\n  const MaterializeTemporaryExpr *getMaterializedTemporaryExpr() const {\n    return MTE;\n  }\n\n  static bool classof(const ConstructionContext *CC) {\n    return CC->getKind() >= TEMPORARY_BEGIN && CC->getKind() <= TEMPORARY_END;\n  }\n}",
+  "id": "BLOCK-CPP-15689",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
+  "source_line": 486,
+  "validation_status": "validated"
+}

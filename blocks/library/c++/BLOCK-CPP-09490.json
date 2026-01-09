@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/BitmaskEnum.h\"\n#include \"llvm/ADT/BitmaskEnum.h\"\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09490_execute() {\n    {\n  enum ExprDependence : uint8_t {\n    UnexpandedPack = 1,\n    // This expr depends in any way on\n    //   - a template parameter, it implies that the resolution of this expr may\n    //     cause instantiation to fail\n    //   - or an error (often in a non-template context)\n    //\n    // Note that C++ standard doesn't define the instantiation-dependent term,\n    // we follow the formal definition coming from the Itanium C++ ABI, and\n    // extend it to errors.\n    Instantiation = 2,\n    // The type of this expr depends on a template parameter, or an error.\n    Type = 4,\n    // The value of this expr depends on a template parameter, or an error.\n    Value = 8,\n\n    // clang extension: this expr contains or references an error, and is\n    // considered dependent on how that error is resolved.\n    Error = 16,\n\n    None = 0,\n    All = 31,\n\n    TypeValue = Type | Value,\n    TypeInstantiation = Type | Instantiation,\n    ValueInstantiation = Value | Instantiation,\n    TypeValueInstantiation = Type | Value | Instantiation,\n    ErrorDependent = Error | ValueInstantiation,\n\n    LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/Error)\n  };\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-09490",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DependenceFlags.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

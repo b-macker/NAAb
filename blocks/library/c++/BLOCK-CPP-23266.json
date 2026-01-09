@@ -1,0 +1,8 @@
+{
+  "code": "{\n\n/// Implement simplify_type for CanQual<T>, so that we can dyn_cast from\n/// CanQual<T> to a specific Type class. We're prefer isa/dyn_cast/cast/etc.\n/// to return smart pointer (proxies?).\ntemplate<typename T>\nstruct simplify_type< ::clang::CanQual<T>> {\n  using SimpleType = const T *;\n\n  static SimpleType getSimplifiedValue(::clang::CanQual<T> Val) {\n    return Val.getTypePtr();\n  }\n};\n\n// Teach SmallPtrSet that CanQual<T> is \"basically a pointer\".\ntemplate<typename T>\nstruct PointerLikeTypeTraits<clang::CanQual<T>> {\n  static void *getAsVoidPointer(clang::CanQual<T> P) {\n    return P.getAsOpaquePtr();\n  }\n\n  static clang::CanQual<T> getFromVoidPointer(void *P) {\n    return clang::CanQual<T>::getFromOpaquePtr(P);\n  }\n\n  // qualifier information is encoded in the low bits.\n  static constexpr int NumLowBitsAvailable = 0;\n};\n\n}",
+  "id": "BLOCK-CPP-23266",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CanonicalType.h",
+  "source_line": 362,
+  "validation_status": "validated"
+}

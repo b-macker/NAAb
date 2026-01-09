@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  explicit IntegerValue() : Value(Kind::Integer) {}\n\n  static bool classof(const Value *Val) {\n    return Val->getKind() == Kind::Integer;\n  }\n}",
+  "id": "BLOCK-CPP-22040",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Value.h",
+  "source_line": 159,
+  "validation_status": "validated"
+}

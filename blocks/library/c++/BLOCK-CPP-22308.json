@@ -1,0 +1,8 @@
+{
+  "code": "{\n  template <typename CHECKER>\n  static void _checkBeginFunction(void *checker, CheckerContext &C) {\n    ((const CHECKER *)checker)->checkBeginFunction(C);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForBeginFunction(CheckerManager::CheckBeginFunctionFunc(\n        checker, _checkBeginFunction<CHECKER>));\n  }\n}",
+  "id": "BLOCK-CPP-22308",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 241,
+  "validation_status": "validated"
+}

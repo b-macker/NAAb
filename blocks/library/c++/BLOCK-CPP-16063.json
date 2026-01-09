@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/DataTypes.h\"\n\nusing namespace clang;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16063_execute() {\n    {\n  if (isUppercase(c))\n    return c + 'a' - 'A';\n  return c;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16063",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CharInfo.h",
+  "source_line": 208,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n  class Sema;\n\n  /// An abstract interface that should be implemented by\n  /// clients that read ASTs and then require further semantic\n  /// analysis of the entities in those ASTs.\n  class SemaConsumer : public ASTConsumer {\n    virtual void anchor();\n  public:\n    SemaConsumer() {\n      ASTConsumer::SemaConsumer = true;\n    }\n\n    /// Initialize the semantic consumer with the Sema instance\n    /// being used to perform semantic analysis on the abstract syntax\n    /// tree.\n    virtual void InitializeSema(Sema &S) {}\n\n    /// Inform the semantic consumer that Sema is no longer available.\n    virtual void ForgetSema() {}\n\n    // isa/cast/dyn_cast support\n    static bool classof(const ASTConsumer *Consumer) {\n      return Consumer->SemaConsumer;\n    }\n  };\n}",
+  "id": "BLOCK-CPP-20629",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaConsumer.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

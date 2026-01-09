@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00731_execute() {\n    {\n  if (const char* unit = get_units<Period>())\n    return copy_unit(string_view(unit), out, Char());\n  *out++ = '[';\n  out = write<Char>(out, Period::num);\n  if (const_check(Period::den != 1)) {\n    *out++ = '/';\n    out = write<Char>(out, Period::den);\n  }\n  *out++ = ']';\n  *out++ = 's';\n  return out;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00731",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1536,
+  "validation_status": "validated"
+}

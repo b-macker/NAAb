@@ -1,0 +1,8 @@
+{
+  "code": "{\n  SourceLocation L, R;\n  Stmt *Val;\npublic:\n  ParenExpr(SourceLocation l, SourceLocation r, Expr *val)\n      : Expr(ParenExprClass, val->getType(), val->getValueKind(),\n             val->getObjectKind()),\n        L(l), R(r), Val(val) {\n    setDependence(computeDependence(this));\n  }\n\n  /// Construct an empty parenthesized expression.\n  explicit ParenExpr(EmptyShell Empty)\n    : Expr(ParenExprClass, Empty) { }\n\n  const Expr *getSubExpr() const { return cast<Expr>(Val); }\n  Expr *getSubExpr() { return cast<Expr>(Val); }\n  void setSubExpr(Expr *E) { Val = E; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return L; }\n  SourceLocation getEndLoc() const LLVM_READONLY { return R; }\n\n  /// Get the location of the left parentheses '('.\n  SourceLocation getLParen() const { return L; }\n  void setLParen(SourceLocation Loc) { L = Loc; }\n\n  /// Get the location of the right parentheses ')'.\n  SourceLocation getRParen() const { return R; }\n  void setRParen(SourceLocation Loc) { R = Loc; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ParenExprClass;\n  }\n\n  // Iterators\n  child_range children() { return child_range(&Val, &Val+1); }\n  const_child_range children() const {\n    return const_child_range(&Val, &Val + 1);\n  }\n}",
+  "id": "BLOCK-CPP-10231",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
+  "source_line": 2142,
+  "validation_status": "validated"
+}

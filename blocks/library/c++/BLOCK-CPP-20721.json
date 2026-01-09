@@ -1,0 +1,8 @@
+{
+  "code": "{\n  SmallVector<TemplateSpecCandidate, 16> Candidates;\n  SourceLocation Loc;\n\n  // Stores whether we're taking the address of these candidates. This helps us\n  // produce better error messages when dealing with the pass_object_size\n  // attribute on parameters.\n  bool ForTakingAddress;\n\n  void destroyCandidates();\n\npublic:\n  TemplateSpecCandidateSet(SourceLocation Loc, bool ForTakingAddress = false)\n      : Loc(Loc), ForTakingAddress(ForTakingAddress) {}\n  TemplateSpecCandidateSet(const TemplateSpecCandidateSet &) = delete;\n  TemplateSpecCandidateSet &\n  operator=(const TemplateSpecCandidateSet &) = delete;\n  ~TemplateSpecCandidateSet() { destroyCandidates(); }\n\n  SourceLocation getLocation() const { return Loc; }\n\n  /// Clear out all of the candidates.\n  /// TODO: This may be unnecessary.\n  void clear();\n\n  using iterator = SmallVector<TemplateSpecCandidate, 16>::iterator;\n\n  iterator begin() { return Candidates.begin(); }\n  iterator end() { return Candidates.end(); }\n\n  size_t size() const { return Candidates.size(); }\n  bool empty() const { return Candidates.empty(); }\n\n  /// Add a new candidate with NumConversions conversion sequence slots\n  /// to the overload set.\n  TemplateSpecCandidate &addCandidate() {\n    Candidates.emplace_back();\n    return Candidates.back();\n  }\n\n  void NoteCandidates(Sema &S, SourceLocation Loc);\n\n  void NoteCandidates(Sema &S, SourceLocation Loc) const {\n    const_cast<TemplateSpecCandidateSet *>(this)->NoteCandidates(S, Loc);\n  }\n}",
+  "id": "BLOCK-CPP-20721",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/TemplateDeduction.h",
+  "source_line": 333,
+  "validation_status": "validated"
+}

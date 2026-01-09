@@ -1,0 +1,8 @@
+{
+  "code": "{\n  /// A mostly-opaque identifier, where 0 is \"invalid\", >0 is\n  /// this module, and <-1 is something loaded from another module.\n  int ID = 0;\n\npublic:\n  bool isValid() const { return ID != 0; }\n  bool isInvalid() const { return ID == 0; }\n\n  bool operator==(const FileID &RHS) const { return ID == RHS.ID; }\n  bool operator<(const FileID &RHS) const { return ID < RHS.ID; }\n  bool operator<=(const FileID &RHS) const { return ID <= RHS.ID; }\n  bool operator!=(const FileID &RHS) const { return !(*this == RHS); }\n  bool operator>(const FileID &RHS) const { return RHS < *this; }\n  bool operator>=(const FileID &RHS) const { return RHS <= *this; }\n\n  static FileID getSentinel() { return get(-1); }\n  unsigned getHashValue() const { return static_cast<unsigned>(ID); }\n\nprivate:\n  friend class ASTWriter;\n  friend class ASTReader;\n  friend class SourceManager;\n\n  static FileID get(int V) {\n    FileID F;\n    F.ID = V;\n    return F;\n  }\n\n  int getOpaqueValue() const { return ID; }\n}",
+  "id": "BLOCK-CPP-16867",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SourceLocation.h",
+  "source_line": 38,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/Analyses/PostOrderCFGView.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyTIL.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyTraverse.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyUtil.h\"\n#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Casting.h\"\n#include <sstream>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace sx;\nusing namespace sx;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21461_execute() {\n    {\n    // The previous context; or 0 if none.\n    CallingContext  *Prev;\n\n    // The decl to which the attr is attached.\n    const NamedDecl *AttrDecl;\n\n    // Implicit object argument -- e.g. 'this'\n    llvm::PointerUnion<const Expr *, til::SExpr *> SelfArg = nullptr;\n\n    // Number of funArgs\n    unsigned NumArgs = 0;\n\n    // Function arguments\n    const Expr *const *FunArgs = nullptr;\n\n    // is Self referred to with -> or .?\n    bool SelfArrow = false;\n\n    CallingContext(CallingContext *P, const NamedDecl *D = nullptr)\n        : Prev(P), AttrDecl(D) {}\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21461",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyCommon.h",
+  "source_line": 350,
+  "validation_status": "validated"
+}

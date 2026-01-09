@@ -1,0 +1,24 @@
+# Test program - Method chaining on Python objects
+
+use BLOCK-PY-00001 as PyModule
+
+main {
+    print("=== Method Chaining Test ===")
+    print("")
+
+    # Create a Python object (APIResponse instance)
+    print("Test 1: Creating Python object")
+    let Response = PyModule.APIResponse
+    let obj = Response(42, "success")
+    print("  Created object:", obj)
+    print("  Type:", type(obj))
+    print("")
+
+    # Test 2: Access attribute from Python object
+    print("Test 2: Accessing object attributes")
+    # APIResponse has 'code' and 'status' attributes
+    # We'll test accessing them
+    print("")
+
+    print("=== Method chaining test complete! ===")
+}

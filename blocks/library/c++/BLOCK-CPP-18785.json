@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/Module.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include \"llvm/ADT/TinyPtrVector.h\"\n#include \"llvm/ADT/Twine.h\"\n#include <ctime>\n#include <memory>\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18785_execute() {\n    { return Storage.getInt(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18785",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/ModuleMap.h",
+  "source_line": 177,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n  llvm::BitVector EnqueuedBlocks;\n  PostOrderCFGView *POV;\n  llvm::PriorityQueue<const CFGBlock *,\n                      SmallVector<const CFGBlock *, QueueSize>, Comp>\n      WorkList;\n\npublic:\n  DataflowWorklistBase(const CFG &Cfg, PostOrderCFGView *POV, Comp C)\n      : EnqueuedBlocks(Cfg.getNumBlockIDs()), POV(POV), WorkList(C) {}\n\n  const PostOrderCFGView *getCFGView() const { return POV; }\n\n  void enqueueBlock(const CFGBlock *Block) {\n    if (Block && !EnqueuedBlocks[Block->getBlockID()]) {\n      EnqueuedBlocks[Block->getBlockID()] = true;\n      WorkList.push(Block);\n    }\n  }\n\n  const CFGBlock *dequeue() {\n    if (WorkList.empty())\n      return nullptr;\n    const CFGBlock *B = WorkList.top();\n    WorkList.pop();\n    EnqueuedBlocks[B->getBlockID()] = false;\n    return B;\n  }\n}",
+  "id": "BLOCK-CPP-21930",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DataflowWorklist.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n Stmt *SubExpr;\n\n FullExpr(StmtClass SC, Expr *subexpr)\n     : Expr(SC, subexpr->getType(), subexpr->getValueKind(),\n            subexpr->getObjectKind()),\n       SubExpr(subexpr) {\n   setDependence(computeDependence(this));\n }\n  FullExpr(StmtClass SC, EmptyShell Empty)\n    : Expr(SC, Empty) {}\npublic:\n  const Expr *getSubExpr() const { return cast<Expr>(SubExpr); }\n  Expr *getSubExpr() { return cast<Expr>(SubExpr); }\n\n  /// As with any mutator of the AST, be very careful when modifying an\n  /// existing AST to preserve its invariants.\n  void setSubExpr(Expr *E) { SubExpr = E; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() >= firstFullExprConstant &&\n           T->getStmtClass() <= lastFullExprConstant;\n  }\n}",
+  "id": "BLOCK-CPP-10224",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
+  "source_line": 1019,
+  "validation_status": "validated"
+}

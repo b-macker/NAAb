@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06557_execute() {\n    {\n  return f1.y - f2.y;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06557",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+  "source_line": 303,
+  "validation_status": "validated"
+}

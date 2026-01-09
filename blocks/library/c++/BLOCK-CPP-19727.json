@@ -1,0 +1,8 @@
+{
+  "code": "{\n    /// The type qualifiers: const/volatile/restrict/__unaligned/_Atomic.\n    unsigned TypeQuals : 5;\n    /// Location of the '*' token.\n    SourceLocation StarLoc;\n    // CXXScopeSpec has a constructor, so it can't be a direct member.\n    // So we need some pointer-aligned storage and a bit of trickery.\n    alignas(CXXScopeSpec) char ScopeMem[sizeof(CXXScopeSpec)];\n    CXXScopeSpec &Scope() {\n      return *reinterpret_cast<CXXScopeSpec *>(ScopeMem);\n    }\n    const CXXScopeSpec &Scope() const {\n      return *reinterpret_cast<const CXXScopeSpec *>(ScopeMem);\n    }\n    void destroy() {\n      Scope().~CXXScopeSpec();\n    }\n  }",
+  "id": "BLOCK-CPP-19727",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
+  "source_line": 1561,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00525_execute() {\n    def target_version_option_callback(\n    c: click.Context, p: click.Option | click.Parameter, v: tuple[str, ...]\n) -> list[TargetVersion]:\n    \"\"\"Compute the target versions from a --target-version flag.\n\n    This is its own function because mypy couldn't infer the type correctly\n    when it was a lambda, causing mypyc trouble.\n    \"\"\"\n    return [TargetVersion[val.upper()] for val in v]\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00525",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 194,
+  "validation_status": "validated"
+}

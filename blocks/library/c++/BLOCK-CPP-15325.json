@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class LocationContextManager;\n\n  const BlockDecl *BD;\n\n  // FIXME: Come up with a more type-safe way to model context-sensitivity.\n  const void *Data;\n\n  BlockInvocationContext(AnalysisDeclContext *ADC,\n                         const LocationContext *ParentLC, const BlockDecl *BD,\n                         const void *Data, int64_t ID)\n      : LocationContext(Block, ADC, ParentLC, ID), BD(BD), Data(Data) {}\n\npublic:\n  ~BlockInvocationContext() override = default;\n\n  const BlockDecl *getBlockDecl() const { return BD; }\n\n  const void *getData() const { return Data; }\n\n  void Profile(llvm::FoldingSetNodeID &ID) override;\n\n  static void Profile(llvm::FoldingSetNodeID &ID, AnalysisDeclContext *ADC,\n                      const LocationContext *ParentLC, const BlockDecl *BD,\n                      const void *Data) {\n    ProfileCommon(ID, Block, ADC, ParentLC, BD);\n    ID.AddPointer(Data);\n  }\n\n  static bool classof(const LocationContext *LC) {\n    return LC->getKind() == Block;\n  }\n}",
+  "id": "BLOCK-CPP-15325",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/AnalysisDeclContext.h",
+  "source_line": 353,
+  "validation_status": "validated"
+}

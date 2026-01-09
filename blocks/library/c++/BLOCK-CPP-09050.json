@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclObjCCommon.h\"\n#include \"clang/AST/ExternalASTSource.h\"\n#include \"clang/AST/Redeclarable.h\"\n#include \"clang/AST/SelectorLocationsKind.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/MapVector.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <iterator>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09050_execute() {\n    {\nprotected:\n  /// List is an array of pointers to objects that are not owned by this object.\n  void **List = nullptr;\n  unsigned NumElts = 0;\n\npublic:\n  ObjCListBase() = default;\n  ObjCListBase(const ObjCListBase &) = delete;\n  ObjCListBase &operator=(const ObjCListBase &) = delete;\n\n  unsigned size() const { return NumElts; }\n  bool empty() const { return NumElts == 0; }\n\nprotected:\n  void set(void *const* InList, unsigned Elts, ASTContext &Ctx);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-09050",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclObjC.h",
+  "source_line": 59,
+  "validation_status": "validated"
+}

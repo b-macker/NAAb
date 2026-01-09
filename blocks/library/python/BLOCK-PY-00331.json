@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00331_execute() {\n    def pop_parameter_definitions(self) -> None:\n        \"\"\"Pops the current parameter definitions set.\"\"\"\n        self._param_def_block.pop()\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00331",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 741,
+  "validation_status": "validated"
+}

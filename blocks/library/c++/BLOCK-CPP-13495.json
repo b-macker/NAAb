@@ -1,0 +1,8 @@
+{
+  "code": "{\n\n/// The clang::TemplateName class is effectively a pointer.\ntemplate<>\nstruct PointerLikeTypeTraits<clang::TemplateName> {\n  static inline void *getAsVoidPointer(clang::TemplateName TN) {\n    return TN.getAsVoidPointer();\n  }\n\n  static inline clang::TemplateName getFromVoidPointer(void *Ptr) {\n    return clang::TemplateName::getFromVoidPointer(Ptr);\n  }\n\n  // No bits are available!\n  static constexpr int NumLowBitsAvailable = 0;\n};\n\n}",
+  "id": "BLOCK-CPP-13495",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TemplateName.h",
+  "source_line": 590,
+  "validation_status": "validated"
+}

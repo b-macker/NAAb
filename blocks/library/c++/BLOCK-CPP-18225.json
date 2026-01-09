@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Support/CommandLine.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18225_execute() {\n    {\n    std::pair<StringRef, StringRef> RangeSplit = Str.rsplit('-');\n    unsigned EndLine, EndColumn;\n    bool HasEndLoc = false;\n    if (!RangeSplit.second.empty()) {\n      std::pair<StringRef, StringRef> Split = RangeSplit.second.rsplit(':');\n      if (Split.first.getAsInteger(10, EndLine) ||\n          Split.second.getAsInteger(10, EndColumn)) {\n        // The string does not end in end_line:end_column, so the '-'\n        // probably belongs to the filename which menas the whole\n        // string should be parsed.\n        RangeSplit.first = Str;\n      } else\n        HasEndLoc = true;\n    }\n    auto Begin = ParsedSourceLocation::FromString(RangeSplit.first);\n    if (Begin.FileName.empty())\n      return std::nullopt;\n    if (!HasEndLoc) {\n      EndLine = Begin.Line;\n      EndColumn = Begin.Column;\n    }\n    return ParsedSourceRange{std::move(Begin.FileName),\n                             {Begin.Line, Begin.Column},\n                             {EndLine, EndColumn}};\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18225",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/CommandLineSourceLoc.h",
+  "source_line": 80,
+  "validation_status": "validated"
+}

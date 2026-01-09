@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CommentOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangStandard.h\"\n#include \"clang/Basic/ObjCRuntime.h\"\n#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/TargetCXXABI.h\"\n#include \"clang/Basic/Visibility.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <optional>\n#include <string>\n#include <vector>\n#include \"clang/Basic/LangOptions.def\"\n#include \"clang/Basic/LangOptions.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16555_execute() {\n    {\n    // All vector compares produce scalars except vector pixel and vector bool.\n    // The types vector pixel and vector bool return vector results.\n    Mixed,\n    // All vector compares produce vector results as in GCC.\n    GCC,\n    // All vector compares produce scalars as in XL.\n    XL,\n    // Default clang behaviour.\n    Default = Mixed,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16555",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/LangOptions.h",
+  "source_line": 315,
+  "validation_status": "validated"
+}

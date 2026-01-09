@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04674_execute() {\n    {\n  return reinterpret_cast<uintptr_t>(ptr) ^ HideMask();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04674",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/hide_ptr.h",
+  "source_line": 35,
+  "validation_status": "validated"
+}

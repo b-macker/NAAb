@@ -1,0 +1,8 @@
+{
+  "code": "function update(Request $request, $id)\n    {\n        $user = User::findOrFail($id);\n\n        $validated = $request->validate([\n            'name' => 'sometimes|string|max:255',\n            'email' => 'sometimes|email|unique:users,email,' . $id\n        ]);\n\n        $user->update($validated);\n\n        return response()->json($user);\n    }",
+  "id": "BLOCK-PHP-00014",
+  "language": "php",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp2e515_rq.php",
+  "source_line": 43,
+  "validation_status": "validated"
+}

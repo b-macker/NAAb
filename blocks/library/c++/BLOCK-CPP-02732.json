@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/internal/log_sink_set.h\"\n#include <pthread.h>\n#include <android/log.h>\n#include <windows.h>\n#include <algorithm>\n#include <vector>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/call_once.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/base/no_destructor.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/cleanup/cleanup.h\"\n#include \"absl/log/globals.h\"\n#include \"absl/log/internal/config.h\"\n#include \"absl/log/internal/globals.h\"\n#include \"absl/log/log_entry.h\"\n#include \"absl/log/log_sink.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/synchronization/mutex.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02732_execute() {\n    {\n    switch (entry.log_severity()) {\n      case absl::LogSeverity::kFatal:\n        return ANDROID_LOG_FATAL;\n      case absl::LogSeverity::kError:\n        return ANDROID_LOG_ERROR;\n      case absl::LogSeverity::kWarning:\n        return ANDROID_LOG_WARN;\n      default:\n        if (entry.verbosity() >= 2) return ANDROID_LOG_VERBOSE;\n        if (entry.verbosity() == 1) return ANDROID_LOG_DEBUG;\n        return ANDROID_LOG_INFO;\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02732",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/log_sink_set.cc",
+  "source_line": 134,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <climits>\n#include \"absl/base/config.h\"\n#include <link.h>  // for ElfW\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05454_execute() {\n    {\n   public:\n    friend class ElfMemImage;\n    const SymbolInfo *operator->() const;\n    const SymbolInfo &operator*() const;\n    SymbolIterator& operator++();\n    bool operator!=(const SymbolIterator &rhs) const;\n    bool operator==(const SymbolIterator &rhs) const;\n   private:\n    SymbolIterator(const void *const image, int index);\n    void Update(int incr);\n    SymbolInfo info_;\n    int index_;\n    const void *const image_;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05454",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/elf_mem_image.h",
+  "source_line": 76,
+  "validation_status": "validated"
+}

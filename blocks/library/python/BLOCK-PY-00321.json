@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00321_execute() {\n    def enter_frame(self, frame: Frame) -> None:\n        undefs = []\n        for target, (action, param) in frame.symbols.loads.items():\n            if action == VAR_LOAD_PARAMETER:\n                pass\n            elif action == VAR_LOAD_RESOLVE:\n                self.writeline(f\"{target} = {self.get_resolve_func()}({param!r})\")\n            elif action == VAR_LOAD_ALIAS:\n                self.writeline(f\"{target} = {param}\")\n            elif action == VAR_LOAD_UNDEFINED:\n                undefs.append(target)\n            else:\n                raise NotImplementedError(\"unknown load instruction\")\n        if undefs:\n            self.writeline(f\"{' = '.join(undefs)} = missing\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00321",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 580,
+  "validation_status": "validated"
+}

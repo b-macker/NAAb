@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/flags/internal/commandlineflag.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02614_execute() {\n    {\n\nFlagStateInterface::~FlagStateInterface() = default;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02614",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/commandlineflag.cc",
+  "source_line": 20,
+  "validation_status": "validated"
+}

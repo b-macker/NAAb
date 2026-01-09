@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  void set(T* const* InList, unsigned Elts, ASTContext &Ctx) {\n    ObjCListBase::set(reinterpret_cast<void*const*>(InList), Elts, Ctx);\n  }\n\n  using iterator = T* const *;\n\n  iterator begin() const { return (iterator)List; }\n  iterator end() const { return (iterator)List+NumElts; }\n\n  T* operator[](unsigned Idx) const {\n    assert(Idx < NumElts && \"Invalid access\");\n    return (T*)List[Idx];\n  }\n}",
+  "id": "BLOCK-CPP-09051",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclObjC.h",
+  "source_line": 81,
+  "validation_status": "validated"
+}

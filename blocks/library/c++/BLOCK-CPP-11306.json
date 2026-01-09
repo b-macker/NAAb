@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/IdentifierTable.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11306_execute() {\n    {\n    StringRef Ids[] = { \"setObject\", \"atIndexedSubscript\" };\n    return getOrInitSelector(Ids, setObjectAtIndexedSubscriptSel);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11306",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/NSAPI.h",
+  "source_line": 155,
+  "validation_status": "validated"
+}

@@ -1,0 +1,28 @@
+{
+  "code": "#include \"absl/time/clock.h\"\n#include \"absl/base/attributes.h\"\n#include \"absl/base/optimization.h\"\n#include <windows.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstdint>\n#include <ctime>\n#include <limits>\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/unscaledcycleclock.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/time/internal/get_current_time_chrono.inc\"\n#include \"absl/time/internal/get_current_time_posix.inc\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace time_internal;\nusing namespace time_internal;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02163_execute() {\n    {\n#ifdef _WIN32\n  Sleep(static_cast<DWORD>(to_sleep / absl::Milliseconds(1)));\n#else\n  struct timespec sleep_time = absl::ToTimespec(to_sleep);\n  while (nanosleep(&sleep_time, &sleep_time) != 0 && errno == EINTR) {\n    // Ignore signals and wait for the full interval to elapse.\n  }\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02163",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
+  "source_line": 564,
+  "validation_status": "validated",
+  "description": "C++ block with 45 lines of code implementing BLOCK-CPP-02163",
+  "short_desc": "C++ block with 45 lines of code implementing BLOCK-CPP-02163",
+  "input_types": "any",
+  "output_type": "void",
+  "keywords": [
+    "c++",
+    "read"
+  ],
+  "use_cases": [
+    "File I/O operations"
+  ],
+  "related_blocks": [],
+  "avg_execution_ms": 10.0,
+  "max_memory_mb": 4,
+  "performance_tier": "medium",
+  "success_rate_percent": 100,
+  "avg_tokens_saved": 50,
+  "test_coverage_percent": 0,
+  "security_audited": false,
+  "stability": "stable"
+}

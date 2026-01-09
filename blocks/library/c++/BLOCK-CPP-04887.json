@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <functional>\n#include <iterator>\n#include <limits>\n#include <new>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/container/internal/common.h\"\n#include \"absl/container/internal/common_policy_traits.h\"\n#include \"absl/container/internal/compressed_tuple.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/container/internal/layout.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/strings/cord.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/compare.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04887_execute() {\n    {\n    using size_type = typename Params::size_type;\n\n    node_stats(size_type l, size_type i) : leaf_nodes(l), internal_nodes(i) {}\n\n    node_stats &operator+=(const node_stats &other) {\n      leaf_nodes += other.leaf_nodes;\n      internal_nodes += other.internal_nodes;\n      return *this;\n    }\n\n    size_type leaf_nodes;\n    size_type internal_nodes;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04887",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
+  "source_line": 1350,
+  "validation_status": "validated"
+}

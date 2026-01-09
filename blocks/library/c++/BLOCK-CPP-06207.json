@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include \"absl/strings/internal/resize_uninitialized.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06207_execute() {\n    {\n  const size_t calc_escaped_size =\n      CalculateBase64EscapedLenInternal(szsrc, do_padding);\n  STLStringResizeUninitialized(dest, calc_escaped_size);\n\n  const size_t escaped_len = Base64EscapeInternal(\n      src, szsrc, &(*dest)[0], dest->size(), base64_chars, do_padding);\n  assert(calc_escaped_size == escaped_len);\n  dest->erase(escaped_len);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06207",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/escaping.h",
+  "source_line": 40,
+  "validation_status": "validated"
+}

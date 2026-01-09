@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/cord_rep_btree.h\"\n#include <atomic>\n#include <cassert>\n#include <cstdint>\n#include <iostream>\n#include <ostream>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/strings/internal/cord_data_edge.h\"\n#include \"absl/strings/internal/cord_internal.h\"\n#include \"absl/strings/internal/cord_rep_consume.h\"\n#include \"absl/strings/internal/cord_rep_flat.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02884_execute() {\n    {\n  if (edge_type == kBack) {\n    memcpy(dst, s.data(), n);\n    return s.substr(n);\n  } else {\n    const size_t offset = s.size() - n;\n    memcpy(dst, s.data() + offset, n);\n    return s.substr(0, offset);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02884",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cord_rep_btree.cc",
+  "source_line": 175,
+  "validation_status": "validated"
+}

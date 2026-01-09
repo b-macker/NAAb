@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12308_execute() {\n    { return getParent(S) != nullptr; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12308",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ParentMap.h",
+  "source_line": 54,
+  "validation_status": "validated"
+}

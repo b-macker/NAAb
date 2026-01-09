@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00471_execute() {\n    class Break(Stmt):\n    \"\"\"Break a loop.\"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00471",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 1141,
+  "validation_status": "validated"
+}

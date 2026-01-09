@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTConsumer.h\"\n#include \"llvm/ADT/StringMap.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22382_execute() {\n    {\n\nclass Stmt;\n\nnamespace ento {\n\n/// ASTConsumer to consume model files' AST.\n///\n/// This consumer collects the bodies of function definitions into a StringMap\n/// from a model file.\nclass ModelConsumer : public ASTConsumer {\npublic:\n  ModelConsumer(llvm::StringMap<Stmt *> &Bodies);\n\n  bool HandleTopLevelDecl(DeclGroupRef D) override;\n\nprivate:\n  llvm::StringMap<Stmt *> &Bodies;\n};\n}\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22382",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Frontend/ModelConsumer.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22900_execute() {\n    {\n    // FIXME: Improve this with a switch or a visitor pattern.\n    if (const auto *D = N.get<Decl>())\n      Visit(D);\n    else if (const auto *S = N.get<Stmt>())\n      Visit(S);\n    else if (const auto *QT = N.get<QualType>())\n      Visit(*QT);\n    else if (const auto *T = N.get<Type>())\n      Visit(T);\n    else if (const auto *C = N.get<CXXCtorInitializer>())\n      Visit(C);\n    else if (const auto *C = N.get<OMPClause>())\n      Visit(C);\n    else if (const auto *T = N.get<TemplateArgument>())\n      Visit(*T);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22900",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
+  "source_line": 276,
+  "validation_status": "validated"
+}

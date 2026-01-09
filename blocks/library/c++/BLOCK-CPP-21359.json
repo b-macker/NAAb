@@ -1,0 +1,8 @@
+{
+  "code": "{\nnamespace IDFCalculatorDetail {\n\n/// Specialize ChildrenGetterTy to skip nullpointer successors.\ntemplate <bool IsPostDom>\nstruct ChildrenGetterTy<clang::CFGBlock, IsPostDom> {\n  using NodeRef = typename GraphTraits<clang::CFGBlock *>::NodeRef;\n  using ChildrenTy = SmallVector<NodeRef, 8>;\n\n  ChildrenTy get(const NodeRef &N) {\n    using OrderedNodeTy =\n        typename IDFCalculatorBase<clang::CFGBlock, IsPostDom>::OrderedNodeTy;\n\n    auto Children = children<OrderedNodeTy>(N);\n    ChildrenTy Ret{Children.begin(), Children.end()};\n    llvm::erase_value(Ret, nullptr);\n    return Ret;\n  }\n};\n\n} // end of namespace IDFCalculatorDetail\n}",
+  "id": "BLOCK-CPP-21359",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/Dominators.h",
+  "source_line": 190,
+  "validation_status": "validated"
+}

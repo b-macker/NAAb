@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/ascii.h\"\n#include <climits>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\nusing namespace ascii_internal;\nusing namespace ascii_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01825_execute() {\n    {\n  char* p = &(*s)[0];  // Guaranteed to be valid for empty strings\n  return ascii_internal::AsciiStrCaseFold<true>(p, p + s->size());\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01825",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/ascii.cc",
+  "source_line": 285,
+  "validation_status": "validated"
+}

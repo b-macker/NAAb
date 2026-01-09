@@ -1,0 +1,8 @@
+{
+  "code": "{\nStringRef getText(CharSourceRange Range, const ASTContext &Context);\n\n/// Returns the token CharSourceRange corresponding to \\p Range.\ninline CharSourceRange getSourceRange(const SourceRange &Range) {\n  return CharSourceRange::getTokenRange(Range);\n}\n\n/// Returns the CharSourceRange of the token at Location \\p Loc.\ninline CharSourceRange getSourceRange(const SourceLocation &Loc) {\n  return CharSourceRange::getTokenRange(Loc, Loc);\n}\n\n/// Returns the CharSourceRange of an given Node. \\p Node is typically a\n///        'Stmt', 'Expr' or a 'Decl'.\ntemplate <typename T> CharSourceRange getSourceRange(const T &Node) {\n  return CharSourceRange::getTokenRange(Node.getSourceRange());\n}\n}",
+  "id": "BLOCK-CPP-21187",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/FixIt.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

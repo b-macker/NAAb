@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <cstdlib>\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/port.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04579_execute() {\n    {\n#if ABSL_HAVE_BUILTIN(__builtin_bswap32) || defined(__GNUC__)\n  return __builtin_bswap32(host_int);\n#elif defined(_MSC_VER)\n  return _byteswap_ulong(host_int);\n#else\n  return (((host_int & uint32_t{0xFF}) << 24) |\n          ((host_int & uint32_t{0xFF00}) << 8) |\n          ((host_int & uint32_t{0xFF0000}) >> 8) |\n          ((host_int & uint32_t{0xFF000000}) >> 24));\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04579",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/endian.h",
+  "source_line": 48,
+  "validation_status": "validated"
+}

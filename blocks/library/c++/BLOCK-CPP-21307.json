@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/BitVector.h\"\n#include \"llvm/ADT/DenseMap.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21307_execute() {\n    {\n\nclass CFG;\nclass CFGBlock;\n\n// A class that performs reachability queries for CFGBlocks. Several internal\n// checks in this checker require reachability information. The requests all\n// tend to have a common destination, so we lazily do a predecessor search\n// from the destination node and cache the results to prevent work\n// duplication.\nclass CFGReverseBlockReachabilityAnalysis {\n  using ReachableSet = llvm::BitVector;\n  using ReachableMap = llvm::DenseMap<unsigned, ReachableSet>;\n\n  ReachableSet analyzed;\n  ReachableMap reachable;\n\npublic:\n  CFGReverseBlockReachabilityAnalysis(const CFG &cfg);\n\n  /// Returns true if the block 'Dst' can be reached from block 'Src'.\n  bool isReachable(const CFGBlock *Src, const CFGBlock *Dst);\n\nprivate:\n  void mapReachability(const CFGBlock *Dst);\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21307",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/CFGReachabilityAnalysis.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

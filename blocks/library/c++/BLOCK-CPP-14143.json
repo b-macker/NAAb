@@ -1,0 +1,8 @@
+{
+  "code": "{\n  Expr *TOExpr;\n\nprotected:\n  friend class ASTContext; // ASTContext creates these.\n\n  TypeOfExprType(Expr *E, TypeOfKind Kind, QualType Can = QualType());\n\npublic:\n  Expr *getUnderlyingExpr() const { return TOExpr; }\n\n  /// Returns the kind of 'typeof' type this is.\n  TypeOfKind getKind() const {\n    return TypeOfBits.IsUnqual ? TypeOfKind::Unqualified\n                               : TypeOfKind::Qualified;\n  }\n\n  /// Remove a single level of sugar.\n  QualType desugar() const;\n\n  /// Returns whether this type directly provides sugar.\n  bool isSugared() const;\n\n  static bool classof(const Type *T) { return T->getTypeClass() == TypeOfExpr; }\n}",
+  "id": "BLOCK-CPP-14143",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
+  "source_line": 4657,
+  "validation_status": "validated"
+}

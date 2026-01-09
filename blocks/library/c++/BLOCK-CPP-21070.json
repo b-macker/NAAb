@@ -1,0 +1,8 @@
+{
+  "code": "#include <climits>\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21070_execute() {\n    {\n    return SourceLocation::getFromRawEncoding(decodeRaw(Encoded));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21070",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/SourceLocationEncoding.h",
+  "source_line": 127,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/circular_q.h>\n#include <spdlog/details/file_helper.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/os.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/fmt/fmt.h>\n#include <spdlog/sinks/base_sink.h>\n#include <chrono>\n#include <cstdio>\n#include <ctime>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00405_execute() {\n    {\n        filename_t basename, ext;\n        std::tie(basename, ext) = details::file_helper::split_by_extension(filename);\n        return fmt_lib::format(SPDLOG_FILENAME_T(\"{}_{:04d}-{:02d}-{:02d}_{:02d}{}\"), basename,\n                               now_tm.tm_year + 1900, now_tm.tm_mon + 1, now_tm.tm_mday,\n                               now_tm.tm_hour, ext);\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00405",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/hourly_file_sink.h",
+  "source_line": 29,
+  "validation_status": "validated"
+}

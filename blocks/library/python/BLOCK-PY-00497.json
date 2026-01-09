@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00497_execute() {\n    def can_assign(self) -> bool:\n        # We don't need any special checks here; NSRef assignments have a\n        # runtime check to ensure the target is a namespace object which will\n        # have been checked already as it is created using a normal assignment\n        # which goes through a `Name` node.\n        return True\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00497",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 563,
+  "validation_status": "validated"
+}

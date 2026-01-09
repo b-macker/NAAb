@@ -1,0 +1,8 @@
+{
+  "code": "{\n    assert(isTokenParen() && \"wrong consume method\");\n    if (Tok.getKind() == tok::l_paren)\n      ++ParenCount;\n    else if (ParenCount) {\n      AngleBrackets.clear(*this);\n      --ParenCount;       // Don't let unbalanced )'s drive the count negative.\n    }\n    PrevTokLocation = Tok.getLocation();\n    PP.Lex(Tok);\n    return PrevTokLocation;\n  }",
+  "id": "BLOCK-CPP-19256",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
+  "source_line": 606,
+  "validation_status": "validated"
+}

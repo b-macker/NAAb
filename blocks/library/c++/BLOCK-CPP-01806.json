@@ -1,0 +1,8 @@
+{
+  "code": "{\n\nvoid ThrowSeedGenException() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw absl::SeedGenException();\n#else\n  std::cerr << kExceptionMessage << std::endl;\n  std::terminate();\n#endif\n}\n\n}",
+  "id": "BLOCK-CPP-01806",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/seed_gen_exception.cc",
+  "source_line": 33,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\nclass DiagnosticOptions;\nclass LangOptions;\nclass TextDiagnostic;\n\nclass TextDiagnosticPrinter : public DiagnosticConsumer {\n  raw_ostream &OS;\n  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts;\n\n  /// Handle to the currently active text diagnostic emitter.\n  std::unique_ptr<TextDiagnostic> TextDiag;\n\n  /// A string to prefix to error messages.\n  std::string Prefix;\n\n  unsigned OwnsOutputStream : 1;\n\npublic:\n  TextDiagnosticPrinter(raw_ostream &os, DiagnosticOptions *diags,\n                        bool OwnsOutputStream = false);\n  ~TextDiagnosticPrinter() override;\n\n  /// setPrefix - Set the diagnostic printer prefix string, which will be\n  /// printed at the start of any diagnostics. If empty, no prefix string is\n  /// used.\n  void setPrefix(std::string Value) { Prefix = std::move(Value); }\n\n  void BeginSourceFile(const LangOptions &LO, const Preprocessor *PP) override;\n  void EndSourceFile() override;\n  void HandleDiagnostic(DiagnosticsEngine::Level Level,\n                        const Diagnostic &Info) override;\n};\n\n}",
+  "id": "BLOCK-CPP-18434",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/TextDiagnosticPrinter.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

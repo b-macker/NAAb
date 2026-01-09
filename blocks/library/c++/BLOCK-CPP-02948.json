@@ -1,0 +1,8 @@
+{
+  "code": "{\n  if (exp < -324) {\n    return 0.0;\n  } else if (exp > 308) {\n    return INFINITY;\n  } else {\n    return kPowersOfTen[exp + 324];\n  }\n}",
+  "id": "BLOCK-CPP-02948",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/pow10_helper.cc",
+  "source_line": 110,
+  "validation_status": "validated"
+}

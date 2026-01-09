@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  ArrayAdd(SExpr *A, SExpr *N) : SExpr(COP_ArrayAdd), Array(A), Index(N) {}\n  ArrayAdd(const ArrayAdd &E, SExpr *A, SExpr *N)\n      : SExpr(E), Array(A), Index(N) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_ArrayAdd; }\n\n  SExpr *array() { return Array; }\n  const SExpr *array() const { return Array; }\n\n  SExpr *index() { return Index; }\n  const SExpr *index() const { return Index; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Na = Vs.traverse(Array, Vs.subExprCtx(Ctx));\n    auto Ni = Vs.traverse(Index, Vs.subExprCtx(Ctx));\n    return Vs.reduceArrayAdd(*this, Na, Ni);\n  }\n\n  template <class C>\n  typename C::CType compare(const ArrayAdd* E, C& Cmp) const {\n    typename C::CType Ct = Cmp.compare(array(), E->array());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.compare(index(), E->index());\n  }\n\nprivate:\n  SExpr* Array;\n  SExpr* Index;\n}",
+  "id": "BLOCK-CPP-21665",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 1139,
+  "validation_status": "validated"
+}

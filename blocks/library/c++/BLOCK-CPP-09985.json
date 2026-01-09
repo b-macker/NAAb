@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/APValue.h\"\n#include \"clang/AST/ASTVector.h\"\n#include \"clang/AST/ComputeDependence.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/DependenceFlags.h\"\n#include \"clang/AST/OperationKinds.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/CharInfo.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/SyncScope.h\"\n#include \"clang/Basic/TypeTraits.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/APSInt.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/AtomicOrdering.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09985_execute() {\n    {\n    return const_child_range(&SubStmt, &SubStmt + 1);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-09985",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
+  "source_line": 4413,
+  "validation_status": "validated"
+}

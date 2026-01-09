@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstdint>\n#include <string>\n#include <type_traits>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16722_execute() {\n    {\n    if (!DiagStorage)\n      return;\n\n    // Add all arguments.\n    for (unsigned i = 0, e = DiagStorage->NumDiagArgs; i != e; ++i) {\n      if ((DiagnosticsEngine::ArgumentKind)DiagStorage->DiagArgumentsKind[i]\n            == DiagnosticsEngine::ak_std_string)\n        DB.AddString(DiagStorage->DiagArgumentsStr[i]);\n      else\n        DB.AddTaggedVal(DiagStorage->DiagArgumentsVal[i],\n            (DiagnosticsEngine::ArgumentKind)DiagStorage->DiagArgumentsKind[i]);\n    }\n\n    // Add all ranges.\n    for (const CharSourceRange &Range : DiagStorage->DiagRanges)\n      DB.AddSourceRange(Range);\n\n    // Add all fix-its.\n    for (const FixItHint &Fix : DiagStorage->FixItHints)\n      DB.AddFixItHint(Fix);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16722",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/PartialDiagnostic.h",
+  "source_line": 144,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"llvm/Support/Compiler.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12924_execute() {\n    { return RParenLoc; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12924",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtCXX.h",
+  "source_line": 205,
+  "validation_status": "validated"
+}

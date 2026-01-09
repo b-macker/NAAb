@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <array>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/port.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/strings/has_absl_stringify.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/internal/stringify_sink.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace of;\nusing namespace as;\nusing namespace absl;\nusing namespace strings_internal;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04105_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04105",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_cat.h",
+  "source_line": 369,
+  "validation_status": "validated"
+}

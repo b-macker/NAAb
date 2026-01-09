@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18374_execute() {\n    {\npublic:\n  unsigned NoNSAllocReallocError : 1;\n  unsigned NoFinalizeRemoval : 1;\n  MigratorOptions() {\n    NoNSAllocReallocError = 0;\n    NoFinalizeRemoval = 0;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18374",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/MigratorOptions.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/StringRef.h\"\n  /// part of an #include directive. (Also #import, #include_next, etc).\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18531_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18531",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/CodeCompletionHandler.h",
+  "source_line": 67,
+  "validation_status": "validated"
+}

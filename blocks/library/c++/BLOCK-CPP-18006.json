@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18006_execute() {\n    { return Availabilities.empty(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18006",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/AvailabilityInfo.h",
+  "source_line": 77,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n    friend class AnalysisBasedWarnings;\n    // The warnings to run.\n    unsigned enableCheckFallThrough : 1;\n    unsigned enableCheckUnreachable : 1;\n    unsigned enableThreadSafetyAnalysis : 1;\n    unsigned enableConsumedAnalysis : 1;\n  public:\n    Policy();\n    void disableCheckFallThrough() { enableCheckFallThrough = 0; }\n  }",
+  "id": "BLOCK-CPP-19405",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/AnalysisBasedWarnings.h",
+  "source_line": 34,
+  "validation_status": "validated"
+}

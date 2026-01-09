@@ -1,0 +1,29 @@
+# Test program - Capturing return values from Python blocks
+
+use BLOCK-PY-00001 as ResponseBlock
+
+# Define a simple Python function block for testing
+function test_arithmetic(a: int, b: int) -> int {
+    return a + b
+}
+
+main {
+    print("Testing return value capture")
+    print("")
+
+    # Test 1: User function return value
+    print("Test 1: User function")
+    let sum = test_arithmetic(10, 20)
+    print("10 + 20 =", sum)
+    print("Type:", type(sum))
+    print("")
+
+    # Test 2: Call Python block member and capture return
+    print("Test 2: Python block member call")
+    let Response = ResponseBlock.APIResponse
+
+    # Create instance - this returns an APIResponse object
+    let response_obj = Response(42, "success")
+    print("Response object:", response_obj)
+    print("Type:", type(response_obj))
+}

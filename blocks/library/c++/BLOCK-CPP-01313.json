@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01313_execute() {\n    {\n    auto num_digits = static_cast<int>(digits.size());\n    auto separators = basic_memory_buffer<int>();\n    separators.push_back(0);\n    auto state = initial_state();\n    while (int i = next(state)) {\n      if (i >= num_digits) break;\n      separators.push_back(i);\n    }\n    for (int i = 0, sep_index = static_cast<int>(separators.size() - 1);\n         i < num_digits; ++i) {\n      if (num_digits - i == separators[sep_index]) {\n        *out++ = separator();\n        --sep_index;\n      }\n      *out++ = static_cast<Char>(digits[to_unsigned(i)]);\n    }\n    return out;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01313",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 1971,
+  "validation_status": "validated"
+}

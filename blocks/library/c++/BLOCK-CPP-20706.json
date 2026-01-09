@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Sema/Ownership.h\"\n#include \"clang/Sema/SemaConcept.h\"\n#include \"clang/AST/ASTConcept.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/Basic/PartialDiagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n#include <cstddef>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace sema;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20706_execute() {\n    {\n    assert(NewDeducedSugared->size() == NewDeducedCanonical->size());\n    DeducedSugared = NewDeducedSugared;\n    DeducedCanonical = NewDeducedCanonical;\n    ExplicitArgs = DeducedSugared->size();\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20706",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/TemplateDeduction.h",
+  "source_line": 128,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  explicit CFGLoopExit(const Stmt *stmt) : CFGElement(LoopExit, stmt) {}\n\n  const Stmt *getLoopStmt() const {\n    return static_cast<Stmt *>(Data1.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n\n  CFGLoopExit() = default;\n\n  static bool isKind(const CFGElement &elem) {\n    return elem.getKind() == LoopExit;\n  }\n}",
+  "id": "BLOCK-CPP-15553",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
+  "source_line": 271,
+  "validation_status": "validated"
+}

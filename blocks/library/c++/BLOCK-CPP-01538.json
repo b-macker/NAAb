@@ -1,0 +1,8 @@
+{
+  "code": "{\n private:\n  OutputIt out_;\n  basic_format_args<basic_printf_context> args_;\n\n public:\n  using char_type = Char;\n  using format_arg = basic_format_arg<basic_printf_context>;\n  using parse_context_type = basic_printf_parse_context<Char>;\n  template <typename T> using formatter_type = printf_formatter<T>;\n\n  /**\n    \\rst\n    Constructs a ``printf_context`` object. References to the arguments are\n    stored in the context object so make sure they have appropriate lifetimes.\n    \\endrst\n   */\n  basic_printf_context(OutputIt out,\n                       basic_format_args<basic_printf_context> args)\n      : out_(out), args_(args) {}\n\n  OutputIt out() { return out_; }\n  void advance_to(OutputIt it) { out_ = it; }\n\n  detail::locale_ref locale() { return {}; }\n\n  format_arg arg(int id) const { return args_.get(id); }\n\n  FMT_CONSTEXPR void on_error(const char* message) {\n    detail::error_handler().on_error(message);\n  }\n}",
+  "id": "BLOCK-CPP-01538",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

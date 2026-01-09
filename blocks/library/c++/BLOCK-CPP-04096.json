@@ -1,0 +1,8 @@
+{
+  "code": "#include <tmmintrin.h>\n#include <intrin.h>\n#include <cstddef>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <ctime>\n#include <limits>\n#include <string>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace numbers_internal;\nusing namespace numbers_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04096_execute() {\n    {\n  return numbers_internal::safe_strto128_base(str, out, 16);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04096",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/numbers.h",
+  "source_line": 443,
+  "validation_status": "validated"
+}

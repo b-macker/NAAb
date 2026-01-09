@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00437_execute() {\n    class Keyword(Helper):\n    \"\"\"A key, value pair for keyword arguments where key is a string.\"\"\"\n\n    fields = (\"key\", \"value\")\n    key: str\n    value: Expr\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> tuple[str, t.Any]:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        return self.key, self.value.as_const(eval_ctx)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00437",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 680,
+  "validation_status": "validated"
+}

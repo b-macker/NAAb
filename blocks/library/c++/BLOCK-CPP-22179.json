@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22179_execute() {\n    {\nprotected:\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22179",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Frontend/FrontendActions.h",
+  "source_line": 59,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <ostream>\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21845_execute() {\n    {\n\nclass Expr;\n\nnamespace threadSafety {\nnamespace til {\n\n// Simple wrapper class to abstract away from the details of memory management.\n// SExprs are allocated in pools, and deallocated all at once.\nclass MemRegionRef {\nprivate:\n  union AlignmentType {\n    double d;\n    void *p;\n    long double dd;\n    long long ii;\n  };\n\npublic:\n  MemRegionRef() = default;\n  MemRegionRef(llvm::BumpPtrAllocator *A) : Allocator(A) {}\n\n  void *allocate(size_t Sz) {\n    return Allocator->Allocate(Sz, alignof(AlignmentType));\n  }\n\n  template <typename T> T *allocateT() { return Allocator->Allocate<T>(); }\n\n  template <typename T> T *allocateT(size_t NumElems) {\n    return Allocator->Allocate<T>(NumElems);\n  }\n\nprivate:\n  llvm::BumpPtrAllocator *Allocator = nullptr;\n};\n\n} // namespace til\n} // namespace threadSafety\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21845",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyUtil.h",
+  "source_line": 29,
+  "validation_status": "validated"
+}

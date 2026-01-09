@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/flags/internal/usage.h\"\n#include <stdint.h>\n#include <algorithm>\n#include <cstdlib>\n#include <functional>\n#include <iterator>\n#include <map>\n#include <ostream>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/flags/commandlineflag.h\"\n#include \"absl/flags/flag.h\"\n#include \"absl/flags/internal/flag.h\"\n#include \"absl/flags/internal/path_util.h\"\n#include \"absl/flags/internal/private_handle_accessor.h\"\n#include \"absl/flags/internal/program_name.h\"\n#include \"absl/flags/internal/registry.h\"\n#include \"absl/flags/usage_config.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/str_split.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02645_execute() {\n    {\n  absl::MutexLock l(&help_attributes_guard);\n  return help_format;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02645",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/usage.cc",
+  "source_line": 469,
+  "validation_status": "validated"
+}

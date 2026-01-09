@@ -1,0 +1,8 @@
+{
+  "code": "{\n      if (Action == PSK_Reset) {\n        CurrentValue = DefaultValue;\n        CurrentPragmaLocation = PragmaLocation;\n        return;\n      }\n      if (Action & PSK_Push)\n        Stack.emplace_back(StackSlotLabel, CurrentValue, CurrentPragmaLocation,\n                           PragmaLocation);\n      else if (Action & PSK_Pop) {\n        if (!StackSlotLabel.empty()) {\n          // If we've got a label, try to find it and jump there.\n          auto I = llvm::find_if(llvm::reverse(Stack), [&](const Slot &x) {\n            return x.StackSlotLabel == StackSlotLabel;\n          });\n          // If we found the label so pop from there.\n          if (I != Stack.rend()) {\n            CurrentValue = I->Value;\n            CurrentPragmaLocation = I->PragmaLocation;\n            Stack.erase(std::prev(I.base()), Stack.end());\n          }\n        } else if (!Stack.empty()) {\n          // We do not have a label, just pop the last entry.\n          CurrentValue = Stack.back().Value;\n          CurrentPragmaLocation = Stack.back().PragmaLocation;\n          Stack.pop_back();\n        }\n      }\n      if (Action & PSK_Set) {\n        CurrentValue = Value;\n        CurrentPragmaLocation = PragmaLocation;\n      }\n    }",
+  "id": "BLOCK-CPP-20319",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 606,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00550_execute() {\n    {\n  auto&& format_buf = formatbuf<std::basic_streambuf<Char>>(buf);\n  auto&& os = std::basic_ostream<Char>(&format_buf);\n  os.imbue(loc);\n  using iterator = std::ostreambuf_iterator<Char>;\n  const auto& facet = std::use_facet<std::time_put<Char, iterator>>(loc);\n  auto end = facet.put(os, os, Char(' '), &time, format, modifier);\n  if (end.failed()) FMT_THROW(format_error(\"failed to format time\"));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00550",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 412,
+  "validation_status": "validated"
+}

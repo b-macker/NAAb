@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ASTStmtReader;\n\n  Stmt *Operand;\n  SourceRange Range;\n\npublic:\n  CXXNoexceptExpr(QualType Ty, Expr *Operand, CanThrowResult Val,\n                  SourceLocation Keyword, SourceLocation RParen)\n      : Expr(CXXNoexceptExprClass, Ty, VK_PRValue, OK_Ordinary),\n        Operand(Operand), Range(Keyword, RParen) {\n    CXXNoexceptExprBits.Value = Val == CT_Cannot;\n    setDependence(computeDependence(this, Val));\n  }\n\n  CXXNoexceptExpr(EmptyShell Empty) : Expr(CXXNoexceptExprClass, Empty) {}\n\n  Expr *getOperand() const { return static_cast<Expr *>(Operand); }\n\n  SourceLocation getBeginLoc() const { return Range.getBegin(); }\n  SourceLocation getEndLoc() const { return Range.getEnd(); }\n  SourceRange getSourceRange() const { return Range; }\n\n  bool getValue() const { return CXXNoexceptExprBits.Value; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == CXXNoexceptExprClass;\n  }\n\n  // Iterators\n  child_range children() { return child_range(&Operand, &Operand + 1); }\n\n  const_child_range children() const {\n    return const_child_range(&Operand, &Operand + 1);\n  }\n}",
+  "id": "BLOCK-CPP-10796",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
+  "source_line": 4080,
+  "validation_status": "validated"
+}

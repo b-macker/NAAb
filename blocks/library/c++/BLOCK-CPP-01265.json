@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01265_execute() {\n    {\n  int count = 1;\n  for (;;) {\n    // Integer division is slow so do it for a group of four digits instead\n    // of for every digit. The idea comes from the talk by Alexandrescu\n    // \"Three Optimization Tips for C++\". See speed-test for a comparison.\n    if (n < 10) return count;\n    if (n < 100) return count + 1;\n    if (n < 1000) return count + 2;\n    if (n < 10000) return count + 3;\n    n /= 10000u;\n    count += 4;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01265",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 1050,
+  "validation_status": "validated"
+}

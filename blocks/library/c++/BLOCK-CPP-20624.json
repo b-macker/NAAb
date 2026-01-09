@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTConsumer.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20624_execute() {\n    {\n      ASTConsumer::SemaConsumer = true;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20624",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaConsumer.h",
+  "source_line": 27,
+  "validation_status": "validated"
+}

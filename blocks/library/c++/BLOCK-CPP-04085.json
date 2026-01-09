@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstring>\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04085_execute() {\n    {\n  return suffix.empty() ||\n         (text.size() >= suffix.size() &&\n          memcmp(text.data() + (text.size() - suffix.size()), suffix.data(),\n                 suffix.size()) == 0);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04085",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/match.h",
+  "source_line": 68,
+  "validation_status": "validated"
+}

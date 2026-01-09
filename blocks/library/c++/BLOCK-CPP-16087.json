@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/XRayInstr.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/Frontend/Debug/Options.h\"\n#include \"llvm/Support/CodeGen.h\"\n#include \"llvm/Support/Regex.h\"\n#include \"llvm/Target/TargetOptions.h\"\n#include \"llvm/Transforms/Instrumentation/AddressSanitizerOptions.h\"\n#include <map>\n#include <memory>\n#include <string>\n#include <vector>\n#include \"clang/Basic/CodeGenOptions.def\"\n#include \"clang/Basic/CodeGenOptions.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16087_execute() {\n    {\n    RemarkKind Kind = RK_Missing;\n    std::string Pattern;\n    std::shared_ptr<llvm::Regex> Regex;\n\n    /// By default, optimization remark is missing.\n    OptRemark() = default;\n\n    /// Returns true iff the optimization remark holds a valid regular\n    /// expression.\n    bool hasValidPattern() const { return Regex != nullptr; }\n\n    /// Matches the given string against the regex, if there is some.\n    bool patternMatches(StringRef String) const {\n      return hasValidPattern() && Regex->match(String);\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16087",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CodeGenOptions.h",
+  "source_line": 341,
+  "validation_status": "validated"
+}

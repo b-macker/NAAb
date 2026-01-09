@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <algorithm>\n#include <type_traits>\n#include <vector>\n#include \"absl/container/internal/hashtable_debug_hooks.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05005_execute() {\n    {\n  auto probes = GetHashtableDebugNumProbesHistogram(container);\n  HashtableDebugProbeSummary summary = {};\n  for (size_t i = 0; i < probes.size(); ++i) {\n    summary.total_elements += probes[i];\n    summary.total_num_probes += probes[i] * i;\n  }\n  summary.mean = 1.0 * summary.total_num_probes / summary.total_elements;\n  return summary;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05005",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hashtable_debug.h",
+  "source_line": 78,
+  "validation_status": "validated"
+}

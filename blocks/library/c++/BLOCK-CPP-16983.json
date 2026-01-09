@@ -1,0 +1,8 @@
+{
+  "code": "{\n  static constexpr int OffsetBits = 8 * sizeof(SourceLocation::UIntTy) - 1;\n  SourceLocation::UIntTy Offset : OffsetBits;\n  SourceLocation::UIntTy IsExpansion : 1;\n  union {\n    FileInfo File;\n    ExpansionInfo Expansion;\n  };\n\npublic:\n  SLocEntry() : Offset(), IsExpansion(), File() {}\n\n  SourceLocation::UIntTy getOffset() const { return Offset; }\n\n  bool isExpansion() const { return IsExpansion; }\n  bool isFile() const { return !isExpansion(); }\n\n  const FileInfo &getFile() const {\n    assert(isFile() && \"Not a file SLocEntry!\");\n    return File;\n  }\n\n  const ExpansionInfo &getExpansion() const {\n    assert(isExpansion() && \"Not a macro expansion SLocEntry!\");\n    return Expansion;\n  }\n\n  static SLocEntry get(SourceLocation::UIntTy Offset, const FileInfo &FI) {\n    assert(!(Offset & (1ULL << OffsetBits)) && \"Offset is too large\");\n    SLocEntry E;\n    E.Offset = Offset;\n    E.IsExpansion = false;\n    E.File = FI;\n    return E;\n  }\n\n  static SLocEntry get(SourceLocation::UIntTy Offset,\n                       const ExpansionInfo &Expansion) {\n    assert(!(Offset & (1ULL << OffsetBits)) && \"Offset is too large\");\n    SLocEntry E;\n    E.Offset = Offset;\n    E.IsExpansion = true;\n    new (&E.Expansion) ExpansionInfo(Expansion);\n    return E;\n  }\n}",
+  "id": "BLOCK-CPP-16983",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SourceManager.h",
+  "source_line": 475,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01085_execute() {\n    {\n  if constexpr (detail::is_statically_named_arg<T>()) {\n    if (name == T::name) return N;\n  }\n  if constexpr (sizeof...(Args) > 0)\n    return get_arg_index_by_name<N + 1, Args...>(name);\n  (void)name;  // Workaround an MSVC bug about \"unused\" parameter.\n  return invalid_arg_index;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01085",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 2912,
+  "validation_status": "validated"
+}

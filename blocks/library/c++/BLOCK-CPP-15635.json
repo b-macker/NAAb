@@ -1,0 +1,8 @@
+{
+  "code": "{\n  unsigned MinGroupSize;\n\npublic:\n  MinGroupSizeConstraint(unsigned MinGroupSize = 2)\n      : MinGroupSize(MinGroupSize) {}\n\n  void constrain(std::vector<CloneDetector::CloneGroup> &CloneGroups) {\n    CloneConstraint::filterGroups(CloneGroups,\n                                  [this](const CloneDetector::CloneGroup &A) {\n                                    return A.size() < MinGroupSize;\n                                  });\n  }\n}",
+  "id": "BLOCK-CPP-15635",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CloneDetection.h",
+  "source_line": 302,
+  "validation_status": "validated"
+}

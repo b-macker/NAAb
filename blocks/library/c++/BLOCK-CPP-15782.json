@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    PDFileEntry(llvm::FoldingSetNodeID &NodeID) : NodeID(NodeID) {}\n\n    using ConsumerFiles = std::vector<std::pair<StringRef, StringRef>>;\n\n    /// A vector of <consumer,file> pairs.\n    ConsumerFiles files;\n\n    /// A precomputed hash tag used for uniquing PDFileEntry objects.\n    const llvm::FoldingSetNodeID NodeID;\n\n    /// Used for profiling in the FoldingSet.\n    void Profile(llvm::FoldingSetNodeID &ID) { ID = NodeID; }\n  }",
+  "id": "BLOCK-CPP-15782",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/PathDiagnostic.h",
+  "source_line": 94,
+  "validation_status": "validated"
+}

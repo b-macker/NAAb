@@ -1,0 +1,8 @@
+{
+  "code": "{\n    // Search starting at hash index.\n    const uint32_t mask = table_.size() - 1;\n    uint32_t i = Hash(v) & mask;\n    uint32_t deleted_index = 0;  // index of first deleted element we see\n    bool seen_deleted_element = false;\n    while (true) {\n      int32_t e = table_[i];\n      if (v == e) {\n        return i;\n      } else if (e == kEmpty) {\n        // Return any previously encountered deleted slot.\n        return seen_deleted_element ? deleted_index : i;\n      } else if (e == kDel && !seen_deleted_element) {\n        // Keep searching since v might be present later.\n        deleted_index = i;\n        seen_deleted_element = true;\n      }\n      i = (i + 1) & mask;  // Linear probing; quadratic is slightly slower.\n    }\n  }",
+  "id": "BLOCK-CPP-03150",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/graphcycles.cc",
+  "source_line": 217,
+  "validation_status": "validated"
+}

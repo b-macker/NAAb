@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <string>\n\nusing namespace clang;\nusing namespace of;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18880_execute() {\n    {\n  /// Handlers - This is a map of the handlers in this namespace with their name\n  /// as key.\n  llvm::StringMap<std::unique_ptr<PragmaHandler>> Handlers;\n\npublic:\n  explicit PragmaNamespace(StringRef Name) : PragmaHandler(Name) {}\n\n  /// FindHandler - Check to see if there is already a handler for the\n  /// specified name.  If not, return the handler for the null name if it\n  /// exists, otherwise return null.  If IgnoreNull is true (the default) then\n  /// the null handler isn't returned on failure to match.\n  PragmaHandler *FindHandler(StringRef Name,\n                             bool IgnoreNull = true) const;\n\n  /// AddPragma - Add a pragma to this namespace.\n  void AddPragma(PragmaHandler *Handler);\n\n  /// RemovePragmaHandler - Remove the given handler from the\n  /// namespace.\n  void RemovePragmaHandler(PragmaHandler *Handler);\n\n  bool IsEmpty() const { return Handlers.empty(); }\n\n  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,\n                    Token &Tok) override;\n\n  PragmaNamespace *getIfNamespace() override { return this; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18880",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Pragma.h",
+  "source_line": 96,
+  "validation_status": "validated"
+}

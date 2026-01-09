@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/sinks/base_sink.h>\n#include <spdlog/details/windows_include.h>\n#include <winbase.h>\n#include <mutex>\n#include <string>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace win_eventlog;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00497_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00497",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/win_eventlog_sink.h",
+  "source_line": 56,
+  "validation_status": "validated"
+}

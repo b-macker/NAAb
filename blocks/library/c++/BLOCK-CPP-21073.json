@@ -1,0 +1,8 @@
+{
+  "code": "{\n  using UIntTy = SourceLocation::UIntTy;\n  constexpr static unsigned UIntBits = CHAR_BIT * sizeof(UIntTy);\n\n  static UIntTy encodeRaw(UIntTy Raw) {\n    return (Raw << 1) | (Raw >> (UIntBits - 1));\n  }\n  static UIntTy decodeRaw(UIntTy Raw) {\n    return (Raw >> 1) | (Raw << (UIntBits - 1));\n  }\n  friend SourceLocationSequence;\n\npublic:\n  static uint64_t encode(SourceLocation Loc,\n                         SourceLocationSequence * = nullptr);\n  static SourceLocation decode(uint64_t, SourceLocationSequence * = nullptr);\n}",
+  "id": "BLOCK-CPP-21073",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/SourceLocationEncoding.h",
+  "source_line": 42,
+  "validation_status": "validated"
+}

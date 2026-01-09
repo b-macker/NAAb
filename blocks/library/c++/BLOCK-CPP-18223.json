@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Support/CommandLine.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18223_execute() {\n    {\n    ParsedSourceLocation PSL;\n    std::pair<StringRef, StringRef> ColSplit = Str.rsplit(':');\n    std::pair<StringRef, StringRef> LineSplit =\n      ColSplit.first.rsplit(':');\n\n    // If both tail splits were valid integers, return success.\n    if (!ColSplit.second.getAsInteger(10, PSL.Column) &&\n        !LineSplit.second.getAsInteger(10, PSL.Line)) {\n      PSL.FileName = std::string(LineSplit.first);\n\n      // On the command-line, stdin may be specified via \"-\". Inside the\n      // compiler, stdin is called \"<stdin>\".\n      if (PSL.FileName == \"-\")\n        PSL.FileName = \"<stdin>\";\n    }\n\n    return PSL;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18223",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/CommandLineSourceLoc.h",
+  "source_line": 33,
+  "validation_status": "validated"
+}

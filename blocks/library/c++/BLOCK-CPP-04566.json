@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include <cstdint>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/cycleclock_config.h\"\n#include \"absl/base/internal/unscaledcycleclock.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04566_execute() {\n    {\n public:\n  // CycleClock::Now()\n  //\n  // Returns the value of a cycle counter that counts at a rate that is\n  // approximately constant.\n  static int64_t Now();\n\n  // CycleClock::Frequency()\n  //\n  // Returns the amount by which `CycleClock::Now()` increases per second. Note\n  // that this value may not necessarily match the core CPU clock frequency.\n  static double Frequency();\n\n private:\n#if ABSL_USE_UNSCALED_CYCLECLOCK\n  static CycleClockSourceFunc LoadCycleClockSource();\n\n  static constexpr int32_t kShift = kCycleClockShift;\n  static constexpr double kFrequencyScale = kCycleClockFrequencyScale;\n\n  ABSL_CONST_INIT static std::atomic<CycleClockSourceFunc> cycle_clock_source_;\n#endif  //  ABSL_USE_UNSCALED_CYCLECLOC\n\n  CycleClock() = delete;  // no instances\n  CycleClock(const CycleClock&) = delete;\n  CycleClock& operator=(const CycleClock&) = delete;\n\n  friend class CycleClockSource;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04566",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/cycleclock.h",
+  "source_line": 62,
+  "validation_status": "validated"
+}

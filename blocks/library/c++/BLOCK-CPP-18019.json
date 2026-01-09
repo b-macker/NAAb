@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  FunctionSignature() = default;\n\n  /// Parameter holds the name and DeclarationFragments of a single parameter.\n  struct Parameter {\n    std::string Name;\n    DeclarationFragments Fragments;\n\n    Parameter(StringRef Name, DeclarationFragments Fragments)\n        : Name(Name), Fragments(Fragments) {}\n  };\n\n  const std::vector<Parameter> &getParameters() const { return Parameters; }\n  const DeclarationFragments &getReturnType() const { return ReturnType; }\n\n  FunctionSignature &addParameter(StringRef Name,\n                                  DeclarationFragments Fragments) {\n    Parameters.emplace_back(Name, Fragments);\n    return *this;\n  }\n\n  void setReturnType(DeclarationFragments RT) { ReturnType = RT; }\n\n  /// Determine if the FunctionSignature is empty.\n  ///\n  /// \\returns true if the return type DeclarationFragments is empty and there\n  /// is no parameter, otherwise false.\n  bool empty() const {\n    return Parameters.empty() && ReturnType.getFragments().empty();\n  }\n\nprivate:\n  std::vector<Parameter> Parameters;\n  DeclarationFragments ReturnType;\n}",
+  "id": "BLOCK-CPP-18019",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/DeclarationFragments.h",
+  "source_line": 182,
+  "validation_status": "validated"
+}

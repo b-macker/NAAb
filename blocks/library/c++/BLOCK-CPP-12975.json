@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12975_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12975",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtIterator.h",
+  "source_line": 90,
+  "validation_status": "validated"
+}

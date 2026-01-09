@@ -1,0 +1,8 @@
+{
+  "code": "{\nnamespace {\n\nvoid SyncLoggingFlags() {\n  absl::SetFlag(&FLAGS_minloglevel, static_cast<int>(absl::MinLogLevel()));\n  absl::SetFlag(&FLAGS_log_prefix, absl::ShouldPrependLogPrefix());\n}\n\nbool RegisterSyncLoggingFlags() {\n  log_internal::SetLoggingGlobalsListener(&SyncLoggingFlags);\n  return true;\n}\n\nABSL_ATTRIBUTE_UNUSED const bool unused = RegisterSyncLoggingFlags();\n\ntemplate <typename T>\nT GetFromEnv(const char* varname, T dflt) {\n  const char* val = ::getenv(varname);\n  if (val != nullptr) {\n    std::string err;\n    ABSL_INTERNAL_CHECK(absl::ParseFlag(val, &dflt, &err), err.c_str());\n  }\n  return dflt;\n}\n\nconstexpr absl::LogSeverityAtLeast StderrThresholdDefault() {\n  return absl::LogSeverityAtLeast::kError;\n}\n\n}  // namespace\n}",
+  "id": "BLOCK-CPP-01761",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/flags.cc",
+  "source_line": 37,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/low_level_alloc.h\"\n#include \"absl/synchronization/internal/graphcycles.h\"\n#include <algorithm>\n#include <array>\n#include <cinttypes>\n#include <limits>\n#include \"absl/base/internal/hide_ptr.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03139_execute() {\n    {\n    if (src->ptr_ == src->space_) {\n      // Need to actually copy\n      resize(src->size_);\n      std::copy_n(src->ptr_, src->size_, ptr_);\n      src->size_ = 0;\n    } else {\n      Discard();\n      ptr_ = src->ptr_;\n      size_ = src->size_;\n      capacity_ = src->capacity_;\n      src->Init();\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03139",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/graphcycles.cc",
+  "source_line": 114,
+  "validation_status": "validated"
+}

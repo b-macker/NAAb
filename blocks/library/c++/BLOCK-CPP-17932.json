@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17932_execute() {\n    {\n  class Action;\n  class JobAction;\n\n  /// ArgStringMap - Type used to map a JobAction to its result file.\n  typedef llvm::DenseMap<const JobAction*, const char*> ArgStringMap;\n\n  /// ActionList - Type used for lists of actions.\n  typedef SmallVector<Action*, 3> ActionList;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17932",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Util.h",
+  "source_line": 17,
+  "validation_status": "validated"
+}

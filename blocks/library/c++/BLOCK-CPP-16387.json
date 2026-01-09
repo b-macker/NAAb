@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate <> struct PointerLikeTypeTraits<clang::FileEntryRef> {\n  static inline void *getAsVoidPointer(clang::FileEntryRef File) {\n    return const_cast<clang::FileEntryRef::MapEntry *>(&File.getMapEntry());\n  }\n\n  static inline clang::FileEntryRef getFromVoidPointer(void *Ptr) {\n    return clang::FileEntryRef(\n        *reinterpret_cast<const clang::FileEntryRef::MapEntry *>(Ptr));\n  }\n\n  static constexpr int NumLowBitsAvailable = PointerLikeTypeTraits<\n      const clang::FileEntryRef::MapEntry *>::NumLowBitsAvailable;\n};\n\n/// Specialisation of DenseMapInfo for FileEntryRef.\ntemplate <> struct DenseMapInfo<clang::FileEntryRef> {\n  static inline clang::FileEntryRef getEmptyKey() {\n    return clang::FileEntryRef(clang::FileEntryRef::dense_map_empty_tag());\n  }\n\n  static inline clang::FileEntryRef getTombstoneKey() {\n    return clang::FileEntryRef(clang::FileEntryRef::dense_map_tombstone_tag());\n  }\n\n  static unsigned getHashValue(clang::FileEntryRef Val) {\n    return hash_value(Val);\n  }\n\n  static bool isEqual(clang::FileEntryRef LHS, clang::FileEntryRef RHS) {\n    // Catch the easy cases: both empty, both tombstone, or the same ref.\n    if (LHS.isSameRef(RHS))\n      return true;\n\n    // Confirm LHS and RHS are valid.\n    if (LHS.isSpecialDenseMapKey() || RHS.isSpecialDenseMapKey())\n      return false;\n\n    // It's safe to use operator==.\n    return LHS == RHS;\n  }\n};\n\n}",
+  "id": "BLOCK-CPP-16387",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/FileEntry.h",
+  "source_line": 236,
+  "validation_status": "validated"
+}

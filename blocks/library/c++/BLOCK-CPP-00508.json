@@ -1,0 +1,8 @@
+{
+  "code": "{\n            HANDLE token_handle_ = INVALID_HANDLE_VALUE;\n            explicit process_token_t(HANDLE process) {\n                if (!::OpenProcessToken(process, TOKEN_QUERY, &token_handle_)) {\n                    SPDLOG_THROW(win32_error(\"OpenProcessToken\"));\n                }\n            }\n\n            ~process_token_t() { ::CloseHandle(token_handle_); }\n\n        }",
+  "id": "BLOCK-CPP-00508",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/win_eventlog_sink.h",
+  "source_line": 122,
+  "validation_status": "validated"
+}

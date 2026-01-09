@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  And(LExpr *LHS, LExpr *RHS) : BinOp(LHS, RHS, LExpr::And) {}\n\n  static bool classof(const LExpr *E) { return E->kind() == LExpr::And; }\n}",
+  "id": "BLOCK-CPP-21477",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyLogical.h",
+  "source_line": 68,
+  "validation_status": "validated"
+}

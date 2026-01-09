@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>  // std::max\n#include <limits>     // std::numeric_limits\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01536_execute() {\n    {\n  return vfprintf(stdout, detail::to_string_view(fmt), args);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01536",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
+  "source_line": 614,
+  "validation_status": "validated"
+}

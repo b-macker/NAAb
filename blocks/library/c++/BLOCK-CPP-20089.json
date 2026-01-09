@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Expr.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20089_execute() {\n    {\n\n  template <class T>\n  struct PointerLikeTypeTraits<clang::OpaquePtr<T>> {\n    static constexpr int NumLowBitsAvailable = 0;\n\n    static inline void *getAsVoidPointer(clang::OpaquePtr<T> P) {\n      // FIXME: Doesn't work? return P.getAs< void >();\n      return P.getAsOpaquePtr();\n    }\n\n    static inline clang::OpaquePtr<T> getFromVoidPointer(void *P) {\n      return clang::OpaquePtr<T>::getFromOpaquePtr(P);\n    }\n  };\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20089",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Ownership.h",
+  "source_line": 115,
+  "validation_status": "validated"
+}

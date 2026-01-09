@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  explicit CFGLifetimeEnds(const VarDecl *var, const Stmt *stmt)\n      : CFGElement(LifetimeEnds, var, stmt) {}\n\n  const VarDecl *getVarDecl() const {\n    return static_cast<VarDecl *>(Data1.getPointer());\n  }\n\n  const Stmt *getTriggerStmt() const {\n    return static_cast<Stmt *>(Data2.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n\n  CFGLifetimeEnds() = default;\n\n  static bool isKind(const CFGElement &elem) {\n    return elem.getKind() == LifetimeEnds;\n  }\n}",
+  "id": "BLOCK-CPP-15554",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
+  "source_line": 290,
+  "validation_status": "validated"
+}

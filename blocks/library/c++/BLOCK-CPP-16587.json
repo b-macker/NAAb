@@ -1,0 +1,8 @@
+{
+  "code": "#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16587_execute() {\n    {\n  return L >= VisibleNoLinkage;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16587",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Linkage.h",
+  "source_line": 86,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00363_execute() {\n    def visit_Assign(self, node: nodes.Assign, frame: Frame) -> None:\n        self.push_assign_tracking()\n\n        # ``a.b`` is allowed for assignment, and is parsed as an NSRef. However,\n        # it is only valid if it references a Namespace object. Emit a check for\n        # that for each ref here, before assignment code is emitted. This can't\n        # be done in visit_NSRef as the ref could be in the middle of a tuple.\n        seen_refs: set[str] = set()\n\n        for nsref in node.find_all(nodes.NSRef):\n            if nsref.name in seen_refs:\n                # Only emit the check for each reference once, in case the same\n                # ref is used multiple times in a tuple, `ns.a, ns.b = c, d`.\n                continue\n\n            seen_refs.add(nsref.name)\n            ref = frame.symbols.ref(nsref.name)\n            self.writeline(f\"if not isinstance({ref}, Namespace):\")\n            self.indent()\n            self.writeline(\n                \"raise TemplateRuntimeError\"\n                '(\"cannot assign attribute on non-namespace object\")'\n            )\n            self.outdent()\n\n        self.newline(node)\n        self.visit(node.target, frame)\n        self.write(\" = \")\n        self.visit(node.node, frame)\n        self.pop_assign_tracking(frame)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00363",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1576,
+  "validation_status": "validated"
+}

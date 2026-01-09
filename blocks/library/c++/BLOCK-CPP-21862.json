@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  UninitVariablesHandler() = default;\n  virtual ~UninitVariablesHandler();\n\n  /// Called when the uninitialized variable is used at the given expression.\n  virtual void handleUseOfUninitVariable(const VarDecl *vd,\n                                         const UninitUse &use) {}\n\n  /// Called when the uninitialized variable is used as const refernce argument.\n  virtual void handleConstRefUseOfUninitVariable(const VarDecl *vd,\n                                                 const UninitUse &use) {}\n\n  /// Called when the uninitialized variable analysis detects the\n  /// idiom 'int x = x'.  All other uses of 'x' within the initializer\n  /// are handled by handleUseOfUninitVariable.\n  virtual void handleSelfInit(const VarDecl *vd) {}\n}",
+  "id": "BLOCK-CPP-21862",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/UninitializedValues.h",
+  "source_line": 104,
+  "validation_status": "validated"
+}

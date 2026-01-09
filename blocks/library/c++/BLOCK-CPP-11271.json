@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/RecursiveASTVisitor.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11271_execute() {\n    { return S->children(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11271",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LexicallyOrderedRecursiveASTVisitor.h",
+  "source_line": 113,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/IR/DerivedTypes.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17521_execute() {\n    {\n    ID.AddInteger(info.getCC());\n    ID.AddBoolean(InstanceMethod);\n    ID.AddBoolean(ChainCall);\n    ID.AddBoolean(IsDelegateCall);\n    ID.AddBoolean(info.getNoReturn());\n    ID.AddBoolean(info.getProducesResult());\n    ID.AddBoolean(info.getNoCallerSavedRegs());\n    ID.AddBoolean(info.getHasRegParm());\n    ID.AddInteger(info.getRegParm());\n    ID.AddBoolean(info.getNoCfCheck());\n    ID.AddBoolean(info.getCmseNSCall());\n    ID.AddInteger(required.getOpaqueData());\n    ID.AddBoolean(!paramInfos.empty());\n    if (!paramInfos.empty()) {\n      for (auto paramInfo : paramInfos)\n        ID.AddInteger(paramInfo.getOpaqueValue());\n    }\n    resultType.Profile(ID);\n    for (ArrayRef<CanQualType>::iterator\n           i = argTypes.begin(), e = argTypes.end(); i != e; ++i) {\n      i->Profile(ID);\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17521",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CGFunctionInfo.h",
+  "source_line": 773,
+  "validation_status": "validated"
+}

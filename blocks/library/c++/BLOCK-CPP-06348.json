@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstdint>\n#include <cstdio>\n#include <limits>\n#include \"absl/base/config.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06348_execute() {\n    {\n  int digits = c - '0';\n  // We do not want to overflow `digits` so we consume at most digits10\n  // digits. If there are more digits the parsing will fail later on when the\n  // digit doesn't match the expected characters.\n  int num_digits = std::numeric_limits<int>::digits10;\n  for (;;) {\n    if (ABSL_PREDICT_FALSE(pos == end)) break;\n    c = *pos++;\n    if ('0' > c || c > '9') break;\n    --num_digits;\n    if (ABSL_PREDICT_FALSE(!num_digits)) break;\n    digits = 10 * digits + c - '0';\n  }\n  return digits;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06348",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/constexpr_parser.h",
+  "source_line": 196,
+  "validation_status": "validated"
+}

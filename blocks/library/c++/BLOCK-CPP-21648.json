@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  Undefined(const Stmt *S = nullptr) : SExpr(COP_Undefined), Cstmt(S) {}\n  Undefined(const Undefined &U) : SExpr(U), Cstmt(U.Cstmt) {}\n\n  // The copy assignment operator is defined as deleted pending further\n  // motivation.\n  Undefined &operator=(const Undefined &) = delete;\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Undefined; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    return Vs.reduceUndefined(*this);\n  }\n\n  template <class C>\n  typename C::CType compare(const Undefined* E, C& Cmp) const {\n    return Cmp.trueResult();\n  }\n\nprivate:\n  const Stmt *Cstmt;\n}",
+  "id": "BLOCK-CPP-21648",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 487,
+  "validation_status": "validated"
+}

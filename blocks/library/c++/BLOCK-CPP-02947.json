@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/ostringstream.h\"\n#include <cassert>\n#include <cstddef>\n#include <ios>\n#include <streambuf>\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02947_execute() {\n    {\n\nOStringStream::Streambuf::int_type OStringStream::Streambuf::overflow(int c) {\n  assert(str_);\n  if (!std::streambuf::traits_type::eq_int_type(\n          c, std::streambuf::traits_type::eof()))\n    str_->push_back(static_cast<char>(c));\n  return 1;\n}\n\nstd::streamsize OStringStream::Streambuf::xsputn(const char* s,\n                                                 std::streamsize n) {\n  assert(str_);\n  str_->append(s, static_cast<size_t>(n));\n  return n;\n}\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02947",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/ostringstream.cc",
+  "source_line": 24,
+  "validation_status": "validated"
+}

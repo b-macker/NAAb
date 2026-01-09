@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/IR/DerivedTypes.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17519_execute() {\n    {\n    assert(llvm::isPowerOf2_32(Width) && \"Expected power of 2 vector\");\n    MaxVectorWidth = llvm::countr_zero(Width) + 1;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17519",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CGFunctionInfo.h",
+  "source_line": 746,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n  /// The offset in this file that the line entry occurs at.\n  unsigned FileOffset;\n\n  /// The presumed line number of this line entry: \\#line 4.\n  unsigned LineNo;\n\n  /// The ID of the filename identified by this line entry:\n  /// \\#line 4 \"foo.c\".  This is -1 if not specified.\n  int FilenameID;\n\n  /// Set the 0 if no flags, 1 if a system header,\n  SrcMgr::CharacteristicKind FileKind;\n\n  /// The offset of the virtual include stack location,\n  /// which is manipulated by GNU linemarker directives.\n  ///\n  /// If this is 0 then there is no virtual \\#includer.\n  unsigned IncludeOffset;\n\n  static LineEntry get(unsigned Offs, unsigned Line, int Filename,\n                       SrcMgr::CharacteristicKind FileKind,\n                       unsigned IncludeOffset) {\n    LineEntry E;\n    E.FileOffset = Offs;\n    E.LineNo = Line;\n    E.FilenameID = Filename;\n    E.FileKind = FileKind;\n    E.IncludeOffset = IncludeOffset;\n    return E;\n  }\n}",
+  "id": "BLOCK-CPP-16997",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SourceManagerInternals.h",
+  "source_line": 32,
+  "validation_status": "validated"
+}

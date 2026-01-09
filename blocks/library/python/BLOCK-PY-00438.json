@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00438_execute() {\n    class CondExpr(Expr):\n    \"\"\"A conditional expression (inline if expression).  (``{{\n    foo if bar else baz }}``)\n    \"\"\"\n\n    fields = (\"test\", \"expr1\", \"expr2\")\n    test: Expr\n    expr1: Expr\n    expr2: Expr | None\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        if self.test.as_const(eval_ctx):\n            return self.expr1.as_const(eval_ctx)\n\n        # if we evaluate to an undefined object, we better do that at runtime\n        if self.expr2 is None:\n            raise Impossible()\n\n        return self.expr2.as_const(eval_ctx)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00438",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 692,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/time/civil_time.h\"\n#include <cstdlib>\n#include <ostream>\n#include <string>\n#include \"absl/strings/str_cat.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02119_execute() {\n    {\n  // A fastpath for when the given string data parses exactly into the given\n  // type T (e.g., s=\"YYYY-MM-DD\" and CivilT=CivilDay).\n  if (ParseCivilTime(s, c)) return true;\n  // Try parsing as each of the 6 types, trying the most common types first\n  // (based on csearch results).\n  if (ParseAs<CivilDay>(s, c)) return true;\n  if (ParseAs<CivilSecond>(s, c)) return true;\n  if (ParseAs<CivilHour>(s, c)) return true;\n  if (ParseAs<CivilMonth>(s, c)) return true;\n  if (ParseAs<CivilMinute>(s, c)) return true;\n  if (ParseAs<CivilYear>(s, c)) return true;\n  return false;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02119",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/civil_time.cc",
+  "source_line": 82,
+  "validation_status": "validated"
+}

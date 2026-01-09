@@ -1,0 +1,8 @@
+{
+  "code": "{\n//     if (sampler.Sample()) {\n//       HashTableSlowSamplePath(...);\n//     }\n//   }\n//\ntemplate <typename Tag, int default_period = 0>\nclass PeriodicSampler final : public PeriodicSamplerBase {\n public:\n  ~PeriodicSampler() = default;\n\n  int period() const noexcept final {\n    return period_.load(std::memory_order_relaxed);\n  }\n\n  // Sets the global period for this sampler. Thread-safe.\n  // Setting a period of 0 disables the sampler, i.e., every call to Sample()\n  // will return false. Setting a period of 1 puts the sampler in 'always on'\n  // mode, i.e., every call to Sample() returns true.\n  static void SetGlobalPeriod(int period) {\n    period_.store(period, std::memory_order_relaxed);\n  }\n\n private:\n  static std::atomic<int> period_;\n};\n\ntemplate <typename Tag, int default_period>\nstd::atomic<int> PeriodicSampler<Tag, default_period>::period_(default_period);\n\n}",
+  "id": "BLOCK-CPP-05826",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/profiling/internal/periodic_sampler.h",
+  "source_line": 177,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00339_execute() {\n    def push_assign_tracking(self) -> None:\n        \"\"\"Pushes a new layer for assignment tracking.\"\"\"\n        self._assign_stack.append(set())\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00339",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 776,
+  "validation_status": "validated"
+}

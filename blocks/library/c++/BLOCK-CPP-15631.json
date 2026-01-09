@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/StmtVisitor.h\"\n#include \"llvm/Support/Regex.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15631_execute() {\n    {\npublic:\n  /// Removes all groups by using a filter function.\n  /// \\param CloneGroups The list of CloneGroups that is supposed to be\n  ///                    filtered.\n  /// \\param Filter The filter function that should return true for all groups\n  ///               that should be removed from the list.\n  static void filterGroups(\n      std::vector<CloneDetector::CloneGroup> &CloneGroups,\n      llvm::function_ref<bool(const CloneDetector::CloneGroup &)> Filter) {\n    llvm::erase_if(CloneGroups, Filter);\n  }\n\n  /// Splits the given CloneGroups until the given Compare function returns true\n  /// for all clones in a single group.\n  /// \\param CloneGroups A list of CloneGroups that should be modified.\n  /// \\param Compare The comparison function that all clones are supposed to\n  ///                pass. Should return true if and only if two clones belong\n  ///                to the same CloneGroup.\n  static void splitCloneGroups(\n      std::vector<CloneDetector::CloneGroup> &CloneGroups,\n      llvm::function_ref<bool(const StmtSequence &, const StmtSequence &)>\n          Compare);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15631",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CloneDetection.h",
+  "source_line": 222,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/examine_stack.h\"\n#include <unistd.h>\n#include \"absl/base/config.h\"\n#include <sys/mman.h>\n#include <sys/ucontext.h>\n#include <csignal>\n#include <cstdio>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/debugging/stacktrace.h\"\n#include \"absl/debugging/symbolize.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02593_execute() {\n    {\n  char buf[100];\n  snprintf(buf, sizeof(buf), \"%s@ %*p\\n\", prefix, kPrintfPointerFieldWidth, pc);\n  writer(buf, writer_arg);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02593",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/examine_stack.cc",
+  "source_line": 79,
+  "validation_status": "validated"
+}

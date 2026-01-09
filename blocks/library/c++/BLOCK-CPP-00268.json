@@ -1,0 +1,8 @@
+{
+  "code": "{\nnamespace details {\nstruct null_mutex {\n    void lock() const {}\n    void unlock() const {}\n};\n\nstruct null_atomic_int {\n    int value;\n    null_atomic_int() = default;\n\n    explicit null_atomic_int(int new_value)\n        : value(new_value) {}\n\n    int load(std::memory_order = std::memory_order_relaxed) const { return value; }\n\n    void store(int new_value, std::memory_order = std::memory_order_relaxed) { value = new_value; }\n\n    int exchange(int new_value, std::memory_order = std::memory_order_relaxed) {\n        std::swap(new_value, value);\n        return new_value;  // return value before the call\n    }\n};\n\n}  // namespace details\n}",
+  "id": "BLOCK-CPP-00268",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/null_mutex.h",
+  "source_line": 10,
+  "validation_status": "validated"
+}

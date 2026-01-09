@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/Support/Error.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17818_execute() {\n    {\npublic:\n  bool AllowNoHost = false;\n  bool AllowMissingBundles = false;\n  bool CheckInputArchive = false;\n  bool PrintExternalCommands = false;\n  bool HipOpenmpCompatible = false;\n\n  unsigned BundleAlignment = 1;\n  unsigned HostInputIndex = ~0u;\n\n  std::string FilesType;\n  std::string ObjcopyPath;\n\n  // TODO: Convert these to llvm::SmallVector\n  std::vector<std::string> TargetNames;\n  std::vector<std::string> InputFileNames;\n  std::vector<std::string> OutputFileNames;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17818",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/OffloadBundler.h",
+  "source_line": 27,
+  "validation_status": "validated"
+}

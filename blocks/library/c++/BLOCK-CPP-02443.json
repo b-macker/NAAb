@@ -1,0 +1,8 @@
+{
+  "code": "{\n        case 6:  // Most PentiumIII processors are in this category\n          switch (model_num) {\n            case 0x2c:  // Westmere: Gulftown\n              return CpuType::kIntelWestmere;\n            case 0x2d:  // Sandybridge\n              return CpuType::kIntelSandybridge;\n            case 0x3e:  // Ivybridge\n              return CpuType::kIntelIvybridge;\n            case 0x3c:  // Haswell (client)\n            case 0x3f:  // Haswell\n              return CpuType::kIntelHaswell;\n            case 0x4f:  // Broadwell\n            case 0x56:  // BroadwellDE\n              return CpuType::kIntelBroadwell;\n            case 0x55:                 // Skylake Xeon\n              if ((cpu_info[0] & 0x0f) < 5) {  // stepping < 5 is skylake\n                return CpuType::kIntelSkylakeXeon;\n              } else {  // stepping >= 5 is cascadelake\n                return CpuType::kIntelCascadelakeXeon;\n              }\n            case 0x5e:  // Skylake (client)\n              return CpuType::kIntelSkylake;\n            default:\n              return CpuType::kUnknown;\n          }\n        default:\n          return CpuType::kUnknown;\n      }",
+  "id": "BLOCK-CPP-02443",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/cpu_detect.cc",
+  "source_line": 115,
+  "validation_status": "validated"
+}

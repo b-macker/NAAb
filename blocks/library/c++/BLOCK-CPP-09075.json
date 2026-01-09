@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/ExternalASTSource.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09075_execute() {\n    { return Data->getChildren().empty(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-09075",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclOpenMP.h",
+  "source_line": 144,
+  "validation_status": "validated"
+}

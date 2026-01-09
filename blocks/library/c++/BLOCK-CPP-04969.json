@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <memory>\n#include <new>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n#include <sanitizer/asan_interface.h>\n#include <sanitizer/msan_interface.h>\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace memory_internal;\nusing namespace memory_internal;\nusing namespace memory_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04969_execute() {\n    {\n    return std::is_standard_layout<P>() && sizeof(P) == sizeof(Pair) &&\n           alignof(P) == alignof(Pair) &&\n           memory_internal::OffsetOf<P>::kFirst ==\n               memory_internal::OffsetOf<Pair>::kFirst &&\n           memory_internal::OffsetOf<P>::kSecond ==\n               memory_internal::OffsetOf<Pair>::kSecond;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04969",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/container_memory.h",
+  "source_line": 281,
+  "validation_status": "validated"
+}

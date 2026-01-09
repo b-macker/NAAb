@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <memory>\n#include \"absl/base/config.h\"\n#include \"absl/crc/crc32c.h\"\n#include \"absl/crc/internal/crc32_x86_arm_combined_simd.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05432_execute() {\n    {\n    static const ArchSpecificEngines engines = GetArchSpecificEngines();\n    auto* engine = non_temporal ? engines.non_temporal : engines.temporal;\n    return engine->Compute(dst, src, length, initial_crc);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05432",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_memcpy.h",
+  "source_line": 51,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/ascii.h\"\n#include <climits>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\nusing namespace ascii_internal;\nusing namespace ascii_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01826_execute() {\n    {\n  auto stripped = StripAsciiWhitespace(*str);\n\n  if (stripped.empty()) {\n    str->clear();\n    return;\n  }\n\n  auto input_it = stripped.begin();\n  auto input_end = stripped.end();\n  auto output_it = &(*str)[0];\n  bool is_ws = false;\n\n  for (; input_it < input_end; ++input_it) {\n    if (is_ws) {\n      // Consecutive whitespace?  Keep only the last.\n      is_ws = absl::ascii_isspace(static_cast<unsigned char>(*input_it));\n      if (is_ws) --output_it;\n    } else {\n      is_ws = absl::ascii_isspace(static_cast<unsigned char>(*input_it));\n    }\n\n    *output_it = *input_it;\n    ++output_it;\n  }\n\n  str->erase(static_cast<size_t>(output_it - &(*str)[0]));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01826",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/ascii.cc",
+  "source_line": 290,
+  "validation_status": "validated"
+}

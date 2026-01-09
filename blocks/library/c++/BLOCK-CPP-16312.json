@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n\nusing namespace clang;\nusing namespace diag;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16312_execute() {\n    {\nenum {\n#define DIAG(ENUM, FLAGS, DEFAULT_MAPPING, DESC, GROUP, SFINAE, NOWERROR,      \\\n             SHOWINSYSHEADER, SHOWINSYSMACRO, DEFERRABLE, CATEGORY)            \\\n  ENUM,\n#define SERIALIZATIONSTART\n#include \"clang/Basic/DiagnosticSerializationKinds.inc\"\n#undef DIAG\n  NUM_BUILTIN_SERIALIZATION_DIAGNOSTICS\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16312",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticSerialization.h",
+  "source_line": 15,
+  "validation_status": "validated"
+}

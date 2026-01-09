@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_decode_rust_punycode.a CMakeFiles/absl_decode_rust_punycode.dir/internal/decode_rust_punycode.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_decode_rust_punycode.a

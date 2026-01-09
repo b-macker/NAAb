@@ -1,0 +1,29 @@
+{
+  "code": "#include <chrono>\n#include <cstdint>\n#include <limits>\n#include <ratio>  // NOLINT: We use std::ratio in this header\n#include <string>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06604_execute() {\n    {\n  time_point<seconds> sec;\n  detail::femtoseconds fs;\n  return detail::parse(fmt, input, tz, &sec, &fs) &&\n         detail::join_seconds(sec, fs, tpp);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06604",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/time_zone.h",
+  "source_line": 372,
+  "validation_status": "validated",
+  "description": "C++ block with 30 lines of code implementing BLOCK-CPP-06604",
+  "short_desc": "C++ block with 30 lines of code implementing BLOCK-CPP-06604",
+  "input_types": "any",
+  "output_type": "void",
+  "keywords": [
+    "c++",
+    "parse",
+    "string"
+  ],
+  "use_cases": [
+    "General c++ programming tasks"
+  ],
+  "related_blocks": [],
+  "avg_execution_ms": 10.0,
+  "max_memory_mb": 4,
+  "performance_tier": "medium",
+  "success_rate_percent": 100,
+  "avg_tokens_saved": 50,
+  "test_coverage_percent": 0,
+  "security_audited": false,
+  "stability": "stable"
+}

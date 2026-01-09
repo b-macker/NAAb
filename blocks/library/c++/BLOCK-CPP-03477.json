@@ -1,0 +1,8 @@
+{
+  "code": "{\n  using slot_type = Key;\n  using value_type = Key;\n  using mutable_value_type = Key;\n\n  static value_type &element(slot_type *slot) { return *slot; }\n  static const value_type &element(const slot_type *slot) { return *slot; }\n\n  template <typename Alloc, class... Args>\n  static void construct(Alloc *alloc, slot_type *slot, Args &&...args) {\n    absl::allocator_traits<Alloc>::construct(*alloc, slot,\n                                             std::forward<Args>(args)...);\n  }\n\n  template <typename Alloc>\n  static void construct(Alloc *alloc, slot_type *slot, slot_type *other) {\n    absl::allocator_traits<Alloc>::construct(*alloc, slot, std::move(*other));\n  }\n\n  template <typename Alloc>\n  static void construct(Alloc *alloc, slot_type *slot, const slot_type *other) {\n    absl::allocator_traits<Alloc>::construct(*alloc, slot, *other);\n  }\n\n  template <typename Alloc>\n  static void destroy(Alloc *alloc, slot_type *slot) {\n    absl::allocator_traits<Alloc>::destroy(*alloc, slot);\n  }\n}",
+  "id": "BLOCK-CPP-03477",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/btree_set.h",
+  "source_line": 768,
+  "validation_status": "validated"
+}

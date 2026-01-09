@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace analyze_format_string;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11135_execute() {\n    {\n    ArgType Res = A;\n    Res.TK = TypeKind::PtrdiffT;\n    return Res;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11135",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
+  "source_line": 321,
+  "validation_status": "validated"
+}

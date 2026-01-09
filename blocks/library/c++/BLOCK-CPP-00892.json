@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00892_execute() {\n    {\n protected:\n  OutputIt out_;\n  size_t limit_;\n  size_t count_ = 0;\n\n  truncating_iterator_base() : out_(), limit_(0) {}\n\n  truncating_iterator_base(OutputIt out, size_t limit)\n      : out_(out), limit_(limit) {}\n\n public:\n  using iterator_category = std::output_iterator_tag;\n  using value_type = typename std::iterator_traits<OutputIt>::value_type;\n  using difference_type = std::ptrdiff_t;\n  using pointer = void;\n  using reference = void;\n  FMT_UNCHECKED_ITERATOR(truncating_iterator_base);\n\n  OutputIt base() const { return out_; }\n  size_t count() const { return count_; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00892",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

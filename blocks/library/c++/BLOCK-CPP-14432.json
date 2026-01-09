@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/MathExtras.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstdint>\n#include <cstring>\n#include \"clang/AST/TypeLocNodes.def\"\n#include \"clang/AST/TypeNodes.inc\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14432_execute() {\n    {\n    setDecltypeLoc(Loc);\n    setRParenLoc(Loc);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14432",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeLoc.h",
+  "source_line": 2051,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContextAllocate.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07336_execute() {\n    {\n    if (End < this->capacity_ptr()) {\n    Retry:\n      new (End) T(Elt);\n      ++End;\n      return;\n    }\n    grow(C);\n    goto Retry;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07336",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTVector.h",
+  "source_line": 162,
+  "validation_status": "validated"
+}

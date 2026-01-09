@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ASTContext; // ASTContext creates these.\n\n  explicit EnumType(const EnumDecl *D)\n      : TagType(Enum, reinterpret_cast<const TagDecl*>(D), QualType()) {}\n\npublic:\n  EnumDecl *getDecl() const {\n    return reinterpret_cast<EnumDecl*>(TagType::getDecl());\n  }\n\n  bool isSugared() const { return false; }\n  QualType desugar() const { return QualType(this, 0); }\n\n  static bool classof(const Type *T) { return T->getTypeClass() == Enum; }\n}",
+  "id": "BLOCK-CPP-14149",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
+  "source_line": 4896,
+  "validation_status": "validated"
+}

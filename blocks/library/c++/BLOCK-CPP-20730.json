@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Sema/Sema.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20730_execute() {\n    {\npublic:\n  virtual ~TemplateInstantiationCallback() = default;\n\n  /// Called before doing AST-parsing.\n  virtual void initialize(const Sema &TheSema) = 0;\n\n  /// Called after AST-parsing is completed.\n  virtual void finalize(const Sema &TheSema) = 0;\n\n  /// Called when instantiation of a template just began.\n  virtual void atTemplateBegin(const Sema &TheSema,\n                               const Sema::CodeSynthesisContext &Inst) = 0;\n\n  /// Called when instantiation of a template is just about to end.\n  virtual void atTemplateEnd(const Sema &TheSema,\n                             const Sema::CodeSynthesisContext &Inst) = 0;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20730",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/TemplateInstCallback.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

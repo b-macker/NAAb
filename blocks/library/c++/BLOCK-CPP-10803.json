@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ASTStmtReader;\n\npublic:\n  CoawaitExpr(SourceLocation CoawaitLoc, Expr *Operand, Expr *Common,\n              Expr *Ready, Expr *Suspend, Expr *Resume,\n              OpaqueValueExpr *OpaqueValue, bool IsImplicit = false)\n      : CoroutineSuspendExpr(CoawaitExprClass, CoawaitLoc, Operand, Common,\n                             Ready, Suspend, Resume, OpaqueValue) {\n    CoawaitBits.IsImplicit = IsImplicit;\n  }\n\n  CoawaitExpr(SourceLocation CoawaitLoc, QualType Ty, Expr *Operand,\n              Expr *Common, bool IsImplicit = false)\n      : CoroutineSuspendExpr(CoawaitExprClass, CoawaitLoc, Ty, Operand,\n                             Common) {\n    CoawaitBits.IsImplicit = IsImplicit;\n  }\n\n  CoawaitExpr(EmptyShell Empty)\n      : CoroutineSuspendExpr(CoawaitExprClass, Empty) {}\n\n  bool isImplicit() const { return CoawaitBits.IsImplicit; }\n  void setIsImplicit(bool value = true) { CoawaitBits.IsImplicit = value; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == CoawaitExprClass;\n  }\n}",
+  "id": "BLOCK-CPP-10803",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
+  "source_line": 5016,
+  "validation_status": "validated"
+}

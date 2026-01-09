@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/internal/proto.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02744_execute() {\n    {\n  for (size_t s = 0; s < size; s++) {\n    (*buf)[s] = static_cast<char>((value & 0x7f) | (s + 1 == size ? 0 : 0x80));\n    value >>= 7;\n  }\n  buf->remove_prefix(size);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02744",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/proto.cc",
+  "source_line": 31,
+  "validation_status": "validated"
+}

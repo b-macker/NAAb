@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/internal/cycleclock.h\"\n#include <atomic>\n#include <chrono>  // NOLINT(build/c++11)\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/unscaledcycleclock.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02295_execute() {\n    {\n\n#if ABSL_USE_UNSCALED_CYCLECLOCK\n\n#ifdef ABSL_INTERNAL_NEED_REDUNDANT_CONSTEXPR_DECL\nconstexpr int32_t CycleClock::kShift;\nconstexpr double CycleClock::kFrequencyScale;\n#endif\n\nABSL_CONST_INIT std::atomic<CycleClockSourceFunc>\n    CycleClock::cycle_clock_source_{nullptr};\n\nvoid CycleClockSource::Register(CycleClockSourceFunc source) {\n  // Corresponds to the load(std::memory_order_acquire) in LoadCycleClockSource.\n  CycleClock::cycle_clock_source_.store(source, std::memory_order_release);\n}\n\n#ifdef _WIN32\nint64_t CycleClock::Now() {\n  auto fn = LoadCycleClockSource();\n  if (fn == nullptr) {\n    return base_internal::UnscaledCycleClock::Now() >> kShift;\n  }\n  return fn() >> kShift;\n}\n#endif\n\n#else\n\nint64_t CycleClock::Now() {\n  return std::chrono::duration_cast<std::chrono::nanoseconds>(\n             std::chrono::steady_clock::now().time_since_epoch())\n      .count();\n}\n\ndouble CycleClock::Frequency() {\n  return 1e9;\n}\n\n#endif\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02295",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/cycleclock.cc",
+  "source_line": 34,
+  "validation_status": "validated"
+}

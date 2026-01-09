@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00398_execute() {\n    def loop_body() -> None:\n            self.indent()\n            self.simple_write(\"event\", frame)\n            self.outdent()\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00398",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1063,
+  "validation_status": "validated"
+}

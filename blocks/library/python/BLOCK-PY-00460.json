@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00460_execute() {\n    class Neg(UnaryExpr):\n    \"\"\"Make the expression negative.\"\"\"\n\n    operator = \"-\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00460",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 1013,
+  "validation_status": "validated"
+}

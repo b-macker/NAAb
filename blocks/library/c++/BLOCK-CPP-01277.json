@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01277_execute() {\n    {\n  if (!is_constant_evaluated() && sizeof(Char) == sizeof(char)) {\n    memcpy(dst, src, 2);\n    return;\n  }\n  *dst++ = static_cast<Char>(*src++);\n  *dst = static_cast<Char>(*src);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01277",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 1196,
+  "validation_status": "validated"
+}

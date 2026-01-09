@@ -1,0 +1,8 @@
+{
+  "code": "{ void x() { this->x(); x(); Y y; y.x(); } }",
+  "id": "BLOCK-CPP-14984",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchers.h",
+  "source_line": 3884,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  OptionalFlag(const char *Representation)\n      : representation(Representation), flag(false) {}\n  bool isSet() const { return flag; }\n  void set() { flag = true; }\n  void clear() { flag = false; }\n  void setPosition(const char *position) {\n    assert(position);\n    flag = true;\n    this->position = position;\n  }\n  const char *getPosition() const {\n    assert(position);\n    return position;\n  }\n  const char *toString() const { return representation; }\n\n  // Overloaded operators for bool like qualities\n  explicit operator bool() const { return flag; }\n  OptionalFlag& operator=(const bool &rhs) {\n    flag = rhs;\n    return *this;  // Return a reference to myself.\n  }\nprivate:\n  const char *representation;\n  const char *position;\n  bool flag;\n}",
+  "id": "BLOCK-CPP-11198",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
+  "source_line": 34,
+  "validation_status": "validated"
+}

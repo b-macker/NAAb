@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02538_execute() {\n    {\n  ComplexityGuard guard(state);\n  if (guard.IsTooComplex()) return false;\n  if (ParseNestedName(state) || ParseLocalName(state)) {\n    return true;\n  }\n\n  // We reorganize the productions to avoid re-parsing unscoped names.\n  // - Inline <unscoped-template-name> productions:\n  //   <name> ::= <substitution> <template-args>\n  //          ::= <unscoped-name> <template-args>\n  //          ::= <unscoped-name>\n  // - Merge the two productions that start with unscoped-name:\n  //   <name> ::= <unscoped-name> [<template-args>]\n\n  ParseState copy = state->parse_state;\n  // \"std<...>\" isn't a valid name.\n  if (ParseSubstitution(state, /*accept_std=*/false) &&\n      ParseTemplateArgs(state)) {\n    return true;\n  }\n  state->parse_state = copy;\n\n  // Note there's no need to restore state after this since only the first\n  // subparser can fail.\n  return ParseUnscopedName(state) && Optional(ParseTemplateArgs(state));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02538",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 649,
+  "validation_status": "validated"
+}

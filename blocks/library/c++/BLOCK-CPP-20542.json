@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    FullExprArg() : E(nullptr) { }\n    FullExprArg(Sema &actions) : E(nullptr) { }\n\n    ExprResult release() {\n      return E;\n    }\n\n    Expr *get() const { return E; }\n\n    Expr *operator->() {\n      return E;\n    }\n\n  private:\n    // FIXME: No need to make the entire Sema class a friend when it's just\n    // Sema::MakeFullExpr that needs access to the constructor below.\n    friend class Sema;\n\n    explicit FullExprArg(Expr *expr) : E(expr) {}\n\n    Expr *E;\n  }",
+  "id": "BLOCK-CPP-20542",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 5035,
+  "validation_status": "validated"
+}

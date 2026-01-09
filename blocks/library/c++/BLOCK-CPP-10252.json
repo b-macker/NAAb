@@ -1,0 +1,8 @@
+{
+  "code": "{\n  /// TokenLoc - The location of the __null keyword.\n  SourceLocation TokenLoc;\n\npublic:\n  GNUNullExpr(QualType Ty, SourceLocation Loc)\n      : Expr(GNUNullExprClass, Ty, VK_PRValue, OK_Ordinary), TokenLoc(Loc) {\n    setDependence(ExprDependence::None);\n  }\n\n  /// Build an empty GNU __null expression.\n  explicit GNUNullExpr(EmptyShell Empty) : Expr(GNUNullExprClass, Empty) { }\n\n  /// getTokenLocation - The location of the __null token.\n  SourceLocation getTokenLocation() const { return TokenLoc; }\n  void setTokenLocation(SourceLocation L) { TokenLoc = L; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return TokenLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY { return TokenLoc; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == GNUNullExprClass;\n  }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
+  "id": "BLOCK-CPP-10252",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
+  "source_line": 4626,
+  "validation_status": "validated"
+}

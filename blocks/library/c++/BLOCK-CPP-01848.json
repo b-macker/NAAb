@@ -1,0 +1,8 @@
+{
+  "code": "{\n  CalculatedFloat result;\n  if (mantissa == uint64_t{1} << FloatTraits<FloatType>::kTargetMantissaBits) {\n    mantissa >>= 1;\n    exponent += 1;\n  }\n  if (exponent > FloatTraits<FloatType>::kMaxExponent) {\n    result.exponent = kOverflow;\n  } else if (mantissa == 0) {\n    result.exponent = kUnderflow;\n  } else {\n    result.exponent = exponent;\n    result.mantissa = mantissa;\n  }\n  return result;\n}",
+  "id": "BLOCK-CPP-01848",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/charconv.cc",
+  "source_line": 582,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00145_execute() {\n    def _generate_typescript_interface(self, request) -> str:\n        \"\"\"Generate TypeScript interfaces and types\"\"\"\n        return '''\n// TypeScript Interface and Type Definitions\ninterface User {\n    id: number;\n    name: string;\n    email: string;\n    createdAt: Date;\n    isActive: boolean;\n}\n\ntype UserRole = 'admin' | 'user' | 'moderator';\n\ninterface ApiResponse<T> {\n    success: boolean;\n    data?: T;\n    error?: string;\n    message?: string;\n}\n\n// Generic utility types\ntype Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;\ntype RequiredOnly<T, K extends keyof T> = Partial<T> & Required<Pick<T, K>>;\n\nexport { User, UserRole, ApiResponse, Optional, RequiredOnly };\n'''\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00145",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/javascript_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/utility/utility.h\"\n#include <any>  // IWYU pragma: export\n#include <algorithm>\n#include <cstddef>\n#include <initializer_list>\n#include <memory>\n#include <stdexcept>\n#include <type_traits>\n#include <typeinfo>\n#include <utility>\n#include \"absl/base/internal/fast_type_id.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/bad_any_cast.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04445_execute() {\n    {\n   public:\n    virtual ~ObjInterface() = default;\n    virtual std::unique_ptr<ObjInterface> Clone() const = 0;\n    virtual const void* ObjTypeId() const noexcept = 0;\n#ifdef ABSL_INTERNAL_HAS_RTTI\n    virtual const std::type_info& Type() const noexcept = 0;\n#endif  // ABSL_INTERNAL_HAS_RTTI\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04445",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/any.h",
+  "source_line": 358,
+  "validation_status": "validated"
+}

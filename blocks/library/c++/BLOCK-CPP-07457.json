@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/VersionTuple.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07457_execute() {\n    {\n  /// Represents the version that this specifier requires. If the host OS\n  /// version is greater than or equal to Version, the @available will evaluate\n  /// to true.\n  VersionTuple Version;\n\n  /// Name of the platform that Version corresponds to.\n  StringRef Platform;\n\n  SourceLocation BeginLoc, EndLoc;\n\npublic:\n  AvailabilitySpec(VersionTuple Version, StringRef Platform,\n                   SourceLocation BeginLoc, SourceLocation EndLoc)\n      : Version(Version), Platform(Platform), BeginLoc(BeginLoc),\n        EndLoc(EndLoc) {}\n\n  /// This constructor is used when representing the '*' case.\n  AvailabilitySpec(SourceLocation StarLoc)\n      : BeginLoc(StarLoc), EndLoc(StarLoc) {}\n\n  VersionTuple getVersion() const { return Version; }\n  StringRef getPlatform() const { return Platform; }\n  SourceLocation getBeginLoc() const { return BeginLoc; }\n  SourceLocation getEndLoc() const { return EndLoc; }\n\n  /// Returns true when this represents the '*' case.\n  bool isOtherPlatformSpec() const { return Version.empty(); }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07457",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Availability.h",
+  "source_line": 30,
+  "validation_status": "validated"
+}

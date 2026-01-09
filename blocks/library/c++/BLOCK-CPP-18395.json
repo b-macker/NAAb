@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/Sarif.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18395_execute() {\n    { return Writer != nullptr; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18395",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/SARIFDiagnosticPrinter.h",
+  "source_line": 45,
+  "validation_status": "validated"
+}

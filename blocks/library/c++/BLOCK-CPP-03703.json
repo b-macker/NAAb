@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <functional>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace that;\nusing namespace swap_internal;\nusing namespace where;\nusing namespace swap_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03703_execute() {\n    {\n#ifdef __cpp_lib_is_constant_evaluated\n  return std::is_constant_evaluated();\n#elif ABSL_HAVE_BUILTIN(__builtin_is_constant_evaluated)\n  return __builtin_is_constant_evaluated();\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03703",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/meta/type_traits.h",
+  "source_line": 553,
+  "validation_status": "validated"
+}

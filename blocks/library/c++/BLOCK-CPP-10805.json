@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ASTStmtReader;\n\npublic:\n  CoyieldExpr(SourceLocation CoyieldLoc, Expr *Operand, Expr *Common,\n              Expr *Ready, Expr *Suspend, Expr *Resume,\n              OpaqueValueExpr *OpaqueValue)\n      : CoroutineSuspendExpr(CoyieldExprClass, CoyieldLoc, Operand, Common,\n                             Ready, Suspend, Resume, OpaqueValue) {}\n  CoyieldExpr(SourceLocation CoyieldLoc, QualType Ty, Expr *Operand,\n              Expr *Common)\n      : CoroutineSuspendExpr(CoyieldExprClass, CoyieldLoc, Ty, Operand,\n                             Common) {}\n  CoyieldExpr(EmptyShell Empty)\n      : CoroutineSuspendExpr(CoyieldExprClass, Empty) {}\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == CoyieldExprClass;\n  }\n}",
+  "id": "BLOCK-CPP-10805",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
+  "source_line": 5097,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00230_execute() {\n    def _generate_java_dockerfile(self, complexity: str) -> str:\n        \"\"\"Generate Java Spring Boot Dockerfile\"\"\"\n        return \"\"\"# Spring Boot Production Dockerfile\nFROM eclipse-temurin:17-jre-alpine AS runtime\n\nRUN apk add --no-cache curl tini\nRUN addgroup -g 1001 -S spring && adduser -S spring -u 1001 -G spring\n\nWORKDIR /app\nCOPY target/*.jar app.jar\nRUN chown spring:spring app.jar\n\nUSER spring\n\nHEALTHCHECK --interval=30s --timeout=10s \\\n    CMD curl -f http://localhost:8080/actuator/health || exit 1\n\nEXPOSE 8080\nENTRYPOINT [\"tini\", \"--\"]\nCMD [\"java\", \"-jar\", \"app.jar\"]\"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00230",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/GlobalDecl.h\"\n#include \"clang/Interpreter/PartialTranslationUnit.h\"\n#include \"clang/Interpreter/Value.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ExecutionEngine/JITSymbol.h\"\n#include \"llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h\"\n#include \"llvm/Support/Error.h\"\n#include <memory>\n#include <vector>\n\nusing namespace llvm;\nusing namespace orc;\nusing namespace orc;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18500_execute() {\n    {\n    UserArgs = Args;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18500",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Interpreter/Interpreter.h",
+  "source_line": 47,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"time_zone_info.h\"\n#include <algorithm>\n#include <cassert>\n#include <chrono>\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <cstring>\n#include <fstream>\n#include <functional>\n#include <memory>\n#include <sstream>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"time_zone_fixed.h\"\n#include \"time_zone_posix.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03243_execute() {\n    {            // counts of:\n  std::size_t timecnt;     // transition times\n  std::size_t typecnt;     // transition types\n  std::size_t charcnt;     // zone abbreviation characters\n  std::size_t leapcnt;     // leap seconds (we expect none)\n  std::size_t ttisstdcnt;  // UTC/local indicators (unused)\n  std::size_t ttisutcnt;   // standard/wall indicators (unused)\n\n  bool Build(const tzhead& tzh);\n  std::size_t DataLength(std::size_t time_len) const;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03243",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_info.cc",
+  "source_line": 138,
+  "validation_status": "validated"
+}

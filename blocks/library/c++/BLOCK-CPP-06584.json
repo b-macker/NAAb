@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06584_execute() {\n    {\n  CONSTEXPR_D weekday k_weekday_by_mon_off[13] = {\n      weekday::monday,    weekday::tuesday,  weekday::wednesday,\n      weekday::thursday,  weekday::friday,   weekday::saturday,\n      weekday::sunday,    weekday::monday,   weekday::tuesday,\n      weekday::wednesday, weekday::thursday, weekday::friday,\n      weekday::saturday,\n  };\n  CONSTEXPR_D int k_weekday_offsets[1 + 12] = {\n      -1, 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4,\n  };\n  year_t wd = 2400 + (cs.year() % 400) - (cs.month() < 3);\n  wd += wd / 4 - wd / 100 + wd / 400;\n  wd += k_weekday_offsets[cs.month()] + cs.day();\n  return k_weekday_by_mon_off[wd % 7 + 6];\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06584",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+  "source_line": 545,
+  "validation_status": "validated"
+}

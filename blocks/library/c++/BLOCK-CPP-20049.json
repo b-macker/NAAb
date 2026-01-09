@@ -1,0 +1,8 @@
+{
+  "code": "{\n    using ConversionSet =\n        SmallVector<std::pair<NamedDecl *, FunctionDecl *>, 4>;\n\n    void *FromTypePtr;\n    void *ToTypePtr;\n    char Buffer[sizeof(ConversionSet)];\n\n    QualType getFromType() const {\n      return QualType::getFromOpaquePtr(FromTypePtr);\n    }\n\n    QualType getToType() const {\n      return QualType::getFromOpaquePtr(ToTypePtr);\n    }\n\n    void setFromType(QualType T) { FromTypePtr = T.getAsOpaquePtr(); }\n    void setToType(QualType T) { ToTypePtr = T.getAsOpaquePtr(); }\n\n    ConversionSet &conversions() {\n      return *reinterpret_cast<ConversionSet*>(Buffer);\n    }\n\n    const ConversionSet &conversions() const {\n      return *reinterpret_cast<const ConversionSet*>(Buffer);\n    }\n\n    void addConversion(NamedDecl *Found, FunctionDecl *D) {\n      conversions().push_back(std::make_pair(Found, D));\n    }\n\n    using iterator = ConversionSet::iterator;\n\n    iterator begin() { return conversions().begin(); }\n    iterator end() { return conversions().end(); }\n\n    using const_iterator = ConversionSet::const_iterator;\n\n    const_iterator begin() const { return conversions().begin(); }\n    const_iterator end() const { return conversions().end(); }\n\n    void construct();\n    void destruct();\n    void copyFrom(const AmbiguousConversionSequence &);\n  }",
+  "id": "BLOCK-CPP-20049",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Overload.h",
+  "source_line": 420,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  HashSetIteratorGenerationInfoDisabled() = default;\n  explicit HashSetIteratorGenerationInfoDisabled(const GenerationType*) {}\n\n  GenerationType generation() const { return 0; }\n  void reset_generation() {}\n  const GenerationType* generation_ptr() const { return nullptr; }\n  void set_generation_ptr(const GenerationType*) {}\n}",
+  "id": "BLOCK-CPP-05339",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.h",
+  "source_line": 962,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/ImmutableMap.h\"\n#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/ParentMap.h\"\n#include \"clang/Analysis/AnyCall.h\"\n#include \"clang/Analysis/SelectorExtras.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15940_execute() {\n    {\n  /// Indicates that the tracked object is a CF object.\n  CF,\n\n  /// Indicates that the tracked object is an Objective-C object.\n  ObjC,\n\n  /// Indicates that the tracked object could be a CF or Objective-C object.\n  AnyObj,\n\n  /// Indicates that the tracked object is a generalized object.\n  Generalized,\n\n  /// Indicates that the tracking object is a descendant of a\n  /// referenced-counted OSObject, used in the Darwin kernel.\n  OS\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15940",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/RetainSummaryManager.h",
+  "source_line": 36,
+  "validation_status": "validated"
+}

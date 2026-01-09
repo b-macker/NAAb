@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17350_execute() {\n    {\n  ///   typedef typename MetaFun::template apply<T1, T2>::type type;\n  /// };\n  /// \\endcode\n  ///\n  /// Here, \"apply\" is a dependent template name within the typename\n  /// specifier in the typedef. \"apply\" is a nested template, and\n  /// whether the template name is assumed to refer to a type template or a\n  /// function template depends on the context in which the template\n  /// name occurs.\n  TNK_Dependent_template_name,\n  /// Lookup for the name failed, but we're assuming it was a template name\n  /// anyway. In C++20, this is mandatory in order to parse ADL-only function\n  /// template specialization calls.\n  TNK_Undeclared_template,\n  /// The name refers to a concept.\n  TNK_Concept_template,\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17350",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TemplateKinds.h",
+  "source_line": 36,
+  "validation_status": "validated"
+}

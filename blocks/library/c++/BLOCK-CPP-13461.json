@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DependenceFlags.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/TemplateName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/APInt.h\"\n#include \"llvm/ADT/APSInt.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <optional>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13461_execute() {\n    {\n    unsigned Kind : 31;\n    unsigned IsDefaulted : 1;\n    uintptr_t V;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-13461",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TemplateBase.h",
+  "source_line": 140,
+  "validation_status": "validated"
+}

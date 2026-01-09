@@ -1,0 +1,23 @@
+# Test program - Standard library basic test
+
+main {
+    print("=== Standard Library Basic Test ===")
+    print("")
+
+    print("Standard library has been integrated into the interpreter.")
+    print("Available modules: io, json, http, collections")
+    print("")
+
+    print("Next step: Update parser to support 'use io' syntax")
+    print("Currently requires 'use BLOCK-ID as name' syntax")
+    print("")
+
+    print("Features implemented:")
+    print("  ✓ IO module (read_file, write_file, exists, list_dir)")
+    print("  ✓ JSON module (parse, stringify)")
+    print("  ✓ HTTP module (get, post) - placeholder")
+    print("  ✓ Collections module (Set) - placeholder")
+    print("")
+
+    print("=== Standard library architecture complete! ===")
+}

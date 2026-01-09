@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/BitmaskEnum.h\"\n\nusing namespace clang;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16010_execute() {\n    {\n  LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16010",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/BitmaskEnum.h",
+  "source_line": 20,
+  "validation_status": "validated"
+}

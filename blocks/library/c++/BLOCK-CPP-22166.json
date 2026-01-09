@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Lex/Token.h\"\n#include <cassert>\n#include <list>\n#include <map>\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22166_execute() {\n    {\n      assert(I != token_end() && \"Cannot insert after token_end()!\");\n      return AddTokenBefore(++I, Val);\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22166",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/TokenRewriter.h",
+  "source_line": 63,
+  "validation_status": "validated"
+}

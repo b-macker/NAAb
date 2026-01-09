@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Tooling/CommonOptionsParser.h\"\n#include \"clang/Tooling/Tooling.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/Registry.h\"\n#include \"llvm/Support/StringSaver.h\"\n\nusing namespace clang;\nusing namespace tooling;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21172_execute() {\n    {\nllvm::Expected<std::unique_ptr<ToolExecutor>>\ncreateExecutorFromCommandLineArgsImpl(int &argc, const char **argv,\n                                      llvm::cl::OptionCategory &Category,\n                                      const char *Overview = nullptr);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21172",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/Execution.h",
+  "source_line": 176,
+  "validation_status": "validated"
+}

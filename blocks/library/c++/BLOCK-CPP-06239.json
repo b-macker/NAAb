@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstring>\n#include <iterator>\n#include <memory>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/strings/internal/ostringstream.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/str_cat.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06239_execute() {\n    {\n  // No formatter was explicitly given, so a default must be chosen.\n  typedef typename std::iterator_traits<Iterator>::value_type ValueType;\n  typedef typename DefaultFormatter<ValueType>::Type Formatter;\n  return JoinAlgorithm(first, last, separator, Formatter());\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06239",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_join_internal.h",
+  "source_line": 289,
+  "validation_status": "validated"
+}

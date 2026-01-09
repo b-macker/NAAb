@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class OMPClauseReader;\n\n  /// Pre-initialization statement for the clause.\n  Stmt *PreInit = nullptr;\n\n  /// Region that captures the associated stmt.\n  OpenMPDirectiveKind CaptureRegion = llvm::omp::OMPD_unknown;\n\nprotected:\n  OMPClauseWithPreInit(const OMPClause *This) {\n    assert(get(This) && \"get is not tuned for pre-init.\");\n  }\n\n  /// Set pre-initialization statement for the clause.\n  void\n  setPreInitStmt(Stmt *S,\n                 OpenMPDirectiveKind ThisRegion = llvm::omp::OMPD_unknown) {\n    PreInit = S;\n    CaptureRegion = ThisRegion;\n  }\n\npublic:\n  /// Get pre-initialization statement for the clause.\n  const Stmt *getPreInitStmt() const { return PreInit; }\n\n  /// Get pre-initialization statement for the clause.\n  Stmt *getPreInitStmt() { return PreInit; }\n\n  /// Get capture region for the stmt in the clause.\n  OpenMPDirectiveKind getCaptureRegion() const { return CaptureRegion; }\n\n  static OMPClauseWithPreInit *get(OMPClause *C);\n  static const OMPClauseWithPreInit *get(const OMPClause *C);\n}",
+  "id": "BLOCK-CPP-12277",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/OpenMPClause.h",
+  "source_line": 195,
+  "validation_status": "validated"
+}

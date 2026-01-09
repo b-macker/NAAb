@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00414_execute() {\n    class Macro(Stmt):\n    \"\"\"A macro definition.  `name` is the name of the macro, `args` a list of\n    arguments and `defaults` a list of defaults if there are any.  `body` is\n    a list of nodes for the macro body.\n    \"\"\"\n\n    fields = (\"name\", \"args\", \"defaults\", \"body\")\n    name: str\n    args: list[\"Name\"]\n    defaults: list[\"Expr\"]\n    body: list[Node]\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00414",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 347,
+  "validation_status": "validated"
+}

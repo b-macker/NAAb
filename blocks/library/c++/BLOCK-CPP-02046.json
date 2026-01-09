@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/string_view.h\"\n#include <algorithm>\n#include <climits>\n#include <cstring>\n#include <ostream>\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02046_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace strings_internal {\nextern const char kAvoidEmptyStringViewLibraryWarning;\nconst char kAvoidEmptyStringViewLibraryWarning = 0;\n}  // namespace strings_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02046",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/string_view.cc",
+  "source_line": 252,
+  "validation_status": "validated"
+}

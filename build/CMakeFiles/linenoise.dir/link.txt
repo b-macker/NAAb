@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc liblinenoise.a CMakeFiles/linenoise.dir/external/linenoise.c.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib liblinenoise.a

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/time/time.h\"\n#include <winsock2.h>  // for timeval\n#include <cstring>\n#include <ctime>\n#include <limits>\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02256_execute() {\n    {\n  const auto max = cctz::time_point<cctz::seconds>::max();\n  const auto min = cctz::time_point<cctz::seconds>::min();\n  if (sec == max) {\n    const auto al = tz.lookup(max);\n    if (cs > al.cs) {\n      if (normalized) *normalized = true;\n      return absl::InfiniteFuture();\n    }\n  }\n  if (sec == min) {\n    const auto al = tz.lookup(min);\n    if (cs < al.cs) {\n      if (normalized) *normalized = true;\n      return absl::InfinitePast();\n    }\n  }\n  const auto hi = (sec - unix_epoch()).count();\n  return time_internal::FromUnixDuration(time_internal::MakeDuration(hi));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02256",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.cc",
+  "source_line": 145,
+  "validation_status": "validated"
+}

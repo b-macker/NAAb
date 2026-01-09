@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/OperatorKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TemplateKinds.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n#include <cstdlib>\n#include <new>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20164_execute() {\n    { return Kind; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20164",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ParsedTemplate.h",
+  "source_line": 72,
+  "validation_status": "validated"
+}

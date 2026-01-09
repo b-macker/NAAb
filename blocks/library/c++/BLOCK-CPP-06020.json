@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/status/status.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_statusor;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06020_execute() {\n    {\n    switch (RandomBraces()) {\n      case kBareParens:\n        return \")\";\n      case kSpaceParens:\n        return \" )\";\n      case kBareBrackets:\n        return \"]\";\n      case kSpaceBrackets:\n        return \" ]\";\n    }\n    return \")\";\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06020",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/internal/statusor_internal.h",
+  "source_line": 416,
+  "validation_status": "validated"
+}

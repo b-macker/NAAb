@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate<> struct DenseMapInfo<clang::BaseSubobject> {\n  static clang::BaseSubobject getEmptyKey() {\n    return clang::BaseSubobject(\n      DenseMapInfo<const clang::CXXRecordDecl *>::getEmptyKey(),\n      clang::CharUnits::fromQuantity(DenseMapInfo<int64_t>::getEmptyKey()));\n  }\n\n  static clang::BaseSubobject getTombstoneKey() {\n    return clang::BaseSubobject(\n      DenseMapInfo<const clang::CXXRecordDecl *>::getTombstoneKey(),\n      clang::CharUnits::fromQuantity(DenseMapInfo<int64_t>::getTombstoneKey()));\n  }\n\n  static unsigned getHashValue(const clang::BaseSubobject &Base) {\n    using PairTy = std::pair<const clang::CXXRecordDecl *, clang::CharUnits>;\n\n    return DenseMapInfo<PairTy>::getHashValue(PairTy(Base.getBase(),\n                                                     Base.getBaseOffset()));\n  }\n\n  static bool isEqual(const clang::BaseSubobject &LHS,\n                      const clang::BaseSubobject &RHS) {\n    return LHS == RHS;\n  }\n};\n\n}",
+  "id": "BLOCK-CPP-23206",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/BaseSubobject.h",
+  "source_line": 55,
+  "validation_status": "validated"
+}

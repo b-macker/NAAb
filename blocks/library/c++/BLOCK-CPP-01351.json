@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01351_execute() {\n    {\n  constexpr T inf = T(std::numeric_limits<double>::infinity());\n  if (is_constant_evaluated())\n    return !detail::isnan(value) && value != inf && value != -inf;\n  return std::isfinite(value);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01351",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 2506,
+  "validation_status": "validated"
+}

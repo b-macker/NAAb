@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22685_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22685",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTConsumer.h",
+  "source_line": 137,
+  "validation_status": "validated"
+}

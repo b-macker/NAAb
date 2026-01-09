@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/IR/DerivedTypes.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17475_execute() {\n    {\n    if (!prototype->isVariadic()) return All;\n\n    if (prototype->hasExtParameterInfos())\n      additional += llvm::count_if(\n          prototype->getExtParameterInfos(),\n          [](const FunctionProtoType::ExtParameterInfo &ExtInfo) {\n            return ExtInfo.hasPassObjectSize();\n          });\n\n    return RequiredArgs(prototype->getNumParams() + additional);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17475",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CGFunctionInfo.h",
+  "source_line": 497,
+  "validation_status": "validated"
+}

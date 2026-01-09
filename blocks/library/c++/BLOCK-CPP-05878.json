@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>\n#include <iostream>\n#include <limits>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/int128.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05878_execute() {\n    {\n    uint64_t h = static_cast<uint64_t>(val >> 64u);\n    uint64_t l = static_cast<uint64_t>(val);\n    out << h << out.fill() << l;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05878",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/iostream_state_saver.h",
+  "source_line": 212,
+  "validation_status": "validated"
+}

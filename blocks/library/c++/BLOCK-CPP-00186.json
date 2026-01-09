@@ -1,0 +1,8 @@
+{
+  "code": "    #include <spdlog/cfg/helpers.h>\n#include <spdlog/details/os.h>\n#include <spdlog/details/registry.h>\n#include <spdlog/spdlog.h>\n#include <algorithm>\n#include <sstream>\n#include <string>\n#include <utility>\n\nusing namespace spdlog;\nusing namespace cfg;\nusing namespace helpers;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00186_execute() {\n    {\n    std::string token;\n    std::istringstream token_stream(str);\n    std::unordered_map<std::string, std::string> rv{};\n    while (std::getline(token_stream, token, ',')) {\n        if (token.empty()) {\n            continue;\n        }\n        auto kv = extract_kv_('=', token);\n        rv[kv.first] = kv.second;\n    }\n    return rv;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00186",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/cfg/helpers-inl.h",
+  "source_line": 60,
+  "validation_status": "validated"
+}

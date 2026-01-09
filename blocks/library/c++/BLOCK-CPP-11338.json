@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Type.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11338_execute() {\n    {\n    switch (DK) {\n    case QualType::DK_objc_strong_lifetime:\n      return asDerived().visitARCStrong(FT, std::forward<Ts>(Args)...);\n    case QualType::DK_nontrivial_c_struct:\n      return asDerived().visitStruct(FT, std::forward<Ts>(Args)...);\n    case QualType::DK_none:\n      return asDerived().visitTrivial(FT, std::forward<Ts>(Args)...);\n    case QualType::DK_cxx_destructor:\n      return asDerived().visitCXXDestructor(FT, std::forward<Ts>(Args)...);\n    case QualType::DK_objc_weak_lifetime:\n      return asDerived().visitARCWeak(FT, std::forward<Ts>(Args)...);\n    }\n\n    llvm_unreachable(\"unknown destruction kind\");\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11338",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/NonTrivialTypeVisitor.h",
+  "source_line": 27,
+  "validation_status": "validated"
+}

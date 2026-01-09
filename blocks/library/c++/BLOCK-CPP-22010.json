@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Stmt.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowAnalysisContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowEnvironment.h\"\n#include \"clang/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22010_execute() {\n    {\n\n/// Maps statements to the environments of basic blocks that contain them.\nclass StmtToEnvMap {\npublic:\n  StmtToEnvMap(const ControlFlowContext &CFCtx,\n               llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>>\n                   BlockToState)\n      : CFCtx(CFCtx), BlockToState(BlockToState) {}\n\n  /// Returns the environment of the basic block that contains `S`.\n  /// The result is guaranteed never to be null.\n  const Environment *getEnvironment(const Stmt &S) const;\n\nprivate:\n  const ControlFlowContext &CFCtx;\n  llvm::ArrayRef<std::optional<TypeErasedDataflowAnalysisState>> BlockToState;\n};\n\n/// Evaluates `S` and updates `Env` accordingly.\n///\n/// Requirements:\n///\n///  `S` must not be `ParenExpr` or `ExprWithCleanups`.\nvoid transfer(const StmtToEnvMap &StmtToEnv, const Stmt &S, Environment &Env);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22010",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Transfer.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

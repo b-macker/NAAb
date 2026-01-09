@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"clang/Basic/TransformTypeTraits.def\"\n#include \"clang/Basic/OpenCLImageTypes.def\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17010_execute() {\n    {\n    /// This parameter uses ordinary ABI rules for its type.\n    Ordinary,\n\n    /// This parameter (which must have pointer type) is a Swift\n    /// indirect result parameter.\n    SwiftIndirectResult,\n\n    /// This parameter (which must have pointer-to-pointer type) uses\n    /// the special Swift error-result ABI treatment.  There can be at\n    /// most one parameter on a given function that uses this treatment.\n    SwiftErrorResult,\n\n    /// This parameter (which must have pointer type) uses the special\n    /// Swift context-pointer ABI treatment.  There can be at\n    /// most one parameter on a given function that uses this treatment.\n    SwiftContext,\n\n    /// This parameter (which must have pointer type) uses the special\n    /// Swift asynchronous context-pointer ABI treatment.  There can be at\n    /// most one parameter on a given function that uses this treatment.\n    SwiftAsyncContext,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17010",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Specifiers.h",
+  "source_line": 353,
+  "validation_status": "validated"
+}

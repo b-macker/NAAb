@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ExternalASTSource.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12421_execute() {\n    {\npublic:\n  Mergeable() = default;\n\n  /// Return the first declaration of this declaration or itself if this\n  /// is the only declaration.\n  decl_type *getFirstDecl() {\n    auto *D = static_cast<decl_type *>(this);\n    if (!D->isFromASTFile())\n      return D;\n    return cast<decl_type>(getPrimaryMergedDecl(const_cast<decl_type*>(D)));\n  }\n\n  /// Return the first declaration of this declaration or itself if this\n  /// is the only declaration.\n  const decl_type *getFirstDecl() const {\n    const auto *D = static_cast<const decl_type *>(this);\n    if (!D->isFromASTFile())\n      return D;\n    return cast<decl_type>(getPrimaryMergedDecl(const_cast<decl_type*>(D)));\n  }\n\n  /// Returns true if this is the first declaration.\n  bool isFirstDecl() const { return getFirstDecl() == this; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12421",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Redeclarable.h",
+  "source_line": 313,
+  "validation_status": "validated"
+}

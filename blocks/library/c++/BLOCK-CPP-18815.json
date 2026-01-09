@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18815_execute() {\n    { ReadAnyTokens = Value; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18815",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MultipleIncludeOpt.h",
+  "source_line": 115,
+  "validation_status": "validated"
+}

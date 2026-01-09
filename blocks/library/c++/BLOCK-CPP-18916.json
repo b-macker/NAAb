@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    PreprocessingDirective(EntityKind Kind, SourceRange Range)\n        : PreprocessedEntity(Kind, Range) {}\n\n    // Implement isa/cast/dyncast/etc.\n    static bool classof(const PreprocessedEntity *PD) {\n      return PD->getKind() >= FirstPreprocessingDirective &&\n             PD->getKind() <= LastPreprocessingDirective;\n    }\n  }",
+  "id": "BLOCK-CPP-18916",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PreprocessingRecord.h",
+  "source_line": 133,
+  "validation_status": "validated"
+}

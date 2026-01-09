@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/profiling/internal/periodic_sampler.h\"\n#include <atomic>\n#include \"absl/profiling/internal/exponential_biased.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02764_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace profiling_internal {\n\nint64_t PeriodicSamplerBase::GetExponentialBiased(int period) noexcept {\n  return rng_.GetStride(period);\n}\n\nbool PeriodicSamplerBase::SubtleConfirmSample() noexcept {\n  int current_period = period();\n\n  // Deal with period case 0 (always off) and 1 (always on)\n  if (ABSL_PREDICT_FALSE(current_period < 2)) {\n    stride_ = 0;\n    return current_period == 1;\n  }\n\n  // Check if this is the first call to Sample()\n  if (ABSL_PREDICT_FALSE(stride_ == 1)) {\n    stride_ = static_cast<uint64_t>(-GetExponentialBiased(current_period));\n    if (static_cast<int64_t>(stride_) < -1) {\n      ++stride_;\n      return false;\n    }\n  }\n\n  stride_ = static_cast<uint64_t>(-GetExponentialBiased(current_period));\n  return true;\n}\n\n}  // namespace profiling_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02764",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/profiling/internal/periodic_sampler.cc",
+  "source_line": 21,
+  "validation_status": "validated"
+}

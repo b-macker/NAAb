@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/Analyses/PostOrderCFGView.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyTIL.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyTraverse.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyUtil.h\"\n#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Casting.h\"\n#include <sstream>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace sx;\nusing namespace sx;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21462_execute() {\n    {\n    LVarDefinitionMap ExitMap;\n    bool HasBackEdges = false;\n\n    // Successors yet to be processed\n    unsigned UnprocessedSuccessors = 0;\n\n    // Predecessors already processed\n    unsigned ProcessedPredecessors = 0;\n\n    BlockInfo() = default;\n    BlockInfo(BlockInfo &&) = default;\n    BlockInfo &operator=(BlockInfo &&) = default;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21462",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyCommon.h",
+  "source_line": 453,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  virtual ~LogSink() = default;\n\n  // LogSink::Send()\n  //\n  // `Send` is called synchronously during the log statement.\n  //\n  // It is safe to use `LOG` within an implementation of `Send`.  `ToSinkOnly`\n  // and `ToSinkAlso` are safe in general but can be used to create an infinite\n  // loop if you try.\n  virtual void Send(const absl::LogEntry& entry) = 0;\n\n  // LogSink::Flush()\n  //\n  // Sinks that buffer messages should override this method to flush the buffer\n  // and return.\n  virtual void Flush() {}\n\n private:\n  // https://lld.llvm.org/missingkeyfunction.html#missing-key-function\n  virtual void KeyFunction() const final;  // NOLINT(readability/inheritance)\n}",
+  "id": "BLOCK-CPP-03672",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/log_sink.h",
+  "source_line": 37,
+  "validation_status": "validated"
+}

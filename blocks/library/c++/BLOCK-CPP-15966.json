@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/DiagnosticAST.h\"\n#include \"clang/Basic/DiagnosticAnalysis.h\"\n#include \"clang/Basic/DiagnosticComment.h\"\n#include \"clang/Basic/DiagnosticCrossTU.h\"\n#include \"clang/Basic/DiagnosticDriver.h\"\n#include \"clang/Basic/DiagnosticFrontend.h\"\n#include \"clang/Basic/DiagnosticLex.h\"\n#include \"clang/Basic/DiagnosticParse.h\"\n#include \"clang/Basic/DiagnosticSema.h\"\n#include \"clang/Basic/DiagnosticSerialization.h\"\n#include \"clang/Basic/DiagnosticRefactoring.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15966_execute() {\n    {\ntemplate <size_t SizeOfStr, typename FieldType>\nclass StringSizerHelper {\n  static_assert(SizeOfStr <= FieldType(~0U), \"Field too small!\");\npublic:\n  enum { Size = SizeOfStr };\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15966",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AllDiagnostics.h",
+  "source_line": 29,
+  "validation_status": "validated"
+}

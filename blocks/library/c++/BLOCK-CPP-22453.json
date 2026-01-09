@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/RangedConstraintManager.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SVals.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <list>\n#include <memory>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace ento;\nusing namespace bugreporter;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22453_execute() {\n    {\nprivate:\n  Tracker &ParentTracker;\n\npublic:\n  ExpressionHandler(Tracker &ParentTracker) : ParentTracker(ParentTracker) {}\n  virtual ~ExpressionHandler() {}\n\n  /// Handle the given expression from the given node.\n  ///\n  /// \\param E The expression value which we are tracking\n  /// \\param Original A node \"downstream\" where the tracking started.\n  /// \\param ExprNode A node where the evaluation of \\c E actually happens.\n  /// \\param Opts Tracking options specifying how we are tracking the value.\n  virtual Tracker::Result handle(const Expr *E, const ExplodedNode *Original,\n                                 const ExplodedNode *ExprNode,\n                                 TrackingOptions Opts) = 0;\n\n  /// \\Return the tracker that initiated the process.\n  Tracker &getParentTracker() { return ParentTracker; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22453",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/BugReporter/BugReporterVisitors.h",
+  "source_line": 299,
+  "validation_status": "validated"
+}

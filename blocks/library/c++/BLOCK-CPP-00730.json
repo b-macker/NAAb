@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00730_execute() {\n    {\n  // This works when wchar_t is UTF-32 because units only contain characters\n  // that have the same representation in UTF-16 and UTF-32.\n  utf8_to_utf16 u(unit);\n  return std::copy(u.c_str(), u.c_str() + u.size(), out);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00730",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1528,
+  "validation_status": "validated"
+}

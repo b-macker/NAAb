@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include <cstdint>\n#include \"absl/base/config.h\"\n#include \"absl/synchronization/internal/kernel_timeout.h\"\n#include \"absl/synchronization/internal/futex.h\"\n#include \"absl/synchronization/internal/waiter_base.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06453_execute() {\n    {\n\n#define ABSL_INTERNAL_HAVE_FUTEX_WAITER 1\n\nclass FutexWaiter : public WaiterCrtp<FutexWaiter> {\n public:\n  FutexWaiter() : futex_(0) {}\n\n  bool Wait(KernelTimeout t);\n  void Post();\n  void Poke();\n\n  static constexpr char kName[] = \"FutexWaiter\";\n\n private:\n  // Atomically check that `*v == val`, and if it is, then sleep until the\n  // timeout `t` has been reached, or until woken by `Wake()`.\n  static int WaitUntil(std::atomic<int32_t>* v, int32_t val,\n                       KernelTimeout t);\n\n  // Futexes are defined by specification to be 32-bits.\n  // Thus std::atomic<int32_t> must be just an int32_t with lockfree methods.\n  std::atomic<int32_t> futex_;\n  static_assert(sizeof(int32_t) == sizeof(futex_), \"Wrong size for futex\");\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06453",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/futex_waiter.h",
+  "source_line": 31,
+  "validation_status": "validated"
+}

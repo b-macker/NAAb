@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/ExtractAPI/API.h\"\n#include \"clang/ExtractAPI/APIIgnoresList.h\"\n#include \"clang/ExtractAPI/Serialization/SerializerBase.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/JSON.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace extractapi;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22108_execute() {\n    {\n  /// Do not include unnecessary whitespaces to save space.\n  bool Compact;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22108",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/Serialization/SymbolGraphSerializer.h",
+  "source_line": 35,
+  "validation_status": "validated"
+}

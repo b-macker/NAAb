@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00338_execute() {\n    def parameter_is_undeclared(self, target: str) -> bool:\n        \"\"\"Checks if a given target is an undeclared parameter.\"\"\"\n        if not self._param_def_block:\n            return False\n        return target in self._param_def_block[-1]\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00338",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 770,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <functional>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace optional_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06635_execute() {\n    {\n    static_assert(sizeof(T) % sizeof(empty_struct) == 0, \"\");\n    // Use an array to avoid GCC 6 placement-new warning.\n    empty_struct data[sizeof(T) / sizeof(empty_struct)];\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06635",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/optional.h",
+  "source_line": 49,
+  "validation_status": "validated"
+}

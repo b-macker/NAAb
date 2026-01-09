@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <istream>\n#include <limits>\n#include \"absl/base/optimization.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03794_execute() {\n    {\n   public:\n    using distribution_type = bernoulli_distribution;\n\n    explicit param_type(double p = 0.5) : prob_(p) {\n      assert(p >= 0.0 && p <= 1.0);\n    }\n\n    double p() const { return prob_; }\n\n    friend bool operator==(const param_type& p1, const param_type& p2) {\n      return p1.p() == p2.p();\n    }\n    friend bool operator!=(const param_type& p1, const param_type& p2) {\n      return p1.p() != p2.p();\n    }\n\n   private:\n    double prob_;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03794",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/bernoulli_distribution.h",
+  "source_line": 39,
+  "validation_status": "validated"
+}

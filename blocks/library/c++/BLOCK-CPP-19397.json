@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Parse/ParseDiagnostic.h\"\n#include \"clang/Parse/Parser.h\"\n#include \"clang/Sema/DelayedDiagnostic.h\"\n#include \"clang/Sema/ParsedTemplate.h\"\n#include \"clang/Sema/Sema.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19397_execute() {\n    {\n    Sema::OffsetOfKind &OffsetOfState;\n    Sema::OffsetOfKind OldValue;\n\n  public:\n    OffsetOfStateRAIIObject(Parser &P, Sema::OffsetOfKind Value)\n        : OffsetOfState(P.OffsetOfState), OldValue(P.OffsetOfState) {\n      OffsetOfState = Value;\n    }\n\n    ~OffsetOfStateRAIIObject() { OffsetOfState = OldValue; }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19397",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
+  "source_line": 344,
+  "validation_status": "validated"
+}

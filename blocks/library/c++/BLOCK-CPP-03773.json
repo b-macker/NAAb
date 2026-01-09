@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cmath>\n#include <cstdint>\n#include <cstring>\n#include <iosfwd>\n#include <limits>\n#include <string>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include <intrin.h>\n\nusing namespace absl;\nusing namespace absl;\nusing namespace std;\nusing namespace std;\nusing namespace absl;\nusing namespace absl;\nusing namespace std;\nusing namespace std;\nusing namespace absl;\nusing namespace int128_internal;\nusing namespace int128_internal;\nusing namespace int128_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03773_execute() {\n    {\n  // check for carry\n  return (Uint128Low64(lhs) < Uint128Low64(rhs))\n             ? MakeUint128(Uint128High64(result) - 1, Uint128Low64(result))\n             : result;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03773",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/int128.h",
+  "source_line": 961,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  InheritableParamAttr(ASTContext &Context,\n                       const AttributeCommonInfo &CommonInfo, attr::Kind AK,\n                       bool IsLateParsed, bool InheritEvenIfAlreadyPresent)\n      : InheritableAttr(Context, CommonInfo, AK, IsLateParsed,\n                        InheritEvenIfAlreadyPresent) {}\n\npublic:\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Attr *A) {\n    return A->getKind() >= attr::FirstInheritableParamAttr &&\n           A->getKind() <= attr::LastInheritableParamAttr;\n  }\n}",
+  "id": "BLOCK-CPP-23176",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Attr.h",
+  "source_line": 176,
+  "validation_status": "validated"
+}

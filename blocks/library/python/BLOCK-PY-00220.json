@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00220_execute() {\n    def _generate_docker_compose(self, request, platform: str, complexity: str) -> CodeGenerationResult:\n        \"\"\"Generate comprehensive Docker Compose configuration\"\"\"\n        message = request.message.lower()\n        \n        if 'web app' in message or 'full stack' in message:\n            compose = self._generate_fullstack_compose(complexity)\n        elif 'microservice' in message:\n            compose = self._generate_microservices_compose(complexity)\n        elif 'database' in message:\n            compose = self._generate_database_compose(complexity)\n        else:\n            compose = self._generate_generic_compose(complexity)\n        \n        return CodeGenerationResult(\n            success=True,\n            code=compose,\n            language=\"yaml\",\n            framework=\"docker-compose\",\n            code_type=CodeType.CONFIGURATION\n        )\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00220",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

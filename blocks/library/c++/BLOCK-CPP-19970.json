@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclObjC.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19970_execute() {\n    {\n    return MethodAndHasMoreThanOneDecl.setPointer(M);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19970",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ObjCMethodList.h",
+  "source_line": 53,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"time_zone_fixed.h\"\n#include <algorithm>\n#include <cassert>\n#include <chrono>\n#include <cstring>\n#include <string>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03199_execute() {\n    {\n  if (const char* ap = std::strchr(kDigits, *p)) {\n    int v = static_cast<int>(ap - kDigits);\n    if (const char* bp = std::strchr(kDigits, *++p)) {\n      return (v * 10) + static_cast<int>(bp - kDigits);\n    }\n  }\n  return -1;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03199",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_fixed.cc",
+  "source_line": 43,
+  "validation_status": "validated"
+}

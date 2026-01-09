@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01344_execute() {\n    {\n    // 1234e-2 -> 12.34[0+]\n    int num_zeros = fspecs.showpoint ? fspecs.precision - significand_size : 0;\n    size += 1 + to_unsigned(num_zeros > 0 ? num_zeros : 0);\n    auto grouping = Grouping(loc, fspecs.locale);\n    size += to_unsigned(grouping.count_separators(significand_size));\n    return write_padded<align::right>(out, specs, size, [&](iterator it) {\n      if (sign) *it++ = detail::sign<Char>(sign);\n      it = write_significand(it, significand, significand_size, exp,\n                             decimal_point, grouping);\n      return num_zeros > 0 ? detail::fill_n(it, num_zeros, zero) : it;\n    });\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01344",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 2434,
+  "validation_status": "validated"
+}

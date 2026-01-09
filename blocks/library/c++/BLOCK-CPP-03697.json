@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <limits>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/macros.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace memory_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03697_execute() {\n    {\n\n// ExtractOr<E, O, D>::type evaluates to E<O> if possible. Otherwise, D.\ntemplate <template <typename> class Extract, typename Obj, typename Default,\n          typename>\nstruct ExtractOr {\n  using type = Default;\n};\n\ntemplate <template <typename> class Extract, typename Obj, typename Default>\nstruct ExtractOr<Extract, Obj, Default, void_t<Extract<Obj>>> {\n  using type = Extract<Obj>;\n};\n\ntemplate <template <typename> class Extract, typename Obj, typename Default>\nusing ExtractOrT = typename ExtractOr<Extract, Obj, Default, void>::type;\n\n// This template alias transforms Alloc::is_nothrow into a metafunction with\n// Alloc as a parameter so it can be used with ExtractOrT<>.\ntemplate <typename Alloc>\nusing GetIsNothrow = typename Alloc::is_nothrow;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03697",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/memory/memory.h",
+  "source_line": 181,
+  "validation_status": "validated"
+}

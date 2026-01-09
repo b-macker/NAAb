@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/sinks/base_sink.h>\n#include <spdlog/details/windows_include.h>\n#include <winbase.h>\n#include <mutex>\n#include <string>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace win_eventlog;\nusing namespace internal;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00504_execute() {\n    {\n        if (!hEventLog_) {\n            hEventLog_ = ::RegisterEventSourceA(nullptr, source_.c_str());\n            if (!hEventLog_ || hEventLog_ == (HANDLE)ERROR_ACCESS_DENIED) {\n                SPDLOG_THROW(internal::win32_error(\"RegisterEventSource\"));\n            }\n        }\n\n        return hEventLog_;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00504",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/win_eventlog_sink.h",
+  "source_line": 194,
+  "validation_status": "validated"
+}

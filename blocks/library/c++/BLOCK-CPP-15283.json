@@ -1,0 +1,8 @@
+{
+  "code": "{\n  static bool hasSize(const Ty &Node, unsigned int N) {\n    return Node.getSize() == N;\n  }\n}",
+  "id": "BLOCK-CPP-15283",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchersInternal.h",
+  "source_line": 2132,
+  "validation_status": "validated"
+}

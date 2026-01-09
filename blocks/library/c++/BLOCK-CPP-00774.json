@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00774_execute() {\n    {\n    if (handle_nan_inf()) return;\n\n    if (ns == numeric_system::standard) return write(hour(), 2);\n    auto time = tm();\n    time.tm_hour = to_nonnegative_int(hour(), 24);\n    format_tm(time, &tm_writer_type::on_24_hour, ns);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00774",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1742,
+  "validation_status": "validated"
+}

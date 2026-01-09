@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/internal/log_format.h\"\n#include <string.h>\n#include <winsock2.h>  // For timeval\n#include <sys/time.h>\n#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/log/internal/append_truncated.h\"\n#include \"absl/log/internal/config.h\"\n#include \"absl/log/internal/globals.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/civil_time.h\"\n#include \"absl/time/time.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02715_execute() {\n    {\n  constexpr size_t kLineFieldMaxLen =\n      sizeof(\":] \") + (1 + std::numeric_limits<int>::digits10 + 1) - sizeof(\"\");\n  if (ABSL_PREDICT_FALSE(buf.size() < kLineFieldMaxLen)) {\n    // As above, we don't bother trying to truncate this if the buffer is too\n    // short and it should never happen.\n    buf.remove_suffix(buf.size());\n    return 0;\n  }\n  char* p = buf.data();\n  *p++ = ':';\n  p = absl::numbers_internal::FastIntToBuffer(line, p);\n  *p++ = ']';\n  *p++ = ' ';\n  const size_t bytes_formatted = static_cast<size_t>(p - buf.data());\n  buf.remove_prefix(bytes_formatted);\n  return bytes_formatted;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02715",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/log_format.cc",
+  "source_line": 149,
+  "validation_status": "validated"
+}

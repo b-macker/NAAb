@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <cassert>\n#include <optional>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20211_execute() {\n    {\n    for (const Scope *S = this; S; S = S->getParent()) {\n      if (S->getFlags() & Scope::SwitchScope)\n        return true;\n      else if (S->getFlags() & (Scope::FnScope | Scope::ClassScope |\n                                Scope::BlockScope | Scope::TemplateParamScope |\n                                Scope::FunctionPrototypeScope |\n                                Scope::AtCatchScope | Scope::ObjCMethodScope))\n        return false;\n    }\n    return false;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20211",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Scope.h",
+  "source_line": 459,
+  "validation_status": "validated"
+}

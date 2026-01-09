@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdlib>\n#include <tuple>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace utility_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04553_execute() {\n    {\n\ntemplate <typename T>\nstruct InPlaceTypeTag {\n  explicit InPlaceTypeTag() = delete;\n  InPlaceTypeTag(const InPlaceTypeTag&) = delete;\n  InPlaceTypeTag& operator=(const InPlaceTypeTag&) = delete;\n};\n\ntemplate <size_t I>\nstruct InPlaceIndexTag {\n  explicit InPlaceIndexTag() = delete;\n  InPlaceIndexTag(const InPlaceIndexTag&) = delete;\n  InPlaceIndexTag& operator=(const InPlaceIndexTag&) = delete;\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04553",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/utility/utility.h",
+  "source_line": 60,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Stmt.h\"\n#include \"llvm/ADT/DepthFirstIterator.h\"\n#include \"llvm/ADT/GraphTraits.h\"\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12961_execute() {\n    { return S; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12961",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtGraphTraits.h",
+  "source_line": 54,
+  "validation_status": "validated"
+}

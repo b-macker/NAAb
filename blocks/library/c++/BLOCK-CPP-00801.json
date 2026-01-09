@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00801_execute() {\n    {\n private:\n  union {\n    std::locale locale_;\n  };\n  bool has_locale_ = false;\n\n public:\n  get_locale(bool localized, locale_ref loc) : has_locale_(localized) {\n    if (localized)\n      ::new (&locale_) std::locale(loc.template get<std::locale>());\n  }\n  ~get_locale() {\n    if (has_locale_) locale_.~locale();\n  }\n  operator const std::locale&() const {\n    return has_locale_ ? locale_ : get_classic_locale();\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00801",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1551,
+  "validation_status": "validated"
+}

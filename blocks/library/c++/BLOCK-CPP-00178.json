@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/cfg/helpers.h>\n#include <spdlog/details/registry.h>\n\nusing namespace spdlog;\nusing namespace cfg;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00178_execute() {\n    {\n    const std::string spdlog_level_prefix = \"SPDLOG_LEVEL=\";\n    for (int i = 1; i < argc; i++) {\n        std::string arg = argv[i];\n        if (arg.find(spdlog_level_prefix) == 0) {\n            auto levels_string = arg.substr(spdlog_level_prefix.size());\n            helpers::load_levels(levels_string);\n        }\n    }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00178",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/cfg/argv.h",
+  "source_line": 24,
+  "validation_status": "validated"
+}

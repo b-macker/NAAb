@@ -1,0 +1,8 @@
+{
+  "code": "{\n  IdentifierInfo *GetterId, *SetterId;\n\n  MSPropertyDecl(DeclContext *DC, SourceLocation L, DeclarationName N,\n                 QualType T, TypeSourceInfo *TInfo, SourceLocation StartL,\n                 IdentifierInfo *Getter, IdentifierInfo *Setter)\n      : DeclaratorDecl(MSProperty, DC, L, N, T, TInfo, StartL),\n        GetterId(Getter), SetterId(Setter) {}\n\n  void anchor() override;\npublic:\n  friend class ASTDeclReader;\n\n  static MSPropertyDecl *Create(ASTContext &C, DeclContext *DC,\n                                SourceLocation L, DeclarationName N, QualType T,\n                                TypeSourceInfo *TInfo, SourceLocation StartL,\n                                IdentifierInfo *Getter, IdentifierInfo *Setter);\n  static MSPropertyDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  static bool classof(const Decl *D) { return D->getKind() == MSProperty; }\n\n  bool hasGetter() const { return GetterId != nullptr; }\n  IdentifierInfo* getGetterId() const { return GetterId; }\n  bool hasSetter() const { return SetterId != nullptr; }\n  IdentifierInfo* getSetterId() const { return SetterId; }\n}",
+  "id": "BLOCK-CPP-08718",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclCXX.h",
+  "source_line": 4188,
+  "validation_status": "validated"
+}

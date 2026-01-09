@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/Support/PrettyStackTrace.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16739_execute() {\n    {\n    SourceManager &SM;\n    SourceLocation Loc;\n    const char *Message;\n  public:\n    PrettyStackTraceLoc(SourceManager &sm, SourceLocation L, const char *Msg)\n      : SM(sm), Loc(L), Message(Msg) {}\n    void print(raw_ostream &OS) const override;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16739",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/PrettyStackTrace.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

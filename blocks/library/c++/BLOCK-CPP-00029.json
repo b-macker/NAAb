@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/log_msg.h>\n#include <spdlog/fmt/fmt.h>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00029_execute() {\n    {\n\nclass formatter {\npublic:\n    virtual ~formatter() = default;\n    virtual void format(const details::log_msg &msg, memory_buf_t &dest) = 0;\n    virtual std::unique_ptr<formatter> clone() const = 0;\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00029",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/formatter.h",
+  "source_line": 9,
+  "validation_status": "validated"
+}

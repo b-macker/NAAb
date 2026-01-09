@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00534_execute() {\n    {\n  ec = 0;\n  using F = std::numeric_limits<From>;\n  using T = std::numeric_limits<To>;\n  static_assert(F::is_integer, \"From must be integral\");\n  static_assert(T::is_integer, \"To must be integral\");\n\n  if (detail::const_check(F::is_signed && !T::is_signed)) {\n    // From may be negative, not allowed!\n    if (fmt::detail::is_negative(from)) {\n      ec = 1;\n      return {};\n    }\n    // From is positive. Can it always fit in To?\n    if (detail::const_check(F::digits > T::digits) &&\n        from > static_cast<From>(detail::max_value<To>())) {\n      ec = 1;\n      return {};\n    }\n  }\n\n  if (detail::const_check(!F::is_signed && T::is_signed &&\n                          F::digits >= T::digits) &&\n      from > static_cast<From>(detail::max_value<To>())) {\n    ec = 1;\n    return {};\n  }\n  return static_cast<To>(from);  // Lossless conversion.\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00534",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 86,
+  "validation_status": "validated"
+}

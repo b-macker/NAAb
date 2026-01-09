@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ExternalASTSource.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12403_execute() {\n    {\n      assert(isFirst() && \"decl became canonical unexpectedly\");\n      if (Link.is<NotKnownLatest>()) {\n        NotKnownLatest NKL = Link.get<NotKnownLatest>();\n        Link = KnownLatest(*reinterpret_cast<const ASTContext *>(\n                               NKL.get<UninitializedLatest>()),\n                           D);\n      } else {\n        auto Latest = Link.get<KnownLatest>();\n        Latest.set(D);\n        Link = Latest;\n      }\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12403",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Redeclarable.h",
+  "source_line": 142,
+  "validation_status": "validated"
+}

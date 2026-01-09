@@ -1,0 +1,8 @@
+{
+  "code": "{\n  static bool isEqual(QualType A, QualType B) { return A == B; }\n\n  static QualType getEmptyKey() {\n    return QualType::getFromOpaquePtr((void *)1);\n  }\n\n  static QualType getTombstoneKey() {\n    return QualType::getFromOpaquePtr((void *)2);\n  }\n\n  static unsigned getHashValue(QualType T) {\n    assert(!T.getLocalFastQualifiers() &&\n           \"hash invalid for types with fast quals\");\n    uintptr_t v = reinterpret_cast<uintptr_t>(T.getAsOpaquePtr());\n    return (unsigned(v) >> 4) ^ (unsigned(v) >> 9);\n  }\n}",
+  "id": "BLOCK-CPP-20804",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTBitCodes.h",
+  "source_line": 114,
+  "validation_status": "validated"
+}

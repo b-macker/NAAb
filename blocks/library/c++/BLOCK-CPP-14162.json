@@ -1,0 +1,8 @@
+{
+  "code": "{\n    FunctionType::ExtInfo ExtInfo;\n    bool Variadic : 1;\n    bool HasTrailingReturn : 1;\n    Qualifiers TypeQuals;\n    RefQualifierKind RefQualifier = RQ_None;\n    ExceptionSpecInfo ExceptionSpec;\n    const ExtParameterInfo *ExtParameterInfos = nullptr;\n    SourceLocation EllipsisLoc;\n\n    ExtProtoInfo() : Variadic(false), HasTrailingReturn(false) {}\n\n    ExtProtoInfo(CallingConv CC)\n        : ExtInfo(CC), Variadic(false), HasTrailingReturn(false) {}\n\n    ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &ESI) {\n      ExtProtoInfo Result(*this);\n      Result.ExceptionSpec = ESI;\n      return Result;\n    }\n\n    bool requiresFunctionProtoTypeExtraBitfields() const {\n      return ExceptionSpec.Type == EST_Dynamic;\n    }\n  }",
+  "id": "BLOCK-CPP-14162",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
+  "source_line": 4153,
+  "validation_status": "validated"
+}

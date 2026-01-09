@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Comment.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07713_execute() {\n    {\n    if (!Source.empty())\n      return Source.copy(Allocator);\n    return std::nullopt;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07713",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CommentSema.h",
+  "source_line": 79,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/DataTypes.h\"\n\nusing namespace clang;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16062_execute() {\n    {\n  switch (Ch) {\n  case '\\\\':\n    return \"\\\\\\\\\";\n  case '\\'':\n    if ((static_cast<int>(Opt) & static_cast<int>(EscapeChar::Single)) == 0)\n      break;\n    return \"\\\\'\";\n  case '\"':\n    if ((static_cast<int>(Opt) & static_cast<int>(EscapeChar::Double)) == 0)\n      break;\n    return \"\\\\\\\"\";\n  case '\\a':\n    return \"\\\\a\";\n  case '\\b':\n    return \"\\\\b\";\n  case '\\f':\n    return \"\\\\f\";\n  case '\\n':\n    return \"\\\\n\";\n  case '\\r':\n    return \"\\\\r\";\n  case '\\t':\n    return \"\\\\t\";\n  case '\\v':\n    return \"\\\\v\";\n  }\n  return {};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16062",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CharInfo.h",
+  "source_line": 175,
+  "validation_status": "validated"
+}

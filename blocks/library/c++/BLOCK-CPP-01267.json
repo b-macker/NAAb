@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01267_execute() {\n    {\n  // This has comparable performance to the version by Kendall Willets\n  // (https://github.com/fmtlib/format-benchmark/blob/master/digits10)\n  // but uses smaller tables.\n  // Maps bsr(n) to ceil(log10(pow(2, bsr(n) + 1) - 1)).\n  static constexpr uint8_t bsr2log10[] = {\n      1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  4,  5,  5,  5,\n      6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9,  10, 10, 10,\n      10, 11, 11, 11, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 15, 15,\n      15, 16, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 19, 20};\n  auto t = bsr2log10[FMT_BUILTIN_CLZLL(n | 1) ^ 63];\n  static constexpr const uint64_t zero_or_powers_of_10[] = {\n      0, 0, FMT_POWERS_OF_10(1U), FMT_POWERS_OF_10(1000000000ULL),\n      10000000000000000000ULL};\n  return t - (n < zero_or_powers_of_10[t]);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01267",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 1073,
+  "validation_status": "validated"
+}

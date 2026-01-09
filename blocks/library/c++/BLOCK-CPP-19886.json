@@ -1,0 +1,8 @@
+{
+  "code": "{\n    ///     using namespace B;\n    ///     return i; // error 'i' is found in namespace A and A::B\n    ///    }\n    /// }\n    /// @endcode\n    AmbiguousReference,\n\n    /// Name lookup results in an ambiguity because an entity with a\n    /// tag name was hidden by an entity with an ordinary name from\n    /// a different context.\n    /// @code\n    /// namespace A { struct Foo {}; }\n    /// namespace B { void Foo(); }\n    /// namespace C {\n    ///   using namespace A;\n    ///   using namespace B;\n    /// }\n    /// void test() {\n    ///   C::Foo(); // error: tag 'A::Foo' is hidden by an object in a\n    ///             // different namespace\n    /// }\n    /// @endcode\n    AmbiguousTagHiding\n  }",
+  "id": "BLOCK-CPP-19886",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Lookup.h",
+  "source_line": 112,
+  "validation_status": "validated"
+}

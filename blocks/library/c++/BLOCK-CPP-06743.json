@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang-c/BuildSystem.h\"\n#include \"clang-c/CXDiagnostic.h\"\n#include \"clang-c/CXErrorCode.h\"\n#include \"clang-c/CXFile.h\"\n#include \"clang-c/CXSourceLocation.h\"\n#include \"clang-c/CXString.h\"\n#include \"clang-c/ExternC.h\"\n#include \"clang-c/Platform.h\"\n\nusing namespace pollution;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06743_execute() {\n    {\n  /**\n   * The file whose contents have not yet been saved.\n   *\n   * This file must already exist in the file system.\n   */\n  const char *Filename;\n\n  /**\n   * A buffer containing the unsaved contents of this file.\n   */\n  const char *Contents;\n\n  /**\n   * The length of the unsaved contents of this buffer.\n   */\n  unsigned long Length;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06743",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang-c/Index.h",
+  "source_line": 106,
+  "validation_status": "validated"
+}

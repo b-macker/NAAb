@@ -1,0 +1,8 @@
+{
+  "code": "#include <stddef.h>\n#include <memory>\n#include <utility>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05359_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05359",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/tracked.h",
+  "source_line": 35,
+  "validation_status": "validated"
+}

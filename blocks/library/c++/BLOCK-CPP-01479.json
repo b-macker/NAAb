@@ -1,0 +1,8 @@
+{
+  "code": "#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <system_error>  // std::system_error\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01479_execute() {\n    {\n    vprint(format_str, fmt::make_format_args(args...));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01479",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/os.h",
+  "source_line": 269,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/AbstractBasicWriter.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/Serialization/ASTWriter.h\"\n#include \"clang/Serialization/SourceLocationEncoding.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20937_execute() {\n    {\n    OffsetIndices.push_back(Record->size());\n    Record->push_back(BitOffset);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20937",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTRecordWriter.h",
+  "source_line": 110,
+  "validation_status": "validated"
+}

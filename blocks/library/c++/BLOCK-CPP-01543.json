@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>  // std::max\n#include <limits>     // std::numeric_limits\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01543_execute() {\n    {\n private:\n  using format_specs = basic_format_specs<Char>;\n\n  format_specs& specs_;\n\n public:\n  explicit printf_width_handler(format_specs& specs) : specs_(specs) {}\n\n  template <typename T, FMT_ENABLE_IF(std::is_integral<T>::value)>\n  unsigned operator()(T value) {\n    auto width = static_cast<uint32_or_64_or_128_t<T>>(value);\n    if (detail::is_negative(value)) {\n      specs_.align = align::left;\n      width = 0 - width;\n    }\n    unsigned int_max = max_value<int>();\n    if (width > int_max) FMT_THROW(format_error(\"number is too big\"));\n    return static_cast<unsigned>(width);\n  }\n\n  template <typename T, FMT_ENABLE_IF(!std::is_integral<T>::value)>\n  unsigned operator()(T) {\n    FMT_THROW(format_error(\"width is not integer\"));\n    return 0;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01543",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
+  "source_line": 195,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/AbstractBasicReader.h\"\n#include \"clang/Lex/Token.h\"\n#include \"clang/Serialization/ASTReader.h\"\n#include \"clang/Serialization/SourceLocationEncoding.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/APInt.h\"\n#include \"llvm/ADT/APSInt.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20909_execute() {\n    {\n    uint64_t Kind = readInt();\n    bool HasExpr = Kind & 0x1;\n    Kind = Kind >> 1;\n    return ExplicitSpecifier(HasExpr ? readExpr() : nullptr,\n                             static_cast<ExplicitSpecKind>(Kind));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20909",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTRecordReader.h",
+  "source_line": 112,
+  "validation_status": "validated"
+}

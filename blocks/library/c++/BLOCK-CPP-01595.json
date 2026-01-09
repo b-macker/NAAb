@@ -1,0 +1,8 @@
+{
+  "code": "#include <thread>\n#include <type_traits>\n#include <utility>\n#include \"ostream.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01595_execute() {\n    {\n\ntemplate <typename T>\nusing variant_index_sequence =\n    std::make_index_sequence<std::variant_size<T>::value>;\n\n// variant_size and variant_alternative check.\ntemplate <typename T, typename U = void>\nstruct is_variant_like_ : std::false_type {};\ntemplate <typename T>\nstruct is_variant_like_<T, std::void_t<decltype(std::variant_size<T>::value)>>\n    : std::true_type {};\n\n// formattable element check\ntemplate <typename T, typename C> class is_variant_formattable_ {\n  template <std::size_t... I>\n  static std::conjunction<\n      is_formattable<std::variant_alternative_t<I, T>, C>...>\n      check(std::index_sequence<I...>);\n\n public:\n  static constexpr const bool value =\n      decltype(check(variant_index_sequence<T>{}))::value;\n};\n\ntemplate <typename Char, typename OutputIt, typename T>\nauto write_variant_alternative(OutputIt out, const T& v) -> OutputIt {\n  if constexpr (is_string<T>::value)\n    return write_escaped_string<Char>(out, detail::to_string_view(v));\n  else if constexpr (std::is_same_v<T, Char>)\n    return write_escaped_char(out, v);\n  else\n    return write<Char>(out, v);\n}\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01595",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/std.h",
+  "source_line": 97,
+  "validation_status": "validated"
+}

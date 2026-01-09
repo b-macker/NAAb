@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/AST/StmtCXX.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13105_execute() {\n    {\n    return getArraysOffset(Kind) +\n           8 * CollapsedNum; // Counters, PrivateCounters, Inits,\n                             // Updates, Finals, DependentCounters,\n                             // DependentInits, FinalsConditions.\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-13105",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtOpenMP.h",
+  "source_line": 1154,
+  "validation_status": "validated"
+}

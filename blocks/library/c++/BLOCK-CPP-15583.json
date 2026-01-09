@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/RecursiveASTVisitor.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/GraphTraits.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15583_execute() {\n    {\n    // We skip function template definitions, as their semantics is\n    // only determined when they are instantiated.\n    if (includeInGraph(FD) && FD->isThisDeclarationADefinition()) {\n      // Add all blocks declared inside this function to the graph.\n      addNodesForBlocks(FD);\n      // If this function has external linkage, anything could call it.\n      // Note, we are not precise here. For example, the function could have\n      // its address taken.\n      addNodeForDecl(FD, FD->isGlobal());\n    }\n    return true;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15583",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CallGraph.h",
+  "source_line": 112,
+  "validation_status": "validated"
+}

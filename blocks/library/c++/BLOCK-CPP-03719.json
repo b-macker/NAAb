@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include <bit>\n#include \"absl/base/attributes.h\"\n#include \"absl/numeric/internal/bits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03719_execute() {\n    {\n  // Avoid integer promotion to a wider type\n  return countl_zero(static_cast<T>(~x));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03719",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/bits.h",
+  "source_line": 109,
+  "validation_status": "validated"
+}

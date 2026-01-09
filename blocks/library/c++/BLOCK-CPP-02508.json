@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02508_execute() {\n    {\n  size_t len = 0;\n  while (*str != '\\0') {\n    ++str;\n    ++len;\n  }\n  return len;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02508",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 236,
+  "validation_status": "validated"
+}

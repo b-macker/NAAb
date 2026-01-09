@@ -1,0 +1,8 @@
+{
+  "code": "{\n  llvm::StringMap<std::unique_ptr<PCHContainerWriter>> Writers;\n  llvm::StringMap<PCHContainerReader *> Readers;\n  llvm::SmallVector<std::unique_ptr<PCHContainerReader>> OwnedReaders;\n\npublic:\n  /// Automatically registers a RawPCHContainerWriter and\n  /// RawPCHContainerReader.\n  PCHContainerOperations();\n  void registerWriter(std::unique_ptr<PCHContainerWriter> Writer) {\n    Writers[Writer->getFormat()] = std::move(Writer);\n  }\n  void registerReader(std::unique_ptr<PCHContainerReader> Reader) {\n    assert(!Reader->getFormats().empty() &&\n           \"PCHContainerReader must handle >=1 format\");\n    for (llvm::StringRef Fmt : Reader->getFormats())\n      Readers[Fmt] = Reader.get();\n    OwnedReaders.push_back(std::move(Reader));\n  }\n  const PCHContainerWriter *getWriterOrNull(llvm::StringRef Format) {\n    return Writers[Format].get();\n  }\n  const PCHContainerReader *getReaderOrNull(llvm::StringRef Format) {\n    return Readers[Format];\n  }\n  const PCHContainerReader &getRawReader() {\n    return *getReaderOrNull(\"raw\");\n  }\n}",
+  "id": "BLOCK-CPP-21056",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/PCHContainerOperations.h",
+  "source_line": 87,
+  "validation_status": "validated"
+}

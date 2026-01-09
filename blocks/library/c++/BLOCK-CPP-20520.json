@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    enum Kind {\n      NoMemberOrDeleted,\n      Ambiguous,\n      Success\n    };\n\n  private:\n    llvm::PointerIntPair<CXXMethodDecl *, 2> Pair;\n\n  public:\n    SpecialMemberOverloadResult() {}\n    SpecialMemberOverloadResult(CXXMethodDecl *MD)\n        : Pair(MD, MD->isDeleted() ? NoMemberOrDeleted : Success) {}\n\n    CXXMethodDecl *getMethod() const { return Pair.getPointer(); }\n    void setMethod(CXXMethodDecl *MD) { Pair.setPointer(MD); }\n\n    Kind getKind() const { return static_cast<Kind>(Pair.getInt()); }\n    void setKind(Kind K) { Pair.setInt(K); }\n  }",
+  "id": "BLOCK-CPP-20520",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 1444,
+  "validation_status": "validated"
+}

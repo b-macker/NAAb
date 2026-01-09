@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include <utility>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00264_execute() {\n    { value = new_value; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00264",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/null_mutex.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/XRayInstr.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/Frontend/Debug/Options.h\"\n#include \"llvm/Support/CodeGen.h\"\n#include \"llvm/Support/Regex.h\"\n#include \"llvm/Target/TargetOptions.h\"\n#include \"llvm/Transforms/Instrumentation/AddressSanitizerOptions.h\"\n#include <map>\n#include <memory>\n#include <string>\n#include <vector>\n#include \"clang/Basic/CodeGenOptions.def\"\n#include \"clang/Basic/CodeGenOptions.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16086_execute() {\n    {\n    /// The filename of the bitcode file to link in.\n    std::string Filename;\n    /// If true, we set attributes functions in the bitcode library according to\n    /// our CodeGenOptions, much as we set attrs on functions that we generate\n    /// ourselves.\n    bool PropagateAttrs = false;\n    /// If true, we use LLVM module internalizer.\n    bool Internalize = false;\n    /// Bitwise combination of llvm::Linker::Flags, passed to the LLVM linker.\n    unsigned LinkFlags = 0;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16086",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CodeGenOptions.h",
+  "source_line": 232,
+  "validation_status": "validated"
+}

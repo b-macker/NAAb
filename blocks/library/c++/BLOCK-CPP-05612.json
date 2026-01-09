@@ -1,0 +1,8 @@
+{
+  "code": "#include <stdint.h>\n#include <stdlib.h>  // for size_t.\n#include <utility>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05612_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace hash_internal {\n\n// Hash function for a byte array.\nuint64_t CityHash64(const char *s, size_t len);\n\n// Hash function for a byte array.  For convenience, a 64-bit seed is also\n// hashed into the result.\nuint64_t CityHash64WithSeed(const char *s, size_t len, uint64_t seed);\n\n// Hash function for a byte array.  For convenience, two seeds are also\n// hashed into the result.\nuint64_t CityHash64WithSeeds(const char *s, size_t len, uint64_t seed0,\n                             uint64_t seed1);\n\n// Hash function for a byte array.  Most useful in 32-bit binaries.\nuint32_t CityHash32(const char *s, size_t len);\n\n}  // namespace hash_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05612",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/city.h",
+  "source_line": 55,
+  "validation_status": "validated"
+}

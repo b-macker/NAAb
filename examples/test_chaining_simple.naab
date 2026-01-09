@@ -1,0 +1,39 @@
+# Test program - Simple method chaining test
+
+use BLOCK-PY-CHAIN-TEST as ChainModule
+
+main {
+    print("=== Method Chaining Test ===")
+    print("")
+
+    # Test 1: Create builder and chain methods
+    print("Test 1: Chain add() and multiply() methods")
+    let BuilderClass = ChainModule.Builder
+    let builder = BuilderClass()
+
+    print("  Initial builder:", builder)
+    print("  Type:", type(builder))
+    print("")
+
+    # Test 2: Call methods and chain them
+    print("Test 2: Calling add(5) method")
+    let builder2 = builder.add(5)
+    print("  Result:", builder2)
+    print("  Type:", type(builder2))
+    print("")
+
+    # Test 3: Chain multiple methods
+    print("Test 3: Chaining add(10).multiply(2)")
+    let builder3 = builder2.add(10).multiply(2)
+    print("  Result:", builder3)
+    print("")
+
+    # Test 4: Get final value
+    print("Test 4: Getting final value")
+    let final_value = builder3.get_value()
+    print("  Final value:", final_value)
+    print("  Type:", type(final_value))
+    print("")
+
+    print("=== Method chaining test complete! ===")
+}

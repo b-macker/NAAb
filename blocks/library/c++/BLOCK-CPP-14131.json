@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ASTContext; // ASTContext creates these.\n\n  /// An assignment-expression. VLA's are only permitted within\n  /// a function block.\n  Stmt *SizeExpr;\n\n  /// The range spanned by the left and right array brackets.\n  SourceRange Brackets;\n\n  VariableArrayType(QualType et, QualType can, Expr *e,\n                    ArraySizeModifier sm, unsigned tq,\n                    SourceRange brackets)\n      : ArrayType(VariableArray, et, can, sm, tq, e),\n        SizeExpr((Stmt*) e), Brackets(brackets) {}\n\npublic:\n  friend class StmtIteratorBase;\n\n  Expr *getSizeExpr() const {\n    // We use C-style casts instead of cast<> here because we do not wish\n    // to have a dependency of Type.h on Stmt.h/Expr.h.\n    return (Expr*) SizeExpr;\n  }\n\n  SourceRange getBracketsRange() const { return Brackets; }\n  SourceLocation getLBracketLoc() const { return Brackets.getBegin(); }\n  SourceLocation getRBracketLoc() const { return Brackets.getEnd(); }\n\n  bool isSugared() const { return false; }\n  QualType desugar() const { return QualType(this, 0); }\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == VariableArray;\n  }\n\n  void Profile(llvm::FoldingSetNodeID &ID) {\n    llvm_unreachable(\"Cannot unique VariableArrayTypes.\");\n  }\n}",
+  "id": "BLOCK-CPP-14131",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
+  "source_line": 3213,
+  "validation_status": "validated"
+}

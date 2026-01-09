@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/time/clock.h\"\n#include \"absl/base/attributes.h\"\n#include \"absl/base/optimization.h\"\n#include <windows.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstdint>\n#include <ctime>\n#include <limits>\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/unscaledcycleclock.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/time/internal/get_current_time_chrono.inc\"\n#include \"absl/time/internal/get_current_time_posix.inc\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace time_internal;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02155_execute() {\n    {\n  uint64_t x = seq->fetch_add(1, std::memory_order_relaxed);\n\n  // We put a release fence between update to *seq and writes to shared data.\n  // Thus all stores to shared data are effectively release operations and\n  // update to *seq above cannot be re-ordered past any of them.  Note that\n  // this barrier is not for the fetch_add above.  A release barrier for the\n  // fetch_add would be before it, not after.\n  std::atomic_thread_fence(std::memory_order_release);\n\n  return x + 2;   // original word plus 2\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02155",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
+  "source_line": 114,
+  "validation_status": "validated"
+}

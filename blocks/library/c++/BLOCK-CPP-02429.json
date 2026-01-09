@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/raw_hash_set.h\"\n#include <atomic>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/hash/hash.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02429_execute() {\n    {\n  // To avoid problems with weak hashes and single bit tests, we use % 13.\n  // TODO(kfm,sbenza): revisit after we do unconditional mixing\n  return (H1(hash, ctrl) ^ RandomSeed()) % 13 > 6;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02429",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.cc",
+  "source_line": 107,
+  "validation_status": "validated"
+}

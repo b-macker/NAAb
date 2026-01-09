@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19206_execute() {\n    { return UnmatchedOpeningParens.size(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19206",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/VariadicMacroSupport.h",
+  "source_line": 83,
+  "validation_status": "validated"
+}

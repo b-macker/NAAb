@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00261_execute() {\n    class Param(expr_context):\n    \"\"\"Deprecated AST node class.  Unused in Python 3.\"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00261",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
+  "source_line": 627,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace ento;\nusing namespace checker_registry;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22361_execute() {\n    {\n\ntemplate <class T> struct FullNameLT {\n  bool operator()(const T &Lhs, const T &Rhs) {\n    return Lhs.FullName < Rhs.FullName;\n  }\n};\n\nusing PackageNameLT = FullNameLT<PackageInfo>;\nusing CheckerNameLT = FullNameLT<CheckerInfo>;\n\ntemplate <class CheckerOrPackageInfoList>\nstd::conditional_t<std::is_const<CheckerOrPackageInfoList>::value,\n                   typename CheckerOrPackageInfoList::const_iterator,\n                   typename CheckerOrPackageInfoList::iterator>\nbinaryFind(CheckerOrPackageInfoList &Collection, StringRef FullName) {\n\n  using CheckerOrPackage = typename CheckerOrPackageInfoList::value_type;\n  using CheckerOrPackageFullNameLT = FullNameLT<CheckerOrPackage>;\n\n  assert(llvm::is_sorted(Collection, CheckerOrPackageFullNameLT{}) &&\n         \"In order to efficiently gather checkers/packages, this function \"\n         \"expects them to be already sorted!\");\n\n  return llvm::lower_bound(Collection, CheckerOrPackage(FullName),\n                           CheckerOrPackageFullNameLT{});\n}\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22361",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/CheckerRegistryData.h",
+  "source_line": 164,
+  "validation_status": "validated"
+}

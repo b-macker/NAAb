@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Availability.h\"\n#include \"clang/Basic/BitmaskEnum.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/OperatorPrecedence.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Lex/CodeCompletionHandler.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Frontend/OpenMP/OMPContext.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/PrettyStackTrace.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n#include <memory>\n#include <optional>\n#include <stack>\n\nusing namespace clang;\nusing namespace declaration;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19349_execute() {\n    {\n    /// The grammar doesn't allow a defining-type-specifier here, and we must\n    /// not parse one (eg, because a '{' could mean something else).\n    No,\n    /// The grammar doesn't allow a defining-type-specifier here, but we permit\n    /// one for error recovery purposes. Sema will reject.\n    NoButErrorRecovery,\n    /// The grammar allows a defining-type-specifier here, even though it's\n    /// always invalid. Sema will reject.\n    YesButInvalid,\n    /// The grammar allows a defining-type-specifier here, and one can be valid.\n    Yes\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19349",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
+  "source_line": 2254,
+  "validation_status": "validated"
+}

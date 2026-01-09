@@ -1,0 +1,4 @@
+# Block Path Configuration
+# Since symlinks don't work on Android storage, we'll use absolute paths
+BLOCKS_PATH=/storage/emulated/0/Download/.naab/naab/blocks/library/
+DATABASE_PATH=/storage/emulated/0/Download/.naab/naab/data/naab.db

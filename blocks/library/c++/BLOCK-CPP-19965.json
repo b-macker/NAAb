@@ -1,0 +1,8 @@
+{
+  "code": "{\n    ///   using namespace A;\n    ///   using namespace B;\n    /// }\n    /// void test() {\n    ///   C::Foo(); // error: tag 'A::Foo' is hidden by an object in a\n    ///             // different namespace\n    /// }\n    /// @endcode\n    AmbiguousTagHiding\n  }",
+  "id": "BLOCK-CPP-19965",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Lookup.h",
+  "source_line": 126,
+  "validation_status": "validated"
+}

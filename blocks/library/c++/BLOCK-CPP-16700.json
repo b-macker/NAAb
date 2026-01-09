@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/OperatorKinds.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16700_execute() {\n    {\n  return Kind >= OO_PlusEqual && Kind <= OO_PipeEqual;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16700",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/OperatorKinds.h",
+  "source_line": 53,
+  "validation_status": "validated"
+}

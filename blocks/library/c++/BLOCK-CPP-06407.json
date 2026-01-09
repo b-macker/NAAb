@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <ostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/internal/str_format/output.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06407_execute() {\n    {\n#define ABSL_INTERNAL_CHAR_SET_CASE(c)         \\\n  static constexpr FormatConversionCharSet c = \\\n      FormatConversionCharToConvValue(#c[0]);\n  ABSL_INTERNAL_CONVERSION_CHARS_EXPAND_(ABSL_INTERNAL_CHAR_SET_CASE, )\n#undef ABSL_INTERNAL_CHAR_SET_CASE\n\n  // Used for width/precision '*' specification.\n  static constexpr FormatConversionCharSet kStar =\n      FormatConversionCharToConvValue('*');\n\n  static constexpr FormatConversionCharSet kIntegral =\n      FormatConversionCharSetUnion(d, i, u, o, x, X);\n  static constexpr FormatConversionCharSet kFloating =\n      FormatConversionCharSetUnion(a, e, f, g, A, E, F, G);\n  static constexpr FormatConversionCharSet kNumeric =\n      FormatConversionCharSetUnion(kIntegral, kFloating);\n  static constexpr FormatConversionCharSet kPointer = p;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06407",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/extension.h",
+  "source_line": 382,
+  "validation_status": "validated"
+}

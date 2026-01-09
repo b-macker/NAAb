@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"clang/Basic/TransformTypeTraits.def\"\n#include \"clang/Basic/OpenCLImageTypes.def\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17001_execute() {\n    {\n    return SC <= SC_PrivateExtern;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17001",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Specifiers.h",
+  "source_line": 252,
+  "validation_status": "validated"
+}

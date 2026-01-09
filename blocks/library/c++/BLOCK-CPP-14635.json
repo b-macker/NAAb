@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/BaseSubobject.h\"\n#include \"clang/AST/CXXInheritance.h\"\n#include \"clang/AST/GlobalDecl.h\"\n#include \"clang/AST/RecordLayout.h\"\n#include \"clang/Basic/ABI.h\"\n#include \"clang/Basic/Thunk.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <memory>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14635_execute() {\n    {\n    assert(isUsedFunctionPointerKind() &&\n           \"GlobalDecl can be created only from virtual function\");\n\n    auto *DtorDecl = dyn_cast<CXXDestructorDecl>(getFunctionDecl());\n    switch (getKind()) {\n    case CK_FunctionPointer:\n      return GlobalDecl(getFunctionDecl());\n    case CK_CompleteDtorPointer:\n      return GlobalDecl(DtorDecl, CXXDtorType::Dtor_Complete);\n    case CK_DeletingDtorPointer:\n      return GlobalDecl(DtorDecl, CXXDtorType::Dtor_Deleting);\n    case CK_VCallOffset:\n    case CK_VBaseOffset:\n    case CK_OffsetToTop:\n    case CK_RTTI:\n    case CK_UnusedFunctionPointer:\n      llvm_unreachable(\"Only function pointers kinds\");\n    }\n    llvm_unreachable(\"Should already return\");\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14635",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/VTableBuilder.h",
+  "source_line": 153,
+  "validation_status": "validated"
+}

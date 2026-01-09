@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstdint>\n#include <string>\n#include <type_traits>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16723_execute() {\n    {\n    // FIXME: It should be possible to render a diagnostic to a string without\n    //        messing with the state of the diagnostics engine.\n    DiagnosticBuilder DB(Diags.Report(getDiagID()));\n    Emit(DB);\n    Diagnostic(&Diags).FormatDiagnostic(Buf);\n    DB.Clear();\n    Diags.Clear();\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16723",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/PartialDiagnostic.h",
+  "source_line": 167,
+  "validation_status": "validated"
+}

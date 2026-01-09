@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cstdint>\n#include <utility>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07463_execute() {\n    {\n    return LHS == RHS;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07463",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/BaseSubobject.h",
+  "source_line": 77,
+  "validation_status": "validated"
+}

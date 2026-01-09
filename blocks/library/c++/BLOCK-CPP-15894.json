@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  EpsilonPoint(const LocationContext *L, const void *Data1,\n               const void *Data2 = nullptr,\n               const ProgramPointTag *tag = nullptr)\n    : ProgramPoint(Data1, Data2, EpsilonKind, L, tag) {}\n\n  const void *getData() const { return getData1(); }\n\nprivate:\n  friend class ProgramPoint;\n  EpsilonPoint() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == EpsilonKind;\n  }\n}",
+  "id": "BLOCK-CPP-15894",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 730,
+  "validation_status": "validated"
+}

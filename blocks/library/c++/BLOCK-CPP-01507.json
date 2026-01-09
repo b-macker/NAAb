@@ -1,0 +1,8 @@
+{
+  "code": "#include <fstream>\n#include <ostream>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01507_execute() {\n    {\n private:\n  template <typename U>\n  static auto test(int)\n      -> bool_constant<sizeof(std::declval<std::basic_ostream<Char>&>()\n                              << std::declval<U>()) != 0>;\n\n  template <typename> static auto test(...) -> std::false_type;\n\n  using result = decltype(test<T>(0));\n\n public:\n  is_streamable() = default;\n\n  static const bool value = result::value;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01507",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ostream.h",
+  "source_line": 29,
+  "validation_status": "validated"
+}

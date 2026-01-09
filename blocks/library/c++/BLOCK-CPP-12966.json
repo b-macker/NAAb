@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate <> struct GraphTraits<clang::Stmt *> {\n  using NodeRef = clang::Stmt *;\n  using ChildIteratorType = clang::Stmt::child_iterator;\n  using nodes_iterator = llvm::df_iterator<clang::Stmt *>;\n\n  static NodeRef getEntryNode(clang::Stmt *S) { return S; }\n\n  static ChildIteratorType child_begin(NodeRef N) {\n    if (N) return N->child_begin();\n    else return ChildIteratorType();\n  }\n\n  static ChildIteratorType child_end(NodeRef N) {\n    if (N) return N->child_end();\n    else return ChildIteratorType();\n  }\n\n  static nodes_iterator nodes_begin(clang::Stmt* S) {\n    return df_begin(S);\n  }\n\n  static nodes_iterator nodes_end(clang::Stmt* S) {\n    return df_end(S);\n  }\n};\n\ntemplate <> struct GraphTraits<const clang::Stmt *> {\n  using NodeRef = const clang::Stmt *;\n  using ChildIteratorType = clang::Stmt::const_child_iterator;\n  using nodes_iterator = llvm::df_iterator<const clang::Stmt *>;\n\n  static NodeRef getEntryNode(const clang::Stmt *S) { return S; }\n\n  static ChildIteratorType child_begin(NodeRef N) {\n    if (N) return N->child_begin();\n    else return ChildIteratorType();\n  }\n\n  static ChildIteratorType child_end(NodeRef N) {\n    if (N) return N->child_end();\n    else return ChildIteratorType();\n  }\n\n  static nodes_iterator nodes_begin(const clang::Stmt* S) {\n    return df_begin(S);\n  }\n\n  static nodes_iterator nodes_end(const clang::Stmt* S) {\n    return df_end(S);\n  }\n};\n\n}",
+  "id": "BLOCK-CPP-12966",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtGraphTraits.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

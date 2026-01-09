@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/Support/DataTypes.h\"\n#include <cstring>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15957_execute() {\n    {\n\n/// C++ constructor types.\nenum CXXCtorType {\n  Ctor_Complete,       ///< Complete object ctor\n  Ctor_Base,           ///< Base object ctor\n  Ctor_Comdat,         ///< The COMDAT used for ctors\n  Ctor_CopyingClosure, ///< Copying closure variant of a ctor\n  Ctor_DefaultClosure, ///< Default closure variant of a ctor\n};\n\n/// C++ destructor types.\nenum CXXDtorType {\n    Dtor_Deleting, ///< Deleting dtor\n    Dtor_Complete, ///< Complete object dtor\n    Dtor_Base,     ///< Base object dtor\n    Dtor_Comdat    ///< The COMDAT used for dtors\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15957",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/ABI.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

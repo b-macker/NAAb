@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Attr.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Sema/Overload.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cassert>\n#include <cstdint>\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19847_execute() {\n    {\n    return InitializationKind(IK_Default, IC_Normal, InitLoc, InitLoc, InitLoc);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19847",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Initialization.h",
+  "source_line": 696,
+  "validation_status": "validated"
+}

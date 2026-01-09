@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclBase.h\" // lookup_result\n#include \"clang/AST/DeclarationName.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SetVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07101_execute() {\n    { struct Foo *p; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07101",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTImporterLookupTable.h",
+  "source_line": 39,
+  "validation_status": "validated"
+}

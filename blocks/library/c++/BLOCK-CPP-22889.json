@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22889_execute() {\n    {\n    SplitQualType SQT = T.split();\n    if (!SQT.Quals.hasQualifiers())\n      return Visit(SQT.Ty);\n\n    getNodeDelegate().AddChild([=] {\n      getNodeDelegate().Visit(T);\n      Visit(T.split().Ty);\n    });\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22889",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
+  "source_line": 160,
+  "validation_status": "validated"
+}

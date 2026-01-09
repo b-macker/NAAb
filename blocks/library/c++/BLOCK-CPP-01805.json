@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\n\nstatic constexpr const char kExceptionMessage[] =\n    \"Failed generating seed-material for URBG.\";\n\nSeedGenException::~SeedGenException() = default;\n\nconst char* SeedGenException::what() const noexcept {\n  return kExceptionMessage;\n}\n\nnamespace random_internal {\n\nvoid ThrowSeedGenException() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw absl::SeedGenException();\n#else\n  std::cerr << kExceptionMessage << std::endl;\n  std::terminate();\n#endif\n}\n\n}  // namespace random_internal\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-01805",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/seed_gen_exception.cc",
+  "source_line": 21,
+  "validation_status": "validated"
+}

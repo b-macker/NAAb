@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00549_execute() {\n    def assert_stable(\n    src: str, dst: str, mode: Mode, *, lines: Collection[tuple[int, int]] = ()\n) -> None:\n    \"\"\"Raise AssertionError if `dst` reformats differently the second time.\"\"\"\n    if lines:\n        # Formatting specified lines requires `adjusted_lines` to map original lines\n        # to the formatted lines before re-formatting the previously formatted result.\n        # Due to less-ideal diff algorithm, some edge cases produce incorrect new line\n        # ranges. Hence for now, we skip the stable check.\n        # See https://github.com/psf/black/issues/4033 for context.\n        return\n    # We shouldn't call format_str() here, because that formats the string\n    # twice and may hide a bug where we bounce back and forth between two\n    # versions.\n    newdst = _format_str_once(dst, mode=mode, lines=lines)\n    if dst != newdst:\n        log = dump_to_file(\n            str(mode),\n            diff(src, dst, \"source\", \"first pass\"),\n            diff(dst, newdst, \"first pass\", \"second pass\"),\n        )\n        raise AssertionError(\n            f\"INTERNAL ERROR: {_black_info()} produced different code on the second\"\n            \" pass of the formatter.  Please report a bug on\"\n            f\" https://github.com/psf/black/issues.  This diff might be helpful: {log}\"\n        ) from None\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00549",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 1614,
+  "validation_status": "validated"
+}

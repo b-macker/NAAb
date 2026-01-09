@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include <sys/time.h>\n#include <unistd.h>\n#include <linux/futex.h>\n#include <sys/syscall.h>\n#include <errno.h>\n#include <stdio.h>\n#include <time.h>\n#include <atomic>\n#include <cstdint>\n#include <limits>\n#include \"absl/base/optimization.h\"\n#include \"absl/synchronization/internal/kernel_timeout.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06443_execute() {\n    {\n    FutexTimespec ts;\n    // https://locklessinc.com/articles/futex_cheat_sheet/\n    // Unlike FUTEX_WAIT, FUTEX_WAIT_BITSET uses absolute time.\n    auto err = syscall(\n        SYS_futex, reinterpret_cast<int32_t*>(v),\n        FUTEX_WAIT_BITSET | FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME, val,\n        ToFutexTimespec(abs_timeout, &ts), nullptr, FUTEX_BITSET_MATCH_ANY);\n    if (err != 0) {\n      return -errno;\n    }\n    return 0;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06443",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/futex.h",
+  "source_line": 107,
+  "validation_status": "validated"
+}

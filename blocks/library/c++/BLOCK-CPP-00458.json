@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/file_helper.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/sinks/base_sink.h>\n#include <chrono>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00458_execute() {\n    {\n    return Factory::template create<sinks::rotating_file_sink_st>(\n        logger_name, filename, max_file_size, max_files, rotate_on_open, event_handlers);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00458",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/rotating_file_sink.h",
+  "source_line": 75,
+  "validation_status": "validated"
+}

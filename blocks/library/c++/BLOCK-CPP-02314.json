@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/internal/low_level_alloc.h\"\n#include <type_traits>\n#include \"absl/base/call_once.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/direct_mmap.h\"\n#include \"absl/base/internal/scheduling_mode.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/thread_annotations.h\"\n#include <pthread.h>\n#include <signal.h>\n#include <sys/mman.h>\n#include <unistd.h>\n#include <windows.h>\n#include <sys/prctl.h>\n#include <string.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstddef>\n#include <new>  // for placement-new\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02314_execute() {\n    {\n    // Size of entire region, including this field. Must be\n    // first. Valid in both allocated and unallocated blocks.\n    uintptr_t size;\n\n    // kMagicAllocated or kMagicUnallocated xor this.\n    uintptr_t magic;\n\n    // Pointer to parent arena.\n    LowLevelAlloc::Arena *arena;\n\n    // Aligns regions to 0 mod 2*sizeof(void*).\n    void *dummy_for_alignment;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02314",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/low_level_alloc.cc",
+  "source_line": 77,
+  "validation_status": "validated"
+}

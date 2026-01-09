@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11297_execute() {\n    { return 0; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11297",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/MangleNumberingContext.h",
+  "source_line": 60,
+  "validation_status": "validated"
+}

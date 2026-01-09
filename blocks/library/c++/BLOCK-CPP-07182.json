@@ -1,0 +1,27 @@
+{
+  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07182_execute() {\n    {\n    Visit(T->getBaseType());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07182",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
+  "source_line": 383,
+  "validation_status": "validated",
+  "description": "C++ block with 22 lines of code implementing BLOCK-CPP-07182",
+  "short_desc": "C++ block with 22 lines of code implementing BLOCK-CPP-07182",
+  "input_types": "any",
+  "output_type": "void",
+  "keywords": [
+    "c++"
+  ],
+  "use_cases": [
+    "General c++ programming tasks"
+  ],
+  "related_blocks": [],
+  "avg_execution_ms": 10.0,
+  "max_memory_mb": 4,
+  "performance_tier": "medium",
+  "success_rate_percent": 100,
+  "avg_tokens_saved": 50,
+  "test_coverage_percent": 0,
+  "security_audited": false,
+  "stability": "stable"
+}

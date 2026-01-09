@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include <functional>\n#include <algorithm>\n#include <type_traits>\n#include <utility>\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace base_internal;\nusing namespace base_internal;\nusing namespace absl;\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04682_execute() {\n    {\n  // Callable doesn't have Accept because it's the last clause that gets picked\n  // when none of the previous clauses are applicable.\n  template <typename F, typename... Args>\n  static decltype(std::declval<F>()(std::declval<Args>()...)) Invoke(\n      F&& f, Args&&... args) {\n    return std::forward<F>(f)(std::forward<Args>(args)...);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04682",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/invoke.h",
+  "source_line": 179,
+  "validation_status": "validated"
+}

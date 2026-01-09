@@ -1,0 +1,8 @@
+{
+  "code": "{\n// This is a friend wrapper around UnscaledCycleClock::Now()\n// (needed to access UnscaledCycleClock).\nclass UnscaledCycleClockWrapperForGetCurrentTime {\n public:\n  static int64_t Now() { return base_internal::UnscaledCycleClock::Now(); }\n};\n}",
+  "id": "BLOCK-CPP-02170",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
+  "source_line": 90,
+  "validation_status": "validated"
+}

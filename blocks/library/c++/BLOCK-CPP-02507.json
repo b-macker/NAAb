@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02507_execute() {\n    {\n    return state_->recursion_depth > kRecursionDepthLimit ||\n           state_->steps > kParseStepsLimit;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02507",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 224,
+  "validation_status": "validated"
+}

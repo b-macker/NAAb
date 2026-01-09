@@ -1,0 +1,8 @@
+{
+  "code": "#include <functional>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace optional_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06631_execute() {\n    {\n  struct dummy_type {\n    static_assert(sizeof(T) % sizeof(empty_struct) == 0, \"\");\n    // Use an array to avoid GCC 6 placement-new warning.\n    empty_struct data[sizeof(T) / sizeof(empty_struct)];\n  };\n\n protected:\n  // Whether there is data or not.\n  bool engaged_;\n  // Data storage\n  union {\n    T data_;\n    dummy_type dummy_;\n  };\n\n  void destruct() noexcept {\n    if (engaged_) {\n      // `data_` must be initialized if `engaged_` is true.\n#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)\n#pragma GCC diagnostic push\n#pragma GCC diagnostic ignored \"-Wmaybe-uninitialized\"\n#endif\n      data_.~T();\n#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)\n#pragma GCC diagnostic pop\n#endif\n      engaged_ = false;\n    }\n  }\n\n  // dummy_ must be initialized for constexpr constructor.\n  constexpr optional_data_dtor_base() noexcept : engaged_(false), dummy_{{}} {}\n\n  template <typename... Args>\n  constexpr explicit optional_data_dtor_base(in_place_t, Args&&... args)\n      : engaged_(true), data_(absl::forward<Args>(args)...) {}\n\n  ~optional_data_dtor_base() { destruct(); }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06631",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/optional.h",
+  "source_line": 48,
+  "validation_status": "validated"
+}

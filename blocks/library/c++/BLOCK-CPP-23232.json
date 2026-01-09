@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeOrdering.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/MapVector.h\"\n#include \"llvm/ADT/SmallSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <list>\n#include <memory>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23232_execute() {\n    {\n  /// The base specifier that states the link from a derived\n  /// class to a base class, which will be followed by this base\n  /// path element.\n  const CXXBaseSpecifier *Base;\n\n  /// The record decl of the class that the base is a base of.\n  const CXXRecordDecl *Class;\n\n  /// Identifies which base class subobject (of type\n  /// \\c Base->getType()) this base path element refers to.\n  ///\n  /// This value is only valid if \\c !Base->isVirtual(), because there\n  /// is no base numbering for the zero or one virtual bases of a\n  /// given type.\n  int SubobjectNumber;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23232",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CXXInheritance.h",
+  "source_line": 44,
+  "validation_status": "validated"
+}

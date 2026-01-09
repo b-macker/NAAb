@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeNodes.inc\"\n#include \"clang/AST/TypeNodes.inc\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14581_execute() {\n    { return RetTy(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14581",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeVisitor.h",
+  "source_line": 87,
+  "validation_status": "validated"
+}

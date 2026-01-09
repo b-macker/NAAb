@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/btree.h\"  // IWYU pragma: export\n#include \"absl/container/internal/btree_container.h\"  // IWYU pragma: export\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace container_internal;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03473_execute() {\n    {\n    absl::allocator_traits<Alloc>::construct(*alloc, slot,\n                                             std::forward<Args>(args)...);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03473",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/btree_set.h",
+  "source_line": 777,
+  "validation_status": "validated"
+}

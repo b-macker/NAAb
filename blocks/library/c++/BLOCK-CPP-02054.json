@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\n\n// Return whether int *arg is zero.\nstatic bool IsZero(void *arg) {\n  return 0 == *reinterpret_cast<int *>(arg);\n}\n\nbool Barrier::Block() {\n  MutexLock l(&this->lock_);\n\n  this->num_to_block_--;\n  if (this->num_to_block_ < 0) {\n    ABSL_RAW_LOG(\n        FATAL,\n        \"Block() called too many times.  num_to_block_=%d out of total=%d\",\n        this->num_to_block_, this->num_to_exit_);\n  }\n\n  this->lock_.Await(Condition(IsZero, &this->num_to_block_));\n\n  // Determine which thread can safely delete this Barrier object\n  this->num_to_exit_--;\n  ABSL_RAW_CHECK(this->num_to_exit_ >= 0, \"barrier underflow\");\n\n  // If num_to_exit_ == 0 then all other threads in the barrier have\n  // exited the Wait() and have released the Mutex so this thread is\n  // free to delete the barrier.\n  return this->num_to_exit_ == 0;\n}\n\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-02054",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/barrier.cc",
+  "source_line": 20,
+  "validation_status": "validated"
+}

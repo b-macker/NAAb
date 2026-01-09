@@ -1,0 +1,8 @@
+{
+  "code": "#include <sys/time.h>\n#include <chrono>  // NOLINT(build/c++11)\n#include <cmath>\n#include <cstdint>\n#include <ctime>\n#include <limits>\n#include <ostream>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04428_execute() {\n    {\n    CivilSecond cs;\n    Duration subsecond;\n\n    // Note: The following fields exist for backward compatibility\n    // with older APIs.  Accessing these fields directly is a sign of\n    // imprudent logic in the calling code.  Modern time-related code\n    // should only access this data indirectly by way of FormatTime().\n    // These fields are undefined for InfiniteFuture() and InfinitePast().\n    int offset;             // seconds east of UTC\n    bool is_dst;            // is offset non-standard?\n    const char* zone_abbr;  // time-zone abbreviation (e.g., \"PST\")\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04428",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.h",
+  "source_line": 1083,
+  "validation_status": "validated"
+}

@@ -1,0 +1,39 @@
+# Test C++ Block Function Calling
+# Tests if we can compile, load, and call C++ block functions
+
+use BLOCK-CPP-MATH as math
+
+main {
+    print("================================================================")
+    print("  Testing C++ Block: BLOCK-CPP-MATH")
+    print("================================================================")
+    print()
+
+    print("Test 1: Addition - math.add(10, 20)")
+    let result1 = math.add(10, 20)
+    print("  Result:", result1)
+    print("  Expected: 30")
+    print()
+
+    print("Test 2: Multiplication - math.multiply(7, 8)")
+    let result2 = math.multiply(7, 8)
+    print("  Result:", result2)
+    print("  Expected: 56")
+    print()
+
+    print("Test 3: Maximum - math.max_val(42, 17)")
+    let result3 = math.max_val(42, 17)
+    print("  Result:", result3)
+    print("  Expected: 42")
+    print()
+
+    print("Test 4: Power - math.power(2.0, 8.0)")
+    let result4 = math.power(2.0, 8.0)
+    print("  Result:", result4)
+    print("  Expected: 256.0")
+    print()
+
+    print("================================================================")
+    print("  C++ Block Test Complete!")
+    print("================================================================")
+}

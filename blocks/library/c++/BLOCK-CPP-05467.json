@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include \"absl/base/attributes.h\"\n#include \"absl/debugging/internal/elf_mem_image.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05467_execute() {\n    { return image_.IsPresent(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05467",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/vdso_support.h",
+  "source_line": 79,
+  "validation_status": "validated"
+}

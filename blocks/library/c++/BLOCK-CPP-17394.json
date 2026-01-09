@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Linkage.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17394_execute() {\n    {\n    Visibility oldVis = getVisibility();\n\n    // Never increase visibility.\n    if (oldVis < newVis)\n      return;\n\n    // If the new visibility is the same as the old and the new\n    // visibility isn't explicit, we have nothing to add.\n    if (oldVis == newVis && !newExplicit)\n      return;\n\n    // Otherwise, we're either decreasing visibility or making our\n    // existing visibility explicit.\n    setVisibility(newVis, newExplicit);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17394",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Visibility.h",
+  "source_line": 111,
+  "validation_status": "validated"
+}

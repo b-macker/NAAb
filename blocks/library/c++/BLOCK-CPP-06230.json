@@ -1,0 +1,8 @@
+{
+  "code": "{\n  static void Append(string_type* s, size_t n) {\n    s->append(n, typename string_type::value_type());\n  }\n}",
+  "id": "BLOCK-CPP-06230",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/resize_uninitialized.h",
+  "source_line": 85,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/flags/usage_config.h\"\n#include <functional>\n#include <iostream>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/flags/internal/path_util.h\"\n#include \"absl/flags/internal/program_name.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01744_execute() {\n    {\n  // By default we only want flags in binary's main. We expect the main\n  // routine to reside in <program>.cc or <program>-main.cc or\n  // <program>_main.cc, where the <program> is the name of the binary\n  // (without .exe on Windows).\n  auto suffix = flags_internal::Basename(filename);\n  auto program_name = flags_internal::ShortProgramInvocationName();\n  absl::string_view program_name_ref = program_name;\n#if defined(_WIN32)\n  absl::ConsumeSuffix(&program_name_ref, \".exe\");\n#endif\n  if (!absl::ConsumePrefix(&suffix, program_name_ref))\n    return false;\n  return absl::StartsWith(suffix, \".\") || absl::StartsWith(suffix, \"-main.\") ||\n         absl::StartsWith(suffix, \"_main.\");\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01744",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/usage_config.cc",
+  "source_line": 52,
+  "validation_status": "validated"
+}

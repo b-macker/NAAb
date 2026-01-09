@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/low_level_alloc.h\"\n#include \"absl/synchronization/internal/graphcycles.h\"\n#include <algorithm>\n#include <array>\n#include <cinttypes>\n#include <limits>\n#include \"absl/base/internal/hide_ptr.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03166_execute() {\n    {\n  Sort(r->nodes_, &r->deltab_);\n  Sort(r->nodes_, &r->deltaf_);\n\n  // Adds contents of delta lists to list_ (backwards deltas first).\n  r->list_.clear();\n  MoveToList(r, &r->deltab_, &r->list_);\n  MoveToList(r, &r->deltaf_, &r->list_);\n\n  // Produce sorted list of all ranks that will be reassigned.\n  r->merged_.resize(r->deltab_.size() + r->deltaf_.size());\n  std::merge(r->deltab_.begin(), r->deltab_.end(),\n             r->deltaf_.begin(), r->deltaf_.end(),\n             r->merged_.begin());\n\n  // Assign the ranks in order to the collected list.\n  for (uint32_t i = 0; i < r->list_.size(); i++) {\n    r->nodes_[static_cast<uint32_t>(r->list_[i])]->rank = r->merged_[i];\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03166",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/graphcycles.cc",
+  "source_line": 588,
+  "validation_status": "validated"
+}

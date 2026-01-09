@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstdint>\n#include <cstdio>\n#include <limits>\n#include \"absl/base/config.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06350_execute() {\n    {\n        ABSL_FORMAT_PARSER_INTERNAL_GET_CHAR();\n        if (is_positional) {\n          if (ABSL_PREDICT_FALSE(c < '1' || c > '9')) return nullptr;\n          conv->precision.set_from_arg(ParseDigits(c, pos, end));\n          if (c != '$') return nullptr;\n          ABSL_FORMAT_PARSER_INTERNAL_GET_CHAR();\n        } else {\n          conv->precision.set_from_arg(++*next_arg);\n        }\n      }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06350",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/constexpr_parser.h",
+  "source_line": 284,
+  "validation_status": "validated"
+}

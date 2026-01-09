@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Edit/FileOffset.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <map>\n#include <tuple>\n#include <utility>\n\nusing namespace clang;\nusing namespace edit;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17956_execute() {\n    {\n    IdentifierInfo *Identifier;\n    SourceLocation ImmediateExpansionLoc;\n\n    // Location of argument use inside the top-level macro\n    SourceLocation UseLoc;\n\n    bool operator==(const MacroArgUse &Other) const {\n      return std::tie(Identifier, ImmediateExpansionLoc, UseLoc) ==\n             std::tie(Other.Identifier, Other.ImmediateExpansionLoc,\n                      Other.UseLoc);\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17956",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Edit/EditedSource.h",
+  "source_line": 51,
+  "validation_status": "validated"
+}

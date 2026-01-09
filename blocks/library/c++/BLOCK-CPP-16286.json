@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <optional>\n#include <vector>\n#include \"clang/Basic/DiagnosticCommonKinds.inc\"\n\nusing namespace clang;\nusing namespace diag;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16286_execute() {\n    { return HasNoWarningAsError; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16286",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticIDs.h",
+  "source_line": 134,
+  "validation_status": "validated"
+}

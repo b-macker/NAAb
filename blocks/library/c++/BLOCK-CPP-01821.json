@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/ascii.h\"\n#include <climits>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\nusing namespace ascii_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01821_execute() {\n    {\n  constexpr unsigned char sub = (ToUpper ? 'a' : 'A') - SCHAR_MIN;\n  constexpr signed char threshold = SCHAR_MIN + 26;  // 26 = alphabet size.\n  // Using unsigned arithmetic as overflows/underflows are well defined.\n  unsigned char u = c - sub;\n  // Using signed cmp, as SIMD unsigned cmp isn't available in many platforms.\n  return static_cast<signed char>(u) < threshold;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01821",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/ascii.cc",
+  "source_line": 182,
+  "validation_status": "validated"
+}

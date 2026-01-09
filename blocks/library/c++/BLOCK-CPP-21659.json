@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  Project(SExpr *R, const ValueDecl *Cvd)\n      : SExpr(COP_Project), Rec(R), Cvdecl(Cvd) {\n    assert(Cvd && \"ValueDecl must not be null\");\n  }\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Project; }\n\n  SExpr *record() { return Rec; }\n  const SExpr *record() const { return Rec; }\n\n  const ValueDecl *clangDecl() const { return Cvdecl; }\n\n  bool isArrow() const { return (Flags & 0x01) != 0; }\n\n  void setArrow(bool b) {\n    if (b) Flags |= 0x01;\n    else Flags &= 0xFFFE;\n  }\n\n  StringRef slotName() const {\n    if (Cvdecl->getDeclName().isIdentifier())\n      return Cvdecl->getName();\n    if (!SlotName) {\n      SlotName = \"\";\n      llvm::raw_string_ostream OS(*SlotName);\n      Cvdecl->printName(OS);\n    }\n    return *SlotName;\n  }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Nr = Vs.traverse(Rec, Vs.subExprCtx(Ctx));\n    return Vs.reduceProject(*this, Nr);\n  }\n\n  template <class C>\n  typename C::CType compare(const Project* E, C& Cmp) const {\n    typename C::CType Ct = Cmp.compare(record(), E->record());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.comparePointers(Cvdecl, E->Cvdecl);\n  }\n\nprivate:\n  SExpr* Rec;\n  mutable std::optional<std::string> SlotName;\n  const ValueDecl *Cvdecl;\n}",
+  "id": "BLOCK-CPP-21659",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 921,
+  "validation_status": "validated"
+}

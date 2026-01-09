@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/ASTDumperUtils.h\"\n#include \"clang/AST/ASTNodeTraverser.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/ExprConcepts.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/Mangle.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/Support/JSON.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11243_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11243",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/JSONNodeDumper.h",
+  "source_line": 108,
+  "validation_status": "validated"
+}

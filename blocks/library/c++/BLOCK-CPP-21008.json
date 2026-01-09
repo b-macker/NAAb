@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <algorithm>\n#include <cassert>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21008_execute() {\n    {\n    bool operator ()(const_reference L, Int R) const {\n      return L.first < R;\n    }\n    bool operator ()(Int L, const_reference R) const {\n      return L < R.first;\n    }\n    bool operator ()(Int L, Int R) const {\n      return L < R;\n    }\n    bool operator ()(const_reference L, const_reference R) const {\n      return L.first < R.first;\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21008",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ContinuousRangeMap.h",
+  "source_line": 50,
+  "validation_status": "validated"
+}

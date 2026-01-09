@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Tooling/Core/Diagnostic.h\"\n#include \"clang/Tooling/ReplacementsYaml.h\"\n#include \"llvm/Support/YAMLTraits.h\"\n#include <string>\n\nusing namespace llvm;\nusing namespace yaml;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21154_execute() {\n    {\n    MappingNormalization<NormalizedDiagnostic, clang::tooling::Diagnostic> Keys(\n        Io, D);\n    Io.mapRequired(\"DiagnosticName\", Keys->DiagnosticName);\n    Io.mapRequired(\"DiagnosticMessage\", Keys->Message);\n    Io.mapOptional(\"Notes\", Keys->Notes);\n    Io.mapOptional(\"Level\", Keys->DiagLevel);\n    Io.mapOptional(\"BuildDirectory\", Keys->BuildDirectory);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21154",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/DiagnosticsYaml.h",
+  "source_line": 84,
+  "validation_status": "validated"
+}

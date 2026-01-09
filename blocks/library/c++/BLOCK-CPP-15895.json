@@ -1,0 +1,8 @@
+{
+  "code": "{ // Traits specialization for DenseMap\n\ntemplate <> struct DenseMapInfo<clang::ProgramPoint> {\n\nstatic inline clang::ProgramPoint getEmptyKey() {\n  uintptr_t x =\n   reinterpret_cast<uintptr_t>(DenseMapInfo<void*>::getEmptyKey()) & ~0x7;\n  return clang::BlockEntrance(reinterpret_cast<clang::CFGBlock*>(x), nullptr);\n}\n\nstatic inline clang::ProgramPoint getTombstoneKey() {\n  uintptr_t x =\n   reinterpret_cast<uintptr_t>(DenseMapInfo<void*>::getTombstoneKey()) & ~0x7;\n  return clang::BlockEntrance(reinterpret_cast<clang::CFGBlock*>(x), nullptr);\n}\n\nstatic unsigned getHashValue(const clang::ProgramPoint &Loc) {\n  return Loc.getHashValue();\n}\n\nstatic bool isEqual(const clang::ProgramPoint &L,\n                    const clang::ProgramPoint &R) {\n  return L == R;\n}\n\n};\n\n}",
+  "id": "BLOCK-CPP-15895",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 750,
+  "validation_status": "validated"
+}

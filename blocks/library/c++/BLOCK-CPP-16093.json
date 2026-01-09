@@ -1,0 +1,8 @@
+{
+  "code": "using namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16093_execute() {\n    {\n  UNUSED,\n  UNKNOWN,\n  SM_20,\n  SM_21,\n  SM_30,\n  SM_32,\n  SM_35,\n  SM_37,\n  SM_50,\n  SM_52,\n  SM_53,\n  SM_60,\n  SM_61,\n  SM_62,\n  SM_70,\n  SM_72,\n  SM_75,\n  SM_80,\n  SM_86,\n  SM_87,\n  SM_89,\n  SM_90,\n  GFX600,\n  GFX601,\n  GFX602,\n  GFX700,\n  GFX701,\n  GFX702,\n  GFX703,\n  GFX704,\n  GFX705,\n  GFX801,\n  GFX802,\n  GFX803,\n  GFX805,\n  GFX810,\n  GFX900,\n  GFX902,\n  GFX904,\n  GFX906,\n  GFX908,\n  GFX909,\n  GFX90a,\n  GFX90c,\n  GFX940,\n  GFX941,\n  GFX942,\n  GFX1010,\n  GFX1011,\n  GFX1012,\n  GFX1013,\n  GFX1030,\n  GFX1031,\n  GFX1032,\n  GFX1033,\n  GFX1034,\n  GFX1035,\n  GFX1036,\n  GFX1100,\n  GFX1101,\n  GFX1102,\n  GFX1103,\n  GFX1150,\n  GFX1151,\n  Generic, // A processor model named 'generic' if the target backend defines a\n           // public one.\n  LAST,\n\n  CudaDefault = CudaArch::SM_35,\n  HIPDefault = CudaArch::GFX803,\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16093",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Cuda.h",
+  "source_line": 51,
+  "validation_status": "validated"
+}

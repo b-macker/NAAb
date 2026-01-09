@@ -1,0 +1,8 @@
+{
+  "code": "{\n    unsigned RefCount;\n    char Data[1];  //  Variable sized.\n\n    void Retain() { ++RefCount; }\n\n    void Release() {\n      assert(RefCount > 0 && \"Reference count is already zero.\");\n      if (--RefCount == 0)\n        delete [] (char*)this;\n    }\n  }",
+  "id": "BLOCK-CPP-22146",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/RewriteRope.h",
+  "source_line": 33,
+  "validation_status": "validated"
+}

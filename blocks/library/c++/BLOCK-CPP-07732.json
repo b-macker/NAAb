@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07732_execute() {\n    {\n  /// The CXXDefaultArgExpr or CXXDefaultInitExpr we're currently evaluating.\n  const Expr *DefaultExpr = nullptr;\n\npublic:\n  /// A RAII style scope guard used for tracking the current source\n  /// location and context as used by the source location builtins\n  /// (ex. __builtin_LINE).\n  class SourceLocExprScopeGuard;\n\n  const Expr *getDefaultExpr() const { return DefaultExpr; }\n\n  explicit CurrentSourceLocExprScope() = default;\n\nprivate:\n  explicit CurrentSourceLocExprScope(const Expr *DefaultExpr)\n      : DefaultExpr(DefaultExpr) {}\n\n  CurrentSourceLocExprScope(CurrentSourceLocExprScope const &) = default;\n  CurrentSourceLocExprScope &\n  operator=(CurrentSourceLocExprScope const &) = default;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07732",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CurrentSourceLocExprScope.h",
+  "source_line": 25,
+  "validation_status": "validated"
+}

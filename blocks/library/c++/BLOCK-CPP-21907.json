@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Analysis/FlowSensitive/ControlFlowContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowAnalysisContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowLattice.h\"\n#include \"clang/Analysis/FlowSensitive/Formula.h\"\n#include \"clang/Analysis/FlowSensitive/Logger.h\"\n#include \"clang/Analysis/FlowSensitive/StorageLocation.h\"\n#include \"clang/Analysis/FlowSensitive/Value.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/MapVector.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include <memory>\n#include <type_traits>\n#include <utility>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21907_execute() {\n    { LocToVal.erase(&Loc); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21907",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DataflowEnvironment.h",
+  "source_line": 464,
+  "validation_status": "validated"
+}

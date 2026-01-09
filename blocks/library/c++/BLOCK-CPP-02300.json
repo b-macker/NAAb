@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/internal/low_level_alloc.h\"\n#include <type_traits>\n#include \"absl/base/call_once.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/direct_mmap.h\"\n#include \"absl/base/internal/scheduling_mode.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/thread_annotations.h\"\n#include <pthread.h>\n#include <signal.h>\n#include <sys/mman.h>\n#include <unistd.h>\n#include <windows.h>\n#include <sys/prctl.h>\n#include <string.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstddef>\n#include <new>  // for placement-new\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02300_execute() {\n    {\n  AllocList *found = LLA_SkiplistSearch(head, e, prev);\n  ABSL_RAW_CHECK(e == found, \"element not in freelist\");\n  for (int i = 0; i != e->levels && prev[i]->next[i] == e; i++) {\n    prev[i]->next[i] = e->next[i];\n  }\n  while (head->levels > 0 && head->next[head->levels - 1] == nullptr) {\n    head->levels--;  // reduce head->levels if level unused\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02300",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/low_level_alloc.cc",
+  "source_line": 185,
+  "validation_status": "validated"
+}

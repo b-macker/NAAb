@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02519_execute() {\n    {\n  for (size_t i = 0; i < length; ++i) {\n    if (state->parse_state.out_cur_idx + 1 <\n        state->out_end_idx) {  // +1 for '\\0'\n      state->out[state->parse_state.out_cur_idx++] = str[i];\n    } else {\n      // signal overflow\n      state->parse_state.out_cur_idx = state->out_end_idx + 1;\n      break;\n    }\n  }\n  if (state->parse_state.out_cur_idx < state->out_end_idx) {\n    state->out[state->parse_state.out_cur_idx] =\n        '\\0';  // Terminate it with '\\0'\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02519",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 369,
+  "validation_status": "validated"
+}

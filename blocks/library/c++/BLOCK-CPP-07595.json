@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"clang/AST/CommentNodes.inc\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07595_execute() {\n    {\n    if (ParagraphCommentBits.IsWhitespaceValid)\n      return ParagraphCommentBits.IsWhitespace;\n\n    ParagraphCommentBits.IsWhitespace = isWhitespaceNoCache();\n    ParagraphCommentBits.IsWhitespaceValid = true;\n    return ParagraphCommentBits.IsWhitespace;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07595",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 572,
+  "validation_status": "validated"
+}

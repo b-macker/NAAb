@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_spinlock_wait.a CMakeFiles/absl_spinlock_wait.dir/internal/spinlock_wait.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_spinlock_wait.a

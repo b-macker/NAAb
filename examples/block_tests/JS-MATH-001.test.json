@@ -1,0 +1,40 @@
+{
+  "block_id": "JS-MATH-001",
+  "language": "javascript",
+  "setup_code": "",
+  "tests": [
+    {
+      "name": "add_positive_numbers",
+      "code": "function add(a, b) { return a + b; }",
+      "assertions": [
+        {
+          "type": "equals",
+          "value_expr": "add(5, 3)",
+          "expected": "8"
+        }
+      ]
+    },
+    {
+      "name": "multiply_numbers",
+      "code": "function multiply(a, b) { return a * b; }",
+      "assertions": [
+        {
+          "type": "equals",
+          "value_expr": "multiply(7, 6)",
+          "expected": "42"
+        }
+      ]
+    },
+    {
+      "name": "divide_numbers",
+      "code": "function divide(a, b) { if (b === 0) return 0; return a / b; }",
+      "assertions": [
+        {
+          "type": "equals",
+          "value_expr": "divide(10, 2)",
+          "expected": "5"
+        }
+      ]
+    }
+  ]
+}

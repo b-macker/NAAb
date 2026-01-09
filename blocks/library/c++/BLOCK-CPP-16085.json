@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/XRayInstr.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/Frontend/Debug/Options.h\"\n#include \"llvm/Support/CodeGen.h\"\n#include \"llvm/Support/Regex.h\"\n#include \"llvm/Target/TargetOptions.h\"\n#include \"llvm/Transforms/Instrumentation/AddressSanitizerOptions.h\"\n#include <map>\n#include <memory>\n#include <string>\n#include <vector>\n#include \"clang/Basic/CodeGenOptions.def\"\n#include \"clang/Basic/CodeGenOptions.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16085_execute() {\n    {\n    Auto, // Choose Swift async extended frame info based on deployment target.\n    Always, // Unconditionally emit Swift async extended frame info.\n    Never,  // Don't emit Swift async extended frame info.\n    Default = Always,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16085",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CodeGenOptions.h",
+  "source_line": 154,
+  "validation_status": "validated"
+}

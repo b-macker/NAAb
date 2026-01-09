@@ -1,0 +1,8 @@
+{
+  "code": "#include <winsock2.h>  // for timeval\n#include <algorithm>\n#include <cassert>\n#include <chrono>  // NOLINT(build/c++11)\n#include <cmath>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <ctime>\n#include <functional>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02181_execute() {\n    {\n  const uint128 a = MakeU128Ticks(d);\n  const uint128 b = MakeU128(r);\n  const uint128 q = Operation<uint128>()(a, b);\n  const bool is_neg = (time_internal::GetRepHi(d) < 0) != (r < 0);\n  return MakeDurationFromU128(q, is_neg);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02181",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/duration.cc",
+  "source_line": 229,
+  "validation_status": "validated"
+}

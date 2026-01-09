@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/has_absl_stringify.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06211_execute() {\n    {\n\n// This exists to fix a circular dependency problem with the GoogleTest release.\n// GoogleTest referenced this internal file and this internal trait.  Since\n// simultaneous releases are not possible since once release must reference\n// another, we will temporarily add this back.\n// https://github.com/google/googletest/blob/v1.14.x/googletest/include/gtest/gtest-printers.h#L119\n//\n// This file can be deleted after the next Abseil and GoogleTest release.\n//\n// https://github.com/google/googletest/pull/4368#issuecomment-1717699895\n// https://github.com/google/googletest/pull/4368#issuecomment-1717699895\nusing ::absl::HasAbslStringify;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06211",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/has_absl_stringify.h",
+  "source_line": 25,
+  "validation_status": "validated"
+}

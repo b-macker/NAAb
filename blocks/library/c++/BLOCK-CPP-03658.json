@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/log/internal/vlog_config.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03658_execute() {\n    {\n\n// ScopedMinLogLevel\n//\n// RAII type used to temporarily update the Min Log Level parameter.\nclass ScopedMinLogLevel final {\n public:\n  explicit ScopedMinLogLevel(absl::LogSeverityAtLeast severity);\n  ScopedMinLogLevel(const ScopedMinLogLevel&) = delete;\n  ScopedMinLogLevel& operator=(const ScopedMinLogLevel&) = delete;\n  ~ScopedMinLogLevel();\n\n private:\n  absl::LogSeverityAtLeast saved_severity_;\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03658",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/globals.h",
+  "source_line": 54,
+  "validation_status": "validated"
+}

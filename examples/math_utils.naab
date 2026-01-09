@@ -1,0 +1,44 @@
+# Math utility functions for basic arithmetic and calculations
+
+# Add two numbers
+# @param a First number
+# @param b Second number
+# @return Sum of a and b
+# @example add(5, 3) # Returns 8
+fn add(a, b) {
+    return a + b
+}
+
+# Subtract two numbers
+# @param a Number to subtract from
+# @param b Number to subtract
+# @return Difference of a and b
+fn subtract(a, b) {
+    return a - b
+}
+
+# Multiply two numbers
+# @param x First number
+# @param y Second number
+# @return Product of x and y
+# @example multiply(4, 5) # Returns 20
+fn multiply(x, y) {
+    return x * y
+}
+
+# Calculate factorial of a number
+# @param n Non-negative integer
+# @return Factorial of n (n!)
+fn factorial(n) {
+    if (n == 0 || n == 1) {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+# Check if a number is even
+# @param num Number to check
+# @return true if even, false otherwise
+fn isEven(num) {
+    return num % 2 == 0
+}

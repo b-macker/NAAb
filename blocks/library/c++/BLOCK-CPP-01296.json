@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01296_execute() {\n    {\n  int num_digits = count_digits<4>(value);\n  auto size = to_unsigned(num_digits) + size_t(2);\n  auto write = [=](reserve_iterator<OutputIt> it) {\n    *it++ = static_cast<Char>('0');\n    *it++ = static_cast<Char>('x');\n    return format_uint<4, Char>(it, value, num_digits);\n  };\n  return specs ? write_padded<align::right>(out, *specs, size, write)\n               : base_iterator(out, write(reserve(out, size)));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01296",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 1688,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/numeric/int128.h\"\n#include <stddef.h>\n#include <cassert>\n#include <iomanip>\n#include <ostream>  // NOLINT(readability/streams)\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01796_execute() {\n    {\n  // Conversion when v is NaN or cannot fit into int128 would be undefined\n  // behavior if using an intrinsic 128-bit integer.\n  assert(std::isfinite(v) && (std::numeric_limits<T>::max_exponent <= 127 ||\n                              (v >= -std::ldexp(static_cast<T>(1), 127) &&\n                               v < std::ldexp(static_cast<T>(1), 127))));\n\n  // We must convert the absolute value and then negate as needed, because\n  // floating point types are typically sign-magnitude. Otherwise, the\n  // difference between the high and low 64 bits when interpreted as two's\n  // complement overwhelms the precision of the mantissa.\n  uint128 result = v < 0 ? -MakeUint128FromFloat(-v) : MakeUint128FromFloat(v);\n  return MakeInt128(int128_internal::BitCastToSigned(Uint128High64(result)),\n                    Uint128Low64(result));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01796",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/int128.cc",
+  "source_line": 244,
+  "validation_status": "validated"
+}

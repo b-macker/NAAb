@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/gaussian_distribution.h\"\n#include <cmath>\n#include <cstddef>\n#include <iostream>\n#include <limits>\n#include <string>\n#include \"absl/base/macros.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02775_execute() {\n    {\n    double v = (kV / tables_.x[i - 1]) + tables_.f[i - 1];\n    tables_.x[i] = f_inv(v);\n    tables_.f[i] = v;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02775",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/gaussian_distribution_gentables.cc",
+  "source_line": 99,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00486_execute() {\n    def set_ctx(self, ctx: str) -> \"Node\":\n        \"\"\"Reset the context of a node and all child nodes.  Per default the\n        parser will all generate nodes that have a 'load' context as it's the\n        most common one.  This method is used in the parser to set assignment\n        targets and other nodes to a store context.\n        \"\"\"\n        todo = deque([self])\n        while todo:\n            node = todo.popleft()\n            if \"ctx\" in node.fields:\n                node.ctx = ctx  # type: ignore\n            todo.extend(node.iter_child_nodes())\n        return self\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00486",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 206,
+  "validation_status": "validated"
+}

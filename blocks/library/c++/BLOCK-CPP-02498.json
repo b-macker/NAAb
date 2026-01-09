@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace debugging_internal {\n\n// On platforms other than Linux, just return true.\nbool AddressIsReadable(const void* /* addr */) { return true; }\n\n}  // namespace debugging_internal\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-02498",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/address_is_readable.cc",
+  "source_line": 22,
+  "validation_status": "validated"
+}

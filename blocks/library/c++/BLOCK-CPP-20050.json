@@ -1,0 +1,8 @@
+{
+  "code": "{\n    enum FailureKind {\n      no_conversion,\n      unrelated_class,\n      bad_qualifiers,\n      lvalue_ref_to_rvalue,\n      rvalue_ref_to_lvalue,\n      too_few_initializers,\n      too_many_initializers,\n    };\n\n    // This can be null, e.g. for implicit object arguments.\n    Expr *FromExpr;\n\n    FailureKind Kind;\n\n  private:\n    // The type we're converting from (an opaque QualType).\n    void *FromTy;\n\n    // The type we're converting to (an opaque QualType).\n    void *ToTy;\n\n  public:\n    void init(FailureKind K, Expr *From, QualType To) {\n      init(K, From->getType(), To);\n      FromExpr = From;\n    }\n\n    void init(FailureKind K, QualType From, QualType To) {\n      Kind = K;\n      FromExpr = nullptr;\n      setFromType(From);\n      setToType(To);\n    }\n\n    QualType getFromType() const { return QualType::getFromOpaquePtr(FromTy); }\n    QualType getToType() const { return QualType::getFromOpaquePtr(ToTy); }\n\n    void setFromExpr(Expr *E) {\n      FromExpr = E;\n      setFromType(E->getType());\n    }\n\n    void setFromType(QualType T) { FromTy = T.getAsOpaquePtr(); }\n    void setToType(QualType T) { ToTy = T.getAsOpaquePtr(); }\n  }",
+  "id": "BLOCK-CPP-20050",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Overload.h",
+  "source_line": 468,
+  "validation_status": "validated"
+}

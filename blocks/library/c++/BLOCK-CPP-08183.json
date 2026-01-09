@@ -1,0 +1,8 @@
+{
+  "code": "{\n  StringLiteral *AsmString;\n  SourceLocation RParenLoc;\n\n  FileScopeAsmDecl(DeclContext *DC, StringLiteral *asmstring,\n                   SourceLocation StartL, SourceLocation EndL)\n    : Decl(FileScopeAsm, DC, StartL), AsmString(asmstring), RParenLoc(EndL) {}\n\n  virtual void anchor();\n\npublic:\n  static FileScopeAsmDecl *Create(ASTContext &C, DeclContext *DC,\n                                  StringLiteral *Str, SourceLocation AsmLoc,\n                                  SourceLocation RParenLoc);\n\n  static FileScopeAsmDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  SourceLocation getAsmLoc() const { return getLocation(); }\n  SourceLocation getRParenLoc() const { return RParenLoc; }\n  void setRParenLoc(SourceLocation L) { RParenLoc = L; }\n  SourceRange getSourceRange() const override LLVM_READONLY {\n    return SourceRange(getAsmLoc(), getRParenLoc());\n  }\n\n  const StringLiteral *getAsmString() const { return AsmString; }\n  StringLiteral *getAsmString() { return AsmString; }\n  void setAsmString(StringLiteral *Asm) { AsmString = Asm; }\n\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == FileScopeAsm; }\n}",
+  "id": "BLOCK-CPP-08183",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Decl.h",
+  "source_line": 4301,
+  "validation_status": "validated"
+}

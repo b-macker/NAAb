@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16344_execute() {\n    {\n  return ESpecType >= EST_DynamicNone && ESpecType <= EST_MSAny;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16344",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/ExceptionSpecificationType.h",
+  "source_line": 35,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <memory>\n#include <vector>\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/crc/internal/crc.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05426_execute() {\n    {\n  // shift 2 by len-1 rather than 1 by len because shifts of wordsize\n  // are undefined.\n  return (T(2) << (len - 1)) - 1;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05426",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_internal.h",
+  "source_line": 142,
+  "validation_status": "validated"
+}

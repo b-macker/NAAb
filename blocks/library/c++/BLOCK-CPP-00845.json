@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00845_execute() {\n    {\n  FMT_CONSTEXPR rgb() : r(0), g(0), b(0) {}\n  FMT_CONSTEXPR rgb(uint8_t r_, uint8_t g_, uint8_t b_) : r(r_), g(g_), b(b_) {}\n  FMT_CONSTEXPR rgb(uint32_t hex)\n      : r((hex >> 16) & 0xFF), g((hex >> 8) & 0xFF), b(hex & 0xFF) {}\n  FMT_CONSTEXPR rgb(color hex)\n      : r((uint32_t(hex) >> 16) & 0xFF),\n        g((uint32_t(hex) >> 8) & 0xFF),\n        b(uint32_t(hex) & 0xFF) {}\n  uint8_t r;\n  uint8_t g;\n  uint8_t b;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00845",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
+  "source_line": 192,
+  "validation_status": "validated"
+}

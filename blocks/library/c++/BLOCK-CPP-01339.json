@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01339_execute() {\n    {\n  // Buffer is large enough to hold digits (digits10 + 1) and a decimal point.\n  Char buffer[digits10<UInt>() + 2];\n  auto end = write_significand(buffer, significand, significand_size,\n                               integral_size, decimal_point);\n  return detail::copy_str_noinline<Char>(buffer, end, out);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01339",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 2319,
+  "validation_status": "validated"
+}

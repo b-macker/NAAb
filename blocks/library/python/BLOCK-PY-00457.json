@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00457_execute() {\n    class And(BinExpr):\n    \"\"\"Short circuited AND.\"\"\"\n\n    operator = \"and\"\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        return self.left.as_const(eval_ctx) and self.right.as_const(eval_ctx)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00457",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 987,
+  "validation_status": "validated"
+}

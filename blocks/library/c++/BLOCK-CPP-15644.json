@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15644_execute() {\n    {\npublic:\n  CodeInjector();\n  virtual ~CodeInjector();\n\n  virtual Stmt *getBody(const FunctionDecl *D) = 0;\n  virtual Stmt *getBody(const ObjCMethodDecl *D) = 0;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15644",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CodeInjector.h",
+  "source_line": 35,
+  "validation_status": "validated"
+}

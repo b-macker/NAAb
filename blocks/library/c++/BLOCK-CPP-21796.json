@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  // R_SExpr is the result type for a traversal.\n  // A copy or non-destructive rewrite returns a newly allocated term.\n  using R_SExpr = SExpr *;\n  using R_BasicBlock = BasicBlock *;\n\n  // Container is a minimal interface used to store results when traversing\n  // SExprs of variable arity, such as Phi, Goto, and SCFG.\n  template <class T> class Container {\n  public:\n    // Allocate a new container with a capacity for n elements.\n    Container(CopyReducerBase &S, unsigned N) : Elems(S.Arena, N) {}\n\n    // Push a new element onto the container.\n    void push_back(T E) { Elems.push_back(E); }\n\n    SimpleArray<T> Elems;\n  };\n\n  CopyReducerBase(MemRegionRef A) : Arena(A) {}\n\nprotected:\n  MemRegionRef Arena;\n}",
+  "id": "BLOCK-CPP-21796",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTraverse.h",
+  "source_line": 138,
+  "validation_status": "validated"
+}

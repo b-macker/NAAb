@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19781_execute() {\n    {\n    Expr *Index;\n\n    // The location of the '[' in the designated initializer.\n    SourceLocation LBracketLoc;\n\n    // The location of the ']' in the designated initializer.\n    mutable SourceLocation RBracketLoc;\n\n    ArrayDesignatorInfo(Expr *Index, SourceLocation LBracketLoc)\n        : Index(Index), LBracketLoc(LBracketLoc) {}\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19781",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Designator.h",
+  "source_line": 56,
+  "validation_status": "validated"
+}

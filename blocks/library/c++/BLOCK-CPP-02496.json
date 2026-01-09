@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/address_is_readable.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02496_execute() {\n    { return true; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02496",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/address_is_readable.cc",
+  "source_line": 27,
+  "validation_status": "validated"
+}

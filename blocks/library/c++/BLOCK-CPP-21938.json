@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/STLFunctionalExtras.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <cassert>\n#include <string>\n#include <type_traits>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21938_execute() {\n    {\n    switch (K) {\n    case AtomRef:\n      return 0;\n    case Not:\n      return 1;\n    case And:\n    case Or:\n    case Implies:\n    case Equal:\n      return 2;\n    }\n    llvm_unreachable(\"Unhandled Formula::Kind enum\");\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21938",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Formula.h",
+  "source_line": 95,
+  "validation_status": "validated"
+}

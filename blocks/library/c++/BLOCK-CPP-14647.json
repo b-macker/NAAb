@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/BaseSubobject.h\"\n#include \"clang/AST/CXXInheritance.h\"\n#include \"clang/AST/GlobalDecl.h\"\n#include \"clang/AST/RecordLayout.h\"\n#include \"clang/Basic/ABI.h\"\n#include \"clang/Basic/Thunk.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <memory>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14647_execute() {\n    {\n    if (VTableIndices.empty()) {\n      assert(i == 0);\n      return vtable_components().size();\n    }\n\n    size_t thisIndex = VTableIndices[i];\n    size_t nextIndex = (i + 1 == VTableIndices.size())\n                           ? vtable_components().size()\n                           : VTableIndices[i + 1];\n    return nextIndex - thisIndex;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14647",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/VTableBuilder.h",
+  "source_line": 307,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <exception>\n#include <functional>\n#include <initializer_list>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_any_invocable;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05587_execute() {\n    {\n    // unique_ptr is used for exception-safety in case construction throws.\n    std::unique_ptr<void, TrivialDeleter> uninitialized_target(\n        ::operator new(sizeof(T)), TrivialDeleter(sizeof(T)));\n    ::new (uninitialized_target.get()) T(std::forward<Args>(args)...);\n    state_.remote.target = uninitialized_target.release();\n    state_.remote.size = sizeof(T);\n    manager_ = RemoteManagerTrivial;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05587",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/internal/any_invocable.h",
+  "source_line": 621,
+  "validation_status": "validated"
+}

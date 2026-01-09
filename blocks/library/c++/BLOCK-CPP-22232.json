@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/PathDiagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <string>\n#include <utility>\n#include <vector>\n#include \"clang/StaticAnalyzer/Core/Analyses.def\"\n#include \"clang/StaticAnalyzer/Core/Analyses.def\"\n#include \"clang/StaticAnalyzer/Core/Analyses.def\"\n#include \"clang/StaticAnalyzer/Core/Analyses.def\"\n\nusing namespace clang;\nusing namespace ento;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22232_execute() {\n    {\n  DFS,\n  BFS,\n  UnexploredFirst,\n  UnexploredFirstQueue,\n  UnexploredFirstLocationQueue,\n  BFSBlockDFSContents,\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22232",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/AnalyzerOptions.h",
+  "source_line": 107,
+  "validation_status": "validated"
+}

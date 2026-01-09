@@ -1,0 +1,8 @@
+{
+  "code": "{\n    ///    }\n    ///    template <typename T>\n    ///    T foo(int aaaaaaaaaaaaaaaaaaaaa,\n    ///          int bbbbbbbbbbbbbbbbbbbbb) {\n    ///    }\n    /// \\endcode\n    BTDS_MultiLine,\n    /// Always break after template declaration.\n    /// \\code\n    ///    template <typename T>\n    ///    T foo() {\n    ///    }\n    ///    template <typename T>\n    ///    T foo(int aaaaaaaaaaaaaaaaaaaaa,\n    ///          int bbbbbbbbbbbbbbbbbbbbb) {\n    ///    }\n    /// \\endcode\n    BTDS_Yes\n  }",
+  "id": "BLOCK-CPP-18055",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
+  "source_line": 942,
+  "validation_status": "validated"
+}

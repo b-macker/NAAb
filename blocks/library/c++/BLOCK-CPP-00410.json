@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/circular_q.h>\n#include <spdlog/details/file_helper.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/os.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/fmt/fmt.h>\n#include <spdlog/sinks/base_sink.h>\n#include <chrono>\n#include <cstdio>\n#include <ctime>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00410_execute() {\n    {\n        using details::os::filename_to_str;\n        using details::os::remove_if_exists;\n\n        filename_t current_file = file_helper_.filename();\n        if (filenames_q_.full()) {\n            auto old_filename = std::move(filenames_q_.front());\n            filenames_q_.pop_front();\n            bool ok = remove_if_exists(old_filename) == 0;\n            if (!ok) {\n                filenames_q_.push_back(std::move(current_file));\n                SPDLOG_THROW(spdlog_ex(\n                    \"Failed removing hourly file \" + filename_to_str(old_filename), errno));\n            }\n        }\n        filenames_q_.push_back(std::move(current_file));\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00410",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/hourly_file_sink.h",
+  "source_line": 137,
+  "validation_status": "validated"
+}

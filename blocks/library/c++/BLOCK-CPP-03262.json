@@ -1,0 +1,8 @@
+{
+  "code": "#include \"time_zone_posix.h\"\n#include <cstddef>\n#include <cstring>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03262_execute() {\n    {\n  const char* p = spec.c_str();\n  if (*p == ':') return false;\n\n  p = ParseAbbr(p, &res->std_abbr);\n  p = ParseOffset(p, 0, 24, -1, &res->std_offset);\n  if (p == nullptr) return false;\n  if (*p == '\\0') return true;\n\n  p = ParseAbbr(p, &res->dst_abbr);\n  if (p == nullptr) return false;\n  res->dst_offset = res->std_offset + (60 * 60);  // default\n  if (*p != ',') p = ParseOffset(p, 0, 24, -1, &res->dst_offset);\n\n  p = ParseDateTime(p, &res->dst_start);\n  p = ParseDateTime(p, &res->dst_end);\n\n  return p != nullptr && *p == '\\0';\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03262",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_posix.cc",
+  "source_line": 136,
+  "validation_status": "validated"
+}

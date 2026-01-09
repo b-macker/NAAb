@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include <cassert>\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15862_execute() {\n    {\n  uintptr_t x =\n   reinterpret_cast<uintptr_t>(DenseMapInfo<void*>::getEmptyKey()) & ~0x7;\n  return clang::BlockEntrance(reinterpret_cast<clang::CFGBlock*>(x), nullptr);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15862",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 754,
+  "validation_status": "validated"
+}

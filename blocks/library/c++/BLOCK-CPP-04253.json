@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iosfwd>\n#include <iterator>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"\n#include <string_view>  // IWYU pragma: export\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04253_execute() {\n    {\n  return p ? string_view(p) : string_view();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04253",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/string_view.h",
+  "source_line": 762,
+  "validation_status": "validated"
+}

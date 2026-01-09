@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00355_execute() {\n    class _FinalizeInfo(t.NamedTuple):\n        const: t.Callable[..., str] | None\n        src: str | None\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00355",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1380,
+  "validation_status": "validated"
+}

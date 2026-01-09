@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04679_execute() {\n    {\n\n// This is a back-fill of C++20's `std::type_identity`.\ntemplate <typename T>\nstruct type_identity {\n  typedef T type;\n};\n\n// This is a back-fill of C++20's `std::type_identity_t`.\ntemplate <typename T>\nusing type_identity_t = typename type_identity<T>::type;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04679",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/identity.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

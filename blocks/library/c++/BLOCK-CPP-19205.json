@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19205_execute() {\n    {\n      return Ident__VA_OPT__ && T.getIdentifierInfo() == Ident__VA_OPT__;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19205",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/VariadicMacroSupport.h",
+  "source_line": 77,
+  "validation_status": "validated"
+}

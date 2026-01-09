@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00420_execute() {\n    class Import(Stmt):\n    \"\"\"A node that represents the import tag.\"\"\"\n\n    fields = (\"template\", \"target\", \"with_context\")\n    template: \"Expr\"\n    target: str\n    with_context: bool\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00420",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 416,
+  "validation_status": "validated"
+}

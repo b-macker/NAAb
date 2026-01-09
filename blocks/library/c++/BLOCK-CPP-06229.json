@@ -1,0 +1,8 @@
+{
+  "code": "{\n  using HasMember = std::false_type;\n  static void Resize(string_type* s, size_t new_size) { s->resize(new_size); }\n}",
+  "id": "BLOCK-CPP-06229",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/resize_uninitialized.h",
+  "source_line": 35,
+  "validation_status": "validated"
+}

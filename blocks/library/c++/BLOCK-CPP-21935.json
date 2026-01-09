@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/STLFunctionalExtras.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <cassert>\n#include <string>\n#include <type_traits>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21935_execute() {\n    { return FormulaKind; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21935",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Formula.h",
+  "source_line": 67,
+  "validation_status": "validated"
+}

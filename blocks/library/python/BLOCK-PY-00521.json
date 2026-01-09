@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00521_execute() {\n    def const(obj: Expr | None) -> t.Any | None:\n            if obj is None:\n                return None\n            return obj.as_const(eval_ctx)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00521",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 886,
+  "validation_status": "validated"
+}

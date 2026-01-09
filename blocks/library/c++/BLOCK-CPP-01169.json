@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01169_execute() {\n    {\n  auto ec = std::error_code(error_code, std::generic_category());\n  return std::system_error(ec, vformat(format_str, args));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01169",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 124,
+  "validation_status": "validated"
+}

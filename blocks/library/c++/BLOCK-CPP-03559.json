@@ -1,0 +1,8 @@
+{
+  "code": "#include <type_traits>\n#include \"absl/algorithm/container.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/container/internal/hash_function_defaults.h\"  // IWYU pragma: export\n#include \"absl/container/internal/node_slot_policy.h\"\n#include \"absl/container/internal/raw_hash_set.h\"  // IWYU pragma: export\n#include \"absl/memory/memory.h\"\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace container_internal;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03559_execute() {\n    {\n    using ValueAlloc =\n        typename absl::allocator_traits<Allocator>::template rebind_alloc<T>;\n    ValueAlloc value_alloc(*alloc);\n    absl::allocator_traits<ValueAlloc>::destroy(value_alloc, elem);\n    absl::allocator_traits<ValueAlloc>::deallocate(value_alloc, elem, 1);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03559",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/node_hash_set.h",
+  "source_line": 472,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n    size_t total = 0;\n    double fair_share = 0.0;\n\n    // Adds 'size` memory usage to this class, with a cumulative (recursive)\n    // reference count of `refcount`\n    void Add(size_t size, size_t refcount) {\n      total += size;\n      fair_share += static_cast<double>(size) / refcount;\n    }\n  }",
+  "id": "BLOCK-CPP-02929",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_info.cc",
+  "source_line": 139,
+  "validation_status": "validated"
+}

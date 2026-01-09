@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02515_execute() {\n    {\n  char c = RemainingInput(state)[0];\n  if (ParseCharClass(state, \"0123456789\")) {\n    if (digit != nullptr) {\n      *digit = c - '0';\n    }\n    return true;\n  }\n  return false;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02515",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 331,
+  "validation_status": "validated"
+}

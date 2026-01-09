@@ -1,0 +1,8 @@
+{
+  "code": "{\n  std::string FileName;\n  unsigned Line;\n  unsigned Column;\n\npublic:\n  /// Construct a parsed source location from a string; the Filename is empty on\n  /// error.\n  static ParsedSourceLocation FromString(StringRef Str) {\n    ParsedSourceLocation PSL;\n    std::pair<StringRef, StringRef> ColSplit = Str.rsplit(':');\n    std::pair<StringRef, StringRef> LineSplit =\n      ColSplit.first.rsplit(':');\n\n    // If both tail splits were valid integers, return success.\n    if (!ColSplit.second.getAsInteger(10, PSL.Column) &&\n        !LineSplit.second.getAsInteger(10, PSL.Line)) {\n      PSL.FileName = std::string(LineSplit.first);\n\n      // On the command-line, stdin may be specified via \"-\". Inside the\n      // compiler, stdin is called \"<stdin>\".\n      if (PSL.FileName == \"-\")\n        PSL.FileName = \"<stdin>\";\n    }\n\n    return PSL;\n  }\n\n  /// Serialize ParsedSourceLocation back to a string.\n  std::string ToString() const {\n    return (llvm::Twine(FileName == \"<stdin>\" ? \"-\" : FileName) + \":\" +\n            Twine(Line) + \":\" + Twine(Column))\n        .str();\n  }\n}",
+  "id": "BLOCK-CPP-18227",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/CommandLineSourceLoc.h",
+  "source_line": 25,
+  "validation_status": "validated"
+}

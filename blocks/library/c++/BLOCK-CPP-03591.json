@@ -1,0 +1,8 @@
+{
+  "code": "#include <string>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/flags/config.h\"\n#include \"absl/flags/internal/flag.h\"\n#include \"absl/flags/internal/registry.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03591_execute() {\n    {\n  T value(v);\n  flags_internal::FlagImplPeer::InvokeSet(*flag, value);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03591",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/flag.h",
+  "source_line": 114,
+  "validation_status": "validated"
+}

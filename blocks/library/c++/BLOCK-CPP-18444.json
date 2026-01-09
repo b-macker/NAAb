@@ -1,0 +1,8 @@
+{
+  "code": "{\n  std::string DestDir;\n  bool HasErrors = false;\n  llvm::StringSet<> Seen;\n  llvm::vfs::YAMLVFSWriter VFSWriter;\n  llvm::FileCollector::PathCanonicalizer Canonicalizer;\n\n  std::error_code copyToRoot(StringRef Src, StringRef Dst = {});\n\npublic:\n  ModuleDependencyCollector(std::string DestDir)\n      : DestDir(std::move(DestDir)) {}\n  ~ModuleDependencyCollector() override { writeFileMap(); }\n\n  StringRef getDest() { return DestDir; }\n  virtual bool insertSeen(StringRef Filename) { return Seen.insert(Filename).second; }\n  virtual void addFile(StringRef Filename, StringRef FileDst = {});\n\n  virtual void addFileMapping(StringRef VPath, StringRef RPath) {\n    VFSWriter.addFileMapping(VPath, RPath);\n  }\n\n  void attachToPreprocessor(Preprocessor &PP) override;\n  void attachToASTReader(ASTReader &R) override;\n\n  virtual void writeFileMap();\n  virtual bool hasErrors() { return HasErrors; }\n}",
+  "id": "BLOCK-CPP-18444",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/Utils.h",
+  "source_line": 134,
+  "validation_status": "validated"
+}

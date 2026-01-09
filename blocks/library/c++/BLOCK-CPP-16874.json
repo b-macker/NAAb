@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstdint>\n#include <string>\n#include <utility>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16874_execute() {\n    {\n\nclass FoldingSetNodeID;\ntemplate <typename T, typename Enable> struct FoldingSetTrait;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16874",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SourceLocation.h",
+  "source_line": 24,
+  "validation_status": "validated"
+}

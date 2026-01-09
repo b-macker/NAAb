@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  InlineContentComment(CommentKind K,\n                       SourceLocation LocBegin,\n                       SourceLocation LocEnd) :\n      Comment(K, LocBegin, LocEnd) {\n    InlineContentCommentBits.HasTrailingNewline = 0;\n  }\n\npublic:\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() >= FirstInlineContentCommentConstant &&\n           C->getCommentKind() <= LastInlineContentCommentConstant;\n  }\n\n  void addTrailingNewline() {\n    InlineContentCommentBits.HasTrailingNewline = 1;\n  }\n\n  bool hasTrailingNewline() const {\n    return InlineContentCommentBits.HasTrailingNewline;\n  }\n}",
+  "id": "BLOCK-CPP-23395",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 241,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"clang/Basic/TokenKinds.def\"\n#include \"clang/Basic/TokenKinds.def\"\n#include \"clang/Basic/TokenKinds.def\"\n#include \"clang/Basic/TokenKinds.def\"\n#include \"clang/Basic/AttrTokenKinds.inc\"\n\nusing namespace clang;\nusing namespace tok;\nusing namespace for;\nusing namespace for;\nusing namespace for;\nusing namespace for;\nusing namespace tok;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17371_execute() {\n    {\n    return clang::tok::PPKeywordKind::NUM_PP_KEYWORDS;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17371",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TokenKinds.h",
+  "source_line": 125,
+  "validation_status": "validated"
+}

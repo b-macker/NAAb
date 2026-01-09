@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/BitVector.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PostOrderIterator.h\"\n#include <utility>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21382_execute() {\n    {\n      // Note that insert() is called by po_iterator, which doesn't check to\n      // make sure that Block is non-null.  Moreover, the CFGBlock iterator will\n      // occasionally hand out null pointers for pruned edges, so we catch those\n      // here.\n      if (!Block)\n        return std::make_pair(std::nullopt,\n                              false); // if an edge is trivially false.\n      if (VisitedBlockIDs.test(Block->getBlockID()))\n        return std::make_pair(std::nullopt, false);\n      VisitedBlockIDs.set(Block->getBlockID());\n      return std::make_pair(std::nullopt, true);\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21382",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/PostOrderCFGView.h",
+  "source_line": 50,
+  "validation_status": "validated"
+}

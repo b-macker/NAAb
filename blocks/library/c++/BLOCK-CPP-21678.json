@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  Let(Variable *Vd, SExpr *Bd) : SExpr(COP_Let), VarDecl(Vd), Body(Bd) {\n    Vd->setKind(Variable::VK_Let);\n  }\n\n  Let(const Let &L, Variable *Vd, SExpr *Bd) : SExpr(L), VarDecl(Vd), Body(Bd) {\n    Vd->setKind(Variable::VK_Let);\n  }\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Let; }\n\n  Variable *variableDecl()  { return VarDecl; }\n  const Variable *variableDecl() const { return VarDecl; }\n\n  SExpr *body() { return Body; }\n  const SExpr *body() const { return Body; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    // This is a variable declaration, so traverse the definition.\n    auto E0 = Vs.traverse(VarDecl->Definition, Vs.subExprCtx(Ctx));\n    // Tell the rewriter to enter the scope of the let variable.\n    Variable *Nvd = Vs.enterScope(*VarDecl, E0);\n    auto E1 = Vs.traverse(Body, Ctx);\n    Vs.exitScope(*VarDecl);\n    return Vs.reduceLet(*this, Nvd, E1);\n  }\n\n  template <class C>\n  typename C::CType compare(const Let* E, C& Cmp) const {\n    typename C::CType Ct =\n      Cmp.compare(VarDecl->definition(), E->VarDecl->definition());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    Cmp.enterScope(variableDecl(), E->variableDecl());\n    Ct = Cmp.compare(body(), E->body());\n    Cmp.leaveScope();\n    return Ct;\n  }\n\nprivate:\n  Variable *VarDecl;\n  SExpr* Body;\n}",
+  "id": "BLOCK-CPP-21678",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 1864,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/time/time.h\"\n#include <winsock2.h>  // for timeval\n#include <cstring>\n#include <ctime>\n#include <limits>\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02274_execute() {\n    {\n  // Avoids years that are too extreme for CivilSecond to normalize.\n  if (year > 300000000000) return InfiniteFutureTimeConversion();\n  if (year < -300000000000) return InfinitePastTimeConversion();\n\n  const CivilSecond cs(year, mon, day, hour, min, sec);\n  const auto ti = tz.At(cs);\n\n  TimeConversion tc;\n  tc.pre = ti.pre;\n  tc.trans = ti.trans;\n  tc.post = ti.post;\n  switch (ti.kind) {\n    case TimeZone::TimeInfo::UNIQUE:\n      tc.kind = TimeConversion::UNIQUE;\n      break;\n    case TimeZone::TimeInfo::SKIPPED:\n      tc.kind = TimeConversion::SKIPPED;\n      break;\n    case TimeZone::TimeInfo::REPEATED:\n      tc.kind = TimeConversion::REPEATED;\n      break;\n  }\n  tc.normalized = false;\n  if (year != cs.year() || mon != cs.month() || day != cs.day() ||\n      hour != cs.hour() || min != cs.minute() || sec != cs.second()) {\n    tc.normalized = true;\n  }\n  return tc;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02274",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.cc",
+  "source_line": 408,
+  "validation_status": "validated"
+}

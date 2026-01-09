@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ncrc32c_t UnextendCrc32cByZeroes(crc32c_t initial_crc, size_t length) {\n  uint32_t crc = static_cast<uint32_t>(initial_crc) ^ kCRC32Xor;\n  CrcEngine()->UnextendByZeroes(&crc, length);\n  return static_cast<crc32c_t>(crc ^ kCRC32Xor);\n}\n\n// Called by `absl::ExtendCrc32c()` on strings with size > 64 or when hardware\n// CRC32C support is missing.\ncrc32c_t ExtendCrc32cInternal(crc32c_t initial_crc,\n                              absl::string_view buf_to_add) {\n  uint32_t crc = static_cast<uint32_t>(initial_crc) ^ kCRC32Xor;\n  CrcEngine()->Extend(&crc, buf_to_add.data(), buf_to_add.size());\n  return static_cast<crc32c_t>(crc ^ kCRC32Xor);\n}\n\n}",
+  "id": "BLOCK-CPP-01620",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/crc32c.cc",
+  "source_line": 38,
+  "validation_status": "validated"
+}

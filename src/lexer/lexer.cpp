@@ -35,6 +35,7 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"module", TokenType::MODULE},
     {"export", TokenType::EXPORT},
     {"import", TokenType::IMPORT},
+    {"new", TokenType::NEW},
     {"config", TokenType::CONFIG},
     {"main", TokenType::MAIN},
     {"let", TokenType::LET},

@@ -1,0 +1,31 @@
+# hello_world.naab
+# First .naab program - A simple data processing app
+
+# Import blocks from different languages
+use BLOCK-CPP-03845 as Cord      # Google Abseil Cord (C++)
+use BLOCK-PY-00123 as FastAPI    # Python web framework
+use BLOCK-CPP-04067 as Time      # Google Abseil Time
+
+# Process data using C++ blocks for speed
+function process_data(input: string) -> dict {
+    # Use C++ Cord for fast string processing
+    cord = Cord.from_string(input)
+    normalized = cord.normalize()
+
+    # Get timestamp
+    timestamp = Time.now()
+
+    return {
+        "data": normalized.to_string(),
+        "timestamp": timestamp.to_string(),
+        "length": normalized.length()
+    }
+}
+
+# Entry point
+main {
+    # Process some data
+    result = process_data("Hello from .naab language!")
+
+    print("Result: {result}")
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00662_execute() {\n    {\n#if defined(_WIN32) && defined(_UCRT)\n#  if FMT_USE_TZSET\n    tzset_once();\n#  endif\n    long offset = 0;\n    _get_timezone(&offset);\n    if (tm.tm_isdst) {\n      long dstbias = 0;\n      _get_dstbias(&dstbias);\n      offset += dstbias;\n    }\n    write_utc_offset(-offset);\n#else\n    ignore_unused(tm);\n    format_localized('z');\n#endif\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00662",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1093,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace digits;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01455_execute() {\n    {\n  basic_format_parse_context<Char>& parse_ctx;\n  buffer_context<Char>& ctx;\n\n  void operator()(\n      typename basic_format_arg<buffer_context<Char>>::handle h) const {\n    h.format(parse_ctx, ctx);\n  }\n  template <typename T> void operator()(T) const {}\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01455",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 3403,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iosfwd>\n#include <iterator>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"\n#include <string_view>  // IWYU pragma: export\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04249_execute() {\n    {\n#if defined(_MSC_VER) && _MSC_VER >= 1910 && !defined(__clang__)\n    // MSVC 2017+ can evaluate this at compile-time.\n    const char* begin = str;\n    while (*str != '\\0') ++str;\n    return str - begin;\n#elif ABSL_HAVE_BUILTIN(__builtin_strlen) || \\\n    (defined(__GNUC__) && !defined(__clang__))\n    // GCC has __builtin_strlen according to\n    // https://gcc.gnu.org/onlinedocs/gcc-4.7.0/gcc/Other-Builtins.html, but\n    // ABSL_HAVE_BUILTIN doesn't detect that, so we use the extra checks above.\n    // __builtin_strlen is constexpr.\n    return __builtin_strlen(str);\n#else\n    return str ? strlen(str) : 0;\n#endif\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04249",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/string_view.h",
+  "source_line": 672,
+  "validation_status": "validated"
+}

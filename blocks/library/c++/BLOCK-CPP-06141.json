@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <iostream>\n#include \"absl/strings/internal/cord_internal.h\"\n#include \"absl/strings/internal/cord_rep_btree.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06141_execute() {\n    {\n    CordRep* tree;\n    size_t n;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06141",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cord_rep_btree_navigator.h",
+  "source_line": 61,
+  "validation_status": "validated"
+}

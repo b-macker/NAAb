@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/TypeLoc.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"clang/AST/TypeLocNodes.def\"\n#include \"clang/AST/TypeLocNodes.def\"\n#include \"clang/AST/TypeLocNodes.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14566_execute() {\n    { return RetTy(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14566",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeLocVisitor.h",
+  "source_line": 53,
+  "validation_status": "validated"
+}

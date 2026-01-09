@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/escaping.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/charset.h\"\n#include \"absl/strings/internal/escaping.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/internal/utf8.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01912_execute() {\n    {\n  static_assert('0' == 0x30 && 'A' == 0x41 && 'a' == 0x61,\n                \"Character set must be ASCII.\");\n  assert(absl::ascii_isxdigit(static_cast<unsigned char>(c)));\n  unsigned int x = static_cast<unsigned char>(c);\n  if (x > '9') {\n    x += 9;\n  }\n  return x & 0xf;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01912",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/escaping.cc",
+  "source_line": 46,
+  "validation_status": "validated"
+}

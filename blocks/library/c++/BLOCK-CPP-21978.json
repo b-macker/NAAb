@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowAnalysis.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowEnvironment.h\"\n#include \"clang/Analysis/FlowSensitive/NoopLattice.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21978_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21978",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/NoopAnalysis.h",
+  "source_line": 41,
+  "validation_status": "validated"
+}

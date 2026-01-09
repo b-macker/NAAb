@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01164_execute() {\n    {\n  memory_buffer full_message;\n  func(full_message, error_code, message);\n  // Don't use fwrite_fully because the latter may throw.\n  if (std::fwrite(full_message.data(), full_message.size(), 1, stderr) > 0)\n    std::fputc('\\n', stderr);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01164",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 70,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18372_execute() {\n    {\n    /// The primary message line of the diagnostic.\n    std::string Message;\n\n    /// The source file name, if available.\n    std::string Filename;\n\n    /// The source file line number, if available.\n    unsigned Line;\n\n    /// The source file column number, if available.\n    unsigned Column;\n\n    /// The ID of the diagnostic.\n    unsigned DiagnosticID;\n\n    /// The Option Flag for the diagnostic\n    std::string WarningOption;\n\n    /// The level of the diagnostic.\n    DiagnosticsEngine::Level DiagnosticLevel;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18372",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/LogDiagnosticPrinter.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

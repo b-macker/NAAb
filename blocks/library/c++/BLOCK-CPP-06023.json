@@ -1,0 +1,8 @@
+{
+  "code": "{\n  enum BracesType {\n    kBareParens = 0,\n    kSpaceParens,\n    kBareBrackets,\n    kSpaceBrackets,\n  };\n\n  // Returns a random `BracesType` determined once per binary load.\n  static BracesType RandomBraces() {\n    static const BracesType kRandomBraces = static_cast<BracesType>(\n        (reinterpret_cast<uintptr_t>(&kRandomBraces) >> 4) % 4);\n    return kRandomBraces;\n  }\n\n public:\n  static inline absl::string_view OpenBrackets() {\n    switch (RandomBraces()) {\n      case kBareParens:\n        return \"(\";\n      case kSpaceParens:\n        return \"( \";\n      case kBareBrackets:\n        return \"[\";\n      case kSpaceBrackets:\n        return \"[ \";\n    }\n    return \"(\";\n  }\n\n  static inline absl::string_view CloseBrackets() {\n    switch (RandomBraces()) {\n      case kBareParens:\n        return \")\";\n      case kSpaceParens:\n        return \" )\";\n      case kBareBrackets:\n        return \"]\";\n      case kSpaceBrackets:\n        return \" ]\";\n    }\n    return \")\";\n  }\n}",
+  "id": "BLOCK-CPP-06023",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/internal/statusor_internal.h",
+  "source_line": 386,
+  "validation_status": "validated"
+}

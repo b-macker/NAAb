@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CustomizableOptional.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/Hashing.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorOr.h\"\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace FileMgr;\nusing namespace FileMgr;\nusing namespace FileMgr;\nusing namespace FileMgr;\nusing namespace optional_detail;\nusing namespace optional_detail;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16326_execute() {\n    {\n    return clang::DirectoryEntryRef(\n        clang::DirectoryEntryRef::dense_map_tombstone_tag());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16326",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DirectoryEntry.h",
+  "source_line": 222,
+  "validation_status": "validated"
+}

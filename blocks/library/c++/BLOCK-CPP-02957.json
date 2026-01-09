@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace strings_internal {\n\nsize_t EncodeUTF8Char(char *buffer, char32_t utf8_char) {\n  if (utf8_char <= 0x7F) {\n    *buffer = static_cast<char>(utf8_char);\n    return 1;\n  } else if (utf8_char <= 0x7FF) {\n    buffer[1] = static_cast<char>(0x80 | (utf8_char & 0x3F));\n    utf8_char >>= 6;\n    buffer[0] = static_cast<char>(0xC0 | utf8_char);\n    return 2;\n  } else if (utf8_char <= 0xFFFF) {\n    buffer[2] = static_cast<char>(0x80 | (utf8_char & 0x3F));\n    utf8_char >>= 6;\n    buffer[1] = static_cast<char>(0x80 | (utf8_char & 0x3F));\n    utf8_char >>= 6;\n    buffer[0] = static_cast<char>(0xE0 | utf8_char);\n    return 3;\n  } else {\n    buffer[3] = static_cast<char>(0x80 | (utf8_char & 0x3F));\n    utf8_char >>= 6;\n    buffer[2] = static_cast<char>(0x80 | (utf8_char & 0x3F));\n    utf8_char >>= 6;\n    buffer[1] = static_cast<char>(0x80 | (utf8_char & 0x3F));\n    utf8_char >>= 6;\n    buffer[0] = static_cast<char>(0xF0 | utf8_char);\n    return 4;\n  }\n}\n\n}  // namespace strings_internal\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-02957",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/utf8.cc",
+  "source_line": 19,
+  "validation_status": "validated"
+}

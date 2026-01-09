@@ -1,0 +1,8 @@
+{
+  "code": "{\ntemplate<> struct PointerLikeTypeTraits<clang::TypeInfoLValue> {\n  static void *getAsVoidPointer(clang::TypeInfoLValue V) {\n    return V.getOpaqueValue();\n  }\n  static clang::TypeInfoLValue getFromVoidPointer(void *P) {\n    return clang::TypeInfoLValue::getFromOpaqueValue(P);\n  }\n  // Validated by static_assert in APValue.cpp; hardcoded to avoid needing\n  // to include Type.h.\n  static constexpr int NumLowBitsAvailable = 3;\n};\n\ntemplate<> struct PointerLikeTypeTraits<clang::DynamicAllocLValue> {\n  static void *getAsVoidPointer(clang::DynamicAllocLValue V) {\n    return V.getOpaqueValue();\n  }\n  static clang::DynamicAllocLValue getFromVoidPointer(void *P) {\n    return clang::DynamicAllocLValue::getFromOpaqueValue(P);\n  }\n  static constexpr int NumLowBitsAvailable =\n      clang::DynamicAllocLValue::NumLowBitsAvailable;\n};\n}",
+  "id": "BLOCK-CPP-22663",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/APValue.h",
+  "source_line": 93,
+  "validation_status": "validated"
+}

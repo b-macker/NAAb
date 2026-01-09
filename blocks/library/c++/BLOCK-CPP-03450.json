@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include <xmmintrin.h>\n#include <intrin.h>\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03450_execute() {\n    {\n  // [x86] gcc/clang don't generate PREFETCHW for __builtin_prefetch(.., 1)\n  // unless -march=broadwell or newer; this is not generally the default, so we\n  // manually emit prefetchw. PREFETCHW is recognized as a no-op on older Intel\n  // processors and has been present on AMD processors since the K6-2.\n#if defined(__x86_64__) && !defined(__PRFCHW__)\n  asm(\"prefetchw %0\" : : \"m\"(*reinterpret_cast<const char*>(addr)));\n#else\n  __builtin_prefetch(addr, 1, 3);\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03450",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/prefetch.h",
+  "source_line": 155,
+  "validation_status": "validated"
+}

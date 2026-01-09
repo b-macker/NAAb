@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00247_execute() {\n    def get_docstring(node, clean=True):\n    \"\"\"\n    Return the docstring for the given node or None if no docstring can\n    be found.  If the node provided does not have docstrings a TypeError\n    will be raised.\n\n    If *clean* is `True`, all tabs are expanded to spaces and any whitespace\n    that can be uniformly removed from the second line onwards is removed.\n    \"\"\"\n    if not isinstance(node, (AsyncFunctionDef, FunctionDef, ClassDef, Module)):\n        raise TypeError(\"%r can't have docstrings\" % node.__class__.__name__)\n    if not(node.body and isinstance(node.body[0], Expr)):\n        return None\n    node = node.body[0].value\n    if isinstance(node, Constant) and isinstance(node.value, str):\n        text = node.value\n    else:\n        return None\n    if clean:\n        import inspect\n        text = inspect.cleandoc(text)\n    return text\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00247",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
+  "source_line": 308,
+  "validation_status": "validated"
+}

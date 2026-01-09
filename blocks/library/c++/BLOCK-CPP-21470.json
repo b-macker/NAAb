@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/Analyses/ThreadSafetyTIL.h\"\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace lexpr;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21470_execute() {\n    { return E->kind() == LExpr::And; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21470",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyLogical.h",
+  "source_line": 72,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Lex/Lexer.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/MD5.h\"\n#include <cstddef>\n#include <memory>\n#include <system_error>\n#include <type_traits>\n  /// entries, each #include will miss half of them on average).\n  /// Instead, we track only files that could have satisfied an #include that\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18383_execute() {\n    {\n  CouldntCreateTempFile = 1,\n  CouldntCreateTargetInfo,\n  BeginSourceFileFailed,\n  CouldntEmitPCH,\n  BadInputs\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18383",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/PrecompiledPreamble.h",
+  "source_line": 242,
+  "validation_status": "validated"
+}

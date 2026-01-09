@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00472_execute() {\n    class Scope(Stmt):\n    \"\"\"An artificial scope.\"\"\"\n\n    fields = (\"body\",)\n    body: list[Node]\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00472",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 1145,
+  "validation_status": "validated"
+}

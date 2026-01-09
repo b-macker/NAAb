@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00216_execute() {\n    def _detect_platform(self, message: str) -> str:\n        \"\"\"Detect DevOps platform from message\"\"\"\n        platform_patterns = {\n            'docker': ['docker', 'container', 'dockerfile'],\n            'kubernetes': ['kubernetes', 'k8s', 'kubectl', 'pod', 'deployment'],\n            'terraform': ['terraform', 'tf', 'infrastructure', 'iac'],\n            'ansible': ['ansible', 'playbook', 'configuration management'],\n            'github-actions': ['github actions', 'github workflow'],\n            'gitlab-ci': ['gitlab ci', 'gitlab pipeline'],\n            'jenkins': ['jenkins', 'jenkinsfile'],\n            'aws': ['aws', 'amazon', 'ec2', 's3', 'lambda'],\n            'azure': ['azure', 'microsoft cloud'],\n            'gcp': ['gcp', 'google cloud', 'gke']\n        }\n        \n        for platform, keywords in platform_patterns.items():\n            for keyword in keywords:\n                if keyword in message:\n                    return platform\n        return 'docker'\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00216",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

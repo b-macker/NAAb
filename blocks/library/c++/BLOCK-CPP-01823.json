@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/ascii.h\"\n#include <climits>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\nusing namespace ascii_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01823_execute() {\n    {\n  constexpr size_t num_chars = 1 + CHAR_MAX - CHAR_MIN;\n  size_t incorrect_index = 0;\n  char lowered[num_chars] = {};\n  char uppered[num_chars] = {};\n  for (unsigned int i = 0; i < num_chars; ++i) {\n    uppered[i] = lowered[i] = static_cast<char>(i);\n  }\n  AsciiStrCaseFold<false>(&lowered[0], &lowered[num_chars]);\n  AsciiStrCaseFold<true>(&uppered[0], &uppered[num_chars]);\n  for (size_t i = 0; i < num_chars; ++i) {\n    const char ch = static_cast<char>(i),\n               ch_upper = ('a' <= ch && ch <= 'z' ? 'A' + (ch - 'a') : ch),\n               ch_lower = ('A' <= ch && ch <= 'Z' ? 'a' + (ch - 'A') : ch);\n    if (uppered[i] != ch_upper || lowered[i] != ch_lower) {\n      incorrect_index = i > 0 ? i : num_chars;\n      break;\n    }\n  }\n  return incorrect_index;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01823",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/ascii.cc",
+  "source_line": 254,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02511_execute() {\n    {\n  state->mangled_begin = mangled;\n  state->out = out;\n  state->out_end_idx = static_cast<int>(out_size);\n  state->recursion_depth = 0;\n  state->steps = 0;\n\n  state->parse_state.mangled_idx = 0;\n  state->parse_state.out_cur_idx = 0;\n  state->parse_state.prev_name_idx = 0;\n  state->parse_state.prev_name_length = 0;\n  state->parse_state.nest_level = -1;\n  state->parse_state.append = true;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02511",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 264,
+  "validation_status": "validated"
+}

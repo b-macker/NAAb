@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00374_execute() {\n    def visit_Operand(self, node: nodes.Operand, frame: Frame) -> None:\n        self.write(f\" {operators[node.op]} \")\n        self.visit(node.expr, frame)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00374",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1741,
+  "validation_status": "validated"
+}

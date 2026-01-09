@@ -1,0 +1,8 @@
+{
+  "code": "{\n    if (n > kMaxSmallPowerOfTen) {\n      // For large n, raise to a power of 5, then shift left by the same amount.\n      // (10**n == 5**n * 2**n.)  This requires fewer multiplications overall.\n      MultiplyByFiveToTheNth(n);\n      ShiftLeft(n);\n    } else if (n > 0) {\n      // We can do this more quickly for very small N by using a single\n      // multiplication.\n      MultiplyBy(kTenToNth[n]);\n    }\n  }",
+  "id": "BLOCK-CPP-06036",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_bigint.h",
+  "source_line": 175,
+  "validation_status": "validated"
+}

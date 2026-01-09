@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00434_execute() {\n    class List(Literal):\n    \"\"\"Any list literal such as ``[1, 2, 3]``\"\"\"\n\n    fields = (\"items\",)\n    items: list[Expr]\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> list[t.Any]:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        return [x.as_const(eval_ctx) for x in self.items]\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00434",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 644,
+  "validation_status": "validated"
+}

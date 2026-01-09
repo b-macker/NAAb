@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicReader.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07360_execute() {\n    {\n    static_assert(sizeof(Qualifiers().getAsOpaqueValue()) <= sizeof(uint32_t),\n                  \"update this if the value size changes\");\n    uint32_t value = asImpl().readUInt32();\n    return Qualifiers::fromOpaqueValue(value);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07360",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
+  "source_line": 215,
+  "validation_status": "validated"
+}

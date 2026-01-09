@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05781_execute() {\n    {\n    if (value_ % 2) return 0 - ((value_ - 1) / 2) - 1;\n    return value_ / 2;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05781",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/proto.h",
+  "source_line": 252,
+  "validation_status": "validated"
+}

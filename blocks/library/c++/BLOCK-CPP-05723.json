@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdlib>\n#include <unistd.h>\n#include <stdlib.h>\n#include <atomic>\n#include <cstdint>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/log/internal/voidify.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05723_execute() {\n    { return counter_.load(std::memory_order_relaxed); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05723",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/conditions.h",
+  "source_line": 223,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  ConstantInitBuilderTemplateBase(CodeGenModule &CGM)\n    : ConstantInitBuilderBase(CGM) {}\n\npublic:\n  using InitBuilder = typename Traits::InitBuilder;\n  using ArrayBuilder = typename Traits::ArrayBuilder;\n  using StructBuilder = typename Traits::StructBuilder;\n\n  ArrayBuilder beginArray(llvm::Type *eltTy = nullptr) {\n    return ArrayBuilder(static_cast<InitBuilder&>(*this), nullptr, eltTy);\n  }\n\n  StructBuilder beginStruct(llvm::StructType *structTy = nullptr) {\n    return StructBuilder(static_cast<InitBuilder&>(*this), nullptr, structTy);\n  }\n}",
+  "id": "BLOCK-CPP-17579",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ConstantInitBuilder.h",
+  "source_line": 503,
+  "validation_status": "validated"
+}

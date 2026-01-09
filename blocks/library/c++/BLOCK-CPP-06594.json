@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate <typename H>\nH AbslHashValueImpl(second_tag, H h, fields f) {\n  return H::combine(std::move(h), f.y, f.m, f.d, f.hh, f.mm, f.ss);\n}\ntemplate <typename H>\nH AbslHashValueImpl(minute_tag, H h, fields f) {\n  return H::combine(std::move(h), f.y, f.m, f.d, f.hh, f.mm);\n}\ntemplate <typename H>\nH AbslHashValueImpl(hour_tag, H h, fields f) {\n  return H::combine(std::move(h), f.y, f.m, f.d, f.hh);\n}\ntemplate <typename H>\nH AbslHashValueImpl(day_tag, H h, fields f) {\n  return H::combine(std::move(h), f.y, f.m, f.d);\n}\ntemplate <typename H>\nH AbslHashValueImpl(month_tag, H h, fields f) {\n  return H::combine(std::move(h), f.y, f.m);\n}\ntemplate <typename H>\nH AbslHashValueImpl(year_tag, H h, fields f) {\n  return H::combine(std::move(h), f.y);\n}\n\n}",
+  "id": "BLOCK-CPP-06594",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+  "source_line": 344,
+  "validation_status": "validated"
+}

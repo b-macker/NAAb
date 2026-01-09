@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/PartialDiagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cstddef>\n#include <limits>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20748_execute() {\n    {\n    return CorrectionDecls.size() > 1;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20748",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/TypoCorrection.h",
+  "source_line": 215,
+  "validation_status": "validated"
+}

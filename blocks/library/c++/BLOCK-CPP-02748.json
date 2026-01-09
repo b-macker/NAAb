@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/internal/proto.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02748_execute() {\n    {\n  const uint64_t tag_type = MakeTagType(tag, WireType::k32Bit);\n  const size_t tag_type_size = VarintSize(tag_type);\n  if (tag_type_size + sizeof(value) > buf->size()) {\n    buf->remove_suffix(buf->size());\n    return false;\n  }\n  EncodeRawVarint(tag_type, tag_type_size, buf);\n  for (size_t s = 0; s < sizeof(value); s++) {\n    (*buf)[s] = static_cast<char>(value & 0xff);\n    value >>= 8;\n  }\n  buf->remove_prefix(sizeof(value));\n  return true;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02748",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/proto.cc",
+  "source_line": 72,
+  "validation_status": "validated"
+}

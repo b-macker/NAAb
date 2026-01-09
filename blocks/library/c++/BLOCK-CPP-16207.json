@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/DiagnosticIDs.h\"\n#include \"clang/Basic/DiagnosticOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Compiler.h\"\n#include <cassert>\n#include <cstdint>\n#include <limits>\n#include <list>\n#include <map>\n#include <memory>\n#include <optional>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace tok;\nusing namespace tok;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16207_execute() {\n    {\n    // If this diagnostic is inactive, then its soul was stolen by the copy ctor\n    // (or by a subclass, as in SemaDiagnosticBuilder).\n    if (!isActive()) return false;\n\n    // Process the diagnostic.\n    bool Result = DiagObj->EmitCurrentDiagnostic(IsForceEmit);\n\n    // This diagnostic is dead.\n    Clear();\n\n    return Result;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16207",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Diagnostic.h",
+  "source_line": 1314,
+  "validation_status": "validated"
+}

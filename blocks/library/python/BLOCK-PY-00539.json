@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00539_execute() {\n    def format_ipynb_string(src_contents: str, *, fast: bool, mode: Mode) -> FileContent:\n    \"\"\"Format Jupyter notebook.\n\n    Operate cell-by-cell, only on code cells, only for Python notebooks.\n    If the ``.ipynb`` originally had a trailing newline, it'll be preserved.\n    \"\"\"\n    if not src_contents:\n        raise NothingChanged\n\n    trailing_newline = src_contents[-1] == \"\\n\"\n    modified = False\n    nb = json.loads(src_contents)\n    validate_metadata(nb)\n    for cell in nb[\"cells\"]:\n        if cell.get(\"cell_type\", None) == \"code\":\n            try:\n                src = \"\".join(cell[\"source\"])\n                dst = format_cell(src, fast=fast, mode=mode)\n            except NothingChanged:\n                pass\n            else:\n                cell[\"source\"] = dst.splitlines(keepends=True)\n                modified = True\n    if modified:\n        dst_contents = json.dumps(nb, indent=1, ensure_ascii=False)\n        if trailing_newline:\n            dst_contents = dst_contents + \"\\n\"\n        return dst_contents\n    else:\n        raise NothingChanged\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00539",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 1145,
+  "validation_status": "validated"
+}

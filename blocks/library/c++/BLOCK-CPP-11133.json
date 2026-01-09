@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace analyze_format_string;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11133_execute() {\n    {\n    assert(A.K >= InvalidTy && \"ArgType cannot be pointer to invalid/unknown\");\n    ArgType Res = A;\n    Res.Ptr = true;\n    return Res;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11133",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
+  "source_line": 305,
+  "validation_status": "validated"
+}

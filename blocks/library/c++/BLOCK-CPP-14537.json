@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class TypeLoc;\n\n  static bool classofType(const Type *Ty) {\n    return TypeClass::classof(Ty);\n  }\n\n  static bool isKind(const TypeLoc &TL) {\n    return !TL.getType().hasLocalQualifiers() &&\n           Derived::classofType(TL.getTypePtr());\n  }\n  static bool isKind(const UnqualTypeLoc &TL) {\n    return Derived::classofType(TL.getTypePtr());\n  }\n\npublic:\n  const TypeClass *getTypePtr() const {\n    return cast<TypeClass>(Base::getTypePtr());\n  }\n}",
+  "id": "BLOCK-CPP-14537",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeLoc.h",
+  "source_line": 490,
+  "validation_status": "validated"
+}

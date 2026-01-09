@@ -1,0 +1,25 @@
+# Simple test program for NAAb interpreter
+
+main {
+    # Variables and literals
+    let x = 42
+    let y = 3.14
+    let name = "NAAb Language"
+
+    # Arithmetic
+    let result = x + 10
+
+    # Built-in functions
+    print("Hello from", name)
+    print("x =", x)
+    print("result =", result)
+
+    # Dictionary
+    let data = {"language": "naab", "version": "0.1", "status": "working"}
+    print("Data:", data)
+
+    # List
+    let items = [1, 2, 3, 4, 5]
+    print("Items:", items)
+    print("Length:", len(items))
+}

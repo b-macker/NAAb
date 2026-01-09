@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03635_execute() {\n    {\n  struct OverloadImpl : absl::remove_cvref_t<T>... {\n    using absl::remove_cvref_t<T>::operator()...;\n  };\n  return OverloadImpl{std::forward<T>(ts)...};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03635",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/overload.h",
+  "source_line": 52,
+  "validation_status": "validated"
+}

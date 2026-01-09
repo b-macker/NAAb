@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00361_execute() {\n    def _output_child_post(\n        self, node: nodes.Expr, frame: Frame, finalize: _FinalizeInfo\n    ) -> None:\n        \"\"\"Output extra source code after visiting a child of an\n        ``Output`` node.\n        \"\"\"\n        self.write(\")\")\n\n        if finalize.src is not None:\n            self.write(\")\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00361",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1486,
+  "validation_status": "validated"
+}

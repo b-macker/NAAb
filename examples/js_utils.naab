@@ -1,0 +1,54 @@
+# NAAb Example: JavaScript String Utilities
+# Demonstrates using a JavaScript block for string manipulation
+# Phase 7d: Block Examples
+
+use BLOCK-JS-STRING as str
+
+main {
+    print("=== JavaScript String Utils Demo ===")
+    print()
+
+    # Case conversion
+    let greeting = "Hello, World!"
+    let upper = str.toUpper(greeting)
+    let lower = str.toLower(greeting)
+
+    print("Original:", greeting)
+    print("Uppercase:", upper)
+    print("Lowercase:", lower)
+
+    print()
+
+    # String formatting
+    let formatted = str.format("Hello, {}! Welcome to {}.", "Alice", "NAAb")
+    print("Formatted:", formatted)
+
+    let welcome = str.format("{} + {} = Fun!", "C++", "JavaScript")
+    print("Math:", welcome)
+
+    print()
+
+    # String manipulation
+    let repeated = str.repeat("Na", 3)
+    print("Repeated 'Na' 3x:", repeated)
+
+    let reversed = str.reverse("stressed")
+    print("Reversed 'stressed':", reversed)
+
+    print()
+
+    # String checks
+    let text = "  NAAb Language  "
+    let trimmed = str.trim(text)
+    print("Original: '" text "'")
+    print("Trimmed:  '" trimmed "'")
+
+    let starts = str.startsWith(trimmed, "NAAb")
+    print("Starts with 'NAAb':", starts)
+
+    let ends = str.endsWith(trimmed, "Language")
+    print("Ends with 'Language':", ends)
+
+    print()
+    print("✓ JavaScript block executed successfully!")
+}

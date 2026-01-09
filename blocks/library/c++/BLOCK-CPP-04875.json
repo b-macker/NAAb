@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <functional>\n#include <iterator>\n#include <limits>\n#include <new>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/container/internal/common.h\"\n#include \"absl/container/internal/common_policy_traits.h\"\n#include \"absl/container/internal/compressed_tuple.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/container/internal/layout.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/strings/cord.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/compare.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04875_execute() {\n    {\n  template <typename Params>\n  friend class btree;\n\n  // Note: this `protected` is part of the API of std::map::value_compare. See\n  // https://en.cppreference.com/w/cpp/container/map/value_compare.\n protected:\n  explicit map_value_compare(original_key_compare c) : comp(std::move(c)) {}\n\n  original_key_compare comp;  // NOLINT\n\n public:\n  auto operator()(const value_type &lhs, const value_type &rhs) const\n      -> decltype(comp(lhs.first, rhs.first)) {\n    return comp(lhs.first, rhs.first);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04875",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
+  "source_line": 346,
+  "validation_status": "validated"
+}

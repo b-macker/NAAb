@@ -1,0 +1,8 @@
+{
+  "code": "{\n private:\n  static constexpr bool TryConstexprEval(absl::string_view view) {\n    return view.empty() || 2 * view[0] != 1;\n  }\n\n public:\n  static constexpr absl::string_view value = T{}();\n  constexpr absl::string_view operator()() const { return value; }\n\n  // Check to be sure `view` points to constant data.\n  // Otherwise, it can't be constant evaluated.\n  static_assert(TryConstexprEval(value),\n                \"The input string_view must point to constant data.\");\n}",
+  "id": "BLOCK-CPP-06272",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/string_constant.h",
+  "source_line": 36,
+  "validation_status": "validated"
+}

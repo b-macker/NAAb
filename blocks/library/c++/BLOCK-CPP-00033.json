@@ -1,0 +1,8 @@
+{
+  "code": "    #include <spdlog/logger.h>\n#include <spdlog/details/backtracer.h>\n#include <spdlog/pattern_formatter.h>\n#include <spdlog/sinks/sink.h>\n#include <cstdio>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00033_execute() {\n    { a.swap(b); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00033",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/logger-inl.h",
+  "source_line": 60,
+  "validation_status": "validated"
+}

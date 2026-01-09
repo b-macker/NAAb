@@ -1,0 +1,27 @@
+{
+  "id": "BLOCK-PY-00568",
+  "version": "1.0",
+  "name": "_generate_pytest_test_suite",
+  "language": "python",
+  "category": "web_framework",
+  "subcategory": null,
+  "code": "def _generate_pytest_test_suite(self, request) -> str:\n        return self._generate_fallback(request).code",
+  "code_hash": "7f5678fa4a8cbac0c5731bf801b7fa5eafc6f196ee238165784a1ce0a5c1e84f",
+  "imports": [],
+  "exports": {},
+  "parameters": [],
+  "dependencies": [],
+  "token_count": 26,
+  "times_used": 0,
+  "total_tokens_saved": 0,
+  "validation_status": "pending",
+  "tags": [
+    "pytest"
+  ],
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/python_generator.py",
+  "source_line": null,
+  "docstring": "Method: _generate_pytest_test_suite",
+  "created_at": "2026-01-01T22:45:34.550017",
+  "last_used": null,
+  "is_active": true
+}

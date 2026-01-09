@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Driver/Types.h\"\n#include \"llvm/Option/Arg.h\"\n#include \"llvm/Option/ArgList.h\"\n#include \"llvm/Transforms/Instrumentation/AddressSanitizerOptions.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17857_execute() {\n    { return !Sanitizers.empty(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17857",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/SanitizerArgs.h",
+  "source_line": 133,
+  "validation_status": "validated"
+}

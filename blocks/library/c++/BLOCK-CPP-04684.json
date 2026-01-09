@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include <functional>\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04684_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace base_internal {\n\nusing std::invoke;\nusing std::invoke_result_t;\nusing std::is_invocable_r;\n\n}  // namespace base_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04684",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/invoke.h",
+  "source_line": 46,
+  "validation_status": "validated"
+}

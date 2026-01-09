@@ -1,0 +1,8 @@
+{
+  "code": "{\n  if (is_constant_evaluated()) {\n#ifdef __cpp_if_constexpr\n    if constexpr (std::numeric_limits<double>::is_iec559) {\n      auto bits = detail::bit_cast<uint64_t>(static_cast<double>(value));\n      return (bits >> (num_bits<uint64_t>() - 1)) != 0;\n    }\n#endif\n  }\n  return std::signbit(static_cast<double>(value));\n}",
+  "id": "BLOCK-CPP-01353",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 2520,
+  "validation_status": "validated"
+}

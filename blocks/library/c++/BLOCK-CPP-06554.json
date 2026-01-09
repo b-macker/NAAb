@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06554_execute() {\n    {\n  const diff_t eyear = (m <= 2) ? y - 1 : y;\n  const diff_t era = (eyear >= 0 ? eyear : eyear - 399) / 400;\n  const diff_t yoe = eyear - era * 400;\n  const diff_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;\n  const diff_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;\n  return era * 146097 + doe - 719468;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06554",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+  "source_line": 270,
+  "validation_status": "validated"
+}

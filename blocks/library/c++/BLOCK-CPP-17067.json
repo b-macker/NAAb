@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <stdint.h>\n#include \"clang/Basic/Builtins.h\"\n#include \"llvm/Support/MathExtras.h\"\n\nusing namespace clang;\nusing namespace NEON;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17067_execute() {\n    {\n  enum {\n    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,\n#define BUILTIN(ID, TYPE, ATTRS) BI##ID,\n#define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BI##ID,\n#include \"clang/Basic/BuiltinsNEON.def\"\n    FirstTSBuiltin\n  };\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17067",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TargetBuiltins.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

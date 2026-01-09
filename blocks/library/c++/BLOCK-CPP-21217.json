@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Tooling/Refactoring.h\"\n#include \"llvm/Support/YAMLTraits.h\"\n#include <string>\n\nusing namespace llvm;\nusing namespace yaml;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21217_execute() {\n    {\n    Io.mapRequired(\"MainSourceFile\", Doc.MainSourceFile);\n    Io.mapRequired(\"Replacements\", Doc.Replacements);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21217",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/ReplacementsYaml.h",
+  "source_line": 63,
+  "validation_status": "validated"
+}

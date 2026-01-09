@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19149_execute() {\n    {\n  class SourceManager;\n\n/// ScratchBuffer - This class exposes a simple interface for the dynamic\n/// construction of tokens.  This is used for builtin macros (e.g. __LINE__) as\n/// well as token pasting, etc.\nclass ScratchBuffer {\n  SourceManager &SourceMgr;\n  char *CurBuffer;\n  SourceLocation BufferStartLoc;\n  unsigned BytesUsed;\npublic:\n  ScratchBuffer(SourceManager &SM);\n\n  /// getToken - Splat the specified text into a temporary MemoryBuffer and\n  /// return a SourceLocation that refers to the token.  This is just like the\n  /// previous method, but returns a location that indicates the physloc of the\n  /// token.\n  SourceLocation getToken(const char *Buf, unsigned Len, const char *&DestPtr);\n\nprivate:\n  void AllocScratchBuffer(unsigned RequestLen);\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19149",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/ScratchBuffer.h",
+  "source_line": 18,
+  "validation_status": "validated"
+}

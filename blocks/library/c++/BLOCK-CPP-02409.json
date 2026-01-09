@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/hashtablez_sampler.h\"\n#include <algorithm>\n#include <atomic>\n#include <cassert>\n#include <cmath>\n#include <functional>\n#include <limits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/debugging/stacktrace.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/profiling/internal/exponential_biased.h\"\n#include \"absl/profiling/internal/sample_recorder.h\"\n#include \"absl/synchronization/mutex.h\"\n#include \"absl/time/clock.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02409_execute() {\n    {\n  // SwissTables probe in groups of 16, so scale this to count items probes and\n  // not offset from desired.\n  size_t probe_length = distance_from_desired;\n#ifdef ABSL_INTERNAL_HAVE_SSE2\n  probe_length /= 16;\n#else\n  probe_length /= 8;\n#endif\n\n  info->hashes_bitwise_and.fetch_and(hash, std::memory_order_relaxed);\n  info->hashes_bitwise_or.fetch_or(hash, std::memory_order_relaxed);\n  info->hashes_bitwise_xor.fetch_xor(hash, std::memory_order_relaxed);\n  info->max_probe_length.store(\n      std::max(info->max_probe_length.load(std::memory_order_relaxed),\n               probe_length),\n      std::memory_order_relaxed);\n  info->total_probe_length.fetch_add(probe_length, std::memory_order_relaxed);\n  info->size.fetch_add(1, std::memory_order_relaxed);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02409",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hashtablez_sampler.cc",
+  "source_line": 201,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00271_execute() {\n    def generic_visit(self, node):\n        for field, old_value in iter_fields(node):\n            if isinstance(old_value, list):\n                new_values = []\n                for value in old_value:\n                    if isinstance(value, AST):\n                        value = self.visit(value)\n                        if value is None:\n                            continue\n                        elif not isinstance(value, AST):\n                            new_values.extend(value)\n                            continue\n                    new_values.append(value)\n                old_value[:] = new_values\n            elif isinstance(old_value, AST):\n                new_node = self.visit(old_value)\n                if new_node is None:\n                    delattr(node, field)\n                else:\n                    setattr(node, field, new_node)\n        return node\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00271",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
+  "source_line": 569,
+  "validation_status": "validated"
+}

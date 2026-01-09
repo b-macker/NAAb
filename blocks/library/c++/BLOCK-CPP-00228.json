@@ -1,0 +1,8 @@
+{
+  "code": "#include <chrono>\n#include <iterator>\n#include <spdlog/common.h>\n#include <spdlog/fmt/fmt.h>\n#include <type_traits>\n    #include <charconv>\n    #include <limits>\n\nusing namespace spdlog;\nusing namespace details;\nusing namespace fmt_helper;\nusing namespace to;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00228_execute() {\n    {\n    pad_uint(n, 9, dest);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00228",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/fmt_helper.h",
+  "source_line": 122,
+  "validation_status": "validated"
+}

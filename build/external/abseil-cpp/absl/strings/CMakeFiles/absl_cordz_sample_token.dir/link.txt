@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_cordz_sample_token.a CMakeFiles/absl_cordz_sample_token.dir/internal/cordz_sample_token.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_cordz_sample_token.a

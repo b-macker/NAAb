@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/Module.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18778_execute() {\n    {\npublic:\n  ModuleLoadResult loadModule(SourceLocation ImportLoc, ModuleIdPath Path,\n                              Module::NameVisibilityKind Visibility,\n                              bool IsInclusionDirective) override {\n    return {};\n  }\n\n  void createModuleFromSource(SourceLocation ImportLoc, StringRef ModuleName,\n                              StringRef Source) override {}\n\n  void makeModuleVisible(Module *Mod, Module::NameVisibilityKind Visibility,\n                         SourceLocation ImportLoc) override {}\n\n  GlobalModuleIndex *loadGlobalModuleIndex(SourceLocation TriggerLoc) override {\n    return nullptr;\n  }\n\n  bool lookupMissingImports(StringRef Name,\n                            SourceLocation TriggerLoc) override {\n    return false;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18778",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/ModuleLoader.h",
+  "source_line": 166,
+  "validation_status": "validated"
+}

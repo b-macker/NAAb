@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00306_execute() {\n    def fail(self, msg: str, lineno: int) -> \"te.NoReturn\":\n        \"\"\"Fail with a :exc:`TemplateAssertionError`.\"\"\"\n        raise TemplateAssertionError(msg, lineno, self.name, self.filename)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00306",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 378,
+  "validation_status": "validated"
+}

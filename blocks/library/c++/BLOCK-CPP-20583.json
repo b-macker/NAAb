@@ -1,0 +1,8 @@
+{
+  "code": "{\n    Sema &S;\n    bool Active;\n    FunctionScopeRAII(Sema &S) : S(S), Active(true) {}\n    ~FunctionScopeRAII() {\n      if (Active)\n        S.PopFunctionScopeInfo();\n    }\n    void disable() { Active = false; }\n  }",
+  "id": "BLOCK-CPP-20583",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 5102,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/BaseSubobject.h\"\n#include \"clang/AST/CXXInheritance.h\"\n#include \"clang/AST/GlobalDecl.h\"\n#include \"clang/AST/RecordLayout.h\"\n#include \"clang/Basic/ABI.h\"\n#include \"clang/Basic/Thunk.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <memory>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14644_execute() {\n    {\n    assert(AddressPoints.count(Base) && \"Did not find address point!\");\n    return AddressPoints.find(Base)->second;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14644",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/VTableBuilder.h",
+  "source_line": 280,
+  "validation_status": "validated"
+}

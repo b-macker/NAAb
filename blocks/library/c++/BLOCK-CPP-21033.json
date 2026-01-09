@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/Support/ExtensibleRTTI.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include \"llvm/Support/MD5.h\"\n#include <memory>\n#include <string>\n\nusing namespace llvm;\nusing namespace clang;\nusing namespace serialization;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21033_execute() {\n    {\n  ModuleFileExtension *Extension;\n\nprotected:\n  ModuleFileExtensionReader(ModuleFileExtension *Extension)\n    : Extension(Extension) { }\n\npublic:\n  /// Retrieve the module file extension with which this reader is\n  /// associated.\n  ModuleFileExtension *getExtension() const { return Extension; }\n\n  virtual ~ModuleFileExtensionReader();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21033",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ModuleFileExtension.h",
+  "source_line": 140,
+  "validation_status": "validated"
+}

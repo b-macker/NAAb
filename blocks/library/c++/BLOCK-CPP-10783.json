@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  CXXThisExpr(SourceLocation L, QualType Ty, bool IsImplicit)\n      : Expr(CXXThisExprClass, Ty, VK_PRValue, OK_Ordinary) {\n    CXXThisExprBits.IsImplicit = IsImplicit;\n    CXXThisExprBits.Loc = L;\n    setDependence(computeDependence(this));\n  }\n\n  CXXThisExpr(EmptyShell Empty) : Expr(CXXThisExprClass, Empty) {}\n\n  SourceLocation getLocation() const { return CXXThisExprBits.Loc; }\n  void setLocation(SourceLocation L) { CXXThisExprBits.Loc = L; }\n\n  SourceLocation getBeginLoc() const { return getLocation(); }\n  SourceLocation getEndLoc() const { return getLocation(); }\n\n  bool isImplicit() const { return CXXThisExprBits.IsImplicit; }\n  void setImplicit(bool I) { CXXThisExprBits.IsImplicit = I; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == CXXThisExprClass;\n  }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
+  "id": "BLOCK-CPP-10783",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
+  "source_line": 1148,
+  "validation_status": "validated"
+}

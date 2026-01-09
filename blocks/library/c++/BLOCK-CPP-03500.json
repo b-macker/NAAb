@@ -1,0 +1,8 @@
+{
+  "code": "{\n   public:\n    Storage(size_type n, const allocator_type& a)\n        : size_alloc_(n, a), data_(InitializeData()) {}\n\n    ~Storage() noexcept {\n      if (UsingInlinedStorage(size())) {\n        InlinedStorage::AnnotateDestruct(size());\n      } else {\n        AllocatorTraits::deallocate(alloc(), AsValueType(begin()), size());\n      }\n    }\n\n    size_type size() const { return size_alloc_.template get<0>(); }\n    StorageElement* begin() const { return data_; }\n    StorageElement* end() const { return begin() + size(); }\n    allocator_type& alloc() { return size_alloc_.template get<1>(); }\n    const allocator_type& alloc() const {\n      return size_alloc_.template get<1>();\n    }\n\n   private:\n    static bool UsingInlinedStorage(size_type n) {\n      return n <= inline_elements;\n    }\n\n#ifdef ABSL_HAVE_ADDRESS_SANITIZER\n    ABSL_ATTRIBUTE_NOINLINE\n#endif  // ABSL_HAVE_ADDRESS_SANITIZER\n    StorageElement* InitializeData() {\n      if (UsingInlinedStorage(size())) {\n        InlinedStorage::AnnotateConstruct(size());\n        return InlinedStorage::data();\n      } else {\n        return reinterpret_cast<StorageElement*>(\n            AllocatorTraits::allocate(alloc(), size()));\n      }\n    }\n\n    // `CompressedTuple` takes advantage of EBCO for stateless `allocator_type`s\n    container_internal::CompressedTuple<size_type, allocator_type> size_alloc_;\n    StorageElement* data_;\n  }",
+  "id": "BLOCK-CPP-03500",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/fixed_array.h",
+  "source_line": 472,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  static crc32c_t CrcAndCopy(void* __restrict dst, const void* __restrict src,\n                             std::size_t length,\n                             crc32c_t initial_crc = crc32c_t{0},\n                             bool non_temporal = false) {\n    static const ArchSpecificEngines engines = GetArchSpecificEngines();\n    auto* engine = non_temporal ? engines.non_temporal : engines.temporal;\n    return engine->Compute(dst, src, length, initial_crc);\n  }\n\n  // For testing only: get an architecture-specific engine for tests.\n  static std::unique_ptr<CrcMemcpyEngine> GetTestEngine(int vector,\n                                                        int integer);\n\n private:\n  struct ArchSpecificEngines {\n    CrcMemcpyEngine* temporal;\n    CrcMemcpyEngine* non_temporal;\n  };\n\n  static ArchSpecificEngines GetArchSpecificEngines();\n}",
+  "id": "BLOCK-CPP-05435",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_memcpy.h",
+  "source_line": 49,
+  "validation_status": "validated"
+}

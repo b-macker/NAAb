@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstddef>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace ascii_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03980_execute() {\n    {\n\n// Declaration for an array of bitfields holding character information.\nABSL_DLL extern const unsigned char kPropertyBits[256];\n\n// Declaration for the array of characters to upper-case characters.\nABSL_DLL extern const char kToUpper[256];\n\n// Declaration for the array of characters to lower-case characters.\nABSL_DLL extern const char kToLower[256];\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03980",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/ascii.h",
+  "source_line": 66,
+  "validation_status": "validated"
+}

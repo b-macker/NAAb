@@ -1,0 +1,8 @@
+{
+  "code": "{\n\nnamespace {\nstruct ClearErrnoGuard {\n  ClearErrnoGuard() : old_value(errno) { errno = 0; }\n  ~ClearErrnoGuard() {\n    if (!errno) errno = old_value;\n  }\n  int old_value;\n};\n}  // namespace\n\nvoid BufferRawSink::Write(string_view v) {\n  size_t to_write = std::min(v.size(), size_);\n  std::memcpy(buffer_, v.data(), to_write);\n  buffer_ += to_write;\n  size_ -= to_write;\n  total_written_ += v.size();\n}\n\nvoid FILERawSink::Write(string_view v) {\n  while (!v.empty() && !error_) {\n    // Reset errno to zero in case the libc implementation doesn't set errno\n    // when a failure occurs.\n    ClearErrnoGuard guard;\n\n    if (size_t result = std::fwrite(v.data(), 1, v.size(), output_)) {\n      // Some progress was made.\n      count_ += result;\n      v.remove_prefix(result);\n    } else {\n      if (errno == EINTR) {\n        continue;\n      } else if (errno) {\n        error_ = errno;\n      } else if (std::ferror(output_)) {\n        // Non-POSIX compliant libc implementations may not set errno, so we\n        // have check the streams error indicator.\n        error_ = EBADF;\n      } else {\n        // We're likely on a non-POSIX system that encountered EINTR but had no\n        // way of reporting it.\n        continue;\n      }\n    }\n  }\n}\n\n}",
+  "id": "BLOCK-CPP-03114",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/output.cc",
+  "source_line": 22,
+  "validation_status": "validated"
+}

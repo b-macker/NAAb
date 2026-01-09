@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <ostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/internal/str_format/output.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06367_execute() {\n    {\n    return static_cast<size_t>(buf_ + sizeof(buf_) - pos_);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06367",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/extension.h",
+  "source_line": 123,
+  "validation_status": "validated"
+}

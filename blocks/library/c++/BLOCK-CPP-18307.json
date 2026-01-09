@@ -1,0 +1,8 @@
+{
+  "code": "{\n  virtual void anchor();\npublic:\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override = 0;\n\n  /// Parse the given plugin command line arguments.\n  ///\n  /// \\param CI - The compiler instance, for use in reporting diagnostics.\n  /// \\return True if the parsing succeeded; otherwise the plugin will be\n  /// destroyed and no action run. The plugin is responsible for using the\n  /// CompilerInstance's Diagnostic object to report errors.\n  virtual bool ParseArgs(const CompilerInstance &CI,\n                         const std::vector<std::string> &arg) = 0;\n\n  enum ActionType {\n    CmdlineBeforeMainAction, ///< Execute the action before the main action if\n                             ///< on the command line\n    CmdlineAfterMainAction,  ///< Execute the action after the main action if on\n                             ///< the command line\n    ReplaceAction,           ///< Replace the main action\n    AddBeforeMainAction,     ///< Execute the action before the main action\n    AddAfterMainAction       ///< Execute the action after the main action\n  };\n  /// Get the action type for this plugin\n  ///\n  /// \\return The action type. By default we use CmdlineAfterMainAction.\n  virtual ActionType getActionType() { return CmdlineAfterMainAction; }\n}",
+  "id": "BLOCK-CPP-18307",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendAction.h",
+  "source_line": 257,
+  "validation_status": "validated"
+}

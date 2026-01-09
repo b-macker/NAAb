@@ -1,0 +1,8 @@
+{
+  "code": "{\n//     return absl::ConvertVariantTo<absl::variant<name, float>>(\n//              InternalReq(req));\n//   }\ntemplate <typename To, typename Variant>\nTo ConvertVariantTo(Variant&& variant) {\n  return absl::visit(variant_internal::ConversionVisitor<To>{},\n                     std::forward<Variant>(variant));\n}\n\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-04534",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/variant.h",
+  "source_line": 853,
+  "validation_status": "validated"
+}

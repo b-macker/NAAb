@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicWriter.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23122_execute() {\n    {\n    static_assert(sizeof(epi.getOpaqueValue()) <= sizeof(uint32_t),\n                  \"opaque value doesn't fit into uint32_t\");\n    asImpl().writeUInt32(epi.getOpaqueValue());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23122",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicWriter.h",
+  "source_line": 219,
+  "validation_status": "validated"
+}

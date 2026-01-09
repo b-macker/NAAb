@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06559_execute() {\n    {\n  return impl::day_difference(f1.y, f1.m, f1.d, f2.y, f2.m, f2.d);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06559",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
+  "source_line": 309,
+  "validation_status": "validated"
+}

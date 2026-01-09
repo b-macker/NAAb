@@ -1,0 +1,8 @@
+{
+  "code": "{\n protected:\n  basic_format_specs<Char>& specs_;\n\n public:\n  explicit FMT_CONSTEXPR specs_setter(basic_format_specs<Char>& specs)\n      : specs_(specs) {}\n\n  FMT_CONSTEXPR specs_setter(const specs_setter& other)\n      : specs_(other.specs_) {}\n\n  FMT_CONSTEXPR void on_align(align_t align) { specs_.align = align; }\n  FMT_CONSTEXPR void on_fill(basic_string_view<Char> fill) {\n    specs_.fill = fill;\n  }\n  FMT_CONSTEXPR void on_sign(sign_t s) { specs_.sign = s; }\n  FMT_CONSTEXPR void on_hash() { specs_.alt = true; }\n  FMT_CONSTEXPR void on_localized() { specs_.localized = true; }\n\n  FMT_CONSTEXPR void on_zero() {\n    if (specs_.align == align::none) specs_.align = align::numeric;\n    specs_.fill[0] = Char('0');\n  }\n\n  FMT_CONSTEXPR void on_width(int width) { specs_.width = width; }\n  FMT_CONSTEXPR void on_precision(int precision) {\n    specs_.precision = precision;\n  }\n  FMT_CONSTEXPR void end_precision() {}\n\n  FMT_CONSTEXPR void on_type(presentation_type type) { specs_.type = type; }\n}",
+  "id": "BLOCK-CPP-01121",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 2197,
+  "validation_status": "validated"
+}

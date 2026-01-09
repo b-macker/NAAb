@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00874_execute() {\n    {\n      static_assert(ID != manual_indexing_id,\n                    \"cannot switch from manual to automatic argument indexing\");\n      constexpr auto next_id =\n          ID != manual_indexing_id ? ID + 1 : manual_indexing_id;\n      return parse_replacement_field_then_tail<get_type<ID, Args>, Args,\n                                               POS + 1, ID, next_id>(\n          format_str);\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00874",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 428,
+  "validation_status": "validated"
+}

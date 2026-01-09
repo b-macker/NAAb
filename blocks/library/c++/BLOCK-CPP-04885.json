@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <functional>\n#include <iterator>\n#include <limits>\n#include <new>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/container/internal/common.h\"\n#include \"absl/container/internal/common_policy_traits.h\"\n#include \"absl/container/internal/compressed_tuple.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/container/internal/layout.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/strings/cord.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/compare.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04885_execute() {\n    {\n  explicit upper_bound_adapter(const Compare &c) : comp(c) {}\n  template <typename K1, typename K2>\n  bool operator()(const K1 &a, const K2 &b) const {\n    // Returns true when a is not greater than b.\n    return !compare_internal::compare_result_as_less_than(comp(b, a));\n  }\n\n private:\n  Compare comp;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04885",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
+  "source_line": 449,
+  "validation_status": "validated"
+}

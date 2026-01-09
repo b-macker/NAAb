@@ -1,0 +1,8 @@
+{
+  "code": "{\n  private:\n    Sema &S;\n    DeclContext *SavedContext;\n    ProcessingContextState SavedContextState;\n    QualType SavedCXXThisTypeOverride;\n    unsigned SavedFunctionScopesStart;\n    unsigned SavedInventedParameterInfosStart;\n\n  public:\n    ContextRAII(Sema &S, DeclContext *ContextToPush, bool NewThisContext = true)\n      : S(S), SavedContext(S.CurContext),\n        SavedContextState(S.DelayedDiagnostics.pushUndelayed()),\n        SavedCXXThisTypeOverride(S.CXXThisTypeOverride),\n        SavedFunctionScopesStart(S.FunctionScopesStart),\n        SavedInventedParameterInfosStart(S.InventedParameterInfosStart)\n    {\n      assert(ContextToPush && \"pushing null context\");\n      S.CurContext = ContextToPush;\n      if (NewThisContext)\n        S.CXXThisTypeOverride = QualType();\n      // Any saved FunctionScopes do not refer to this context.\n      S.FunctionScopesStart = S.FunctionScopes.size();\n      S.InventedParameterInfosStart = S.InventedParameterInfos.size();\n    }\n\n    void pop() {\n      if (!SavedContext) return;\n      S.CurContext = SavedContext;\n      S.DelayedDiagnostics.popUndelayed(SavedContextState);\n      S.CXXThisTypeOverride = SavedCXXThisTypeOverride;\n      S.FunctionScopesStart = SavedFunctionScopesStart;\n      S.InventedParameterInfosStart = SavedInventedParameterInfosStart;\n      SavedContext = nullptr;\n    }\n\n    ~ContextRAII() {\n      pop();\n    }\n  }",
+  "id": "BLOCK-CPP-20517",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 1019,
+  "validation_status": "validated"
+}

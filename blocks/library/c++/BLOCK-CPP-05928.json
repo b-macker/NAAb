@@ -1,0 +1,8 @@
+{
+  "code": "#include <cinttypes>\n#include <limits>\n#include \"absl/random/internal/traits.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05928_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05928",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pool_urbg.h",
+  "source_line": 102,
+  "validation_status": "validated"
+}

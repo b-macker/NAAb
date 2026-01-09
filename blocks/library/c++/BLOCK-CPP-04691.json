@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/scheduling_mode.h\"\n#include \"absl/base/macros.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\nusing namespace synchronization_internal;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04691_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04691",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/low_level_scheduling.h",
+  "source_line": 125,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/IR/DerivedTypes.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17520_execute() {\n    {\n    ID.AddInteger(getASTCallingConvention());\n    ID.AddBoolean(InstanceMethod);\n    ID.AddBoolean(ChainCall);\n    ID.AddBoolean(DelegateCall);\n    ID.AddBoolean(NoReturn);\n    ID.AddBoolean(ReturnsRetained);\n    ID.AddBoolean(NoCallerSavedRegs);\n    ID.AddBoolean(HasRegParm);\n    ID.AddInteger(RegParm);\n    ID.AddBoolean(NoCfCheck);\n    ID.AddBoolean(CmseNSCall);\n    ID.AddInteger(Required.getOpaqueData());\n    ID.AddBoolean(HasExtParameterInfos);\n    if (HasExtParameterInfos) {\n      for (auto paramInfo : getExtParameterInfos())\n        ID.AddInteger(paramInfo.getOpaqueValue());\n    }\n    getReturnType().Profile(ID);\n    for (const auto &I : arguments())\n      I.type.Profile(ID);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17520",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CGFunctionInfo.h",
+  "source_line": 751,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/Type.h\"\n#include <functional>\n\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14573_execute() {\n    {\n      return clang::CanQualType();\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14573",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeOrdering.h",
+  "source_line": 57,
+  "validation_status": "validated"
+}

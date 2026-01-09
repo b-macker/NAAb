@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace log_internal {\n// Copies into `dst` as many bytes of `src` as will fit, then truncates the\n// copied bytes from the front of `dst` and returns the number of bytes written.\ninline size_t AppendTruncated(absl::string_view src, absl::Span<char> &dst) {\n  if (src.size() > dst.size()) src = src.substr(0, dst.size());\n  memcpy(dst.data(), src.data(), src.size());\n  dst.remove_prefix(src.size());\n  return src.size();\n}\n// Likewise, but `n` copies of `c`.\ninline size_t AppendTruncated(char c, size_t n, absl::Span<char> &dst) {\n  if (n > dst.size()) n = dst.size();\n  memset(dst.data(), c, n);\n  dst.remove_prefix(n);\n  return n;\n}\n}  // namespace log_internal\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-05702",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/append_truncated.h",
+  "source_line": 25,
+  "validation_status": "validated"
+}

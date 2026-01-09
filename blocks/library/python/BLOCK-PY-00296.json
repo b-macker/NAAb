@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00296_execute() {\n    def soft(self) -> \"te.Self\":\n        \"\"\"Return a soft frame.  A soft frame may not be modified as\n        standalone thing as it shares the resources with the frame it\n        was created of, but it's not a rootlevel frame any longer.\n\n        This is only used to implement if-statements and conditional\n        expressions.\n        \"\"\"\n        rv = self.copy()\n        rv.rootlevel = False\n        rv.soft_frame = True\n        return rv\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00296",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 230,
+  "validation_status": "validated"
+}

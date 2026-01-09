@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Parse/ParseDiagnostic.h\"\n#include \"clang/Parse/Parser.h\"\n#include \"clang/Sema/DelayedDiagnostic.h\"\n#include \"clang/Sema/ParsedTemplate.h\"\n#include \"clang/Sema/Sema.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19367_execute() {\n    {\n      assert(!Active && \"redelaying without having ended first\");\n      if (!DiagnosticPool.pool_empty())\n        S.redelayDiagnostics(DiagnosticPool);\n      assert(DiagnosticPool.pool_empty());\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19367",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
+  "source_line": 74,
+  "validation_status": "validated"
+}

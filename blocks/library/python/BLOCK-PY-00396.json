@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00396_execute() {\n    def visit_EvalContextModifier(\n        self, node: nodes.EvalContextModifier, frame: Frame\n    ) -> None:\n        for keyword in node.options:\n            self.writeline(f\"context.eval_ctx.{keyword.key} = \")\n            self.visit(keyword.value, frame)\n            try:\n                val = keyword.value.as_const(frame.eval_ctx)\n            except nodes.Impossible:\n                frame.eval_ctx.volatile = True\n            else:\n                setattr(frame.eval_ctx, keyword.key, val)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00396",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1969,
+  "validation_status": "validated"
+}

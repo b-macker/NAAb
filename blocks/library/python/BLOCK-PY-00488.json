@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00488_execute() {\n    def set_environment(self, environment: \"Environment\") -> \"Node\":\n        \"\"\"Set the environment for all nodes.\"\"\"\n        todo = deque([self])\n        while todo:\n            node = todo.popleft()\n            node.environment = environment\n            todo.extend(node.iter_child_nodes())\n        return self\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00488",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 231,
+  "validation_status": "validated"
+}

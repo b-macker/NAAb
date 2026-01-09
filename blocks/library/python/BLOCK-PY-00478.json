@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00478_execute() {\n    def __init__(\n        self, environment: \"Environment\", template_name: str | None = None\n    ) -> None:\n        self.environment = environment\n        if callable(environment.autoescape):\n            self.autoescape = environment.autoescape(template_name)\n        else:\n            self.autoescape = environment.autoescape\n        self.volatile = False\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00478",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 76,
+  "validation_status": "validated"
+}

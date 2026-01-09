@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <string>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06524_execute() {\n    {\n      std::int_fast16_t day;  // day of non-leap year [1:365]\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06524",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_posix.h",
+  "source_line": 76,
+  "validation_status": "validated"
+}

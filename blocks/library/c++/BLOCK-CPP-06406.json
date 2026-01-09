@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <ostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/internal/str_format/output.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06406_execute() {\n    {\n  FormatConversionCharInternal() = delete;\n\n private:\n  // clang-format off\n  enum class Enum : uint8_t {\n    c, s,                    // text\n    d, i, o, u, x, X,        // int\n    f, F, e, E, g, G, a, A,  // float\n    n, p, v,                    // misc\n    kNone\n  };\n  // clang-format on\n public:\n#define ABSL_INTERNAL_X_VAL(id)              \\\n  static constexpr FormatConversionChar id = \\\n      static_cast<FormatConversionChar>(Enum::id);\n  ABSL_INTERNAL_CONVERSION_CHARS_EXPAND_(ABSL_INTERNAL_X_VAL, )\n#undef ABSL_INTERNAL_X_VAL\n  static constexpr FormatConversionChar kNone =\n      static_cast<FormatConversionChar>(Enum::kNone);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06406",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/extension.h",
+  "source_line": 185,
+  "validation_status": "validated"
+}

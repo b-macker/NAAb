@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Frontend/FrontendOptions.h\"\n#include <memory>\n#include <string>\n\nusing namespace clang;\nusing namespace index;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18480_execute() {\n    {\n    None,\n    DeclarationsOnly,\n    All,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18480",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Index/IndexingOptions.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

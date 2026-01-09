@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  IfThenElse(SExpr *C, SExpr *T, SExpr *E)\n      : SExpr(COP_IfThenElse), Condition(C), ThenExpr(T), ElseExpr(E) {}\n  IfThenElse(const IfThenElse &I, SExpr *C, SExpr *T, SExpr *E)\n      : SExpr(I), Condition(C), ThenExpr(T), ElseExpr(E) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_IfThenElse; }\n\n  SExpr *condition() { return Condition; }   // Address to store to\n  const SExpr *condition() const { return Condition; }\n\n  SExpr *thenExpr() { return ThenExpr; }     // Value to store\n  const SExpr *thenExpr() const { return ThenExpr; }\n\n  SExpr *elseExpr() { return ElseExpr; }     // Value to store\n  const SExpr *elseExpr() const { return ElseExpr; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Nc = Vs.traverse(Condition, Vs.subExprCtx(Ctx));\n    auto Nt = Vs.traverse(ThenExpr,  Vs.subExprCtx(Ctx));\n    auto Ne = Vs.traverse(ElseExpr,  Vs.subExprCtx(Ctx));\n    return Vs.reduceIfThenElse(*this, Nc, Nt, Ne);\n  }\n\n  template <class C>\n  typename C::CType compare(const IfThenElse* E, C& Cmp) const {\n    typename C::CType Ct = Cmp.compare(condition(), E->condition());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    Ct = Cmp.compare(thenExpr(), E->thenExpr());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.compare(elseExpr(), E->elseExpr());\n  }\n\nprivate:\n  SExpr* Condition;\n  SExpr* ThenExpr;\n  SExpr* ElseExpr;\n}",
+  "id": "BLOCK-CPP-21677",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 1819,
+  "validation_status": "validated"
+}

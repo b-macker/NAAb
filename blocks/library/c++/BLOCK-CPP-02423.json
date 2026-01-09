@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/hashtablez_sampler.h\"\n#include \"absl/base/attributes.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02423_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace container_internal {\n\n// See hashtablez_sampler.h for details.\nextern \"C\" ABSL_ATTRIBUTE_WEAK bool ABSL_INTERNAL_C_SYMBOL(\n    AbslContainerInternalSampleEverything)() {\n  return false;\n}\n\n}  // namespace container_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02423",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hashtablez_sampler_force_weak_definition.cc",
+  "source_line": 19,
+  "validation_status": "validated"
+}

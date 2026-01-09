@@ -1,0 +1,8 @@
+{
+  "code": "{\n  std::string abbr = FixedOffsetToName(offset);\n  const std::size_t prefix_len = sizeof(kFixedZonePrefix) - 1;\n  if (abbr.size() == prefix_len + 9) {         // <prefix>+99:99:99\n    abbr.erase(0, prefix_len);                 // +99:99:99\n    abbr.erase(6, 1);                          // +99:9999\n    abbr.erase(3, 1);                          // +999999\n    if (abbr[5] == '0' && abbr[6] == '0') {    // +999900\n      abbr.erase(5, 2);                        // +9999\n      if (abbr[3] == '0' && abbr[4] == '0') {  // +9900\n        abbr.erase(3, 2);                      // +99\n      }\n    }\n  }\n  return abbr;\n}",
+  "id": "BLOCK-CPP-03202",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_fixed.cc",
+  "source_line": 120,
+  "validation_status": "validated"
+}

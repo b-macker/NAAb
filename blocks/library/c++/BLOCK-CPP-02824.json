@@ -1,0 +1,8 @@
+{
+  "code": "{\n\n// No accelerated implementation.\nbool HasRandenHwAesImplementation() { return false; }\n\n// NOLINTNEXTLINE\nconst void* RandenHwAes::GetKeys() {\n  // Attempted to dispatch to an unsupported dispatch target.\n  const int d = ABSL_RANDOM_INTERNAL_AES_DISPATCH;\n  fprintf(stderr, \"AES Hardware detection failed (%d).\\n\", d);\n  exit(1);\n  return nullptr;\n}\n\n// NOLINTNEXTLINE\nvoid RandenHwAes::Absorb(const void*, void*) {\n  // Attempted to dispatch to an unsupported dispatch target.\n  const int d = ABSL_RANDOM_INTERNAL_AES_DISPATCH;\n  fprintf(stderr, \"AES Hardware detection failed (%d).\\n\", d);\n  exit(1);\n}\n\n// NOLINTNEXTLINE\nvoid RandenHwAes::Generate(const void*, void*) {\n  // Attempted to dispatch to an unsupported dispatch target.\n  const int d = ABSL_RANDOM_INTERNAL_AES_DISPATCH;\n  fprintf(stderr, \"AES Hardware detection failed (%d).\\n\", d);\n  exit(1);\n}\n\n}",
+  "id": "BLOCK-CPP-02824",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_hwaes.cc",
+  "source_line": 51,
+  "validation_status": "validated"
+}

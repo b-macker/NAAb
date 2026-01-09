@@ -1,0 +1,8 @@
+{
+  "code": "{\n    llvm::BitVector VisitedBlockIDs;\n\n  public:\n    // po_iterator requires this iterator, but the only interface needed is the\n    // value_type type.\n    struct iterator { using value_type = const CFGBlock *; };\n\n    CFGBlockSet() = default;\n    CFGBlockSet(const CFG *G) : VisitedBlockIDs(G->getNumBlockIDs(), false) {}\n\n    /// Set the bit associated with a particular CFGBlock.\n    /// This is the important method for the SetType template parameter.\n    std::pair<std::nullopt_t, bool> insert(const CFGBlock *Block) {\n      // Note that insert() is called by po_iterator, which doesn't check to\n      // make sure that Block is non-null.  Moreover, the CFGBlock iterator will\n      // occasionally hand out null pointers for pruned edges, so we catch those\n      // here.\n      if (!Block)\n        return std::make_pair(std::nullopt,\n                              false); // if an edge is trivially false.\n      if (VisitedBlockIDs.test(Block->getBlockID()))\n        return std::make_pair(std::nullopt, false);\n      VisitedBlockIDs.set(Block->getBlockID());\n      return std::make_pair(std::nullopt, true);\n    }\n\n    /// Check if the bit for a CFGBlock has been already set.\n    /// This method is for tracking visited blocks in the main threadsafety\n    /// loop. Block must not be null.\n    bool alreadySet(const CFGBlock *Block) {\n      return VisitedBlockIDs.test(Block->getBlockID());\n    }\n  }",
+  "id": "BLOCK-CPP-21392",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/PostOrderCFGView.h",
+  "source_line": 37,
+  "validation_status": "validated"
+}

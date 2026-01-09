@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h\"\n#include \"llvm/ADT/StringExtras.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22215_execute() {\n    {\n    std::string Str;\n    llvm::raw_string_ostream OS(Str);\n\n    // Explain 'this' object here.\n    // They are represented by a SymRegion wrapped by an ElementRegion; so\n    // match and handle it here.\n    if (isThisObject(R))\n      return \"'this' object\";\n\n    OS << \"element of type '\" << R->getElementType() << \"' with index \";\n    // For concrete index: omit type of the index integer.\n    if (auto I = R->getIndex().getAs<nonloc::ConcreteInt>())\n      OS << I->getValue();\n    else\n      OS << \"'\" << Visit(R->getIndex()) << \"'\";\n    OS << \" of \" + Visit(R->getSuperRegion());\n    return Str;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22215",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/SValExplainer.h",
+  "source_line": 186,
+  "validation_status": "validated"
+}

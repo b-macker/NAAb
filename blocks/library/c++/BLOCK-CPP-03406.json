@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <atomic>\n#include <cstdint>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/internal/low_level_scheduling.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/scheduling_mode.h\"\n#include \"absl/base/internal/spinlock_wait.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"\n\nusing namespace absl;\nusing namespace base_internal;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03406_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03406",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/call_once.h",
+  "source_line": 89,
+  "validation_status": "validated"
+}

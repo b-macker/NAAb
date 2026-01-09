@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  llvm::APInt getValue() const { return getIntValue(); }\n  void setValue(const ASTContext &C, const llvm::APInt &Val) {\n    setIntValue(C, Val);\n  }\n}",
+  "id": "BLOCK-CPP-10227",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
+  "source_line": 1499,
+  "validation_status": "validated"
+}

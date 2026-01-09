@@ -1,0 +1,8 @@
+{
+  "code": "#include <type_traits>\n#include <utility>\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04080_execute() {\n    {\n\n// This is an empty class not intended to be used. It exists so that\n// `HasAbslStringify` can reference a universal class rather than needing to be\n// copied for each new sink.\nclass UnimplementedSink {\n public:\n  void Append(size_t count, char ch);\n\n  void Append(string_view v);\n\n  // Support `absl::Format(&sink, format, args...)`.\n  friend void AbslFormatFlush(UnimplementedSink* sink, absl::string_view v);\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04080",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/has_absl_stringify.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

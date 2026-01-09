@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02510_execute() {\n    {\n  size_t i = 0;\n  while (str[i] != '\\0' && prefix[i] != '\\0' && str[i] == prefix[i]) {\n    ++i;\n  }\n  return prefix[i] == '\\0';  // Consumed everything in \"prefix\".\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02510",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 256,
+  "validation_status": "validated"
+}

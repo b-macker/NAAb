@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace analyze_format_string;\nusing namespace analyze_printf;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11163_execute() {\n    {\n    HasPlusPrefix.setPosition(position);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11163",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
+  "source_line": 547,
+  "validation_status": "validated"
+}

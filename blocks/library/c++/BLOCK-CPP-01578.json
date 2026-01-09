@@ -1,0 +1,8 @@
+{
+  "code": "{\n  using value_type = T;\n\n  static FMT_CONSTEXPR size_t size() { return sizeof...(N); }\n}",
+  "id": "BLOCK-CPP-01578",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
+  "source_line": 188,
+  "validation_status": "validated"
+}

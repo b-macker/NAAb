@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  CommonFieldsGenerationInfoDisabled() = default;\n  CommonFieldsGenerationInfoDisabled(CommonFieldsGenerationInfoDisabled&&) =\n      default;\n  CommonFieldsGenerationInfoDisabled& operator=(\n      CommonFieldsGenerationInfoDisabled&&) = default;\n\n  bool should_rehash_for_bug_detection_on_insert(const ctrl_t*, size_t) const {\n    return false;\n  }\n  bool should_rehash_for_bug_detection_on_move(const ctrl_t*, size_t) const {\n    return false;\n  }\n  void maybe_increment_generation_on_insert() {}\n  void increment_generation() {}\n  void reset_reserved_growth(size_t, size_t) {}\n  size_t reserved_growth() const { return 0; }\n  void set_reserved_growth(size_t) {}\n  size_t reservation_size() const { return 0; }\n  void set_reservation_size(size_t) {}\n  GenerationType generation() const { return 0; }\n  void set_generation(GenerationType) {}\n  GenerationType* generation_ptr() const { return nullptr; }\n  void set_generation_ptr(GenerationType*) {}\n}",
+  "id": "BLOCK-CPP-05337",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.h",
+  "source_line": 918,
+  "validation_status": "validated"
+}

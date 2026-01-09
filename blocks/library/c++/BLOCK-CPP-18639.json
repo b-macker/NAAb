@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Lex/DependencyDirectivesScanner.h\"\n#include \"clang/Lex/PreprocessorLexer.h\"\n#include \"clang/Lex/Token.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstdint>\n#include <optional>\n#include <string>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18639_execute() {\n    {\n    // If this is not a trigraph and not a UCN or escaped newline, return\n    // quickly.\n    if (isObviouslySimpleCharacter(Ptr[0])) return *Ptr++;\n\n    unsigned Size = 0;\n    char C = getCharAndSizeSlow(Ptr, Size, &Tok);\n    Ptr += Size;\n    return C;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18639",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Lexer.h",
+  "source_line": 663,
+  "validation_status": "validated"
+}

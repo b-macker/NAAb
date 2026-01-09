@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <functional>\n#include <memory>\n#include <string>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06622_execute() {\n    {\n\n// A stdio-like interface for providing zoneinfo data for a particular zone.\nclass ZoneInfoSource {\n public:\n  virtual ~ZoneInfoSource();\n\n  virtual std::size_t Read(void* ptr, std::size_t size) = 0;  // like fread()\n  virtual int Skip(std::size_t offset) = 0;                   // like fseek()\n\n  // Until the zoneinfo data supports versioning information, we provide\n  // a way for a ZoneInfoSource to indicate it out-of-band.  The default\n  // implementation returns an empty string.\n  virtual std::string Version() const;\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06622",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/zone_info_source.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

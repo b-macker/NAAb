@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  StringRef Text;\n  SourceLocation TextBegin;\n\npublic:\n  VerbatimLineComment(SourceLocation LocBegin,\n                      SourceLocation LocEnd,\n                      unsigned CommandID,\n                      SourceLocation TextBegin,\n                      StringRef Text) :\n      BlockCommandComment(VerbatimLineCommentKind,\n                          LocBegin, LocEnd,\n                          CommandID,\n                          CMK_At), // FIXME: improve source fidelity.\n      Text(Text),\n      TextBegin(TextBegin)\n  { }\n\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() == VerbatimLineCommentKind;\n  }\n\n  child_iterator child_begin() const { return nullptr; }\n\n  child_iterator child_end() const { return nullptr; }\n\n  StringRef getText() const {\n    return Text;\n  }\n\n  SourceRange getTextRange() const {\n    return SourceRange(TextBegin, getEndLoc());\n  }\n}",
+  "id": "BLOCK-CPP-23409",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 926,
+  "validation_status": "validated"
+}

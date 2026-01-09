@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Stmt.h\"\n#include \"llvm/Support/Compiler.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13019_execute() {\n    {\n    return const_child_range(const_cast<ObjCAtTryStmt *>(this)->children());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-13019",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtObjC.h",
+  "source_line": 268,
+  "validation_status": "validated"
+}

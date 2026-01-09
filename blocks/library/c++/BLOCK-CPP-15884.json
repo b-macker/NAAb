@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  BlockEdge(const CFGBlock *B1, const CFGBlock *B2, const LocationContext *L)\n    : ProgramPoint(B1, B2, BlockEdgeKind, L) {\n    assert(B1 && \"BlockEdge: source block must be non-null\");\n    assert(B2 && \"BlockEdge: destination block must be non-null\");\n  }\n\n  const CFGBlock *getSrc() const {\n    return static_cast<const CFGBlock*>(getData1());\n  }\n\n  const CFGBlock *getDst() const {\n    return static_cast<const CFGBlock*>(getData2());\n  }\n\nprivate:\n  friend class ProgramPoint;\n  BlockEdge() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == BlockEdgeKind;\n  }\n}",
+  "id": "BLOCK-CPP-15884",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 498,
+  "validation_status": "validated"
+}

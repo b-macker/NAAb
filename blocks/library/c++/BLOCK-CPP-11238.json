@@ -1,0 +1,8 @@
+{
+  "code": "{\n\n  template<> struct DenseMapInfo<clang::GlobalDecl> {\n    static inline clang::GlobalDecl getEmptyKey() {\n      return clang::GlobalDecl();\n    }\n\n    static inline clang::GlobalDecl getTombstoneKey() {\n      return clang::GlobalDecl::\n        getFromOpaquePtr(reinterpret_cast<void*>(-1));\n    }\n\n    static unsigned getHashValue(clang::GlobalDecl GD) {\n      return DenseMapInfo<void*>::getHashValue(GD.getAsOpaquePtr());\n    }\n\n    static bool isEqual(clang::GlobalDecl LHS,\n                        clang::GlobalDecl RHS) {\n      return LHS == RHS;\n    }\n  };\n\n}",
+  "id": "BLOCK-CPP-11238",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/GlobalDecl.h",
+  "source_line": 206,
+  "validation_status": "validated"
+}

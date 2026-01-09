@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/Module.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include \"llvm/ADT/TinyPtrVector.h\"\n#include \"llvm/ADT/Twine.h\"\n#include <ctime>\n#include <memory>\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18805_execute() {\n    {\n    /// Whether to infer modules from this directory.\n    unsigned InferModules : 1;\n\n    /// The attributes to use for inferred modules.\n    Attributes Attrs;\n\n    /// If \\c InferModules is non-zero, the module map file that allowed\n    /// inferred modules.  Otherwise, nullptr.\n    const FileEntry *ModuleMapFile;\n\n    /// The names of modules that cannot be inferred within this\n    /// directory.\n    SmallVector<std::string, 2> ExcludedModules;\n\n    InferredDirectory() : InferModules(false) {}\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18805",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/ModuleMap.h",
+  "source_line": 254,
+  "validation_status": "validated"
+}

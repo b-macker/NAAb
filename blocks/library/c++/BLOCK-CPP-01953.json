@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/numbers.h\"\n#include <algorithm>\n#include <cassert>\n#include <cfloat>  // for DBL_DIG and FLT_DIG\n#include <climits>\n#include <cmath>   // for HUGE_VAL\n#include <cstddef>\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <cstring>\n#include <iterator>\n#include <limits>\n#include <system_error>  // NOLINT(build/c++11)\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/charconv.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01953_execute() {\n    {\n  if (n > 4) {\n    // This doesn't work for large powers of 100, due to overflow\n    abort();\n  }\n  T denom = 16 - 1;\n  T num = (denom + 1) - 10;\n  T gcd = 3;  // Greatest common divisor of numerator and denominator\n  denom = Pow(denom / gcd, n);\n  num = Pow(num / gcd, 9 * n);\n  T quotient = num / denom;\n  if (num % denom >= denom / 2) {\n    // Round up, since the remainder is more than half the denominator\n    ++quotient;\n  }\n  return quotient;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01953",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/numbers.cc",
+  "source_line": 174,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    LocalEagerInstantiationScope(Sema &S) : S(S) {\n      SavedPendingLocalImplicitInstantiations.swap(\n          S.PendingLocalImplicitInstantiations);\n    }\n\n    void perform() { S.PerformPendingInstantiations(/*LocalOnly=*/true); }\n\n    ~LocalEagerInstantiationScope() {\n      assert(S.PendingLocalImplicitInstantiations.empty() &&\n             \"there shouldn't be any pending local implicit instantiations\");\n      SavedPendingLocalImplicitInstantiations.swap(\n          S.PendingLocalImplicitInstantiations);\n    }\n\n  private:\n    Sema &S;\n    std::deque<PendingImplicitInstantiation>\n        SavedPendingLocalImplicitInstantiations;\n  }",
+  "id": "BLOCK-CPP-20556",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 10014,
+  "validation_status": "validated"
+}

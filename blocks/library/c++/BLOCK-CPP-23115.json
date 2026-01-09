@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicWriter.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23115_execute() {\n    {\n    asImpl().writeUInt32(value.getBitWidth());\n    const uint64_t *words = value.getRawData();\n    for (size_t i = 0, e = value.getNumWords(); i != e; ++i)\n      asImpl().writeUInt64(words[i]);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23115",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicWriter.h",
+  "source_line": 158,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n  template <class... Ts> RetTy visit(QualType FT, Ts &&... Args) {\n    return asDerived().visitWithKind(\n        FT.isNonTrivialToPrimitiveDefaultInitialize(), FT,\n        std::forward<Ts>(Args)...);\n  }\n\n  template <class... Ts>\n  RetTy visitWithKind(QualType::PrimitiveDefaultInitializeKind PDIK,\n                      QualType FT, Ts &&... Args) {\n    switch (PDIK) {\n    case QualType::PDIK_ARCStrong:\n      return asDerived().visitARCStrong(FT, std::forward<Ts>(Args)...);\n    case QualType::PDIK_ARCWeak:\n      return asDerived().visitARCWeak(FT, std::forward<Ts>(Args)...);\n    case QualType::PDIK_Struct:\n      return asDerived().visitStruct(FT, std::forward<Ts>(Args)...);\n    case QualType::PDIK_Trivial:\n      return asDerived().visitTrivial(FT, std::forward<Ts>(Args)...);\n    }\n\n    llvm_unreachable(\"unknown default-initialize kind\");\n  }\n\n  Derived &asDerived() { return static_cast<Derived &>(*this); }\n}",
+  "id": "BLOCK-CPP-11344",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/NonTrivialTypeVisitor.h",
+  "source_line": 49,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstring>\n#include <memory>\n#include <type_traits>\n#include <utility>\n#include <bit>  // For std::bit_cast.\n#include \"absl/base/internal/identity.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03418_execute() {\n    {\n  return __builtin_bit_cast(Dest, source);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03418",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/casts.h",
+  "source_line": 163,
+  "validation_status": "validated"
+}

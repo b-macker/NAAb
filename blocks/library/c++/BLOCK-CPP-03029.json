@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/str_format/bind.h\"\n#include <algorithm>\n#include <cassert>\n#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <ios>\n#include <limits>\n#include <ostream>\n#include <sstream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/strings/internal/str_format/arg.h\"\n#include \"absl/strings/internal/str_format/constexpr_parser.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/internal/str_format/output.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03029_execute() {\n    {\n public:\n  explicit ArgContext(absl::Span<const FormatArgImpl> pack) : pack_(pack) {}\n\n  // Fill 'bound' with the results of applying the context's argument pack\n  // to the specified 'unbound'. We synthesize a BoundConversion by\n  // lining up a UnboundConversion with a user argument. We also\n  // resolve any '*' specifiers for width and precision, so after\n  // this call, 'bound' has all the information it needs to be formatted.\n  // Returns false on failure.\n  bool Bind(const UnboundConversion* unbound, BoundConversion* bound);\n\n private:\n  absl::Span<const FormatArgImpl> pack_;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03029",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/bind.cc",
+  "source_line": 53,
+  "validation_status": "validated"
+}

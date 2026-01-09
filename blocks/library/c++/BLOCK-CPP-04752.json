@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  Storage() = delete;\n\n  explicit Storage(Callback callback) {\n    // Placement-new into a character buffer is used for eager destruction when\n    // the cleanup is invoked or cancelled. To ensure this optimizes well, the\n    // behavior is implemented locally instead of using an absl::optional.\n    ::new (GetCallbackBuffer()) Callback(std::move(callback));\n    is_callback_engaged_ = true;\n  }\n\n  Storage(Storage&& other) {\n    ABSL_HARDENING_ASSERT(other.IsCallbackEngaged());\n\n    ::new (GetCallbackBuffer()) Callback(std::move(other.GetCallback()));\n    is_callback_engaged_ = true;\n\n    other.DestroyCallback();\n  }\n\n  Storage(const Storage& other) = delete;\n\n  Storage& operator=(Storage&& other) = delete;\n\n  Storage& operator=(const Storage& other) = delete;\n\n  void* GetCallbackBuffer() { return static_cast<void*>(+callback_buffer_); }\n\n  Callback& GetCallback() {\n    return *reinterpret_cast<Callback*>(GetCallbackBuffer());\n  }\n\n  bool IsCallbackEngaged() const { return is_callback_engaged_; }\n\n  void DestroyCallback() {\n    is_callback_engaged_ = false;\n    GetCallback().~Callback();\n  }\n\n  void InvokeCallback() ABSL_NO_THREAD_SAFETY_ANALYSIS {\n    std::move(GetCallback())();\n  }\n\n private:\n  bool is_callback_engaged_;\n  alignas(Callback) char callback_buffer_[sizeof(Callback)];\n}",
+  "id": "BLOCK-CPP-04752",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/cleanup/internal/cleanup.h",
+  "source_line": 45,
+  "validation_status": "validated"
+}

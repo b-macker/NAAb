@@ -1,0 +1,8 @@
+{
+  "code": "{...\n    ///\n    ///   template <typename T>\n    ///   requires C<T> void bar(T t) {...\n    ///\n    ///   template <typename T>\n    ///   void baz(T t)\n    ///   requires C<T> {...\n    /// \\endcode\n    RCPS_WithFollowing,\n    /// Try to put everything in the same line if possible. Otherwise normal\n    /// line breaking rules take over.\n    /// \\code\n    ///   // Fitting:\n    ///   template <typename T> requires C<T> struct Foo {...\n    ///\n    ///   template <typename T> requires C<T> void bar(T t) {...\n    ///\n    ///   template <typename T> void bar(T t) requires C<T> {...\n    ///\n    ///   // Not fitting, one possible example:\n    ///   template <typename LongName>\n    ///   requires C<LongName>\n    ///   struct Foo {...\n    ///\n    ///   template <typename LongName>\n    ///   requires C<LongName>\n    ///   void bar(LongName ln) {\n    ///\n    ///   template <typename LongName>\n    ///   void bar(LongName ln)\n    ///       requires C<LongName> {\n    /// \\endcode\n    RCPS_SingleLine,\n  }",
+  "id": "BLOCK-CPP-18154",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
+  "source_line": 3578,
+  "validation_status": "validated"
+}

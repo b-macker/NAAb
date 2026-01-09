@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/BitVector.h\"\n#include \"llvm/ADT/DenseMap.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21306_execute() {\n    {\n  using ReachableSet = llvm::BitVector;\n  using ReachableMap = llvm::DenseMap<unsigned, ReachableSet>;\n\n  ReachableSet analyzed;\n  ReachableMap reachable;\n\npublic:\n  CFGReverseBlockReachabilityAnalysis(const CFG &cfg);\n\n  /// Returns true if the block 'Dst' can be reached from block 'Src'.\n  bool isReachable(const CFGBlock *Src, const CFGBlock *Dst);\n\nprivate:\n  void mapReachability(const CFGBlock *Dst);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21306",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/CFGReachabilityAnalysis.h",
+  "source_line": 31,
+  "validation_status": "validated"
+}

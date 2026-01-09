@@ -1,0 +1,8 @@
+{
+  "code": "#include <stdint.h>\n#include <atomic>\n#include \"absl/base/internal/scheduling_mode.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04721_execute() {\n    {\n  uint32_t from;\n  uint32_t to;\n  bool done;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04721",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/spinlock_wait.h",
+  "source_line": 32,
+  "validation_status": "validated"
+}

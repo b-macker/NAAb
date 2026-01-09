@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Stmt.h\"\n#include \"llvm/Support/Compiler.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13024_execute() {\n    {\n    return catch_stmts_begin() + NumCatchStmts;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-13024",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtObjC.h",
+  "source_line": 286,
+  "validation_status": "validated"
+}

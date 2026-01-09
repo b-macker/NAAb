@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace digits;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01465_execute() {\n    {\nenum result {\n  more,  // Generate more digits.\n  done,  // Done generating digits.\n  error  // Digit generation cancelled due to an error.\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01465",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 2555,
+  "validation_status": "validated"
+}

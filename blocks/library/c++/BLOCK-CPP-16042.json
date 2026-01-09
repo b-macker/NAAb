@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16042_execute() {\n    {\n\n/// The different kinds of captured statement.\nenum CapturedRegionKind {\n  CR_Default,\n  CR_ObjCAtFinally,\n  CR_OpenMP\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16042",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CapturedStmt.h",
+  "source_line": 13,
+  "validation_status": "validated"
+}

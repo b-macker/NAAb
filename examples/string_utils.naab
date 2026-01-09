@@ -1,0 +1,28 @@
+# String utility functions for text processing
+
+# Convert string to uppercase
+# @param str String to convert
+# @return Uppercased string
+fn toUpper(str) {
+    # Implementation would use C++ std::transform
+    return str
+}
+
+# Check if string contains substring
+# @param haystack String to search in
+# @param needle Substring to find
+# @return true if needle is in haystack
+fn contains(haystack, needle) {
+    # Implementation would use C++ string::find
+    return false
+}
+
+# Split string by delimiter
+# @param str String to split
+# @param delimiter Character or string to split on
+# @return Array of substrings
+# @example split("a,b,c", ",") # Returns ["a", "b", "c"]
+fn split(str, delimiter) {
+    # Implementation would use C++ string manipulation
+    return []
+}

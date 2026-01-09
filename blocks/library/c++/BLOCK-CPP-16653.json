@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <memory>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16653_execute() {\n    {\n\nclass SanitizerMask;\nclass SourceManager;\nclass SanitizerSpecialCaseList;\n\nclass NoSanitizeList {\n  std::unique_ptr<SanitizerSpecialCaseList> SSCL;\n  SourceManager &SM;\n\npublic:\n  NoSanitizeList(const std::vector<std::string> &NoSanitizeListPaths,\n                 SourceManager &SM);\n  ~NoSanitizeList();\n  bool containsGlobal(SanitizerMask Mask, StringRef GlobalName,\n                      StringRef Category = StringRef()) const;\n  bool containsType(SanitizerMask Mask, StringRef MangledTypeName,\n                    StringRef Category = StringRef()) const;\n  bool containsFunction(SanitizerMask Mask, StringRef FunctionName) const;\n  bool containsFile(SanitizerMask Mask, StringRef FileName,\n                    StringRef Category = StringRef()) const;\n  bool containsMainFile(SanitizerMask Mask, StringRef FileName,\n                        StringRef Category = StringRef()) const;\n  bool containsLocation(SanitizerMask Mask, SourceLocation Loc,\n                        StringRef Category = StringRef()) const;\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16653",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/NoSanitizeList.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

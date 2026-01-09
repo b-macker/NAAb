@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"clang/Lex/DirectoryLookup.h\"\n#include \"clang/Lex/HeaderMap.h\"\n#include \"clang/Lex/ModuleMap.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <cassert>\n#include <cstddef>\n#include <memory>\n#include <string>\n#include <utility>\n#include <vector>\n/// file that is \\#included.\n/// by a \\#include or \\#include_next, (sub-)framework lookup, etc.\n  /// \\#include search path information.  Requests for \\#include \"x\" search the\n  /// \\#include prefixes for which the 'system header' property is\n  /// For a \\#include \"x\" or \\#include \\<x> directive, the last string in this\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18569_execute() {\n    {\n    SearchDirs.push_back(dir);\n    SearchDirsUsage.push_back(false);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18569",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/HeaderSearch.h",
+  "source_line": 374,
+  "validation_status": "validated"
+}

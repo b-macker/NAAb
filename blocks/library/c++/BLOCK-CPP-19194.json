@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19194_execute() {\n    {\n  /// Location where the conditional started.\n  SourceLocation IfLoc;\n\n  /// True if this was contained in a skipping directive, e.g.,\n  /// in a \"\\#if 0\" block.\n  bool WasSkipping;\n\n  /// True if we have emitted tokens already, and now we're in\n  /// an \\#else block or something.  Only useful in Skipping blocks.\n  bool FoundNonSkip;\n\n  /// True if we've seen a \\#else in this block.  If so,\n  /// \\#elif/\\#else directives are not allowed.\n  bool FoundElse;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19194",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Token.h",
+  "source_line": 322,
+  "validation_status": "validated"
+}

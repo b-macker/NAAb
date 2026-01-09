@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/circular_q.h>\n#include <atomic>\n#include <condition_variable>\n#include <mutex>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00246_execute() {\n    {\n        {\n            std::unique_lock<std::mutex> lock(queue_mutex_);\n            push_cv_.wait(lock, [this] { return !this->q_.empty(); });\n            popped_item = std::move(q_.front());\n            q_.pop_front();\n        }\n        pop_cv_.notify_one();\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00246",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/mpmc_blocking_q.h",
+  "source_line": 82,
+  "validation_status": "validated"
+}

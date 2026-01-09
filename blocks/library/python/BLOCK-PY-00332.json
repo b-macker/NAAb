@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00332_execute() {\n    def mark_parameter_stored(self, target: str) -> None:\n        \"\"\"Marks a parameter in the current parameter definitions as stored.\n        This will skip the enforced undefined checks.\n        \"\"\"\n        if self._param_def_block:\n            self._param_def_block[-1].discard(target)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00332",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 745,
+  "validation_status": "validated"
+}

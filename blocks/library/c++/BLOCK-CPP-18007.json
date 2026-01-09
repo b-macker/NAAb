@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18007_execute() {\n    {\nprivate:\n  using AvailabilityList = llvm::SmallVector<AvailabilityInfo, 4>;\n  AvailabilityList Availabilities;\n\n  bool UnconditionallyDeprecated = false;\n  bool UnconditionallyUnavailable = false;\n\npublic:\n  AvailabilitySet(const Decl *Decl);\n  AvailabilitySet() = default;\n\n  AvailabilityList::const_iterator begin() const {\n    return Availabilities.begin();\n  }\n\n  AvailabilityList::const_iterator end() const { return Availabilities.end(); }\n\n  /// Check if the symbol is unconditionally deprecated.\n  ///\n  /// i.e. \\code __attribute__((deprecated)) \\endcode\n  bool isUnconditionallyDeprecated() const { return UnconditionallyDeprecated; }\n\n  /// Check if the symbol is unconditionally unavailable.\n  ///\n  /// i.e. \\code __attribute__((unavailable)) \\endcode\n  bool isUnconditionallyUnavailable() const {\n    return UnconditionallyUnavailable;\n  }\n\n  /// Determine if this AvailabilitySet represents default availability.\n  bool isDefault() const { return Availabilities.empty(); }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18007",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/AvailabilityInfo.h",
+  "source_line": 46,
+  "validation_status": "validated"
+}

@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_parser.a CMakeFiles/naab_parser.dir/src/parser/parser.cpp.o CMakeFiles/naab_parser.dir/src/parser/ast_nodes.cpp.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_parser.a

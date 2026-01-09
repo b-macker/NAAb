@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Parse/ParseDiagnostic.h\"\n#include \"clang/Parse/Parser.h\"\n#include \"clang/Sema/DelayedDiagnostic.h\"\n#include \"clang/Sema/ParsedTemplate.h\"\n#include \"clang/Sema/Sema.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19392_execute() {\n    {\n    ExtensionRAIIObject(const ExtensionRAIIObject &) = delete;\n    void operator=(const ExtensionRAIIObject &) = delete;\n\n    DiagnosticsEngine &Diags;\n  public:\n    ExtensionRAIIObject(DiagnosticsEngine &diags) : Diags(diags) {\n      Diags.IncrementAllExtensionsSilenced();\n    }\n\n    ~ExtensionRAIIObject() {\n      Diags.DecrementAllExtensionsSilenced();\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19392",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
+  "source_line": 255,
+  "validation_status": "validated"
+}

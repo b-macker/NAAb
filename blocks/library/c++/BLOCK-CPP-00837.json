@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00837_execute() {\n    {\n  bool has_style = false;\n  if (ts.has_emphasis()) {\n    has_style = true;\n    auto emphasis = detail::make_emphasis<Char>(ts.get_emphasis());\n    buf.append(emphasis.begin(), emphasis.end());\n  }\n  if (ts.has_foreground()) {\n    has_style = true;\n    auto foreground = detail::make_foreground_color<Char>(ts.get_foreground());\n    buf.append(foreground.begin(), foreground.end());\n  }\n  if (ts.has_background()) {\n    has_style = true;\n    auto background = detail::make_background_color<Char>(ts.get_background());\n    buf.append(background.begin(), background.end());\n  }\n  detail::vformat_to(buf, format_str, args, {});\n  if (has_style) detail::reset_color<Char>(buf);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00837",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
+  "source_line": 456,
+  "validation_status": "validated"
+}

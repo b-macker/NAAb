@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/StringSwitch.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16407_execute() {\n    {\n  std::pair<bool, HeaderIncludeFilteringKind> P =\n      llvm::StringSwitch<std::pair<bool, HeaderIncludeFilteringKind>>(Str)\n          .Case(\"none\", {true, HIFIL_None})\n          .Case(\"only-direct-system\", {true, HIFIL_Only_Direct_System})\n          .Default({false, HIFIL_None});\n  Kind = P.second;\n  return P.first;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16407",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/HeaderInclude.h",
+  "source_line": 37,
+  "validation_status": "validated"
+}

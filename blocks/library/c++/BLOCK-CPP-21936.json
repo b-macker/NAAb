@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/STLFunctionalExtras.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <cassert>\n#include <string>\n#include <type_traits>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21936_execute() {\n    {\n    assert(kind() == AtomRef);\n    return static_cast<Atom>(Value);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21936",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Formula.h",
+  "source_line": 69,
+  "validation_status": "validated"
+}

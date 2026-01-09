@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <ostream>\n#include <string>\n#include <vector>\n#include \"absl/hash/hash.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_join.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05691_execute() {\n    {\n    UnorderedCombinerCallback cb;\n\n    combiner(SpyHashStateImpl<void>{}, std::ref(cb));\n\n    std::sort(cb.element_hash_representations.begin(),\n              cb.element_hash_representations.end());\n    state.hash_representation_.insert(state.hash_representation_.end(),\n                                      cb.element_hash_representations.begin(),\n                                      cb.element_hash_representations.end());\n    if (cb.error && cb.error->has_value()) {\n      state.error_ = std::move(cb.error);\n    }\n    return state;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05691",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/spy_hash_state.h",
+  "source_line": 171,
+  "validation_status": "validated"
+}

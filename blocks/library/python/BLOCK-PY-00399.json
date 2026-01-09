@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00399_execute() {\n    def write_expr2() -> None:\n            if node.expr2 is not None:\n                self.visit(node.expr2, frame)\n                return\n\n            self.write(\n                f'cond_expr_undefined(\"the inline if-expression on'\n                f\" {self.position(node)} evaluated to false and no else\"\n                f' section was defined.\")'\n            )\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00399",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1856,
+  "validation_status": "validated"
+}

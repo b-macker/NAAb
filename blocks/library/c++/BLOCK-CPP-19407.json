@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <memory>\n\nusing namespace clang;\nusing namespace sema;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19407_execute() {\n    {\n  class FunctionScopeInfo;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19407",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/AnalysisBasedWarnings.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

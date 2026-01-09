@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/utility/utility.h\"\n#include <any>  // IWYU pragma: export\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04447_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nusing std::any;\nusing std::any_cast;\nusing std::bad_any_cast;\nusing std::make_any;\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04447",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/any.h",
+  "source_line": 64,
+  "validation_status": "validated"
+}

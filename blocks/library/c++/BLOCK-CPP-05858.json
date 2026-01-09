@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/traits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05858_execute() {\n    {\n  return ((n % std::numeric_limits<UIntType>::digits) == 0)\n             ? ~UIntType{0}\n             : (UIntType{1} << n) - UIntType{1};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05858",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/fast_uniform_bits.h",
+  "source_line": 68,
+  "validation_status": "validated"
+}

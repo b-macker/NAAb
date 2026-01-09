@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02561_execute() {\n    {\n  ComplexityGuard guard(state);\n  if (guard.IsTooComplex()) return false;\n  const AbbrevPair *p;\n  for (p = kBuiltinTypeList; p->abbrev != nullptr; ++p) {\n    // Guaranteed only 1- or 2-character strings in kBuiltinTypeList.\n    if (p->abbrev[1] == '\\0') {\n      if (ParseOneCharToken(state, p->abbrev[0])) {\n        MaybeAppend(state, p->real_name);\n        return true;\n      }\n    } else if (p->abbrev[2] == '\\0' && ParseTwoCharToken(state, p->abbrev)) {\n      MaybeAppend(state, p->real_name);\n      return true;\n    }\n  }\n\n  ParseState copy = state->parse_state;\n  if (ParseOneCharToken(state, 'u') && ParseSourceName(state)) {\n    return true;\n  }\n  state->parse_state = copy;\n  return false;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02561",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 1292,
+  "validation_status": "validated"
+}

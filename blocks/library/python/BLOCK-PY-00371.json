@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00371_execute() {\n    def visit_Dict(self, node: nodes.Dict, frame: Frame) -> None:\n        self.write(\"{\")\n        for idx, item in enumerate(node.items):\n            if idx:\n                self.write(\", \")\n            self.visit(item.key, frame)\n            self.write(\": \")\n            self.visit(item.value, frame)\n        self.write(\"}\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00371",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1696,
+  "validation_status": "validated"
+}

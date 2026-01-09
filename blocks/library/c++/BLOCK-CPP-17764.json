@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/HeaderInclude.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Driver/Action.h\"\n#include \"clang/Driver/DriverDiagnostic.h\"\n#include \"clang/Driver/InputInfo.h\"\n#include \"clang/Driver/Options.h\"\n#include \"clang/Driver/Phases.h\"\n#include \"clang/Driver/ToolChain.h\"\n#include \"clang/Driver/Types.h\"\n#include \"clang/Driver/Util.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/STLFunctionalExtras.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Option/Arg.h\"\n#include \"llvm/Option/ArgList.h\"\n#include \"llvm/Support/StringSaver.h\"\n#include <list>\n#include <map>\n#include <string>\n#include <vector>\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace cl;\nusing namespace llvm;\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17764_execute() {\n    {\n    Crash = 1,\n    Error,\n    Ok,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17764",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Driver.h",
+  "source_line": 545,
+  "validation_status": "validated"
+}

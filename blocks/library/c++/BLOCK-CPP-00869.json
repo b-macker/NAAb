@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00869_execute() {\n    {\n    return parse_tail<Args, END_POS + 1, NEXT_ID>(\n        field<char_type, typename field_type<T>::type, ARG_INDEX>(),\n        format_str);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00869",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 396,
+  "validation_status": "validated"
+}

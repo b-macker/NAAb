@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/synchronization/internal/waiter_base.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/thread_identity.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03190_execute() {\n    {\n\n#ifdef ABSL_INTERNAL_NEED_REDUNDANT_CONSTEXPR_DECL\nconstexpr int WaiterBase::kIdlePeriods;\n#endif\n\nvoid WaiterBase::MaybeBecomeIdle() {\n  base_internal::ThreadIdentity *identity =\n      base_internal::CurrentThreadIdentityIfPresent();\n  assert(identity != nullptr);\n  const bool is_idle = identity->is_idle.load(std::memory_order_relaxed);\n  const int ticker = identity->ticker.load(std::memory_order_relaxed);\n  const int wait_start = identity->wait_start.load(std::memory_order_relaxed);\n  if (!is_idle && ticker - wait_start > kIdlePeriods) {\n    identity->is_idle.store(true, std::memory_order_relaxed);\n  }\n}\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03190",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/waiter_base.cc",
+  "source_line": 22,
+  "validation_status": "validated"
+}

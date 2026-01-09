@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTConsumer.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Frontend/ASTUnit.h\"\n#include \"clang/Frontend/FrontendOptions.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Error.h\"\n#include <memory>\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18309_execute() {\n    {\nprotected:\n  std::unique_ptr<FrontendAction> WrappedAction;\n\n  bool PrepareToExecuteAction(CompilerInstance &CI) override;\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override;\n  bool BeginInvocation(CompilerInstance &CI) override;\n  bool BeginSourceFileAction(CompilerInstance &CI) override;\n  void ExecuteAction() override;\n  void EndSourceFile() override;\n  void EndSourceFileAction() override;\n  bool shouldEraseOutputFiles() override;\n\npublic:\n  /// Construct a WrapperFrontendAction from an existing action, taking\n  /// ownership of it.\n  WrapperFrontendAction(std::unique_ptr<FrontendAction> WrappedAction);\n\n  bool usesPreprocessorOnly() const override;\n  TranslationUnitKind getTranslationUnitKind() override;\n  bool hasPCHSupport() const override;\n  bool hasASTFileSupport() const override;\n  bool hasIRSupport() const override;\n  bool hasCodeCompletionSupport() const override;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18309",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendAction.h",
+  "source_line": 305,
+  "validation_status": "validated"
+}

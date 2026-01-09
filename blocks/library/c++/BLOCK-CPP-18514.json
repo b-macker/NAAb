@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/Support/Compiler.h\"\n#include <cstdint>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18514_execute() {\n    { return IsManuallyAlloc; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18514",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Interpreter/Value.h",
+  "source_line": 134,
+  "validation_status": "validated"
+}

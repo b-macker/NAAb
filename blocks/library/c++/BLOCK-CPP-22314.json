@@ -1,0 +1,8 @@
+{
+  "code": "{\n  template <typename CHECKER>\n  static ProgramStateRef\n  _checkRegionChanges(void *checker,\n                      ProgramStateRef state,\n                      const InvalidatedSymbols *invalidated,\n                      ArrayRef<const MemRegion *> Explicits,\n                      ArrayRef<const MemRegion *> Regions,\n                      const LocationContext *LCtx,\n                      const CallEvent *Call) {\n    return ((const CHECKER *) checker)->checkRegionChanges(state, invalidated,\n                                                           Explicits, Regions,\n                                                           LCtx, Call);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForRegionChanges(\n          CheckerManager::CheckRegionChangesFunc(checker,\n                                                 _checkRegionChanges<CHECKER>));\n  }\n}",
+  "id": "BLOCK-CPP-22314",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 332,
+  "validation_status": "validated"
+}

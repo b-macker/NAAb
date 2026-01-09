@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/str_format/parser.h\"\n#include <assert.h>\n#include <string.h>\n#include <wchar.h>\n#include <cctype>\n#include <cstdint>\n#include <algorithm>\n#include <initializer_list>\n#include <limits>\n#include <ostream>\n#include <string>\n#include <unordered_set>\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03115_execute() {\n    {\n  switch (v) {\n    case LengthMod::h:\n      return \"h\";\n    case LengthMod::hh:\n      return \"hh\";\n    case LengthMod::l:\n      return \"l\";\n    case LengthMod::ll:\n      return \"ll\";\n    case LengthMod::L:\n      return \"L\";\n    case LengthMod::j:\n      return \"j\";\n    case LengthMod::z:\n      return \"z\";\n    case LengthMod::t:\n      return \"t\";\n    case LengthMod::q:\n      return \"q\";\n    case LengthMod::none:\n      return \"\";\n  }\n  return \"\";\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03115",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/parser.cc",
+  "source_line": 42,
+  "validation_status": "validated"
+}

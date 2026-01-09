@@ -1,0 +1,8 @@
+{
+  "code": "{\n  // As long as there are enough bits in the exact part of a number:\n  // - unsigned can fit in float, signed, unsigned\n  // - signed can fit in float, signed\n  // - float can fit in float\n  // So we define rank to be:\n  // - rank(float) -> 2\n  // - rank(signed) -> 1\n  // - rank(unsigned) -> 0\n  template <class T>\n  static constexpr int rank() {\n    return !std::numeric_limits<T>::is_integer +\n           std::numeric_limits<T>::is_signed;\n  }\n\n public:\n  // If an arithmetic-type B can represent at least as many digits as a type A,\n  // and B belongs to a rank no lower than A, then A can be safely represented\n  // by B through a widening-conversion.\n  static constexpr bool value =\n      std::numeric_limits<A>::digits <= std::numeric_limits<B>::digits &&\n      rank<A>() <= rank<B>();\n}",
+  "id": "BLOCK-CPP-05979",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/traits.h",
+  "source_line": 39,
+  "validation_status": "validated"
+}

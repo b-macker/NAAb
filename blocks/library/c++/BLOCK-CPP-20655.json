@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTLambda.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace sema;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20655_execute() {\n    {\nclass FunctionScopeInfo;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20655",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaLambda.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

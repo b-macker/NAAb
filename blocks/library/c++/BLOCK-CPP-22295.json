@@ -1,0 +1,8 @@
+{
+  "code": "{\n  template <typename CHECKER>\n  static void _checkDecl(void *checker, const Decl *D, AnalysisManager& mgr,\n                         BugReporter &BR) {\n    ((const CHECKER *)checker)->checkASTDecl(cast<DECL>(D), mgr, BR);\n  }\n\n  static bool _handlesDecl(const Decl *D) {\n    return isa<DECL>(D);\n  }\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForDecl(CheckerManager::CheckDeclFunc(checker,\n                                                       _checkDecl<CHECKER>),\n                         _handlesDecl);\n  }\n}",
+  "id": "BLOCK-CPP-22295",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

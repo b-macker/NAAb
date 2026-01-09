@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicReader.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23095_execute() {\n    {\n    return UnpackOptionalValue<T>::unpack(\n             ReadDispatcher<T>::read(asImpl(), std::forward<Args>(args)...));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23095",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
+  "source_line": 159,
+  "validation_status": "validated"
+}

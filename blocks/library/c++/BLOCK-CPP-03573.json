@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03573_execute() {\n    {\nconst char* FailureSignalToString(int signo);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03573",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/failure_signal_handler.h",
+  "source_line": 114,
+  "validation_status": "validated"
+}

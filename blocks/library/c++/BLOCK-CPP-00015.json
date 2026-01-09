@@ -1,0 +1,8 @@
+{
+  "code": "    #include <spdlog/common.h>\n#include <algorithm>\n#include <iterator>\n\nusing namespace spdlog;\nusing namespace level;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00015_execute() {\n    {\n\n#if __cplusplus >= 201703L\nconstexpr\n#endif\n    static string_view_t level_string_views[] SPDLOG_LEVEL_NAMES;\n\nstatic const char *short_level_names[] SPDLOG_SHORT_LEVEL_NAMES;\n\nSPDLOG_INLINE const string_view_t &to_string_view(spdlog::level::level_enum l) SPDLOG_NOEXCEPT {\n    return level_string_views[l];\n}\n\nSPDLOG_INLINE const char *to_short_c_str(spdlog::level::level_enum l) SPDLOG_NOEXCEPT {\n    return short_level_names[l];\n}\n\nSPDLOG_INLINE spdlog::level::level_enum from_str(const std::string &name) SPDLOG_NOEXCEPT {\n    auto it = std::find(std::begin(level_string_views), std::end(level_string_views), name);\n    if (it != std::end(level_string_views))\n        return static_cast<level::level_enum>(std::distance(std::begin(level_string_views), it));\n\n    // check also for \"warn\" and \"err\" before giving up..\n    if (name == \"warn\") {\n        return level::warn;\n    }\n    if (name == \"err\") {\n        return level::err;\n    }\n    return level::off;\n}\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00015",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/common-inl.h",
+  "source_line": 14,
+  "validation_status": "validated"
+}

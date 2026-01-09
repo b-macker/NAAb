@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/MathExtras.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace XRayInstrKind;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17408_execute() {\n    {\n\n// TODO: Auto-generate these as we add more instrumentation kinds.\nenum XRayInstrOrdinal : XRayInstrMask {\n  XRIO_FunctionEntry,\n  XRIO_FunctionExit,\n  XRIO_Custom,\n  XRIO_Typed,\n  XRIO_Count\n};\n\nconstexpr XRayInstrMask None = 0;\nconstexpr XRayInstrMask FunctionEntry = 1U << XRIO_FunctionEntry;\nconstexpr XRayInstrMask FunctionExit = 1U << XRIO_FunctionExit;\nconstexpr XRayInstrMask Custom = 1U << XRIO_Custom;\nconstexpr XRayInstrMask Typed = 1U << XRIO_Typed;\nconstexpr XRayInstrMask All = FunctionEntry | FunctionExit | Custom | Typed;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17408",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/XRayInstr.h",
+  "source_line": 27,
+  "validation_status": "validated"
+}

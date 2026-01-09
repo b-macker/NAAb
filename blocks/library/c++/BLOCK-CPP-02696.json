@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/internal/fnmatch.h\"\n#include <cstddef>\n#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02696_execute() {\n    {\n          absl::string_view fixed_portion = pattern;\n          const size_t end = fixed_portion.find_first_of(\"*?\");\n          if (end != fixed_portion.npos) {\n            fixed_portion = fixed_portion.substr(0, end);\n          }\n          const size_t match = str.find(fixed_portion);\n          if (match == str.npos) {\n            return false;\n          }\n          pattern.remove_prefix(fixed_portion.size());\n          str.remove_prefix(match + fixed_portion.size());\n          in_wildcard_match = false;\n        }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02696",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/fnmatch.cc",
+  "source_line": 46,
+  "validation_status": "validated"
+}

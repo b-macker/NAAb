@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18320_execute() {\n    {\nprotected:\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override;\n\n  TranslationUnitKind getTranslationUnitKind() override {\n    return TU_Prefix;\n  }\n\n  bool hasASTFileSupport() const override { return false; }\n\n  bool shouldEraseOutputFiles() override;\n\npublic:\n  /// Compute the AST consumer arguments that will be used to\n  /// create the PCHGenerator instance returned by CreateASTConsumer.\n  ///\n  /// \\returns false if an error occurred, true otherwise.\n  static bool ComputeASTConsumerArguments(CompilerInstance &CI,\n                                          std::string &Sysroot);\n\n  /// Creates file to write the PCH into and returns a stream to write it\n  /// into. On error, returns null.\n  static std::unique_ptr<llvm::raw_pwrite_stream>\n  CreateOutputFile(CompilerInstance &CI, StringRef InFile,\n                   std::string &OutputFile);\n\n  bool BeginSourceFileAction(CompilerInstance &CI) override;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18320",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendActions.h",
+  "source_line": 86,
+  "validation_status": "validated"
+}

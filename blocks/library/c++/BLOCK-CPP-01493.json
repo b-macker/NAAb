@@ -1,0 +1,8 @@
+{
+  "code": "#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <system_error>  // std::system_error\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01493_execute() {\n    {\n private:\n  const Char* data_;\n\n public:\n  /** Constructs a string reference object from a C string. */\n  basic_cstring_view(const Char* s) : data_(s) {}\n\n  /**\n    \\rst\n    Constructs a string reference from an ``std::string`` object.\n    \\endrst\n   */\n  basic_cstring_view(const std::basic_string<Char>& s) : data_(s.c_str()) {}\n\n  /** Returns the pointer to a C string. */\n  const Char* c_str() const { return data_; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01493",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/os.h",
+  "source_line": 101,
+  "validation_status": "validated"
+}

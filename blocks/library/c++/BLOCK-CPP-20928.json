@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/AbstractBasicReader.h\"\n#include \"clang/Lex/Token.h\"\n#include \"clang/Serialization/ASTReader.h\"\n#include \"clang/Serialization/SourceLocationEncoding.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/APInt.h\"\n#include \"llvm/ADT/APSInt.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20928_execute() {\n    {\n  explicit SavedStreamPosition(llvm::BitstreamCursor &Cursor)\n      : Cursor(Cursor), Offset(Cursor.GetCurrentBitNo()) {}\n\n  ~SavedStreamPosition() {\n    if (llvm::Error Err = Cursor.JumpToBit(Offset))\n      llvm::report_fatal_error(\n          llvm::Twine(\"Cursor should always be able to go back, failed: \") +\n          toString(std::move(Err)));\n  }\n\nprivate:\n  llvm::BitstreamCursor &Cursor;\n  uint64_t Offset;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20928",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTRecordReader.h",
+  "source_line": 352,
+  "validation_status": "validated"
+}

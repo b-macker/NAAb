@@ -1,0 +1,8 @@
+{
+  "code": "#include <functional>  // std::reference_wrapper\n#include <memory>      // std::unique_ptr\n#include <vector>\n#include \"core.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00520_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00520",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/args.h",
+  "source_line": 43,
+  "validation_status": "validated"
+}

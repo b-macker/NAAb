@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/raw_hash_set.h\"\n#include <atomic>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/hash/hash.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02428_execute() {\n    {\n  if (reserved_growth_ == kReservedGrowthJustRanOut) return true;\n  if (reserved_growth_ > 0) return false;\n  return ShouldRehashForBugDetection(ctrl, capacity);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02428",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.cc",
+  "source_line": 94,
+  "validation_status": "validated"
+}

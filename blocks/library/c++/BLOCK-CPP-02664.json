@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/hash/internal/city.h\"\n#include <string.h>  // for memcpy and memset\n#include <algorithm>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02664_execute() {\n    {\n  // Murmur-inspired hashing.\n  uint64_t a = (u ^ v) * mul;\n  a ^= (a >> 47);\n  uint64_t b = (v ^ a) * mul;\n  b ^= (b >> 47);\n  b *= mul;\n  return b;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02664",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/city.cc",
+  "source_line": 203,
+  "validation_status": "validated"
+}

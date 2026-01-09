@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <cstring>\n#include <limits>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/random/internal/fastmath.h\"\n#include \"absl/random/internal/traits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05870_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05870",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/generate_real.h",
+  "source_line": 36,
+  "validation_status": "validated"
+}

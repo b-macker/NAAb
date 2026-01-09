@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00542_execute() {\n    def decode_bytes(src: bytes, mode: Mode) -> tuple[FileContent, Encoding, NewLine]:\n    \"\"\"Return a tuple of (decoded_contents, encoding, newline).\n\n    `newline` is either CRLF or LF but `decoded_contents` is decoded with\n    universal newlines (i.e. only contains LF).\n    \"\"\"\n    srcbuf = io.BytesIO(src)\n    encoding, lines = tokenize.detect_encoding(srcbuf.readline)\n    if not lines:\n        return \"\", encoding, \"\\n\"\n\n    if Preview.normalize_cr_newlines in mode:\n        if lines[0][-2:] == b\"\\r\\n\":\n            if b\"\\r\" in lines[0][:-2]:\n                newline = \"\\r\"\n            else:\n                newline = \"\\r\\n\"\n        elif lines[0][-1:] == b\"\\n\":\n            if b\"\\r\" in lines[0][:-1]:\n                newline = \"\\r\"\n            else:\n                newline = \"\\n\"\n        else:\n            if b\"\\r\" in lines[0]:\n                newline = \"\\r\"\n            else:\n                newline = \"\\n\"\n    else:\n        newline = \"\\r\\n\" if lines[0][-2:] == b\"\\r\\n\" else \"\\n\"\n\n    srcbuf.seek(0)\n    with io.TextIOWrapper(srcbuf, encoding) as tiow:\n        return tiow.read(), encoding, newline\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00542",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 1301,
+  "validation_status": "validated"
+}

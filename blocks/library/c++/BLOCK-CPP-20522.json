@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    FPFeaturesStateRAII(Sema &S);\n    ~FPFeaturesStateRAII();\n    FPOptionsOverride getOverrides() { return OldOverrides; }\n\n  private:\n    Sema& S;\n    FPOptions OldFPFeaturesState;\n    FPOptionsOverride OldOverrides;\n    LangOptions::FPEvalMethodKind OldEvalMethod;\n    SourceLocation OldFPPragmaLocation;\n  }",
+  "id": "BLOCK-CPP-20522",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 1627,
+  "validation_status": "validated"
+}

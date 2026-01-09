@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00463_execute() {\n    class ExtensionAttribute(Expr):\n    \"\"\"Returns the attribute of an extension bound to the environment.\n    The identifier is the identifier of the :class:`Extension`.\n\n    This node is usually constructed by calling the\n    :meth:`~jinja2.ext.Extension.attr` method on an extension.\n    \"\"\"\n\n    fields = (\"identifier\", \"name\")\n    identifier: str\n    name: str\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00463",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 1037,
+  "validation_status": "validated"
+}

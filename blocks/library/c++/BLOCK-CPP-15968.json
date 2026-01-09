@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\nusing namespace attr;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15968_execute() {\n    {\n\n// A list of all the recognized kinds of attributes.\nenum Kind {\n#define ATTR(X) X,\n#define ATTR_RANGE(CLASS, FIRST_NAME, LAST_NAME) \\\n  First##CLASS = FIRST_NAME,                    \\\n  Last##CLASS = LAST_NAME,\n#include \"clang/Basic/AttrList.inc\"\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15968",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AttrKinds.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

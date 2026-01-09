@@ -1,0 +1,22 @@
+# Test program - C++ block execution
+
+use BLOCK-CPP-00001 as CppUtil
+
+main {
+    print("=== C++ Block Execution Test ===")
+    print("")
+
+    # Test 1: Execute C++ block
+    print("Test 1: Loading and executing C++ block")
+    print("  Block ID: BLOCK-CPP-00001")
+    print("  Language: c++")
+    print("")
+
+    print("Attempting to compile and execute C++ block...")
+    let result = CppUtil()
+
+    print("  Execution result:", result)
+    print("")
+
+    print("=== C++ execution test complete! ===")
+}

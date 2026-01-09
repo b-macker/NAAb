@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  enum FutureStatus {\n    FS_pending,\n    FS_evaluating,\n    FS_done\n  };\n\n  Future() : SExpr(COP_Future) {}\n  virtual ~Future() = delete;\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Future; }\n\n  // A lazy rewriting strategy should subclass Future and override this method.\n  virtual SExpr *compute() { return nullptr; }\n\n  // Return the result of this future if it exists, otherwise return null.\n  SExpr *maybeGetResult() const { return Result; }\n\n  // Return the result of this future; forcing it if necessary.\n  SExpr *result() {\n    switch (Status) {\n    case FS_pending:\n      return force();\n    case FS_evaluating:\n      return nullptr; // infinite loop; illegal recursion.\n    case FS_done:\n      return Result;\n    }\n  }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    assert(Result && \"Cannot traverse Future that has not been forced.\");\n    return Vs.traverse(Result, Ctx);\n  }\n\n  template <class C>\n  typename C::CType compare(const Future* E, C& Cmp) const {\n    if (!Result || !E->Result)\n      return Cmp.comparePointers(this, E);\n    return Cmp.compare(Result, E->Result);\n  }\n\nprivate:\n  SExpr* force();\n\n  FutureStatus Status = FS_pending;\n  SExpr *Result = nullptr;\n}",
+  "id": "BLOCK-CPP-21647",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 435,
+  "validation_status": "validated"
+}

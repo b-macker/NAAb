@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstring>\n#include <iterator>\n#include <memory>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/strings/internal/ostringstream.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/str_cat.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06237_execute() {\n    {\n  std::string result;\n  if (start != end) {\n    // Sums size\n    auto&& start_value = *start;\n    size_t result_size = start_value.size();\n    for (Iterator it = start; ++it != end;) {\n      result_size += s.size();\n      result_size += (*it).size();\n    }\n\n    if (result_size > 0) {\n      STLStringResizeUninitialized(&result, result_size);\n\n      // Joins strings\n      char* result_buf = &*result.begin();\n\n      memcpy(result_buf, start_value.data(), start_value.size());\n      result_buf += start_value.size();\n      for (Iterator it = start; ++it != end;) {\n        memcpy(result_buf, s.data(), s.size());\n        result_buf += s.size();\n        auto&& value = *it;\n        memcpy(result_buf, value.data(), value.size());\n        result_buf += value.size();\n      }\n    }\n  }\n\n  return result;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06237",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_join_internal.h",
+  "source_line": 227,
+  "validation_status": "validated"
+}

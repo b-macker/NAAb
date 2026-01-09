@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/time/clock.h\"\n#include \"absl/base/attributes.h\"\n#include \"absl/base/optimization.h\"\n#include <windows.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstdint>\n#include <ctime>\n#include <limits>\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/unscaledcycleclock.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/time/internal/get_current_time_chrono.inc\"\n#include \"absl/time/internal/get_current_time_posix.inc\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace time_internal;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02156_execute() {\n    {\n  // The unlock store to *seq must have release ordering so that all\n  // updates to shared data must finish before this store.\n  seq->store(x, std::memory_order_release);  // release lock for readers\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02156",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
+  "source_line": 129,
+  "validation_status": "validated"
+}

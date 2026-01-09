@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05449_execute() {\n    {\n\n// Return whether the byte at *addr is readable, without faulting.\n// Save and restores errno.\nbool AddressIsReadable(const void *addr);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05449",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/address_is_readable.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/internal/low_level_alloc.h\"\n#include <type_traits>\n#include \"absl/base/call_once.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/direct_mmap.h\"\n#include \"absl/base/internal/scheduling_mode.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/thread_annotations.h\"\n#include <pthread.h>\n#include <signal.h>\n#include <sys/mman.h>\n#include <unistd.h>\n#include <windows.h>\n#include <sys/prctl.h>\n#include <string.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstddef>\n#include <new>  // for placement-new\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02310_execute() {\n    {\n  AllocList *n = a->next[0];\n  if (n != nullptr && reinterpret_cast<char *>(a) + a->header.size ==\n                          reinterpret_cast<char *>(n)) {\n    LowLevelAlloc::Arena *arena = a->header.arena;\n    a->header.size += n->header.size;\n    n->header.magic = 0;\n    n->header.arena = nullptr;\n    AllocList *prev[kMaxLevel];\n    LLA_SkiplistDelete(&arena->freelist, n, prev);\n    LLA_SkiplistDelete(&arena->freelist, a, prev);\n    a->levels =\n        LLA_SkiplistLevels(a->header.size, arena->min_size, &arena->random);\n    LLA_SkiplistInsert(&arena->freelist, a, prev);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02310",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/low_level_alloc.cc",
+  "source_line": 471,
+  "validation_status": "validated"
+}

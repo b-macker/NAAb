@@ -1,0 +1,8 @@
+{
+  "code": "#include <memory>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18510_execute() {\n    {\n\nclass TranslationUnitDecl;\n\n/// The class keeps track of various objects created as part of processing\n/// incremental inputs.\nstruct PartialTranslationUnit {\n  TranslationUnitDecl *TUPart = nullptr;\n\n  /// The llvm IR produced for the input.\n  std::unique_ptr<llvm::Module> TheModule;\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18510",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Interpreter/PartialTranslationUnit.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

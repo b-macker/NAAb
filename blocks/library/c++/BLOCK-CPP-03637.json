@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\n\n#if defined(ABSL_INTERNAL_CPLUSPLUS_LANG) && \\\n    ABSL_INTERNAL_CPLUSPLUS_LANG >= 201703L\n\ntemplate <int&... ExplicitArgumentBarrier, typename... T>\nauto Overload(T&&... ts) {\n  struct OverloadImpl : absl::remove_cvref_t<T>... {\n    using absl::remove_cvref_t<T>::operator()...;\n  };\n  return OverloadImpl{std::forward<T>(ts)...};\n}\n#else\nnamespace functional_internal {\ntemplate <typename T>\nconstexpr bool kDependentFalse = false;\n}\n\ntemplate <typename Dependent = int, typename... T>\nauto Overload(T&&...) {\n  static_assert(functional_internal::kDependentFalse<Dependent>,\n                \"Overload is only usable with C++17 or above.\");\n}\n\n#endif\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-03637",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/overload.h",
+  "source_line": 46,
+  "validation_status": "validated"
+}

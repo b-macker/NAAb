@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/log_msg.h>\n#include <spdlog/sinks/sink.h>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00369_execute() {\n    {\ntemplate <typename Mutex>\nclass SPDLOG_API base_sink : public sink {\npublic:\n    base_sink();\n    explicit base_sink(std::unique_ptr<spdlog::formatter> formatter);\n    ~base_sink() override = default;\n\n    base_sink(const base_sink &) = delete;\n    base_sink(base_sink &&) = delete;\n\n    base_sink &operator=(const base_sink &) = delete;\n    base_sink &operator=(base_sink &&) = delete;\n\n    void log(const details::log_msg &msg) final;\n    void flush() final;\n    void set_pattern(const std::string &pattern) final;\n    void set_formatter(std::unique_ptr<spdlog::formatter> sink_formatter) final;\n\nprotected:\n    // sink formatter\n    std::unique_ptr<spdlog::formatter> formatter_;\n    Mutex mutex_;\n\n    virtual void sink_it_(const details::log_msg &msg) = 0;\n    virtual void flush_() = 0;\n    virtual void set_pattern_(const std::string &pattern);\n    virtual void set_formatter_(std::unique_ptr<spdlog::formatter> sink_formatter);\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00369",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/base_sink.h",
+  "source_line": 17,
+  "validation_status": "validated"
+}

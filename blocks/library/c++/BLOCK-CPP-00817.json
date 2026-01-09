@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00817_execute() {\n    {\n      if (!foreground_color.is_rgb || !rhs.foreground_color.is_rgb)\n        FMT_THROW(format_error(\"can't OR a terminal color\"));\n      foreground_color.value.rgb_color |= rhs.foreground_color.value.rgb_color;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00817",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
+  "source_line": 241,
+  "validation_status": "validated"
+}

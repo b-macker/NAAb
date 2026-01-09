@@ -1,0 +1,8 @@
+{
+  "code": "{\n        constexpr auto arg_index =\n            get_arg_index_by_name(arg_id_result.arg_id.val.name, Args{});\n        if constexpr (arg_index != invalid_arg_index) {\n          constexpr auto next_id =\n              ID != manual_indexing_id ? ID + 1 : manual_indexing_id;\n          return parse_replacement_field_then_tail<\n              decltype(get_type<arg_index, Args>::value), Args, arg_id_end_pos,\n              arg_index, next_id>(format_str);\n        } else {\n          if constexpr (c == '}') {\n            return parse_tail<Args, arg_id_end_pos + 1, ID>(\n                runtime_named_field<char_type>{arg_id_result.arg_id.val.name},\n                format_str);\n          } else if constexpr (c == ':') {\n            return unknown_format();  // no type info for specs parsing\n          }\n        }\n      }",
+  "id": "BLOCK-CPP-00876",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 452,
+  "validation_status": "validated"
+}

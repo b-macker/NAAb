@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstdint>\n#include <iostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/charconv_parse.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06046_execute() {\n    {\n    uint64_t accumulator = 0;\n    for (int i = size_ - 1; i >= 0; --i) {\n      accumulator <<= 32;\n      accumulator += words_[i];\n      // accumulator / divisor will never overflow an int32_t in this loop\n      words_[i] = static_cast<uint32_t>(accumulator / divisor);\n      accumulator = accumulator % divisor;\n    }\n    while (size_ > 0 && words_[size_ - 1] == 0) {\n      --size_;\n    }\n    return static_cast<uint32_t>(accumulator);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06046",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_bigint.h",
+  "source_line": 322,
+  "validation_status": "validated"
+}

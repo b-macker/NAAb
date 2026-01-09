@@ -1,0 +1,8 @@
+{
+  "code": "    #include <spdlog/sinks/stdout_color_sinks.h>\n#include <spdlog/common.h>\n#include <spdlog/logger.h>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00464_execute() {\n    {\n    return Factory::template create<sinks::stdout_color_sink_st>(logger_name, mode);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00464",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/stdout_color_sinks-inl.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

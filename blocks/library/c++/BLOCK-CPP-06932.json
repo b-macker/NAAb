@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Expr.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06932_execute() {\n    {\n  /// \\brief The immediately-declared constraint expression introduced by this\n  /// type-constraint.\n  Expr *ImmediatelyDeclaredConstraint = nullptr;\n\npublic:\n  TypeConstraint(NestedNameSpecifierLoc NNS,\n                 DeclarationNameInfo ConceptNameInfo, NamedDecl *FoundDecl,\n                 ConceptDecl *NamedConcept,\n                 const ASTTemplateArgumentListInfo *ArgsAsWritten,\n                 Expr *ImmediatelyDeclaredConstraint) :\n      ConceptReference(NNS, /*TemplateKWLoc=*/SourceLocation(), ConceptNameInfo,\n                       FoundDecl, NamedConcept, ArgsAsWritten),\n      ImmediatelyDeclaredConstraint(ImmediatelyDeclaredConstraint) {}\n\n  /// \\brief Get the immediately-declared constraint expression introduced by\n  /// this type-constraint, that is - the constraint expression that is added to\n  /// the associated constraints of the enclosing declaration in practice.\n  Expr *getImmediatelyDeclaredConstraint() const {\n    return ImmediatelyDeclaredConstraint;\n  }\n\n  void print(llvm::raw_ostream &OS, PrintingPolicy Policy) const;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06932",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTConcept.h",
+  "source_line": 180,
+  "validation_status": "validated"
+}

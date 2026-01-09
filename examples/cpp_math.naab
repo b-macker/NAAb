@@ -1,0 +1,50 @@
+# NAAb Example: C++ Math Block
+# Demonstrates using a C++ block for mathematical operations
+# Phase 7d: Block Examples
+
+use BLOCK-CPP-MATH as math
+
+main {
+    print("=== C++ Math Block Demo ===")
+    print()
+
+    # Basic arithmetic
+    let sum = math.add(10, 20)
+    print("10 + 20 =", sum)
+
+    let diff = math.subtract(50, 17)
+    print("50 - 17 =", diff)
+
+    let product = math.multiply(5, 7)
+    print("5 × 7 =", product)
+
+    let quotient = math.divide(100, 4)
+    print("100 ÷ 4 =", quotient)
+
+    print()
+
+    # Advanced math
+    let squared = math.power(5.0, 2.0)
+    print("5² =", squared)
+
+    let cubed = math.power(3.0, 3.0)
+    print("3³ =", cubed)
+
+    let root = math.sqrt_val(16.0)
+    print("√16 =", root)
+
+    print()
+
+    # Utility functions
+    let abs_neg = math.abs_val(-42)
+    print("|-42| =", abs_neg)
+
+    let maximum = math.max_val(15, 27)
+    print("max(15, 27) =", maximum)
+
+    let minimum = math.min_val(15, 27)
+    print("min(15, 27) =", minimum)
+
+    print()
+    print("✓ C++ block executed successfully!")
+}

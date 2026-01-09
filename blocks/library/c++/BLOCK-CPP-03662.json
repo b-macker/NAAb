@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03662_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\n// InitializeLog()\n//\n// Initializes the Abseil logging library.\n//\n// Before this function is called, all log messages are directed only to stderr.\n// After initialization is finished, log messages are directed to all registered\n// `LogSink`s.\n//\n// It is an error to call this function twice.\n//\n// There is no corresponding function to shut down the logging library.\nvoid InitializeLog();\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03662",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/initialize.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

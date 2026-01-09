@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00464_execute() {\n    class ImportedName(Expr):\n    \"\"\"If created with an import name the import name is returned on node\n    access.  For example ``ImportedName('cgi.escape')`` returns the `escape`\n    function from the cgi module on evaluation.  Imports are optimized by the\n    compiler so there is no need to assign them to local variables.\n    \"\"\"\n\n    fields = (\"importname\",)\n    importname: str\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00464",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 1050,
+  "validation_status": "validated"
+}

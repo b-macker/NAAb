@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace log_internal {\n\nvoid DieBecauseNull(const char* file, int line, const char* exprtext) {\n  LOG(FATAL).AtLocation(file, line)\n      << absl::StrCat(\"Check failed: '\", exprtext, \"' Must be non-null\");\n}\n\n}  // namespace log_internal\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-01754",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/die_if_null.cc",
+  "source_line": 21,
+  "validation_status": "validated"
+}

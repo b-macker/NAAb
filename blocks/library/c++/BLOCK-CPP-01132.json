@@ -1,0 +1,8 @@
+{
+  "code": "{\n  explicit buffer_traits(size_t) {}\n  auto count() const -> size_t { return 0; }\n  auto limit(size_t size) -> size_t { return size; }\n}",
+  "id": "BLOCK-CPP-01132",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 948,
+  "validation_status": "validated"
+}

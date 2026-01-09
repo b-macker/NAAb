@@ -1,0 +1,8 @@
+{
+  "code": "{\n private:\n  static void Sink(...) {}\n  struct NAT {};\n\n  template <class Key>\n  static auto GetReturnType(int)\n      -> decltype(std::declval<std::hash<Key>>()(std::declval<Key const&>()));\n  template <class Key>\n  static NAT GetReturnType(...);\n\n  template <class Key>\n  static std::nullptr_t DoIt() {\n    static_assert(IsHashable<Key>::value,\n                  \"std::hash<Key> does not provide a call operator\");\n    static_assert(\n        std::is_default_constructible<std::hash<Key>>::value,\n        \"std::hash<Key> must be default constructible when it is enabled\");\n    static_assert(\n        std::is_copy_constructible<std::hash<Key>>::value,\n        \"std::hash<Key> must be copy constructible when it is enabled\");\n    static_assert(absl::is_copy_assignable<std::hash<Key>>::value,\n                  \"std::hash<Key> must be copy assignable when it is enabled\");\n    // is_destructible is unchecked as it's implied by each of the\n    // is_constructible checks.\n    using ReturnType = decltype(GetReturnType<Key>(0));\n    static_assert(std::is_same<ReturnType, NAT>::value ||\n                      std::is_same<ReturnType, size_t>::value,\n                  \"std::hash<Key> must return size_t\");\n    return nullptr;\n  }\n\n  template <class... Ts>\n  friend void AssertHashEnabled();\n}",
+  "id": "BLOCK-CPP-03708",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/meta/type_traits.h",
+  "source_line": 363,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16680_execute() {\n    {\n    switch (getKind()) {\n    case FragileMacOSX: return false;\n    case MacOSX: return true;\n    case iOS: return true;\n    case WatchOS: return true;\n    case GCC: return false;\n    case GNUstep: return false;\n    case ObjFW: return false;\n    }\n    llvm_unreachable(\"bad kind\");\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16680",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/ObjCRuntime.h",
+  "source_line": 451,
+  "validation_status": "validated"
+}

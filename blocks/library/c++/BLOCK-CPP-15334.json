@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15334_execute() {\n    { return parameters().end(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15334",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/AnyCall.h",
+  "source_line": 161,
+  "validation_status": "validated"
+}

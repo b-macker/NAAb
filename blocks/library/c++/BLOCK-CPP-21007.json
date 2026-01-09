@@ -1,0 +1,8 @@
+{
+  "code": "{\n    ContinuousRangeMap &Self;\n\n  public:\n    explicit Builder(ContinuousRangeMap &Self) : Self(Self) {}\n    Builder(const Builder&) = delete;\n    Builder &operator=(const Builder&) = delete;\n\n    ~Builder() {\n      llvm::sort(Self.Rep, Compare());\n      Self.Rep.erase(\n          std::unique(\n              Self.Rep.begin(), Self.Rep.end(),\n              [](const_reference A, const_reference B) {\n                // FIXME: we should not allow any duplicate keys, but there are\n                // a lot of duplicate 0 -> 0 mappings to remove first.\n                assert((A == B || A.first != B.first) &&\n                       \"ContinuousRangeMap::Builder given non-unique keys\");\n                return A == B;\n              }),\n          Self.Rep.end());\n    }\n\n    void insert(const value_type &Val) {\n      Self.Rep.push_back(Val);\n    }\n  }",
+  "id": "BLOCK-CPP-21007",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ContinuousRangeMap.h",
+  "source_line": 111,
+  "validation_status": "validated"
+}

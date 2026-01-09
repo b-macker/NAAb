@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Support/CommandLine.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18224_execute() {\n    {\n    return (llvm::Twine(FileName == \"<stdin>\" ? \"-\" : FileName) + \":\" +\n            Twine(Line) + \":\" + Twine(Column))\n        .str();\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18224",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/CommandLineSourceLoc.h",
+  "source_line": 54,
+  "validation_status": "validated"
+}

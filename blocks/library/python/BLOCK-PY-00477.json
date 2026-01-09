@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00477_execute() {\n    def __new__(mcs, name, bases, d):  # type: ignore\n        for attr in \"fields\", \"attributes\":\n            storage: list[tuple[str, ...]] = []\n            storage.extend(getattr(bases[0] if bases else object, attr, ()))\n            storage.extend(d.get(attr, ()))\n            assert len(bases) <= 1, \"multiple inheritance not allowed\"\n            assert len(storage) == len(set(storage)), \"layout conflict\"\n            d[attr] = tuple(storage)\n        d.setdefault(\"abstract\", False)\n        return type.__new__(mcs, name, bases, d)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00477",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 59,
+  "validation_status": "validated"
+}

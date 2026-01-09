@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/log_msg.h>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00239_execute() {\n    {\nnamespace details {\n\n// Extend log_msg with internal buffer to store its payload.\n// This is needed since log_msg holds string_views that points to stack data.\n\nclass SPDLOG_API log_msg_buffer : public log_msg {\n    memory_buf_t buffer;\n    void update_string_views();\n\npublic:\n    log_msg_buffer() = default;\n    explicit log_msg_buffer(const log_msg &orig_msg);\n    log_msg_buffer(const log_msg_buffer &other);\n    log_msg_buffer(log_msg_buffer &&other) SPDLOG_NOEXCEPT;\n    log_msg_buffer &operator=(const log_msg_buffer &other);\n    log_msg_buffer &operator=(log_msg_buffer &&other) SPDLOG_NOEXCEPT;\n};\n\n}  // namespace details\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00239",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/log_msg_buffer.h",
+  "source_line": 8,
+  "validation_status": "validated"
+}

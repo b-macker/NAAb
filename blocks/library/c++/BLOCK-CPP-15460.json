@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/Support/BumpVector.h\"\n#include \"clang/Analysis/ConstructionContext.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/GraphTraits.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <bitset>\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n#include <memory>\n#include <optional>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15460_execute() {\n    { return I != E; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15460",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
+  "source_line": 1008,
+  "validation_status": "validated"
+}

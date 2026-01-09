@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01293_execute() {\n    {\n  static_assert(align == align::left || align == align::right, \"\");\n  unsigned spec_width = to_unsigned(specs.width);\n  size_t padding = spec_width > width ? spec_width - width : 0;\n  // Shifts are encoded as string literals because static constexpr is not\n  // supported in constexpr functions.\n  auto* shifts = align == align::left ? \"\\x1f\\x1f\\x00\\x01\" : \"\\x00\\x1f\\x00\\x01\";\n  size_t left_padding = padding >> shifts[specs.align];\n  size_t right_padding = padding - left_padding;\n  auto it = reserve(out, size + padding * specs.fill.size());\n  if (left_padding != 0) it = fill(it, left_padding, specs.fill);\n  it = f(it);\n  if (right_padding != 0) it = fill(it, right_padding, specs.fill);\n  return base_iterator(out, it);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01293",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 1652,
+  "validation_status": "validated"
+}

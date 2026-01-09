@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cinttypes>\n#include <cstdlib>\n#include <iostream>\n#include <iterator>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/internal/endian.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n#include \"absl/random/internal/randen.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05945_execute() {\n    {\n    uint64_t step = std::min<uint64_t>(kStateSizeT - next_, count);\n    count -= step;\n\n    constexpr uint64_t kRateT = kStateSizeT - kCapacityT;\n    auto* begin = state();\n    while (count > 0) {\n      next_ = kCapacityT;\n      impl_.Generate(*reinterpret_cast<result_type(*)[kStateSizeT]>(begin));\n      step = std::min<uint64_t>(kRateT, count);\n      count -= step;\n    }\n    next_ += step;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05945",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_engine.h",
+  "source_line": 168,
+  "validation_status": "validated"
+}

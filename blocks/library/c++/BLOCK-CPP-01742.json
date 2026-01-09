@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace flags_internal {\nnamespace {\nABSL_CONST_INIT absl::Mutex usage_message_guard(absl::kConstInit);\nABSL_CONST_INIT std::string* program_usage_message\n    ABSL_GUARDED_BY(usage_message_guard) = nullptr;\n}  // namespace\n}  // namespace flags_internal\n\n// --------------------------------------------------------------------\n// Sets the \"usage\" message to be used by help reporting routines.\nvoid SetProgramUsageMessage(absl::string_view new_usage_message) {\n  absl::MutexLock l(&flags_internal::usage_message_guard);\n\n  if (flags_internal::program_usage_message != nullptr) {\n    ABSL_INTERNAL_LOG(FATAL, \"SetProgramUsageMessage() called twice.\");\n    std::exit(1);\n  }\n\n  flags_internal::program_usage_message = new std::string(new_usage_message);\n}\n\n// --------------------------------------------------------------------\n// Returns the usage message set by SetProgramUsageMessage().\n// Note: We able to return string_view here only because calling\n// SetProgramUsageMessage twice is prohibited.\nabsl::string_view ProgramUsageMessage() {\n  absl::MutexLock l(&flags_internal::usage_message_guard);\n\n  return flags_internal::program_usage_message != nullptr\n             ? absl::string_view(*flags_internal::program_usage_message)\n             : \"Warning: SetProgramUsageMessage() never called\";\n}\n\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-01742",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/usage.cc",
+  "source_line": 30,
+  "validation_status": "validated"
+}

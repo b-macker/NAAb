@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Version.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/JSON.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <initializer_list>\n#include <optional>\n#include <string>\n\nusing namespace clang;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16779_execute() {\n    {\n    Message = ItemMessage.str();\n    return *this;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16779",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Sarif.h",
+  "source_line": 199,
+  "validation_status": "validated"
+}

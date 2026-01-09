@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang-c/BuildSystem.h\"\n#include \"clang-c/CXDiagnostic.h\"\n#include \"clang-c/CXErrorCode.h\"\n#include \"clang-c/CXFile.h\"\n#include \"clang-c/CXSourceLocation.h\"\n#include \"clang-c/CXString.h\"\n#include \"clang-c/ExternC.h\"\n#include \"clang-c/Platform.h\"\n   * #include file completions should be included in the results.\n * file included (either at the top-level or by \\#include directives) within\n\nusing namespace pollution;\nusing namespace alias;\nusing namespace or;\nusing namespace aliases;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22493_execute() {\n    {\n  void *context;\n  enum CXVisitorResult (*visit)(void *context, CXCursor, CXSourceRange);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22493",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang-c/Index.h",
+  "source_line": 5832,
+  "validation_status": "validated"
+}

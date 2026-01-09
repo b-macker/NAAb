@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <initializer_list>\n#include <iterator>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/container/internal/btree.h\"  // IWYU pragma: export\n#include \"absl/container/internal/common.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04913_execute() {\n    {\n    const std::pair<iterator, bool> ret = this->tree_.insert_hint_unique(\n        iterator(hint), k, std::forward<K>(k), std::forward<M>(obj));\n    if (!ret.second) ret.first->second = std::forward<M>(obj);\n    return ret.first;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04913",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree_container.h",
+  "source_line": 574,
+  "validation_status": "validated"
+}

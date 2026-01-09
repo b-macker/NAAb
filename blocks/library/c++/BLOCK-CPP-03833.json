@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cmath>\n#include <istream>\n#include <limits>\n#include <numeric>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include \"absl/random/bernoulli_distribution.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n#include \"absl/random/uniform_int_distribution.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03833_execute() {\n    {\n\n// Using the vector `*probabilities`, whose values are the weights or\n// probabilities of an element being selected, constructs the proportional\n// probabilities used by the discrete distribution.  `*probabilities` will be\n// scaled, if necessary, so that its entries sum to a value sufficiently close\n// to 1.0.\nstd::vector<std::pair<double, size_t>> InitDiscreteDistribution(\n    std::vector<double>* probabilities);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03833",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/discrete_distribution.h",
+  "source_line": 170,
+  "validation_status": "validated"
+}

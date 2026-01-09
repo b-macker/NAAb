@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/charconv.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include <system_error>  // NOLINT(build/c++11)\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/internal/charconv_bigint.h\"\n#include \"absl/strings/internal/charconv_parse.h\"\n\nusing namespace absl;\nusing namespace it;\nusing namespace std;\nusing namespace std;\nusing namespace it;\nusing namespace std;\nusing namespace std;\nusing namespace it;\nusing namespace std;\nusing namespace std;\nusing namespace it;\nusing namespace std;\nusing namespace std;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01838_execute() {\n    {\n  if (Uint128High64(value) == 0) {\n    // This static_cast is only needed when using a std::bit_width()\n    // implementation that does not have the fix for LWG 3656 applied.\n    return static_cast<int>(bit_width(Uint128Low64(value)));\n  }\n  return 128 - countl_zero(Uint128High64(value));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01838",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/charconv.cc",
+  "source_line": 317,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00725_execute() {\n    {\n  // We need to compare the duration using the count() method directly\n  // due to a compiler bug in clang-11 regarding the spaceship operator,\n  // when -Wzero-as-null-pointer-constant is enabled.\n  // In clang-12 the bug has been fixed. See\n  // https://bugs.llvm.org/show_bug.cgi?id=46235 and the reproducible example:\n  // https://www.godbolt.org/z/Knbb5joYx.\n  return d.count() >= d.zero().count() ? d : -d;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00725",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1489,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00653_execute() {\n    {\n    const auto prev_year = curr_year - 1;\n    const auto curr_p =\n        (curr_year + curr_year / 4 - curr_year / 100 + curr_year / 400) %\n        days_per_week;\n    const auto prev_p =\n        (prev_year + prev_year / 4 - prev_year / 100 + prev_year / 400) %\n        days_per_week;\n    return 52 + ((curr_p == 4 || prev_p == 3) ? 1 : 0);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00653",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1017,
+  "validation_status": "validated"
+}

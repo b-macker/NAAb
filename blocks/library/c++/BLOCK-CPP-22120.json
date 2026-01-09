@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Rewrite/Core/DeltaTree.h\"\n#include \"clang/Rewrite/Core/RewriteRope.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22120_execute() {\n    {\n    Initialize(Input.begin(), Input.end());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22120",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/RewriteBuffer.h",
+  "source_line": 46,
+  "validation_status": "validated"
+}

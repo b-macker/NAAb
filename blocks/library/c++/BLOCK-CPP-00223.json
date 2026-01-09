@@ -1,0 +1,8 @@
+{
+  "code": "#include <chrono>\n#include <iterator>\n#include <spdlog/common.h>\n#include <spdlog/fmt/fmt.h>\n#include <type_traits>\n    #include <charconv>\n    #include <limits>\n\nusing namespace spdlog;\nusing namespace details;\nusing namespace fmt_helper;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00223_execute() {\n    {\n    using count_type =\n        typename std::conditional<(sizeof(T) > sizeof(uint32_t)), uint64_t, uint32_t>::type;\n#ifdef SPDLOG_USE_STD_FORMAT\n    return count_digits_fallback(static_cast<count_type>(n));\n#else\n    return static_cast<unsigned int>(fmt::\n    // fmt 7.0.0 renamed the internal namespace to detail.\n    // See: https://github.com/fmtlib/fmt/issues/1538\n    #if FMT_VERSION < 70000\n                                         internal\n    #else\n                                         detail\n    #endif\n                                     ::count_digits(static_cast<count_type>(n)));\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00223",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/fmt_helper.h",
+  "source_line": 66,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <stdint.h>\n#include <stdlib.h>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05683_execute() {\n    {\n\n// Hash function for a byte array. A 64-bit seed and a set of five 64-bit\n// integers are hashed into the result.\n//\n// To allow all hashable types (including string_view and Span) to depend on\n// this algorithm, we keep the API low-level, with as few dependencies as\n// possible.\nuint64_t LowLevelHash(const void* data, size_t len, uint64_t seed,\n                      const uint64_t salt[5]);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05683",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/low_level_hash.h",
+  "source_line": 35,
+  "validation_status": "validated"
+}

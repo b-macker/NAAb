@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <cstring>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17361_execute() {\n    {\n    return This.isEmpty() && Return.isEmpty() && Method == nullptr;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17361",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Thunk.h",
+  "source_line": 181,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n protected:\n  using Variant = variant<H, T...>;\n\n  template <class LazyH = H,\n            class ConstructibleH = absl::enable_if_t<\n                std::is_default_constructible<LazyH>::value, LazyH>>\n  constexpr VariantStateBase() noexcept(\n      std::is_nothrow_default_constructible<ConstructibleH>::value)\n      : state_(EmplaceTag<0>()), index_(0) {}\n\n  template <std::size_t I, class... P>\n  explicit constexpr VariantStateBase(EmplaceTag<I> tag, P&&... args)\n      : state_(tag, absl::forward<P>(args)...), index_(I) {}\n\n  explicit constexpr VariantStateBase(NoopConstructorTag)\n      : state_(NoopConstructorTag()), index_(variant_npos) {}\n\n  void destroy() {}  // Does nothing (shadowed in child if non-trivial)\n\n  DestructibleUnion<H, T...> state_;\n  std::size_t index_;\n}",
+  "id": "BLOCK-CPP-06679",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/variant.h",
+  "source_line": 1025,
+  "validation_status": "validated"
+}

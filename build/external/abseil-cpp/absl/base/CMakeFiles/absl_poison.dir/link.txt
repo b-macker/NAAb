@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_poison.a CMakeFiles/absl_poison.dir/internal/poison.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_poison.a

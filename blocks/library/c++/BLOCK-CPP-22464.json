@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang-c/BuildSystem.h\"\n#include \"clang-c/CXDiagnostic.h\"\n#include \"clang-c/CXErrorCode.h\"\n#include \"clang-c/CXFile.h\"\n#include \"clang-c/CXSourceLocation.h\"\n#include \"clang-c/CXString.h\"\n#include \"clang-c/ExternC.h\"\n#include \"clang-c/Platform.h\"\n\nusing namespace pollution;\nusing namespace alias;\nusing namespace or;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22464_execute() {\n    {\n   *  f(static_cast<Types&&>(args)...);\n   * }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22464",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang-c/Index.h",
+  "source_line": 1605,
+  "validation_status": "validated"
+}

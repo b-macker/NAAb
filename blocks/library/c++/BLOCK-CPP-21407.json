@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\nusing namespace threadSafety;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21407_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21407",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafety.h",
+  "source_line": 175,
+  "validation_status": "validated"
+}

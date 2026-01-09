@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/AbstractBasicReader.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/Type.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23129_execute() {\n    {\nnamespace serialization {\n\n// template <class PropertyReader>\n// class AbstractTypeReader {\n// public:\n//   AbstractTypeReader(PropertyReader &W);\n//   QualType read(Type::TypeClass kind);\n// };\n//\n// The actual class is auto-generated; see ClangASTPropertiesEmitter.cpp.\n#include \"clang/AST/AbstractTypeReader.inc\"\n\n} // end namespace serialization\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23129",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractTypeReader.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

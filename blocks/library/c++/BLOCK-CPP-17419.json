@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/IR/DerivedTypes.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17419_execute() {\n    {\n    auto AI = ABIArgInfo(Direct);\n    AI.setCoerceToType(T);\n    AI.setPaddingType(Padding);\n    AI.setDirectOffset(Offset);\n    AI.setDirectAlign(Align);\n    AI.setCanBeFlattened(CanBeFlattened);\n    return AI;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17419",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CGFunctionInfo.h",
+  "source_line": 142,
+  "validation_status": "validated"
+}

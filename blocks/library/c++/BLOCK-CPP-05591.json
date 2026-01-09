@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <exception>\n#include <functional>\n#include <initializer_list>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_any_invocable;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05591_execute() {\n    {\n public:\n  explicit TrivialDeleter(std::size_t size) : size_(size) {}\n\n  void operator()(void* target) const {\n    ::operator delete(target, size_);\n  }\n\n private:\n  std::size_t size_;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05591",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/internal/any_invocable.h",
+  "source_line": 404,
+  "validation_status": "validated"
+}

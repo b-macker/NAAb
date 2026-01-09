@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02579_execute() {\n    {\n  ComplexityGuard guard(state);\n  if (guard.IsTooComplex()) return false;\n\n  if (MaybeAppend(state, \"::\") && ParseName(state) &&\n      Optional(ParseDiscriminator(state))) {\n    return true;\n  }\n\n  // Since we're not going to overwrite the above \"::\" by re-parsing the\n  // <encoding> (whose trailing '\\0' byte was in the byte now holding the\n  // first ':'), we have to rollback the \"::\" if the <name> parse failed.\n  if (state->parse_state.append) {\n    state->out[state->parse_state.out_cur_idx - 2] = '\\0';\n  }\n\n  return ParseOneCharToken(state, 's') && Optional(ParseDiscriminator(state));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02579",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 1868,
+  "validation_status": "validated"
+}

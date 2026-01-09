@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/ASTTypeTraits.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12316_execute() {\n    { return end() - begin(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12316",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ParentMapContext.h",
+  "source_line": 116,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "public function __construct(AuthService $authService)\n    {\n        $this->authService = $authService;\n    }",
+  "id": "BLOCK-PHP-00005",
+  "language": "php",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmpmif__t_z.php",
+  "source_line": 15,
+  "validation_status": "validated"
+}

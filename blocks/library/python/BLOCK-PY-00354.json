@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00354_execute() {\n    def visit_ExprStmt(self, node: nodes.ExprStmt, frame: Frame) -> None:\n        self.newline(node)\n        self.visit(node.node, frame)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00354",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1376,
+  "validation_status": "validated"
+}

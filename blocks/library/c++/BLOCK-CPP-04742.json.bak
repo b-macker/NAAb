@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ninline uint16_t UnalignedLoad16(absl::Nonnull<const void *> p) {\n  uint16_t t;\n  memcpy(&t, p, sizeof t);\n  return t;\n}\n\ninline uint32_t UnalignedLoad32(absl::Nonnull<const void *> p) {\n  uint32_t t;\n  memcpy(&t, p, sizeof t);\n  return t;\n}\n\ninline uint64_t UnalignedLoad64(absl::Nonnull<const void *> p) {\n  uint64_t t;\n  memcpy(&t, p, sizeof t);\n  return t;\n}\n\ninline void UnalignedStore16(absl::Nonnull<void *> p, uint16_t v) {\n  memcpy(p, &v, sizeof v);\n}\n\ninline void UnalignedStore32(absl::Nonnull<void *> p, uint32_t v) {\n  memcpy(p, &v, sizeof v);\n}\n\ninline void UnalignedStore64(absl::Nonnull<void *> p, uint64_t v) {\n  memcpy(p, &v, sizeof v);\n}\n\n}",
+  "id": "BLOCK-CPP-04742",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/unaligned_access.h",
+  "source_line": 37,
+  "validation_status": "validated"
+}

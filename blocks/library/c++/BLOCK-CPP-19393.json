@@ -1,0 +1,8 @@
+{
+  "code": "{\n    Parser &P;\n    bool OldVal;\n  public:\n    ColonProtectionRAIIObject(Parser &p, bool Value = true)\n      : P(p), OldVal(P.ColonIsSacred) {\n      P.ColonIsSacred = Value;\n    }\n\n    /// restore - This can be used to restore the state early, before the dtor\n    /// is run.\n    void restore() {\n      P.ColonIsSacred = OldVal;\n    }\n\n    ~ColonProtectionRAIIObject() {\n      restore();\n    }\n  }",
+  "id": "BLOCK-CPP-19393",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
+  "source_line": 273,
+  "validation_status": "validated"
+}

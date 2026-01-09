@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/internal/strerror.h\"\n#include <array>\n#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <cstring>\n#include <string>\n#include <type_traits>\n#include \"absl/base/internal/errno_saver.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02340_execute() {\n    {\n  absl::base_internal::ErrnoSaver errno_saver;\n  static const auto* table = NewStrErrorTable();\n  if (errnum >= 0 && static_cast<size_t>(errnum) < table->size()) {\n    return (*table)[static_cast<size_t>(errnum)];\n  }\n  return StrErrorInternal(errnum);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02340",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/strerror.cc",
+  "source_line": 77,
+  "validation_status": "validated"
+}

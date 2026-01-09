@@ -1,0 +1,8 @@
+{
+  "code": "{\n  arg_ref<Char> arg_id;\n\n  constexpr int operator()() {\n    FMT_ASSERT(false, \"handler cannot be used with automatic indexing\");\n    return 0;\n  }\n  constexpr int operator()(int id) {\n    arg_id = arg_ref<Char>(id);\n    return 0;\n  }\n  constexpr int operator()(basic_string_view<Char> id) {\n    arg_id = arg_ref<Char>(id);\n    return 0;\n  }\n\n  constexpr void on_error(const char* message) {\n    FMT_THROW(format_error(message));\n  }\n}",
+  "id": "BLOCK-CPP-00903",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 348,
+  "validation_status": "validated"
+}

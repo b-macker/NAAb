@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/log_msg.h>\n#include <spdlog/details/os.h>\n#include <spdlog/formatter.h>\n#include <chrono>\n#include <ctime>\n#include <memory>\n#include <string>\n#include <unordered_map>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00124_execute() {\n    {\n    enum class pad_side { left, right, center };\n\n    padding_info() = default;\n    padding_info(size_t width, padding_info::pad_side side, bool truncate)\n        : width_(width),\n          side_(side),\n          truncate_(truncate),\n          enabled_(true) {}\n\n    bool enabled() const { return enabled_; }\n    size_t width_ = 0;\n    pad_side side_ = pad_side::left;\n    bool truncate_ = false;\n    bool enabled_ = false;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00124",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/pattern_formatter.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

@@ -1,0 +1,44 @@
+// String utilities module for integration testing
+
+import "stdlib" as std
+
+export function reverse_string(str) {
+    let result = ""
+    let i = std.length(str) - 1
+    while (i >= 0) {
+        result = result + std.substring(str, i, i + 1)
+        i = i - 1
+    }
+    return result
+}
+
+export function is_palindrome(str) {
+    let cleaned = std.toLowerCase(std.trim(str))
+    return cleaned == reverse_string(cleaned)
+}
+
+export function word_count(str) {
+    let words = std.split(std.trim(str), " ")
+    let count = 0
+    for (word in words) {
+        if (std.length(std.trim(word)) > 0) {
+            count = count + 1
+        }
+    }
+    return count
+}
+
+export function capitalize_words(str) {
+    let words = std.split(str, " ")
+    let result = []
+
+    for (word in words) {
+        if (std.length(word) > 0) {
+            let first = std.toUpperCase(std.substring(word, 0, 1))
+            let rest = std.substring(word, 1)
+            result = std.push(result, first + rest)
+        }
+    }
+
+    return std.join(result, " ")
+}

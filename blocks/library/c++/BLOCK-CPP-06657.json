@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstdlib>\n#include <memory>\n#include <stdexcept>\n#include <tuple>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/identity.h\"\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/bad_variant_access.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace variant_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06657_execute() {\n    {\n    return AccessSimpleArray(\n        MakeVisitationMatrix<VisitIndicesResultT<Op, SizeT...>, Op,\n                             index_sequence<(EndIndices + 1)...>,\n                             index_sequence<>>::Run(),\n        (indices + 1)...)(absl::forward<Op>(op));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06657",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/variant.h",
+  "source_line": 434,
+  "validation_status": "validated"
+}

@@ -1,0 +1,43 @@
+#ifndef NAAB_PYTHON_EXECUTOR_ADAPTER_H
+#define NAAB_PYTHON_EXECUTOR_ADAPTER_H
+
+// NAAb Python Executor Adapter
+// Adapts PythonExecutor to the Executor interface for the language registry
+
+#include "naab/language_registry.h"
+#include "naab/python_executor.h"
+#include <memory>
+#include <string>
+
+namespace naab {
+namespace runtime {
+
+// Adapter class that wraps PythonExecutor for the language registry
+class PyExecutorAdapter : public Executor {
+public:
+    PyExecutorAdapter();
+    ~PyExecutorAdapter() override = default;
+
+    // Execute code and store in runtime context
+    bool execute(const std::string& code) override;
+
+    // Call a function in the executor
+    std::shared_ptr<interpreter::Value> callFunction(
+        const std::string& function_name,
+        const std::vector<std::shared_ptr<interpreter::Value>>& args
+    ) override;
+
+    // Check if executor is initialized
+    bool isInitialized() const override;
+
+    // Get language name
+    std::string getLanguage() const override { return "python"; }
+
+private:
+    std::unique_ptr<PythonExecutor> executor_;
+};
+
+} // namespace runtime
+} // namespace naab
+
+#endif // NAAB_PYTHON_EXECUTOR_ADAPTER_H

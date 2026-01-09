@@ -1,0 +1,8 @@
+{
+  "code": "{\n  unsigned HasFlagEnum : 1;\n  unsigned IsFlagEnum : 1;\n\npublic:\n  std::optional<EnumExtensibilityKind> EnumExtensibility;\n\n  TagInfo() : HasFlagEnum(0), IsFlagEnum(0) {}\n\n  std::optional<bool> isFlagEnum() const {\n    if (HasFlagEnum)\n      return IsFlagEnum;\n    return std::nullopt;\n  }\n  void setFlagEnum(std::optional<bool> Value) {\n    HasFlagEnum = Value.has_value();\n    IsFlagEnum = Value.value_or(false);\n  }\n\n  TagInfo &operator|=(const TagInfo &RHS) {\n    static_cast<CommonTypeInfo &>(*this) |= RHS;\n\n    if (!HasFlagEnum)\n      setFlagEnum(RHS.isFlagEnum());\n\n    if (!EnumExtensibility)\n      EnumExtensibility = RHS.EnumExtensibility;\n\n    return *this;\n  }\n\n  friend bool operator==(const TagInfo &, const TagInfo &);\n\n  LLVM_DUMP_METHOD void dump(llvm::raw_ostream &OS);\n}",
+  "id": "BLOCK-CPP-06809",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/APINotes/Types.h",
+  "source_line": 657,
+  "validation_status": "validated"
+}

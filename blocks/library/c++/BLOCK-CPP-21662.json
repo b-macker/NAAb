@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  Load(SExpr *P) : SExpr(COP_Load), Ptr(P) {}\n  Load(const Load &L, SExpr *P) : SExpr(L), Ptr(P) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Load; }\n\n  SExpr *pointer() { return Ptr; }\n  const SExpr *pointer() const { return Ptr; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Np = Vs.traverse(Ptr, Vs.subExprCtx(Ctx));\n    return Vs.reduceLoad(*this, Np);\n  }\n\n  template <class C>\n  typename C::CType compare(const Load* E, C& Cmp) const {\n    return Cmp.compare(pointer(), E->pointer());\n  }\n\nprivate:\n  SExpr* Ptr;\n}",
+  "id": "BLOCK-CPP-21662",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 1040,
+  "validation_status": "validated"
+}

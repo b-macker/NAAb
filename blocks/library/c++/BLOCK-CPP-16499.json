@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16499_execute() {\n    {\n\n/// The default, if any, capture method for a lambda expression.\nenum LambdaCaptureDefault {\n  LCD_None,\n  LCD_ByCopy,\n  LCD_ByRef\n};\n\n/// The different capture forms in a lambda introducer\n///\n/// C++11 allows capture of \\c this, or of local variables by copy or\n/// by reference.  C++1y also allows \"init-capture\", where the initializer\n/// is an expression.\nenum LambdaCaptureKind {\n  LCK_This,   ///< Capturing the \\c *this object by reference\n  LCK_StarThis, ///< Capturing the \\c *this object by copy\n  LCK_ByCopy, ///< Capturing by copy (a.k.a., by value)\n  LCK_ByRef,  ///< Capturing by reference\n  LCK_VLAType ///< Capturing variable-length array type\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16499",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Lambda.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

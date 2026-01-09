@@ -1,0 +1,8 @@
+{
+  "code": "{\n  if (n >= 8) {\n    assert(n <= 15);\n    uint64_t buf1;\n    uint64_t buf2;\n    memcpy(&buf1, src, 8);\n    memcpy(&buf2, src + n - 8, 8);\n    if (nullify_tail) {\n      memset(dst + 7, 0, 8);\n    }\n    // GCC 12 has a false-positive -Wstringop-overflow warning here.\n#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)\n#pragma GCC diagnostic push\n#pragma GCC diagnostic ignored \"-Wstringop-overflow\"\n#endif\n    memcpy(dst, &buf1, 8);\n    memcpy(dst + n - 8, &buf2, 8);\n#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)\n#pragma GCC diagnostic pop\n#endif\n  } else if (n >= 4) {\n    uint32_t buf1;\n    uint32_t buf2;\n    memcpy(&buf1, src, 4);\n    memcpy(&buf2, src + n - 4, 4);\n    if (nullify_tail) {\n      memset(dst + 4, 0, 4);\n      memset(dst + 7, 0, 8);\n    }\n    memcpy(dst, &buf1, 4);\n    memcpy(dst + n - 4, &buf2, 4);\n  } else {\n    if (n != 0) {\n      dst[0] = src[0];\n      dst[n / 2] = src[n / 2];\n      dst[n - 1] = src[n - 1];\n    }\n    if (nullify_tail) {\n      memset(dst + 7, 0, 8);\n      memset(dst + n, 0, 8);\n    }\n  }\n}",
+  "id": "BLOCK-CPP-06061",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cord_internal.h",
+  "source_line": 93,
+  "validation_status": "validated"
+}

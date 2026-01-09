@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DependenceFlags.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include <cassert>\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13493_execute() {\n    {\n    /// A Kind.\n    unsigned Kind : 2;\n\n    // The template parameter index.\n    unsigned Index : 15;\n\n    /// The pack index, or the number of stored templates\n    /// or template arguments, depending on which subclass we have.\n    unsigned Data : 15;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-13493",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TemplateName.h",
+  "source_line": 57,
+  "validation_status": "validated"
+}

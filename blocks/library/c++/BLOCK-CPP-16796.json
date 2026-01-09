@@ -1,0 +1,8 @@
+{
+  "code": "{\n#ifndef NDEBUG\n    for (const auto &Loc : DiagLocs) {\n      assert(Loc.isCharRange() &&\n             \"SARIF Results require character granular source ranges!\");\n    }\n#endif\n    Locations.assign(DiagLocs.begin(), DiagLocs.end());\n    return *this;\n  }",
+  "id": "BLOCK-CPP-16796",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Sarif.h",
+  "source_line": 350,
+  "validation_status": "validated"
+}

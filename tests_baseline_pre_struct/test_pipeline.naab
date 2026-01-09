@@ -1,0 +1,52 @@
+// Test: Pipeline Operator
+// Tests: |> operator, function chaining, data flow
+
+print("=== Test 1: Simple Pipeline ===")
+
+// Define helper functions
+function double(x) {
+    return x * 2
+}
+
+function addTen(x) {
+    return x + 10
+}
+
+function square(x) {
+    return x * x
+}
+
+// Test simple pipeline
+let result1 = 5 |> double
+print("5 |> double:", result1)  // Expected: 10
+
+// Test chained pipeline
+let result2 = 5 |> double |> addTen
+print("5 |> double |> addTen:", result2)  // Expected: 20
+
+// Test longer pipeline
+let result3 = 2 |> double |> addTen |> square
+print("2 |> double |> addTen |> square:", result3)  // Expected: 196
+
+print("\n=== Test 2: Pipeline with Functions ===")
+
+function processData(x) {
+    return x * 2 + 5
+}
+
+function formatResult(x) {
+    return "Result: " + x
+}
+
+let data = 10
+let processed = data |> processData |> formatResult
+print(processed)  // Expected: Result: 25
+
+print("\n=== Test 3: Pipeline with Anonymous Functions ===")
+
+// Pipeline with inline function
+let value = 3
+let transformed = value |> function(x) { return x * x } |> function(x) { return x + 1 }
+print("3 |> square |> addOne:", transformed)  // Expected: 10
+
+print("\n=== All Pipeline Tests Passed ===")

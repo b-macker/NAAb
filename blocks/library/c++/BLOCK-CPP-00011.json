@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/logger.h>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00011_execute() {\n    {\nclass thread_pool;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00011",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/async_logger.h",
+  "source_line": 29,
+  "validation_status": "validated"
+}

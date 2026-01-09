@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/DiagnosticIDs.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16415_execute() {\n    {\n    if (HasMacro == Val) return;\n\n    HasMacro = Val;\n    if (Val) {\n      NeedsHandleIdentifier = true;\n      HadMacro = true;\n    } else {\n      // If this is a final macro, make the deprecation and header unsafe bits\n      // stick around after the undefinition so they apply to any redefinitions.\n      if (!IsFinal) {\n        // Because calling the setters of these calls recomputes, just set them\n        // manually to avoid recomputing a bunch of times.\n        IsDeprecatedMacro = false;\n        IsRestrictExpansion = false;\n      }\n      RecomputeNeedsHandleIdentifier();\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16415",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/IdentifierTable.h",
+  "source_line": 226,
+  "validation_status": "validated"
+}

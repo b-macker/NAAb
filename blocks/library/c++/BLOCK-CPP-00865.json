@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00865_execute() {\n    {\n  str.remove_prefix(pos);\n  auto ctx = compile_parse_context<Char>(str, max_value<int>(), nullptr, {},\n                                         next_arg_id);\n  auto f = formatter<T, Char>();\n  auto end = f.parse(ctx);\n  return {f, pos + fmt::detail::to_unsigned(end - str.data()),\n          next_arg_id == 0 ? manual_indexing_id : ctx.next_arg_id()};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00865",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 336,
+  "validation_status": "validated"
+}

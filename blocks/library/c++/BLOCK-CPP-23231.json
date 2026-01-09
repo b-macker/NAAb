@@ -1,0 +1,8 @@
+{
+  "code": "{\n  using ValuesT = SmallVector<UniqueVirtualMethod, 4>;\n  using MapType = llvm::MapVector<unsigned, ValuesT>;\n\n  MapType Overrides;\n\npublic:\n  // Iterate over the set of subobjects that have overriding methods.\n  using iterator = MapType::iterator;\n  using const_iterator = MapType::const_iterator;\n\n  iterator begin() { return Overrides.begin(); }\n  const_iterator begin() const { return Overrides.begin(); }\n  iterator end() { return Overrides.end(); }\n  const_iterator end() const { return Overrides.end(); }\n  unsigned size() const { return Overrides.size(); }\n\n  // Iterate over the set of overriding virtual methods in a given\n  // subobject.\n  using overriding_iterator =\n      SmallVectorImpl<UniqueVirtualMethod>::iterator;\n  using overriding_const_iterator =\n      SmallVectorImpl<UniqueVirtualMethod>::const_iterator;\n\n  // Add a new overriding method for a particular subobject.\n  void add(unsigned OverriddenSubobject, UniqueVirtualMethod Overriding);\n\n  // Add all of the overriding methods from \"other\" into overrides for\n  // this method. Used when merging the overrides from multiple base\n  // class subobjects.\n  void add(const OverridingMethods &Other);\n\n  // Replace all overriding virtual methods in all subobjects with the\n  // given virtual method.\n  void replaceAll(UniqueVirtualMethod Overriding);\n}",
+  "id": "BLOCK-CPP-23231",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CXXInheritance.h",
+  "source_line": 269,
+  "validation_status": "validated"
+}

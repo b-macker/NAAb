@@ -1,0 +1,29 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01180_execute() {\n    {\n  FMT_ASSERT(e <= 2936 && e >= -2985, \"too large exponent\");\n  return (e * 631305 - 261663) >> 21;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01180",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 232,
+  "validation_status": "validated",
+  "description": "C++ block with 27 lines of code implementing BLOCK-CPP-01180",
+  "short_desc": "C++ block with 27 lines of code implementing BLOCK-CPP-01180",
+  "input_types": "any",
+  "output_type": "void",
+  "keywords": [
+    "c++",
+    "format",
+    "string"
+  ],
+  "use_cases": [
+    "General c++ programming tasks"
+  ],
+  "related_blocks": [],
+  "avg_execution_ms": 10.0,
+  "max_memory_mb": 4,
+  "performance_tier": "medium",
+  "success_rate_percent": 100,
+  "avg_tokens_saved": 50,
+  "test_coverage_percent": 0,
+  "security_audited": false,
+  "stability": "stable"
+}

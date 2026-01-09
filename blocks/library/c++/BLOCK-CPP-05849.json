@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstddef>\n#include <cstdint>\n#include <initializer_list>\n#include <iterator>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05849_execute() {\n    {\n    std::copy(std::begin(state_), std::end(state_), out);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05849",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/explicit_seed_seq.h",
+  "source_line": 69,
+  "validation_status": "validated"
+}

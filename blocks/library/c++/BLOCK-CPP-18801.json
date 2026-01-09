@@ -1,0 +1,8 @@
+{
+  "code": "{\n  virtual void anchor();\n\npublic:\n  virtual ~ModuleMapCallbacks() = default;\n\n  /// Called when a module map file has been read.\n  ///\n  /// \\param FileStart A SourceLocation referring to the start of the file's\n  /// contents.\n  /// \\param File The file itself.\n  /// \\param IsSystem Whether this is a module map from a system include path.\n  virtual void moduleMapFileRead(SourceLocation FileStart,\n                                 const FileEntry &File, bool IsSystem) {}\n\n  /// Called when a header is added during module map parsing.\n  ///\n  /// \\param Filename The header file itself.\n  virtual void moduleMapAddHeader(StringRef Filename) {}\n\n  /// Called when an umbrella header is added during module map parsing.\n  ///\n  /// \\param Header The umbrella header to collect.\n  virtual void moduleMapAddUmbrellaHeader(FileEntryRef Header) {}\n}",
+  "id": "BLOCK-CPP-18801",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/ModuleMap.h",
+  "source_line": 48,
+  "validation_status": "validated"
+}

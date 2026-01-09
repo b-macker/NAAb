@@ -1,0 +1,8 @@
+{
+  "code": "#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/fastmath.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05923_execute() {\n    {\n  using state_type = absl::uint128;\n  using result_type = uint64_t;\n\n  inline uint64_t operator()(state_type state) {\n    // This is equivalent to the xsl_rr_128_64 mixing function.\n    uint64_t rotate = static_cast<uint64_t>(state >> 122u);\n    state ^= state >> 64;\n    uint64_t s = static_cast<uint64_t>(state);\n    return rotr(s, static_cast<int>(rotate));\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05923",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pcg_engine.h",
+  "source_line": 235,
+  "validation_status": "validated"
+}

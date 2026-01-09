@@ -1,0 +1,8 @@
+{
+  "code": "#include <Availability.h>\n#include <TargetConditionals.h>\n#include <algorithm>\n#include <array>\n#include <bitset>\n#include <cmath>\n#include <cstddef>\n#include <cstring>\n#include <deque>\n#include <forward_list>\n#include <functional>\n#include <iterator>\n#include <limits>\n#include <list>\n#include <map>\n#include <memory>\n#include <set>\n#include <string>\n#include <tuple>\n#include <type_traits>\n#include <unordered_map>\n#include <unordered_set>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/port.h\"\n#include \"absl/container/fixed_array.h\"\n#include \"absl/hash/internal/city.h\"\n#include \"absl/hash/internal/low_level_hash.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/variant.h\"\n#include \"absl/utility/utility.h\"\n#include <filesystem>  // NOLINT\n#include <string_view>\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05655_execute() {\n    {\n    return MixingHashState(\n        CombineContiguousImpl(hash_state.state_, first, size,\n                              std::integral_constant<int, sizeof(size_t)>{}));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05655",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/hash.h",
+  "source_line": 1021,
+  "validation_status": "validated"
+}

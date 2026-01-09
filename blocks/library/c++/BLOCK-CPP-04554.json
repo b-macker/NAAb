@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdlib>\n#include <tuple>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace utility_internal;\nusing namespace utility_internal;\nusing namespace utility_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04554_execute() {\n    {\n// Helper method for expanding tuple into a called method.\ntemplate <typename Functor, typename Tuple, std::size_t... Indexes>\nauto apply_helper(Functor&& functor, Tuple&& t, index_sequence<Indexes...>)\n    -> decltype(absl::base_internal::invoke(\n        absl::forward<Functor>(functor),\n        std::get<Indexes>(absl::forward<Tuple>(t))...)) {\n  return absl::base_internal::invoke(\n      absl::forward<Functor>(functor),\n      std::get<Indexes>(absl::forward<Tuple>(t))...);\n}\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04554",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/utility/utility.h",
+  "source_line": 153,
+  "validation_status": "validated"
+}

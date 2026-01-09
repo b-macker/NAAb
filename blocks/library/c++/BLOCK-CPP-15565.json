@@ -1,0 +1,8 @@
+{
+  "code": "{\n    using ImplTy = BumpVector<CFGElement>;\n\n    ImplTy Impl;\n\n  public:\n    ElementList(BumpVectorContext &C) : Impl(C, 4) {}\n\n    using iterator = std::reverse_iterator<ImplTy::iterator>;\n    using const_iterator = std::reverse_iterator<ImplTy::const_iterator>;\n    using reverse_iterator = ImplTy::iterator;\n    using const_reverse_iterator = ImplTy::const_iterator;\n    using const_reference = ImplTy::const_reference;\n\n    void push_back(CFGElement e, BumpVectorContext &C) { Impl.push_back(e, C); }\n\n    reverse_iterator insert(reverse_iterator I, size_t Cnt, CFGElement E,\n        BumpVectorContext &C) {\n      return Impl.insert(I, Cnt, E, C);\n    }\n\n    const_reference front() const { return Impl.back(); }\n    const_reference back() const { return Impl.front(); }\n\n    iterator begin() { return Impl.rbegin(); }\n    iterator end() { return Impl.rend(); }\n    const_iterator begin() const { return Impl.rbegin(); }\n    const_iterator end() const { return Impl.rend(); }\n    reverse_iterator rbegin() { return Impl.begin(); }\n    reverse_iterator rend() { return Impl.end(); }\n    const_reverse_iterator rbegin() const { return Impl.begin(); }\n    const_reverse_iterator rend() const { return Impl.end(); }\n\n    CFGElement operator[](size_t i) const  {\n      assert(i < Impl.size());\n      return Impl[Impl.size() - 1 - i];\n    }\n\n    size_t size() const { return Impl.size(); }\n    bool empty() const { return Impl.empty(); }\n  }",
+  "id": "BLOCK-CPP-15565",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
+  "source_line": 577,
+  "validation_status": "validated"
+}

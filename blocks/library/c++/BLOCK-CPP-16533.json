@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CommentOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangStandard.h\"\n#include \"clang/Basic/ObjCRuntime.h\"\n#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/TargetCXXABI.h\"\n#include \"clang/Basic/Visibility.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <optional>\n#include <string>\n#include <vector>\n#include \"clang/Basic/LangOptions.def\"\n#include \"clang/Basic/LangOptions.def\"\n#include \"clang/Basic/LangOptions.def\"\n#include \"clang/Basic/FPOptions.def\"\n#include \"clang/Basic/FPOptions.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16533_execute() {\n    {\n    RoundingMode RM = getConstRoundingMode();\n    if (RM == RoundingMode::Dynamic) {\n      // C2x: 7.6.2p3  If the FE_DYNAMIC mode is specified and FENV_ACCESS is\n      // \"off\", the translator may assume that the default rounding mode is in\n      // effect.\n      if (!getAllowFEnvAccess() && !getRoundingMath())\n        RM = RoundingMode::NearestTiesToEven;\n    }\n    return RM;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16533",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/LangOptions.h",
+  "source_line": 746,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00524_execute() {\n    def spellcheck_pyproject_toml_keys(\n    ctx: click.Context, config_keys: list[str], config_file_path: str\n) -> None:\n    invalid_keys: list[str] = []\n    available_config_options = {param.name for param in ctx.command.params}\n    invalid_keys = [key for key in config_keys if key not in available_config_options]\n    if invalid_keys:\n        keys_str = \", \".join(map(repr, invalid_keys))\n        out(\n            f\"Invalid config keys detected: {keys_str} (in {config_file_path})\",\n            fg=\"red\",\n        )\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00524",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 180,
+  "validation_status": "validated"
+}

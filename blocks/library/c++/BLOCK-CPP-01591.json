@@ -1,0 +1,8 @@
+{
+  "code": "#include <thread>\n#include <type_traits>\n#include <utility>\n#include \"ostream.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01591_execute() {\n    {\n  template <std::size_t... I>\n  static std::conjunction<\n      is_formattable<std::variant_alternative_t<I, T>, C>...>\n      check(std::index_sequence<I...>);\n\n public:\n  static constexpr const bool value =\n      decltype(check(variant_index_sequence<T>{}))::value;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01591",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/std.h",
+  "source_line": 111,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/ImmutableMap.h\"\n#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/ParentMap.h\"\n#include \"clang/Analysis/AnyCall.h\"\n#include \"clang/Analysis/SelectorExtras.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15943_execute() {\n    {\n  IdentifierInfo* II;\n  Selector S;\npublic:\n  ObjCSummaryKey(IdentifierInfo* ii, Selector s)\n    : II(ii), S(s) {}\n\n  ObjCSummaryKey(const ObjCInterfaceDecl *d, Selector s)\n    : II(d ? d->getIdentifier() : nullptr), S(s) {}\n\n  ObjCSummaryKey(Selector s)\n    : II(nullptr), S(s) {}\n\n  IdentifierInfo *getIdentifier() const { return II; }\n  Selector getSelector() const { return S; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15943",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/RetainSummaryManager.h",
+  "source_line": 208,
+  "validation_status": "validated"
+}

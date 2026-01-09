@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16267_execute() {\n    {\n  namespace diag {\n    enum {\n#define GET_CATEGORY_TABLE\n#define CATEGORY(X, ENUM) ENUM,\n#include \"clang/Basic/DiagnosticGroups.inc\"\n#undef CATEGORY\n#undef GET_CATEGORY_TABLE\n      DiagCat_NUM_CATEGORIES\n    };\n\n    enum class Group {\n#define DIAG_ENTRY(GroupName, FlagNameOffset, Members, SubGroups, Docs)        \\\n  GroupName,\n#include \"clang/Basic/DiagnosticGroups.inc\"\n#undef CATEGORY\n#undef DIAG_ENTRY\n    };\n  }  // end namespace diag\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16267",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticCategories.h",
+  "source_line": 12,
+  "validation_status": "validated"
+}

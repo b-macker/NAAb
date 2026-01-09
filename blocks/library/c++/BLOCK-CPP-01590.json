@@ -1,0 +1,8 @@
+{
+  "code": "#include <thread>\n#include <type_traits>\n#include <utility>\n#include \"ostream.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01590_execute() {\n    {\n  if constexpr (is_string<T>::value)\n    return write_escaped_string<Char>(out, detail::to_string_view(v));\n  else if constexpr (std::is_same_v<T, Char>)\n    return write_escaped_char(out, v);\n  else\n    return write<Char>(out, v);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01590",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/std.h",
+  "source_line": 122,
+  "validation_status": "validated"
+}

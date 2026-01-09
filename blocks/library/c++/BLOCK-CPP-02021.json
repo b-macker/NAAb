@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/str_cat.h\"\n#include <assert.h>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <initializer_list>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02021_execute() {\n    {\n  ASSERT_NO_OVERLAP(*dest, a);\n  ASSERT_NO_OVERLAP(*dest, b);\n  ASSERT_NO_OVERLAP(*dest, c);\n  ASSERT_NO_OVERLAP(*dest, d);\n  std::string::size_type old_size = dest->size();\n  strings_internal::STLStringAppendUninitializedAmortized(\n      dest, a.size() + b.size() + c.size() + d.size());\n  char* const begin = &(*dest)[0];\n  char* out = begin + old_size;\n  out = Append(out, a);\n  out = Append(out, b);\n  out = Append(out, c);\n  out = Append(out, d);\n  assert(out == begin + dest->size());\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02021",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_cat.cc",
+  "source_line": 317,
+  "validation_status": "validated"
+}

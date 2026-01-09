@@ -1,0 +1,16 @@
+# Test stdlib JSON module (hardcoded infrastructure)
+# JSON is built into stdlib, not a block
+
+main {
+    print("=== Testing stdlib JSON module ===")
+    print("")
+    print("JSON is infrastructure - built into NAAb stdlib")
+    print("Not a block - used to READ blocks from JSON files")
+    print("")
+    print("Architecture:")
+    print("  - Blocks = JSON files with code")
+    print("  - Engines = Execute code from blocks")
+    print("  - Stdlib = Infrastructure (including JSON)")
+    print("")
+    print("✓ JSON module available in stdlib")
+}

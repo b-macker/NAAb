@@ -1,0 +1,8 @@
+{
+  "code": "{\n    ParsingDeclRAIIObject ParsingRAII;\n\n  public:\n    ParsingDeclSpec(Parser &P)\n      : DeclSpec(P.getAttrFactory()),\n        ParsingRAII(P, ParsingDeclRAIIObject::NoParent) {}\n    ParsingDeclSpec(Parser &P, ParsingDeclRAIIObject *RAII)\n      : DeclSpec(P.getAttrFactory()),\n        ParsingRAII(P, RAII) {}\n\n    const sema::DelayedDiagnosticPool &getDelayedDiagnosticPool() const {\n      return ParsingRAII.getDelayedDiagnosticPool();\n    }\n\n    void complete(Decl *D) {\n      ParsingRAII.complete(D);\n    }\n\n    void abort() {\n      ParsingRAII.abort();\n    }\n  }",
+  "id": "BLOCK-CPP-19389",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
+  "source_line": 175,
+  "validation_status": "validated"
+}

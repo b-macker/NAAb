@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <cstdio>\n#include <string>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/internal/str_format/arg.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/bind.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/checker.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/extension.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/parser.h\"  // IWYU pragma: export\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04156_execute() {\n    {\n public:\n  explicit FormatCountCapture(absl::Nonnull<int*> p) : p_(p) {}\n\n private:\n  // FormatCountCaptureHelper is used to define FormatConvertImpl() for this\n  // class.\n  friend struct str_format_internal::FormatCountCaptureHelper;\n  // Unused() is here because of the false positive from -Wunused-private-field\n  // p_ is used in the templated function of the friend FormatCountCaptureHelper\n  // class.\n  absl::Nonnull<int*> Unused() { return p_; }\n  absl::Nonnull<int*> p_;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04156",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_format.h",
+  "source_line": 153,
+  "validation_status": "validated"
+}

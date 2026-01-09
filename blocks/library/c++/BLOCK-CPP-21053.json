@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Module.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/MemoryBuffer.h\"\n#include <memory>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21053_execute() {\n    {\npublic:\n  virtual ~PCHContainerReader() = 0;\n  /// Equivalent to the format passed to -fmodule-format=\n  virtual llvm::ArrayRef<llvm::StringRef> getFormats() const = 0;\n\n  /// Returns the serialized AST inside the PCH container Buffer.\n  virtual llvm::StringRef ExtractPCH(llvm::MemoryBufferRef Buffer) const = 0;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21053",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/PCHContainerOperations.h",
+  "source_line": 55,
+  "validation_status": "validated"
+}

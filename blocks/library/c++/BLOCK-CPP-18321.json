@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18321_execute() {\n    {\n  virtual std::unique_ptr<raw_pwrite_stream>\n  CreateOutputFile(CompilerInstance &CI, StringRef InFile) = 0;\n\nprotected:\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override;\n\n  TranslationUnitKind getTranslationUnitKind() override {\n    return TU_Module;\n  }\n\n  bool hasASTFileSupport() const override { return false; }\n\n  bool shouldEraseOutputFiles() override;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18321",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendActions.h",
+  "source_line": 116,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/ARCMigrate/FileRemapper.h\"\n#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n\nusing namespace clang;\nusing namespace arcmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06820_execute() {\n    {\nprotected:\n  bool BeginInvocation(CompilerInstance &CI) override;\n\npublic:\n  CheckAction(std::unique_ptr<FrontendAction> WrappedAction);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06820",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ARCMigrate/ARCMTActions.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

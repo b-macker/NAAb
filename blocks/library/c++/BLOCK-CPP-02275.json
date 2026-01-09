@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/time/time.h\"\n#include <winsock2.h>  // for timeval\n#include <cstring>\n#include <ctime>\n#include <limits>\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02275_execute() {\n    {\n  civil_year_t tm_year = tm.tm_year;\n  // Avoids years that are too extreme for CivilSecond to normalize.\n  if (tm_year > 300000000000ll) return InfiniteFuture();\n  if (tm_year < -300000000000ll) return InfinitePast();\n  int tm_mon = tm.tm_mon;\n  if (tm_mon == std::numeric_limits<int>::max()) {\n    tm_mon -= 12;\n    tm_year += 1;\n  }\n  const auto ti = tz.At(CivilSecond(tm_year + 1900, tm_mon + 1, tm.tm_mday,\n                                    tm.tm_hour, tm.tm_min, tm.tm_sec));\n  return tm.tm_isdst == 0 ? ti.post : ti.pre;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02275",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.cc",
+  "source_line": 441,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/BitmaskEnum.h\"\n#include \"llvm/ADT/BitmaskEnum.h\"\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09476_execute() {\n    {\n  // Type-dependent expressions are always be value-dependent, so we simply drop\n  // type dependency.\n  return D & ~ExprDependence::Type;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-09476",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DependenceFlags.h",
+  "source_line": 262,
+  "validation_status": "validated"
+}

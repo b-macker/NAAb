@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Lex/PPCallbacks.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18871_execute() {\n    {\n    SourceLocation Loc;\n    SourceLocation RegionLoc;\n\n  public:\n    CondDirectiveLoc(SourceLocation Loc, SourceLocation RegionLoc)\n      : Loc(Loc), RegionLoc(RegionLoc) {}\n\n    SourceLocation getLoc() const { return Loc; }\n    SourceLocation getRegionLoc() const { return RegionLoc; }\n\n    class Comp {\n      SourceManager &SM;\n    public:\n      explicit Comp(SourceManager &SM) : SM(SM) {}\n      bool operator()(const CondDirectiveLoc &LHS,\n                      const CondDirectiveLoc &RHS) {\n        return SM.isBeforeInTranslationUnit(LHS.getLoc(), RHS.getLoc());\n      }\n      bool operator()(const CondDirectiveLoc &LHS, SourceLocation RHS) {\n        return SM.isBeforeInTranslationUnit(LHS.getLoc(), RHS);\n      }\n      bool operator()(SourceLocation LHS, const CondDirectiveLoc &RHS) {\n        return SM.isBeforeInTranslationUnit(LHS, RHS.getLoc());\n      }\n    };\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18871",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PPConditionalDirectiveRecord.h",
+  "source_line": 30,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/CFG.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21948_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21948",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Logger.h",
+  "source_line": 60,
+  "validation_status": "validated"
+}

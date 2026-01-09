@@ -1,0 +1,8 @@
+{
+  "code": "{\n  using char_type = typename S::char_type;\n  constexpr auto str = basic_string_view<char_type>(format_str);\n  constexpr char_type c = END_POS != str.size() ? str[END_POS] : char_type();\n  if constexpr (c == '}') {\n    return parse_tail<Args, END_POS + 1, NEXT_ID>(\n        field<char_type, typename field_type<T>::type, ARG_INDEX>(),\n        format_str);\n  } else if constexpr (c != ':') {\n    FMT_THROW(format_error(\"expected ':'\"));\n  } else {\n    constexpr auto result = parse_specs<typename field_type<T>::type>(\n        str, END_POS + 1, NEXT_ID == manual_indexing_id ? 0 : NEXT_ID);\n    if constexpr (result.end >= str.size() || str[result.end] != '}') {\n      FMT_THROW(format_error(\"expected '}'\"));\n      return 0;\n    } else {\n      return parse_tail<Args, result.end + 1, result.next_arg_id>(\n          spec_field<char_type, typename field_type<T>::type, ARG_INDEX>{\n              result.fmt},\n          format_str);\n    }\n  }\n}",
+  "id": "BLOCK-CPP-00868",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 390,
+  "validation_status": "validated"
+}

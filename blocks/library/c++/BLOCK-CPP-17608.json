@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n\nusing namespace llvm;\nusing namespace clang;\nusing namespace CodeGen;\nusing namespace swiftcall;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17608_execute() {\n    {\n    CharUnits Begin;\n    CharUnits End;\n    llvm::Type *Type;\n\n    CharUnits getWidth() const {\n      return End - Begin;\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17608",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/SwiftCallingConv.h",
+  "source_line": 44,
+  "validation_status": "validated"
+}

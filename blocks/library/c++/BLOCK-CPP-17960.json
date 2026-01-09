@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17960_execute() {\n    {\nnamespace edit {\n\nclass EditsReceiver {\npublic:\n  virtual ~EditsReceiver() = default;\n\n  virtual void insert(SourceLocation loc, StringRef text) = 0;\n  virtual void replace(CharSourceRange range, StringRef text) = 0;\n\n  /// By default it calls replace with an empty string.\n  virtual void remove(CharSourceRange range);\n};\n\n} // namespace edit\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17960",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Edit/EditsReceiver.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

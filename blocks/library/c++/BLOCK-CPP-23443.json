@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace comments;\nusing namespace tok;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23443_execute() {\n    {\nenum TokenKind {\n  eof,\n  newline,\n  text,\n  unknown_command,   // Command that does not have an ID.\n  backslash_command, // Command with an ID, that used backslash marker.\n  at_command,        // Command with an ID, that used 'at' marker.\n  verbatim_block_begin,\n  verbatim_block_line,\n  verbatim_block_end,\n  verbatim_line_name,\n  verbatim_line_text,\n  html_start_tag,     // <tag\n  html_ident,         // attr\n  html_equals,        // =\n  html_quoted_string, // \"blah\\\"blah\" or 'blah\\'blah'\n  html_greater,       // >\n  html_slash_greater, // />\n  html_end_tag        // </tag\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23443",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CommentLexer.h",
+  "source_line": 31,
+  "validation_status": "validated"
+}

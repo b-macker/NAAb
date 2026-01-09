@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  explicit CFGInitializer(const CXXCtorInitializer *initializer)\n      : CFGElement(Initializer, initializer) {}\n\n  CXXCtorInitializer* getInitializer() const {\n    return static_cast<CXXCtorInitializer*>(Data1.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n\n  CFGInitializer() = default;\n\n  static bool isKind(const CFGElement &E) {\n    return E.getKind() == Initializer;\n  }\n}",
+  "id": "BLOCK-CPP-15551",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
+  "source_line": 225,
+  "validation_status": "validated"
+}

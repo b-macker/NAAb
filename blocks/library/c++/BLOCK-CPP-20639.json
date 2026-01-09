@@ -1,0 +1,8 @@
+{
+  "code": "// This file provides common API and #includes for the internal\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/Sema/Lookup.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"clang/Sema/SemaDiagnostic.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20639_execute() {\n    {\n  if (const auto *TTP = UPP.first.dyn_cast<const TemplateTypeParmType *>())\n    return std::make_pair(TTP->getDepth(), TTP->getIndex());\n\n  return getDepthAndIndex(UPP.first.get<NamedDecl *>());\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20639",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaInternal.h",
+  "source_line": 77,
+  "validation_status": "validated"
+}

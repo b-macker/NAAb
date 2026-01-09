@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03575_execute() {\n    {\n public:\n  LeakCheckDisabler();\n  LeakCheckDisabler(const LeakCheckDisabler&) = delete;\n  LeakCheckDisabler& operator=(const LeakCheckDisabler&) = delete;\n  ~LeakCheckDisabler();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03575",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/leak_check.h",
+  "source_line": 125,
+  "validation_status": "validated"
+}

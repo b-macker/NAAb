@@ -1,0 +1,8 @@
+{
+  "code": "{\n    static T cast(const Value &V) {\n      if (V.isPointerOrObjectType())\n        return (T)(uintptr_t)V.as<void *>();\n      if (!V.isValid() || V.isVoid()) {\n        return T();\n      }\n      return V.as<T>();\n    }\n  }",
+  "id": "BLOCK-CPP-18523",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Interpreter/Value.h",
+  "source_line": 175,
+  "validation_status": "validated"
+}

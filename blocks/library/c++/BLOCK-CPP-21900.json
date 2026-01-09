@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/TypeOrdering.h\"\n#include \"clang/Analysis/FlowSensitive/Arena.h\"\n#include \"clang/Analysis/FlowSensitive/ControlFlowContext.h\"\n#include \"clang/Analysis/FlowSensitive/Solver.h\"\n#include \"clang/Analysis/FlowSensitive/StorageLocation.h\"\n#include \"clang/Analysis/FlowSensitive/Value.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/Support/Compiler.h\"\n#include <cassert>\n#include <memory>\n#include <optional>\n#include <type_traits>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21900_execute() {\n    {\n    /// Options for analyzing function bodies when present in the translation\n    /// unit, or empty to disable context-sensitive analysis. Note that this is\n    /// fundamentally limited: some constructs, such as recursion, are\n    /// explicitly unsupported.\n    std::optional<ContextSensitiveOptions> ContextSensitiveOpts;\n\n    /// If provided, analysis details will be recorded here.\n    /// (This is always non-null within an AnalysisContext, the framework\n    /// provides a fallback no-op logger).\n    Logger *Log = nullptr;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21900",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DataflowAnalysisContext.h",
+  "source_line": 71,
+  "validation_status": "validated"
+}

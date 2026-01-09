@@ -1,0 +1,8 @@
+{
+  "code": "{\n   public:\n    template <typename... Args>\n    explicit PlacementImpl(Args&&... args) {\n      new (&space_) T(std::forward<Args>(args)...);\n    }\n    const T* get() const {\n      return Launder(reinterpret_cast<const T*>(&space_));\n    }\n    T* get() { return Launder(reinterpret_cast<T*>(&space_)); }\n\n   private:\n    template <typename P>\n    static P* Launder(P* p) {\n#if defined(__cpp_lib_launder) && __cpp_lib_launder >= 201606L\n      return std::launder(p);\n#elif ABSL_HAVE_BUILTIN(__builtin_launder)\n      return __builtin_launder(p);\n#else\n      // When `std::launder` or equivalent are not available, we rely on\n      // undefined behavior, which works as intended on Abseil's officially\n      // supported platforms as of Q3 2023.\n#if defined(__GNUC__) && !defined(__clang__)\n#pragma GCC diagnostic push\n#pragma GCC diagnostic ignored \"-Wstrict-aliasing\"\n#endif\n      return p;\n#if defined(__GNUC__) && !defined(__clang__)\n#pragma GCC diagnostic pop\n#endif\n#endif\n    }\n\n    alignas(T) unsigned char space_[sizeof(T)];\n  }",
+  "id": "BLOCK-CPP-03439",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/no_destructor.h",
+  "source_line": 162,
+  "validation_status": "validated"
+}

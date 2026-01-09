@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include <string>\n#include <type_traits>\n#include <vector>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16302_execute() {\n    {\nnamespace opt {\nclass ArgList;\n} // namespace opt\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16302",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticOptions.h",
+  "source_line": 18,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n\nABSL_CONST_INIT std::atomic<bool> shallow_subcords_enabled(\n    kCordShallowSubcordsDefault);\n\nvoid LogFatalNodeType(CordRep* rep) {\n  ABSL_INTERNAL_LOG(FATAL, absl::StrCat(\"Unexpected node type: \",\n                                        static_cast<int>(rep->tag)));\n}\n\nvoid CordRep::Destroy(CordRep* rep) {\n  assert(rep != nullptr);\n\n  while (true) {\n    assert(!rep->refcount.IsImmortal());\n    if (rep->tag == BTREE) {\n      CordRepBtree::Destroy(rep->btree());\n      return;\n    } else if (rep->tag == EXTERNAL) {\n      CordRepExternal::Delete(rep);\n      return;\n    } else if (rep->tag == SUBSTRING) {\n      CordRepSubstring* rep_substring = rep->substring();\n      rep = rep_substring->child;\n      delete rep_substring;\n      if (rep->refcount.Decrement()) {\n        return;\n      }\n    } else if (rep->tag == CRC) {\n      CordRepCrc::Destroy(rep->crc());\n      return;\n    } else {\n      assert(rep->IsFlat());\n      CordRepFlat::Delete(rep);\n      return;\n    }\n  }\n}\n\n}",
+  "id": "BLOCK-CPP-02878",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cord_internal.cc",
+  "source_line": 29,
+  "validation_status": "validated"
+}

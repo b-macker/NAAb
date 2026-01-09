@@ -8,6 +8,7 @@
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
 #include "naab/stdlib_new_modules.h"  // For ArrayModule type
+#include "naab/struct_registry.h"
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
@@ -127,6 +128,15 @@ std::string Value::toString() const {
             return "<Function:" + arg->name + "(" + std::to_string(arg->params.size()) + " params)>";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<PythonObjectValue>>) {
             return arg->repr;
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
+            std::string result = arg->type_name + " { ";
+            for (size_t i = 0; i < arg->definition->fields.size(); ++i) {
+                if (i > 0) result += ", ";
+                result += arg->definition->fields[i].name + ": ";
+                result += arg->field_values[i]->toString();
+            }
+            result += " }";
+            return result;
         }
         return "unknown";
     }, data);
@@ -460,6 +470,11 @@ void Interpreter::visit(ast::Program& node) {
         use_stmt->accept(*this);
     }
 
+    // Process struct declarations
+    for (auto& struct_decl : node.getStructs()) {
+        struct_decl->accept(*this);
+    }
+
     // Store function definitions
     fmt::print("[DEBUG] Processing {} standalone functions\n", node.getFunctions().size());
     for (auto& func : node.getFunctions()) {
@@ -674,6 +689,12 @@ void Interpreter::visit(ast::ImportStmt& node) {
             );
         }
     }
+
+    // Import exported structs (Week 7)
+    for (const auto& [name, struct_def] : module_env->exported_structs_) {
+        runtime::StructRegistry::instance().registerStruct(struct_def);
+        fmt::print("[SUCCESS] Imported struct: {}\n", name);
+    }
 }
 
 // Phase 3.1: Export statement visitor
@@ -724,6 +745,29 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 current_env_->define("default", value);
 
                 fmt::print("[INFO] Exported default expression\n");
+            }
+            break;
+        }
+
+        case ast::ExportStmt::ExportKind::Struct: {
+            // Export struct (Week 7)
+            auto* struct_decl = node.getStructDecl();
+            if (struct_decl) {
+                // Execute struct declaration (registers in StructRegistry)
+                struct_decl->accept(*this);
+
+                // Get registered struct definition
+                auto struct_def = runtime::StructRegistry::instance().getStruct(
+                    struct_decl->getName());
+
+                if (struct_def) {
+                    // Store in module's exported structs
+                    current_env_->exported_structs_[struct_decl->getName()] = struct_def;
+
+                    fmt::print("[SUCCESS] Exported struct: {}\n", struct_decl->getName());
+                } else {
+                    fmt::print("[ERROR] Failed to export struct: {}\n", struct_decl->getName());
+                }
             }
             break;
         }
@@ -829,6 +873,31 @@ void Interpreter::visit(ast::FunctionDecl& node) {
 
     fmt::print("[INFO] Defined function: {}({} params)\n",
                node.getName(), param_names.size());
+}
+
+void Interpreter::visit(ast::StructDecl& node) {
+    auto struct_def = std::make_shared<StructDef>();
+    struct_def->name = node.getName();
+
+    size_t field_idx = 0;
+    for (const auto& field : node.getFields()) {
+        // Copy field metadata without the default_value expr (not needed at runtime)
+        ast::StructField runtime_field{field.name, field.type, std::nullopt};
+        struct_def->fields.push_back(std::move(runtime_field));
+        struct_def->field_index[field.name] = field_idx++;
+    }
+
+    // Validate (detect cycles)
+    std::set<std::string> visiting;
+    runtime::StructRegistry::instance().validateStructDef(*struct_def, visiting);
+
+    // Register
+    runtime::StructRegistry::instance().registerStruct(struct_def);
+
+    fmt::print("[INFO] Defined struct: {}\n", node.getName());
+
+    // Struct declarations don't produce values
+    result_ = std::make_shared<Value>();
 }
 
 void Interpreter::visit(ast::MainBlock& node) {
@@ -1860,6 +1929,13 @@ void Interpreter::visit(ast::MemberExpr& node) {
     auto obj = eval(*node.getObject());
     std::string member_name = node.getMember();
 
+    // Handle struct member access
+    if (std::holds_alternative<std::shared_ptr<StructValue>>(obj->data)) {
+        auto struct_val = std::get<std::shared_ptr<StructValue>>(obj->data);
+        result_ = struct_val->getField(member_name);
+        return;
+    }
+
     // Check if object is a block
     if (auto* block_ptr = std::get_if<std::shared_ptr<BlockValue>>(&obj->data)) {
         auto& block = *block_ptr;
@@ -2041,6 +2117,69 @@ void Interpreter::visit(ast::ListExpr& node) {
         list.push_back(eval(*elem));
     }
     result_ = std::make_shared<Value>(list);
+}
+
+void Interpreter::visit(ast::StructLiteralExpr& node) {
+    auto struct_def = runtime::StructRegistry::instance().getStruct(node.getStructName());
+    if (!struct_def) {
+        throw std::runtime_error("Undefined struct: " + node.getStructName());
+    }
+
+    auto struct_val = std::make_shared<StructValue>();
+    struct_val->type_name = node.getStructName();
+    struct_val->definition = struct_def;
+    struct_val->field_values.resize(struct_def->fields.size());
+
+    // Initialize from literals
+    for (const auto& [field_name, init_expr] : node.getFieldInits()) {
+        if (!struct_def->field_index.count(field_name)) {
+            throw std::runtime_error("Unknown field '" + field_name +
+                                   "' in struct '" + node.getStructName() + "'");
+        }
+
+        auto field_value = eval(*init_expr);
+        size_t idx = struct_def->field_index.at(field_name);
+        struct_val->field_values[idx] = field_value;
+    }
+
+    // Check required fields (all fields are currently required - no default values yet)
+    for (size_t i = 0; i < struct_def->fields.size(); ++i) {
+        if (!struct_val->field_values[i]) {
+            const auto& field = struct_def->fields[i];
+            throw std::runtime_error("Missing required field '" + field.name +
+                                   "' in struct '" + node.getStructName() + "'");
+        }
+    }
+
+    result_ = std::make_shared<Value>(struct_val);
+}
+
+// ============================================================================
+// StructValue Methods
+// ============================================================================
+
+std::shared_ptr<Value> StructValue::getField(const std::string& name) const {
+    if (!definition) {
+        throw std::runtime_error("Struct has no definition");
+    }
+    auto it = definition->field_index.find(name);
+    if (it == definition->field_index.end()) {
+        throw std::runtime_error("Field '" + name + "' not found in struct '" +
+                               type_name + "'");
+    }
+    return field_values[it->second];
+}
+
+void StructValue::setField(const std::string& name, std::shared_ptr<Value> value) {
+    if (!definition) {
+        throw std::runtime_error("Struct has no definition");
+    }
+    auto it = definition->field_index.find(name);
+    if (it == definition->field_index.end()) {
+        throw std::runtime_error("Field '" + name + "' not found in struct '" +
+                               type_name + "'");
+    }
+    field_values[it->second] = value;
 }
 
 } // namespace interpreter

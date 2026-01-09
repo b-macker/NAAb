@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  explicit UndefMacroDirective(SourceLocation UndefLoc)\n      : MacroDirective(MD_Undefine, UndefLoc) {\n    assert(UndefLoc.isValid() && \"Invalid UndefLoc!\");\n  }\n\n  static bool classof(const MacroDirective *MD) {\n    return MD->getKind() == MD_Undefine;\n  }\n\n  static bool classof(const UndefMacroDirective *) { return true; }\n}",
+  "id": "BLOCK-CPP-18762",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MacroInfo.h",
+  "source_line": 452,
+  "validation_status": "validated"
+}

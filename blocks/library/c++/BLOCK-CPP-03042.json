@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include <string.h>\n#include <algorithm>\n#include <cassert>\n#include <cmath>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/functional/function_ref.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/numeric/internal/representation.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03042_execute() {\n    {\n    // We will left shift a uint128 by `exp` bits, so we need `128+exp` total\n    // bits. Round up to 32.\n    // See constructor for details about adding `10%` to the value.\n    return static_cast<size_t>((128 + exp + 31) / 32 * 11 / 10);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03042",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
+  "source_line": 131,
+  "validation_status": "validated"
+}

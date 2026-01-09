@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_doc_generator.a CMakeFiles/naab_doc_generator.dir/src/doc/doc_generator.cpp.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_doc_generator.a

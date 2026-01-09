@@ -1,0 +1,8 @@
+{
+  "code": "{\nprivate:\n  Stmt *SrcExpr;\n  SourceLocation BuiltinLoc, RParenLoc;\n\n  friend class ASTReader;\n  friend class ASTStmtReader;\n  explicit AsTypeExpr(EmptyShell Empty) : Expr(AsTypeExprClass, Empty) {}\n\npublic:\n  AsTypeExpr(Expr *SrcExpr, QualType DstType, ExprValueKind VK,\n             ExprObjectKind OK, SourceLocation BuiltinLoc,\n             SourceLocation RParenLoc)\n      : Expr(AsTypeExprClass, DstType, VK, OK), SrcExpr(SrcExpr),\n        BuiltinLoc(BuiltinLoc), RParenLoc(RParenLoc) {\n    setDependence(computeDependence(this));\n  }\n\n  /// getSrcExpr - Return the Expr to be converted.\n  Expr *getSrcExpr() const { return cast<Expr>(SrcExpr); }\n\n  /// getBuiltinLoc - Return the location of the __builtin_astype token.\n  SourceLocation getBuiltinLoc() const { return BuiltinLoc; }\n\n  /// getRParenLoc - Return the location of final right parenthesis.\n  SourceLocation getRParenLoc() const { return RParenLoc; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return BuiltinLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY { return RParenLoc; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == AsTypeExprClass;\n  }\n\n  // Iterators\n  child_range children() { return child_range(&SrcExpr, &SrcExpr+1); }\n  const_child_range children() const {\n    return const_child_range(&SrcExpr, &SrcExpr + 1);\n  }\n}",
+  "id": "BLOCK-CPP-10264",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
+  "source_line": 6214,
+  "validation_status": "validated"
+}

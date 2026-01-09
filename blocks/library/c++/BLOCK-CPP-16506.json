@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CommentOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangStandard.h\"\n#include \"clang/Basic/ObjCRuntime.h\"\n#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/TargetCXXABI.h\"\n#include \"clang/Basic/Visibility.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <optional>\n#include <string>\n#include <vector>\n#include \"clang/Basic/LangOptions.def\"\n#include \"clang/Basic/LangOptions.def\"\n#include \"clang/Basic/LangOptions.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16506_execute() {\n    {\n    return MSCompatibilityVersion >= MajorVersion * 100000U;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16506",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/LangOptions.h",
+  "source_line": 546,
+  "validation_status": "validated"
+}

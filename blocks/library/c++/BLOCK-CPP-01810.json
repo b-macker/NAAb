@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/status/status.h\"\n#include <errno.h>\n#include <atomic>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <memory>\n#include <ostream>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/strerror.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/no_destructor.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/debugging/stacktrace.h\"\n#include \"absl/debugging/symbolize.h\"\n#include \"absl/status/internal/status_internal.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_split.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/optional.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01810_execute() {\n    {\n  // As an internal implementation detail, we guarantee that if status.message()\n  // is non-empty, then the resulting string_view is null terminated.\n  auto sv_message = status.message();\n  return sv_message.empty() ? \"\" : sv_message.data();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01810",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/status.cc",
+  "source_line": 131,
+  "validation_status": "validated"
+}

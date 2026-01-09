@@ -1,0 +1,8 @@
+{
+  "code": "#include <string.h>\n#include <cctype>\n#include <cstdint>\n#include \"absl/strings/match.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n#include \"absl/time/time.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02243_execute() {\n    {\n  return absl::ParseTime(RFC3339_full, text, absl::UTCTimeZone(), t, error);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02243",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/format.cc",
+  "source_line": 152,
+  "validation_status": "validated"
+}

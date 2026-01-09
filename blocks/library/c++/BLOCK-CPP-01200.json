@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01200_execute() {\n    {\n  FMT_ASSERT(n != 0, \"\");\n  const uint32_t mod_inv_5 = 0xcccccccd;\n  const uint32_t mod_inv_25 = mod_inv_5 * mod_inv_5;\n\n  int s = 0;\n  while (true) {\n    auto q = rotr(n * mod_inv_25, 2);\n    if (q > max_value<uint32_t>() / 100) break;\n    n = q;\n    s += 2;\n  }\n  auto q = rotr(n * mod_inv_5, 1);\n  if (q <= max_value<uint32_t>() / 10) {\n    n = q;\n    s |= 1;\n  }\n\n  return s;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01200",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 1151,
+  "validation_status": "validated"
+}

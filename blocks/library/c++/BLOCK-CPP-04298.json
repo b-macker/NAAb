@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04298_execute() {\n    {\n public:\n  explicit BlockingCounter(int initial_count);\n\n  BlockingCounter(const BlockingCounter&) = delete;\n  BlockingCounter& operator=(const BlockingCounter&) = delete;\n\n  // BlockingCounter::DecrementCount()\n  //\n  // Decrements the counter's \"count\" by one, and return \"count == 0\". This\n  // function requires that \"count != 0\" when it is called.\n  //\n  // Memory ordering: For any threads X and Y, any action taken by X\n  // before it calls `DecrementCount()` is visible to thread Y after\n  // Y's call to `DecrementCount()`, provided Y's call returns `true`.\n  bool DecrementCount();\n\n  // BlockingCounter::Wait()\n  //\n  // Blocks until the counter reaches zero. This function may be called at most\n  // once. On return, `DecrementCount()` will have been called \"initial_count\"\n  // times and the blocking counter may be destroyed.\n  //\n  // Memory ordering: For any threads X and Y, any action taken by X\n  // before X calls `DecrementCount()` is visible to Y after Y returns\n  // from `Wait()`.\n  void Wait();\n\n private:\n  Mutex lock_;\n  std::atomic<int> count_;\n  int num_waiting_ ABSL_GUARDED_BY(lock_);\n  bool done_ ABSL_GUARDED_BY(lock_);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04298",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/blocking_counter.h",
+  "source_line": 63,
+  "validation_status": "validated"
+}

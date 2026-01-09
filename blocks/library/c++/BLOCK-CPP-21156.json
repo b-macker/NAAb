@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Tooling/Core/Diagnostic.h\"\n#include \"clang/Tooling/ReplacementsYaml.h\"\n#include \"llvm/Support/YAMLTraits.h\"\n#include <string>\n\nusing namespace llvm;\nusing namespace yaml;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21156_execute() {\n    {\n    IO.enumCase(Value, \"Warning\", clang::tooling::Diagnostic::Warning);\n    IO.enumCase(Value, \"Error\", clang::tooling::Diagnostic::Error);\n    IO.enumCase(Value, \"Remark\", clang::tooling::Diagnostic::Remark);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21156",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/DiagnosticsYaml.h",
+  "source_line": 105,
+  "validation_status": "validated"
+}

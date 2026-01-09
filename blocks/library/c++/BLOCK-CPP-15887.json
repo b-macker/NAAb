@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  PreImplicitCall(const Decl *D, SourceLocation Loc, const LocationContext *L,\n                  CFGBlock::ConstCFGElementRef ElemRef,\n                  const ProgramPointTag *Tag = nullptr)\n      : ImplicitCallPoint(D, Loc, PreImplicitCallKind, L, Tag, ElemRef) {}\n\nprivate:\n  friend class ProgramPoint;\n  PreImplicitCall() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == PreImplicitCallKind;\n  }\n}",
+  "id": "BLOCK-CPP-15887",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 579,
+  "validation_status": "validated"
+}

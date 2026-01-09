@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/str_format/arg.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <cwchar>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/container/fixed_array.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/string_view.h\"\n#include <string_view>\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02972_execute() {\n    {\n  size_t fill = 0;\n  if (conv.width() >= 0)\n    fill = static_cast<size_t>(conv.width());\n  ReducePadding(1, &fill);\n  if (!conv.has_left_flag()) sink->Append(fill, ' ');\n  sink->Append(1, v);\n  if (conv.has_left_flag()) sink->Append(fill, ' ');\n  return true;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02972",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/arg.cc",
+  "source_line": 225,
+  "validation_status": "validated"
+}

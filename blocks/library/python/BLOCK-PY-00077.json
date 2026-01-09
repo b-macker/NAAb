@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00077_execute() {\n    class GeneratorRegistry:\n    \"\"\"Registry for managing language-specific generators\"\"\"\n    \n    def __init__(self):\n        self.generators: Dict[str, BaseCodeGenerator] = {}\n    \n    def register(self, language: str, generator: BaseCodeGenerator):\n        \"\"\"Register a generator for a language\"\"\"\n        self.generators[language] = generator\n    \n    def get_generator(self, language: str) -> Optional[BaseCodeGenerator]:\n        \"\"\"Get generator for a language\"\"\"\n        return self.generators.get(language)\n    \n    def list_supported_languages(self) -> List[str]:\n        \"\"\"Get list of supported languages\"\"\"\n        return list(self.generators.keys())\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00077",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/base_generator.py",
+  "source_line": 237,
+  "validation_status": "validated"
+}

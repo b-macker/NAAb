@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include <functional>\n#include <memory>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/per_thread_tls.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/profiling/internal/sample_recorder.h\"\n#include \"absl/synchronization/mutex.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05036_execute() {\n    {\n#if defined(ABSL_INTERNAL_HASHTABLEZ_SAMPLE)\n  if (ABSL_PREDICT_TRUE(--global_next_sample.next_sample > 0)) {\n    return HashtablezInfoHandle(nullptr);\n  }\n  return HashtablezInfoHandle(\n      SampleSlow(global_next_sample, inline_element_size));\n#else\n  return HashtablezInfoHandle(nullptr);\n#endif  // !ABSL_PER_THREAD_TLS\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05036",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hashtablez_sampler.h",
+  "source_line": 209,
+  "validation_status": "validated"
+}

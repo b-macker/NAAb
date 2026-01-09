@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Parse/ParseDiagnostic.h\"\n#include \"clang/Parse/Parser.h\"\n#include \"clang/Sema/DelayedDiagnostic.h\"\n#include \"clang/Sema/ParsedTemplate.h\"\n#include \"clang/Sema/Sema.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19379_execute() {\n    {\n      Diags.IncrementAllExtensionsSilenced();\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19379",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
+  "source_line": 261,
+  "validation_status": "validated"
+}

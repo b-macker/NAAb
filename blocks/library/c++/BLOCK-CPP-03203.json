@@ -1,0 +1,8 @@
+{
+  "code": "{    // +999900\n      abbr.erase(5, 2);                        // +9999\n      if (abbr[3] == '0' && abbr[4] == '0') {  // +9900\n        abbr.erase(3, 2);                      // +99\n      }\n    }",
+  "id": "BLOCK-CPP-03203",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_fixed.cc",
+  "source_line": 126,
+  "validation_status": "validated"
+}

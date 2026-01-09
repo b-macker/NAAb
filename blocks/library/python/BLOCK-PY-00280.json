@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00280_execute() {\n    def has_safe_repr(value: t.Any) -> bool:\n    \"\"\"Does the node have a safe representation?\"\"\"\n    if value is None or value is NotImplemented or value is Ellipsis:\n        return True\n\n    if type(value) in {bool, int, float, complex, range, str, Markup}:\n        return True\n\n    if type(value) in {tuple, list, set, frozenset}:\n        return all(has_safe_repr(v) for v in value)\n\n    if type(value) is dict:  # noqa E721\n        return all(has_safe_repr(k) and has_safe_repr(v) for k, v in value.items())\n\n    return False\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00280",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 125,
+  "validation_status": "validated"
+}

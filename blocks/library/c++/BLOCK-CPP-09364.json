@@ -1,0 +1,8 @@
+{
+  "code": "{\n  BuiltinTemplateKind BTK;\n\n  BuiltinTemplateDecl(const ASTContext &C, DeclContext *DC,\n                      DeclarationName Name, BuiltinTemplateKind BTK);\n\n  void anchor() override;\n\npublic:\n  // Implement isa/cast/dyncast support\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == BuiltinTemplate; }\n\n  static BuiltinTemplateDecl *Create(const ASTContext &C, DeclContext *DC,\n                                     DeclarationName Name,\n                                     BuiltinTemplateKind BTK) {\n    return new (C, DC) BuiltinTemplateDecl(C, DC, Name, BTK);\n  }\n\n  SourceRange getSourceRange() const override LLVM_READONLY {\n    return {};\n  }\n\n  BuiltinTemplateKind getBuiltinTemplateKind() const { return BTK; }\n}",
+  "id": "BLOCK-CPP-09364",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclTemplate.h",
+  "source_line": 1789,
+  "validation_status": "validated"
+}

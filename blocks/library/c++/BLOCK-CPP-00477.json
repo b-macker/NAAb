@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdio>\n#include <spdlog/details/console_globals.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/sinks/sink.h>\n    #include <spdlog/details/windows_include.h>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00477_execute() {\n    {\npublic:\n    using mutex_t = typename ConsoleMutex::mutex_t;\n    explicit stdout_sink_base(FILE *file);\n    ~stdout_sink_base() override = default;\n\n    stdout_sink_base(const stdout_sink_base &other) = delete;\n    stdout_sink_base(stdout_sink_base &&other) = delete;\n\n    stdout_sink_base &operator=(const stdout_sink_base &other) = delete;\n    stdout_sink_base &operator=(stdout_sink_base &&other) = delete;\n\n    void log(const details::log_msg &msg) override;\n    void flush() override;\n    void set_pattern(const std::string &pattern) override;\n\n    void set_formatter(std::unique_ptr<spdlog::formatter> sink_formatter) override;\n\nprotected:\n    mutex_t &mutex_;\n    FILE *file_;\n    std::unique_ptr<spdlog::formatter> formatter_;\n#ifdef _WIN32\n    HANDLE handle_;\n#endif  // WIN32\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00477",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/stdout_sinks.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

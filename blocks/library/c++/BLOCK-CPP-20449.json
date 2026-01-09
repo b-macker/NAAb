@@ -1,0 +1,8 @@
+{
+  "code": "{\n      FunctionProtoType::ExceptionSpecInfo ESI;\n      ESI.Type = getExceptionSpecType();\n      if (ESI.Type == EST_Dynamic) {\n        ESI.Exceptions = Exceptions;\n      } else if (ESI.Type == EST_None) {\n        /// C++11 [except.spec]p14:\n        ///   The exception-specification is noexcept(false) if the set of\n        ///   potential exceptions of the special member function contains \"any\"\n        ESI.Type = EST_NoexceptFalse;\n        ESI.NoexceptExpr = Self->ActOnCXXBoolLiteral(SourceLocation(),\n                                                     tok::kw_false).get();\n      }\n      return ESI;\n    }",
+  "id": "BLOCK-CPP-20449",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 6402,
+  "validation_status": "validated"
+}

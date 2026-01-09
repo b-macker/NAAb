@@ -1,0 +1,8 @@
+{
+  "code": "#include \"spdlog/details/circular_q.h\"\n#include \"spdlog/details/log_msg_buffer.h\"\n#include \"spdlog/details/null_mutex.h\"\n#include \"spdlog/sinks/base_sink.h\"\n#include <mutex>\n#include <string>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00451_execute() {\n    {\n        std::lock_guard<Mutex> lock(base_sink<Mutex>::mutex_);\n        auto items_available = q_.size();\n        auto n_items = lim > 0 ? (std::min)(lim, items_available) : items_available;\n        std::vector<std::string> ret;\n        ret.reserve(n_items);\n        for (size_t i = (items_available - n_items); i < items_available; i++) {\n            memory_buf_t formatted;\n            base_sink<Mutex>::formatter_->format(q_.at(i), formatted);\n            ret.push_back(SPDLOG_BUF_TO_STRING(formatted));\n        }\n        return ret;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00451",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/ringbuffer_sink.h",
+  "source_line": 32,
+  "validation_status": "validated"
+}

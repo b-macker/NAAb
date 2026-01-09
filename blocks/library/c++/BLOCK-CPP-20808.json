@@ -1,0 +1,8 @@
+{
+  "code": "{\n  /// Raw source location.\n  SourceLocation::UIntTy Loc = 0;\n\n  /// Offset relative to the start of the DECLTYPES_BLOCK block. Keep\n  /// structure alignment 32-bit and avoid padding gap because undefined\n  /// value in the padding affects AST hash.\n  UnderalignedInt64 BitOffset;\n\n  DeclOffset() = default;\n  DeclOffset(SourceLocation Loc, uint64_t BitOffset,\n             uint64_t DeclTypesBlockStartOffset) {\n    setLocation(Loc);\n    setBitOffset(BitOffset, DeclTypesBlockStartOffset);\n  }\n\n  void setLocation(SourceLocation L) { Loc = L.getRawEncoding(); }\n\n  SourceLocation getLocation() const {\n    return SourceLocation::getFromRawEncoding(Loc);\n  }\n\n  void setBitOffset(uint64_t Offset, const uint64_t DeclTypesBlockStartOffset) {\n    BitOffset.setBitOffset(Offset - DeclTypesBlockStartOffset);\n  }\n\n  uint64_t getBitOffset(const uint64_t DeclTypesBlockStartOffset) const {\n    return BitOffset.getBitOffset() + DeclTypesBlockStartOffset;\n  }\n}",
+  "id": "BLOCK-CPP-20808",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTBitCodes.h",
+  "source_line": 241,
+  "validation_status": "validated"
+}

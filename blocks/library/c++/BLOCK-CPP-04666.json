@@ -1,0 +1,8 @@
+{
+  "code": "#include <cerrno>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04666_execute() {\n    {\n public:\n  ErrnoSaver() : saved_errno_(errno) {}\n  ~ErrnoSaver() { errno = saved_errno_; }\n  int operator()() const { return saved_errno_; }\n\n private:\n  const int saved_errno_;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04666",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/errno_saver.h",
+  "source_line": 29,
+  "validation_status": "validated"
+}

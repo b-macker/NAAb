@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"clang/AST/CommentNodes.inc\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23337_execute() {\n    {\n    return reinterpret_cast<child_iterator>(&Paragraph);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23337",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 625,
+  "validation_status": "validated"
+}

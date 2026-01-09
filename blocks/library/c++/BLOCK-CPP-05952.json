@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05952_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace random_internal {\n\n// RANDen = RANDom generator or beetroots in Swiss High German.\n// RandenSlow implements the basic state manipulation methods for\n// architectures lacking AES hardware acceleration intrinsics.\nclass RandenSlow {\n public:\n  static void Generate(const void* keys, void* state_void);\n  static void Absorb(const void* seed_void, void* state_void);\n  static const void* GetKeys();\n};\n\n}  // namespace random_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05952",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_slow.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

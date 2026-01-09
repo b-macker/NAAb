@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00367_execute() {\n    def visit_Const(self, node: nodes.Const, frame: Frame) -> None:\n        val = node.as_const(frame.eval_ctx)\n        if isinstance(val, float):\n            self.write(str(val))\n        else:\n            self.write(repr(val))\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00367",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1664,
+  "validation_status": "validated"
+}

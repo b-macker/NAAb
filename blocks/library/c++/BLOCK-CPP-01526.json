@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>  // std::max\n#include <limits>     // std::numeric_limits\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01526_execute() {\n    {\n  for (; it != end; ++it) {\n    switch (*it) {\n    case '-':\n      specs.align = align::left;\n      break;\n    case '+':\n      specs.sign = sign::plus;\n      break;\n    case '0':\n      specs.fill[0] = '0';\n      break;\n    case ' ':\n      if (specs.sign != sign::plus) {\n        specs.sign = sign::space;\n      }\n      break;\n    case '#':\n      specs.alt = true;\n      break;\n    default:\n      return;\n    }\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01526",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
+  "source_line": 302,
+  "validation_status": "validated"
+}

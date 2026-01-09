@@ -1,0 +1,8 @@
+{
+  "code": "#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/fastmath.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05915_execute() {\n    {\n    using sequence_result_type = typename SeedSequence::result_type;\n    constexpr size_t kBufferSize =\n        sizeof(state_type) / sizeof(sequence_result_type);\n    sequence_result_type buffer[kBufferSize];\n    seq.generate(std::begin(buffer), std::end(buffer));\n    // Convert the seed output to a single state value.\n    state_type tmp = buffer[0];\n    for (size_t i = 1; i < kBufferSize; i++) {\n      tmp <<= (sizeof(sequence_result_type) * 8);\n      tmp |= buffer[i];\n    }\n    state_ = lcg(tmp + params_type::increment());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05915",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pcg_engine.h",
+  "source_line": 202,
+  "validation_status": "validated"
+}

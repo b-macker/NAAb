@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace log_internal {\n\nclass ABSL_MUST_USE_RESULT AsLiteralImpl final {\n public:\n  explicit AsLiteralImpl(absl::string_view str) : str_(str) {}\n  AsLiteralImpl(const AsLiteralImpl&) = default;\n  AsLiteralImpl& operator=(const AsLiteralImpl&) = default;\n\n private:\n  absl::string_view str_;\n\n  friend std::ostream& operator<<(std::ostream& os, AsLiteralImpl as_literal) {\n    return os << as_literal.str_;\n  }\n  void AddToMessage(log_internal::LogMessage& m) {\n    m.CopyToEncodedBuffer<log_internal::LogMessage::StringType::kLiteral>(str_);\n  }\n  friend log_internal::LogMessage& operator<<(log_internal::LogMessage& m,\n                                              AsLiteralImpl as_literal) {\n    as_literal.AddToMessage(m);\n    return m;\n  }\n};\n\n}  // namespace log_internal\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-05792",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/structured.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

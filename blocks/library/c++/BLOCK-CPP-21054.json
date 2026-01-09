@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Module.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/MemoryBuffer.h\"\n#include <memory>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21054_execute() {\n    {\n  llvm::StringRef getFormat() const override { return \"raw\"; }\n\n  /// Return an ASTConsumer that can be chained with a\n  /// PCHGenerator that writes the module to a flat file.\n  std::unique_ptr<ASTConsumer>\n  CreatePCHContainerGenerator(CompilerInstance &CI,\n                              const std::string &MainFileName,\n                              const std::string &OutputFileName,\n                              std::unique_ptr<llvm::raw_pwrite_stream> OS,\n                              std::shared_ptr<PCHBuffer> Buffer) const override;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21054",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/PCHContainerOperations.h",
+  "source_line": 66,
+  "validation_status": "validated"
+}

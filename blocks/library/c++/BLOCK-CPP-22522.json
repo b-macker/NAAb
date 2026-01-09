@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <climits>\n#include <optional>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace api_notes;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22522_execute() {\n    {\n    assert(index <= getMaxNullabilityIndex());\n    assert(static_cast<unsigned>(kind) < NullabilityKindMask);\n\n    NullabilityAudited = true;\n    if (NumAdjustedNullable < index + 1)\n      NumAdjustedNullable = index + 1;\n\n    // Mask the bits.\n    NullabilityPayload &=\n        ~(NullabilityKindMask << (index * NullabilityKindSize));\n\n    // Set the value.\n    unsigned kindValue = (static_cast<unsigned>(kind))\n                         << (index * NullabilityKindSize);\n    NullabilityPayload |= kindValue;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22522",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/APINotes/Types.h",
+  "source_line": 525,
+  "validation_status": "validated"
+}

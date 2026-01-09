@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate <bool condition, typename TrueFunc, typename FalseFunc,\n          typename... Args>\nauto IfConstexprElse(TrueFunc&& true_func, FalseFunc&& false_func,\n                     Args&&... args) {\n  return std::get<condition>(std::forward_as_tuple(\n      std::forward<FalseFunc>(false_func), std::forward<TrueFunc>(true_func)))(\n      std::forward<Args>(args)...);\n}\n\ntemplate <bool condition, typename Func, typename... Args>\nvoid IfConstexpr(Func&& func, Args&&... args) {\n  IfConstexprElse<condition>(std::forward<Func>(func), [](auto&&...){},\n                             std::forward<Args>(args)...);\n}\n\n}",
+  "id": "BLOCK-CPP-06721",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/utility/internal/if_constexpr.h",
+  "source_line": 48,
+  "validation_status": "validated"
+}

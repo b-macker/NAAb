@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  enum {\n    StmtMode = 0x0,\n    SizeOfTypeVAMode = 0x1,\n    DeclGroupMode = 0x2,\n    Flags = 0x3\n  };\n\n  union {\n    Stmt **stmt;\n    Decl **DGI;\n  };\n  uintptr_t RawVAPtr = 0;\n  Decl **DGE;\n\n  StmtIteratorBase(Stmt **s) : stmt(s) {}\n  StmtIteratorBase(const VariableArrayType *t);\n  StmtIteratorBase(Decl **dgi, Decl **dge);\n  StmtIteratorBase() : stmt(nullptr) {}\n\n  bool inDeclGroup() const {\n    return (RawVAPtr & Flags) == DeclGroupMode;\n  }\n\n  bool inSizeOfTypeVA() const {\n    return (RawVAPtr & Flags) == SizeOfTypeVAMode;\n  }\n\n  bool inStmt() const {\n    return (RawVAPtr & Flags) == StmtMode;\n  }\n\n  const VariableArrayType *getVAPtr() const {\n    return reinterpret_cast<const VariableArrayType*>(RawVAPtr & ~Flags);\n  }\n\n  void setVAPtr(const VariableArrayType *P) {\n    assert(inDeclGroup() || inSizeOfTypeVA());\n    RawVAPtr = reinterpret_cast<uintptr_t>(P) | (RawVAPtr & Flags);\n  }\n\n  void NextDecl(bool ImmediateAdvance = true);\n  bool HandleDecl(Decl* D);\n  void NextVA();\n\n  Stmt*& GetDeclExpr() const;\n}",
+  "id": "BLOCK-CPP-12978",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtIterator.h",
+  "source_line": 27,
+  "validation_status": "validated"
+}

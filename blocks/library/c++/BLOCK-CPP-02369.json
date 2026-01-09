@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  static int64_t Now() { return base_internal::UnscaledCycleClock::Now(); }\n}",
+  "id": "BLOCK-CPP-02369",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/sysinfo.cc",
+  "source_line": 249,
+  "validation_status": "validated"
+}

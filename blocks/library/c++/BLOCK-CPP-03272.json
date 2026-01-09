@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <iterator>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03272_execute() {\n    {\n  return std::find(first, last, value) != last;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03272",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/algorithm/algorithm.h",
+  "source_line": 55,
+  "validation_status": "validated"
+}

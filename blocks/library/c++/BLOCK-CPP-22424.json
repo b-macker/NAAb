@@ -1,0 +1,8 @@
+{
+  "code": "{\nprivate:\n  SymbolRef Sym;\n  std::string Msg;\n\npublic:\n  StackHintGeneratorForSymbol(SymbolRef S, StringRef M) : Sym(S), Msg(M) {}\n  ~StackHintGeneratorForSymbol() override = default;\n\n  /// Search the call expression for the symbol Sym and dispatch the\n  /// 'getMessageForX()' methods to construct a specific message.\n  std::string getMessage(const ExplodedNode *N) override;\n\n  /// Produces the message of the following form:\n  ///   'Msg via Nth parameter'\n  virtual std::string getMessageForArg(const Expr *ArgE, unsigned ArgIndex);\n\n  virtual std::string getMessageForReturn(const CallExpr *CallExpr) {\n    return Msg;\n  }\n\n  virtual std::string getMessageForSymbolNotFound() {\n    return Msg;\n  }\n}",
+  "id": "BLOCK-CPP-22424",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/BugReporter/BugReporter.h",
+  "source_line": 91,
+  "validation_status": "validated"
+}

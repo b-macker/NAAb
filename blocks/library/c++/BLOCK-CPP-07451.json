@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Attr.h\"\n\nusing namespace clang;\nusing namespace attrvisitor;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07451_execute() {\n    {\n\n/// A simple visitor class that helps create attribute visitors.\ntemplate <template <typename> class Ptr, typename ImplClass,\n          typename RetTy = void, class... ParamTys>\nclass Base {\npublic:\n#define PTR(CLASS) typename Ptr<CLASS>::type\n#define DISPATCH(NAME)                                                         \\\n  return static_cast<ImplClass *>(this)->Visit##NAME(static_cast<PTR(NAME)>(A))\n\n  RetTy Visit(PTR(Attr) A) {\n    switch (A->getKind()) {\n\n#define ATTR(NAME)                                                             \\\n  case attr::NAME:                                                             \\\n    DISPATCH(NAME##Attr);\n#include \"clang/Basic/AttrList.inc\"\n    }\n    llvm_unreachable(\"Attr that isn't part of AttrList.inc!\");\n  }\n\n  // If the implementation chooses not to implement a certain visit\n  // method, fall back to the parent.\n#define ATTR(NAME)                                                             \\\n  RetTy Visit##NAME##Attr(PTR(NAME##Attr) A) { DISPATCH(Attr); }\n#include \"clang/Basic/AttrList.inc\"\n\n  RetTy VisitAttr(PTR(Attr)) { return RetTy(); }\n\n#undef PTR\n#undef DISPATCH\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07451",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AttrVisitor.h",
+  "source_line": 20,
+  "validation_status": "validated"
+}

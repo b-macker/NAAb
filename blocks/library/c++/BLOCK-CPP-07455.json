@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/VersionTuple.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07455_execute() {\n    { return EndLoc; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07455",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Availability.h",
+  "source_line": 54,
+  "validation_status": "validated"
+}

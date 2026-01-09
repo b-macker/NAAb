@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/cord_rep_consume.h\"\n#include <array>\n#include <utility>\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/functional/function_ref.h\"\n#include \"absl/strings/internal/cord_internal.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02901_execute() {\n    {\n\nnamespace {\n\n// Unrefs the provided `substring`, and returns `substring->child`\n// Adds or assumes a reference on `substring->child`\nCordRep* ClipSubstring(CordRepSubstring* substring) {\n  CordRep* child = substring->child;\n  if (substring->refcount.IsOne()) {\n    delete substring;\n  } else {\n    CordRep::Ref(child);\n    CordRep::Unref(substring);\n  }\n  return child;\n}\n\n}  // namespace\n\nvoid Consume(CordRep* rep,\n             FunctionRef<void(CordRep*, size_t, size_t)> consume_fn) {\n  size_t offset = 0;\n  size_t length = rep->length;\n\n  if (rep->tag == SUBSTRING) {\n    offset += rep->substring()->start;\n    rep = ClipSubstring(rep->substring());\n  }\n  consume_fn(rep, offset, length);\n}\n\nvoid ReverseConsume(CordRep* rep,\n                    FunctionRef<void(CordRep*, size_t, size_t)> consume_fn) {\n  return Consume(rep, consume_fn);\n}\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02901",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cord_rep_consume.cc",
+  "source_line": 26,
+  "validation_status": "validated"
+}

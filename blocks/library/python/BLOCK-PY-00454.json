@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00454_execute() {\n    class Sub(BinExpr):\n    \"\"\"Subtract the right from the left node.\"\"\"\n\n    operator = \"-\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00454",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 969,
+  "validation_status": "validated"
+}

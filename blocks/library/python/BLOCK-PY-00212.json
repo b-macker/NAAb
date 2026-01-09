@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00212_execute() {\n    def _initialize_patterns(self) -> Dict[str, List[str]]:\n        \"\"\"Initialize DevOps keyword patterns\"\"\"\n        return {\n            'dockerfile': ['docker', 'container', 'image'],\n            'docker_compose': ['compose', 'multi container'],\n            'k8s_deployment': ['kubernetes', 'k8s', 'deployment'],\n            'github_actions': ['github actions', 'workflow', 'ci', 'pipeline']\n        }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00212",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

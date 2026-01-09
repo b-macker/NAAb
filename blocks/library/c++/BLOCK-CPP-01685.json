@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/flags/marshalling.h\"\n#include <stddef.h>\n#include <cmath>\n#include <limits>\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_join.h\"\n#include \"absl/strings/str_split.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01685_execute() {\n    {\n  // digits10 is guaranteed to roundtrip correctly in string -> value -> string\n  // conversions, but may not be enough to represent all the values correctly.\n  std::string digit10_str =\n      absl::StrFormat(\"%.*g\", std::numeric_limits<T>::digits10, v);\n  if (std::isnan(v) || std::isinf(v)) return digit10_str;\n\n  T roundtrip_val = 0;\n  std::string err;\n  if (absl::ParseFlag(digit10_str, &roundtrip_val, &err) &&\n      roundtrip_val == v) {\n    return digit10_str;\n  }\n\n  // max_digits10 is the number of base-10 digits that are necessary to uniquely\n  // represent all distinct values.\n  return absl::StrFormat(\"%.*g\", std::numeric_limits<T>::max_digits10, v);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01685",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/marshalling.cc",
+  "source_line": 215,
+  "validation_status": "validated"
+}

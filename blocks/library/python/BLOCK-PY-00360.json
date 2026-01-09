@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00360_execute() {\n    def _output_child_pre(\n        self, node: nodes.Expr, frame: Frame, finalize: _FinalizeInfo\n    ) -> None:\n        \"\"\"Output extra source code before visiting a child of an\n        ``Output`` node.\n        \"\"\"\n        if frame.eval_ctx.volatile:\n            self.write(\"(escape if context.eval_ctx.autoescape else str)(\")\n        elif frame.eval_ctx.autoescape:\n            self.write(\"escape(\")\n        else:\n            self.write(\"str(\")\n\n        if finalize.src is not None:\n            self.write(finalize.src)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00360",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1470,
+  "validation_status": "validated"
+}

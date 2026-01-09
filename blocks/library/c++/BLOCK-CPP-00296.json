@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/periodic_worker.h>\n#include <chrono>\n#include <functional>\n#include <memory>\n#include <mutex>\n#include <string>\n#include <unordered_map>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00296_execute() {\n    {\n        std::lock_guard<std::mutex> lock(flusher_mutex_);\n        auto clbk = [this]() { this->flush_all(); };\n        periodic_flusher_ = details::make_unique<periodic_worker>(clbk, interval);\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00296",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/registry.h",
+  "source_line": 64,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/RecursiveASTVisitor.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11273_execute() {\n    {\n    // FIXME: Ideally the gathered declarations and the declarations in the\n    // @implementation should be mixed and sorted to get a true lexical order,\n    // but right now we only care about getting the correct lexical parent, so\n    // we can traverse the gathered nested declarations after the declarations\n    // in the decl context.\n    assert(!BaseType::getDerived().shouldTraversePostOrder() &&\n           \"post-order traversal is not supported for lexically ordered \"\n           \"recursive ast visitor\");\n    for (Decl *D : LexicallyNestedDeclarations) {\n      if (!BaseType::getDerived().TraverseDecl(D))\n        return false;\n    }\n    return true;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11273",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LexicallyOrderedRecursiveASTVisitor.h",
+  "source_line": 141,
+  "validation_status": "validated"
+}

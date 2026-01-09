@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DependenceFlags.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/Support/Compiler.h\"\n#include <cstdint>\n#include <cstdlib>\n#include <utility>\n\nusing namespace clang;\nusing namespace alias;\nusing namespace alias;\nusing namespace stored;\nusing namespace alias;\nusing namespace name;\nusing namespace alias;\nusing namespace alias;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11327_execute() {\n    {\n    return clang::NestedNameSpecifierLoc(FirstInfo::getTombstoneKey(),\n                                         SecondInfo::getTombstoneKey());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11327",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/NestedNameSpecifier.h",
+  "source_line": 542,
+  "validation_status": "validated"
+}

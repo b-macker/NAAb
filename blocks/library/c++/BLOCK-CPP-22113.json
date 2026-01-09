@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include <string>\n\nusing namespace clang;\nusing namespace html;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22113_execute() {\n    {\n    HighlightRange(R, Range.getBegin(), Range.getEnd(), StartTag, EndTag);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22113",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/HTMLRewrite.h",
+  "source_line": 40,
+  "validation_status": "validated"
+}

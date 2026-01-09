@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/ARCMigrate/FileRemapper.h\"\n#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n\nusing namespace clang;\nusing namespace arcmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22563_execute() {\n    {\n  std::string MigrateDir;\n  std::string PlistOut;\n  bool EmitPremigrationARCErrors;\nprotected:\n  bool BeginInvocation(CompilerInstance &CI) override;\n\npublic:\n  MigrateAction(std::unique_ptr<FrontendAction> WrappedAction,\n                StringRef migrateDir,\n                StringRef plistOut,\n                bool emitPremigrationARCErrors);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22563",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ARCMigrate/ARCMTActions.h",
+  "source_line": 43,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/sinks/base_sink.h>\n    #include <spdlog/details/udp_client-windows.h>\n    #include <spdlog/details/udp_client.h>\n#include <chrono>\n#include <functional>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00494_execute() {\n    {\n    std::string server_host;\n    uint16_t server_port;\n\n    udp_sink_config(std::string host, uint16_t port)\n        : server_host{std::move(host)},\n          server_port{port} {}\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00494",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/udp_sink.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

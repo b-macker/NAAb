@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01246_execute() {\n    {\n  auto decode = [f](const char* buf_ptr, const char* ptr) {\n    auto cp = uint32_t();\n    auto error = 0;\n    auto end = utf8_decode(buf_ptr, &cp, &error);\n    bool result = f(error ? invalid_code_point : cp,\n                    string_view(ptr, error ? 1 : to_unsigned(end - buf_ptr)));\n    return result ? (error ? buf_ptr + 1 : end) : nullptr;\n  };\n  auto p = s.data();\n  const size_t block_size = 4;  // utf8_decode always reads blocks of 4 chars.\n  if (s.size() >= block_size) {\n    for (auto end = p + s.size() - block_size + 1; p < end;) {\n      p = decode(p, p);\n      if (!p) return;\n    }\n  }\n  if (auto num_chars_left = s.data() + s.size() - p) {\n    char buf[2 * block_size - 1] = {};\n    copy_str<char>(p, p + num_chars_left, buf);\n    const char* buf_ptr = buf;\n    do {\n      auto end = decode(buf_ptr, p);\n      if (!end) return;\n      p += end - buf_ptr;\n      buf_ptr = end;\n    } while (buf_ptr - buf < num_chars_left);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01246",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 644,
+  "validation_status": "validated"
+}

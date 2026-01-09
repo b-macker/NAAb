@@ -1,0 +1,8 @@
+{
+  "code": "function store(Request $request)\n    {\n        $validated = $request->validate([\n            'name' => 'required|string|max:255',\n            'email' => 'required|email|unique:users',\n            'password' => 'required|min:8'\n        ]);\n\n        $user = User::create([\n            'name' => $validated['name'],\n            'email' => $validated['email'],\n            'password' => Hash::make($validated['password'])\n        ]);\n\n        return response()->json($user, 201);\n    }",
+  "id": "BLOCK-PHP-00013",
+  "language": "php",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp2e515_rq.php",
+  "source_line": 26,
+  "validation_status": "validated"
+}

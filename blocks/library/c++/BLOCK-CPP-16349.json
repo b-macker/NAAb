@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16349_execute() {\n    {\n  // CanThrowResult constants are ordered so that the maximum is the correct\n  // merge result.\n  return CT1 > CT2 ? CT1 : CT2;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16349",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/ExceptionSpecificationType.h",
+  "source_line": 65,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/types/bad_any_cast.h\"\n#include <cstdlib>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace any_internal;\nusing namespace any_internal;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02281_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace types_internal {\nextern const char kAvoidEmptyBadAnyCastLibraryWarning;\nconst char kAvoidEmptyBadAnyCastLibraryWarning = 0;\n}  // namespace types_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02281",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_any_cast.cc",
+  "source_line": 54,
+  "validation_status": "validated"
+}

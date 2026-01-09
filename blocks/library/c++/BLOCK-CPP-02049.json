@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/substitute.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/escaping.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace substitute_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02049_execute() {\n    {\n        ++size;\n        ++i;  // Skip next char.\n      }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02049",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/substitute.cc",
+  "source_line": 67,
+  "validation_status": "validated"
+}

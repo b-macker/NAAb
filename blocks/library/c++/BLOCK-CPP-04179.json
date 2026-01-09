@@ -1,0 +1,8 @@
+{
+  "code": "#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04179_execute() {\n    {\n  std::vector<ViableSubstitution> subs;\n  subs.reserve(replacements.size());\n\n  for (const auto& rep : replacements) {\n    using std::get;\n    absl::string_view old(get<0>(rep));\n\n    size_t pos = s.find(old);\n    if (pos == s.npos) continue;\n\n    // Ignore attempts to replace \"\". This condition is almost never true,\n    // but above condition is frequently true. That's why we test for this\n    // now and not before.\n    if (old.empty()) continue;\n\n    subs.emplace_back(old, get<1>(rep), pos);\n\n    // Insertion sort to ensure the last ViableSubstitution comes before\n    // all the others.\n    size_t index = subs.size();\n    while (--index && subs[index - 1].OccursBefore(subs[index])) {\n      std::swap(subs[index], subs[index - 1]);\n    }\n  }\n  return subs;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04179",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_replace.h",
+  "source_line": 159,
+  "validation_status": "validated"
+}

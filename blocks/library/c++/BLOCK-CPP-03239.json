@@ -1,0 +1,8 @@
+{
+  "code": "#include \"time_zone_info.h\"\n#include <algorithm>\n#include <cassert>\n#include <chrono>\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <cstring>\n#include <fstream>\n#include <functional>\n#include <memory>\n#include <sstream>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"time_zone_fixed.h\"\n#include \"time_zone_posix.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03239_execute() {\n    {\n    tr = end;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03239",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_info.cc",
+  "source_line": 935,
+  "validation_status": "validated"
+}

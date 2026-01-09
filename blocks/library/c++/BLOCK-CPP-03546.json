@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstddef>\n#include <cstdlib>\n#include <cstring>\n#include <initializer_list>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n#include <utility>\n#include \"absl/algorithm/algorithm.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"\n#include \"absl/container/internal/inlined_vector.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03546_execute() {\n    {\n    // Assumption check: we shouldn't be told to use memcpy to implement move\n    // assignment unless we have trivially destructible elements and an\n    // allocator that does nothing fancy.\n    static_assert(absl::is_trivially_destructible<value_type>::value, \"\");\n    static_assert(std::is_same<A, std::allocator<value_type>>::value, \"\");\n\n    // Throw away our existing heap allocation, if any. There is no need to\n    // destroy the existing elements one by one because we know they are\n    // trivially destructible.\n    storage_.DeallocateIfAllocated();\n\n    // Adopt the other vector's inline elements or heap allocation.\n    storage_.MemcpyFrom(other.storage_);\n    other.storage_.SetInlinedSize(0);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03546",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/inlined_vector.h",
+  "source_line": 843,
+  "validation_status": "validated"
+}

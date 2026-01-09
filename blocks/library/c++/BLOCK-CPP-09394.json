@@ -1,0 +1,8 @@
+{
+  "code": "{\n  ///   template<typename U> U Inner;\n  ///   template<typename U> U* Inner<U*> = (U*)(0);\n  /// };\n  ///\n  /// template<> template<typename T>\n  /// U* X<int>::Inner<T*> = (T*)(0) + 1;\n  /// \\endcode\n  bool isMemberSpecialization() {\n    const auto *First =\n        cast<VarTemplatePartialSpecializationDecl>(getFirstDecl());\n    return First->InstantiatedFromMember.getInt();\n  }\n\n  /// Note that this member template is a specialization.\n  void setMemberSpecialization() {\n    auto *First = cast<VarTemplatePartialSpecializationDecl>(getFirstDecl());\n    assert(First->InstantiatedFromMember.getPointer() &&\n           \"Only member templates can be member template specializations\");\n    return First->InstantiatedFromMember.setInt(true);\n  }\n\n  SourceRange getSourceRange() const override LLVM_READONLY;\n\n  void Profile(llvm::FoldingSetNodeID &ID) const {\n    Profile(ID, getTemplateArgs().asArray(), getTemplateParameters(),\n            getASTContext());\n  }\n\n  static void\n  Profile(llvm::FoldingSetNodeID &ID, ArrayRef<TemplateArgument> TemplateArgs,\n          TemplateParameterList *TPL, const ASTContext &Context);\n\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n\n  static bool classofKind(Kind K) {\n    return K == VarTemplatePartialSpecialization;\n  }\n}",
+  "id": "BLOCK-CPP-09394",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclTemplate.h",
+  "source_line": 3074,
+  "validation_status": "validated"
+}

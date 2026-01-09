@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/time/time.h\"\n#include <winsock2.h>  // for timeval\n#include <cstring>\n#include <ctime>\n#include <limits>\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02250_execute() {\n    {\n  absl::Time::Breakdown bd;\n  bd.year = std::numeric_limits<int64_t>::max();\n  bd.month = 12;\n  bd.day = 31;\n  bd.hour = 23;\n  bd.minute = 59;\n  bd.second = 59;\n  bd.subsecond = absl::InfiniteDuration();\n  bd.weekday = 4;\n  bd.yearday = 365;\n  bd.offset = 0;\n  bd.is_dst = false;\n  bd.zone_abbr = \"-00\";\n  return bd;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02250",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.cc",
+  "source_line": 70,
+  "validation_status": "validated"
+}

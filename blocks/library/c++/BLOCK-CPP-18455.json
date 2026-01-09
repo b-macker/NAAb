@@ -1,0 +1,8 @@
+{
+  "code": "#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18455_execute() {\n    {\n\nclass CompilerInstance;\nclass FrontendAction;\n\n/// Construct the FrontendAction of a compiler invocation based on the\n/// options specified for the compiler invocation.\n///\n/// \\return - The created FrontendAction object\nstd::unique_ptr<FrontendAction> CreateFrontendAction(CompilerInstance &CI);\n\n/// ExecuteCompilerInvocation - Execute the given actions described by the\n/// compiler invocation object in the given compiler instance.\n///\n/// \\return - True on success.\nbool ExecuteCompilerInvocation(CompilerInstance *Clang);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18455",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/FrontendTool/Utils.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/cordz_functions.h\"\n#include <atomic>\n#include <cmath>\n#include <limits>\n#include <random>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/profiling/internal/exponential_biased.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02907_execute() {\n    {\n  g_cordz_mean_interval.store(mean_interval, std::memory_order_release);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02907",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_functions.cc",
+  "source_line": 90,
+  "validation_status": "validated"
+}

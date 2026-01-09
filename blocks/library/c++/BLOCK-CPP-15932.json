@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/ImmutableMap.h\"\n#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/ParentMap.h\"\n#include \"clang/Analysis/AnyCall.h\"\n#include \"clang/Analysis/SelectorExtras.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace ento;\nusing namespace ento;\nusing namespace clang;\nusing namespace ento;\nusing namespace llvm;\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15932_execute() {\n    {\n    ObjCMethodSummaries[S] = Summ;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15932",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/RetainSummaryManager.h",
+  "source_line": 557,
+  "validation_status": "validated"
+}

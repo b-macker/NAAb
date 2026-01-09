@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate <typename decl_type>\nstruct DenseMapInfo<clang::CanonicalDeclPtr<decl_type>> {\n  using CanonicalDeclPtr = clang::CanonicalDeclPtr<decl_type>;\n  using BaseInfo = DenseMapInfo<decl_type *>;\n\n  static CanonicalDeclPtr getEmptyKey() {\n    // Construct our CanonicalDeclPtr this way because the regular constructor\n    // would dereference P.Ptr, which is not allowed.\n    CanonicalDeclPtr P;\n    P.Ptr = BaseInfo::getEmptyKey();\n    return P;\n  }\n\n  static CanonicalDeclPtr getTombstoneKey() {\n    CanonicalDeclPtr P;\n    P.Ptr = BaseInfo::getTombstoneKey();\n    return P;\n  }\n\n  static unsigned getHashValue(const CanonicalDeclPtr &P) {\n    return BaseInfo::getHashValue(P);\n  }\n\n  static bool isEqual(const CanonicalDeclPtr &LHS,\n                      const CanonicalDeclPtr &RHS) {\n    return BaseInfo::isEqual(LHS, RHS);\n  }\n};\n\ntemplate <typename decl_type>\nstruct PointerLikeTypeTraits<clang::CanonicalDeclPtr<decl_type>> {\n  static inline void *getAsVoidPointer(clang::CanonicalDeclPtr<decl_type> P) {\n    return P.Ptr;\n  }\n  static inline clang::CanonicalDeclPtr<decl_type> getFromVoidPointer(void *P) {\n    clang::CanonicalDeclPtr<decl_type> C;\n    C.Ptr = PointerLikeTypeTraits<decl_type *>::getFromVoidPtr(P);\n    return C;\n  }\n  static constexpr int NumLowBitsAvailable =\n      PointerLikeTypeTraits<decl_type *>::NumLowBitsAvailable;\n};\n\n}",
+  "id": "BLOCK-CPP-12424",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Redeclarable.h",
+  "source_line": 382,
+  "validation_status": "validated"
+}

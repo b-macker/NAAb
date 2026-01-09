@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01090_execute() {\n    {\n#if FMT_USE_NONTYPE_TEMPLATE_ARGS\n    auto index = get_arg_index_by_name<Args...>(id);\n    if (index == invalid_arg_index) on_error(\"named argument is not found\");\n    return context_.check_arg_id(index), index;\n#else\n    (void)id;\n    on_error(\"compile-time checks for named arguments require C++20 support\");\n    return 0;\n#endif\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01090",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 2966,
+  "validation_status": "validated"
+}

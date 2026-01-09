@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace {\n\n// Returns the maximum duration that SleepOnce() can sleep for.\nconstexpr absl::Duration MaxSleep() {\n#ifdef _WIN32\n  // Windows Sleep() takes unsigned long argument in milliseconds.\n  return absl::Milliseconds(\n      std::numeric_limits<unsigned long>::max());  // NOLINT(runtime/int)\n#else\n  return absl::Seconds(std::numeric_limits<time_t>::max());\n#endif\n}\n\n// Sleeps for the given duration.\n// REQUIRES: to_sleep <= MaxSleep().\nvoid SleepOnce(absl::Duration to_sleep) {\n#ifdef _WIN32\n  Sleep(static_cast<DWORD>(to_sleep / absl::Milliseconds(1)));\n#else\n  struct timespec sleep_time = absl::ToTimespec(to_sleep);\n  while (nanosleep(&sleep_time, &sleep_time) != 0 && errno == EINTR) {\n    // Ignore signals and wait for the full interval to elapse.\n  }\n#endif\n}\n\n}  // namespace\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-02171",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
+  "source_line": 547,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/stacktrace.h\"\n#include <atomic>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/port.h\"\n#include \"absl/debugging/internal/stacktrace_config.h\"\n#include ABSL_STACKTRACE_INL_HEADER\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01652_execute() {\n    {\n  return Unwind<false, true>(result, nullptr, max_depth, skip_count, uc,\n                             min_dropped_frames);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01652",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/stacktrace.cc",
+  "source_line": 107,
+  "validation_status": "validated"
+}

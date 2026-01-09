@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/crc/internal/crc.h\"\n#include <cstdint>\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/prefetch.h\"\n#include \"absl/crc/internal/crc_internal.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02463_execute() {\n    {\n        step_one_byte();\n      }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02463",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc.cc",
+  "source_line": 271,
+  "validation_status": "validated"
+}

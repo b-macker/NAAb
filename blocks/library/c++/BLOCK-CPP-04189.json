@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstddef>\n#include <map>\n#include <set>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/strings/internal/str_split_internal.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04189_execute() {\n    {\n public:\n  explicit ByString(absl::string_view sp);\n  absl::string_view Find(absl::string_view text, size_t pos) const;\n\n private:\n  const std::string delimiter_;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04189",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_split.h",
+  "source_line": 124,
+  "validation_status": "validated"
+}

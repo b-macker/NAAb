@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    SavePendingParsedClassStateRAII(Sema &S) : S(S) { swapSavedState(); }\n\n    ~SavePendingParsedClassStateRAII() {\n      assert(S.DelayedOverridingExceptionSpecChecks.empty() &&\n             \"there shouldn't be any pending delayed exception spec checks\");\n      assert(S.DelayedEquivalentExceptionSpecChecks.empty() &&\n             \"there shouldn't be any pending delayed exception spec checks\");\n      swapSavedState();\n    }\n\n  private:\n    Sema &S;\n    decltype(DelayedOverridingExceptionSpecChecks)\n        SavedOverridingExceptionSpecChecks;\n    decltype(DelayedEquivalentExceptionSpecChecks)\n        SavedEquivalentExceptionSpecChecks;\n\n    void swapSavedState() {\n      SavedOverridingExceptionSpecChecks.swap(\n          S.DelayedOverridingExceptionSpecChecks);\n      SavedEquivalentExceptionSpecChecks.swap(\n          S.DelayedEquivalentExceptionSpecChecks);\n    }\n  }",
+  "id": "BLOCK-CPP-20564",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 13950,
+  "validation_status": "validated"
+}

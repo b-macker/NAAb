@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/StaticAnalyzer/Core/CheckerManager.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SVals.h\"\n#include \"llvm/Support/Casting.h\"\n\nusing namespace clang;\nusing namespace ento;\nusing namespace check;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22244_execute() {\n    {\n    return isa<STMT>(S);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22244",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 88,
+  "validation_status": "validated"
+}

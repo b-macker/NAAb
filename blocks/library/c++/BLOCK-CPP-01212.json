@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01212_execute() {\n    {\n  // Don't optimize the \"{}\" case to keep the binary size small and because it\n  // can be better optimized in fmt::format anyway.\n  auto buffer = memory_buffer();\n  detail::vformat_to(buffer, fmt, args);\n  return to_string(buffer);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01212",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 1468,
+  "validation_status": "validated"
+}

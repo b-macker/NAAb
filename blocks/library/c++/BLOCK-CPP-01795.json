@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/numeric/int128.h\"\n#include <stddef.h>\n#include <cassert>\n#include <iomanip>\n#include <ostream>  // NOLINT(readability/streams)\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01795_execute() {\n    {\n  // Cast to uint128 before possibly negating because -Int128Min() is undefined.\n  return Int128High64(v) < 0 ? -uint128(v) : uint128(v);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01795",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/int128.cc",
+  "source_line": 234,
+  "validation_status": "validated"
+}

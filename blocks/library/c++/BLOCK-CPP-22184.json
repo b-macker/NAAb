@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22184_execute() {\n    {\nclass Preprocessor;\nclass PreprocessorOutputOptions;\n\n/// RewriteMacrosInInput - Implement -rewrite-macros mode.\nvoid RewriteMacrosInInput(Preprocessor &PP, raw_ostream *OS);\n\n/// DoRewriteTest - A simple test for the TokenRewriter class.\nvoid DoRewriteTest(Preprocessor &PP, raw_ostream *OS);\n\n/// RewriteIncludesInInput - Implement -frewrite-includes mode.\nvoid RewriteIncludesInInput(Preprocessor &PP, raw_ostream *OS,\n                            const PreprocessorOutputOptions &Opts);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22184",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Frontend/Rewriters.h",
+  "source_line": 18,
+  "validation_status": "validated"
+}

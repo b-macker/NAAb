@@ -1,0 +1,8 @@
+{
+  "code": "{\n  Stmt *SubExprs[2];\n\n  explicit ArrayInitLoopExpr(EmptyShell Empty)\n      : Expr(ArrayInitLoopExprClass, Empty), SubExprs{} {}\n\npublic:\n  explicit ArrayInitLoopExpr(QualType T, Expr *CommonInit, Expr *ElementInit)\n      : Expr(ArrayInitLoopExprClass, T, VK_PRValue, OK_Ordinary),\n        SubExprs{CommonInit, ElementInit} {\n    setDependence(computeDependence(this));\n  }\n\n  /// Get the common subexpression shared by all initializations (the source\n  /// array).\n  OpaqueValueExpr *getCommonExpr() const {\n    return cast<OpaqueValueExpr>(SubExprs[0]);\n  }\n\n  /// Get the initializer to use for each array element.\n  Expr *getSubExpr() const { return cast<Expr>(SubExprs[1]); }\n\n  llvm::APInt getArraySize() const {\n    return cast<ConstantArrayType>(getType()->castAsArrayTypeUnsafe())\n        ->getSize();\n  }\n\n  static bool classof(const Stmt *S) {\n    return S->getStmtClass() == ArrayInitLoopExprClass;\n  }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY {\n    return getCommonExpr()->getBeginLoc();\n  }\n  SourceLocation getEndLoc() const LLVM_READONLY {\n    return getCommonExpr()->getEndLoc();\n  }\n\n  child_range children() {\n    return child_range(SubExprs, SubExprs + 2);\n  }\n  const_child_range children() const {\n    return const_child_range(SubExprs, SubExprs + 2);\n  }\n\n  friend class ASTReader;\n  friend class ASTStmtReader;\n  friend class ASTStmtWriter;\n}",
+  "id": "BLOCK-CPP-10258",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
+  "source_line": 5492,
+  "validation_status": "validated"
+}

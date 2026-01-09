@@ -1,0 +1,8 @@
+{
+  "code": "{\nnamespace data_collection {\n\n/// Returns a string that represents all macro expansions that expanded into the\n/// given SourceLocation.\n///\n/// If 'getMacroStack(A) == getMacroStack(B)' is true, then the SourceLocations\n/// A and B are expanded from the same macros in the same order.\nstd::string getMacroStack(SourceLocation Loc, ASTContext &Context);\n\n/// Utility functions for implementing addData() for a consumer that has a\n/// method update(StringRef)\ntemplate <class T>\nvoid addDataToConsumer(T &DataConsumer, llvm::StringRef Str) {\n  DataConsumer.update(Str);\n}\n\ntemplate <class T> void addDataToConsumer(T &DataConsumer, const QualType &QT) {\n  addDataToConsumer(DataConsumer, QT.getAsString());\n}\n\ntemplate <class T, class Type>\nstd::enable_if_t<std::is_integral<Type>::value || std::is_enum<Type>::value ||\n                 std::is_convertible<Type, size_t>::value // for llvm::hash_code\n                 >\naddDataToConsumer(T &DataConsumer, Type Data) {\n  DataConsumer.update(StringRef(reinterpret_cast<char *>(&Data), sizeof(Data)));\n}\n\n} // end namespace data_collection\n}",
+  "id": "BLOCK-CPP-07736",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DataCollection.h",
+  "source_line": 31,
+  "validation_status": "validated"
+}

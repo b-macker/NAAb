@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/internal/check_op.h\"\n#include <string.h>\n#include <strings.h>  // for strcasecmp, but msvc does not have this header\n#include <sstream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/str_cat.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02688_execute() {\n    {\n  if (v >= 32 && v <= 126) {\n    os << \"'\" << v << \"'\";\n  } else {\n    os << \"unsigned char value \" << int{v};\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02688",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/check_op.cc",
+  "source_line": 82,
+  "validation_status": "validated"
+}

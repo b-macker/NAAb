@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15331_execute() {\n    {\n    if (const auto *FD = dyn_cast<FunctionDecl>(D)) {\n      return AnyCall(FD);\n    } else if (const auto *MD = dyn_cast<ObjCMethodDecl>(D)) {\n      return AnyCall(MD);\n    }\n    return std::nullopt;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15331",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/AnyCall.h",
+  "source_line": 134,
+  "validation_status": "validated"
+}

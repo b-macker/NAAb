@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"   // TODO(calabrese) IWYU removal?\n#include \"absl/utility/utility.h\"\n#include <optional>  // IWYU pragma: export\n#include <cassert>\n#include <functional>\n#include <initializer_list>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/bad_optional_access.h\"\n#include \"absl/types/internal/optional.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04480_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04480",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/optional.h",
+  "source_line": 79,
+  "validation_status": "validated"
+}

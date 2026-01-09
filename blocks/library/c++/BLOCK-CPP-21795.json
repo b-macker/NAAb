@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  enum TraversalKind {\n    // Ordinary subexpressions.\n    TRV_Normal,\n\n    // Declarations (e.g. function bodies).\n    TRV_Decl,\n\n    // Expressions that require lazy evaluation.\n    TRV_Lazy,\n\n    // Type expressions.\n    TRV_Type\n  };\n\n  // R_Ctx defines a \"context\" for the traversal, which encodes information\n  // about where a term appears.  This can be used to encoding the\n  // \"current continuation\" for CPS transforms, or other information.\n  using R_Ctx = TraversalKind;\n\n  // Create context for an ordinary subexpression.\n  R_Ctx subExprCtx(R_Ctx Ctx) { return TRV_Normal; }\n\n  // Create context for a subexpression that occurs in a declaration position\n  // (e.g. function body).\n  R_Ctx declCtx(R_Ctx Ctx) { return TRV_Decl; }\n\n  // Create context for a subexpression that occurs in a position that\n  // should be reduced lazily.  (e.g. code body).\n  R_Ctx lazyCtx(R_Ctx Ctx) { return TRV_Lazy; }\n\n  // Create context for a subexpression that occurs in a type position.\n  R_Ctx typeCtx(R_Ctx Ctx) { return TRV_Type; }\n}",
+  "id": "BLOCK-CPP-21795",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTraverse.h",
+  "source_line": 101,
+  "validation_status": "validated"
+}

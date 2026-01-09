@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyUtil.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <iterator>\n#include <optional>\n#include <string>\n#include <utility>\n#include \"ThreadSafetyOps.def\"\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace til;\nusing namespace ThreadSafetyTIL;\nusing namespace ThreadSafetyTIL;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21520_execute() {\n    {\n    // This is a variable declaration, so traverse the definition.\n    auto E0 = Vs.traverse(VarDecl->Definition, Vs.typeCtx(Ctx));\n    // Tell the rewriter to enter the scope of the function.\n    Variable *Nvd = Vs.enterScope(*VarDecl, E0);\n    auto E1 = Vs.traverse(Body, Vs.declCtx(Ctx));\n    Vs.exitScope(*VarDecl);\n    return Vs.reduceFunction(*this, Nvd, E1);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21520",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 694,
+  "validation_status": "validated"
+}

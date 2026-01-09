@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"llvm/ADT/STLExtras.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09503_execute() {\n    { }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-09503",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/EvaluatedExprVisitor.h",
+  "source_line": 40,
+  "validation_status": "validated"
+}

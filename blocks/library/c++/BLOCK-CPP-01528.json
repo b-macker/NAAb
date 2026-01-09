@@ -1,0 +1,8 @@
+{
+  "code": "{\n  int arg_index = -1;\n  Char c = *it;\n  if (c >= '0' && c <= '9') {\n    // Parse an argument index (if followed by '$') or a width possibly\n    // preceded with '0' flag(s).\n    int value = parse_nonnegative_int(it, end, -1);\n    if (it != end && *it == '$') {  // value is an argument index\n      ++it;\n      arg_index = value != -1 ? value : max_value<int>();\n    } else {\n      if (c == '0') specs.fill[0] = '0';\n      if (value != 0) {\n        // Nonzero value means that we parsed width and don't need to\n        // parse it or flags again, so return now.\n        if (value == -1) FMT_THROW(format_error(\"number is too big\"));\n        specs.width = value;\n        return arg_index;\n      }\n    }\n  }\n  parse_flags(specs, it, end);\n  // Parse width.\n  if (it != end) {\n    if (*it >= '0' && *it <= '9') {\n      specs.width = parse_nonnegative_int(it, end, -1);\n      if (specs.width == -1) FMT_THROW(format_error(\"number is too big\"));\n    } else if (*it == '*') {\n      ++it;\n      specs.width = static_cast<int>(visit_format_arg(\n          detail::printf_width_handler<Char>(specs), get_arg(-1)));\n    }\n  }\n  return arg_index;\n}",
+  "id": "BLOCK-CPP-01528",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
+  "source_line": 330,
+  "validation_status": "validated"
+}

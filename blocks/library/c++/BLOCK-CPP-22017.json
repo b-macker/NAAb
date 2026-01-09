@@ -1,0 +1,8 @@
+{
+  "code": "#include <optional>\n#include <utility>\n#include <vector>\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Analysis/FlowSensitive/ControlFlowContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowAnalysisContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowEnvironment.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowLattice.h\"\n#include \"llvm/ADT/Any.h\"\n#include \"llvm/Support/Error.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22017_execute() {\n    {\n  /// Type-erased model of a program property.\n  TypeErasedLattice Lattice;\n\n  /// Model of the state of the program (store and heap).\n  Environment Env;\n\n  TypeErasedDataflowAnalysisState(TypeErasedLattice Lattice, Environment Env)\n      : Lattice(std::move(Lattice)), Env(std::move(Env)) {}\n\n  TypeErasedDataflowAnalysisState fork() const {\n    return TypeErasedDataflowAnalysisState(Lattice, Env.fork());\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22017",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.h",
+  "source_line": 120,
+  "validation_status": "validated"
+}

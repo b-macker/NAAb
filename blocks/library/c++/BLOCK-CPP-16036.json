@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cstring>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16036_execute() {\n    {\n  enum HeaderID : uint16_t {\n#define HEADER(ID, NAME) ID,\n#include \"clang/Basic/BuiltinHeaders.def\"\n#undef HEADER\n  } ID;\n\n  constexpr HeaderDesc(HeaderID ID) : ID(ID) {}\n\n  const char *getName() const;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16036",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Builtins.h",
+  "source_line": 51,
+  "validation_status": "validated"
+}

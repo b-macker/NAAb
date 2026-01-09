@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00351_execute() {\n    def visit_CallBlock(self, node: nodes.CallBlock, frame: Frame) -> None:\n        call_frame, macro_ref = self.macro_body(node, frame)\n        self.writeline(\"caller = \")\n        self.macro_def(macro_ref, call_frame)\n        self.start_write(frame, node)\n        self.visit_Call(node.call, frame, forward_caller=True)\n        self.end_write(frame)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00351",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1345,
+  "validation_status": "validated"
+}

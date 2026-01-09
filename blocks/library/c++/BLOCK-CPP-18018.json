@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/Lex/MacroInfo.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <vector>\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18018_execute() {\n    {\n    /// Unknown fragment kind.\n    None,\n\n    Keyword,\n    Attribute,\n    NumberLiteral,\n    StringLiteral,\n    Identifier,\n\n    /// Identifier that refers to a type in the context.\n    TypeIdentifier,\n\n    /// Parameter that's used as generics in the context. For example template\n    /// parameters.\n    GenericParameter,\n\n    /// External parameters in Objective-C methods.\n    /// For example, \\c forKey in\n    /// \\code{.m}\n    ///   - (void) setValue:(Value)value forKey(Key)key\n    /// \\endcode\n    ExternalParam,\n\n    /// Internal/local parameters in Objective-C methods.\n    /// For example, \\c key in\n    /// \\code{.m}\n    ///   - (void) setValue:(Value)value forKey(Key)key\n    /// \\endcode\n    InternalParam,\n\n    Text,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18018",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/DeclarationFragments.h",
+  "source_line": 48,
+  "validation_status": "validated"
+}

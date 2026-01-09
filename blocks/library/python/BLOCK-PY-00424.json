@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00424_execute() {\n    class AssignBlock(Stmt):\n    \"\"\"Assigns a block to a target.\"\"\"\n\n    fields = (\"target\", \"filter\", \"body\")\n    target: \"Expr\"\n    filter: t.Optional[\"Filter\"]\n    body: list[Node]\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00424",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 458,
+  "validation_status": "validated"
+}

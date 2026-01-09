@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate <typename Type>\nstruct FastTypeTag {\n  constexpr static char dummy_var = 0;\n};\n\n#ifdef ABSL_INTERNAL_NEED_REDUNDANT_CONSTEXPR_DECL\ntemplate <typename Type>\nconstexpr char FastTypeTag<Type>::dummy_var;\n#endif\n\n// FastTypeId<Type>() evaluates at compile/link-time to a unique pointer for the\n// passed-in type. These are meant to be good match for keys into maps or\n// straight up comparisons.\nusing FastTypeIdType = const void*;\n\ntemplate <typename Type>\nconstexpr inline FastTypeIdType FastTypeId() {\n  return &FastTypeTag<Type>::dummy_var;\n}\n\n}",
+  "id": "BLOCK-CPP-04672",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/fast_type_id.h",
+  "source_line": 24,
+  "validation_status": "validated"
+}

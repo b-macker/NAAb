@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/OperatorKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Bitstream/BitCodes.h\"\n#include <cassert>\n#include <cstdint>\n#include \"clang/Basic/OpenCLImageTypes.def\"\n#include \"clang/Basic/OpenCLExtensionTypes.def\"\n#include \"clang/Basic/AArch64SVEACLETypes.def\"\n#include \"clang/Basic/PPCTypes.def\"\n#include \"clang/Basic/RISCVVTypes.def\"\n#include \"clang/Basic/WebAssemblyReferenceTypes.def\"\n#include \"clang/Serialization/TypeBitCodes.def\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20797_execute() {\n    {\n    assert(Kind == DeclarationName::CXXOperatorName);\n    return (OverloadedOperatorKind)Data;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20797",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTBitCodes.h",
+  "source_line": 2147,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"time_zone_if.h\"\n#include \"absl/base/config.h\"\n#include \"time_zone_info.h\"\n#include \"time_zone_libc.h\"\n\nusing namespace absl;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03221_execute() {\n    {\nnamespace cctz {\n\nstd::unique_ptr<TimeZoneIf> TimeZoneIf::UTC() { return TimeZoneInfo::UTC(); }\n\nstd::unique_ptr<TimeZoneIf> TimeZoneIf::Make(const std::string& name) {\n  // Support \"libc:localtime\" and \"libc:*\" to access the legacy\n  // localtime and UTC support respectively from the C library.\n  // NOTE: The \"libc:*\" zones are internal, test-only interfaces, and\n  // are subject to change/removal without notice. Do not use them.\n  if (name.compare(0, 5, \"libc:\") == 0) {\n    return TimeZoneLibC::Make(name.substr(5));\n  }\n\n  // Otherwise use the \"zoneinfo\" implementation.\n  return TimeZoneInfo::Make(name);\n}\n\n// Defined out-of-line to avoid emitting a weak vtable in all TUs.\nTimeZoneIf::~TimeZoneIf() {}\n\n}  // namespace cctz\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03221",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_if.cc",
+  "source_line": 23,
+  "validation_status": "validated"
+}

@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_exponential_biased.a CMakeFiles/absl_exponential_biased.dir/internal/exponential_biased.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_exponential_biased.a

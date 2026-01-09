@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/cordz_handle.h\"\n#include <atomic>\n#include \"absl/base/internal/raw_logging.h\"  // For ABSL_RAW_CHECK\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02911_execute() {\n    {\n  Queue* global_queue = GlobalQueue();\n  if (is_snapshot) {\n    MutexLock lock(&global_queue->mutex);\n    CordzHandle* dq_tail =\n        global_queue->dq_tail.load(std::memory_order_acquire);\n    if (dq_tail != nullptr) {\n      dq_prev_ = dq_tail;\n      dq_tail->dq_next_ = this;\n    }\n    global_queue->dq_tail.store(this, std::memory_order_release);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02911",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_handle.cc",
+  "source_line": 53,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Type.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11342_execute() {\n    {\n    asDerived().preVisit(PCK, FT, std::forward<Ts>(Args)...);\n\n    switch (PCK) {\n    case QualType::PCK_ARCStrong:\n      return asDerived().visitARCStrong(FT, std::forward<Ts>(Args)...);\n    case QualType::PCK_ARCWeak:\n      return asDerived().visitARCWeak(FT, std::forward<Ts>(Args)...);\n    case QualType::PCK_Struct:\n      return asDerived().visitStruct(FT, std::forward<Ts>(Args)...);\n    case QualType::PCK_Trivial:\n      return asDerived().visitTrivial(FT, std::forward<Ts>(Args)...);\n    case QualType::PCK_VolatileTrivial:\n      return asDerived().visitVolatileTrivial(FT, std::forward<Ts>(Args)...);\n    }\n\n    llvm_unreachable(\"unknown primitive copy kind\");\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11342",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/NonTrivialTypeVisitor.h",
+  "source_line": 86,
+  "validation_status": "validated"
+}

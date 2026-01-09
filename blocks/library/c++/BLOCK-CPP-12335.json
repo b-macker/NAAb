@@ -1,0 +1,8 @@
+{
+  "code": "using namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12335_execute() {\n    {\ntemplate <typename T> class SmallVectorImpl;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12335",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Randstruct.h",
+  "source_line": 17,
+  "validation_status": "validated"
+}

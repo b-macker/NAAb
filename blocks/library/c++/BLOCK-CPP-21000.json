@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <algorithm>\n#include <cassert>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21000_execute() {\n    {\n    iterator I = llvm::upper_bound(Rep, K, Compare());\n    // I points to the first entry with a key > K, which is the range that\n    // follows the one containing K.\n    if (I == Rep.begin())\n      return Rep.end();\n    --I;\n    return I;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21000",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ContinuousRangeMap.h",
+  "source_line": 93,
+  "validation_status": "validated"
+}

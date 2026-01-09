@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclTemplate.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07111_execute() {\n    {\n  return \"__invoke\";\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07111",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTLambda.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

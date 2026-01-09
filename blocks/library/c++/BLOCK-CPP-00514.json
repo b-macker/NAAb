@@ -1,0 +1,8 @@
+{
+  "code": "    #include <spdlog/sinks/wincolor_sink.h>\n#include <spdlog/details/windows_include.h>\n#include <wincon.h>\n#include <spdlog/common.h>\n#include <spdlog/pattern_formatter.h>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00514_execute() {\n    {\n        write_to_file_(formatted);\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00514",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/wincolor_sink-inl.h",
+  "source_line": 71,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Parse/ParseDiagnostic.h\"\n#include \"clang/Parse/Parser.h\"\n#include \"clang/Sema/DelayedDiagnostic.h\"\n#include \"clang/Sema/ParsedTemplate.h\"\n#include \"clang/Sema/Sema.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19398_execute() {\n    {\n    Parser &P;\n    unsigned short ParenCount, BracketCount, BraceCount;\n  public:\n    ParenBraceBracketBalancer(Parser &p)\n      : P(p), ParenCount(p.ParenCount), BracketCount(p.BracketCount),\n        BraceCount(p.BraceCount) { }\n\n    ~ParenBraceBracketBalancer() {\n      P.AngleBrackets.clear(P);\n      P.ParenCount = ParenCount;\n      P.BracketCount = BracketCount;\n      P.BraceCount = BraceCount;\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19398",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
+  "source_line": 359,
+  "validation_status": "validated"
+}

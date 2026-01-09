@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Type.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11339_execute() {\n    {\n    return asDerived().visitWithKind(\n        FT.isNonTrivialToPrimitiveDefaultInitialize(), FT,\n        std::forward<Ts>(Args)...);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11339",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/NonTrivialTypeVisitor.h",
+  "source_line": 51,
+  "validation_status": "validated"
+}

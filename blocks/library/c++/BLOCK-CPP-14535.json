@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  SourceRange getLocalSourceRange() const { return {}; }\n\n  UnqualTypeLoc getUnqualifiedLoc() const {\n    unsigned align =\n        TypeLoc::getLocalAlignmentForType(QualType(getTypePtr(), 0));\n    auto dataInt = reinterpret_cast<uintptr_t>(Data);\n    dataInt = llvm::alignTo(dataInt, align);\n    return UnqualTypeLoc(getTypePtr(), reinterpret_cast<void*>(dataInt));\n  }\n\n  /// Initializes the local data of this type source info block to\n  /// provide no information.\n  void initializeLocal(ASTContext &Context, SourceLocation Loc) {\n    // do nothing\n  }\n\n  void copyLocal(TypeLoc other) {\n    // do nothing\n  }\n\n  TypeLoc getNextTypeLoc() const {\n    return getUnqualifiedLoc();\n  }\n\n  /// Returns the size of the type source info data block that is\n  /// specific to this type.\n  unsigned getLocalDataSize() const {\n    // In fact, we don't currently preserve any location information\n    // for qualifiers.\n    return 0;\n  }\n\n  /// Returns the alignment of the type source info data block that is\n  /// specific to this type.\n  unsigned getLocalDataAlignment() const {\n    // We don't preserve any location information.\n    return 1;\n  }\n\nprivate:\n  friend class TypeLoc;\n\n  static bool isKind(const TypeLoc &TL) {\n    return TL.getType().hasLocalQualifiers();\n  }\n}",
+  "id": "BLOCK-CPP-14535",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeLoc.h",
+  "source_line": 282,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n\n/// A very simple comment parser that extracts \"a brief description\".\n///\n/// Due to a variety of comment styles, it considers the following as \"a brief\n/// description\", in order of priority:\n/// \\li a \\or \\\\short command,\n/// \\li the first paragraph,\n/// \\li a \\\\result or \\\\return or \\\\returns paragraph.\nclass BriefParser {\n  Lexer &L;\n\n  const CommandTraits &Traits;\n\n  /// Current lookahead token.\n  Token Tok;\n\n  SourceLocation ConsumeToken() {\n    SourceLocation Loc = Tok.getLocation();\n    L.lex(Tok);\n    return Loc;\n  }\n\npublic:\n  BriefParser(Lexer &L, const CommandTraits &Traits);\n\n  /// Return the best \"brief description\" we can find.\n  std::string Parse();\n};\n\n}",
+  "id": "BLOCK-CPP-07676",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CommentBriefParser.h",
+  "source_line": 20,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04673_execute() {\n    {\n  return (uintptr_t{0xF03A5F7BU} << (sizeof(uintptr_t) - 4) * 8) | 0xF03A5F7BU;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04673",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/hide_ptr.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

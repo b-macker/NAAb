@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/str_replace.h\"\n#include <cstddef>\n#include <initializer_list>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02024_execute() {\n    {\n  auto& subs = *subs_ptr;\n  int substitutions = 0;\n  size_t pos = 0;\n  while (!subs.empty()) {\n    auto& sub = subs.back();\n    if (sub.offset >= pos) {\n      if (pos <= s.size()) {\n        StrAppend(result_ptr, s.substr(pos, sub.offset - pos), sub.replacement);\n      }\n      pos = sub.offset + sub.old.size();\n      substitutions += 1;\n    }\n    sub.offset = s.find(sub.old, pos);\n    if (sub.offset == s.npos) {\n      subs.pop_back();\n    } else {\n      // Insertion sort to ensure the last ViableSubstitution continues to be\n      // before all the others.\n      size_t index = subs.size();\n      while (--index && subs[index - 1].OccursBefore(subs[index])) {\n        std::swap(subs[index], subs[index - 1]);\n      }\n    }\n  }\n  result_ptr->append(s.data() + pos, s.size() - pos);\n  return substitutions;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02024",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_replace.cc",
+  "source_line": 38,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18878_execute() {\n    {\n  std::string Name;\n\npublic:\n  PragmaHandler() = default;\n  explicit PragmaHandler(StringRef name) : Name(name) {}\n  virtual ~PragmaHandler();\n\n  StringRef getName() const { return Name; }\n  virtual void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,\n                            Token &FirstToken) = 0;\n\n  /// getIfNamespace - If this is a namespace, return it.  This is equivalent to\n  /// using a dynamic_cast, but doesn't require RTTI.\n  virtual PragmaNamespace *getIfNamespace() { return nullptr; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18878",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Pragma.h",
+  "source_line": 65,
+  "validation_status": "validated"
+}

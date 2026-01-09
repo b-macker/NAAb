@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/DirectoryEntry.h\"\n#include \"clang/Basic/FileEntry.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <array>\n#include <cassert>\n#include <cstdint>\n#include <ctime>\n#include <iterator>\n#include <optional>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16600_execute() {\n    {\n    uint64_t Value = 0;\n    static_assert(sizeof(*this) >= sizeof(uint64_t), \"No need to truncate.\");\n    for (unsigned I = 0; I < sizeof(uint64_t); ++I)\n      Value |= static_cast<uint64_t>((*this)[I]) << (I * 8);\n    return Value;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16600",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Module.h",
+  "source_line": 66,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/seed_material.h\"\n#include <fcntl.h>\n#include <unistd.h>\n#include <io.h>\n#include <algorithm>\n#include <cerrno>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/escaping.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include <nacl/nacl_random.h>\n#include <windows.h>\n#include <zircon/syscalls.h>\n#include <sys/random.h>\n#include <bcrypt.h>\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02847_execute() {\n    {\n  // Salt must be common for all generators within the same process so read it\n  // only once and store in static variable.\n  static const auto salt_material = []() -> absl::optional<uint32_t> {\n    uint32_t salt_value = 0;\n\n    if (random_internal::ReadSeedMaterialFromOSEntropy(\n            MakeSpan(&salt_value, 1))) {\n      return salt_value;\n    }\n\n    return absl::nullopt;\n  }();\n\n  return salt_material;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02847",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/seed_material.cc",
+  "source_line": 248,
+  "validation_status": "validated"
+}

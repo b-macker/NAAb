@@ -1,0 +1,8 @@
+{
+  "code": "#include <immintrin.h>\n#include <intrin.h>\n#include <array>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <memory>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/prefetch.h\"\n#include \"absl/crc/crc32c.h\"\n#include \"absl/crc/internal/cpu_detect.h\"\n#include \"absl/crc/internal/crc32_x86_arm_combined_simd.h\"\n#include \"absl/crc/internal/crc_memcpy.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02475_execute() {\n    {\n  // Small copy: just go 1 byte at a time: being nice to the branch predictor\n  // is more important here than anything else\n  uint32_t crc_uint32 = static_cast<uint32_t>(crc);\n  for (std::size_t i = 0; i < length; i++) {\n    uint8_t data = *reinterpret_cast<const uint8_t*>(src);\n    crc_uint32 = CRC32_u8(crc_uint32, data);\n    *reinterpret_cast<uint8_t*>(dst) = data;\n    ++src;\n    ++dst;\n  }\n  return crc32c_t{crc_uint32};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02475",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_memcpy_x86_arm_combined.cc",
+  "source_line": 73,
+  "validation_status": "validated"
+}

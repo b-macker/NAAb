@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTImporterSharedState.h\"\n#include \"clang/Analysis/MacroExpansionContext.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/Path.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace cross_tu;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17621_execute() {\n    {\n  success = 0,\n  unspecified = 1,\n  missing_index_file,\n  invalid_index_format,\n  multiple_definitions,\n  missing_definition,\n  failed_import,\n  failed_to_get_external_ast,\n  failed_to_generate_usr,\n  triple_mismatch,\n  lang_mismatch,\n  lang_dialect_mismatch,\n  load_threshold_reached,\n  invocation_list_ambiguous,\n  invocation_list_file_not_found,\n  invocation_list_empty,\n  invocation_list_wrong_format,\n  invocation_list_lookup_unsuccessful\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17621",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CrossTU/CrossTranslationUnit.h",
+  "source_line": 40,
+  "validation_status": "validated"
+}

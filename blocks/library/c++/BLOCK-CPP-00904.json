@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00904_execute() {\n    {\n  arg_ref<Char> arg_id;\n  const Char* arg_id_end;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00904",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 369,
+  "validation_status": "validated"
+}

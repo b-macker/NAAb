@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_interpreter.a CMakeFiles/naab_interpreter.dir/src/interpreter/interpreter.cpp.o CMakeFiles/naab_interpreter.dir/src/interpreter/evaluator.cpp.o CMakeFiles/naab_interpreter.dir/src/interpreter/environment.cpp.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_interpreter.a

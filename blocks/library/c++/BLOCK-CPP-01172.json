@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01172_execute() {\n    {\n#if FMT_USE_INT128\n  auto p = static_cast<uint128_opt>(x) * static_cast<uint128_opt>(y);\n  return {static_cast<uint64_t>(p >> 64), static_cast<uint64_t>(p)};\n#elif defined(_MSC_VER) && defined(_M_X64)\n  auto result = uint128_fallback();\n  result.lo_ = _umul128(x, y, &result.hi_);\n  return result;\n#else\n  const uint64_t mask = static_cast<uint64_t>(max_value<uint32_t>());\n\n  uint64_t a = x >> 32;\n  uint64_t b = x & mask;\n  uint64_t c = y >> 32;\n  uint64_t d = y & mask;\n\n  uint64_t ac = a * c;\n  uint64_t bc = b * c;\n  uint64_t ad = a * d;\n  uint64_t bd = b * d;\n\n  uint64_t intermediate = (bd >> 32) + (ad & mask) + (bc & mask);\n\n  return {ac + (intermediate >> 32) + (ad >> 32) + (bc >> 32),\n          (intermediate << 32) + (bd & mask)};\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01172",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 147,
+  "validation_status": "validated"
+}

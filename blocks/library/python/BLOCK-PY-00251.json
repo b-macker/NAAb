@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00251_execute() {\n    def walk(node):\n    \"\"\"\n    Recursively yield all descendant nodes in the tree starting at *node*\n    (including *node* itself), in no specified order.  This is useful if you\n    only want to modify nodes in place and don't care about the context.\n    \"\"\"\n    from collections import deque\n    todo = deque([node])\n    while todo:\n        node = todo.popleft()\n        todo.extend(iter_child_nodes(node))\n        yield node\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00251",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
+  "source_line": 400,
+  "validation_status": "validated"
+}

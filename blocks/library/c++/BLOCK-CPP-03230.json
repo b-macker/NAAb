@@ -1,0 +1,8 @@
+{
+  "code": "#include \"time_zone_info.h\"\n#include <algorithm>\n#include <cassert>\n#include <chrono>\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <cstring>\n#include <fstream>\n#include <functional>\n#include <memory>\n#include <sstream>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"time_zone_fixed.h\"\n#include \"time_zone_posix.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03230_execute() {\n    {\n  std::uint_fast64_t v = 0;\n  for (int i = 0; i != (64 / 8); ++i) v = (v << 8) | Decode8(cp++);\n  const std::int_fast64_t s64max = 0x7fffffffffffffff;\n  const auto s64maxU = static_cast<std::uint_fast64_t>(s64max);\n  if (v <= s64maxU) return static_cast<std::int_fast64_t>(v);\n  return static_cast<std::int_fast64_t>(v - s64maxU - 1) - s64max - 1;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03230",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_info.cc",
+  "source_line": 129,
+  "validation_status": "validated"
+}

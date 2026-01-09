@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00226_execute() {\n    def _generate_terraform(self, request, platform: str, complexity: str) -> CodeGenerationResult:\n        \"\"\"Generate Terraform infrastructure code\"\"\"\n        message = request.message.lower()\n        \n        if 'aws' in message:\n            terraform = self._generate_aws_terraform(complexity)\n        elif 'azure' in message:\n            terraform = self._generate_azure_terraform(complexity)\n        elif 'gcp' in message:\n            terraform = self._generate_gcp_terraform(complexity)\n        else:\n            terraform = self._generate_generic_terraform(complexity)\n        \n        return CodeGenerationResult(\n            success=True,\n            code=terraform,\n            language=\"hcl\",\n            framework=\"terraform\",\n            code_type=CodeType.INFRASTRUCTURE\n        )\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00226",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

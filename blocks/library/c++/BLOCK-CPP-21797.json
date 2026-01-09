@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    // Allocate a new container with a capacity for n elements.\n    Container(CopyReducerBase &S, unsigned N) : Elems(S.Arena, N) {}\n\n    // Push a new element onto the container.\n    void push_back(T E) { Elems.push_back(E); }\n\n    SimpleArray<T> Elems;\n  }",
+  "id": "BLOCK-CPP-21797",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTraverse.h",
+  "source_line": 147,
+  "validation_status": "validated"
+}

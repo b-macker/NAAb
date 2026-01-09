@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/chi_square.h\"\n#include <cmath>\n#include \"absl/random/internal/distribution_test_util.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02769_execute() {\n    {\n  // Maybe replace with the alternate formulation.\n  // 0.5 * erfc((x - mean)/(sqrt(2) * sigma))\n  static constexpr double kR[] = {\n      1.0, 0.196854, 0.115194, 0.000344, 0.019527,\n  };\n  double r = EvaluatePolynomial(z, kR);\n  r *= r;\n  return 0.5 / (r * r);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02769",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/chi_square.cc",
+  "source_line": 91,
+  "validation_status": "validated"
+}

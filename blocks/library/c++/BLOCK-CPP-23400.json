@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"clang/AST/CommentNodes.inc\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23400_execute() {\n    {\n  public:\n    SourceLocation NameLocBegin;\n    StringRef Name;\n\n    SourceLocation EqualsLoc;\n\n    SourceRange ValueRange;\n    StringRef Value;\n\n    Attribute() { }\n\n    Attribute(SourceLocation NameLocBegin, StringRef Name)\n        : NameLocBegin(NameLocBegin), Name(Name), EqualsLoc(SourceLocation()) {}\n\n    Attribute(SourceLocation NameLocBegin, StringRef Name,\n              SourceLocation EqualsLoc, SourceRange ValueRange, StringRef Value)\n        : NameLocBegin(NameLocBegin), Name(Name), EqualsLoc(EqualsLoc),\n          ValueRange(ValueRange), Value(Value) {}\n\n    SourceLocation getNameLocEnd() const {\n      return NameLocBegin.getLocWithOffset(Name.size());\n    }\n\n    SourceRange getNameRange() const {\n      return SourceRange(NameLocBegin, getNameLocEnd());\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23400",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 413,
+  "validation_status": "validated"
+}

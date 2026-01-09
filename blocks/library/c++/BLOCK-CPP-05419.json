@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include <cstddef>\n#include <deque>\n#include \"absl/base/config.h\"\n#include \"absl/crc/crc32c.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05419_execute() {\n    {\n    assert(r != nullptr);\n    if (r->count.fetch_sub(1, std::memory_order_acq_rel) == 1) {\n      delete r;\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05419",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_cord_state.h",
+  "source_line": 145,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n    friend class DeclContextLookupResult;\n    friend class StoredDeclsList;\n\n    Decls Ptr;\n    iterator(Decls Node) : Ptr(Node) { }\n  public:\n    using difference_type = ptrdiff_t;\n    using value_type = NamedDecl*;\n    using pointer = void;\n    using reference = value_type;\n    using iterator_category = std::forward_iterator_tag;\n\n    iterator() = default;\n\n    reference operator*() const {\n      assert(Ptr && \"dereferencing end() iterator\");\n      if (DeclListNode *CurNode = Ptr.dyn_cast<DeclListNode*>())\n        return CurNode->D;\n      return Ptr.get<NamedDecl*>();\n    }\n    void operator->() const { } // Unsupported.\n    bool operator==(const iterator &X) const { return Ptr == X.Ptr; }\n    bool operator!=(const iterator &X) const { return Ptr != X.Ptr; }\n    inline iterator &operator++() { // ++It\n      assert(!Ptr.isNull() && \"Advancing empty iterator\");\n\n      if (DeclListNode *CurNode = Ptr.dyn_cast<DeclListNode*>())\n        Ptr = CurNode->Rest;\n      else\n        Ptr = nullptr;\n      return *this;\n    }\n    iterator operator++(int) { // It++\n      iterator temp = *this;\n      ++(*this);\n      return temp;\n    }\n    // Enables the pattern for (iterator I =..., E = I.end(); I != E; ++I)\n    iterator end() { return iterator(); }\n  }",
+  "id": "BLOCK-CPP-08324",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclBase.h",
+  "source_line": 1299,
+  "validation_status": "validated"
+}

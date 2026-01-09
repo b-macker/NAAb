@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Sema/SemaConsumer.h\"\n#include \"clang/Serialization/ASTDeserializationListener.h\"\n#include <memory>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18376_execute() {\n    {\npublic:\n  // Does NOT take ownership of the elements in L.\n  MultiplexASTDeserializationListener(\n      const std::vector<ASTDeserializationListener *> &L);\n  void ReaderInitialized(ASTReader *Reader) override;\n  void IdentifierRead(serialization::IdentID ID, IdentifierInfo *II) override;\n  void MacroRead(serialization::MacroID ID, MacroInfo *MI) override;\n  void TypeRead(serialization::TypeIdx Idx, QualType T) override;\n  void DeclRead(serialization::DeclID ID, const Decl *D) override;\n  void SelectorRead(serialization::SelectorID iD, Selector Sel) override;\n  void MacroDefinitionRead(serialization::PreprocessedEntityID,\n                           MacroDefinitionRecord *MD) override;\n  void ModuleRead(serialization::SubmoduleID ID, Module *Mod) override;\n  void ModuleImportRead(serialization::SubmoduleID ID,\n                        SourceLocation ImportLoc) override;\n\nprivate:\n  std::vector<ASTDeserializationListener *> Listeners;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18376",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/MultiplexConsumer.h",
+  "source_line": 29,
+  "validation_status": "validated"
+}

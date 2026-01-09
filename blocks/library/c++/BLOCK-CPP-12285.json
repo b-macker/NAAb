@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  /// Build 'write' clause.\n  ///\n  /// \\param StartLoc Starting location of the clause.\n  /// \\param EndLoc Ending location of the clause.\n  OMPWriteClause(SourceLocation StartLoc, SourceLocation EndLoc)\n      : OMPClause(llvm::omp::OMPC_write, StartLoc, EndLoc) {}\n\n  /// Build an empty clause.\n  OMPWriteClause()\n      : OMPClause(llvm::omp::OMPC_write, SourceLocation(), SourceLocation()) {}\n\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n\n  child_range used_children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n  const_child_range used_children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n\n  static bool classof(const OMPClause *T) {\n    return T->getClauseKind() == llvm::omp::OMPC_write;\n  }\n}",
+  "id": "BLOCK-CPP-12285",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/OpenMPClause.h",
+  "source_line": 2061,
+  "validation_status": "validated"
+}

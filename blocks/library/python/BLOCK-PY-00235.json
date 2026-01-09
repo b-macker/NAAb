@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00235_execute() {\n    def _generate_basic_devops_config(self, platform: str, complexity: str) -> str:\n        \"\"\"Generate basic DevOps configuration based on platform\"\"\"\n        if platform in ['docker', 'container']:\n            return self._generate_generic_dockerfile(complexity)\n        elif platform in ['kubernetes', 'k8s']:\n            return self._generate_k8s_deployment_yaml()\n        elif platform == 'terraform':\n            return self._generate_basic_terraform()\n        else:\n            return self._generate_generic_dockerfile(complexity)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00235",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

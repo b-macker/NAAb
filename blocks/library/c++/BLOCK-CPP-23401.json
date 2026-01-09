@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  HTMLEndTagComment(SourceLocation LocBegin,\n                    SourceLocation LocEnd,\n                    StringRef TagName) :\n      HTMLTagComment(HTMLEndTagCommentKind,\n                     LocBegin, LocEnd,\n                     TagName,\n                     LocBegin.getLocWithOffset(2),\n                     LocBegin.getLocWithOffset(2 + TagName.size()))\n  { }\n\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() == HTMLEndTagCommentKind;\n  }\n\n  child_iterator child_begin() const { return nullptr; }\n\n  child_iterator child_end() const { return nullptr; }\n}",
+  "id": "BLOCK-CPP-23401",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 499,
+  "validation_status": "validated"
+}

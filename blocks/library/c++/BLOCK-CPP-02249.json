@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/time/time.h\"\n#include <winsock2.h>  // for timeval\n#include <cstring>\n#include <ctime>\n#include <limits>\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02249_execute() {\n    {\n  absl::Duration rem;\n  int64_t q = absl::IDivDuration(d, unit, &rem);\n  return (q > 0 || rem >= ZeroDuration() ||\n          q == std::numeric_limits<int64_t>::min())\n             ? q\n             : q - 1;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02249",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.cc",
+  "source_line": 60,
+  "validation_status": "validated"
+}

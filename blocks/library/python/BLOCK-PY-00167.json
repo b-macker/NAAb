@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00167_execute() {\n    def _extract_dependencies(self, code: str) -> List[str]:\n        \"\"\"Extract C++ dependencies from code\"\"\"\n        import re\n        \n        dependencies = []\n        \n        # Extract #include statements\n        includes = re.findall(r'#include\\s*[<\"]([^>\"]+)[>\"]', code)\n        for include in includes:\n            # Filter standard library vs custom headers\n            if not include.startswith('std/') and not include.endswith('.h'):\n                dependencies.append(include)\n        \n        # Extract namespace usage\n        namespaces = re.findall(r'using\\s+namespace\\s+([^;]+);', code)\n        dependencies.extend(namespaces)\n        \n        # Extract template specializations and concepts\n        concepts = re.findall(r'concept\\s+(\\w+)', code)\n        dependencies.extend([f\"concept:{concept}\" for concept in concepts])\n        \n        return list(set(dependencies))\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00167",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/cpp_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

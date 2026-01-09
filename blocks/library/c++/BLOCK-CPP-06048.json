@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstdint>\n#include <iostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/charconv_parse.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06048_execute() {\n    {\n      return 1;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06048",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_bigint.h",
+  "source_line": 360,
+  "validation_status": "validated"
+}

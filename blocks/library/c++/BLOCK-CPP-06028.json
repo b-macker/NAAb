@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/status/status.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_statusor;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06028_execute() {\n    {\n  MoveAssignBase() = default;\n  MoveAssignBase(const MoveAssignBase&) = default;\n  MoveAssignBase(MoveAssignBase&&) = default;\n  MoveAssignBase& operator=(const MoveAssignBase&) = default;\n  MoveAssignBase& operator=(MoveAssignBase&&) = default;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06028",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/internal/statusor_internal.h",
+  "source_line": 365,
+  "validation_status": "validated"
+}

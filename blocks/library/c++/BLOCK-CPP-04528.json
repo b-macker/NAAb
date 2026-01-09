@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include \"absl/utility/utility.h\"\n#include <variant>  // IWYU pragma: export\n#include <functional>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/internal/variant.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04528_execute() {\n    {\n  static_assert(\n      variant_internal::UnambiguousIndexOfImpl<variant<Types...>, T,\n                                               0>::value != sizeof...(Types),\n      \"The type T must occur exactly once in Types...\");\n  return v.index() ==\n         variant_internal::UnambiguousIndexOf<variant<Types...>, T>::value;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04528",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/variant.h",
+  "source_line": 263,
+  "validation_status": "validated"
+}

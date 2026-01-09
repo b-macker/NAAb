@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContextAllocate.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07321_execute() {\n    { return reverse_iterator(end()); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07321",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTVector.h",
+  "source_line": 103,
+  "validation_status": "validated"
+}

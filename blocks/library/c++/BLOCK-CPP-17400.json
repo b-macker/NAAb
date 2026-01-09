@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/MathExtras.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace XRayInstrKind;\nusing namespace XRayInstrKind;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17400_execute() {\n    {\n    assert(llvm::isPowerOf2_32(K));\n    return Mask & K;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17400",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/XRayInstr.h",
+  "source_line": 48,
+  "validation_status": "validated"
+}

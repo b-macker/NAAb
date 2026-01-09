@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/stack_consumption.h\"\n#include <signal.h>\n#include <string.h>\n#include <sys/mman.h>\n#include <unistd.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\nusing namespace debugging_internal;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02608_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace debugging_internal {\nextern const char kAvoidEmptyStackConsumptionLibraryWarning;\nconst char kAvoidEmptyStackConsumptionLibraryWarning = 0;\n}  // namespace debugging_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02608",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/stack_consumption.cc",
+  "source_line": 196,
+  "validation_status": "validated"
+}

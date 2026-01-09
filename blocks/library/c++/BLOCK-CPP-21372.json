@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21372_execute() {\n    {\n\n// An interval is a strongly-connected component of the CFG along with a\n// trailing acyclic structure. The _header_ of the interval is either the CFG\n// entry block or has at least one predecessor outside of the interval. All\n// other blocks in the interval have only predecessors also in the interval.\nstruct CFGInterval {\n  CFGInterval(const CFGBlock *Header) : Header(Header), Blocks({Header}) {}\n\n  // The block from which the interval was constructed. Is either the CFG entry\n  // block or has at least one predecessor outside the interval.\n  const CFGBlock *Header;\n\n  llvm::SmallDenseSet<const CFGBlock *> Blocks;\n\n  // Successor blocks of the *interval*: blocks outside the interval for\n  // reachable (in one edge) from within the interval.\n  llvm::SmallDenseSet<const CFGBlock *> Successors;\n};\n\nCFGInterval buildInterval(const CFG &Cfg, const CFGBlock &Header);\n\n// Partitions `Cfg` into intervals and constructs a graph of the intervals,\n// based on the edges between nodes in these intervals.\nstd::vector<CFGInterval> partitionIntoIntervals(const CFG &Cfg);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21372",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/IntervalPartition.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

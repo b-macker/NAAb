@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/log_sink.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01788_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nvoid LogSink::KeyFunction() const {}\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01788",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/log_sink.cc",
+  "source_line": 19,
+  "validation_status": "validated"
+}

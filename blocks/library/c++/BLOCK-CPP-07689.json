@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace comments;\nusing namespace tok;\nusing namespace tok;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07689_execute() {\n    {\n    assert(is(tok::verbatim_block_line));\n    TextPtr = Text.data();\n    IntVal = Text.size();\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07689",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CommentLexer.h",
+  "source_line": 145,
+  "validation_status": "validated"
+}

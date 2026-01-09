@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ASTDeclReader;\n  friend class ASTDeclWriter;\n\n  Stmt *Statement = nullptr;\n  bool IsSemiMissing = false;\n\n  TopLevelStmtDecl(DeclContext *DC, SourceLocation L, Stmt *S)\n      : Decl(TopLevelStmt, DC, L), Statement(S) {}\n\n  virtual void anchor();\n\npublic:\n  static TopLevelStmtDecl *Create(ASTContext &C, Stmt *Statement);\n  static TopLevelStmtDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  SourceRange getSourceRange() const override LLVM_READONLY;\n  Stmt *getStmt() { return Statement; }\n  const Stmt *getStmt() const { return Statement; }\n  void setStmt(Stmt *S) {\n    assert(IsSemiMissing && \"Operation supported for printing values only!\");\n    Statement = S;\n  }\n  bool isSemiMissing() const { return IsSemiMissing; }\n  void setSemiMissing(bool Missing = true) { IsSemiMissing = Missing; }\n\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == TopLevelStmt; }\n}",
+  "id": "BLOCK-CPP-08184",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Decl.h",
+  "source_line": 4338,
+  "validation_status": "validated"
+}

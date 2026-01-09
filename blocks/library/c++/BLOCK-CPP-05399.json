@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include \"absl/base/config.h\"\n#include <x86intrin.h>\n#include <intrin.h>\n#include <arm_acle.h>\n#include <arm_neon.h>\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05399_execute() {\n    {\n  return reinterpret_cast<V128>(vmull_p64(\n      reinterpret_cast<poly64_t>(vget_high_p64(vreinterpretq_p64_u64(l))),\n      reinterpret_cast<poly64_t>(vget_low_p64(vreinterpretq_p64_u64(r)))));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05399",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc32_x86_arm_combined_simd.h",
+  "source_line": 248,
+  "validation_status": "validated"
+}

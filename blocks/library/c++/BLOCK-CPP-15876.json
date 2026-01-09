@@ -1,0 +1,8 @@
+{
+  "code": "{\nprotected:\n  LocationCheck() = default;\n  LocationCheck(const Stmt *S, const LocationContext *L,\n                ProgramPoint::Kind K, const ProgramPointTag *tag)\n    : StmtPoint(S, nullptr, K, L, tag) {}\n\nprivate:\n  friend class ProgramPoint;\n  static bool isKind(const ProgramPoint &location) {\n    unsigned k = location.getKind();\n    return k == PreLoadKind || k == PreStoreKind;\n  }\n}",
+  "id": "BLOCK-CPP-15876",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 368,
+  "validation_status": "validated"
+}

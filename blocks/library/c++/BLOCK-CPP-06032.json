@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstdint>\n#include <iostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/charconv_parse.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06032_execute() {\n    {\n    if (count > 0) {\n      const int word_shift = count / 32;\n      if (word_shift >= max_words) {\n        SetToZero();\n        return;\n      }\n      size_ = (std::min)(size_ + word_shift, max_words);\n      count %= 32;\n      if (count == 0) {\n        std::copy_backward(words_, words_ + size_ - word_shift, words_ + size_);\n      } else {\n        for (int i = (std::min)(size_, max_words - 1); i > word_shift; --i) {\n          words_[i] = (words_[i - word_shift] << count) |\n                      (words_[i - word_shift - 1] >> (32 - count));\n        }\n        words_[word_shift] = words_[0] << count;\n        // Grow size_ if necessary.\n        if (size_ < max_words && words_[size_]) {\n          ++size_;\n        }\n      }\n      std::fill_n(words_, word_shift, 0u);\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06032",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_bigint.h",
+  "source_line": 102,
+  "validation_status": "validated"
+}

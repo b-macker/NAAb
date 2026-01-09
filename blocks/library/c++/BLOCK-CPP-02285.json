@@ -1,0 +1,8 @@
+{
+  "code": "{\n\nvoid throw_bad_optional_access() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw bad_optional_access();\n#else\n  ABSL_RAW_LOG(FATAL, \"Bad optional access\");\n  abort();\n#endif\n}\n\n}",
+  "id": "BLOCK-CPP-02285",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_optional_access.cc",
+  "source_line": 33,
+  "validation_status": "validated"
+}

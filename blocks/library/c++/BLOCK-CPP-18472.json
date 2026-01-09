@@ -1,0 +1,8 @@
+{
+  "code": "{\n\nclass IndexDataConsumer {\npublic:\n  struct ASTNodeInfo {\n    const Expr *OrigE;\n    const Decl *OrigD;\n    const Decl *Parent;\n    const DeclContext *ContainerDC;\n  };\n\n  virtual ~IndexDataConsumer() = default;\n\n  virtual void initialize(ASTContext &Ctx) {}\n\n  virtual void setPreprocessor(std::shared_ptr<Preprocessor> PP) {}\n\n  /// \\returns true to continue indexing, or false to abort.\n  virtual bool handleDeclOccurrence(const Decl *D, SymbolRoleSet Roles,\n                                    ArrayRef<SymbolRelation> Relations,\n                                    SourceLocation Loc, ASTNodeInfo ASTNode) {\n    return true;\n  }\n\n  /// \\returns true to continue indexing, or false to abort.\n  virtual bool handleMacroOccurrence(const IdentifierInfo *Name,\n                                     const MacroInfo *MI, SymbolRoleSet Roles,\n                                     SourceLocation Loc) {\n    return true;\n  }\n\n  /// \\returns true to continue indexing, or false to abort.\n  ///\n  /// This will be called for each module reference in an import decl.\n  /// For \"@import MyMod.SubMod\", there will be a call for 'MyMod' with the\n  /// 'reference' role, and a call for 'SubMod' with the 'declaration' role.\n  virtual bool handleModuleOccurrence(const ImportDecl *ImportD,\n                                      const Module *Mod, SymbolRoleSet Roles,\n                                      SourceLocation Loc) {\n    return true;\n  }\n\n  virtual void finish() {}\n};\n\n}",
+  "id": "BLOCK-CPP-18472",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Index/IndexDataConsumer.h",
+  "source_line": 24,
+  "validation_status": "validated"
+}

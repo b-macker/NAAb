@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/string_view.h\"\n#include <algorithm>\n#include <climits>\n#include <cstring>\n#include <ostream>\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02042_execute() {\n    {\n    for (char c : wanted) {\n      table_[Index(c)] = true;\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02042",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/string_view.cc",
+  "source_line": 73,
+  "validation_status": "validated"
+}

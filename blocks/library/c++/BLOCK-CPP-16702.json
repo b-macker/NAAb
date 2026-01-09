@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/TokenKinds.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16702_execute() {\n    {\n\n/// PrecedenceLevels - These are precedences for the binary/ternary\n/// operators in the C99 grammar.  These have been named to relate\n/// with the C99 grammar productions.  Low precedences numbers bind\n/// more weakly than high numbers.\nnamespace prec {\n  enum Level {\n    Unknown         = 0,    // Not binary operator.\n    Comma           = 1,    // ,\n    Assignment      = 2,    // =, *=, /=, %=, +=, -=, <<=, >>=, &=, ^=, |=\n    Conditional     = 3,    // ?\n    LogicalOr       = 4,    // ||\n    LogicalAnd      = 5,    // &&\n    InclusiveOr     = 6,    // |\n    ExclusiveOr     = 7,    // ^\n    And             = 8,    // &\n    Equality        = 9,    // ==, !=\n    Relational      = 10,   //  >=, <=, >, <\n    Spaceship       = 11,   // <=>\n    Shift           = 12,   // <<, >>\n    Additive        = 13,   // -, +\n    Multiplicative  = 14,   // *, /, %\n    PointerToMember = 15    // .*, ->*\n  };\n}\n\n/// Return the precedence of the specified binary operator token.\nprec::Level getBinOpPrecedence(tok::TokenKind Kind, bool GreaterThanIsOperator,\n                               bool CPlusPlus11);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16702",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/OperatorPrecedence.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

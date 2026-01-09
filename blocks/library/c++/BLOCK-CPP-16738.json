@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16738_execute() {\n    {\n\nenum PragmaMSCommentKind {\n  PCK_Unknown,\n  PCK_Linker,   // #pragma comment(linker, ...)\n  PCK_Lib,      // #pragma comment(lib, ...)\n  PCK_Compiler, // #pragma comment(compiler, ...)\n  PCK_ExeStr,   // #pragma comment(exestr, ...)\n  PCK_User      // #pragma comment(user, ...)\n};\n\nenum PragmaMSStructKind {\n  PMSST_OFF, // #pragms ms_struct off\n  PMSST_ON   // #pragms ms_struct on\n};\n\nenum PragmaFloatControlKind {\n  PFC_Unknown,\n  PFC_Precise,   // #pragma float_control(precise, [,on])\n  PFC_NoPrecise, // #pragma float_control(precise, off)\n  PFC_Except,    // #pragma float_control(except [,on])\n  PFC_NoExcept,  // #pragma float_control(except, off)\n  PFC_Push,      // #pragma float_control(push)\n  PFC_Pop        // #pragma float_control(pop)\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16738",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/PragmaKinds.h",
+  "source_line": 12,
+  "validation_status": "validated"
+}

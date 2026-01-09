@@ -1,0 +1,8 @@
+{
+  "code": "{\nprivate:\n  /// A map from canonical decls to the 'most recent' decl.\n  llvm::MapVector<NamedDecl*, NamedDecl*> Decls;\n\n  struct select_second {\n    NamedDecl *operator()(std::pair<NamedDecl*, NamedDecl*> P) const {\n      return P.second;\n    }\n  };\n\npublic:\n  /// Adds a new ADL candidate to this map.\n  void insert(NamedDecl *D);\n\n  /// Removes any data associated with a given decl.\n  void erase(NamedDecl *D) {\n    Decls.erase(cast<NamedDecl>(D->getCanonicalDecl()));\n  }\n\n  using iterator =\n      llvm::mapped_iterator<decltype(Decls)::iterator, select_second>;\n\n  iterator begin() { return iterator(Decls.begin(), select_second()); }\n  iterator end() { return iterator(Decls.end(), select_second()); }\n}",
+  "id": "BLOCK-CPP-19954",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Lookup.h",
+  "source_line": 832,
+  "validation_status": "validated"
+}

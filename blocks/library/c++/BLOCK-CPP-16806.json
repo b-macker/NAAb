@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class clang::SarifDocumentWriter;\n\n  bool Enabled = true;\n  SarifResultLevel Level = SarifResultLevel::Warning;\n  float Rank = -1.0f;\n\n  SarifReportingConfiguration() = default;\n\npublic:\n  static SarifReportingConfiguration create() { return {}; };\n\n  SarifReportingConfiguration disable() {\n    Enabled = false;\n    return *this;\n  }\n\n  SarifReportingConfiguration enable() {\n    Enabled = true;\n    return *this;\n  }\n\n  SarifReportingConfiguration setLevel(SarifResultLevel TheLevel) {\n    Level = TheLevel;\n    return *this;\n  }\n\n  SarifReportingConfiguration setRank(float TheRank) {\n    assert(TheRank >= 0.0f && \"Rule rank cannot be smaller than 0.0\");\n    assert(TheRank <= 100.0f && \"Rule rank cannot be larger than 100.0\");\n    Rank = TheRank;\n    return *this;\n  }\n}",
+  "id": "BLOCK-CPP-16806",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Sarif.h",
+  "source_line": 211,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstring>\n#include <string>\n#include <type_traits>\n#include <vector>\n#include \"absl/base/macros.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/port.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/escaping.h\"\n#include \"absl/strings/internal/stringify_sink.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/str_split.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n\nusing namespace absl;\nusing namespace substitute_internal;\nusing namespace substitute_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04280_execute() {\n    {\n  const absl::string_view args[] = {a0.piece(), a1.piece(), a2.piece(),\n                                    a3.piece(), a4.piece(), a5.piece(),\n                                    a6.piece(), a7.piece(), a8.piece()};\n  substitute_internal::SubstituteAndAppendArray(output, format, args,\n                                                ABSL_ARRAYSIZE(args));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04280",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/substitute.h",
+  "source_line": 370,
+  "validation_status": "validated"
+}

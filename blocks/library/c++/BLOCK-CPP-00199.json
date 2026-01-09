@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00199_execute() {\n    {\n        if (max_items_ > 0) {\n            v_[tail_] = std::move(item);\n            tail_ = (tail_ + 1) % max_items_;\n\n            if (tail_ == head_)  // overrun last item if full\n            {\n                head_ = (head_ + 1) % max_items_;\n                ++overrun_counter_;\n            }\n        }\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00199",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/circular_q.h",
+  "source_line": 44,
+  "validation_status": "validated"
+}

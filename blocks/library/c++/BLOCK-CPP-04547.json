@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdlib>\n#include <tuple>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace utility_internal;\nusing namespace utility_internal;\nusing namespace utility_internal;\nusing namespace utility_internal;\nusing namespace utility_internal;\nusing namespace utility_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04547_execute() {\n    {\n  return utility_internal::make_from_tuple_impl<T>(\n      std::forward<Tuple>(tup),\n      absl::make_index_sequence<\n          std::tuple_size<absl::decay_t<Tuple>>::value>{});\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04547",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/utility/utility.h",
+  "source_line": 257,
+  "validation_status": "validated"
+}

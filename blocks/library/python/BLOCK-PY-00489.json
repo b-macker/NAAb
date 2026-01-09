@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00489_execute() {\n    def __eq__(self, other: t.Any) -> bool:\n        if type(self) is not type(other):\n            return NotImplemented\n\n        return tuple(self.iter_fields()) == tuple(other.iter_fields())\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00489",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 240,
+  "validation_status": "validated"
+}

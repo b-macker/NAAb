@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00468_execute() {\n    class ContextReference(Expr):\n    \"\"\"Returns the current template context.  It can be used like a\n    :class:`Name` node, with a ``'load'`` ctx and will return the\n    current :class:`~jinja2.runtime.Context` object.\n\n    Here an example that assigns the current template name to a\n    variable named `foo`::\n\n        Assign(Name('foo', ctx='store'),\n               Getattr(ContextReference(), 'name'))\n\n    This is basically equivalent to using the\n    :func:`~jinja2.pass_context` decorator when using the high-level\n    API, which causes a reference to the context to be passed as the\n    first argument to a function.\n    \"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00468",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 1110,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00861_execute() {\n    {\n    out = lhs.format(out, args...);\n    return rhs.format(out, args...);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00861",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 285,
+  "validation_status": "validated"
+}

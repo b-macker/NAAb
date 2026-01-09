@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include <tuple>\n\nusing namespace clang;\nusing namespace edit;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17965_execute() {\n    {\n    FileOffset NewOffs = *this;\n    NewOffs.Offs += offset;\n    return NewOffs;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17965",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Edit/FileOffset.h",
+  "source_line": 31,
+  "validation_status": "validated"
+}

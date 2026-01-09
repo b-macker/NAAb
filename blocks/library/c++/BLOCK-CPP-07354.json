@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicReader.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07354_execute() {\n    {\n    assert(buffer.empty());\n\n    uint32_t size = asImpl().readUInt32();\n    buffer.reserve(size);\n\n    for (uint32_t i = 0; i != size; ++i) {\n      buffer.push_back(ReadDispatcher<T>::read(asImpl()));\n    }\n    return buffer;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07354",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
+  "source_line": 146,
+  "validation_status": "validated"
+}

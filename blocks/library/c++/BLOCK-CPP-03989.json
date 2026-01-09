@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03989_execute() {\n    {\n    return CharSet(RangeForWord(lo, hi, 0), RangeForWord(lo, hi, 1),\n                   RangeForWord(lo, hi, 2), RangeForWord(lo, hi, 3));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03989",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/charset.h",
+  "source_line": 90,
+  "validation_status": "validated"
+}

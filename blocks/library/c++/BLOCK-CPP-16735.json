@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace markup;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16735_execute() {\n    {\n  if (R.isInvalid()) return;\n\n  assert(R.isCharRange() && \"cannot handle a token range\");\n  Indent(o, indent) << \"<array>\\n\";\n  EmitLocation(o, SM, R.getBegin(), FM, indent + 1);\n\n  // The \".getLocWithOffset(-1)\" emulates the behavior of an off-by-one bug\n  // in Lexer that is already fixed. It is here for backwards compatibility\n  // even though it is incorrect.\n  EmitLocation(o, SM, R.getEnd().getLocWithOffset(-1), FM, indent + 1);\n  Indent(o, indent) << \"</array>\\n\";\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16735",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/PlistSupport.h",
+  "source_line": 123,
+  "validation_status": "validated"
+}

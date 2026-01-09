@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/StmtVisitor.h\"\n#include \"llvm/Support/Regex.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15640_execute() {\n    {\n    /// Utility class holding the relevant information about a single\n    /// clone in this pair.\n    struct SuspiciousCloneInfo {\n      /// The variable which referencing in this clone was against the pattern.\n      const VarDecl *Variable;\n      /// Where the variable was referenced.\n      const Stmt *Mention;\n      /// The variable that should have been referenced to follow the pattern.\n      /// If Suggestion is a nullptr then it's not possible to fix the pattern\n      /// by referencing a different variable in this clone.\n      const VarDecl *Suggestion;\n      SuspiciousCloneInfo(const VarDecl *Variable, const Stmt *Mention,\n                          const VarDecl *Suggestion)\n          : Variable(Variable), Mention(Mention), Suggestion(Suggestion) {}\n      SuspiciousCloneInfo() {}\n    };\n    /// The first clone in the pair which always has a suggested variable.\n    SuspiciousCloneInfo FirstCloneInfo;\n    /// This other clone in the pair which can have a suggested variable.\n    SuspiciousCloneInfo SecondCloneInfo;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15640",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CloneDetection.h",
+  "source_line": 380,
+  "validation_status": "validated"
+}

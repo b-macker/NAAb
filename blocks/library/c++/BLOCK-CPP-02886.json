@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/cord_rep_btree.h\"\n#include <atomic>\n#include <cassert>\n#include <cstdint>\n#include <iostream>\n#include <ostream>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/strings/internal/cord_data_edge.h\"\n#include \"absl/strings/internal/cord_internal.h\"\n#include \"absl/strings/internal/cord_rep_consume.h\"\n#include \"absl/strings/internal/cord_rep_flat.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02886_execute() {\n    {\n  CordRep* rep = substring->child;\n  if (!rep->refcount.Decrement()) {\n    if (rep->tag >= FLAT) {\n      CordRepFlat::Delete(rep->flat());\n    } else {\n      assert(rep->tag == EXTERNAL);\n      CordRepExternal::Delete(rep->external());\n    }\n  }\n  delete substring;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02886",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cord_rep_btree.cc",
+  "source_line": 201,
+  "validation_status": "validated"
+}

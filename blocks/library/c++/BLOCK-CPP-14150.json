@@ -1,0 +1,8 @@
+{
+  "code": "{\n  QualType DeducedAsType;\n\nprotected:\n  DeducedType(TypeClass TC, QualType DeducedAsType,\n              TypeDependence ExtraDependence, QualType Canon)\n      : Type(TC, Canon,\n             ExtraDependence | (DeducedAsType.isNull()\n                                    ? TypeDependence::None\n                                    : DeducedAsType->getDependence() &\n                                          ~TypeDependence::VariablyModified)),\n        DeducedAsType(DeducedAsType) {}\n\npublic:\n  bool isSugared() const { return !DeducedAsType.isNull(); }\n  QualType desugar() const {\n    return isSugared() ? DeducedAsType : QualType(this, 0);\n  }\n\n  /// Get the type deduced for this placeholder type, or null if it\n  /// has not been deduced.\n  QualType getDeducedType() const { return DeducedAsType; }\n  bool isDeduced() const {\n    return !DeducedAsType.isNull() || isDependentType();\n  }\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == Auto ||\n           T->getTypeClass() == DeducedTemplateSpecialization;\n  }\n}",
+  "id": "BLOCK-CPP-14150",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
+  "source_line": 5268,
+  "validation_status": "validated"
+}

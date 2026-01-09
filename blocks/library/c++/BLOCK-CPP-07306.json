@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTVector.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/UnresolvedSet.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07306_execute() {\n    {\n    Decls.append(C, I.I, E.I);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07306",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTUnresolvedSet.h",
+  "source_line": 88,
+  "validation_status": "validated"
+}

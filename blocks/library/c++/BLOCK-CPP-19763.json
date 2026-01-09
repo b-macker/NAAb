@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19763_execute() {\n    { return Kind == FieldDesignator; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19763",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Designator.h",
+  "source_line": 107,
+  "validation_status": "validated"
+}

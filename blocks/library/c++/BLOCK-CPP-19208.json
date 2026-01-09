@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19208_execute() {\n    {\n      assert(isInVAOpt() && \"Must be within VAOPT context to call this\");\n      return UnmatchedOpeningParens.back();\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19208",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/VariadicMacroSupport.h",
+  "source_line": 92,
+  "validation_status": "validated"
+}

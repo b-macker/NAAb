@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace digits;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01363_execute() {\n    {\n    using half_uint =\n        conditional_t<std::is_same<UInt, uint128_t>::value, uint64_t, uint32_t>;\n    const int shift = num_bits<half_uint>() - bigit_bits;\n    const UInt lower = static_cast<half_uint>(value);\n    const UInt upper = value >> num_bits<half_uint>();\n    UInt carry = 0;\n    for (size_t i = 0, n = bigits_.size(); i < n; ++i) {\n      UInt result = lower * bigits_[i] + static_cast<bigit>(carry);\n      carry = (upper * bigits_[i] << shift) + (result >> bigit_bits) +\n              (carry >> bigit_bits);\n      bigits_[i] = static_cast<bigit>(result);\n    }\n    while (carry != 0) {\n      bigits_.push_back(static_cast<bigit>(carry));\n      carry >>= bigit_bits;\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01363",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 2765,
+  "validation_status": "validated"
+}

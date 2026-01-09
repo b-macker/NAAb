@@ -1,0 +1,8 @@
+{
+  "code": "    #include <spdlog/details/thread_pool.h>\n#include <cassert>\n#include <spdlog/common.h>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00322_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00322",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/thread_pool-inl.h",
+  "source_line": 38,
+  "validation_status": "validated"
+}

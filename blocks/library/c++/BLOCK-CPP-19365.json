@@ -1,0 +1,8 @@
+{
+  "code": "{\n    SourceLocation TypenameLoc;\n    CXXScopeSpec SS;\n    UnqualifiedId Name;\n    SourceLocation EllipsisLoc;\n\n    void clear() {\n      TypenameLoc = EllipsisLoc = SourceLocation();\n      SS.clear();\n      Name.clear();\n    }\n  }",
+  "id": "BLOCK-CPP-19365",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
+  "source_line": 3192,
+  "validation_status": "validated"
+}

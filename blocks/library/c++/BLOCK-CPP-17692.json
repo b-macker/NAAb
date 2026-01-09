@@ -1,0 +1,8 @@
+{
+  "code": "{\n  void anchor() override;\n\npublic:\n  AssembleJobAction(Action *Input, types::ID OutputType);\n\n  static bool classof(const Action *A) {\n    return A->getKind() == AssembleJobClass;\n  }\n}",
+  "id": "BLOCK-CPP-17692",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
+  "source_line": 495,
+  "validation_status": "validated"
+}

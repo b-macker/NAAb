@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include <arm_neon.h>\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05444_execute() {\n    {\n#if ABSL_HAVE_BUILTIN(__builtin_nontemporal_store)\n  __builtin_nontemporal_store(a, p);\n#else\n  vst1q_s64((int64_t *)p, vreinterpretq_s64_m128i(a));\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05444",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/non_temporal_arm_intrinsics.h",
+  "source_line": 54,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n    virtual void anchor();\n  public:\n    virtual ~Observer() {}\n\n    /// A callback invoked right before invoking the\n    ///  liveness transfer function on the given statement.\n    virtual void observeStmt(const Stmt *S,\n                             const CFGBlock *currentBlock,\n                             const LivenessValues& V) {}\n\n    /// Called when the live variables analysis registers\n    /// that a variable is killed.\n    virtual void observerKill(const DeclRefExpr *DR) {}\n  }",
+  "id": "BLOCK-CPP-21379",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/LiveVariables.h",
+  "source_line": 54,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DependenceFlags.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/TemplateName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/APInt.h\"\n#include \"llvm/ADT/APSInt.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <optional>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13428_execute() {\n    {\n    assert(getKind() == Pack);\n    return Args.Args;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-13428",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TemplateBase.h",
+  "source_line": 378,
+  "validation_status": "validated"
+}

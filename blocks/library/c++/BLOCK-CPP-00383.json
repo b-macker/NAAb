@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/circular_q.h>\n#include <spdlog/details/file_helper.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/os.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/fmt/chrono.h>\n#include <spdlog/fmt/fmt.h>\n#include <spdlog/sinks/base_sink.h>\n#include <chrono>\n#include <cstdio>\n#include <iomanip>\n#include <mutex>\n#include <sstream>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00383_execute() {\n    {\n        using details::os::path_exists;\n\n        filenames_q_ = details::circular_q<filename_t>(static_cast<size_t>(max_files_));\n        std::vector<filename_t> filenames;\n        auto now = log_clock::now();\n        while (filenames.size() < max_files_) {\n            auto filename = FileNameCalc::calc_filename(base_filename_, now_tm(now));\n            if (!path_exists(filename)) {\n                break;\n            }\n            filenames.emplace_back(filename);\n            now -= std::chrono::hours(24);\n        }\n        for (auto iter = filenames.rbegin(); iter != filenames.rend(); ++iter) {\n            filenames_q_.push_back(std::move(*iter));\n        }\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00383",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/daily_file_sink.h",
+  "source_line": 125,
+  "validation_status": "validated"
+}

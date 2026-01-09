@@ -1,0 +1,8 @@
+{
+  "code": "{\n    if (path_exists(path)) {\n        return true;\n    }\n\n    if (path.empty()) {\n        return false;\n    }\n\n    size_t search_offset = 0;\n    do {\n        auto token_pos = path.find_first_of(folder_seps_filename, search_offset);\n        // treat the entire path as a folder if no folder separator not found\n        if (token_pos == filename_t::npos) {\n            token_pos = path.size();\n        }\n\n        auto subdir = path.substr(0, token_pos);\n\n        if (!subdir.empty() && !path_exists(subdir) && !mkdir_(subdir)) {\n            return false;  // return error if failed creating dir\n        }\n        search_offset = token_pos + 1;\n    } while (search_offset < path.size());\n\n    return true;\n}",
+  "id": "BLOCK-CPP-00279",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/os-inl.h",
+  "source_line": 519,
+  "validation_status": "validated"
+}

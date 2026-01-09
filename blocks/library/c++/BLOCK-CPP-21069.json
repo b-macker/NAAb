@@ -1,0 +1,8 @@
+{
+  "code": "#include <climits>\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21069_execute() {\n    {\n    if (Encoded == 0)\n      return 0;\n    if (Prev == 0)\n      return SourceLocationEncoding::decodeRaw(Prev = Encoded);\n    return SourceLocationEncoding::decodeRaw(Prev += zagZig(Encoded - 1));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21069",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/SourceLocationEncoding.h",
+  "source_line": 118,
+  "validation_status": "validated"
+}

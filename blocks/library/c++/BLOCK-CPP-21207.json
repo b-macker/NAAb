@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  explicit ASTMatchRefactorer(\n    std::map<std::string, Replacements> &FileToReplaces);\n\n  template <typename T>\n  void addMatcher(const T &Matcher, RefactoringCallback *Callback) {\n    MatchFinder.addMatcher(Matcher, Callback);\n    Callbacks.push_back(Callback);\n  }\n\n  void addDynamicMatcher(const ast_matchers::internal::DynTypedMatcher &Matcher,\n                         RefactoringCallback *Callback);\n\n  std::unique_ptr<ASTConsumer> newASTConsumer();\n\nprivate:\n  friend class RefactoringASTConsumer;\n  std::vector<RefactoringCallback *> Callbacks;\n  ast_matchers::MatchFinder MatchFinder;\n  std::map<std::string, Replacements> &FileToReplaces;\n}",
+  "id": "BLOCK-CPP-21207",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/RefactoringCallbacks.h",
+  "source_line": 53,
+  "validation_status": "validated"
+}

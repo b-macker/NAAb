@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02526_execute() {\n    {\n  // Max {32-64}-bit unsigned int is 20 digits.\n  constexpr size_t kMaxLength = 20;\n  char buf[kMaxLength];\n\n  // We can't use itoa or sprintf as neither is specified to be\n  // async-signal-safe.\n  if (state->parse_state.append) {\n    // We can't have a one-before-the-beginning pointer, so instead start with\n    // one-past-the-end and manipulate one character before the pointer.\n    char *p = &buf[kMaxLength];\n    do {  // val=0 is the only input that should write a leading zero digit.\n      *--p = static_cast<char>((val % 10) + '0');\n      val /= 10;\n    } while (p > buf && val != 0);\n\n    // 'p' landed on the last character we set.  How convenient.\n    Append(state, p, kMaxLength - static_cast<size_t>(p - buf));\n  }\n\n  return true;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02526",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 452,
+  "validation_status": "validated"
+}

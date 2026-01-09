@@ -1,0 +1,8 @@
+{
+  "code": "{\n  // Get the vendor string (issue CPUID with eax = 0).\n  int cpu_info[4];\n  __cpuid(cpu_info, 0);\n\n  std::string vendor;\n  vendor.append(reinterpret_cast<char*>(&cpu_info[1]), 4);\n  vendor.append(reinterpret_cast<char*>(&cpu_info[3]), 4);\n  vendor.append(reinterpret_cast<char*>(&cpu_info[2]), 4);\n  if (vendor == \"GenuineIntel\") {\n    return Vendor::kIntel;\n  } else if (vendor == \"AuthenticAMD\") {\n    return Vendor::kAmd;\n  } else {\n    return Vendor::kUnknown;\n  }\n}",
+  "id": "BLOCK-CPP-02439",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/cpu_detect.cc",
+  "source_line": 62,
+  "validation_status": "validated"
+}

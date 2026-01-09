@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/internal/raw_logging.h\"\n#include <cstdarg>\n#include <cstddef>\n#include <cstdio>\n#include <cstdlib>\n#include <cstring>\n#include <string>\n#include <emscripten/console.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/atomic_hook.h\"\n#include \"absl/base/internal/errno_saver.h\"\n#include \"absl/base/log_severity.h\"\n#include <unistd.h>\n#include <sys/syscall.h>\n#include <io.h>\n\nusing namespace absl;\nusing namespace raw_log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02315_execute() {\n    {\n  if (*size < 0) return false;\n  int n = vsnprintf(*buf, static_cast<size_t>(*size), format, ap);\n  bool result = true;\n  if (n < 0 || n > *size) {\n    result = false;\n    if (static_cast<size_t>(*size) > sizeof(kTruncated)) {\n      n = *size - static_cast<int>(sizeof(kTruncated));\n    } else {\n      n = 0;  // no room for truncation message\n    }\n  }\n  *size -= n;\n  *buf += n;\n  return result;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02315",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/raw_logging.cc",
+  "source_line": 95,
+  "validation_status": "validated"
+}

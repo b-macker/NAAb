@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15702_execute() {\n    {\nclass MacroExpansionRangeRecorder;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15702",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/MacroExpansionContext.h",
+  "source_line": 22,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/flags/reflection.h\"\n#include <assert.h>\n#include <atomic>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/no_destructor.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/container/flat_hash_map.h\"\n#include \"absl/flags/commandlineflag.h\"\n#include \"absl/flags/internal/private_handle_accessor.h\"\n#include \"absl/flags/internal/registry.h\"\n#include \"absl/flags/usage_config.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01733_execute() {\n    {\n  impl_->SaveFromRegistry();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01733",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/reflection.cc",
+  "source_line": 324,
+  "validation_status": "validated"
+}

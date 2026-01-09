@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/globals.h\"\n#include <atomic>\n#include <cstddef>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/atomic_hook.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/hash/hash.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace log_internal;\nusing namespace log_internal;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01780_execute() {\n    {\n\nScopedMinLogLevel::ScopedMinLogLevel(absl::LogSeverityAtLeast severity)\n    : saved_severity_(absl::MinLogLevel()) {\n  absl::SetMinLogLevel(severity);\n}\nScopedMinLogLevel::~ScopedMinLogLevel() {\n  absl::SetMinLogLevel(saved_severity_);\n}\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01780",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/globals.cc",
+  "source_line": 97,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/os.h>\n#include <arpa/inet.h>\n#include <netdb.h>\n#include <netinet/in.h>\n#include <netinet/tcp.h>\n#include <sys/socket.h>\n#include <unistd.h>\n#include <string>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00317_execute() {\n    {\n        size_t bytes_sent = 0;\n        while (bytes_sent < n_bytes) {\n#if defined(MSG_NOSIGNAL)\n            const int send_flags = MSG_NOSIGNAL;\n#else\n            const int send_flags = 0;\n#endif\n            auto write_result =\n                ::send(socket_, data + bytes_sent, n_bytes - bytes_sent, send_flags);\n            if (write_result < 0) {\n                close();\n                throw_spdlog_ex(\"write(2) failed\", errno);\n            }\n\n            if (write_result == 0)  // (probably should not happen but in any case..)\n            {\n                break;\n            }\n            bytes_sent += static_cast<size_t>(write_result);\n        }\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00317",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/tcp_client.h",
+  "source_line": 103,
+  "validation_status": "validated"
+}

@@ -1,0 +1,29 @@
+{
+  "code": "#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"clang/AST/CommentNodes.inc\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23303_execute() {\n    {\n    if (TextCommentBits.IsWhitespaceValid)\n      return TextCommentBits.IsWhitespace;\n\n    TextCommentBits.IsWhitespace = isWhitespaceNoCache();\n    TextCommentBits.IsWhitespaceValid = true;\n    return TextCommentBits.IsWhitespace;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23303",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
+  "source_line": 288,
+  "validation_status": "validated",
+  "description": "C++ block with 26 lines of code implementing BLOCK-CPP-23303",
+  "short_desc": "C++ block with 26 lines of code implementing BLOCK-CPP-23303",
+  "input_types": "any",
+  "output_type": "void",
+  "keywords": [
+    "array",
+    "c++",
+    "string"
+  ],
+  "use_cases": [
+    "General c++ programming tasks"
+  ],
+  "related_blocks": [],
+  "avg_execution_ms": 10.0,
+  "max_memory_mb": 4,
+  "performance_tier": "medium",
+  "success_rate_percent": 100,
+  "avg_tokens_saved": 50,
+  "test_coverage_percent": 0,
+  "security_audited": false,
+  "stability": "stable"
+}

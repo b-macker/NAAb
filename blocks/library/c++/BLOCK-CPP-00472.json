@@ -1,0 +1,8 @@
+{
+  "code": "    #include <spdlog/sinks/stdout_sinks.h>\n#include <memory>\n#include <spdlog/details/console_globals.h>\n#include <spdlog/pattern_formatter.h>\n    #include <spdlog/details/windows_include.h>\n        #include <fileapi.h>    // WriteFile (..)\n    #include <io.h>     // _get_osfhandle(..)\n    #include <stdio.h>  // _fileno(..)\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00472_execute() {\n    {\n    return Factory::template create<sinks::stdout_sink_st>(logger_name);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00472",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/stdout_sinks-inl.h",
+  "source_line": 113,
+  "validation_status": "validated"
+}

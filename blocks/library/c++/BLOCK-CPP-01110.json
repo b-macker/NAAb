@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01110_execute() {\n    {\n  none_type,\n  // Integer types should go first,\n  int_type,\n  uint_type,\n  long_long_type,\n  ulong_long_type,\n  int128_type,\n  uint128_type,\n  bool_type,\n  char_type,\n  last_integer_type = char_type,\n  // followed by floating-point types.\n  float_type,\n  double_type,\n  long_double_type,\n  last_numeric_type = long_double_type,\n  cstring_type,\n  string_type,\n  pointer_type,\n  custom_type\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01110",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 575,
+  "validation_status": "validated"
+}

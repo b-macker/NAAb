@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/log_msg_buffer.h>\n#include <spdlog/details/mpmc_blocking_q.h>\n#include <spdlog/details/os.h>\n#include <chrono>\n#include <functional>\n#include <memory>\n#include <thread>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00327_execute() {\n    { log, flush, terminate }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00327",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/thread_pool.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

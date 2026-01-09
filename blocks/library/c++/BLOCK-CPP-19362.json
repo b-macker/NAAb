@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Availability.h\"\n#include \"clang/Basic/BitmaskEnum.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/OperatorPrecedence.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Lex/CodeCompletionHandler.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Frontend/OpenMP/OMPContext.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/PrettyStackTrace.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n#include <memory>\n#include <optional>\n#include <stack>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19362_execute() {\n    {\n    /// The location of the initial keyword.\n    SourceLocation KeywordLoc;\n    /// Whether this is an __if_exists block (rather than an\n    /// __if_not_exists block).\n    bool IsIfExists;\n\n    /// Nested-name-specifier preceding the name.\n    CXXScopeSpec SS;\n\n    /// The name we're looking for.\n    UnqualifiedId Name;\n\n    /// The behavior of this __if_exists or __if_not_exists block\n    /// should.\n    IfExistsBehavior Behavior;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19362",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
+  "source_line": 2148,
+  "validation_status": "validated"
+}

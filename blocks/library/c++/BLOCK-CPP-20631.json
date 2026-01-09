@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Expr.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20631_execute() {\n    {\n    Hints.clear();\n    NumConversionsFixed = 0;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20631",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaFixItUtils.h",
+  "source_line": 79,
+  "validation_status": "validated"
+}

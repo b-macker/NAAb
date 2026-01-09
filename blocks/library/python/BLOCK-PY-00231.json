@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00231_execute() {\n    def _generate_go_dockerfile(self, complexity: str) -> str:\n        \"\"\"Generate Go application Dockerfile\"\"\"\n        return \"\"\"# Go Multi-stage Production Dockerfile\nFROM golang:1.21-alpine AS builder\n\nRUN apk add --no-cache ca-certificates git\nWORKDIR /build\n\nCOPY go.mod go.sum ./\nRUN go mod download\n\nCOPY . .\nRUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .\n\nFROM alpine:latest AS runtime\nRUN apk --no-cache add ca-certificates tzdata\nRUN adduser -D -s /bin/sh appuser\n\nWORKDIR /root/\n\nCOPY --from=builder /build/main .\nRUN chown appuser:appuser main\n\nUSER appuser\n\nEXPOSE 8080\nCMD [\"./main\"]\"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00231",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

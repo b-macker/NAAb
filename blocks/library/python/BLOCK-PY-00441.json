@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00441_execute() {\n    class Filter(_FilterTestCommon):\n    \"\"\"Apply a filter to an expression. ``name`` is the name of the\n    filter, the other fields are the same as :class:`Call`.\n\n    If ``node`` is ``None``, the filter is being used in a filter block\n    and is applied to the content of the block.\n    \"\"\"\n\n    node: Expr | None  # type: ignore\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        if self.node is None:\n            raise Impossible()\n\n        return super().as_const(eval_ctx=eval_ctx)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00441",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 783,
+  "validation_status": "validated"
+}

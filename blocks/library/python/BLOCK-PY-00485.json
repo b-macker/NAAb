@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00485_execute() {\n    def find_all(\n        self, node_type: type[_NodeBound] | tuple[type[_NodeBound], ...]\n    ) -> t.Iterator[_NodeBound]:\n        \"\"\"Find all the nodes of a given type.  If the type is a tuple,\n        the check is performed for any of the tuple items.\n        \"\"\"\n        for child in self.iter_child_nodes():\n            if isinstance(child, node_type):\n                yield child  # type: ignore\n            yield from child.find_all(node_type)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00485",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 195,
+  "validation_status": "validated"
+}

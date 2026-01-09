@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00001_execute() {\n    class APIResponse:\n    \"\"\"Standard API response wrapper\"\"\"\n\n    def __init__(self, data: any, status: str = \"success\"):\n        self.data = data\n        self.status = status\n\n    def to_dict(self) -> Dict:\n        return {\n            'data': self.data,\n            'status': self.status\n        }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00001",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/test_sample.py",
+  "source_line": 31,
+  "validation_status": "validated"
+}

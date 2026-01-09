@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/GlobalDecl.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/ABI.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/Support/Casting.h\"\n#include <optional>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11282_execute() {\n    {\n    llvm::DenseMap<const BlockDecl *, unsigned> &BlockIds\n      = Local? LocalBlockIds : GlobalBlockIds;\n    std::pair<llvm::DenseMap<const BlockDecl *, unsigned>::iterator, bool>\n      Result = BlockIds.insert(std::make_pair(BD, BlockIds.size()));\n    return Result.first->second;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11282",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Mangle.h",
+  "source_line": 84,
+  "validation_status": "validated"
+}

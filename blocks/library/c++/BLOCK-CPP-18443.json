@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Driver/OptionUtils.h\"\n#include \"clang/Frontend/DependencyOutputOptions.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include \"llvm/Support/FileCollector.h\"\n#include \"llvm/Support/VirtualFileSystem.h\"\n#include <cstdint>\n#include <memory>\n#include <string>\n#include <system_error>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18443_execute() {\n    {\npublic:\n  DependencyFileGenerator(const DependencyOutputOptions &Opts);\n\n  void attachToPreprocessor(Preprocessor &PP) override;\n\n  void finishedMainFile(DiagnosticsEngine &Diags) override;\n\n  bool needSystemDependencies() final { return IncludeSystemHeaders; }\n\n  bool sawDependency(StringRef Filename, bool FromModule, bool IsSystem,\n                     bool IsModuleFile, bool IsMissing) final;\n\nprotected:\n  void outputDependencyFile(llvm::raw_ostream &OS);\n\nprivate:\n  void outputDependencyFile(DiagnosticsEngine &Diags);\n\n  std::string OutputFile;\n  std::vector<std::string> Targets;\n  bool IncludeSystemHeaders;\n  bool PhonyTarget;\n  bool AddMissingHeaderDeps;\n  bool SeenMissingHeader;\n  bool IncludeModuleFiles;\n  DependencyOutputFormat OutputFormat;\n  unsigned InputFileIndex;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18443",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/Utils.h",
+  "source_line": 102,
+  "validation_status": "validated"
+}

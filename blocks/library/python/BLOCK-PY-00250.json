@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00250_execute() {\n    def get_source_segment(source, node, *, padded=False):\n    \"\"\"Get source code segment of the *source* that generated *node*.\n\n    If some location information (`lineno`, `end_lineno`, `col_offset`,\n    or `end_col_offset`) is missing, return None.\n\n    If *padded* is `True`, the first line of a multi-line statement will\n    be padded with spaces to match its original position.\n    \"\"\"\n    try:\n        if node.end_lineno is None or node.end_col_offset is None:\n            return None\n        lineno = node.lineno - 1\n        end_lineno = node.end_lineno - 1\n        col_offset = node.col_offset\n        end_col_offset = node.end_col_offset\n    except AttributeError:\n        return None\n\n    lines = _splitlines_no_ff(source, maxlines=end_lineno+1)\n    if end_lineno == lineno:\n        return lines[lineno].encode()[col_offset:end_col_offset].decode()\n\n    if padded:\n        padding = _pad_whitespace(lines[lineno].encode()[:col_offset].decode())\n    else:\n        padding = ''\n\n    first = padding + lines[lineno].encode()[col_offset:].decode()\n    last = lines[end_lineno].encode()[:end_col_offset].decode()\n    lines = lines[lineno+1:end_lineno]\n\n    lines.insert(0, first)\n    lines.append(last)\n    return ''.join(lines)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00250",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
+  "source_line": 363,
+  "validation_status": "validated"
+}

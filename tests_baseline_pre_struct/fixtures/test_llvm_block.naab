@@ -1,0 +1,24 @@
+# Test LLVM Block Compilation with Automatic Library Detection
+# This test verifies that library detection works for LLVM/Clang includes
+
+use BLOCK-CPP-23886 as llvm_decl
+
+main {
+    print("================================================================")
+    print("  Testing LLVM Block with Automatic Library Detection")
+    print("================================================================")
+    print()
+    print("Block ID: BLOCK-CPP-23886")
+    print("Source: clang/AST/Decl.h line 4713")
+    print("Expected Libraries: clang, llvm")
+    print()
+    print("This block has 30+ includes from clang/LLVM")
+    print("Library detection should automatically detect:")
+    print("  - clang (from #include \"clang/AST/...\")")
+    print("  - llvm (from #include \"llvm/ADT/...\")")
+    print()
+    print("Compilation may fail if libraries not installed,")
+    print("but we should see library detection in logs.")
+    print()
+    print("================================================================")
+}

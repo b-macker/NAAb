@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h\"\n#include \"llvm/ADT/StringExtras.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22194_execute() {\n    {\n    if (const auto *Idx = R->getIndex().getAsInteger()) {\n      if (const auto *SR = R->getSuperRegion()->getAs<SymbolicRegion>()) {\n        QualType Ty = SR->getPointeeStaticType();\n        bool IsNotReinterpretCast = R->getValueType() == Ty;\n        if (Idx->isZero() && IsNotReinterpretCast)\n          return isThisObject(SR);\n      }\n    }\n    return false;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22194",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/SValExplainer.h",
+  "source_line": 45,
+  "validation_status": "validated"
+}

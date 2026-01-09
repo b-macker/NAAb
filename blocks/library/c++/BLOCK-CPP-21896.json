@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/TypeOrdering.h\"\n#include \"clang/Analysis/FlowSensitive/Arena.h\"\n#include \"clang/Analysis/FlowSensitive/ControlFlowContext.h\"\n#include \"clang/Analysis/FlowSensitive/Solver.h\"\n#include \"clang/Analysis/FlowSensitive/StorageLocation.h\"\n#include \"clang/Analysis/FlowSensitive/Value.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/Support/Compiler.h\"\n#include <cassert>\n#include <memory>\n#include <optional>\n#include <type_traits>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21896_execute() {\n    {\n      // Allow a NULL `QualType` by using a different value as the empty key.\n      return QualType::getFromOpaquePtr(reinterpret_cast<Type *>(1));\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21896",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DataflowAnalysisContext.h",
+  "source_line": 196,
+  "validation_status": "validated"
+}

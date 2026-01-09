@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/Type.h\"\n#include <functional>\n\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14575_execute() {\n    {\n      return (unsigned)((uintptr_t)Val.getAsOpaquePtr()) ^\n      ((unsigned)((uintptr_t)Val.getAsOpaquePtr() >> 9));\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-14575",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeOrdering.h",
+  "source_line": 66,
+  "validation_status": "validated"
+}

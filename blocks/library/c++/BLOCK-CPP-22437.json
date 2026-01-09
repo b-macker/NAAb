@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/RangedConstraintManager.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SVals.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <list>\n#include <memory>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace ento;\nusing namespace bugreporter;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22437_execute() {\n    {\n      // If we found something in one of the cases, we can\n      // say we found something overall.\n      FoundSomethingToTrack |= Other.FoundSomethingToTrack;\n      // The same goes to the interruption.\n      WasInterrupted |= Other.WasInterrupted;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22437",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/BugReporter/BugReporterVisitors.h",
+  "source_line": 205,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00863_execute() {\n    {\n  for (size_t size = str.size(); pos != size; ++pos) {\n    if (str[pos] == '{' || str[pos] == '}') break;\n  }\n  return pos;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00863",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 302,
+  "validation_status": "validated"
+}

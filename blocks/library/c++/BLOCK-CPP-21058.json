@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Module.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/MemoryBuffer.h\"\n#include <memory>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21058_execute() {\n    {\nclass raw_pwrite_stream;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21058",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/PCHContainerOperations.h",
+  "source_line": 18,
+  "validation_status": "validated"
+}

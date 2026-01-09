@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00237_execute() {\n    def _generate_basic_terraform(self) -> str:\n        \"\"\"Generate basic Terraform configuration\"\"\"\n        return \"\"\"terraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \"~> 5.0\"\n    }\n  }\n}\n\nprovider \"aws\" {\n  region = var.aws_region\n}\n\nvariable \"aws_region\" {\n  description = \"AWS region\"\n  default     = \"us-west-2\"\n}\n\nresource \"aws_instance\" \"web\" {\n  ami           = \"ami-0c55b159cbfafe1d0\"\n  instance_type = \"t3.micro\"\n  \n  tags = {\n    Name = \"WebServer\"\n  }\n}\n\noutput \"instance_ip\" {\n  value = aws_instance.web.public_ip\n}\"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00237",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

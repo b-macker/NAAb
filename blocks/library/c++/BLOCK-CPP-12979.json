@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12979_execute() {\n    {\nprotected:\n  StmtIteratorImpl(const StmtIteratorBase& RHS) : StmtIteratorBase(RHS) {}\n\npublic:\n  using iterator_category = std::forward_iterator_tag;\n  using value_type = REFERENCE;\n  using difference_type = std::ptrdiff_t;\n  using pointer = REFERENCE;\n  using reference = REFERENCE;\n\n  StmtIteratorImpl() = default;\n  StmtIteratorImpl(Stmt **s) : StmtIteratorBase(s) {}\n  StmtIteratorImpl(Decl **dgi, Decl **dge) : StmtIteratorBase(dgi, dge) {}\n  StmtIteratorImpl(const VariableArrayType *t) : StmtIteratorBase(t) {}\n\n  DERIVED& operator++() {\n    if (inStmt())\n      ++stmt;\n    else if (getVAPtr())\n      NextVA();\n    else\n      NextDecl();\n\n    return static_cast<DERIVED&>(*this);\n  }\n\n  DERIVED operator++(int) {\n    DERIVED tmp = static_cast<DERIVED&>(*this);\n    operator++();\n    return tmp;\n  }\n\n  friend bool operator==(const DERIVED &LHS, const DERIVED &RHS) {\n    return LHS.stmt == RHS.stmt && LHS.DGI == RHS.DGI &&\n           LHS.RawVAPtr == RHS.RawVAPtr;\n  }\n\n  friend bool operator!=(const DERIVED &LHS, const DERIVED &RHS) {\n    return !(LHS == RHS);\n  }\n\n  REFERENCE operator*() const {\n    return inStmt() ? *stmt : GetDeclExpr();\n  }\n\n  REFERENCE operator->() const { return operator*(); }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12979",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtIterator.h",
+  "source_line": 76,
+  "validation_status": "validated"
+}

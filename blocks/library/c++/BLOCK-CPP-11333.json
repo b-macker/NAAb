@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate <> struct DenseMapInfo<clang::NestedNameSpecifierLoc> {\n  using FirstInfo = DenseMapInfo<clang::NestedNameSpecifier *>;\n  using SecondInfo = DenseMapInfo<void *>;\n\n  static clang::NestedNameSpecifierLoc getEmptyKey() {\n    return clang::NestedNameSpecifierLoc(FirstInfo::getEmptyKey(),\n                                         SecondInfo::getEmptyKey());\n  }\n\n  static clang::NestedNameSpecifierLoc getTombstoneKey() {\n    return clang::NestedNameSpecifierLoc(FirstInfo::getTombstoneKey(),\n                                         SecondInfo::getTombstoneKey());\n  }\n\n  static unsigned getHashValue(const clang::NestedNameSpecifierLoc &PairVal) {\n    return hash_combine(\n        FirstInfo::getHashValue(PairVal.getNestedNameSpecifier()),\n        SecondInfo::getHashValue(PairVal.getOpaqueData()));\n  }\n\n  static bool isEqual(const clang::NestedNameSpecifierLoc &LHS,\n                      const clang::NestedNameSpecifierLoc &RHS) {\n    return LHS == RHS;\n  }\n};\n}",
+  "id": "BLOCK-CPP-11333",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/NestedNameSpecifier.h",
+  "source_line": 531,
+  "validation_status": "validated"
+}

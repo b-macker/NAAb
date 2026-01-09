@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/port.h\"\n#include \"absl/meta/type_traits.h\"  //  for void_t\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06227_execute() {\n    {\n    s->__append_default_init(n);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06227",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/resize_uninitialized.h",
+  "source_line": 96,
+  "validation_status": "validated"
+}

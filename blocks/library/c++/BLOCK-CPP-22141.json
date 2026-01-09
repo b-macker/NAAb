@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22141_execute() {\n    {\n    assert(Offset <= size() && \"Invalid position to insert!\");\n    if (Start == End) return;\n    Chunks.insert(Offset, MakeRopeString(Start, End));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22141",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/RewriteRope.h",
+  "source_line": 205,
+  "validation_status": "validated"
+}

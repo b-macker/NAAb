@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01208_execute() {\n    {\n  auto args = va_list();\n  va_start(args, fmt);\n  int result = vsnprintf_s(buf, size, _TRUNCATE, fmt, args);\n  va_end(args);\n  return result;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01208",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 1399,
+  "validation_status": "validated"
+}

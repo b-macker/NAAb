@@ -1,0 +1,8 @@
+{
+  "code": "#include <functional>  // std::reference_wrapper\n#include <memory>      // std::unique_ptr\n#include <vector>\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00528_execute() {\n    {\n    FMT_ASSERT(new_cap >= new_cap_named,\n               \"Set of arguments includes set of named arguments\");\n    data_.reserve(new_cap);\n    named_info_.reserve(new_cap_named);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00528",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/args.h",
+  "source_line": 224,
+  "validation_status": "validated"
+}

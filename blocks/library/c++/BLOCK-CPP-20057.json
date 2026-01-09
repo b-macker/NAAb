@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Expr.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20057_execute() {\n    {\n      return get();\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20057",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Ownership.h",
+  "source_line": 76,
+  "validation_status": "validated"
+}

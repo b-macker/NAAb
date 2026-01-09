@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/crc/internal/cpu_detect.h\"\n#include <cstdint>\n#include <string>\n#include \"absl/base/config.h\"\n#include <asm/hwcap.h>\n#include <sys/auxv.h>\n#include <intrin.h>\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02450_execute() {\n    {\n  // MIDR_EL1 is not visible to EL0, however the access will be emulated by\n  // linux if AT_HWCAP has HWCAP_CPUID set.\n  //\n  // This method will be unreliable on heterogeneous computing systems (ex:\n  // big.LITTLE) since the value of MIDR_EL1 will change based on the calling\n  // thread.\n  uint64_t hwcaps = getauxval(AT_HWCAP);\n  if (hwcaps & HWCAP_CPUID) {\n    uint64_t midr = 0;\n    ABSL_INTERNAL_AARCH64_ID_REG_READ(MIDR_EL1, midr);\n    uint32_t implementer = (midr >> 24) & 0xff;\n    uint32_t part_number = (midr >> 4) & 0xfff;\n    switch (implementer) {\n      case 0x41:\n        switch (part_number) {\n          case 0xd0c: return CpuType::kArmNeoverseN1;\n          case 0xd40: return CpuType::kArmNeoverseV1;\n          case 0xd49: return CpuType::kArmNeoverseN2;\n          case 0xd4f: return CpuType::kArmNeoverseV2;\n          default:\n            return CpuType::kUnknown;\n        }\n        break;\n      case 0xc0:\n        switch (part_number) {\n          case 0xac3: return CpuType::kAmpereSiryn;\n          default:\n            return CpuType::kUnknown;\n        }\n        break;\n      default:\n        return CpuType::kUnknown;\n    }\n  }\n  return CpuType::kUnknown;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02450",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/cpu_detect.cc",
+  "source_line": 233,
+  "validation_status": "validated"
+}

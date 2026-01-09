@@ -1,0 +1,8 @@
+{
+  "code": "{\n    if (isfinite(val)) {\n      return false;\n    }\n    if (isnan(val)) {\n      write_nan();\n      return true;\n    }\n    // must be +-inf\n    if (val > 0) {\n      write_pinf();\n    } else {\n      write_ninf();\n    }\n    return true;\n  }",
+  "id": "BLOCK-CPP-00733",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1615,
+  "validation_status": "validated"
+}

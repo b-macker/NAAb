@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ASTStmtReader;\n  friend class OMPExecutableDirective;\n  /// Build directive with the given start and end location.\n  ///\n  /// \\param StartLoc Starting location of the directive kind.\n  /// \\param EndLoc Ending location of the directive.\n  ///\n  OMPTaskyieldDirective(SourceLocation StartLoc, SourceLocation EndLoc)\n      : OMPExecutableDirective(OMPTaskyieldDirectiveClass,\n                               llvm::omp::OMPD_taskyield, StartLoc, EndLoc) {}\n\n  /// Build an empty directive.\n  ///\n  explicit OMPTaskyieldDirective()\n      : OMPExecutableDirective(OMPTaskyieldDirectiveClass,\n                               llvm::omp::OMPD_taskyield, SourceLocation(),\n                               SourceLocation()) {}\n\npublic:\n  /// Creates directive.\n  ///\n  /// \\param C AST context.\n  /// \\param StartLoc Starting location of the directive kind.\n  /// \\param EndLoc Ending Location of the directive.\n  ///\n  static OMPTaskyieldDirective *\n  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation EndLoc);\n\n  /// Creates an empty directive.\n  ///\n  /// \\param C AST context.\n  ///\n  static OMPTaskyieldDirective *CreateEmpty(const ASTContext &C, EmptyShell);\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == OMPTaskyieldDirectiveClass;\n  }\n}",
+  "id": "BLOCK-CPP-13377",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtOpenMP.h",
+  "source_line": 2527,
+  "validation_status": "validated"
+}

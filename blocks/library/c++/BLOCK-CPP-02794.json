@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/randen_detect.h\"\n#include <cstdint>\n#include <cstring>\n#include \"absl/random/internal/platform.h\"\n#include <intrin.h>  // NOLINT(build/include_order)\n#include <dlfcn.h>\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02794_execute() {\n    {\n  // NOLINTNEXTLINE(runtime/int)\n  typedef unsigned long (*getauxval_func_t)(unsigned long);\n\n  dlerror();  // Cleaning error state before calling dlopen.\n  void* libc_handle = dlopen(\"libc.so\", RTLD_NOW);\n  if (!libc_handle) {\n    return 0;\n  }\n  uint32_t result = 0;\n  void* sym = dlsym(libc_handle, \"getauxval\");\n  if (sym) {\n    getauxval_func_t func;\n    memcpy(&func, &sym, sizeof(func));\n    result = static_cast<uint32_t>((*func)(hwcap_type));\n  }\n  dlclose(libc_handle);\n  return result;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02794",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_detect.cc",
+  "source_line": 83,
+  "validation_status": "validated"
+}

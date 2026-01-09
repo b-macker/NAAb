@@ -1,0 +1,8 @@
+{
+  "code": "using namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22369_execute() {\n    {\n\nclass CompilerInstance;\n\nnamespace ento {\n\nvoid printCheckerHelp(llvm::raw_ostream &OS, CompilerInstance &CI);\nvoid printEnabledCheckerList(llvm::raw_ostream &OS, CompilerInstance &CI);\nvoid printAnalyzerConfigList(llvm::raw_ostream &OS);\nvoid printCheckerConfigList(llvm::raw_ostream &OS, CompilerInstance &CI);\n\n} // namespace ento\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22369",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Frontend/AnalyzerHelpFlags.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

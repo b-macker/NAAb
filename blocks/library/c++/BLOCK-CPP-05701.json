@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstring>\n#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05701_execute() {\n    {\n  if (n > dst.size()) n = dst.size();\n  memset(dst.data(), c, n);\n  dst.remove_prefix(n);\n  return n;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05701",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/append_truncated.h",
+  "source_line": 37,
+  "validation_status": "validated"
+}

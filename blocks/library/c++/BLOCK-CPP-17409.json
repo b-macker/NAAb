@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <memory>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17409_execute() {\n    {\n  std::unique_ptr<llvm::SpecialCaseList> AlwaysInstrument;\n  std::unique_ptr<llvm::SpecialCaseList> NeverInstrument;\n  std::unique_ptr<llvm::SpecialCaseList> AttrList;\n  SourceManager &SM;\n\npublic:\n  XRayFunctionFilter(ArrayRef<std::string> AlwaysInstrumentPaths,\n                     ArrayRef<std::string> NeverInstrumentPaths,\n                     ArrayRef<std::string> AttrListPaths, SourceManager &SM);\n  ~XRayFunctionFilter();\n\n  enum class ImbueAttribute {\n    NONE,\n    ALWAYS,\n    NEVER,\n    ALWAYS_ARG1,\n  };\n\n  ImbueAttribute shouldImbueFunction(StringRef FunctionName) const;\n\n  ImbueAttribute\n  shouldImbueFunctionsInFile(StringRef Filename,\n                             StringRef Category = StringRef()) const;\n\n  ImbueAttribute shouldImbueLocation(SourceLocation Loc,\n                                     StringRef Category = StringRef()) const;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17409",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/XRayLists.h",
+  "source_line": 29,
+  "validation_status": "validated"
+}

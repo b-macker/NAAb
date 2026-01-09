@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Sema/Sema.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20728_execute() {\n    {\n  for (auto &C : Callbacks) {\n    if (C)\n      C->atTemplateBegin(TheSema, Inst);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20728",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/TemplateInstCallback.h",
+  "source_line": 60,
+  "validation_status": "validated"
+}

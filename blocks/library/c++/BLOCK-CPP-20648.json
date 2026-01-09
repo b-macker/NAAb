@@ -1,0 +1,8 @@
+{
+  "code": "// This file provides common API and #includes for the internal\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/Sema/Lookup.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"clang/Sema/SemaDiagnostic.h\"\n\nusing namespace clang;\nusing namespace or;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20648_execute() {\n    { return iterator(*this, /*IsAtEnd=*/false); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20648",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaInternal.h",
+  "source_line": 277,
+  "validation_status": "validated"
+}

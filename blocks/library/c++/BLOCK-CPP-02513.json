@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02513_execute() {\n    {\n  ComplexityGuard guard(state);\n  if (guard.IsTooComplex()) return false;\n  if (RemainingInput(state)[0] == two_char_token[0] &&\n      RemainingInput(state)[1] == two_char_token[1]) {\n    state->parse_state.mangled_idx += 2;\n    return true;\n  }\n  return false;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02513",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 302,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Tooling/ArgumentsAdjusters.h\"\n#include \"clang/Tooling/CompilationDatabase.h\"\n#include \"llvm/Support/CommandLine.h\"\n#include \"llvm/Support/Error.h\"\n/// #include \"clang/Frontend/FrontendActions.h\"\n/// #include \"clang/Tooling/CommonOptionsParser.h\"\n/// #include \"clang/Tooling/Tooling.h\"\n/// #include \"llvm/Support/CommandLine.h\"\n\nusing namespace clang;\nusing namespace tooling;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21135_execute() {\n    { return Adjuster; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21135",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/CommonOptionsParser.h",
+  "source_line": 101,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <exception>\n#include <functional>\n#include <initializer_list>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_any_invocable;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05567_execute() {\n    {\n  // This single statement without branching handles both possible operations.\n  //\n  // For FunctionToCall::dispose, \"from\" and \"to\" point to the same state, and\n  // so this assignment logically would do nothing.\n  //\n  // Note: Correctness here relies on http://wg21.link/p0593, which has only\n  // become standard in C++20, though implementations do not break it in\n  // practice for earlier versions of C++.\n  //\n  // The correct way to do this without that paper is to first placement-new a\n  // default-constructed T in \"to->storage\" prior to the memmove, but doing so\n  // requires a different function to be created for each T that is stored\n  // locally, which can cause unnecessary bloat and be less cache friendly.\n  *to = *from;\n\n  // Note: Because the type is trivially copyable, the destructor does not need\n  // to be called (\"trivially copyable\" requires a trivial destructor).\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05567",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/internal/any_invocable.h",
+  "source_line": 250,
+  "validation_status": "validated"
+}

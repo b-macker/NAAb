@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/btree.h\"  // IWYU pragma: export\n#include \"absl/container/internal/btree_container.h\"  // IWYU pragma: export\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03471_execute() {\n    {\n  return x.swap(y);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03471",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/btree_set.h",
+  "source_line": 749,
+  "validation_status": "validated"
+}

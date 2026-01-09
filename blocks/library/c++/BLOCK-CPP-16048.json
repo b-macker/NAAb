@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/DataTypes.h\"\n\nusing namespace clang;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16048_execute() {\n    {\n  using namespace charinfo;\n  if (InfoTable[c] & (CHAR_UPPER|CHAR_LOWER|CHAR_DIGIT|CHAR_UNDER))\n    return true;\n  return AllowDollar && c == '$';\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16048",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CharInfo.h",
+  "source_line": 64,
+  "validation_status": "validated"
+}

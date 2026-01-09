@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/randen_hwaes.h\"\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/platform.h\"\n#include \"absl/random/internal/randen_traits.h\"\n#include <cstdio>\n#include <cstdlib>\n#include <altivec.h>\n\nusing namespace absl;\nusing namespace random_internal;\nusing namespace random_internal;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02799_execute() {\n    {\n  // Reverses the bytes of the vector.\n  const __vector unsigned char perm = {15, 14, 13, 12, 11, 10, 9, 8,\n                                       7,  6,  5,  4,  3,  2,  1, 0};\n  return vec_perm(v, v, perm);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02799",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_hwaes.cc",
+  "source_line": 129,
+  "validation_status": "validated"
+}

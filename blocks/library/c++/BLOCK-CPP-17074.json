@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <stdint.h>\n#include \"clang/Basic/Builtins.h\"\n#include \"llvm/Support/MathExtras.h\"\n#include \"clang/Basic/BuiltinsNEON.def\"\n#include \"clang/Basic/BuiltinsARM.def\"\n#include \"clang/Basic/BuiltinsSVE.def\"\n#include \"clang/Basic/BuiltinsSME.def\"\n  #include \"clang/Basic/BuiltinsAArch64.def\"\n  #include \"clang/Basic/BuiltinsBPF.def\"\n#include \"clang/Basic/BuiltinsPPC.def\"\n\nusing namespace clang;\nusing namespace NEON;\nusing namespace ARM;\nusing namespace SVE;\nusing namespace SME;\nusing namespace AArch64;\nusing namespace BPF;\nusing namespace PPC;\nusing namespace NVPTX;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17074_execute() {\n    {\n    enum {\n        LastTIBuiltin = clang::Builtin::FirstTSBuiltin-1,\n#define BUILTIN(ID, TYPE, ATTRS) BI##ID,\n#include \"clang/Basic/BuiltinsNVPTX.def\"\n        LastTSBuiltin\n    };\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17074",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TargetBuiltins.h",
+  "source_line": 103,
+  "validation_status": "validated"
+}

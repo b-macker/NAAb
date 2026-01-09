@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/OpenCLOptions.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/Target/TargetOptions.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17348_execute() {\n    {\n    /// printf lowering scheme involving hostcalls, currently used by HIP\n    /// programs by default\n    Hostcall = 0,\n\n    /// printf lowering scheme involving implicit printf buffers,\n    Buffered = 1,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17348",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TargetOptions.h",
+  "source_line": 94,
+  "validation_status": "validated"
+}

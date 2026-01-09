@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Sema/AttrParsedAttrList.inc\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15999_execute() {\n    {\n    return SyntaxUsed == AS_Keyword || SyntaxUsed == AS_ContextSensitiveKeyword;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15999",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AttributeCommonInfo.h",
+  "source_line": 201,
+  "validation_status": "validated"
+}

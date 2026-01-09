@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00385_execute() {\n    def visit_MarkSafeIfAutoescape(\n        self, node: nodes.MarkSafeIfAutoescape, frame: Frame\n    ) -> None:\n        self.write(\"(Markup if context.eval_ctx.autoescape else identity)(\")\n        self.visit(node.expr, frame)\n        self.write(\")\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00385",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1909,
+  "validation_status": "validated"
+}

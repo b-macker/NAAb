@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstdint>\n#include <cstdlib>\n#include <string>\n#include <vector>\n#include \"absl/base/attributes.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05969_execute() {\n    {\n  random_internal::FastUniformBits<uint32_t> distr;\n\n  assert(urbg != nullptr && values.data() != nullptr);\n  if (urbg == nullptr || values.data() == nullptr) {\n    return false;\n  }\n\n  for (uint32_t& seed_value : values) {\n    seed_value = distr(*urbg);\n  }\n  return true;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05969",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/seed_material.h",
+  "source_line": 68,
+  "validation_status": "validated"
+}

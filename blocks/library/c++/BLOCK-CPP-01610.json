@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/log_severity.h\"\n#include <ostream>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01610_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\nstd::ostream& operator<<(std::ostream& os, absl::LogSeverity s) {\n  if (s == absl::NormalizeLogSeverity(s)) return os << absl::LogSeverityName(s);\n  return os << \"absl::LogSeverity(\" << static_cast<int>(s) << \")\";\n}\n\nstd::ostream& operator<<(std::ostream& os, absl::LogSeverityAtLeast s) {\n  switch (s) {\n    case absl::LogSeverityAtLeast::kInfo:\n    case absl::LogSeverityAtLeast::kWarning:\n    case absl::LogSeverityAtLeast::kError:\n    case absl::LogSeverityAtLeast::kFatal:\n      return os << \">=\" << static_cast<absl::LogSeverity>(s);\n    case absl::LogSeverityAtLeast::kInfinity:\n      return os << \"INFINITY\";\n  }\n  return os;\n}\n\nstd::ostream& operator<<(std::ostream& os, absl::LogSeverityAtMost s) {\n  switch (s) {\n    case absl::LogSeverityAtMost::kInfo:\n    case absl::LogSeverityAtMost::kWarning:\n    case absl::LogSeverityAtMost::kError:\n    case absl::LogSeverityAtMost::kFatal:\n      return os << \"<=\" << static_cast<absl::LogSeverity>(s);\n    case absl::LogSeverityAtMost::kNegativeInfinity:\n      return os << \"NEGATIVE_INFINITY\";\n  }\n  return os;\n}\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01610",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/log_severity.cc",
+  "source_line": 22,
+  "validation_status": "validated"
+}

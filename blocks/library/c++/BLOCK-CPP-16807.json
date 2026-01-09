@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class clang::SarifDocumentWriter;\n\n  std::string Name;\n  std::string Id;\n  std::string Description;\n  std::string HelpURI;\n  SarifReportingConfiguration DefaultConfiguration;\n\n  SarifRule() : DefaultConfiguration(SarifReportingConfiguration::create()) {}\n\npublic:\n  static SarifRule create() { return {}; }\n\n  SarifRule setName(llvm::StringRef RuleName) {\n    Name = RuleName.str();\n    return *this;\n  }\n\n  SarifRule setRuleId(llvm::StringRef RuleId) {\n    Id = RuleId.str();\n    return *this;\n  }\n\n  SarifRule setDescription(llvm::StringRef RuleDesc) {\n    Description = RuleDesc.str();\n    return *this;\n  }\n\n  SarifRule setHelpURI(llvm::StringRef RuleHelpURI) {\n    HelpURI = RuleHelpURI.str();\n    return *this;\n  }\n\n  SarifRule\n  setDefaultConfiguration(const SarifReportingConfiguration &Configuration) {\n    DefaultConfiguration = Configuration;\n    return *this;\n  }\n}",
+  "id": "BLOCK-CPP-16807",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Sarif.h",
+  "source_line": 257,
+  "validation_status": "validated"
+}

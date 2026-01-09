@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace ento;\nusing namespace checker_registry;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22357_execute() {\n    {\n  bool operator()(const T &Lhs, const T &Rhs) {\n    return Lhs.FullName < Rhs.FullName;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22357",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/CheckerRegistryData.h",
+  "source_line": 166,
+  "validation_status": "validated"
+}

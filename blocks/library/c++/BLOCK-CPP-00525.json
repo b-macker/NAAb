@@ -1,0 +1,8 @@
+{
+  "code": "#include <functional>  // std::reference_wrapper\n#include <memory>      // std::unique_ptr\n#include <vector>\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00525_execute() {\n    {\n    static_assert(\n        need_copy<T>::value,\n        \"objects of built-in types and string views are always copied\");\n    emplace_arg(arg.get());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00525",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/args.h",
+  "source_line": 187,
+  "validation_status": "validated"
+}

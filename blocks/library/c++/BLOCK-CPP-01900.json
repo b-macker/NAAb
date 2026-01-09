@@ -1,0 +1,8 @@
+{
+  "code": "{\n  // Zero initialized memory usage totals.\n  RawUsage<mode> raw_usage;\n\n  // Capture top level node and refcount into a CordRepRef.\n  CordRepRef<mode> repref(rep);\n\n  // Consume the top level CRC node if present.\n  if (repref.rep->tag == CRC) {\n    raw_usage.Add(sizeof(CordRepCrc), repref);\n    if (repref.rep->crc()->child == nullptr) {\n      return static_cast<size_t>(raw_usage.total);\n    }\n    repref = repref.Child(repref.rep->crc()->child);\n  }\n\n  if (IsDataEdge(repref.rep)) {\n    AnalyzeDataEdge(repref, raw_usage);\n  } else if (repref.rep->tag == BTREE) {\n    AnalyzeBtree(repref, raw_usage);\n  } else {\n    assert(false);\n  }\n\n  return static_cast<size_t>(raw_usage.total);\n}",
+  "id": "BLOCK-CPP-01900",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/cord_analysis.cc",
+  "source_line": 152,
+  "validation_status": "validated"
+}

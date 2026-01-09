@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/AttrSubjectMatchRules.h\"\n#include \"clang/Basic/AttributeCommonInfo.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/Registry.h\"\n#include <climits>\n#include <list>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16713_execute() {\n    {\n    return NotHandled;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16713",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/ParsedAttrInfo.h",
+  "source_line": 137,
+  "validation_status": "validated"
+}

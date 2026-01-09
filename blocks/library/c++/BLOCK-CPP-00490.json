@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/sinks/base_sink.h>\n    #include <spdlog/details/tcp_client-windows.h>\n    #include <spdlog/details/tcp_client.h>\n#include <chrono>\n#include <functional>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00490_execute() {\n    {\n    std::string server_host;\n    int server_port;\n    bool lazy_connect = false;  // if true connect on first log call instead of on construction\n\n    tcp_sink_config(std::string host, int port)\n        : server_host{std::move(host)},\n          server_port{port} {}\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00490",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/tcp_sink.h",
+  "source_line": 31,
+  "validation_status": "validated"
+}

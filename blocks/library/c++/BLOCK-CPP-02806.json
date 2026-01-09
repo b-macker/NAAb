@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/randen_hwaes.h\"\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/platform.h\"\n#include \"absl/random/internal/randen_traits.h\"\n#include <cstdio>\n#include <cstdlib>\n#include <altivec.h>\n#include <arm_neon.h>\n\nusing namespace absl;\nusing namespace random_internal;\nusing namespace random_internal;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02806_execute() {\n    {\n  // It is important to always use the full round function - omitting the\n  // final MixColumns reduces security [https://eprint.iacr.org/2010/041.pdf]\n  // and does not help because we never decrypt.\n  //\n  // Note that ARM divides AES instructions differently than x86 / PPC,\n  // And we need to skip the first AddRoundKey step and add an extra\n  // AddRoundKey step to the end. Lucky for us this is just XOR.\n  return vaesmcq_u8(vaeseq_u8(state, uint8x16_t{})) ^ round_key;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02806",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_hwaes.cc",
+  "source_line": 196,
+  "validation_status": "validated"
+}

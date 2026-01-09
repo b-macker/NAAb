@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00328_execute() {\n    def dump_local_context(self, frame: Frame) -> str:\n        items_kv = \", \".join(\n            f\"{name!r}: {target}\"\n            for name, target in frame.symbols.dump_stores().items()\n        )\n        return f\"{{{items_kv}}}\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00328",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 712,
+  "validation_status": "validated"
+}

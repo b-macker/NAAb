@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12304_execute() {\n    {\n\n/// CastKind - The kind of operation required for a conversion.\nenum CastKind {\n#define CAST_OPERATION(Name) CK_##Name,\n#include \"clang/AST/OperationKinds.def\"\n};\n\nenum BinaryOperatorKind {\n#define BINARY_OPERATION(Name, Spelling) BO_##Name,\n#include \"clang/AST/OperationKinds.def\"\n};\n\nenum UnaryOperatorKind {\n#define UNARY_OPERATION(Name, Spelling) UO_##Name,\n#include \"clang/AST/OperationKinds.def\"\n};\n\n/// The kind of bridging performed by the Objective-C bridge cast.\nenum ObjCBridgeCastKind {\n  /// Bridging via __bridge, which does nothing but reinterpret\n  /// the bits.\n  OBC_Bridge,\n  /// Bridging via __bridge_transfer, which transfers ownership of an\n  /// Objective-C pointer into ARC.\n  OBC_BridgeTransfer,\n  /// Bridging via __bridge_retain, which makes an ARC object available\n  /// as a +1 C pointer.\n  OBC_BridgeRetained\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12304",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/OperationKinds.h",
+  "source_line": 17,
+  "validation_status": "validated"
+}

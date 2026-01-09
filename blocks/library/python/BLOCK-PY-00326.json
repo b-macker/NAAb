@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00326_execute() {\n    def macro_def(self, macro_ref: MacroRef, frame: Frame) -> None:\n        \"\"\"Dump the macro definition for the def created by macro_body.\"\"\"\n        arg_tuple = \", \".join(repr(x.name) for x in macro_ref.node.args)\n        name = getattr(macro_ref.node, \"name\", None)\n        if len(macro_ref.node.args) == 1:\n            arg_tuple += \",\"\n        self.write(\n            f\"Macro(environment, macro, {name!r}, ({arg_tuple}),\"\n            f\" {macro_ref.accesses_kwargs!r}, {macro_ref.accesses_varargs!r},\"\n            f\" {macro_ref.accesses_caller!r}, context.eval_ctx.autoescape)\"\n        )\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00326",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 693,
+  "validation_status": "validated"
+}

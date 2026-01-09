@@ -1,0 +1,8 @@
+{
+  "code": "#include \"time_zone_fixed.h\"\n#include <algorithm>\n#include <cassert>\n#include <chrono>\n#include <cstring>\n#include <string>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03204_execute() {\n    {  // +9900\n        abbr.erase(3, 2);                      // +99\n      }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03204",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_fixed.cc",
+  "source_line": 128,
+  "validation_status": "validated"
+}

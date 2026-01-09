@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00723_execute() {\n    {\n  // this may overflow and/or the result may not fit in the\n  // target type.\n#if FMT_SAFE_DURATION_CAST\n  using CommonSecondsType =\n      typename std::common_type<decltype(d), std::chrono::seconds>::type;\n  const auto d_as_common = fmt_safe_duration_cast<CommonSecondsType>(d);\n  const auto d_as_whole_seconds =\n      fmt_safe_duration_cast<std::chrono::seconds>(d_as_common);\n  // this conversion should be nonproblematic\n  const auto diff = d_as_common - d_as_whole_seconds;\n  const auto ms =\n      fmt_safe_duration_cast<std::chrono::duration<Rep, std::milli>>(diff);\n  return ms;\n#else\n  auto s = std::chrono::duration_cast<std::chrono::seconds>(d);\n  return std::chrono::duration_cast<std::chrono::milliseconds>(d - s);\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00723",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1445,
+  "validation_status": "validated"
+}

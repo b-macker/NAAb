@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05365_execute() {\n    {\n  kUnknown,\n  kIntelHaswell,\n  kAmdRome,\n  kAmdNaples,\n  kAmdMilan,\n  kAmdGenoa,\n  kAmdRyzenV3000,\n  kIntelCascadelakeXeon,\n  kIntelSkylakeXeon,\n  kIntelBroadwell,\n  kIntelSkylake,\n  kIntelIvybridge,\n  kIntelSandybridge,\n  kIntelWestmere,\n  kArmNeoverseN1,\n  kArmNeoverseV1,\n  kAmpereSiryn,\n  kArmNeoverseN2,\n  kArmNeoverseV2\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05365",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/cpu_detect.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

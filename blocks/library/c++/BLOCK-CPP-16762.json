@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include \"llvm/Transforms/Instrumentation/AddressSanitizerOptions.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace llvm;\nusing namespace opt;\nusing namespace llvm;\nusing namespace clang;\nusing namespace so;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16762_execute() {\n    {\n  // Assign ordinals to possible values of -fsanitize= flag, which we will use\n  // as bit positions.\n  enum SanitizerOrdinal : uint64_t {\n#define SANITIZER(NAME, ID) SO_##ID,\n#define SANITIZER_GROUP(NAME, ID, ALIAS) SO_##ID##Group,\n#include \"clang/Basic/Sanitizers.def\"\n    SO_Count\n  };\n\n#define SANITIZER(NAME, ID)                                                    \\\n  static constexpr SanitizerMask ID = SanitizerMask::bitPosToMask(SO_##ID);    \\\n  static_assert(SanitizerMask::checkBitPos(SO_##ID), \"Bit position too big.\");\n#define SANITIZER_GROUP(NAME, ID, ALIAS)                                       \\\n  static constexpr SanitizerMask ID = SanitizerMask(ALIAS);                    \\\n  static constexpr SanitizerMask ID##Group =                                   \\\n      SanitizerMask::bitPosToMask(SO_##ID##Group);                             \\\n  static_assert(SanitizerMask::checkBitPos(SO_##ID##Group),                    \\\n                \"Bit position too big.\");\n#include \"clang/Basic/Sanitizers.def\"\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16762",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Sanitizers.h",
+  "source_line": 135,
+  "validation_status": "validated"
+}

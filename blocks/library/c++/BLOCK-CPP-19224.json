@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19224_execute() {\n    {\n      assert(VAOptLoc.isFileID() && \"Must not come from a macro expansion\");\n      assert(isReset() && \"Must only be called if the state has been reset\");\n      VAOptDefinitionContext::sawVAOptFollowedByOpeningParens(SourceLocation());\n      this->VAOptLoc = VAOptLoc;\n      NumOfTokensPriorToVAOpt = NumPriorTokens;\n      assert(NumOfTokensPriorToVAOpt > -1 &&\n             \"Too many prior tokens\");\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19224",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/VariadicMacroSupport.h",
+  "source_line": 218,
+  "validation_status": "validated"
+}

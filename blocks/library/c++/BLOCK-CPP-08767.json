@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08767_execute() {\n    {\n    DeclGroupRef X;\n    X.D = static_cast<Decl*>(Ptr);\n    return X;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-08767",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclGroup.h",
+  "source_line": 126,
+  "validation_status": "validated"
+}

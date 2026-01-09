@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/OperatorKinds.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16699_execute() {\n    {\n  switch (Kind) {\n  case OO_Less:\n  case OO_LessEqual:\n  case OO_Greater:\n  case OO_GreaterEqual:\n    return OO_Spaceship;\n\n  case OO_ExclaimEqual:\n    return OO_EqualEqual;\n\n  default:\n    return OO_None;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16699",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/OperatorKinds.h",
+  "source_line": 35,
+  "validation_status": "validated"
+}

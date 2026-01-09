@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <unordered_map>\n\nusing namespace spdlog;\nusing namespace cfg;\nusing namespace helpers;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00194_execute() {\n    {\n//\n// Init levels from given string\n//\n// Examples:\n//\n// set global level to debug: \"debug\"\n// turn off all logging except for logger1: \"off,logger1=debug\"\n// turn off all logging except for logger1 and logger2: \"off,logger1=debug,logger2=info\"\n//\nSPDLOG_API void load_levels(const std::string &txt);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00194",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/cfg/helpers.h",
+  "source_line": 11,
+  "validation_status": "validated"
+}

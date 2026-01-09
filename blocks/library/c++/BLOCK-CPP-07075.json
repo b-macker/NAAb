@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTNodeTraverser.h\"\n#include \"clang/AST/TextNodeDumper.h\"\n#include \"clang/Basic/SourceManager.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07075_execute() {\n    {\n\nclass ASTDumper : public ASTNodeTraverser<ASTDumper, TextNodeDumper> {\n\n  TextNodeDumper NodeDumper;\n\n  raw_ostream &OS;\n\n  const bool ShowColors;\n\npublic:\n  ASTDumper(raw_ostream &OS, const ASTContext &Context, bool ShowColors)\n      : NodeDumper(OS, Context, ShowColors), OS(OS), ShowColors(ShowColors) {}\n\n  ASTDumper(raw_ostream &OS, bool ShowColors)\n      : NodeDumper(OS, ShowColors), OS(OS), ShowColors(ShowColors) {}\n\n  TextNodeDumper &doGetNodeDelegate() { return NodeDumper; }\n\n  void dumpInvalidDeclContext(const DeclContext *DC);\n  void dumpLookups(const DeclContext *DC, bool DumpDecls);\n\n  template <typename SpecializationDecl>\n  void dumpTemplateDeclSpecialization(const SpecializationDecl *D,\n                                      bool DumpExplicitInst, bool DumpRefOnly);\n  template <typename TemplateDecl>\n  void dumpTemplateDecl(const TemplateDecl *D, bool DumpExplicitInst);\n\n  void VisitFunctionTemplateDecl(const FunctionTemplateDecl *D);\n  void VisitClassTemplateDecl(const ClassTemplateDecl *D);\n  void VisitVarTemplateDecl(const VarTemplateDecl *D);\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07075",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTDumper.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

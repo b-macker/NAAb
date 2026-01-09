@@ -1,0 +1,8 @@
+{
+  "code": "{\n    PtrTy Val;\n    bool Invalid;\n\n  public:\n    ActionResult(bool Invalid = false) : Val(PtrTy()), Invalid(Invalid) {}\n    ActionResult(PtrTy val) : Val(val), Invalid(false) {}\n    ActionResult(const DiagnosticBuilder &) : Val(PtrTy()), Invalid(true) {}\n\n    // These two overloads prevent void* -> bool conversions.\n    ActionResult(const void *) = delete;\n    ActionResult(volatile void *) = delete;\n\n    bool isInvalid() const { return Invalid; }\n    bool isUsable() const { return !Invalid && Val; }\n    bool isUnset() const { return !Invalid && !Val; }\n\n    PtrTy get() const { return Val; }\n    template <typename T> T *getAs() { return static_cast<T*>(get()); }\n\n    void set(PtrTy V) { Val = V; }\n\n    const ActionResult &operator=(PtrTy RHS) {\n      Val = RHS;\n      Invalid = false;\n      return *this;\n    }\n  }",
+  "id": "BLOCK-CPP-20085",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Ownership.h",
+  "source_line": 152,
+  "validation_status": "validated"
+}

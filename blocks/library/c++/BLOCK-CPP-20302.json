@@ -1,0 +1,8 @@
+{
+  "code": "{\n    llvm::PointerIntPair<const Expr *, 1, bool> Rep;\n\n  public:\n    WeakUseTy(const Expr *Use, bool IsRead) : Rep(Use, IsRead) {}\n\n    const Expr *getUseExpr() const { return Rep.getPointer(); }\n    bool isUnsafe() const { return Rep.getInt(); }\n    void markSafe() { Rep.setInt(false); }\n\n    bool operator==(const WeakUseTy &Other) const {\n      return Rep == Other.Rep;\n    }\n  }",
+  "id": "BLOCK-CPP-20302",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ScopeInfo.h",
+  "source_line": 349,
+  "validation_status": "validated"
+}

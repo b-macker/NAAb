@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Tooling/Core/Replacement.h\"\n#include \"clang/Tooling/Inclusions/IncludeStyle.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/Regex.h\"\n#include \"llvm/Support/SourceMgr.h\"\n#include <optional>\n#include <system_error>\n  ///    #include <vector> // FOOBAR pragma: keep\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\nusing namespace format;\nusing namespace definitions;\nusing namespace body;\nusing namespace has;\nusing namespace Foo;\nusing namespace N;\nusing namespace N;\nusing namespace and;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace N;\nusing namespace declarations;\nusing namespace is;\nusing namespace Foo;\nusing namespace Foo;\nusing namespace Bar;\nusing namespace Foo;\nusing namespace Extra;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18149_execute() {\n    {\n    ///   private:\n    ///     int i;\n    ///\n    ///   protected:\n    ///     int j;\n    ///     /* comment */\n    ///\n    ///   public:\n    ///     foo() {}\n    ///\n    ///   private:\n    ///\n    ///   protected:\n    ///   };\n    /// \\endcode\n    ELBAMS_Always,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18149",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
+  "source_line": 2258,
+  "validation_status": "validated"
+}

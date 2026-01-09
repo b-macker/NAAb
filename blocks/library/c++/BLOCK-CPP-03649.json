@@ -1,0 +1,8 @@
+{
+  "code": "#include <tuple>\n#include <utility>\n#include \"absl/functional/function_ref.h\"\n#include \"absl/hash/internal/hash.h\"\n\nusing namespace absl;\nusing namespace as;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03649_execute() {\n    {\n    template <typename T, typename ConsumerT>\n    void operator()(T inner_state, ConsumerT inner_cb) {\n      f(HashState::Create(&inner_state),\n        [&](HashState& inner_erased) { inner_cb(inner_erased.Real<T>()); });\n    }\n\n    absl::FunctionRef<void(HS, absl::FunctionRef<void(HS&)>)> f;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03649",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/hash.h",
+  "source_line": 371,
+  "validation_status": "validated"
+}

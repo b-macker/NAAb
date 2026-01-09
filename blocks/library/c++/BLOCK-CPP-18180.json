@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTDumperUtils.h\"\n#include \"clang/Basic/LLVM.h\"\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18180_execute() {\n    {\n\nclass ASTConsumer;\n\n// AST pretty-printer: prints out the AST in a format that is close to the\n// original C code.  The output is intended to be in a format such that\n// clang could re-parse the output back into the same AST, but the\n// implementation is still incomplete.\nstd::unique_ptr<ASTConsumer> CreateASTPrinter(std::unique_ptr<raw_ostream> OS,\n                                              StringRef FilterString);\n\n// AST dumper: dumps the raw AST in human-readable form to the given output\n// stream, or stdout if OS is nullptr.\nstd::unique_ptr<ASTConsumer>\nCreateASTDumper(std::unique_ptr<raw_ostream> OS, StringRef FilterString,\n                bool DumpDecls, bool Deserialize, bool DumpLookups,\n                bool DumpDeclTypes, ASTDumpOutputFormat Format);\n\n// AST Decl node lister: prints qualified names of all filterable AST Decl\n// nodes.\nstd::unique_ptr<ASTConsumer> CreateASTDeclNodeLister();\n\n// Graphical AST viewer: for each function definition, creates a graph of\n// the AST and displays it with the graph viewer \"dotty\".  Also outputs\n// function declarations to stderr.\nstd::unique_ptr<ASTConsumer> CreateASTViewer();\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18180",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/ASTConsumers.h",
+  "source_line": 20,
+  "validation_status": "validated"
+}

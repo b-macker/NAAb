@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/CFG.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15576_execute() {\n    {\n\nclass ParentMap;\nclass Stmt;\n\nclass CFGStmtMap {\n  ParentMap *PM;\n  void *M;\n\n  CFGStmtMap(ParentMap *pm, void *m) : PM(pm), M(m) {}\n\npublic:\n  ~CFGStmtMap();\n\n  /// Returns a new CFGMap for the given CFG.  It is the caller's\n  /// responsibility to 'delete' this object when done using it.\n  static CFGStmtMap *Build(CFG* C, ParentMap *PM);\n\n  /// Returns the CFGBlock the specified Stmt* appears in.  For Stmt* that\n  /// are terminators, the CFGBlock is the block they appear as a terminator,\n  /// and not the block they appear as a block-level expression (e.g, '&&').\n  /// CaseStmts and LabelStmts map to the CFGBlock they label.\n  CFGBlock *getBlock(Stmt * S);\n\n  const CFGBlock *getBlock(const Stmt * S) const {\n    return const_cast<CFGStmtMap*>(this)->getBlock(const_cast<Stmt*>(S));\n  }\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15576",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFGStmtMap.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n    Parser &Self;\n    unsigned NumScopes = 0;\n\n    MultiParseScope(const MultiParseScope&) = delete;\n\n  public:\n    MultiParseScope(Parser &Self) : Self(Self) {}\n    void Enter(unsigned ScopeFlags) {\n      Self.EnterScope(ScopeFlags);\n      ++NumScopes;\n    }\n    void Exit() {\n      while (NumScopes) {\n        Self.ExitScope();\n        --NumScopes;\n      }\n    }\n    ~MultiParseScope() {\n      Exit();\n    }\n  }",
+  "id": "BLOCK-CPP-19341",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
+  "source_line": 1155,
+  "validation_status": "validated"
+}

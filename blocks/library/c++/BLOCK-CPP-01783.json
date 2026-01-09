@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/initialize.h\"\n#include \"absl/base/config.h\"\n#include \"absl/log/internal/globals.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01783_execute() {\n    {\n  // This comes first since it is used by RAW_LOG.\n  absl::log_internal::SetTimeZone(time_zone);\n\n  // Note that initialization is complete, so logs can now be sent to their\n  // proper destinations rather than stderr.\n  log_internal::SetInitialized();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01783",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/initialize.cc",
+  "source_line": 25,
+  "validation_status": "validated"
+}

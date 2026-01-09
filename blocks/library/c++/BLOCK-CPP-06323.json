@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  const FormatArgImpl* arg() const { return arg_; }\n  void set_arg(const FormatArgImpl* a) { arg_ = a; }\n\n private:\n  const FormatArgImpl* arg_;\n}",
+  "id": "BLOCK-CPP-06323",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/bind.h",
+  "source_line": 41,
+  "validation_status": "validated"
+}

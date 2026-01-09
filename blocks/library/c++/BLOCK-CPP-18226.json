@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Support/CommandLine.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace llvm;\nusing namespace cl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18226_execute() {\n    {\n      using namespace clang;\n\n      Val = ParsedSourceLocation::FromString(ArgValue);\n      if (Val.FileName.empty()) {\n        errs() << \"error: \"\n               << \"source location must be of the form filename:line:column\\n\";\n        return true;\n      }\n\n      return false;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18226",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/CommandLineSourceLoc.h",
+  "source_line": 123,
+  "validation_status": "validated"
+}

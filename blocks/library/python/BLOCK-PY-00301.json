@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00301_execute() {\n    def __init__(self, names: t.Iterable[str]) -> None:\n        self.names = set(names)\n        self.undeclared: set[str] = set()\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00301",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 275,
+  "validation_status": "validated"
+}

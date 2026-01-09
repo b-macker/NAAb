@@ -1,0 +1,8 @@
+{
+  "code": "using namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16091_execute() {\n    {\n  // Generic processor model is for testing only.\n  return A >= CudaArch::GFX600 && A < CudaArch::Generic;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16091",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Cuda.h",
+  "source_line": 128,
+  "validation_status": "validated"
+}

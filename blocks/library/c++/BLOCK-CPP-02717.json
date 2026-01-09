@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/internal/log_format.h\"\n#include <string.h>\n#include <winsock2.h>  // For timeval\n#include <sys/time.h>\n#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/log/internal/append_truncated.h\"\n#include \"absl/log/internal/config.h\"\n#include \"absl/log/internal/globals.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/civil_time.h\"\n#include \"absl/time/time.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02717_execute() {\n    {\n  auto prefix_size = FormatBoundedFields(severity, timestamp, tid, buf);\n  prefix_size += log_internal::AppendTruncated(basename, buf);\n  prefix_size += FormatLineNumber(line, buf);\n  if (format == PrefixFormat::kRaw)\n    prefix_size += log_internal::AppendTruncated(\"RAW: \", buf);\n  return prefix_size;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02717",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/log_format.cc",
+  "source_line": 192,
+  "validation_status": "validated"
+}

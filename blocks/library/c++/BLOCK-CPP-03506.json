@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/algorithm/container.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/container/internal/hash_function_defaults.h\"  // IWYU pragma: export\n#include \"absl/container/internal/raw_hash_map.h\"  // IWYU pragma: export\n#include \"absl/memory/memory.h\"\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace container_internal;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03506_execute() {\n    { return 0; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03506",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/flat_hash_map.h",
+  "source_line": 595,
+  "validation_status": "validated"
+}

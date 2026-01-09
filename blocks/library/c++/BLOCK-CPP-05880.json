@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>\n#include <iostream>\n#include <limits>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/int128.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05880_execute() {\n    {\n public:\n  using stream_type = T;\n  using flags_type = std::ios_base::fmtflags;\n\n  null_state_saver(T&, flags_type) {}\n  ~null_state_saver() {}\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05880",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/iostream_state_saver.h",
+  "source_line": 31,
+  "validation_status": "validated"
+}

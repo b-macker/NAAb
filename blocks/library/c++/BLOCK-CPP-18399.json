@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Frontend/SerializedDiagnostics.h\"\n#include \"llvm/Bitstream/BitstreamWriter.h\"\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18399_execute() {\n    {\nclass raw_ostream;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18399",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/SerializedDiagnosticPrinter.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

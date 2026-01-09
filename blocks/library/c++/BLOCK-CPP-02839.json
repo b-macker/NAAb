@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/seed_material.h\"\n#include <fcntl.h>\n#include <unistd.h>\n#include <io.h>\n#include <algorithm>\n#include <cerrno>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/escaping.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include <nacl/nacl_random.h>\n#include <windows.h>\n#include <zircon/syscalls.h>\n#include <sys/random.h>\n#include <bcrypt.h>\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02839_execute() {\n    {\n  auto buffer = reinterpret_cast<uint8_t*>(values.data());\n  size_t buffer_size = sizeof(uint32_t) * values.size();\n\n  uint8_t* output_ptr = buffer;\n  while (buffer_size > 0) {\n    size_t nread = 0;\n    const int error = nacl_secure_random(output_ptr, buffer_size, &nread);\n    if (error != 0 || nread > buffer_size) {\n      ABSL_RAW_LOG(ERROR, \"Failed to read secure_random seed data: %d\", error);\n      return false;\n    }\n    output_ptr += nread;\n    buffer_size -= nread;\n  }\n  return true;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02839",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/seed_material.cc",
+  "source_line": 109,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <memory>\n#include <new>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n#include <sanitizer/asan_interface.h>\n#include <sanitizer/msan_interface.h>\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace memory_internal;\nusing namespace memory_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04964_execute() {\n    {\n  memory_internal::ConstructFromTupleImpl(\n      alloc, ptr, std::forward<Tuple>(t),\n      absl::make_index_sequence<\n          std::tuple_size<typename std::decay<Tuple>::type>::value>());\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04964",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/container_memory.h",
+  "source_line": 148,
+  "validation_status": "validated"
+}

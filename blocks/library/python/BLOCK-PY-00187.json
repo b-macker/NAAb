@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00187_execute() {\n    def _initialize_templates(self) -> Dict[str, str]:\n        return {\n            'gin_handler': '''\nfunc {name}Handler(c *gin.Context) {\n    // Handler implementation\n    c.JSON(http.StatusOK, gin.H{\"message\": \"success\"})\n}''',\n            'grpc_service': '''\ntype {name}Server struct {\n    pb.Unimplemented{name}Server\n}\n\nfunc (s *{name}Server) {method}(ctx context.Context, req *pb.{name}Request) (*pb.{name}Response, error) {\n    // Implementation\n    return &pb.{name}Response{}, nil\n}'''\n        }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00187",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/go_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

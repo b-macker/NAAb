@@ -1,0 +1,8 @@
+{
+  "code": "#include <arpa/inet.h>\n#include <cstring>\n#include <netdb.h>\n#include <netinet/in.h>\n#include <netinet/udp.h>\n#include <spdlog/common.h>\n#include <spdlog/details/os.h>\n#include <sys/socket.h>\n#include <unistd.h>\n#include <string>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00341_execute() {\n    { return socket_; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00341",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/udp_client.h",
+  "source_line": 67,
+  "validation_status": "validated"
+}

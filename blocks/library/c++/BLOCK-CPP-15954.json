@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15954_execute() {\n    {\n  static_assert(sizeof...(IdentifierInfos) > 0,\n                \"keyword selectors must have at least one argument\");\n  SmallVector<IdentifierInfo *, 10> II({&Ctx.Idents.get(IIs)...});\n\n  return Ctx.Selectors.getSelector(II.size(), &II[0]);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15954",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/SelectorExtras.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

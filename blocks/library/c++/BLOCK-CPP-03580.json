@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/symbolize.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03580_execute() {\n    {\n//     char tmp[1024];\n//     const char *symbol = \"(unknown)\";\n//     if (absl::Symbolize(pc, tmp, sizeof(tmp))) {\n//       symbol = tmp;\n//     }\n//     absl::PrintF(\"%p  %s\\n\", pc, symbol);\n//  }\nbool Symbolize(const void *pc, char *out, int out_size);\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03580",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/symbolize.h",
+  "source_line": 86,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTConsumer.h\"\n#include \"clang/Basic/LLVM.h\"\n#include <functional>\n#include <memory>\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22365_execute() {\n    {\npublic:\n  virtual void AddDiagnosticConsumer(PathDiagnosticConsumer *Consumer) = 0;\n\n  /// This method allows registering statically linked custom checkers that are\n  /// not a part of the Clang tree. It employs the same mechanism that is used\n  /// by plugins.\n  ///\n  /// Example:\n  ///\n  ///   Consumer->AddCheckerRegistrationFn([] (CheckerRegistry& Registry) {\n  ///     Registry.addChecker<MyCustomChecker>(\"example.MyCustomChecker\",\n  ///                                          \"Description\");\n  ///   });\n  virtual void\n  AddCheckerRegistrationFn(std::function<void(CheckerRegistry &)> Fn) = 0;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22365",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Frontend/AnalysisConsumer.h",
+  "source_line": 30,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/DataTypes.h\"\n\nusing namespace clang;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16065_execute() {\n    {\n  if (S.empty() || !isAsciiIdentifierStart(S[0], AllowDollar))\n    return false;\n\n  for (StringRef::iterator I = S.begin(), E = S.end(); I != E; ++I)\n    if (!isAsciiIdentifierContinue(*I, AllowDollar))\n      return false;\n\n  return true;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16065",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CharInfo.h",
+  "source_line": 228,
+  "validation_status": "validated"
+}

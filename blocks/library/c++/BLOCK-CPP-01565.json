@@ -1,0 +1,8 @@
+{
+  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01565_execute() {\n    {\n    separator_ = sep;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01565",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
+  "source_line": 462,
+  "validation_status": "validated"
+}

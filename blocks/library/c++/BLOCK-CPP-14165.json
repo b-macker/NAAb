@@ -1,0 +1,8 @@
+{
+  "code": "{\n  ///   typedef A<Ts...> type; // not a type alias\n  /// };\n  /// \\endcode\n  bool isTypeAlias() const { return TemplateSpecializationTypeBits.TypeAlias; }\n\n  /// Get the aliased type, if this is a specialization of a type alias\n  /// template.\n  QualType getAliasedType() const;\n\n  /// Retrieve the name of the template that we are specializing.\n  TemplateName getTemplateName() const { return Template; }\n\n  ArrayRef<TemplateArgument> template_arguments() const {\n    return {reinterpret_cast<const TemplateArgument *>(this + 1),\n            TemplateSpecializationTypeBits.NumArgs};\n  }\n\n  bool isSugared() const {\n    return !isDependentType() || isCurrentInstantiation() || isTypeAlias();\n  }\n\n  QualType desugar() const {\n    return isTypeAlias() ? getAliasedType() : getCanonicalTypeInternal();\n  }\n\n  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Ctx);\n  static void Profile(llvm::FoldingSetNodeID &ID, TemplateName T,\n                      ArrayRef<TemplateArgument> Args,\n                      const ASTContext &Context);\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == TemplateSpecialization;\n  }\n}",
+  "id": "BLOCK-CPP-14165",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
+  "source_line": 5467,
+  "validation_status": "validated"
+}

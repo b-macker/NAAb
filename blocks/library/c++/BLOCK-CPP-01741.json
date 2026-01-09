@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/flags/usage.h\"\n#include <stdlib.h>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/flags/internal/usage.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01741_execute() {\n    {\n  absl::MutexLock l(&flags_internal::usage_message_guard);\n\n  return flags_internal::program_usage_message != nullptr\n             ? absl::string_view(*flags_internal::program_usage_message)\n             : \"Warning: SetProgramUsageMessage() never called\";\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01741",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/usage.cc",
+  "source_line": 57,
+  "validation_status": "validated"
+}

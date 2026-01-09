@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/UnresolvedSet.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/MapVector.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cassert>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace A;\nusing namespace B;\nusing namespace B;\nusing namespace A;\nusing namespace A;\nusing namespace B;\nusing namespace C;\nusing namespace A;\nusing namespace B;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19910_execute() {\n    { return reachable{43}; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19910",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Lookup.h",
+  "source_line": 368,
+  "validation_status": "validated"
+}

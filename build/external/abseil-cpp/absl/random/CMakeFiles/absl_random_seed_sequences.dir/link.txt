@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_random_seed_sequences.a CMakeFiles/absl_random_seed_sequences.dir/seed_sequences.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_random_seed_sequences.a

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Bitstream/BitstreamReader.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorOr.h\"\n#include <system_error>\n\nusing namespace clang;\nusing namespace serialized_diags;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18412_execute() {\n    {\n  CouldNotLoad = 1,\n  InvalidSignature,\n  InvalidDiagnostics,\n  MalformedTopLevelBlock,\n  MalformedSubBlock,\n  MalformedBlockInfoBlock,\n  MalformedMetadataBlock,\n  MalformedDiagnosticBlock,\n  MalformedDiagnosticRecord,\n  MissingVersion,\n  VersionMismatch,\n  UnsupportedConstruct,\n  /// A generic error for subclass handlers that don't want or need to define\n  /// their own error_category.\n  HandlerFailed\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18412",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/SerializedDiagnosticReader.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

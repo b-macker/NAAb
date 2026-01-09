@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01059_execute() {\n    {\n  FMT_ASSERT(begin != end && '0' <= *begin && *begin <= '9', \"\");\n  unsigned value = 0, prev = 0;\n  auto p = begin;\n  do {\n    prev = value;\n    value = value * 10 + unsigned(*p - '0');\n    ++p;\n  } while (p != end && '0' <= *p && *p <= '9');\n  auto num_digits = p - begin;\n  begin = p;\n  if (num_digits <= std::numeric_limits<int>::digits10)\n    return static_cast<int>(value);\n  // Check for overflow.\n  const unsigned max = to_unsigned((std::numeric_limits<int>::max)());\n  return num_digits == std::numeric_limits<int>::digits10 + 1 &&\n                 prev * 10ull + unsigned(p[-1] - '0') <= max\n             ? static_cast<int>(value)\n             : error_value;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01059",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 2336,
+  "validation_status": "validated"
+}

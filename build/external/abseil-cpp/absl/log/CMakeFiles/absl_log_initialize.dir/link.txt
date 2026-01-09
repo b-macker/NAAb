@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_log_initialize.a CMakeFiles/absl_log_initialize.dir/initialize.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_log_initialize.a

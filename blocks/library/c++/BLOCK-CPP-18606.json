@@ -1,0 +1,8 @@
+{
+  "code": "{\n    // The requesting module for the lookup we cached.\n    const Module *RequestingModule = nullptr;\n\n    /// Starting search directory iterator that the cached search was performed\n    /// from. If there is a hit and this value doesn't match the current query,\n    /// the cache has to be ignored.\n    ConstSearchDirIterator StartIt = nullptr;\n\n    /// The search directory iterator that satisfied the query.\n    ConstSearchDirIterator HitIt = nullptr;\n\n    /// This is non-null if the original filename was mapped to a framework\n    /// include via a headermap.\n    const char *MappedName = nullptr;\n\n    /// Default constructor -- Initialize all members with zero.\n    LookupFileCacheInfo() = default;\n\n    void reset(const Module *NewRequestingModule,\n               ConstSearchDirIterator NewStartIt) {\n      RequestingModule = NewRequestingModule;\n      StartIt = NewStartIt;\n      MappedName = nullptr;\n    }\n  }",
+  "id": "BLOCK-CPP-18606",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/HeaderSearch.h",
+  "source_line": 279,
+  "validation_status": "validated"
+}

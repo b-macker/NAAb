@@ -1,0 +1,8 @@
+{
+  "code": "#include <chrono>\n#include <iterator>\n#include <spdlog/common.h>\n#include <spdlog/fmt/fmt.h>\n#include <type_traits>\n    #include <charconv>\n    #include <limits>\n\nusing namespace spdlog;\nusing namespace details;\nusing namespace fmt_helper;\nusing namespace to;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00229_execute() {\n    {\n    using std::chrono::duration_cast;\n    using std::chrono::seconds;\n    auto duration = tp.time_since_epoch();\n    auto secs = duration_cast<seconds>(duration);\n    return duration_cast<ToDuration>(duration) - duration_cast<ToDuration>(secs);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00229",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/fmt_helper.h",
+  "source_line": 130,
+  "validation_status": "validated"
+}

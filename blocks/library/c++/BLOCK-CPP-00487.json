@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/os.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/sinks/base_sink.h>\n#include <array>\n#include <systemd/sd-journal.h>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00487_execute() {\n    {\n    return Factory::template create<sinks::systemd_sink_st>(logger_name, ident, enable_formatting);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00487",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/systemd_sink.h",
+  "source_line": 115,
+  "validation_status": "validated"
+}

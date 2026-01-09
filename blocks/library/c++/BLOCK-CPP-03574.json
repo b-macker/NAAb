@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03574_execute() {\n    {\n//     LeakCheckDisabler disabler;\n//     ... code that allocates objects whose leaks should be ignored ...\n//   }\n//\n// REQUIRES: Destructor runs in same thread as constructor\nclass LeakCheckDisabler {\n public:\n  LeakCheckDisabler();\n  LeakCheckDisabler(const LeakCheckDisabler&) = delete;\n  LeakCheckDisabler& operator=(const LeakCheckDisabler&) = delete;\n  ~LeakCheckDisabler();\n};\n\n// RegisterLivePointers()\n//\n// Registers `ptr[0,size-1]` as pointers to memory that is still actively being\n// referenced and for which leak checking should be ignored. This function is\n// useful if you store pointers in mapped memory, for memory ranges that we know\n// are correct but for which normal analysis would flag as leaked code.\nvoid RegisterLivePointers(const void* ptr, size_t size);\n\n// UnRegisterLivePointers()\n//\n// Deregisters the pointers previously marked as active in\n// `RegisterLivePointers()`, enabling leak checking of those pointers.\nvoid UnRegisterLivePointers(const void* ptr, size_t size);\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03574",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/leak_check.h",
+  "source_line": 119,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/ASTTypeTraits.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12319_execute() {\n    {\n  ParentMapContext &Ctx;\n  TraversalKind TK = TK_AsIs;\n\npublic:\n  TraversalKindScope(ASTContext &ASTCtx, std::optional<TraversalKind> ScopeTK)\n      : Ctx(ASTCtx.getParentMapContext()) {\n    TK = Ctx.getTraversalKind();\n    if (ScopeTK)\n      Ctx.setTraversalKind(*ScopeTK);\n  }\n\n  ~TraversalKindScope() { Ctx.setTraversalKind(TK); }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12319",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ParentMapContext.h",
+  "source_line": 75,
+  "validation_status": "validated"
+}

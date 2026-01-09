@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Parse/ParseDiagnostic.h\"\n#include \"clang/Parse/Parser.h\"\n#include \"clang/Sema/DelayedDiagnostic.h\"\n#include \"clang/Sema/ParsedTemplate.h\"\n#include \"clang/Sema/Sema.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19386_execute() {\n    {\n      if (P.Tok.is(Close)) {\n        LClose = (P.*Consumer)();\n        return false;\n      } else if (P.Tok.is(tok::semi) && P.NextToken().is(Close)) {\n        SourceLocation SemiLoc = P.ConsumeToken();\n        P.Diag(SemiLoc, diag::err_unexpected_semi)\n            << Close << FixItHint::CreateRemoval(SourceRange(SemiLoc, SemiLoc));\n        LClose = (P.*Consumer)();\n        return false;\n      }\n\n      return diagnoseMissingClose();\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19386",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
+  "source_line": 462,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n  template <typename CHECKER>\n  static void _checkBody(void *checker, const Decl *D, AnalysisManager& mgr,\n                         BugReporter &BR) {\n    ((const CHECKER *)checker)->checkASTCodeBody(D, mgr, BR);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForBody(CheckerManager::CheckDeclFunc(checker,\n                                                       _checkBody<CHECKER>));\n  }\n}",
+  "id": "BLOCK-CPP-22296",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 48,
+  "validation_status": "validated"
+}

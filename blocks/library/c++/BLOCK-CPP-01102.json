@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n    #include <fmt/core.h>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01102_execute() {\n    {\n  using detail::get_buffer;\n  auto&& buf = get_buffer<char>(out);\n  detail::vformat_to(buf, fmt, args, {});\n  return detail::get_iterator(buf);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01102",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 3212,
+  "validation_status": "validated"
+}

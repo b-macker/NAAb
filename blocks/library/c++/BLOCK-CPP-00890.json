@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00890_execute() {\n    {\n  memory_buffer buffer;\n  fmt::format_to(std::back_inserter(buffer), format_str, args...);\n  detail::print(f, {buffer.data(), buffer.size()});\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00890",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
+  "source_line": 586,
+  "validation_status": "validated"
+}

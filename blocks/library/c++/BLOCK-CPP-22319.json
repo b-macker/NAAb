@@ -1,0 +1,8 @@
+{
+  "code": "{\n  template <typename CHECKER>\n  static bool _evalCall(void *checker, const CallEvent &Call,\n                        CheckerContext &C) {\n    return ((const CHECKER *)checker)->evalCall(Call, C);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForEvalCall(\n                     CheckerManager::EvalCallFunc(checker, _evalCall<CHECKER>));\n  }\n}",
+  "id": "BLOCK-CPP-22319",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 474,
+  "validation_status": "validated"
+}

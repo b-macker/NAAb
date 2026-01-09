@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ninline bool equals(const til::SExpr *E1, const til::SExpr *E2) {\n  return til::EqualsComparator::compareExprs(E1, E2);\n}\n\ninline bool matches(const til::SExpr *E1, const til::SExpr *E2) {\n  // We treat a top-level wildcard as the \"univsersal\" lock.\n  // It matches everything for the purpose of checking locks, but not\n  // for unlocking them.\n  if (isa<til::Wildcard>(E1))\n    return isa<til::Wildcard>(E2);\n  if (isa<til::Wildcard>(E2))\n    return isa<til::Wildcard>(E1);\n\n  return til::MatchComparator::compareExprs(E1, E2);\n}\n\ninline bool partiallyMatches(const til::SExpr *E1, const til::SExpr *E2) {\n  const auto *PE1 = dyn_cast_or_null<til::Project>(E1);\n  if (!PE1)\n    return false;\n  const auto *PE2 = dyn_cast_or_null<til::Project>(E2);\n  if (!PE2)\n    return false;\n  return PE1->clangDecl() == PE2->clangDecl();\n}\n\ninline std::string toString(const til::SExpr *E) {\n  std::stringstream ss;\n  til::StdPrinter::print(E, ss);\n  return ss.str();\n}\n\n}",
+  "id": "BLOCK-CPP-21465",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyCommon.h",
+  "source_line": 63,
+  "validation_status": "validated"
+}

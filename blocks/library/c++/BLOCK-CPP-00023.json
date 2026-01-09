@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/tweakme.h>\n#include <atomic>\n#include <chrono>\n#include <cstdio>\n#include <exception>\n#include <functional>\n#include <initializer_list>\n#include <memory>\n#include <string>\n#include <type_traits>\n    #include <version>\n        #include <format>\n        #include <string_view>\n#include <spdlog/fmt/fmt.h>\n        #include <spdlog/fmt/xchar.h>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace fmt_lib;\nusing namespace fmt_lib;\nusing namespace level;\nusing namespace level;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00023_execute() {\n    {\n    file_event_handlers()\n        : before_open(nullptr),\n          after_open(nullptr),\n          before_close(nullptr),\n          after_close(nullptr) {}\n\n    std::function<void(const filename_t &filename)> before_open;\n    std::function<void(const filename_t &filename, std::FILE *file_stream)> after_open;\n    std::function<void(const filename_t &filename, std::FILE *file_stream)> before_close;\n    std::function<void(const filename_t &filename)> after_close;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00023",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/common.h",
+  "source_line": 328,
+  "validation_status": "validated"
+}

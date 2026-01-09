@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstddef>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace ascii_internal;\nusing namespace ascii_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03962_execute() {\n    {\n  return (ascii_internal::kPropertyBits[c] & 0x80) != 0;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03962",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/ascii.h",
+  "source_line": 126,
+  "validation_status": "validated"
+}

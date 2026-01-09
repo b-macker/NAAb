@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTLambda.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20654_execute() {\n    {\nnamespace sema {\nclass FunctionScopeInfo;\n}\nclass Sema;\n\n/// Examines the FunctionScopeInfo stack to determine the nearest\n/// enclosing lambda (to the current lambda) that is 'capture-capable' for\n/// the variable referenced in the current lambda (i.e. \\p VarToCapture).\n/// If successful, returns the index into Sema's FunctionScopeInfo stack\n/// of the capture-capable lambda's LambdaScopeInfo.\n/// See Implementation for more detailed comments.\n\nstd::optional<unsigned> getStackIndexOfNearestEnclosingCaptureCapableLambda(\n    ArrayRef<const sema::FunctionScopeInfo *> FunctionScopes,\n    ValueDecl *VarToCapture, Sema &S);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20654",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaLambda.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

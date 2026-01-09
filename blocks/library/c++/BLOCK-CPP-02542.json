@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02542_execute() {\n    {\n  ComplexityGuard guard(state);\n  if (guard.IsTooComplex()) return false;\n  bool has_something = false;\n  while (true) {\n    MaybeAppendSeparator(state);\n    if (ParseTemplateParam(state) ||\n        ParseSubstitution(state, /*accept_std=*/true) ||\n        ParseUnscopedName(state) ||\n        (ParseOneCharToken(state, 'M') && ParseUnnamedTypeName(state))) {\n      has_something = true;\n      MaybeIncreaseNestLevel(state);\n      continue;\n    }\n    MaybeCancelLastSeparator(state);\n    if (has_something && ParseTemplateArgs(state)) {\n      return ParsePrefix(state);\n    } else {\n      break;\n    }\n  }\n  return true;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02542",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
+  "source_line": 731,
+  "validation_status": "validated"
+}

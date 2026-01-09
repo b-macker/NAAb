@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/ASTMatchers/ASTMatchFinder.h\"\n#include \"clang/ASTMatchers/ASTMatchers.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowEnvironment.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <functional>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21974_execute() {\n    {\n  TransferStateForDiagnostics(const LatticeT &Lattice, const Environment &Env)\n      : Lattice(Lattice), Env(Env) {}\n\n  /// Current lattice element.\n  const LatticeT &Lattice;\n  const Environment &Env;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21974",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/MatchSwitch.h",
+  "source_line": 51,
+  "validation_status": "validated"
+}

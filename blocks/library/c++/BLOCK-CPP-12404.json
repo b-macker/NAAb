@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ExternalASTSource.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12404_execute() {\n    { Link.get<KnownLatest>().markIncomplete(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12404",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Redeclarable.h",
+  "source_line": 156,
+  "validation_status": "validated"
+}

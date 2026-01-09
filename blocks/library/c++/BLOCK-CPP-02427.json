@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/raw_hash_set.h\"\n#include <atomic>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/hash/hash.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02427_execute() {\n    {\n  // Note: we can't use the abseil-random library because abseil-random\n  // depends on swisstable. We want to return true with probability\n  // `min(1, RehashProbabilityConstant() / capacity())`. In order to do this,\n  // we probe based on a random hash and see if the offset is less than\n  // RehashProbabilityConstant().\n  return probe(ctrl, capacity, absl::HashOf(RandomSeed())).offset() <\n         RehashProbabilityConstant();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02427",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.cc",
+  "source_line": 72,
+  "validation_status": "validated"
+}

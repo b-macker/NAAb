@@ -1,0 +1,34 @@
+# Simple logical operator test
+
+print("Testing logical operators...")
+
+# Test 1: AND operator
+if (true && true) {
+    print("Test 1 PASS: true && true")
+}
+
+if (!(true && false)) {
+    print("Test 2 PASS: true && false is false")
+}
+
+# Test 2: OR operator
+if (true || false) {
+    print("Test 3 PASS: true || false")
+}
+
+if (!(false || false)) {
+    print("Test 4 PASS: false || false is false")
+}
+
+# Test 3: NOT operator
+if (!false) {
+    print("Test 5 PASS: !false is true")
+}
+
+if (!(true)) {
+    print("Test 6 FAIL: !true should be false")
+} else {
+    print("Test 6 PASS: !true is false")
+}
+
+print("All tests complete!")

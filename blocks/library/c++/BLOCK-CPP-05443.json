@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include <arm_neon.h>\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05443_execute() {\n    {\n  return vreinterpretq_m128i_s32(vld1q_s32((const int32_t *)p));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05443",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/non_temporal_arm_intrinsics.h",
+  "source_line": 45,
+  "validation_status": "validated"
+}

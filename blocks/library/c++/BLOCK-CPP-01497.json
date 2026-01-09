@@ -1,0 +1,8 @@
+{
+  "code": "#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <system_error>  // std::system_error\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01497_execute() {\n    {\n  int oflag = file::WRONLY | file::CREATE | file::TRUNC;\n  size_t buffer_size = BUFSIZ > 32768 ? BUFSIZ : 32768;\n\n  ostream_params() {}\n\n  template <typename... T>\n  ostream_params(T... params, int new_oflag) : ostream_params(params...) {\n    oflag = new_oflag;\n  }\n\n  template <typename... T>\n  ostream_params(T... params, detail::buffer_size bs)\n      : ostream_params(params...) {\n    this->buffer_size = bs.value;\n  }\n\n// Intel has a bug that results in failure to deduce a constructor\n// for empty parameter packs.\n#  if defined(__INTEL_COMPILER) && __INTEL_COMPILER < 2000\n  ostream_params(int new_oflag) : oflag(new_oflag) {}\n  ostream_params(detail::buffer_size bs) : buffer_size(bs.value) {}\n#  endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01497",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/os.h",
+  "source_line": 375,
+  "validation_status": "validated"
+}

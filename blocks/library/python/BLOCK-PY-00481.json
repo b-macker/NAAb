@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00481_execute() {\n    def __init__(self, *fields: t.Any, **attributes: t.Any) -> None:\n        if self.abstract:\n            raise TypeError(\"abstract nodes are not instantiable\")\n        if fields:\n            if len(fields) != len(self.fields):\n                if not self.fields:\n                    raise TypeError(f\"{type(self).__name__!r} takes 0 arguments\")\n                raise TypeError(\n                    f\"{type(self).__name__!r} takes 0 or {len(self.fields)}\"\n                    f\" argument{'s' if len(self.fields) != 1 else ''}\"\n                )\n            for name, arg in zip(self.fields, fields, strict=False):\n                setattr(self, name, arg)\n        for attr in self.attributes:\n            setattr(self, attr, attributes.pop(attr, None))\n        if attributes:\n            raise TypeError(f\"unknown attribute {next(iter(attributes))!r}\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00481",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 129,
+  "validation_status": "validated"
+}

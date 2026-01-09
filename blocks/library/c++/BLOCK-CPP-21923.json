@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/CFG.h\"\n#include \"clang/Analysis/ProgramPoint.h\"\n#include \"llvm/ADT/DenseMap.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21923_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21923",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DataflowValues.h",
+  "source_line": 31,
+  "validation_status": "validated"
+}

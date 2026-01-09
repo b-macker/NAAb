@@ -1,0 +1,8 @@
+{
+  "code": "#include <limits>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/fast_type_id.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/distribution_caller.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03819_execute() {\n    {\n\ntemplate <typename URBG, typename = void, typename = void, typename = void>\nstruct is_urbg : std::false_type {};\n\ntemplate <typename URBG>\nstruct is_urbg<\n    URBG,\n    absl::enable_if_t<std::is_same<\n        typename URBG::result_type,\n        typename std::decay<decltype((URBG::min)())>::type>::value>,\n    absl::enable_if_t<std::is_same<\n        typename URBG::result_type,\n        typename std::decay<decltype((URBG::max)())>::type>::value>,\n    absl::enable_if_t<std::is_same<\n        typename URBG::result_type,\n        typename std::decay<decltype(std::declval<URBG>()())>::type>::value>>\n    : std::true_type {};\n\ntemplate <typename>\nstruct DistributionCaller;\nclass MockHelpers;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03819",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/bit_gen_ref.h",
+  "source_line": 39,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  explicit FunctionExitPoint(const ReturnStmt *S,\n                             const LocationContext *LC,\n                             const ProgramPointTag *tag = nullptr)\n      : ProgramPoint(S, FunctionExitKind, LC, tag) {}\n\n  const CFGBlock *getBlock() const {\n    return &getLocationContext()->getCFG()->getExit();\n  }\n\n  const ReturnStmt *getStmt() const {\n    return reinterpret_cast<const ReturnStmt *>(getData1());\n  }\n\nprivate:\n  friend class ProgramPoint;\n  FunctionExitPoint() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == FunctionExitKind;\n  }\n}",
+  "id": "BLOCK-CPP-15874",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 330,
+  "validation_status": "validated"
+}

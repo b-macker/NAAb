@@ -1,0 +1,8 @@
+{
+  "code": "def _generate_tests(self, request, code: str) -> str:\n        \"\"\"Generate Go tests with testify\"\"\"\n        return f'''\n// Go Tests for {request.message}\npackage main\n\nimport (\n    \"context\"\n    \"testing\"\n    \"time\"\n\n    \"github.com/stretchr/testify/assert\"\n    \"github.com/stretchr/testify/require\"\n    \"github.com/stretchr/testify/suite\"\n)\n\n// Test suite\ntype TestSuite struct {{\n    suite.Suite\n    service *AliceService\n    config  *Config\n}}\n\nfunc (suite *TestSuite) SetupTest() {{\n    suite.config = &Config{{\n        ServiceName: \"test-service\",\n        Port:        8080,\n        LogLevel:    \"info\", \n        Timeout:     30,\n    }}\n    \n    suite.service = NewAliceService(suite.config)\n    err := suite.service.Initialize()\n    require.NoError(suite.T(), err)\n}}\n\nfunc (suite *TestSuite) TestHealthCheck() {{\n    health := suite.service.HealthCheck()\n    \n    assert.NotNil(suite.T(), health)\n    assert.Equal(suite.T(), \"UP\", health.Status)\n    assert.NotZero(suite.T(), health.Timestamp)\n    assert.Contains(suite.T(), health.Details, \"service\")\n}}\n\nfunc TestAliceTestSuite(t *testing.T) {{\n    suite.Run(t, new(TestSuite))\n}}\n'''",
+  "id": "BLOCK-PY-00190",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/go_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

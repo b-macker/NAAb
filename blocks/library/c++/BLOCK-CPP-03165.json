@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/low_level_alloc.h\"\n#include \"absl/synchronization/internal/graphcycles.h\"\n#include <algorithm>\n#include <array>\n#include <cinttypes>\n#include <limits>\n#include \"absl/base/internal/hide_ptr.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03165_execute() {\n    {\n  r->deltab_.clear();\n  r->stack_.clear();\n  r->stack_.push_back(n);\n  while (!r->stack_.empty()) {\n    n = r->stack_.back();\n    r->stack_.pop_back();\n    Node* nn = r->nodes_[static_cast<uint32_t>(n)];\n    if (nn->visited) continue;\n\n    nn->visited = true;\n    r->deltab_.push_back(n);\n\n    HASH_FOR_EACH(w, nn->in) {\n      Node* nw = r->nodes_[static_cast<uint32_t>(w)];\n      if (!nw->visited && lower_bound < nw->rank) {\n        r->stack_.push_back(w);\n      }\n    }\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03165",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/graphcycles.cc",
+  "source_line": 566,
+  "validation_status": "validated"
+}

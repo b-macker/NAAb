@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/charconv_parse.h\"\n#include \"absl/strings/charconv.h\"\n#include <cassert>\n#include <cstdint>\n#include <limits>\n#include \"absl/strings/internal/memutil.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02870_execute() {\n    {\n      ++begin;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02870",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_parse.cc",
+  "source_line": 459,
+  "validation_status": "validated"
+}

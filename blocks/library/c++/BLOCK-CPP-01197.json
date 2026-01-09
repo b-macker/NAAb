@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01197_execute() {\n    {\n    return (cache.high() +\n            (cache.high() >> (num_significand_bits<double>() + 1))) >>\n           (64 - num_significand_bits<double>() - 1 - beta);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01197",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 1126,
+  "validation_status": "validated"
+}

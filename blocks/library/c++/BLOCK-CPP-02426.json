@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/raw_hash_set.h\"\n#include <atomic>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/hash/hash.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02426_execute() {\n    {\n#ifdef ABSL_HAVE_THREAD_LOCAL\n  static thread_local size_t counter = 0;\n  // On Linux kernels >= 5.4 the MSAN runtime has a false-positive when\n  // accessing thread local storage data from loaded libraries\n  // (https://github.com/google/sanitizers/issues/1265), for this reason counter\n  // needs to be annotated as initialized.\n  ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(&counter, sizeof(size_t));\n  size_t value = ++counter;\n#else   // ABSL_HAVE_THREAD_LOCAL\n  static std::atomic<size_t> counter(0);\n  size_t value = counter.fetch_add(1, std::memory_order_relaxed);\n#endif  // ABSL_HAVE_THREAD_LOCAL\n  return value ^ static_cast<size_t>(reinterpret_cast<uintptr_t>(&counter));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02426",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.cc",
+  "source_line": 56,
+  "validation_status": "validated"
+}

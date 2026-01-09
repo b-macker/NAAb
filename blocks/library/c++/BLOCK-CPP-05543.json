@@ -1,0 +1,8 @@
+{
+  "code": "#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05543_execute() {\n    {\n\n// Returns program invocation name or \"UNKNOWN\" if `SetProgramInvocationName()`\n// is never called. At the moment this is always set to argv[0] as part of\n// library initialization.\nstd::string ProgramInvocationName();\n\n// Returns base name for program invocation name. For example, if\n//   ProgramInvocationName() == \"a/b/mybinary\"\n// then\n//   ShortProgramInvocationName() == \"mybinary\"\nstd::string ShortProgramInvocationName();\n\n// Sets program invocation name to a new value. Should only be called once\n// during program initialization, before any threads are spawned.\nvoid SetProgramInvocationName(absl::string_view prog_name_str);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05543",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/program_name.h",
+  "source_line": 29,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/ASTMatchers/ASTMatchFinder.h\"\n#include \"clang/Tooling/Refactoring.h\"\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21210_execute() {\n    {\npublic:\n  ReplaceStmtWithStmt(StringRef FromId, StringRef ToId);\n  void run(const ast_matchers::MatchFinder::MatchResult &Result) override;\n\nprivate:\n  std::string FromId;\n  std::string ToId;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21210",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/RefactoringCallbacks.h",
+  "source_line": 113,
+  "validation_status": "validated"
+}

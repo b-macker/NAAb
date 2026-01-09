@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include \"absl/numeric/int128.h\"\n#include <optional>\n#include <string>\n#include <vector>\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/optional.h\"\n\nusing namespace where;\nusing namespace foo;\nusing namespace as;\nusing namespace as;\nusing namespace as;\nusing namespace my_flag_type;\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03600_execute() {\n    {\n  // Comment on next line provides a good compiler error message if T does not\n  // have UnparseFlag.\n  return AbslUnparseFlag(v);  // Is T missing AbslUnparseFlag?\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03600",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/marshalling.h",
+  "source_line": 299,
+  "validation_status": "validated"
+}

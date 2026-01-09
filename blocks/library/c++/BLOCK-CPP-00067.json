@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/backtracer.h>\n#include <spdlog/details/log_msg.h>\n    #include <spdlog/details/os.h>\n#include <vector>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00067_execute() {\n    {\n        bool log_enabled = should_log(lvl);\n        bool traceback_enabled = tracer_.enabled();\n        if (!log_enabled && !traceback_enabled) {\n            return;\n        }\n        SPDLOG_TRY {\n            memory_buf_t buf;\n#ifdef SPDLOG_USE_STD_FORMAT\n            fmt_lib::vformat_to(std::back_inserter(buf), fmt, fmt_lib::make_format_args(args...));\n#else\n            fmt::vformat_to(fmt::appender(buf), fmt, fmt::make_format_args(args...));\n#endif\n\n            details::log_msg log_msg(loc, name_, lvl, string_view_t(buf.data(), buf.size()));\n            log_it_(log_msg, log_enabled, traceback_enabled);\n        }\n        SPDLOG_LOGGER_CATCH(loc)\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00067",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/logger.h",
+  "source_line": 316,
+  "validation_status": "validated"
+}

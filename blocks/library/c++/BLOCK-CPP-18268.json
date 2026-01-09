@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CodeGenOptions.h\"\n#include \"clang/Basic/DiagnosticOptions.h\"\n#include \"clang/Basic/FileSystemOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/LangStandard.h\"\n#include \"clang/Frontend/DependencyOutputOptions.h\"\n#include \"clang/Frontend/FrontendOptions.h\"\n#include \"clang/Frontend/MigratorOptions.h\"\n#include \"clang/Frontend/PreprocessorOutputOptions.h\"\n#include \"clang/StaticAnalyzer/Core/AnalyzerOptions.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include <memory>\n#include <string>\n  /// Options controlling the \\#include directive.\n  /// Options controlling the preprocessor (aside from \\#include handling).\n\nusing namespace llvm;\nusing namespace opt;\nusing namespace opt;\nusing namespace vfs;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18268_execute() {\n    {\n    return PreprocessorOpts;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18268",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/CompilerInvocation.h",
+  "source_line": 122,
+  "validation_status": "validated"
+}

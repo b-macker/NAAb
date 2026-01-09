@@ -1,0 +1,8 @@
+{
+  "code": "#include <stddef.h>\n#include <stdint.h>\n#include <atomic>\n#include <cassert>\n#include <cstring>\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05555_execute() {\n    {\n    char* dst_byte = static_cast<char*>(dst);\n    while (size >= sizeof(uint64_t)) {\n      uint64_t word = src->load(std::memory_order_relaxed);\n      std::memcpy(dst_byte, &word, sizeof(word));\n      dst_byte += sizeof(word);\n      src++;\n      size -= sizeof(word);\n    }\n    if (size > 0) {\n      uint64_t word = src->load(std::memory_order_relaxed);\n      std::memcpy(dst_byte, &word, size);\n    }\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05555",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/sequence_lock.h",
+  "source_line": 143,
+  "validation_status": "validated"
+}

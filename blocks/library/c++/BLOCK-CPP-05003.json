@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <algorithm>\n#include <type_traits>\n#include <vector>\n#include \"absl/container/internal/hashtable_debug_hooks.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05003_execute() {\n    {\n  return absl::container_internal::hashtable_debug_internal::\n      HashtableDebugAccess<C>::GetNumProbes(c, key);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05003",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hashtable_debug.h",
+  "source_line": 48,
+  "validation_status": "validated"
+}

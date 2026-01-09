@@ -1,0 +1,8 @@
+{
+  "code": "{\n    ///    }\n    /// \\endcode\n    BTDS_No,\n    /// Force break after template declaration only when the following\n    /// declaration spans multiple lines.\n    /// \\code\n    ///    template <typename T> T foo() {\n    ///    }\n    ///    template <typename T>\n    ///    T foo(int aaaaaaaaaaaaaaaaaaaaa,\n    ///          int bbbbbbbbbbbbbbbbbbbbb) {\n    ///    }\n    /// \\endcode\n    BTDS_MultiLine,\n    /// Always break after template declaration.\n    /// \\code\n    ///    template <typename T>\n    ///    T foo() {\n    ///    }\n    ///    template <typename T>\n    ///    T foo(int aaaaaaaaaaaaaaaaaaaaa,\n    ///          int bbbbbbbbbbbbbbbbbbbbb) {\n    ///    }\n    /// \\endcode\n    BTDS_Yes\n  }",
+  "id": "BLOCK-CPP-18054",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
+  "source_line": 934,
+  "validation_status": "validated"
+}

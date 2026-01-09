@@ -1,0 +1,8 @@
+{
+  "code": "{\n    auto is_relocatable =\n        typename absl::is_trivially_relocatable<value_type>::type();\n\n    emplace(new_slot);\n#if defined(__cpp_lib_launder) && __cpp_lib_launder >= 201606\n    if (is_relocatable) {\n      // TODO(b/247130232,b/251814870): remove casts after fixing warnings.\n      std::memcpy(static_cast<void*>(std::launder(&new_slot->value)),\n                  static_cast<const void*>(&old_slot->value),\n                  sizeof(value_type));\n      return is_relocatable;\n    }\n#endif\n\n    if (kMutableKeys::value) {\n      absl::allocator_traits<Allocator>::construct(\n          *alloc, &new_slot->mutable_value, std::move(old_slot->mutable_value));\n    } else {\n      absl::allocator_traits<Allocator>::construct(*alloc, &new_slot->value,\n                                                   std::move(old_slot->value));\n    }\n    destroy(alloc, old_slot);\n    return is_relocatable;\n  }",
+  "id": "BLOCK-CPP-04975",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/container_memory.h",
+  "source_line": 425,
+  "validation_status": "validated"
+}

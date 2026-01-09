@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ComputeDependence.h\"\n#include \"clang/AST/Expr.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11106_execute() {\n    {\n  /// Internal normalized counter.\n  VarDecl *CounterVD = nullptr;\n  /// Normalized upper bound. Normalized loop iterates from 0 to Upper with\n  /// step 1.\n  Expr *Upper = nullptr;\n  /// Update expression for the originally specified iteration variable,\n  /// calculated as VD = Begin + CounterVD * Step;\n  Expr *Update = nullptr;\n  /// Updater for the internal counter: ++CounterVD;\n  Expr *CounterUpdate = nullptr;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11106",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprOpenMP.h",
+  "source_line": 235,
+  "validation_status": "validated"
+}

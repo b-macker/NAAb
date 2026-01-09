@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/str_format/parser.h\"\n#include <assert.h>\n#include <string.h>\n#include <wchar.h>\n#include <cctype>\n#include <cstdint>\n#include <algorithm>\n#include <initializer_list>\n#include <limits>\n#include <ostream>\n#include <string>\n#include <unordered_set>\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03118_execute() {\n    {\n    memcpy(data_pos, s.data(), s.size());\n    data_pos += s.size();\n    return static_cast<size_t>(data_pos - parsed->data_.get());\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03118",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/parser.cc",
+  "source_line": 93,
+  "validation_status": "validated"
+}

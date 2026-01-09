@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/container/internal/btree.h\"  // IWYU pragma: export\n#include \"absl/container/internal/btree_container.h\"  // IWYU pragma: export\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03478_execute() {\n    {\n\ntemplate <typename Key>\nstruct set_slot_policy;\n\ntemplate <typename Key, typename Compare, typename Alloc, int TargetNodeSize,\n          bool IsMulti>\nstruct set_params;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03478",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/btree_set.h",
+  "source_line": 61,
+  "validation_status": "validated"
+}

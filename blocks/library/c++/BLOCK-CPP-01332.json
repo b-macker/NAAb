@@ -1,0 +1,8 @@
+{
+  "code": "{\n  auto str =\n      isnan ? (fspecs.upper ? \"NAN\" : \"nan\") : (fspecs.upper ? \"INF\" : \"inf\");\n  constexpr size_t str_size = 3;\n  auto sign = fspecs.sign;\n  auto size = str_size + (sign ? 1 : 0);\n  // Replace '0'-padding with space for non-finite values.\n  const bool is_zero_fill =\n      specs.fill.size() == 1 && *specs.fill.data() == static_cast<Char>('0');\n  if (is_zero_fill) specs.fill[0] = static_cast<Char>(' ');\n  return write_padded(out, specs, size, [=](reserve_iterator<OutputIt> it) {\n    if (sign) *it++ = detail::sign<Char>(sign);\n    return copy_str<Char>(str, str + str_size, it);\n  });\n}",
+  "id": "BLOCK-CPP-01332",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 2237,
+  "validation_status": "validated"
+}

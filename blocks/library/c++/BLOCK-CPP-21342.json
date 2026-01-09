@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/DepthFirstIterator.h\"\n#include \"llvm/ADT/GraphTraits.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/Support/GenericIteratedDominanceFrontier.h\"\n#include \"llvm/Support/GenericDomTree.h\"\n#include \"llvm/Support/GenericDomTreeConstruction.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21342_execute() {\n    { DT.reset(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21342",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/Dominators.h",
+  "source_line": 170,
+  "validation_status": "validated"
+}

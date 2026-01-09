@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/time/internal/cctz/include/cctz/zone_info_source.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03266_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace time_internal {\nnamespace cctz {\n\n// Defined out-of-line to avoid emitting a weak vtable in all TUs.\nZoneInfoSource::~ZoneInfoSource() {}\nstd::string ZoneInfoSource::Version() const { return std::string(); }\n\n}  // namespace cctz\n}  // namespace time_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03266",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/zone_info_source.cc",
+  "source_line": 19,
+  "validation_status": "validated"
+}

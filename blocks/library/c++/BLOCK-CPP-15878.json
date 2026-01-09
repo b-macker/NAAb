@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  PreStore(const Stmt *S, const LocationContext *L,\n           const ProgramPointTag *tag = nullptr)\n  : LocationCheck(S, L, PreStoreKind, tag) {}\n\nprivate:\n  friend class ProgramPoint;\n  PreStore() = default;\n  static bool isKind(const ProgramPoint &location) {\n    return location.getKind() == PreStoreKind;\n  }\n}",
+  "id": "BLOCK-CPP-15878",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
+  "source_line": 397,
+  "validation_status": "validated"
+}

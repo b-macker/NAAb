@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/DiagnosticOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18284_execute() {\n    {\npublic:\n  DiagnosticNoteRenderer(const LangOptions &LangOpts,\n                         DiagnosticOptions *DiagOpts)\n      : DiagnosticRenderer(LangOpts, DiagOpts) {}\n\n  ~DiagnosticNoteRenderer() override;\n\n  void emitIncludeLocation(FullSourceLoc Loc, PresumedLoc PLoc) override;\n\n  void emitImportLocation(FullSourceLoc Loc, PresumedLoc PLoc,\n                          StringRef ModuleName) override;\n\n  void emitBuildingModuleLocation(FullSourceLoc Loc, PresumedLoc PLoc,\n                                  StringRef ModuleName) override;\n\n  virtual void emitNote(FullSourceLoc Loc, StringRef Message) = 0;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18284",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/DiagnosticRenderer.h",
+  "source_line": 142,
+  "validation_status": "validated"
+}

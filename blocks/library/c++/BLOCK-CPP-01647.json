@@ -1,0 +1,8 @@
+{
+  "code": "{\nABSL_NAMESPACE_BEGIN\nbool HaveLeakSanitizer() { return false; }\nbool LeakCheckerIsActive() { return false; }\nvoid DoIgnoreLeak(const void*) { }\nvoid RegisterLivePointers(const void*, size_t) { }\nvoid UnRegisterLivePointers(const void*, size_t) { }\nLeakCheckDisabler::LeakCheckDisabler() = default;\nLeakCheckDisabler::~LeakCheckDisabler() = default;\nABSL_NAMESPACE_END\n}",
+  "id": "BLOCK-CPP-01647",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/leak_check.cc",
+  "source_line": 61,
+  "validation_status": "validated"
+}

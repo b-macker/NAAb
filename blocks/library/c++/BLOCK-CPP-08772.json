@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclContextInternals.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/ExternalASTSource.h\"\n#include <cstddef>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08772_execute() {\n    { return It->first; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-08772",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclLookups.h",
+  "source_line": 43,
+  "validation_status": "validated"
+}

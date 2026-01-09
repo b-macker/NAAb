@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CodeGenOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <memory>\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16741_execute() {\n    { return Empty; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16741",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/ProfileList.h",
+  "source_line": 51,
+  "validation_status": "validated"
+}

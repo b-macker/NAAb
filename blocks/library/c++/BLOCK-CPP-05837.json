@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05837_execute() {\n    {\n  double chi_square = 0;\n  for (; it != end && eit != eend; ++it, ++eit) {\n    if (*it > 0) {\n      assert(*eit > 0);\n    }\n    double e = static_cast<double>(*eit);\n    double d = static_cast<double>(*it - *eit);\n    if (d != 0) {\n      assert(e > 0);\n      chi_square += (d * d) / e;\n    }\n  }\n  assert(it == end && eit == eend);\n  return chi_square;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05837",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/chi_square.h",
+  "source_line": 55,
+  "validation_status": "validated"
+}

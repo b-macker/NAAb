@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/ascii.h\"\n#include <climits>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\nusing namespace ascii_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01820_execute() {\n    {\n  static_assert(std::is_integral<T>::value && sizeof(T) <= sizeof(uint64_t) &&\n                    std::is_unsigned<T>::value,\n                \"only unsigned integers up to 64-bit allowed\");\n  T result = value;\n  constexpr size_t result_bit_width = sizeof(result) * CHAR_BIT;\n  result |= result << ((CHAR_BIT << 0) & (result_bit_width - 1));\n  result |= result << ((CHAR_BIT << 1) & (result_bit_width - 1));\n  result |= result << ((CHAR_BIT << 2) & (result_bit_width - 1));\n  return result;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01820",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/ascii.cc",
+  "source_line": 165,
+  "validation_status": "validated"
+}

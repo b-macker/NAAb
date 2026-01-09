@@ -1,0 +1,13 @@
+{
+  "id": "BLOCK-CPP-MATH",
+  "name": "Math Utilities",
+  "language": "cpp",
+  "code": "// NAAb Block: BLOCK-CPP-MATH\n// C++ Math Utilities Block\n// Provides basic mathematical operations\n\n#include <cmath>\n\nextern \"C\" {\n\n// Add two numbers\nint add(int a, int b) {\n    return a + b;\n}\n\n// Subtract two numbers\nint subtract(int a, int b) {\n    return a - b;\n}\n\n// Multiply two numbers\nint multiply(int a, int b) {\n    return a * b;\n}\n\n// Divide two numbers (integer division)\nint divide(int a, int b) {\n    if (b == 0) return 0;\n    return a / b;\n}\n\n// Power function\ndouble power(double base, double exponent) {\n    return std::pow(base, exponent);\n}\n\n// Square root\ndouble sqrt_val(double x) {\n    return std::sqrt(x);\n}\n\n// Absolute value\nint abs_val(int x) {\n    return std::abs(x);\n}\n\n// Maximum of two numbers\nint max_val(int a, int b) {\n    return (a > b) ? a : b;\n}\n\n// Minimum of two numbers\nint min_val(int a, int b) {\n    return (a < b) ? a : b;\n}\n\n} // extern \"C\"\n",
+  "category": "math",
+  "subcategory": "basic",
+  "version": "1.0.0",
+  "validation_status": "validated",
+  "is_active": true,
+  "token_count": 250,
+  "times_used": 0
+}

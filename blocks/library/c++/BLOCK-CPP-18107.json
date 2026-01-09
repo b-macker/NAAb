@@ -1,0 +1,8 @@
+{
+  "code": "{\n    ///      Q_FOREACH(...) {\n    ///        f();\n    ///      }\n    ///    }\n    /// \\endcode\n    SBPO_ControlStatementsExceptControlMacros,\n    /// Put a space before opening parentheses only if the parentheses are not\n    /// empty i.e. '()'\n    /// \\code\n    ///   void() {\n    ///     if (true) {\n    ///       f();\n    ///       g (x, y, z);\n    ///     }\n    ///   }\n    /// \\endcode\n    SBPO_NonEmptyParentheses,\n    /// Always put a space before opening parentheses, except when it's\n    /// prohibited by the syntax rules (in function-like macro definitions) or\n    /// when determined by other style rules (after unary operators, opening\n    /// parentheses, etc.)\n    /// \\code\n    ///    void f () {\n    ///      if (true) {\n    ///        f ();\n    ///      }\n    ///    }\n    /// \\endcode\n    SBPO_Always,\n    /// Configure each individual space before parentheses in\n    /// ``SpaceBeforeParensOptions``.\n    SBPO_Custom,\n  }",
+  "id": "BLOCK-CPP-18107",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
+  "source_line": 3970,
+  "validation_status": "validated"
+}

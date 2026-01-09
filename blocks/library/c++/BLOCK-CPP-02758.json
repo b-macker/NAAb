@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/internal/vlog_config.h\"\n#include <stddef.h>\n#include <algorithm>\n#include <atomic>\n#include <functional>\n#include <memory>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/no_destructor.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/log/internal/fnmatch.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_split.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/synchronization/mutex.h\"\n#include \"absl/types/optional.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02758_execute() {\n    {\n#ifdef _WIN32\n  return module_pattern.find_first_of(\"/\\\\\") != module_pattern.npos;\n#else\n  return module_pattern.find('/') != module_pattern.npos;\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02758",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/vlog_config.cc",
+  "source_line": 48,
+  "validation_status": "validated"
+}

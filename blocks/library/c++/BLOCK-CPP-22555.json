@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/ARCMigrate/FileRemapper.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Frontend/CompilerInvocation.h\"\n\nusing namespace clang;\nusing namespace arcmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22555_execute() {\n    { }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22555",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ARCMigrate/ARCMT.h",
+  "source_line": 118,
+  "validation_status": "validated"
+}

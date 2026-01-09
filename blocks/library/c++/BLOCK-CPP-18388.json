@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Lex/Lexer.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/MD5.h\"\n#include <cstddef>\n#include <memory>\n#include <system_error>\n#include <type_traits>\n  /// entries, each #include will miss half of them on average).\n  /// Instead, we track only files that could have satisfied an #include that\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\nusing namespace clang;\nusing namespace std;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18388_execute() {\n    {\ntemplate <>\nstruct is_error_code_enum<clang::BuildPreambleError> : std::true_type {};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18388",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/PrecompiledPreamble.h",
+  "source_line": 259,
+  "validation_status": "validated"
+}

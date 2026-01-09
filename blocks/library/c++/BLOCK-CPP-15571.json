@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  CFGCallback() = default;\n  virtual ~CFGCallback() = default;\n\n  virtual void compareAlwaysTrue(const BinaryOperator *B, bool isAlwaysTrue) {}\n  virtual void compareBitwiseEquality(const BinaryOperator *B,\n                                      bool isAlwaysTrue) {}\n  virtual void compareBitwiseOr(const BinaryOperator *B) {}\n}",
+  "id": "BLOCK-CPP-15571",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
+  "source_line": 1160,
+  "validation_status": "validated"
+}

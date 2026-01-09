@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15645_execute() {\n    {\n\nclass Stmt;\nclass FunctionDecl;\nclass ObjCMethodDecl;\n\n/// CodeInjector is an interface which is responsible for injecting AST\n/// of function definitions that may not be available in the original source.\n///\n/// The getBody function will be called each time the static analyzer examines a\n/// function call that has no definition available in the current translation\n/// unit. If the returned statement is not a null pointer, it is assumed to be\n/// the body of a function which will be used for the analysis. The source of\n/// the body can be arbitrary, but it is advised to use memoization to avoid\n/// unnecessary reparsing of the external source that provides the body of the\n/// functions.\nclass CodeInjector {\npublic:\n  CodeInjector();\n  virtual ~CodeInjector();\n\n  virtual Stmt *getBody(const FunctionDecl *D) = 0;\n  virtual Stmt *getBody(const ObjCMethodDecl *D) = 0;\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15645",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CodeInjector.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

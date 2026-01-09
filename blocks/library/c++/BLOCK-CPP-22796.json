@@ -1,0 +1,8 @@
+{
+  "code": "{\n  uint64_t Width = 0;\n  unsigned Align = 0;\n  AlignRequirementKind AlignRequirement;\n\n  TypeInfo() : AlignRequirement(AlignRequirementKind::None) {}\n  TypeInfo(uint64_t Width, unsigned Align,\n           AlignRequirementKind AlignRequirement)\n      : Width(Width), Align(Align), AlignRequirement(AlignRequirement) {}\n  bool isAlignRequired() {\n    return AlignRequirement != AlignRequirementKind::None;\n  }\n}",
+  "id": "BLOCK-CPP-22796",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTContext.h",
+  "source_line": 152,
+  "validation_status": "validated"
+}

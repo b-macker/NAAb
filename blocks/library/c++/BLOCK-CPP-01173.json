@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01173_execute() {\n    {\n#if FMT_USE_INT128\n  auto p = static_cast<uint128_opt>(x) * static_cast<uint128_opt>(y);\n  return static_cast<uint64_t>(p >> 64);\n#elif defined(_MSC_VER) && defined(_M_X64)\n  return __umulh(x, y);\n#else\n  return umul128(x, y).high();\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01173",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 178,
+  "validation_status": "validated"
+}

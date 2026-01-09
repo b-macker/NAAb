@@ -1,0 +1,8 @@
+{
+  "code": "{\n\nvoid ThrowBadAnyCast() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw bad_any_cast();\n#else\n  ABSL_RAW_LOG(FATAL, \"Bad any cast\");\n  std::abort();\n#endif\n}\n\n}",
+  "id": "BLOCK-CPP-02280",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_any_cast.cc",
+  "source_line": 31,
+  "validation_status": "validated"
+}

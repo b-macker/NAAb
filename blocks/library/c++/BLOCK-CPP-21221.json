@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Tooling/ArgumentsAdjusters.h\"\n#include \"clang/Tooling/Execution.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21221_execute() {\n    {\n    Tool.setDiagnosticConsumer(DiagConsumer);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21221",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/StandaloneExecution.h",
+  "source_line": 64,
+  "validation_status": "validated"
+}

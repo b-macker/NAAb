@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/cordz_sample_token.h\"\n#include \"absl/base/config.h\"\n#include \"absl/strings/internal/cordz_handle.h\"\n#include \"absl/strings/internal/cordz_info.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02932_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace cord_internal {\n\nCordzSampleToken::Iterator& CordzSampleToken::Iterator::operator++() {\n  if (current_) {\n    current_ = current_->Next(*token_);\n  }\n  return *this;\n}\n\nCordzSampleToken::Iterator CordzSampleToken::Iterator::operator++(int) {\n  Iterator it(*this);\n  operator++();\n  return it;\n}\n\nbool operator==(const CordzSampleToken::Iterator& lhs,\n                const CordzSampleToken::Iterator& rhs) {\n  return lhs.current_ == rhs.current_ &&\n         (lhs.current_ == nullptr || lhs.token_ == rhs.token_);\n}\n\nbool operator!=(const CordzSampleToken::Iterator& lhs,\n                const CordzSampleToken::Iterator& rhs) {\n  return !(lhs == rhs);\n}\n\nCordzSampleToken::Iterator::reference CordzSampleToken::Iterator::operator*()\n    const {\n  return *current_;\n}\n\nCordzSampleToken::Iterator::pointer CordzSampleToken::Iterator::operator->()\n    const {\n  return current_;\n}\n\nCordzSampleToken::Iterator::Iterator(const CordzSampleToken* token)\n    : token_(token), current_(CordzInfo::Head(*token)) {}\n\n}  // namespace cord_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02932",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_sample_token.cc",
+  "source_line": 21,
+  "validation_status": "validated"
+}

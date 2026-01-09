@@ -1,0 +1,8 @@
+{
+  "code": "{\n  if (ancestor->skip == to_be_removed) {  // ancestor->skip left dangling\n    if (to_be_removed->skip != nullptr) {\n      ancestor->skip = to_be_removed->skip;  // can skip past to_be_removed\n    } else if (ancestor->next != to_be_removed) {  // they are not adjacent\n      ancestor->skip = ancestor->next;             // can skip one past ancestor\n    } else {\n      ancestor->skip = nullptr;  // can't skip at all\n    }\n  }\n}",
+  "id": "BLOCK-CPP-02068",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/mutex.cc",
+  "source_line": 883,
+  "validation_status": "validated"
+}

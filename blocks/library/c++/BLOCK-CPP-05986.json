@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/traits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05986_execute() {\n    {\ntemplate <typename T>\nstruct TagTypeCompare {};\n\ntemplate <typename T>\nconstexpr bool operator==(TagTypeCompare<T>, TagTypeCompare<T>) {\n  // Tags are mono-states. They always compare equal.\n  return true;\n}\ntemplate <typename T>\nconstexpr bool operator!=(TagTypeCompare<T>, TagTypeCompare<T>) {\n  return false;\n}\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05986",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/uniform_helper.h",
+  "source_line": 38,
+  "validation_status": "validated"
+}

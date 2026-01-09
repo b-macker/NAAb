@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate <typename T>\ninline T AnnotateUnprotectedRead(const volatile T& x) {  // NOLINT\n  ABSL_ANNOTATE_IGNORE_READS_BEGIN();\n  T res = x;\n  ABSL_ANNOTATE_IGNORE_READS_END();\n  return res;\n}\n\n}",
+  "id": "BLOCK-CPP-03425",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/dynamic_annotations.h",
+  "source_line": 418,
+  "validation_status": "validated"
+}

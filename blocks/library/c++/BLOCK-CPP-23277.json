@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/Alignment.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/MathExtras.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23277_execute() {\n    {\n        return (Quantity & -Quantity) == Quantity;\n      }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23277",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CharUnits.h",
+  "source_line": 135,
+  "validation_status": "validated"
+}

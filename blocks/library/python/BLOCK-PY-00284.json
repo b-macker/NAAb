@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00284_execute() {\n    class VisitorExit(RuntimeError):\n    \"\"\"Exception used by the `UndeclaredNameVisitor` to signal a stop.\"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00284",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 246,
+  "validation_status": "validated"
+}

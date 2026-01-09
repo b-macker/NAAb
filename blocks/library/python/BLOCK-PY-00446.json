@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00446_execute() {\n    class Slice(Expr):\n    \"\"\"Represents a slice object.  This must only be used as argument for\n    :class:`Subscript`.\n    \"\"\"\n\n    fields = (\"start\", \"stop\", \"step\")\n    start: Expr | None\n    stop: Expr | None\n    step: Expr | None\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> slice:\n        eval_ctx = get_eval_context(self, eval_ctx)\n\n        def const(obj: Expr | None) -> t.Any | None:\n            if obj is None:\n                return None\n            return obj.as_const(eval_ctx)\n\n        return slice(const(self.start), const(self.stop), const(self.step))\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00446",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 873,
+  "validation_status": "validated"
+}

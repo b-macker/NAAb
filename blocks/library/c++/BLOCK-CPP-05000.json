@@ -1,0 +1,8 @@
+{
+  "code": "{\n    // When C++17 is available, we can use std::launder to provide mutable\n    // access to the key for use in node handle.\n#if defined(__cpp_lib_launder) && __cpp_lib_launder >= 201606\n    template <class Key,\n              absl::enable_if_t<std::is_lvalue_reference<Key>::value, int> = 0>\n    static key_type& Impl(Key&& k, int) {\n      return *std::launder(\n          const_cast<key_type*>(std::addressof(std::forward<Key>(k))));\n    }\n#endif\n\n    template <class Key>\n    static Key Impl(Key&& k, char) {\n      return std::forward<Key>(k);\n    }\n\n    // When Key=T&, we forward the lvalue reference.\n    // When Key=T, we return by value to avoid a dangling reference.\n    // eg, for string_hash_map.\n    template <class Key, class... Args>\n    auto operator()(Key&& k, const Args&...) const\n        -> decltype(Impl(std::forward<Key>(k), 0)) {\n      return Impl(std::forward<Key>(k), 0);\n    }\n  }",
+  "id": "BLOCK-CPP-05000",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hash_policy_traits.h",
+  "source_line": 38,
+  "validation_status": "validated"
+}

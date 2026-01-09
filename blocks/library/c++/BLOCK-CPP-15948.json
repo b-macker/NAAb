@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/ImmutableMap.h\"\n#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/ParentMap.h\"\n#include \"clang/Analysis/AnyCall.h\"\n#include \"clang/Analysis/SelectorExtras.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace ento;\nusing namespace ento;\nusing namespace clang;\nusing namespace ento;\nusing namespace llvm;\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15948_execute() {\n    {\n  RetainSummaryManager &Manager;\n  const RetainSummary *&RealSummary;\n  RetainSummary ScratchSummary;\n  bool Accessed;\npublic:\n  RetainSummaryTemplate(const RetainSummary *&real, RetainSummaryManager &mgr)\n    : Manager(mgr), RealSummary(real), ScratchSummary(*real), Accessed(false) {}\n\n  ~RetainSummaryTemplate() {\n    if (Accessed)\n      RealSummary = Manager.getPersistentSummary(ScratchSummary);\n  }\n\n  RetainSummary &operator*() {\n    Accessed = true;\n    return ScratchSummary;\n  }\n\n  RetainSummary *operator->() {\n    Accessed = true;\n    return &ScratchSummary;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15948",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/RetainSummaryManager.h",
+  "source_line": 741,
+  "validation_status": "validated"
+}

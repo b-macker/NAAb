@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  virtual ~ExecutionContext() {}\n\n  /// Initializes a context. This does not take ownership of `Results`.\n  explicit ExecutionContext(ToolResults *Results) : Results(Results) {}\n\n  /// Adds a KV pair to the result container of this execution.\n  void reportResult(StringRef Key, StringRef Value);\n\n  // Returns the source control system's revision number if applicable.\n  // Otherwise returns an empty string.\n  virtual std::string getRevision() { return \"\"; }\n\n  // Returns the corpus being analyzed, e.g. \"llvm\" for the LLVM codebase, if\n  // applicable.\n  virtual std::string getCorpus() { return \"\"; }\n\n  // Returns the currently processed compilation unit if available.\n  virtual std::string getCurrentCompilationUnit() { return \"\"; }\n\nprivate:\n  ToolResults *Results;\n}",
+  "id": "BLOCK-CPP-21167",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/Execution.h",
+  "source_line": 77,
+  "validation_status": "validated"
+}

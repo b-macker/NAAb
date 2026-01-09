@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16598_execute() {\n    {\n\n/// Quote target names for inclusion in GNU Make dependency files.\n/// Only the characters '$', '#', ' ', '\\t' are quoted.\nvoid quoteMakeTarget(StringRef Target, SmallVectorImpl<char> &Res);\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16598",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/MakeSupport.h",
+  "source_line": 15,
+  "validation_status": "validated"
+}

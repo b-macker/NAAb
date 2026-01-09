@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n#include <optional>\n#include <utility>\n#include \"clang/AST/DeclNodes.inc\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20688_execute() {\n    {\n      LateAttrs = nullptr;\n      StartingScope = nullptr;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20688",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Template.h",
+  "source_line": 653,
+  "validation_status": "validated"
+}

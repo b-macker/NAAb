@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/circular_q.h>\n#include <spdlog/details/file_helper.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/os.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/fmt/fmt.h>\n#include <spdlog/sinks/base_sink.h>\n#include <chrono>\n#include <cstdio>\n#include <ctime>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00409_execute() {\n    {\n        auto now = log_clock::now();\n        tm date = now_tm(now);\n        date.tm_min = 0;\n        date.tm_sec = 0;\n        auto rotation_time = log_clock::from_time_t(std::mktime(&date));\n        if (rotation_time > now) {\n            return rotation_time;\n        }\n        return {rotation_time + std::chrono::hours(1)};\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00409",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/hourly_file_sink.h",
+  "source_line": 123,
+  "validation_status": "validated"
+}

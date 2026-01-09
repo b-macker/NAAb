@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ASTContext; // ASTContext creates these.\n\n  inline\n  DecayedType(QualType OriginalType, QualType Decayed, QualType Canonical);\n\npublic:\n  QualType getDecayedType() const { return getAdjustedType(); }\n\n  inline QualType getPointeeType() const;\n\n  static bool classof(const Type *T) { return T->getTypeClass() == Decayed; }\n}",
+  "id": "BLOCK-CPP-14127",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
+  "source_line": 2883,
+  "validation_status": "validated"
+}

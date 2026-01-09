@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00533_execute() {\n    {\n  ec = 0;\n  using F = std::numeric_limits<From>;\n  using T = std::numeric_limits<To>;\n  static_assert(F::is_integer, \"From must be integral\");\n  static_assert(T::is_integer, \"To must be integral\");\n\n  // A and B are both signed, or both unsigned.\n  if (detail::const_check(F::digits <= T::digits)) {\n    // From fits in To without any problem.\n  } else {\n    // From does not always fit in To, resort to a dynamic check.\n    if (from < (T::min)() || from > (T::max)()) {\n      // outside range.\n      ec = 1;\n      return {};\n    }\n  }\n  return static_cast<To>(from);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00533",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 57,
+  "validation_status": "validated"
+}

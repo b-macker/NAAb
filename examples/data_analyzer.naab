@@ -1,0 +1,188 @@
+# NAAb Example: Data Analyzer with Blocks
+# Demonstrates block-based programming with cross-language integration
+# This shows the intended usage pattern for NAAb blocks
+
+# Import hypothetical blocks (syntax works, blocks would need to exist)
+# use BLOCK-CPP-STATS as stats      # C++: Fast statistical analysis
+# use BLOCK-JS-CHART as chart       # JS: Data visualization
+# use BLOCK-PY-LOAD as loader       # Python: Data loading
+
+main {
+    print("=================================================================")
+    print("  NAAb Data Analyzer - Block-Based Programming")
+    print("=================================================================")
+    print()
+
+    # =========================================================================
+    # Dataset: Sales Data
+    # =========================================================================
+
+    print("[Step 1] Loading Dataset")
+    print("-----------------------------------------------------------------")
+
+    # In a real implementation with blocks:
+    # let data = loader.load_csv("sales_2024.csv")
+
+    # For now, manually define data
+    let jan_sales = 45000
+    let feb_sales = 52000
+    let mar_sales = 48000
+    let apr_sales = 61000
+    let may_sales = 58000
+    let jun_sales = 67000
+
+    let months = 6
+    print("  Loaded", months, "months of sales data")
+    print()
+
+    # =========================================================================
+    # Analysis: Calculate Statistics
+    # =========================================================================
+
+    print("[Step 2] Statistical Analysis")
+    print("-----------------------------------------------------------------")
+
+    # Calculate total
+    let total = jan_sales + feb_sales + mar_sales + apr_sales + may_sales + jun_sales
+
+    # Calculate average
+    let average = total / months
+
+    # Find minimum
+    let minimum = jan_sales
+    if feb_sales < minimum { minimum = feb_sales }
+    if mar_sales < minimum { minimum = mar_sales }
+    if apr_sales < minimum { minimum = apr_sales }
+    if may_sales < minimum { minimum = may_sales }
+    if jun_sales < minimum { minimum = jun_sales }
+
+    # Find maximum
+    let maximum = jan_sales
+    if feb_sales > maximum { maximum = feb_sales }
+    if mar_sales > maximum { maximum = mar_sales }
+    if apr_sales > maximum { maximum = apr_sales }
+    if may_sales > maximum { maximum = may_sales }
+    if jun_sales > maximum { maximum = jun_sales }
+
+    # Calculate growth
+    let growth = jun_sales - jan_sales
+    let growth_percent = (growth * 100) / jan_sales
+
+    print("  Total Sales:    $", total)
+    print("  Average:        $", average)
+    print("  Minimum:        $", minimum)
+    print("  Maximum:        $", maximum)
+    print("  Growth:         $", growth, " (+", growth_percent, "%)")
+    print()
+
+    # In a real implementation with C++ stats block:
+    # let stats_result = stats.analyze([jan, feb, mar, apr, may, jun])
+    # print("  Std Deviation:  $", stats_result.stddev)
+    # print("  Median:         $", stats_result.median)
+
+    # =========================================================================
+    # Trend Detection
+    # =========================================================================
+
+    print("[Step 3] Trend Detection")
+    print("-----------------------------------------------------------------")
+
+    let trend_up = 0
+    let trend_down = 0
+
+    if feb_sales > jan_sales { trend_up = trend_up + 1 } else { trend_down = trend_down + 1 }
+    if mar_sales > feb_sales { trend_up = trend_up + 1 } else { trend_down = trend_down + 1 }
+    if apr_sales > mar_sales { trend_up = trend_up + 1 } else { trend_down = trend_down + 1 }
+    if may_sales > apr_sales { trend_up = trend_up + 1 } else { trend_down = trend_down + 1 }
+    if jun_sales > may_sales { trend_up = trend_up + 1 } else { trend_down = trend_down + 1 }
+
+    print("  Months trending up:   ", trend_up)
+    print("  Months trending down: ", trend_down)
+
+    if trend_up > trend_down {
+        print("  Overall trend: POSITIVE GROWTH")
+    } else {
+        print("  Overall trend: DECLINING")
+    }
+    print()
+
+    # =========================================================================
+    # Forecasting
+    # =========================================================================
+
+    print("[Step 4] Simple Forecasting")
+    print("-----------------------------------------------------------------")
+
+    # Simple moving average for next month
+    let last_three_avg = (apr_sales + may_sales + jun_sales) / 3
+    let forecast_jul = last_three_avg
+
+    print("  Forecast for July: $", forecast_jul)
+    print()
+
+    # =========================================================================
+    # Reporting
+    # =========================================================================
+
+    print("[Step 5] Generate Report")
+    print("-----------------------------------------------------------------")
+
+    print()
+    print("  ==================================================")
+    print("  Sales Analysis Report - Q1 & Q2 2024")
+    print("  ==================================================")
+    print()
+    print("  Monthly Breakdown:")
+    print("    January:   $", jan_sales)
+    print("    February:  $", feb_sales)
+    print("    March:     $", mar_sales)
+    print("    April:     $", apr_sales)
+    print("    May:       $", may_sales)
+    print("    June:      $", jun_sales)
+    print()
+    print("  Key Metrics:")
+    print("    Total Revenue:     $", total)
+    print("    Average/Month:     $", average)
+    print("    Best Month:        $", maximum)
+    print("    Worst Month:       $", minimum)
+    print("    H1 Growth:         +", growth_percent, "%")
+    print()
+    print("  Forecast:")
+    print("    July (predicted):  $", forecast_jul)
+    print()
+    print("  ==================================================")
+    print()
+
+    # In a real implementation with JS chart block:
+    # let chart_html = chart.bar_chart({
+    #     labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+    #     values: [jan_sales, feb_sales, mar_sales, apr_sales, may_sales, jun_sales],
+    #     title: "Monthly Sales Trend"
+    # })
+    # print("  Chart saved to: sales_chart.html")
+
+    # =========================================================================
+    # Summary
+    # =========================================================================
+
+    print("=================================================================")
+    print("  Analysis Complete")
+    print("=================================================================")
+    print()
+
+    print("This example demonstrates:")
+    print("  - Data loading and preparation")
+    print("  - Statistical calculations")
+    print("  - Trend analysis")
+    print("  - Simple forecasting")
+    print("  - Report generation")
+    print()
+
+    print("In production NAAb code, you would:")
+    print("  1. Load data with Python blocks (CSV, JSON, APIs)")
+    print("  2. Analyze with C++ blocks (fast math, statistics)")
+    print("  3. Visualize with JavaScript blocks (charts, reports)")
+    print()
+
+    print("OK Data analysis complete!")
+}

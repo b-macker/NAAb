@@ -1,0 +1,8 @@
+{
+  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01556_execute() {\n    {\n  auto sv = std_string_view<Char>(str);\n  return write_range_entry<Char>(out, basic_string_view<Char>(sv));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01556",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
+  "source_line": 293,
+  "validation_status": "validated"
+}

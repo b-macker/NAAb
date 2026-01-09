@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include <arm_neon.h>\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05442_execute() {\n    {\n  __sync_synchronize();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05442",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/non_temporal_arm_intrinsics.h",
+  "source_line": 30,
+  "validation_status": "validated"
+}

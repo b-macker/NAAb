@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00268_execute() {\n    def _compare_attributes(a, b):\n        if a._attributes != b._attributes:\n            return False\n        # Attributes are always ints.\n        for attr in a._attributes:\n            a_attr = getattr(a, attr, sentinel)\n            b_attr = getattr(b, attr, sentinel)\n            if a_attr is sentinel and b_attr is sentinel:\n                # both nodes are missing an attribute at runtime\n                continue\n            if a_attr != b_attr:\n                return False\n        else:\n            return True\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00268",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
+  "source_line": 472,
+  "validation_status": "validated"
+}

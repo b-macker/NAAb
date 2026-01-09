@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Basic/Lambda.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11256_execute() {\n    {\n    return DeclAndBits.getPointer() == nullptr &&\n          (DeclAndBits.getInt() & Capture_This);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11256",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LambdaCapture.h",
+  "source_line": 82,
+  "validation_status": "validated"
+}

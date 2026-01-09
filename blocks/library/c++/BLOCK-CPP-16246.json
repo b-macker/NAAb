@@ -1,0 +1,8 @@
+{
+  "code": "{\n  DiagnosticsEngine &Diag;\n  unsigned NumErrors;\n  unsigned NumUnrecoverableErrors;\n\npublic:\n  explicit DiagnosticErrorTrap(DiagnosticsEngine &Diag)\n      : Diag(Diag) { reset(); }\n\n  /// Determine whether any errors have occurred since this\n  /// object instance was created.\n  bool hasErrorOccurred() const {\n    return Diag.TrapNumErrorsOccurred > NumErrors;\n  }\n\n  /// Determine whether any unrecoverable errors have occurred since this\n  /// object instance was created.\n  bool hasUnrecoverableErrorOccurred() const {\n    return Diag.TrapNumUnrecoverableErrorsOccurred > NumUnrecoverableErrors;\n  }\n\n  /// Set to initial state of \"no errors occurred\".\n  void reset() {\n    NumErrors = Diag.TrapNumErrorsOccurred;\n    NumUnrecoverableErrors = Diag.TrapNumUnrecoverableErrorsOccurred;\n  }\n}",
+  "id": "BLOCK-CPP-16246",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Diagnostic.h",
+  "source_line": 1072,
+  "validation_status": "validated"
+}

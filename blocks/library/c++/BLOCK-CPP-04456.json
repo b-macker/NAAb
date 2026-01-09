@@ -1,0 +1,8 @@
+{
+  "code": "#include <stdexcept>\n#include \"absl/base/config.h\"\n#include <optional>\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace optional_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04456_execute() {\n    {\n\n// throw delegator\n[[noreturn]] ABSL_DLL void throw_bad_optional_access();\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04456",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_optional_access.h",
+  "source_line": 67,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01314_execute() {\n    {\n  static_assert(std::is_same<uint64_or_128_t<UInt>, UInt>::value, \"\");\n  int num_digits = count_digits(value);\n  char digits[40];\n  format_decimal(digits, value, num_digits);\n  unsigned size = to_unsigned((prefix != 0 ? 1 : 0) + num_digits +\n                              grouping.count_separators(num_digits));\n  return write_padded<align::right>(\n      out, specs, size, size, [&](reserve_iterator<OutputIt> it) {\n        if (prefix != 0) {\n          char sign = static_cast<char>(prefix);\n          *it++ = static_cast<Char>(sign);\n        }\n        return grouping.apply(it, string_view(digits, to_unsigned(num_digits)));\n      });\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01314",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
+  "source_line": 1993,
+  "validation_status": "validated"
+}

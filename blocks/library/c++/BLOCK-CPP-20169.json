@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/OperatorKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TemplateKinds.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n#include <cstdlib>\n#include <new>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20169_execute() {\n    {\n      for (ParsedTemplateArgument &A :\n           llvm::make_range(getTemplateArgs(), getTemplateArgs() + NumArgs))\n        A.~ParsedTemplateArgument();\n      this->~TemplateIdAnnotation();\n      free(this);\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20169",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ParsedTemplate.h",
+  "source_line": 214,
+  "validation_status": "validated"
+}

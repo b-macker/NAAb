@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  UnqualTypeLoc() = default;\n  UnqualTypeLoc(const Type *Ty, void *Data) : TypeLoc(Ty, Data) {}\n\n  const Type *getTypePtr() const {\n    return reinterpret_cast<const Type*>(Ty);\n  }\n\n  TypeLocClass getTypeLocClass() const {\n    return (TypeLocClass) getTypePtr()->getTypeClass();\n  }\n\nprivate:\n  friend class TypeLoc;\n\n  static bool isKind(const TypeLoc &TL) {\n    return !TL.getType().hasLocalQualifiers();\n  }\n}",
+  "id": "BLOCK-CPP-14534",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeLoc.h",
+  "source_line": 256,
+  "validation_status": "validated"
+}

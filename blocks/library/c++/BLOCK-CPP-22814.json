@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Type.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/DiagnosticAST.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22814_execute() {\n    {\n  /// DiagnosticsEngine argument formatting function for diagnostics that\n  /// involve AST nodes.\n  ///\n  /// This function formats diagnostic arguments for various AST nodes,\n  /// including types, declaration names, nested name specifiers, and\n  /// declaration contexts, into strings that can be printed as part of\n  /// diagnostics. It is meant to be used as the argument to\n  /// \\c DiagnosticsEngine::SetArgToStringFn(), where the cookie is an \\c\n  /// ASTContext pointer.\n  void FormatASTNodeDiagnosticArgument(\n      DiagnosticsEngine::ArgumentKind Kind,\n      intptr_t Val,\n      StringRef Modifier,\n      StringRef Argument,\n      ArrayRef<DiagnosticsEngine::ArgumentValue> PrevArgs,\n      SmallVectorImpl<char> &Output,\n      void *Cookie,\n      ArrayRef<intptr_t> QualTypeVals);\n\n  /// Returns a desugared version of the QualType, and marks ShouldAKA as true\n  /// whenever we remove significant sugar from the type. Make sure ShouldAKA\n  /// is initialized before passing it in.\n  QualType desugarForDiagnostic(ASTContext &Context, QualType QT,\n                                bool &ShouldAKA);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22814",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTDiagnostic.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/AbstractBasicWriter.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/Serialization/ASTWriter.h\"\n#include \"clang/Serialization/SourceLocationEncoding.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20955_execute() {\n    {\n    return Writer->AddDeclRef(D, *Record);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20955",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTRecordWriter.h",
+  "source_line": 226,
+  "validation_status": "validated"
+}

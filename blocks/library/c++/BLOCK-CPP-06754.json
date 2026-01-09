@@ -1,0 +1,8 @@
+{
+  "code": "#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06754_execute() {\n    {\nnamespace api_notes {\n/// Parses the APINotes YAML content and writes the representation back to the\n/// specified stream.  This provides a means of testing the YAML processing of\n/// the APINotes format.\nbool parseAndDumpAPINotes(llvm::StringRef YI, llvm::raw_ostream &OS);\n} // namespace api_notes\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06754",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/APINotes/APINotesYAMLCompiler.h",
+  "source_line": 15,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/charconv.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include <system_error>  // NOLINT(build/c++11)\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/internal/charconv_bigint.h\"\n#include \"absl/strings/internal/charconv_parse.h\"\n\nusing namespace absl;\nusing namespace it;\nusing namespace std;\nusing namespace std;\nusing namespace it;\nusing namespace std;\nusing namespace std;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01831_execute() {\n    {\n#if ABSL_HAVE_BUILTIN(__builtin_nanf)\n    // Use __builtin_nanf() if available since it has a fix for\n    // https://bugs.llvm.org/show_bug.cgi?id=37778\n    // std::nanf may use the glibc implementation.\n    return __builtin_nanf(tagp);\n#else\n    // Support nanf no matter which namespace it's in.  Some platforms\n    // incorrectly don't put it in namespace std.\n    using namespace std;  // NOLINT\n    return std::nanf(tagp);\n#endif\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01831",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/charconv.cc",
+  "source_line": 196,
+  "validation_status": "validated"
+}

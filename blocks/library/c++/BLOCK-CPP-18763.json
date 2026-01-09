@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  explicit VisibilityMacroDirective(SourceLocation Loc, bool Public)\n      : MacroDirective(MD_Visibility, Loc) {\n    IsPublic = Public;\n  }\n\n  /// Determine whether this macro is part of the public API of its\n  /// module.\n  bool isPublic() const { return IsPublic; }\n\n  static bool classof(const MacroDirective *MD) {\n    return MD->getKind() == MD_Visibility;\n  }\n\n  static bool classof(const VisibilityMacroDirective *) { return true; }\n}",
+  "id": "BLOCK-CPP-18763",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MacroInfo.h",
+  "source_line": 467,
+  "validation_status": "validated"
+}

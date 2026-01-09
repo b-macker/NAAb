@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01094_execute() {\n    {\n  FMT_CONSTEXPR auto s = basic_string_view<typename S::char_type>(format_str);\n  using checker = format_string_checker<typename S::char_type, error_handler,\n                                        remove_cvref_t<Args>...>;\n  FMT_CONSTEXPR bool invalid_format =\n      (parse_format_string<true>(s, checker(s, {})), true);\n  ignore_unused(invalid_format);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01094",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 3003,
+  "validation_status": "validated"
+}

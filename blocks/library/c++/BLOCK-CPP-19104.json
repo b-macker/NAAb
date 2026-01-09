@@ -1,0 +1,8 @@
+{
+  "code": "{\n    enum State {\n      Off = 0,\n      Recording = 1,\n      Replaying = 2,\n    };\n\n  public:\n    PreambleConditionalStackStore() = default;\n\n    void startRecording() { ConditionalStackState = Recording; }\n    void startReplaying() { ConditionalStackState = Replaying; }\n    bool isRecording() const { return ConditionalStackState == Recording; }\n    bool isReplaying() const { return ConditionalStackState == Replaying; }\n\n    ArrayRef<PPConditionalInfo> getStack() const {\n      return ConditionalStack;\n    }\n\n    void doneReplaying() {\n      ConditionalStack.clear();\n      ConditionalStackState = Off;\n    }\n\n    void setStack(ArrayRef<PPConditionalInfo> s) {\n      if (!isRecording() && !isReplaying())\n        return;\n      ConditionalStack.clear();\n      ConditionalStack.append(s.begin(), s.end());\n    }\n\n    bool hasRecordedPreamble() const { return !ConditionalStack.empty(); }\n\n    bool reachedEOFWhileSkipping() const { return SkipInfo.has_value(); }\n\n    void clearSkipInfo() { SkipInfo.reset(); }\n\n    std::optional<PreambleSkipInfo> SkipInfo;\n\n  private:\n    SmallVector<PPConditionalInfo, 4> ConditionalStack;\n    State ConditionalStackState = Off;\n  }",
+  "id": "BLOCK-CPP-19104",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Preprocessor.h",
+  "source_line": 682,
+  "validation_status": "validated"
+}

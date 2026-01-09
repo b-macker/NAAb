@@ -1,0 +1,8 @@
+{
+  "code": "#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace scope;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03438_execute() {\n    {\n   public:\n    template <typename... Args>\n    explicit constexpr DirectImpl(Args&&... args)\n        : value_(std::forward<Args>(args)...) {}\n    const T* get() const { return &value_; }\n    T* get() { return &value_; }\n\n   private:\n    T value_;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03438",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/no_destructor.h",
+  "source_line": 150,
+  "validation_status": "validated"
+}

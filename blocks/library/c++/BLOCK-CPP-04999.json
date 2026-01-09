@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/container/internal/common_policy_traits.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04999_execute() {\n    {\n    return P::space_used(slot);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04999",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hash_policy_traits.h",
+  "source_line": 97,
+  "validation_status": "validated"
+}

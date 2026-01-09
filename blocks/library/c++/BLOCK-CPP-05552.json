@@ -1,0 +1,8 @@
+{
+  "code": "#include <stddef.h>\n#include <stdint.h>\n#include <atomic>\n#include <cassert>\n#include <cstring>\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05552_execute() {\n    {\n    // We can use relaxed instructions to increment the counter since we\n    // are extenally synchronized. The std::atomic_thread_fence below\n    // ensures that the counter updates don't get interleaved with the\n    // copy to the data.\n    int64_t orig_seq = lock_.load(std::memory_order_relaxed);\n    assert((orig_seq & 1) == 0);  // Must be initially unlocked.\n    lock_.store(orig_seq + 1, std::memory_order_relaxed);\n\n    // We put a release fence between update to lock_ and writes to shared data.\n    // Thus all stores to shared data are effectively release operations and\n    // update to lock_ above cannot be re-ordered past any of them. Note that\n    // this barrier is not for the fetch_add above.  A release barrier for the\n    // fetch_add would be before it, not after.\n    std::atomic_thread_fence(std::memory_order_release);\n    RelaxedCopyToAtomic(dst, src, size);\n    // \"Release\" semantics ensure that none of the writes done by\n    // RelaxedCopyToAtomic() can be reordered after the following modification.\n    lock_.store(orig_seq + 2, std::memory_order_release);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05552",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/sequence_lock.h",
+  "source_line": 99,
+  "validation_status": "validated"
+}

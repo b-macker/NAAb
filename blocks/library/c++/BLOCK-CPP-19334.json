@@ -1,0 +1,8 @@
+{
+  "code": "{\n    unsigned &Depth;\n    unsigned AddedLevels;\n  public:\n    explicit TemplateParameterDepthRAII(unsigned &Depth)\n      : Depth(Depth), AddedLevels(0) {}\n\n    ~TemplateParameterDepthRAII() {\n      Depth -= AddedLevels;\n    }\n\n    void operator++() {\n      ++Depth;\n      ++AddedLevels;\n    }\n    void addDepth(unsigned D) {\n      Depth += D;\n      AddedLevels += D;\n    }\n    void setAddedDepth(unsigned D) {\n      Depth = Depth - AddedLevels + D;\n      AddedLevels = D;\n    }\n\n    unsigned getDepth() const { return Depth; }\n    unsigned getOriginalDepth() const { return Depth - AddedLevels; }\n  }",
+  "id": "BLOCK-CPP-19334",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
+  "source_line": 262,
+  "validation_status": "validated"
+}

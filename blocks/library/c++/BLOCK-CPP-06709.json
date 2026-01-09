@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cstddef>\n#include <cstdlib>\n#include <memory>\n#include <stdexcept>\n#include <tuple>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/identity.h\"\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/bad_variant_access.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace variant_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06709_execute() {\n    {\n  const variant<Types...>* v;\n  const variant<Types...>* w;\n\n  constexpr bool operator()(SizeT<absl::variant_npos> /*v_i*/) const {\n    return false;\n  }\n\n  template <std::size_t I>\n  constexpr bool operator()(SizeT<I> /*v_i*/) const {\n    return VariantCoreAccess::Access<I>(*v) != VariantCoreAccess::Access<I>(*w);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06709",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/variant.h",
+  "source_line": 1472,
+  "validation_status": "validated"
+}

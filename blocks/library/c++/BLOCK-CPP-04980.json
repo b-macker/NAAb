@@ -1,0 +1,8 @@
+{
+  "code": "{\n private:\n  struct Pair {\n    K first;\n    V second;\n  };\n\n  // Is P layout-compatible with Pair?\n  template <class P>\n  static constexpr bool LayoutCompatible() {\n    return std::is_standard_layout<P>() && sizeof(P) == sizeof(Pair) &&\n           alignof(P) == alignof(Pair) &&\n           memory_internal::OffsetOf<P>::kFirst ==\n               memory_internal::OffsetOf<Pair>::kFirst &&\n           memory_internal::OffsetOf<P>::kSecond ==\n               memory_internal::OffsetOf<Pair>::kSecond;\n  }\n\n public:\n  // Whether pair<const K, V> and pair<K, V> are layout-compatible. If they are,\n  // then it is safe to store them in a union and read from either.\n  static constexpr bool value = std::is_standard_layout<K>() &&\n                                std::is_standard_layout<Pair>() &&\n                                memory_internal::OffsetOf<Pair>::kFirst == 0 &&\n                                LayoutCompatible<std::pair<K, V>>() &&\n                                LayoutCompatible<std::pair<const K, V>>();\n}",
+  "id": "BLOCK-CPP-04980",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/container_memory.h",
+  "source_line": 272,
+  "validation_status": "validated"
+}

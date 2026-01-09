@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <cstdio>\n#include <string>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/internal/str_format/arg.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/bind.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/checker.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/extension.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/parser.h\"  // IWYU pragma: export\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04155_execute() {\n    {\n public:\n  UntypedFormatSpec() = delete;\n  UntypedFormatSpec(const UntypedFormatSpec&) = delete;\n  UntypedFormatSpec& operator=(const UntypedFormatSpec&) = delete;\n\n  explicit UntypedFormatSpec(string_view s) : spec_(s) {}\n\n protected:\n  explicit UntypedFormatSpec(\n      absl::Nonnull<const str_format_internal::ParsedFormatBase*> pc)\n      : spec_(pc) {}\n\n private:\n  friend str_format_internal::UntypedFormatSpecImpl;\n  str_format_internal::UntypedFormatSpecImpl spec_;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04155",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_format.h",
+  "source_line": 105,
+  "validation_status": "validated"
+}

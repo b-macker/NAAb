@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Driver/Multilib.h\"\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17812_execute() {\n    {\n    return GCCSuffix.empty() && OSSuffix.empty() && IncludeSuffix.empty();\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17812",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/MultilibBuilder.h",
+  "source_line": 88,
+  "validation_status": "validated"
+}

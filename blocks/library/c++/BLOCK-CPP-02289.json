@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/types/bad_variant_access.h\"\n#include <cstdlib>\n#include <stdexcept>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace variant_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02289_execute() {\n    {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw;\n#else\n  ABSL_RAW_LOG(FATAL,\n               \"Internal error in absl::variant implementation. Attempted to \"\n               \"rethrow an exception when building with exceptions disabled.\");\n  abort();  // TODO(calabrese) Remove once RAW_LOG FATAL is noreturn.\n#endif\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02289",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_variant_access.cc",
+  "source_line": 49,
+  "validation_status": "validated"
+}

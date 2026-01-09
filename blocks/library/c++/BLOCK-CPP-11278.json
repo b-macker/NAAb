@@ -1,0 +1,8 @@
+{
+  "code": "{\n\nclass TypeSourceInfo;\n\n/// Holds a QualType and a TypeSourceInfo* that came out of a declarator\n/// parsing.\n///\n/// LocInfoType is a \"transient\" type, only needed for passing to/from Parser\n/// and Sema, when we want to preserve type source info for a parsed type.\n/// It will not participate in the type system semantics in any way.\nclass LocInfoType : public Type {\n  enum {\n    // The last number that can fit in Type's TC.\n    // Avoids conflict with an existing Type class.\n    LocInfo = Type::TypeLast + 1\n  };\n\n  TypeSourceInfo *DeclInfo;\n\n  LocInfoType(QualType ty, TypeSourceInfo *TInfo)\n      : Type((TypeClass)LocInfo, ty, ty->getDependence()), DeclInfo(TInfo) {\n    assert(getTypeClass() == (TypeClass)LocInfo && \"LocInfo didn't fit in TC?\");\n  }\n  friend class Sema;\n\npublic:\n  QualType getType() const { return getCanonicalTypeInternal(); }\n  TypeSourceInfo *getTypeSourceInfo() const { return DeclInfo; }\n\n  void getAsStringInternal(std::string &Str,\n                           const PrintingPolicy &Policy) const;\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == (TypeClass)LocInfo;\n  }\n};\n\n}",
+  "id": "BLOCK-CPP-11278",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LocInfoType.h",
+  "source_line": 18,
+  "validation_status": "validated"
+}

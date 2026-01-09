@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Availability.h\"\n#include \"clang/Basic/BitmaskEnum.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/OperatorPrecedence.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Lex/CodeCompletionHandler.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Frontend/OpenMP/OMPContext.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/PrettyStackTrace.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n#include <memory>\n#include <optional>\n#include <stack>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19335_execute() {\n    {\n    /// This context permits declarations in language modes where declarations\n    /// are not statements.\n    AllowDeclarationsInC = 0x1,\n    /// This context permits standalone OpenMP directives.\n    AllowStandaloneOpenMPDirectives = 0x2,\n    /// This context is at the top level of a GNU statement expression.\n    InStmtExpr = 0x4,\n\n    /// The context of a regular substatement.\n    SubStmt = 0,\n    /// The context of a compound-statement.\n    Compound = AllowDeclarationsInC | AllowStandaloneOpenMPDirectives,\n\n    LLVM_MARK_AS_BITMASK_ENUM(InStmtExpr)\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19335",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
+  "source_line": 421,
+  "validation_status": "validated"
+}

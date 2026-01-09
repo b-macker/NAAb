@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05798_execute() {\n    {\n\nclass Voidify final {\n public:\n  // This has to be an operator with a precedence lower than << but higher than\n  // ?:\n  template <typename T>\n  void operator&&(const T&) const&& {}\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05798",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/voidify.h",
+  "source_line": 30,
+  "validation_status": "validated"
+}

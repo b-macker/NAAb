@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00072_execute() {\n    class CampaignRequest(BaseModel):\n    name: str = Field(..., description=\"Campaign name\")\n    type: str = Field(default=\"cold_outreach\", description=\"Campaign type\")\n    targeting_criteria: Dict[str, Any] = Field(..., description=\"Lead targeting criteria\")\n    message_strategy: str = Field(default=\"technical\", description=\"Messaging strategy\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00072",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/production_lead_generator.py",
+  "source_line": 1521,
+  "validation_status": "validated"
+}

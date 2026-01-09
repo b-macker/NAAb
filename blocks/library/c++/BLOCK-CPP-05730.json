@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05730_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace log_internal {\n// Like POSIX `fnmatch`, but:\n// * accepts `string_view`\n// * does not allocate any dynamic memory\n// * only supports * and ? wildcards and not bracket expressions [...]\n// * wildcards may match /\n// * no backslash-escaping\nbool FNMatch(absl::string_view pattern, absl::string_view str);\n}  // namespace log_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05730",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/fnmatch.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

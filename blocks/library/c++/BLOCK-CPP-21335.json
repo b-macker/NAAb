@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/DepthFirstIterator.h\"\n#include \"llvm/ADT/GraphTraits.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/Support/GenericIteratedDominanceFrontier.h\"\n#include \"llvm/Support/GenericDomTree.h\"\n#include \"llvm/Support/GenericDomTreeConstruction.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21335_execute() {\n    {\n    DomTreeNode *R = getRootNode();\n    DomTreeNode *OtherR = Other.getRootNode();\n\n    if (!R || !OtherR || R->getBlock() != OtherR->getBlock())\n      return true;\n\n    if (DT.compare(Other.getBase()))\n      return true;\n\n    return false;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21335",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/Dominators.h",
+  "source_line": 73,
+  "validation_status": "validated"
+}

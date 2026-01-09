@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTConcept.h\"\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/STLFunctionalExtras.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <string>\n#include <utility>\n\nusing namespace clang;\nusing namespace concepts;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-10824_execute() {\n    { return Dependent; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-10824",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprConcepts.h",
+  "source_line": 191,
+  "validation_status": "validated"
+}

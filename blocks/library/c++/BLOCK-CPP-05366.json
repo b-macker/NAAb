@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05366_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace crc_internal {\n\n// Enumeration of architectures that we have special-case tuning parameters for.\n// This set may change over time.\nenum class CpuType {\n  kUnknown,\n  kIntelHaswell,\n  kAmdRome,\n  kAmdNaples,\n  kAmdMilan,\n  kAmdGenoa,\n  kAmdRyzenV3000,\n  kIntelCascadelakeXeon,\n  kIntelSkylakeXeon,\n  kIntelBroadwell,\n  kIntelSkylake,\n  kIntelIvybridge,\n  kIntelSandybridge,\n  kIntelWestmere,\n  kArmNeoverseN1,\n  kArmNeoverseV1,\n  kAmpereSiryn,\n  kArmNeoverseN2,\n  kArmNeoverseV2\n};\n\n// Returns the type of host CPU this code is running on.  Returns kUnknown if\n// the host CPU is of unknown type, or if detection otherwise fails.\nCpuType GetCpuType();\n\n// Returns whether the host CPU supports the CPU features needed for our\n// accelerated implementations. The CpuTypes enumerated above apart from\n// kUnknown support the required features. On unknown CPUs, we can use\n// this to see if it's safe to use hardware acceleration, though without any\n// tuning.\nbool SupportsArmCRC32PMULL();\n\n}  // namespace crc_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05366",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/cpu_detect.h",
+  "source_line": 20,
+  "validation_status": "validated"
+}

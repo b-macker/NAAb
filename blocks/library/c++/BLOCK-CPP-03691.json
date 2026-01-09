@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <limits>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/macros.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03691_execute() {\n    {\n  return ptr ? std::shared_ptr<T>(std::move(ptr)) : std::shared_ptr<T>();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03691",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/memory/memory.h",
+  "source_line": 136,
+  "validation_status": "validated"
+}

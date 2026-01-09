@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Driver/Action.h\"\n#include \"clang/Driver/Types.h\"\n#include \"llvm/Option/Arg.h\"\n#include <cassert>\n#include <string>\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17777_execute() {\n    {\n    if (isFilename())\n      return std::string(\"\\\"\") + getFilename() + '\"';\n    else if (isInputArg())\n      return \"(input arg)\";\n    else\n      return \"(nothing)\";\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17777",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/InputInfo.h",
+  "source_line": 94,
+  "validation_status": "validated"
+}

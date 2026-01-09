@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Lex/PPCallbacks.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18867_execute() {\n    { return RegionLoc; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18867",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PPConditionalDirectiveRecord.h",
+  "source_line": 39,
+  "validation_status": "validated"
+}

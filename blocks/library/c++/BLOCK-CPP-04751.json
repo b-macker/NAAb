@@ -1,0 +1,8 @@
+{
+  "code": "#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace cleanup_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04751_execute() {\n    {\n    is_callback_engaged_ = false;\n    GetCallback().~Callback();\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04751",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/cleanup/internal/cleanup.h",
+  "source_line": 81,
+  "validation_status": "validated"
+}

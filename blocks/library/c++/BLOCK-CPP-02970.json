@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/str_format/arg.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <cwchar>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/container/fixed_array.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/string_view.h\"\n#include <string_view>\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02970_execute() {\n    {\n  // always show 0x for %p.\n  bool alt = conv.has_alt_flag() ||\n             conv.conversion_char() == FormatConversionCharInternal::p;\n  bool hex = (conv.conversion_char() == FormatConversionCharInternal::x ||\n              conv.conversion_char() == FormatConversionCharInternal::X ||\n              conv.conversion_char() == FormatConversionCharInternal::p);\n  // From the POSIX description of '#' flag:\n  //   \"For x or X conversion specifiers, a non-zero result shall have\n  //   0x (or 0X) prefixed to it.\"\n  if (alt && hex && !as_digits.without_neg_or_zero().empty()) {\n    return conv.conversion_char() == FormatConversionCharInternal::X ? \"0X\"\n                                                                     : \"0x\";\n  }\n  return {};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02970",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/arg.cc",
+  "source_line": 197,
+  "validation_status": "validated"
+}

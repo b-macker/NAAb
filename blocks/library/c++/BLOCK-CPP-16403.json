@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LangOptions.h\"\n#include <cstdint>\n\nusing namespace clang;\nusing namespace hlsl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16403_execute() {\n    {\n  uint32_t Pipeline =\n      static_cast<uint32_t>(E) - static_cast<uint32_t>(llvm::Triple::Pixel);\n\n  if (Pipeline > (uint32_t)ShaderStage::Invalid)\n    return ShaderStage::Invalid;\n  return static_cast<ShaderStage>(Pipeline);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16403",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/HLSLRuntime.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

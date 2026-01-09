@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/log/internal/config.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/time.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03664_execute() {\n    { return prefix_; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03664",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/log_entry.h",
+  "source_line": 88,
+  "validation_status": "validated"
+}

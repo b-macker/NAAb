@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00335_execute() {\n    def get_context_ref(self) -> str:\n        return self._context_reference_stack[-1]\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00335",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 758,
+  "validation_status": "validated"
+}

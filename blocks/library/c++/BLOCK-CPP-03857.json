@@ -1,0 +1,8 @@
+{
+  "code": "#include <cmath>\n#include <cstdint>\n#include <istream>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n#include \"absl/random/internal/generate_real.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\nusing namespace random_internal;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03857_execute() {\n    {\n   public:\n    using distribution_type = gaussian_distribution;\n\n    explicit param_type(result_type mean = 0, result_type stddev = 1)\n        : mean_(mean), stddev_(stddev) {}\n\n    // Returns the mean distribution parameter.  The mean specifies the location\n    // of the peak.  The default value is 0.0.\n    result_type mean() const { return mean_; }\n\n    // Returns the deviation distribution parameter.  The default value is 1.0.\n    result_type stddev() const { return stddev_; }\n\n    friend bool operator==(const param_type& a, const param_type& b) {\n      return a.mean_ == b.mean_ && a.stddev_ == b.stddev_;\n    }\n\n    friend bool operator!=(const param_type& a, const param_type& b) {\n      return !(a == b);\n    }\n\n   private:\n    result_type mean_;\n    result_type stddev_;\n\n    static_assert(\n        std::is_floating_point<RealType>::value,\n        \"Class-template absl::gaussian_distribution<> must be parameterized \"\n        \"using a floating-point type.\");\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03857",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/gaussian_distribution.h",
+  "source_line": 91,
+  "validation_status": "validated"
+}

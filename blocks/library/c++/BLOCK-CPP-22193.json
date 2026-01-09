@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h\"\n#include \"llvm/ADT/StringExtras.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22193_execute() {\n    {\n    if (auto S = dyn_cast<SymbolRegionValue>(R->getSymbol()))\n      if (isa<CXXThisRegion>(S->getRegion()))\n        return true;\n    return false;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22193",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/SValExplainer.h",
+  "source_line": 38,
+  "validation_status": "validated"
+}

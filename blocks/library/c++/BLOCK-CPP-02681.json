@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/hash/internal/low_level_hash.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/prefetch.h\"\n#include \"absl/numeric/int128.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02681_execute() {\n    {\n    // If we have at least 4 and at most 8 bytes, set A to the first 32\n    // bits and B to the last 32 bits.\n    a = absl::base_internal::UnalignedLoad32(ptr);\n    b = absl::base_internal::UnalignedLoad32(ptr + len - 4);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02681",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/low_level_hash.cc",
+  "source_line": 95,
+  "validation_status": "validated"
+}

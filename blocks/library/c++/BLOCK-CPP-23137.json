@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTFwd.h\"\n#include \"clang/AST/AttrIterator.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/AttrKinds.h\"\n#include \"clang/Basic/AttributeCommonInfo.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <algorithm>\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23137_execute() {\n    {\n    return ::operator delete(Ptr, C, Alignment);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23137",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Attr.h",
+  "source_line": 68,
+  "validation_status": "validated"
+}

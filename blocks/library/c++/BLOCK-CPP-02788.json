@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/randen.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/random/internal/randen_detect.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02788_execute() {\n    {\n  static const RandenState state = []() {\n    RandenState tmp;\n#if ABSL_RANDOM_INTERNAL_AES_DISPATCH\n    // HW AES Dispatch.\n    if (HasRandenHwAesImplementation() && CPUSupportsRandenHwAes()) {\n      tmp.has_crypto = true;\n      tmp.keys = RandenHwAes::GetKeys();\n    } else {\n      tmp.has_crypto = false;\n      tmp.keys = RandenSlow::GetKeys();\n    }\n#elif ABSL_HAVE_ACCELERATED_AES\n    // HW AES is enabled.\n    tmp.has_crypto = true;\n    tmp.keys = RandenHwAes::GetKeys();\n#else\n    // HW AES is disabled.\n    tmp.has_crypto = false;\n    tmp.keys = RandenSlow::GetKeys();\n#endif\n    return tmp;\n  }();\n  return state;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02788",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen.cc",
+  "source_line": 53,
+  "validation_status": "validated"
+}

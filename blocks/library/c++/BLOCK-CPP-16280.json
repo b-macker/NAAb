@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <optional>\n#include <vector>\n#include \"clang/Basic/DiagnosticCommonKinds.inc\"\n\nusing namespace clang;\nusing namespace diag;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16280_execute() {\n    {\n    DiagnosticMapping Result;\n    Result.Severity = (unsigned)Severity;\n    Result.IsUser = IsUser;\n    Result.IsPragma = IsPragma;\n    Result.HasNoWarningAsError = 0;\n    Result.HasNoErrorAsFatal = 0;\n    Result.WasUpgradedFromWarning = 0;\n    return Result;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16280",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticIDs.h",
+  "source_line": 111,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n\n//===-------------------------------------\n/// DominatorTree GraphTraits specialization so the DominatorTree can be\n/// iterable by generic graph iterators.\n///\ntemplate <> struct GraphTraits<clang::DomTreeNode *> {\n  using NodeRef = ::clang::DomTreeNode *;\n  using ChildIteratorType = ::clang::DomTreeNode::const_iterator;\n\n  static NodeRef getEntryNode(NodeRef N) { return N; }\n  static ChildIteratorType child_begin(NodeRef N) { return N->begin(); }\n  static ChildIteratorType child_end(NodeRef N) { return N->end(); }\n\n  using nodes_iterator =\n      llvm::pointer_iterator<df_iterator<::clang::DomTreeNode *>>;\n\n  static nodes_iterator nodes_begin(::clang::DomTreeNode *N) {\n    return nodes_iterator(df_begin(getEntryNode(N)));\n  }\n\n  static nodes_iterator nodes_end(::clang::DomTreeNode *N) {\n    return nodes_iterator(df_end(getEntryNode(N)));\n  }\n};\n\ntemplate <> struct GraphTraits<clang::CFGDomTree *>\n    : public GraphTraits<clang::DomTreeNode *> {\n  static NodeRef getEntryNode(clang::CFGDomTree *DT) {\n    return DT->getRootNode();\n  }\n\n  static nodes_iterator nodes_begin(clang::CFGDomTree *N) {\n    return nodes_iterator(df_begin(getEntryNode(N)));\n  }\n\n  static nodes_iterator nodes_end(clang::CFGDomTree *N) {\n    return nodes_iterator(df_end(getEntryNode(N)));\n  }\n};\n\n}",
+  "id": "BLOCK-CPP-21362",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/Dominators.h",
+  "source_line": 274,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n public:\n  MaxSplitsImpl(Delimiter delimiter, int limit)\n      : delimiter_(delimiter), limit_(limit), count_(0) {}\n  absl::string_view Find(absl::string_view text, size_t pos) {\n    if (count_++ == limit_) {\n      return absl::string_view(text.data() + text.size(),\n                               0);  // No more matches.\n    }\n    return delimiter_.Find(text, pos);\n  }\n\n private:\n  Delimiter delimiter_;\n  const int limit_;\n  int count_;\n}",
+  "id": "BLOCK-CPP-04194",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_split.h",
+  "source_line": 276,
+  "validation_status": "validated"
+}

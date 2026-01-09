@@ -1,0 +1,8 @@
+{
+  "code": "{\n  size_t total = 0;\n\n  // Add 'size' to total, ignoring the CordRepRef argument.\n  void Add(size_t size, CordRepRef<mode>) { total += size; }\n}",
+  "id": "BLOCK-CPP-01907",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/cord_analysis.cc",
+  "source_line": 54,
+  "validation_status": "validated"
+}

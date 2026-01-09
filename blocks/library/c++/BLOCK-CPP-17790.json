@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Driver/InputInfo.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/Option/Option.h\"\n#include \"llvm/Support/Program.h\"\n#include <memory>\n#include <optional>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17790_execute() {\n    { return Jobs.empty(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17790",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Job.h",
+  "source_line": 284,
+  "validation_status": "validated"
+}

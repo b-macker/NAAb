@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstdint>\n#include <iterator>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include \"absl/base/macros.h\"\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/pool_urbg.h\"\n#include \"absl/random/internal/salted_seed_seq.h\"\n#include \"absl/random/internal/seed_material.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05895_execute() {\n    {\n    const size_t n = std::distance(begin, end);\n    absl::InlinedVector<uint32_t, 8> data(n, 0);\n    RandenPool<uint32_t>::Fill(absl::MakeSpan(data.begin(), data.end()));\n    std::copy(std::begin(data), std::end(data), begin);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05895",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/nonsecure_base.h",
+  "source_line": 55,
+  "validation_status": "validated"
+}

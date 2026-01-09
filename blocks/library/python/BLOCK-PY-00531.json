@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00531_execute() {\n    def reformat_code(\n    content: str,\n    fast: bool,\n    write_back: WriteBack,\n    mode: Mode,\n    report: Report,\n    *,\n    lines: Collection[tuple[int, int]] = (),\n) -> None:\n    \"\"\"\n    Reformat and print out `content` without spawning child processes.\n    Similar to `reformat_one`, but for string content.\n\n    `fast`, `write_back`, and `mode` options are passed to\n    :func:`format_file_in_place` or :func:`format_stdin_to_stdout`.\n    \"\"\"\n    path = Path(\"<string>\")\n    try:\n        changed = Changed.NO\n        if format_stdin_to_stdout(\n            content=content, fast=fast, write_back=write_back, mode=mode, lines=lines\n        ):\n            changed = Changed.YES\n        report.done(path, changed)\n    except Exception as exc:\n        if report.verbose:\n            traceback.print_exc()\n        report.failed(path, str(exc))\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00531",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 831,
+  "validation_status": "validated"
+}

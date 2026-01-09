@@ -1,0 +1,8 @@
+{
+  "code": "{\n#ifdef _WIN32\nusing dword = conditional_t<sizeof(long) == 4, unsigned long, unsigned>;\nextern \"C\" __declspec(dllimport) int __stdcall WriteConsoleW(  //\n    void*, const void*, dword, dword*, void*);\n\nFMT_FUNC bool write_console(std::FILE* f, string_view text) {\n  auto fd = _fileno(f);\n  if (_isatty(fd)) {\n    detail::utf8_to_utf16 u16(string_view(text.data(), text.size()));\n    auto written = detail::dword();\n    if (detail::WriteConsoleW(reinterpret_cast<void*>(_get_osfhandle(fd)),\n                              u16.c_str(), static_cast<uint32_t>(u16.size()),\n                              &written, nullptr)) {\n      return true;\n    }\n  }\n  // We return false if the file descriptor was not TTY, or it was but\n  // SetConsoleW failed which can happen if the output has been redirected to\n  // NUL. In both cases when we return false, we should attempt to do regular\n  // write via fwrite or std::ostream::write.\n  return false;\n}\n#endif\n\nFMT_FUNC void print(std::FILE* f, string_view text) {\n#ifdef _WIN32\n  if (write_console(f, text)) return;\n#endif\n  detail::fwrite_fully(text.data(), 1, text.size(), f);\n}\n}",
+  "id": "BLOCK-CPP-01225",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
+  "source_line": 1476,
+  "validation_status": "validated"
+}

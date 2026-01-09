@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/FlowSensitive/Formula.h\"\n#include \"clang/Analysis/FlowSensitive/StorageLocation.h\"\n#include \"clang/Analysis/FlowSensitive/Value.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21875_execute() {\n    { return static_cast<Atom>(NextAtom++); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21875",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Arena.h",
+  "source_line": 113,
+  "validation_status": "validated"
+}

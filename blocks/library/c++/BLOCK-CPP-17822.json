@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Option/OptSpecifier.h\"\n\nusing namespace llvm;\nusing namespace opt;\nusing namespace opt;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17822_execute() {\n    {\n  return getLastArgIntValue(Args, Id, Default, &Diags, Base);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17822",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/OptionUtils.h",
+  "source_line": 37,
+  "validation_status": "validated"
+}

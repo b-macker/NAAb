@@ -1,0 +1,8 @@
+{
+  "code": "{\n        auto *document = params.q_text_edit->document();\n        QTextCursor cursor(document);\n\n        // remove first blocks if number of blocks exceeds max_lines\n        while (document->blockCount() > params.max_lines) {\n            cursor.select(QTextCursor::BlockUnderCursor);\n            cursor.removeSelectedText();\n            cursor.deleteChar();  // delete the newline after the block\n        }\n\n        cursor.movePosition(QTextCursor::End);\n        cursor.setCharFormat(params.default_color);\n\n        // if color range not specified or not not valid, just append the text with default color\n        if (params.color_range_end <= params.color_range_start) {\n            cursor.insertText(params.payload);\n            return;\n        }\n\n        // insert the text before the color range\n        cursor.insertText(params.payload.left(params.color_range_start));\n\n        // insert the colorized text\n        cursor.setCharFormat(params.level_color);\n        cursor.insertText(params.payload.mid(params.color_range_start,\n                                             params.color_range_end - params.color_range_start));\n\n        // insert the text after the color range with default format\n        cursor.setCharFormat(params.default_color);\n        cursor.insertText(params.payload.mid(params.color_range_end));\n    }",
+  "id": "BLOCK-CPP-00437",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/qt_sinks.h",
+  "source_line": 188,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/synchronization/internal/futex_waiter.h\"\n#include <atomic>\n#include <cstdint>\n#include <cerrno>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/thread_identity.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/synchronization/internal/kernel_timeout.h\"\n#include \"absl/synchronization/internal/futex.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03127_execute() {\n    {\n        return false;\n      }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03127",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/futex_waiter.cc",
+  "source_line": 82,
+  "validation_status": "validated"
+}

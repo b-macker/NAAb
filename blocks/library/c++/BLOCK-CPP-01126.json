@@ -1,0 +1,8 @@
+{
+  "code": "{\n  constexpr monostate() {}\n}",
+  "id": "BLOCK-CPP-01126",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 325,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <cstring>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17356_execute() {\n    {\n      return memcmp(this, &Other, sizeof(Other)) == 0;\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17356",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Thunk.h",
+  "source_line": 120,
+  "validation_status": "validated"
+}

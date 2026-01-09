@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  struct Binding {\n    IdentifierInfo *Name;\n    SourceLocation NameLoc;\n  };\n\nprivate:\n  /// The locations of the '[' and ']' tokens.\n  SourceLocation LSquareLoc, RSquareLoc;\n\n  /// The bindings.\n  Binding *Bindings;\n  unsigned NumBindings : 31;\n  unsigned DeleteBindings : 1;\n\n  friend class Declarator;\n\npublic:\n  DecompositionDeclarator()\n      : Bindings(nullptr), NumBindings(0), DeleteBindings(false) {}\n  DecompositionDeclarator(const DecompositionDeclarator &G) = delete;\n  DecompositionDeclarator &operator=(const DecompositionDeclarator &G) = delete;\n  ~DecompositionDeclarator() {\n    if (DeleteBindings)\n      delete[] Bindings;\n  }\n\n  void clear() {\n    LSquareLoc = RSquareLoc = SourceLocation();\n    if (DeleteBindings)\n      delete[] Bindings;\n    Bindings = nullptr;\n    NumBindings = 0;\n    DeleteBindings = false;\n  }\n\n  ArrayRef<Binding> bindings() const {\n    return llvm::ArrayRef(Bindings, NumBindings);\n  }\n\n  bool isSet() const { return LSquareLoc.isValid(); }\n\n  SourceLocation getLSquareLoc() const { return LSquareLoc; }\n  SourceLocation getRSquareLoc() const { return RSquareLoc; }\n  SourceRange getSourceRange() const {\n    return SourceRange(LSquareLoc, RSquareLoc);\n  }\n}",
+  "id": "BLOCK-CPP-19711",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
+  "source_line": 1741,
+  "validation_status": "validated"
+}

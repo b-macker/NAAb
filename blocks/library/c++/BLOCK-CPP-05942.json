@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cinttypes>\n#include <cstdlib>\n#include <iostream>\n#include <iterator>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/internal/endian.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n#include \"absl/random/internal/randen.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05942_execute() {\n    {\n    seed(seq);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05942",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_engine.h",
+  "source_line": 67,
+  "validation_status": "validated"
+}

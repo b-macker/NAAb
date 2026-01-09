@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00827_execute() {\n    {\n    // If we have a terminal color, we need to output another escape code\n    // sequence.\n    if (!text_color.is_rgb) {\n      bool is_background = esc == string_view(\"\\x1b[48;2;\");\n      uint32_t value = text_color.value.term_color;\n      // Background ASCII codes are the same as the foreground ones but with\n      // 10 more.\n      if (is_background) value += 10u;\n\n      size_t index = 0;\n      buffer[index++] = static_cast<Char>('\\x1b');\n      buffer[index++] = static_cast<Char>('[');\n\n      if (value >= 100u) {\n        buffer[index++] = static_cast<Char>('1');\n        value %= 100u;\n      }\n      buffer[index++] = static_cast<Char>('0' + value / 10u);\n      buffer[index++] = static_cast<Char>('0' + value % 10u);\n\n      buffer[index++] = static_cast<Char>('m');\n      buffer[index++] = static_cast<Char>('\\0');\n      return;\n    }\n\n    for (int i = 0; i < 7; i++) {\n      buffer[i] = static_cast<Char>(esc[i]);\n    }\n    rgb color(text_color.value.rgb_color);\n    to_esc(color.r, buffer + 7, ';');\n    to_esc(color.g, buffer + 11, ';');\n    to_esc(color.b, buffer + 15, 'm');\n    buffer[19] = static_cast<Char>(0);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00827",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
+  "source_line": 329,
+  "validation_status": "validated"
+}

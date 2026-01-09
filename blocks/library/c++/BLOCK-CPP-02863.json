@@ -1,0 +1,8 @@
+{
+  "code": "{\n  if (base == 10) {\n    assert(max_digits <= std::numeric_limits<T>::digits10);\n  } else if (base == 16) {\n    assert(max_digits * 4 <= std::numeric_limits<T>::digits);\n  }\n  const char* const original_begin = begin;\n\n  // Skip leading zeros, but only if *out is zero.\n  // They don't cause an overflow so we don't have to count them for\n  // `max_digits`.\n  while (!*out && end != begin && *begin == '0') ++begin;\n\n  T accumulator = *out;\n  const char* significant_digits_end =\n      (end - begin > max_digits) ? begin + max_digits : end;\n  while (begin < significant_digits_end && IsDigit<base>(*begin)) {\n    // Do not guard against *out overflow; max_digits was chosen to avoid this.\n    // Do assert against it, to detect problems in debug builds.\n    auto digit = static_cast<T>(ToDigit<base>(*begin));\n    assert(accumulator * base >= accumulator);\n    accumulator *= base;\n    assert(accumulator + digit >= accumulator);\n    accumulator += digit;\n    ++begin;\n  }\n  bool dropped_nonzero = false;\n  while (begin < end && IsDigit<base>(*begin)) {\n    dropped_nonzero = dropped_nonzero || (*begin != '0');\n    ++begin;\n  }\n  if (dropped_nonzero && dropped_nonzero_digit != nullptr) {\n    *dropped_nonzero_digit = true;\n  }\n  *out = accumulator;\n  return static_cast<int>(begin - original_begin);\n}",
+  "id": "BLOCK-CPP-02863",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_parse.cc",
+  "source_line": 248,
+  "validation_status": "validated"
+}

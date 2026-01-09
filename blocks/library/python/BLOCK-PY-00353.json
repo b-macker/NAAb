@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00353_execute() {\n    def visit_With(self, node: nodes.With, frame: Frame) -> None:\n        with_frame = frame.inner()\n        with_frame.symbols.analyze_node(node)\n        self.enter_frame(with_frame)\n        for target, expr in zip(node.targets, node.values, strict=False):\n            self.newline()\n            self.visit(target, with_frame)\n            self.write(\" = \")\n            self.visit(expr, frame)\n        self.blockvisit(node.body, with_frame)\n        self.leave_frame(with_frame)\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00353",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1364,
+  "validation_status": "validated"
+}

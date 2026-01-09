@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00548_execute() {\n    def assert_equivalent(src: str, dst: str) -> None:\n    \"\"\"Raise AssertionError if `src` and `dst` aren't equivalent.\"\"\"\n    try:\n        src_ast = parse_ast(src)\n    except Exception as exc:\n        raise ASTSafetyError(\n            \"cannot use --safe with this file; failed to parse source file AST: \"\n            f\"{exc}\\n\"\n            \"This could be caused by running Black with an older Python version \"\n            \"that does not support new syntax used in your source file.\"\n        ) from exc\n\n    try:\n        dst_ast = parse_ast(dst)\n    except Exception as exc:\n        log = dump_to_file(\"\".join(traceback.format_tb(exc.__traceback__)), dst)\n        raise ASTSafetyError(\n            f\"INTERNAL ERROR: {_black_info()} produced invalid code: {exc}. \"\n            \"Please report a bug on https://github.com/psf/black/issues.  \"\n            f\"This invalid output might be helpful: {log}\"\n        ) from None\n\n    src_ast_str = \"\\n\".join(stringify_ast(src_ast))\n    dst_ast_str = \"\\n\".join(stringify_ast(dst_ast))\n    if src_ast_str != dst_ast_str:\n        log = dump_to_file(diff(src_ast_str, dst_ast_str, \"src\", \"dst\"))\n        raise ASTSafetyError(\n            f\"INTERNAL ERROR: {_black_info()} produced code that is not equivalent to\"\n            \" the source.  Please report a bug on https://github.com/psf/black/issues.\"\n            f\"  This diff might be helpful: {log}\"\n        ) from None\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00548",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 1581,
+  "validation_status": "validated"
+}

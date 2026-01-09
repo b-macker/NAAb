@@ -1,0 +1,8 @@
+{
+  "code": "#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/container/flat_hash_map.h\"\n#include \"absl/flags/commandlineflag.h\"\n#include \"absl/flags/internal/commandlineflag.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03609_execute() {\n    {\n public:\n  FlagSaver();\n  ~FlagSaver();\n\n  FlagSaver(const FlagSaver&) = delete;\n  void operator=(const FlagSaver&) = delete;\n\n private:\n  flags_internal::FlagSaverImpl* impl_;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03609",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/reflection.h",
+  "source_line": 73,
+  "validation_status": "validated"
+}

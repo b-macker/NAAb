@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <ostream>\n#include <string>\n#include <vector>\n#include \"absl/hash/hash.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_join.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05694_execute() {\n    {\n    kEqual,\n    kASuffixB,\n    kBSuffixA,\n    kUnequal,\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05694",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/spy_hash_state.h",
+  "source_line": 107,
+  "validation_status": "validated"
+}

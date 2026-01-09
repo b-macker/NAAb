@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  Apply(SExpr *F, SExpr *A) : SExpr(COP_Apply), Fun(F), Arg(A) {}\n  Apply(const Apply &A, SExpr *F, SExpr *Ar)  // rewrite constructor\n      : SExpr(A), Fun(F), Arg(Ar) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Apply; }\n\n  SExpr *fun() { return Fun; }\n  const SExpr *fun() const { return Fun; }\n\n  SExpr *arg() { return Arg; }\n  const SExpr *arg() const { return Arg; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Nf = Vs.traverse(Fun, Vs.subExprCtx(Ctx));\n    auto Na = Vs.traverse(Arg, Vs.subExprCtx(Ctx));\n    return Vs.reduceApply(*this, Nf, Na);\n  }\n\n  template <class C>\n  typename C::CType compare(const Apply* E, C& Cmp) const {\n    typename C::CType Ct = Cmp.compare(fun(), E->fun());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.compare(arg(), E->arg());\n  }\n\nprivate:\n  SExpr* Fun;\n  SExpr* Arg;\n}",
+  "id": "BLOCK-CPP-21657",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 848,
+  "validation_status": "validated"
+}

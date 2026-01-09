@@ -1,0 +1,8 @@
+{
+  "code": "#include <map>\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include \"TargetCXXABI.def\"\n#include \"TargetCXXABI.def\"\n#include \"TargetCXXABI.def\"\n#include \"TargetCXXABI.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17097_execute() {\n    {\n    switch (getKind()) {\n#define CXXABI(Name, Str)\n#define MICROSOFT_CXXABI(Name, Str) case Name:\n#include \"TargetCXXABI.def\"\n      return true;\n\n    default:\n      return false;\n    }\n    llvm_unreachable(\"bad ABI kind\");\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17097",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TargetCXXABI.h",
+  "source_line": 136,
+  "validation_status": "validated"
+}

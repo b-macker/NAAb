@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05762_execute() {\n    {\n  return Encode64Bit(tag, static_cast<uint64_t>(value), buf);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05762",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/proto.h",
+  "source_line": 104,
+  "validation_status": "validated"
+}

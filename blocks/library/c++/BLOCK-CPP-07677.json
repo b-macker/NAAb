@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/CommentOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07677_execute() {\n    {\n    return ID;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-07677",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CommentCommandTraits.h",
+  "source_line": 33,
+  "validation_status": "validated"
+}

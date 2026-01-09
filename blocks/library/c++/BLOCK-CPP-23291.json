@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate<> struct DenseMapInfo<clang::CharUnits> {\n  static clang::CharUnits getEmptyKey() {\n    clang::CharUnits::QuantityType Quantity =\n      DenseMapInfo<clang::CharUnits::QuantityType>::getEmptyKey();\n\n    return clang::CharUnits::fromQuantity(Quantity);\n  }\n\n  static clang::CharUnits getTombstoneKey() {\n    clang::CharUnits::QuantityType Quantity =\n      DenseMapInfo<clang::CharUnits::QuantityType>::getTombstoneKey();\n\n    return clang::CharUnits::fromQuantity(Quantity);\n  }\n\n  static unsigned getHashValue(const clang::CharUnits &CU) {\n    clang::CharUnits::QuantityType Quantity = CU.getQuantity();\n    return DenseMapInfo<clang::CharUnits::QuantityType>::getHashValue(Quantity);\n  }\n\n  static bool isEqual(const clang::CharUnits &LHS,\n                      const clang::CharUnits &RHS) {\n    return LHS == RHS;\n  }\n};\n\n}",
+  "id": "BLOCK-CPP-23291",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CharUnits.h",
+  "source_line": 230,
+  "validation_status": "validated"
+}

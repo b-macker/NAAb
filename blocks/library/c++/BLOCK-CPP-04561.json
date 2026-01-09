@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include <cassert>\n#include <cstdint>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04561_execute() {\n    {\n    assert(fn);\n    FnPtr expected = default_fn_;\n    const bool store_succeeded = hook_.compare_exchange_strong(\n        expected, fn, std::memory_order_acq_rel, std::memory_order_acquire);\n    const bool same_value_already_stored = (expected == fn);\n    return store_succeeded || same_value_already_stored;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04561",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/atomic_hook.h",
+  "source_line": 152,
+  "validation_status": "validated"
+}

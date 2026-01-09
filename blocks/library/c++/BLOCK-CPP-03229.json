@@ -1,0 +1,8 @@
+{
+  "code": "#include \"time_zone_info.h\"\n#include <algorithm>\n#include <cassert>\n#include <chrono>\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <cstring>\n#include <fstream>\n#include <functional>\n#include <memory>\n#include <sstream>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"time_zone_fixed.h\"\n#include \"time_zone_posix.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03229_execute() {\n    {\n  std::uint_fast32_t v = 0;\n  for (int i = 0; i != (32 / 8); ++i) v = (v << 8) | Decode8(cp++);\n  const std::int_fast32_t s32max = 0x7fffffff;\n  const auto s32maxU = static_cast<std::uint_fast32_t>(s32max);\n  if (v <= s32maxU) return static_cast<std::int_fast32_t>(v);\n  return static_cast<std::int_fast32_t>(v - s32maxU - 1) - s32max - 1;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03229",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_info.cc",
+  "source_line": 120,
+  "validation_status": "validated"
+}

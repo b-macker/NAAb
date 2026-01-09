@@ -1,0 +1,8 @@
+{
+  "code": "#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16088_execute() {\n    {\n  using BlockCommandNamesTy = std::vector<std::string>;\n\n  /// Command names to treat as block commands in comments.\n  /// Should not include the leading backslash.\n  BlockCommandNamesTy BlockCommandNames;\n\n  /// Treat ordinary comments as documentation comments.\n  bool ParseAllComments = false;\n\n  CommentOptions() = default;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16088",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CommentOptions.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

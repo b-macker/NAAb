@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang-c/BuildSystem.h\"\n#include \"clang-c/CXDiagnostic.h\"\n#include \"clang-c/CXErrorCode.h\"\n#include \"clang-c/CXFile.h\"\n#include \"clang-c/CXSourceLocation.h\"\n#include \"clang-c/CXString.h\"\n#include \"clang-c/ExternC.h\"\n#include \"clang-c/Platform.h\"\n\nusing namespace pollution;\nusing namespace alias;\nusing namespace or;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22491_execute() {\n    {\n  /**\n   * A string that describes the platform for which this structure\n   * provides availability information.\n   *\n   * Possible values are \"ios\" or \"macos\".\n   */\n  CXString Platform;\n  /**\n   * The version number in which this entity was introduced.\n   */\n  CXVersion Introduced;\n  /**\n   * The version number in which this entity was deprecated (but is\n   * still available).\n   */\n  CXVersion Deprecated;\n  /**\n   * The version number in which this entity was obsoleted, and therefore\n   * is no longer available.\n   */\n  CXVersion Obsoleted;\n  /**\n   * Whether the entity is unconditionally unavailable on this platform.\n   */\n  int Unavailable;\n  /**\n   * An optional message to provide to a user of this API, e.g., to\n   * suggest replacement APIs.\n   */\n  CXString Message;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22491",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang-c/Index.h",
+  "source_line": 2436,
+  "validation_status": "validated"
+}

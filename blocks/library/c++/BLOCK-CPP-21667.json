@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  BinaryOp(TIL_BinaryOpcode Op, SExpr *E0, SExpr *E1)\n      : SExpr(COP_BinaryOp), Expr0(E0), Expr1(E1) {\n    Flags = Op;\n  }\n\n  BinaryOp(const BinaryOp &B, SExpr *E0, SExpr *E1)\n      : SExpr(B), Expr0(E0), Expr1(E1) {\n    Flags = B.Flags;\n  }\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_BinaryOp; }\n\n  TIL_BinaryOpcode binaryOpcode() const {\n    return static_cast<TIL_BinaryOpcode>(Flags);\n  }\n\n  SExpr *expr0() { return Expr0; }\n  const SExpr *expr0() const { return Expr0; }\n\n  SExpr *expr1() { return Expr1; }\n  const SExpr *expr1() const { return Expr1; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Ne0 = Vs.traverse(Expr0, Vs.subExprCtx(Ctx));\n    auto Ne1 = Vs.traverse(Expr1, Vs.subExprCtx(Ctx));\n    return Vs.reduceBinaryOp(*this, Ne0, Ne1);\n  }\n\n  template <class C>\n  typename C::CType compare(const BinaryOp* E, C& Cmp) const {\n    typename C::CType Ct =\n      Cmp.compareIntegers(binaryOpcode(), E->binaryOpcode());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    Ct = Cmp.compare(expr0(), E->expr0());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.compare(expr1(), E->expr1());\n  }\n\nprivate:\n  SExpr* Expr0;\n  SExpr* Expr1;\n}",
+  "id": "BLOCK-CPP-21667",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 1213,
+  "validation_status": "validated"
+}

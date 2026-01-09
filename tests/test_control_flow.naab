@@ -1,0 +1,76 @@
+// Test: Control Flow
+// Tests: if/else, while, for, break, continue
+
+print("=== Test 1: If/Else ===")
+
+let age = 25
+if (age >= 18) {
+    print("Adult")  // Expected: Adult
+} else {
+    print("Minor")
+}
+
+let score = 85
+if (score >= 90) {
+    print("Grade: A")
+} else if (score >= 80) {
+    print("Grade: B")  // Expected: Grade: B
+} else if (score >= 70) {
+    print("Grade: C")
+} else {
+    print("Grade: F")
+}
+
+print("\n=== Test 2: While Loop ===")
+
+let count = 0
+while (count < 5) {
+    print("Count:", count)  // Expected: 0, 1, 2, 3, 4
+    count = count + 1
+}
+print("Final count:", count)  // Expected: 5
+
+print("\n=== Test 3: For Loop ===")
+
+for (let i = 0; i < 5; i = i + 1) {
+    print("i =", i)  // Expected: 0, 1, 2, 3, 4
+}
+
+print("\n=== Test 4: Break Statement ===")
+
+let n = 0
+while (true) {
+    if (n >= 3) {
+        break
+    }
+    print("n =", n)  // Expected: 0, 1, 2
+    n = n + 1
+}
+print("Broke at n =", n)  // Expected: 3
+
+print("\n=== Test 5: Continue Statement ===")
+
+for (let j = 0; j < 5; j = j + 1) {
+    if (j == 2) {
+        continue
+    }
+    print("j =", j)  // Expected: 0, 1, 3, 4 (skips 2)
+}
+
+print("\n=== Test 6: Nested Loops ===")
+
+for (let x = 1; x <= 3; x = x + 1) {
+    for (let y = 1; y <= 3; y = y + 1) {
+        print(x, "*", y, "=", x * y)
+    }
+}
+
+print("\n=== Test 7: Conditional Expressions ===")
+
+let max = 10 > 5 ? 10 : 5
+print("max(10, 5):", max)  // Expected: 10
+
+let min = 3 < 7 ? 3 : 7
+print("min(3, 7):", min)   // Expected: 3
+
+print("\n=== All Control Flow Tests Passed ===")

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00829_execute() {\n    {\n    out[0] = static_cast<Char>('0' + c / 100);\n    out[1] = static_cast<Char>('0' + c / 10 % 10);\n    out[2] = static_cast<Char>('0' + c % 10);\n    out[3] = static_cast<Char>(delimiter);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00829",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
+  "source_line": 397,
+  "validation_status": "validated"
+}

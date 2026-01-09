@@ -1,0 +1,8 @@
+{
+  "code": "using namespace llvm;\nusing namespace opt;\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17830_execute() {\n    {\n\nnamespace options {\n/// Flags specifically for clang options.  Must not overlap with\n/// llvm::opt::DriverFlag.\nenum ClangFlags {\n  NoXarchOption = (1 << 4),\n  LinkerInput = (1 << 5),\n  NoArgumentUnused = (1 << 6),\n  Unsupported = (1 << 7),\n  CoreOption = (1 << 8),\n  CLOption = (1 << 9),\n  CC1Option = (1 << 10),\n  CC1AsOption = (1 << 11),\n  NoDriverOption = (1 << 12),\n  LinkOption = (1 << 13),\n  FlangOption = (1 << 14),\n  FC1Option = (1 << 15),\n  FlangOnlyOption = (1 << 16),\n  DXCOption = (1 << 17),\n  CLDXCOption = (1 << 18),\n  Ignored = (1 << 19),\n  TargetSpecific = (1 << 20),\n};\n\nenum ID {\n    OPT_INVALID = 0, // This is not an option ID.\n#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \\\n               HELPTEXT, METAVAR, VALUES)                                      \\\n  OPT_##ID,\n#include \"clang/Driver/Options.inc\"\n    LastOption\n#undef OPTION\n  };\n}\n\nconst llvm::opt::OptTable &getDriverOptTable();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17830",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Options.h",
+  "source_line": 19,
+  "validation_status": "validated"
+}

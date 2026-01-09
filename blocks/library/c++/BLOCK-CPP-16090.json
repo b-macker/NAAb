@@ -1,0 +1,8 @@
+{
+  "code": "using namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16090_execute() {\n    {\n  return A >= CudaArch::SM_20 && A < CudaArch::GFX600;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16090",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Cuda.h",
+  "source_line": 124,
+  "validation_status": "validated"
+}

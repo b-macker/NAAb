@@ -1,0 +1,19 @@
+# Test program for error reporting
+# This file contains intentional errors to test error messages
+
+main {
+    # Test 1: Basic variable usage
+    print("=== Error Reporting Test ===")
+
+    # Test 2: Undefined variable (should error when checker is fully implemented)
+    let x = undefined_var + 42
+
+    # Test 3: Type mismatch (should error)
+    let bad_math = "hello" - 5
+
+    # Test 4: Invalid index
+    let num = 42
+    let bad_index = num[0]
+
+    print("Done!")
+}

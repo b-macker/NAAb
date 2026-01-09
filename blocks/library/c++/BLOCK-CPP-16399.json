@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/FileSystem.h\"\n#include \"llvm/Support/VirtualFileSystem.h\"\n#include <cstdint>\n#include <ctime>\n#include <memory>\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16399_execute() {\n    { return StatCalls.end(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16399",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/FileSystemStatCache.h",
+  "source_line": 79,
+  "validation_status": "validated"
+}

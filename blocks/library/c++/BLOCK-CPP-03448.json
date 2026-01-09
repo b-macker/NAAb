@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include <xmmintrin.h>\n#include <intrin.h>\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03448_execute() {\n    {\n  __builtin_prefetch(addr, 0, 3);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03448",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/prefetch.h",
+  "source_line": 145,
+  "validation_status": "validated"
+}

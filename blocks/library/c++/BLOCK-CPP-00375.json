@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/details/file_helper.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/sinks/base_sink.h>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00375_execute() {\n    {\n/*\n * Trivial file sink with single file as target\n */\ntemplate <typename Mutex>\nclass basic_file_sink final : public base_sink<Mutex> {\npublic:\n    explicit basic_file_sink(const filename_t &filename,\n                             bool truncate = false,\n                             const file_event_handlers &event_handlers = {});\n    const filename_t &filename() const;\n\nprotected:\n    void sink_it_(const details::log_msg &msg) override;\n    void flush_() override;\n\nprivate:\n    details::file_helper file_helper_;\n};\n\nusing basic_file_sink_mt = basic_file_sink<std::mutex>;\nusing basic_file_sink_st = basic_file_sink<details::null_mutex>;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00375",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/basic_file_sink.h",
+  "source_line": 15,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00527_execute() {\n    def re_compile_maybe_verbose(regex: str) -> Pattern[str]:\n    \"\"\"Compile a regular expression string in `regex`.\n\n    If it contains newlines, use verbose mode.\n    \"\"\"\n    if \"\\n\" in regex:\n        regex = \"(?x)\" + regex\n    compiled: Pattern[str] = re.compile(regex)\n    return compiled\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00527",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
+  "source_line": 212,
+  "validation_status": "validated"
+}

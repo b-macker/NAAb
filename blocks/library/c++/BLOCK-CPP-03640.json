@@ -1,0 +1,8 @@
+{
+  "code": "#include <tuple>\n#include <utility>\n#include \"absl/functional/function_ref.h\"\n#include \"absl/hash/internal/hash.h\"\n\nusing namespace absl;\nusing namespace as;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03640_execute() {\n    {\n  auto tuple = std::tie(values...);\n  return absl::Hash<decltype(tuple)>{}(tuple);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03640",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/hash.h",
+  "source_line": 266,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <type_traits>\n#include \"clang/AST/AST.h\"\n#include \"clang/ASTMatchers/ASTMatchers.h\"\n#include \"llvm/ADT/DenseMap.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21366_execute() {\n    {\n    return findPointeeMutation(Dec) != nullptr;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21366",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ExprMutationAnalyzer.h",
+  "source_line": 36,
+  "validation_status": "validated"
+}

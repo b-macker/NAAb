@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  ContinueStmt(SourceLocation CL) : Stmt(ContinueStmtClass) {\n    setContinueLoc(CL);\n  }\n\n  /// Build an empty continue statement.\n  explicit ContinueStmt(EmptyShell Empty) : Stmt(ContinueStmtClass, Empty) {}\n\n  SourceLocation getContinueLoc() const { return ContinueStmtBits.ContinueLoc; }\n  void setContinueLoc(SourceLocation L) { ContinueStmtBits.ContinueLoc = L; }\n\n  SourceLocation getBeginLoc() const { return getContinueLoc(); }\n  SourceLocation getEndLoc() const { return getContinueLoc(); }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ContinueStmtClass;\n  }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
+  "id": "BLOCK-CPP-12886",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Stmt.h",
+  "source_line": 2771,
+  "validation_status": "validated"
+}

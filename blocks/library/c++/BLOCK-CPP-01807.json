@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/seed_sequences.h\"\n#include \"absl/random/internal/pool_urbg.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01807_execute() {\n    {\n  SeedSeq::result_type seed_material[8];\n  random_internal::RandenPool<uint32_t>::Fill(absl::MakeSpan(seed_material));\n  return SeedSeq(std::begin(seed_material), std::end(seed_material));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01807",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/seed_sequences.cc",
+  "source_line": 22,
+  "validation_status": "validated"
+}

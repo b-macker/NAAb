@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/internal/nullability_impl.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03444_execute() {\n    {\n//   Pay(*employee); // Potentially dangerous. API provider should investigate.\n// }\ntemplate <typename T>\nusing NullabilityUnknown = nullability_internal::NullabilityUnknownImpl<T>;\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03444",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/nullability.h",
+  "source_line": 216,
+  "validation_status": "validated"
+}

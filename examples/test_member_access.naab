@@ -1,0 +1,22 @@
+# Test program - Member access on blocks
+
+use BLOCK-PY-00001 as ResponseBlock
+
+main {
+    print("Testing member access on Python blocks")
+    print("")
+
+    # The block defines a class called APIResponse
+    # We can access it using member syntax
+
+    # Test 1: Access the class through member access
+    print("Test 1: Member access - ResponseBlock.APIResponse")
+    let ResponseClass = ResponseBlock.APIResponse
+    print("Type:", type(ResponseClass))
+    print("Value:", ResponseClass)
+    print("")
+
+    # Test 2: Call the class constructor through member access
+    print("Test 2: Calling APIResponse(42, 'ok')")
+    ResponseClass(42, "ok")
+}

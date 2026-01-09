@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  LiteralPtr(const ValueDecl *D) : SExpr(COP_LiteralPtr), Cvdecl(D) {}\n  LiteralPtr(const LiteralPtr &) = default;\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_LiteralPtr; }\n\n  // The clang declaration for the value that this pointer points to.\n  const ValueDecl *clangDecl() const { return Cvdecl; }\n  void setClangDecl(const ValueDecl *VD) { Cvdecl = VD; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    return Vs.reduceLiteralPtr(*this);\n  }\n\n  template <class C>\n  typename C::CType compare(const LiteralPtr* E, C& Cmp) const {\n    if (!Cvdecl || !E->Cvdecl)\n      return Cmp.comparePointers(this, E);\n    return Cmp.comparePointers(Cvdecl, E->Cvdecl);\n  }\n\nprivate:\n  const ValueDecl *Cvdecl;\n}",
+  "id": "BLOCK-CPP-21652",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 643,
+  "validation_status": "validated"
+}

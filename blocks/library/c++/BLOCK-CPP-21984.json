@@ -1,0 +1,8 @@
+{
+  "code": "{\n\n/// Trivial lattice for dataflow analysis with exactly one element.\n///\n/// Useful for analyses that only need the Environment and nothing more.\nclass NoopLattice {\npublic:\n  bool operator==(const NoopLattice &Other) const { return true; }\n\n  LatticeJoinEffect join(const NoopLattice &Other) {\n    return LatticeJoinEffect::Unchanged;\n  }\n};\n\ninline std::ostream &operator<<(std::ostream &OS, const NoopLattice &) {\n  return OS << \"noop\";\n}\n\n}",
+  "id": "BLOCK-CPP-21984",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/NoopLattice.h",
+  "source_line": 20,
+  "validation_status": "validated"
+}

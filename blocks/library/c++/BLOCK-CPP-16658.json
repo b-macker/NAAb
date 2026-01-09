@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16658_execute() {\n    {\n    // The GNUstep runtime uses a newer dispatch method by default from\n    // version 1.6 onwards\n    if (getKind() == GNUstep && getVersion() >= VersionTuple(1, 6)) {\n      if (Arch == llvm::Triple::arm ||\n          Arch == llvm::Triple::x86 ||\n          Arch == llvm::Triple::x86_64)\n        return false;\n    }\n    else if ((getKind() ==  MacOSX) && isNonFragile() &&\n             (getVersion() >= VersionTuple(10, 0)) &&\n             (getVersion() < VersionTuple(10, 6)))\n        return Arch != llvm::Triple::x86_64;\n    // Except for deployment target of 10.5 or less,\n    // Mac runtimes use legacy dispatch everywhere now.\n    return true;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16658",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/ObjCRuntime.h",
+  "source_line": 100,
+  "validation_status": "validated"
+}

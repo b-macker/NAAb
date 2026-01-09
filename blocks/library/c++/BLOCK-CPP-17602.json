@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Frontend/PCHContainerOperations.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17602_execute() {\n    {\n\n/// A PCHContainerWriter implementation that uses LLVM to\n/// wraps Clang modules inside a COFF, ELF, or Mach-O container.\nclass ObjectFilePCHContainerWriter : public PCHContainerWriter {\n  StringRef getFormat() const override { return \"obj\"; }\n\n  /// Return an ASTConsumer that can be chained with a\n  /// PCHGenerator that produces a wrapper file format\n  /// that also contains full debug info for the module.\n  std::unique_ptr<ASTConsumer>\n  CreatePCHContainerGenerator(CompilerInstance &CI,\n                              const std::string &MainFileName,\n                              const std::string &OutputFileName,\n                              std::unique_ptr<llvm::raw_pwrite_stream> OS,\n                              std::shared_ptr<PCHBuffer> Buffer) const override;\n};\n\n/// A PCHContainerReader implementation that uses LLVM to\n/// wraps Clang modules inside a COFF, ELF, or Mach-O container.\nclass ObjectFilePCHContainerReader : public PCHContainerReader {\n  ArrayRef<StringRef> getFormats() const override;\n\n  /// Returns the serialized AST inside the PCH container Buffer.\n  StringRef ExtractPCH(llvm::MemoryBufferRef Buffer) const override;\n};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17602",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ObjectFilePCHContainerOperations.h",
+  "source_line": 14,
+  "validation_status": "validated"
+}

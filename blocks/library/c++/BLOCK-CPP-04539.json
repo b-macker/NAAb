@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n#include \"absl/utility/utility.h\"\n#include <variant>  // IWYU pragma: export\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04539_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nusing std::bad_variant_access;\nusing std::get;\nusing std::get_if;\nusing std::holds_alternative;\nusing std::monostate;\nusing std::variant;\nusing std::variant_alternative;\nusing std::variant_alternative_t;\nusing std::variant_npos;\nusing std::variant_size;\nusing std::variant_size_v;\nusing std::visit;\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04539",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/variant.h",
+  "source_line": 52,
+  "validation_status": "validated"
+}

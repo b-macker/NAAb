@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Tooling/Core/Diagnostic.h\"\n#include \"clang/Tooling/ReplacementsYaml.h\"\n#include \"llvm/Support/YAMLTraits.h\"\n#include <string>\n\nusing namespace llvm;\nusing namespace yaml;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21151_execute() {\n    {\n    Io.mapRequired(\"Message\", M.Message);\n    Io.mapOptional(\"FilePath\", M.FilePath);\n    Io.mapOptional(\"FileOffset\", M.FileOffset);\n    std::vector<clang::tooling::Replacement> Fixes;\n    for (auto &Replacements : M.Fix) {\n      llvm::append_range(Fixes, Replacements.second);\n    }\n    Io.mapRequired(\"Replacements\", Fixes);\n    for (auto &Fix : Fixes) {\n      llvm::Error Err = M.Fix[Fix.getFilePath()].add(Fix);\n      if (Err) {\n        // FIXME: Implement better conflict handling.\n        llvm::errs() << \"Fix conflicts with existing fix: \"\n                     << llvm::toString(std::move(Err)) << \"\\n\";\n      }\n    }\n    Io.mapOptional(\"Ranges\", M.Ranges);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21151",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/DiagnosticsYaml.h",
+  "source_line": 39,
+  "validation_status": "validated"
+}

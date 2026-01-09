@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  enum Specifier {\n    VS_None = 0,\n    VS_Override = 1,\n    VS_Final = 2,\n    VS_Sealed = 4,\n    // Represents the __final keyword, which is legal for gcc in pre-C++11 mode.\n    VS_GNU_Final = 8,\n    VS_Abstract = 16\n  };\n\n  VirtSpecifiers() : Specifiers(0), LastSpecifier(VS_None) { }\n\n  bool SetSpecifier(Specifier VS, SourceLocation Loc,\n                    const char *&PrevSpec);\n\n  bool isUnset() const { return Specifiers == 0; }\n\n  bool isOverrideSpecified() const { return Specifiers & VS_Override; }\n  SourceLocation getOverrideLoc() const { return VS_overrideLoc; }\n\n  bool isFinalSpecified() const { return Specifiers & (VS_Final | VS_Sealed | VS_GNU_Final); }\n  bool isFinalSpelledSealed() const { return Specifiers & VS_Sealed; }\n  SourceLocation getFinalLoc() const { return VS_finalLoc; }\n  SourceLocation getAbstractLoc() const { return VS_abstractLoc; }\n\n  void clear() { Specifiers = 0; }\n\n  static const char *getSpecifierName(Specifier VS);\n\n  SourceLocation getFirstLocation() const { return FirstLocation; }\n  SourceLocation getLastLocation() const { return LastLocation; }\n  Specifier getLastSpecifier() const { return LastSpecifier; }\n\nprivate:\n  unsigned Specifiers;\n  Specifier LastSpecifier;\n\n  SourceLocation VS_overrideLoc, VS_finalLoc, VS_abstractLoc;\n  SourceLocation FirstLocation;\n  SourceLocation LastLocation;\n}",
+  "id": "BLOCK-CPP-19716",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
+  "source_line": 2696,
+  "validation_status": "validated"
+}

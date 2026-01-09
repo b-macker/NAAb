@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <limits>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/container/internal/compressed_tuple.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace inlined_vector_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05067_execute() {\n    {\n    // GCC 12 has a false-positive -Wmaybe-uninitialized warning here.\n#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)\n#pragma GCC diagnostic push\n#pragma GCC diagnostic ignored \"-Wmaybe-uninitialized\"\n#endif\n    return data_.allocated.allocated_data;\n#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(12, 0)\n#pragma GCC diagnostic pop\n#endif\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05067",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/inlined_vector.h",
+  "source_line": 388,
+  "validation_status": "validated"
+}

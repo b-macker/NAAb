@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/FileSystem.h\"\n#include \"llvm/Support/VirtualFileSystem.h\"\n#include <cstdint>\n#include <ctime>\n#include <memory>\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16401_execute() {\n    {\npublic:\n  /// The set of stat() calls that have been seen.\n  llvm::StringMap<llvm::vfs::Status, llvm::BumpPtrAllocator> StatCalls;\n\n  using iterator =\n      llvm::StringMap<llvm::vfs::Status,\n                      llvm::BumpPtrAllocator>::const_iterator;\n\n  iterator begin() const { return StatCalls.begin(); }\n  iterator end() const { return StatCalls.end(); }\n\n  std::error_code getStat(StringRef Path, llvm::vfs::Status &Status,\n                          bool isFile,\n                          std::unique_ptr<llvm::vfs::File> *F,\n                          llvm::vfs::FileSystem &FS) override;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16401",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/FileSystemStatCache.h",
+  "source_line": 69,
+  "validation_status": "validated"
+}

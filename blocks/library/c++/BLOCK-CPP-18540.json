@@ -1,0 +1,8 @@
+{
+  "code": "/// reduces the source down to #define, #include, #import, @import, and any\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n\nusing namespace clang;\nusing namespace tok;\nusing namespace dependency_directives_scan;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18540_execute() {\n    {\n  /// Offset into the original source input.\n  unsigned Offset;\n  unsigned Length;\n  tok::TokenKind Kind;\n  unsigned short Flags;\n\n  Token(unsigned Offset, unsigned Length, tok::TokenKind Kind,\n        unsigned short Flags)\n      : Offset(Offset), Length(Length), Kind(Kind), Flags(Flags) {}\n\n  unsigned getEnd() const { return Offset + Length; }\n\n  bool is(tok::TokenKind K) const { return Kind == K; }\n  bool isNot(tok::TokenKind K) const { return Kind != K; }\n  bool isOneOf(tok::TokenKind K1, tok::TokenKind K2) const {\n    return is(K1) || is(K2);\n  }\n  template <typename... Ts> bool isOneOf(tok::TokenKind K1, Ts... Ks) const {\n    return is(K1) || isOneOf(Ks...);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18540",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/DependencyDirectivesScanner.h",
+  "source_line": 34,
+  "validation_status": "validated"
+}

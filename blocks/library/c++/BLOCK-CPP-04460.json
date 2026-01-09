@@ -1,0 +1,8 @@
+{
+  "code": "#include <stdexcept>\n#include \"absl/base/config.h\"\n#include <variant>\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace variant_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04460_execute() {\n    {\n\n[[noreturn]] ABSL_DLL void ThrowBadVariantAccess();\n[[noreturn]] ABSL_DLL void Rethrow();\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04460",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_variant_access.h",
+  "source_line": 71,
+  "validation_status": "validated"
+}

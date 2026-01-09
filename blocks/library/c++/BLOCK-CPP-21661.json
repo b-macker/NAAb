@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  enum AllocKind {\n    AK_Stack,\n    AK_Heap\n  };\n\n  Alloc(SExpr *D, AllocKind K) : SExpr(COP_Alloc), Dtype(D) { Flags = K; }\n  Alloc(const Alloc &A, SExpr *Dt) : SExpr(A), Dtype(Dt) { Flags = A.kind(); }\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Call; }\n\n  AllocKind kind() const { return static_cast<AllocKind>(Flags); }\n\n  SExpr *dataType() { return Dtype; }\n  const SExpr *dataType() const { return Dtype; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Nd = Vs.traverse(Dtype, Vs.declCtx(Ctx));\n    return Vs.reduceAlloc(*this, Nd);\n  }\n\n  template <class C>\n  typename C::CType compare(const Alloc* E, C& Cmp) const {\n    typename C::CType Ct = Cmp.compareIntegers(kind(), E->kind());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.compare(dataType(), E->dataType());\n  }\n\nprivate:\n  SExpr* Dtype;\n}",
+  "id": "BLOCK-CPP-21661",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
+  "source_line": 1004,
+  "validation_status": "validated"
+}

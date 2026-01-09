@@ -1,0 +1,8 @@
+{
+  "code": "{\n\n// Returns true iff long double is represented as a pair of doubles added\n// together.\ninline constexpr bool IsDoubleDouble() {\n  // A double-double value always has exactly twice the precision of a double\n  // value--one double carries the high digits and one double carries the low\n  // digits. This property is not shared with any other common floating-point\n  // representation, so this test won't trigger false positives. For reference,\n  // this table gives the number of bits of precision of each common\n  // floating-point representation:\n  //\n  //                type     precision\n  //         IEEE single          24 b\n  //         IEEE double          53\n  //     x86 long double          64\n  //       double-double         106\n  //      IEEE quadruple         113\n  //\n  // Note in particular that a quadruple-precision float has greater precision\n  // than a double-double float despite taking up the same amount of memory; the\n  // quad has more of its bits allocated to the mantissa than the double-double\n  // has.\n  return std::numeric_limits<long double>::digits ==\n         2 * std::numeric_limits<double>::digits;\n}\n\n}",
+  "id": "BLOCK-CPP-05819",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/internal/representation.h",
+  "source_line": 24,
+  "validation_status": "validated"
+}

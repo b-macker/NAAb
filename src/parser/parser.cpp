@@ -105,11 +105,12 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
         skipNewlines();
     }
 
-    // Collect module imports and exports in vectors
+    // Collect module imports, exports, and structs in vectors
     std::vector<std::unique_ptr<ast::ImportStmt>> module_imports;
     std::vector<std::unique_ptr<ast::ExportStmt>> exports;
+    std::vector<std::unique_ptr<ast::StructDecl>> structs;
 
-    // Parse module imports, exports, and functions (Phase 3.1)
+    // Parse module imports, exports, structs, and functions (Phase 3.1)
     while (!isAtEnd()) {
         skipNewlines();
 
@@ -120,6 +121,9 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
         else if (check(lexer::TokenType::EXPORT)) {
             auto export_stmt = parseExportStmt();
             exports.push_back(std::move(export_stmt));
+        }
+        else if (check(lexer::TokenType::STRUCT)) {
+            structs.push_back(parseStructDecl());
         }
         else if (check(lexer::TokenType::FUNCTION) || check(lexer::TokenType::ASYNC)) {
             functions.push_back(parseFunctionDecl());
@@ -148,12 +152,15 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
         std::move(main_block)
     );
 
-    // Add module imports and exports to the program
+    // Add module imports, exports, and structs to the program
     for (auto& import : module_imports) {
         program->addModuleImport(std::move(import));
     }
     for (auto& export_stmt : exports) {
         program->addExport(std::move(export_stmt));
+    }
+    for (auto& struct_decl : structs) {
+        program->addStruct(std::move(struct_decl));
     }
 
     return program;
@@ -289,6 +296,14 @@ std::unique_ptr<ast::ExportStmt> Parser::parseExportStmt() {
             ast::SourceLocation(start.line, start.column)
         );
     }
+    // export struct (Week 7)
+    else if (check(lexer::TokenType::STRUCT)) {
+        auto struct_decl = parseStructDecl();
+        return std::make_unique<ast::ExportStmt>(
+            std::move(struct_decl),
+            ast::SourceLocation(start.line, start.column)
+        );
+    }
     // export default expr
     else {
         // TODO: Implement default export parsing
@@ -346,6 +361,58 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
         name, std::move(params), return_type, std::move(body),
         ast::SourceLocation(start.line, start.column)
     );
+}
+
+std::unique_ptr<ast::StructDecl> Parser::parseStructDecl() {
+    auto start = current();
+    expect(lexer::TokenType::STRUCT, "Expected 'struct' keyword");
+
+    auto& name_token = expect(lexer::TokenType::IDENTIFIER, "Expected struct name");
+    std::string struct_name = name_token.value;
+
+    expect(lexer::TokenType::LBRACE, "Expected '{' after struct name");
+
+    std::vector<ast::StructField> fields;
+    skipNewlines();
+    while (!match(lexer::TokenType::RBRACE)) {
+        auto& field_name_token = expect(lexer::TokenType::IDENTIFIER, "Expected field name");
+        expect(lexer::TokenType::COLON, "Expected ':' after field name");
+
+        auto field_type = parseType();
+
+        fields.emplace_back(ast::StructField{field_name_token.value, field_type, std::nullopt});
+
+        if (!check(lexer::TokenType::RBRACE)) {
+            expect(lexer::TokenType::SEMICOLON, "Expected ';' after field");
+        }
+        skipNewlines();
+    }
+
+    return std::make_unique<ast::StructDecl>(struct_name, std::move(fields),
+                                             ast::SourceLocation(start.line, start.column));
+}
+
+std::unique_ptr<ast::StructLiteralExpr> Parser::parseStructLiteral(
+    const std::string& struct_name) {
+    auto start = current();
+
+    expect(lexer::TokenType::LBRACE, "Expected '{' for struct literal");
+
+    std::vector<std::pair<std::string, std::unique_ptr<ast::Expr>>> field_inits;
+    while (!match(lexer::TokenType::RBRACE)) {
+        auto& field_name = expect(lexer::TokenType::IDENTIFIER, "Expected field name");
+        expect(lexer::TokenType::COLON, "Expected ':' after field name");
+
+        auto field_expr = parseExpression();
+        field_inits.emplace_back(field_name.value, std::move(field_expr));
+
+        if (!check(lexer::TokenType::RBRACE)) {
+            expect(lexer::TokenType::COMMA, "Expected ',' between fields");
+        }
+    }
+
+    return std::make_unique<ast::StructLiteralExpr>(
+        struct_name, std::move(field_inits), ast::SourceLocation(start.line, start.column));
 }
 
 std::unique_ptr<ast::MainBlock> Parser::parseMainBlock() {
@@ -893,6 +960,12 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
     if (match(lexer::TokenType::BOOLEAN)) {
         std::string value = tokens_[pos_ - 1].value;
         return std::make_unique<ast::LiteralExpr>(ast::LiteralKind::Bool, value, ast::SourceLocation());
+    }
+
+    // Struct literal: new StructName { field: value, ... }
+    if (match(lexer::TokenType::NEW)) {
+        auto& name_token = expect(lexer::TokenType::IDENTIFIER, "Expected struct name after 'new'");
+        return parseStructLiteral(name_token.value);
     }
 
     // Identifier

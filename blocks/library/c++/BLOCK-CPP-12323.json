@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/Support/PrettyStackTrace.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12323_execute() {\n    {\n\nclass ASTContext;\nclass Decl;\n\n/// PrettyDeclStackTraceEntry - If a crash occurs in the parser while\n/// parsing something related to a declaration, include that\n/// declaration in the stack trace.\nclass PrettyDeclStackTraceEntry : public llvm::PrettyStackTraceEntry {\n  ASTContext &Context;\n  Decl *TheDecl;\n  SourceLocation Loc;\n  const char *Message;\n\npublic:\n  PrettyDeclStackTraceEntry(ASTContext &Ctx, Decl *D, SourceLocation Loc,\n                            const char *Msg)\n    : Context(Ctx), TheDecl(D), Loc(Loc), Message(Msg) {}\n\n  void print(raw_ostream &OS) const override;\n};\n\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12323",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/PrettyDeclStackTrace.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

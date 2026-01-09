@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00739_execute() {\n    {\n    auto time = std::tm();\n    time.tm_hour = to_nonnegative_int(hour(), 24);\n    time.tm_min = to_nonnegative_int(minute(), 60);\n    time.tm_sec = to_nonnegative_int(second(), 60);\n    return time;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00739",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1642,
+  "validation_status": "validated"
+}

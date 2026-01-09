@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/internal/charconv_parse.h\"\n#include \"absl/strings/charconv.h\"\n#include <cassert>\n#include <cstdint>\n#include <limits>\n#include \"absl/strings/internal/memutil.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02864_execute() {\n    {\n    assert(max_digits * 4 <= std::numeric_limits<T>::digits);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02864",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_parse.cc",
+  "source_line": 253,
+  "validation_status": "validated"
+}

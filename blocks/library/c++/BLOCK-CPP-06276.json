@@ -1,0 +1,8 @@
+{
+  "code": "#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06276_execute() {\n    {\n  AbslStringify(sink, v);\n  return sink.buffer_;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06276",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/stringify_sink.h",
+  "source_line": 46,
+  "validation_status": "validated"
+}

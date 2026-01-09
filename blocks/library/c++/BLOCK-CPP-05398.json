@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include \"absl/base/config.h\"\n#include <x86intrin.h>\n#include <intrin.h>\n#include <arm_acle.h>\n#include <arm_neon.h>\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05398_execute() {\n    {\n  uint64x2_t res;\n  __asm__ __volatile__(\"pmull %0.1q, %1.1d, %2.1d \\n\\t\"\n                       : \"=w\"(res)\n                       : \"w\"(l), \"w\"(r));\n  return res;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05398",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc32_x86_arm_combined_simd.h",
+  "source_line": 240,
+  "validation_status": "validated"
+}

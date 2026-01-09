@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Stmt.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21866_execute() {\n    {\npublic:\n  UnsafeBufferUsageHandler() = default;\n  virtual ~UnsafeBufferUsageHandler() = default;\n\n  /// This analyses produces large fixits that are organized into lists\n  /// of primitive fixits (individual insertions/removals/replacements).\n  using FixItList = llvm::SmallVectorImpl<FixItHint>;\n\n  /// Invoked when an unsafe operation over raw pointers is found.\n  virtual void handleUnsafeOperation(const Stmt *Operation,\n                                     bool IsRelatedToDecl) = 0;\n\n  /// Invoked when a fix is suggested against a variable. This function groups\n  /// all variables that must be fixed together (i.e their types must be changed to the\n  /// same target type to prevent type mismatches) into a single fixit.\n  virtual void handleUnsafeVariableGroup(const VarDecl *Variable,\n                                         const DefMapTy &VarGrpMap,\n                                         FixItList &&Fixes) = 0;\n\n  /// Returns a reference to the `Preprocessor`:\n  virtual bool isSafeBufferOptOut(const SourceLocation &Loc) const = 0;\n\n  virtual std::string\n  getUnsafeBufferUsageAttributeTextAt(SourceLocation Loc,\n                                      StringRef WSSuffix = \"\") const = 0;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21866",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/UnsafeBufferUsage.h",
+  "source_line": 26,
+  "validation_status": "validated"
+}

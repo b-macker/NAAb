@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_crc_cpu_detect.a CMakeFiles/absl_crc_cpu_detect.dir/internal/cpu_detect.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_crc_cpu_detect.a

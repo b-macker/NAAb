@@ -1,0 +1,8 @@
+{
+  "code": "{\n    FunctionProtoType::ExceptionSpecInfo esi;\n    esi.Type = ExceptionSpecificationType(asImpl().readUInt32());\n    if (esi.Type == EST_Dynamic) {\n      esi.Exceptions = asImpl().template readArray<QualType>(buffer);\n    } else if (isComputedNoexcept(esi.Type)) {\n      esi.NoexceptExpr = asImpl().readExprRef();\n    } else if (esi.Type == EST_Uninstantiated) {\n      esi.SourceDecl = asImpl().readFunctionDeclRef();\n      esi.SourceTemplate = asImpl().readFunctionDeclRef();\n    } else if (esi.Type == EST_Unevaluated) {\n      esi.SourceDecl = asImpl().readFunctionDeclRef();\n    }\n    return esi;\n  }",
+  "id": "BLOCK-CPP-23101",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
+  "source_line": 222,
+  "validation_status": "validated"
+}

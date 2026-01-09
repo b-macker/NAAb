@@ -1,0 +1,8 @@
+{
+  "code": "{\n\nclass NamedDecl;\n\n/// A POD class for pairing a NamedDecl* with an access specifier.\n/// Can be put into unions.\nclass DeclAccessPair {\n  uintptr_t Ptr; // we'd use llvm::PointerUnion, but it isn't trivial\n\n  enum { Mask = 0x3 };\n\npublic:\n  static DeclAccessPair make(NamedDecl *D, AccessSpecifier AS) {\n    DeclAccessPair p;\n    p.set(D, AS);\n    return p;\n  }\n\n  NamedDecl *getDecl() const {\n    return reinterpret_cast<NamedDecl*>(~Mask & Ptr);\n  }\n  AccessSpecifier getAccess() const {\n    return AccessSpecifier(Mask & Ptr);\n  }\n\n  void setDecl(NamedDecl *D) {\n    set(D, getAccess());\n  }\n  void setAccess(AccessSpecifier AS) {\n    set(getDecl(), AS);\n  }\n  void set(NamedDecl *D, AccessSpecifier AS) {\n    Ptr = uintptr_t(AS) | reinterpret_cast<uintptr_t>(D);\n  }\n\n  operator NamedDecl*() const { return getDecl(); }\n  NamedDecl *operator->() const { return getDecl(); }\n};\n}",
+  "id": "BLOCK-CPP-08202",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclAccessPair.h",
+  "source_line": 23,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ASTStmtReader;\n\n  TypeSourceInfo *TypeInfo;\n\npublic:\n  /// Create an explicitly-written scalar-value initialization\n  /// expression.\n  CXXScalarValueInitExpr(QualType Type, TypeSourceInfo *TypeInfo,\n                         SourceLocation RParenLoc)\n      : Expr(CXXScalarValueInitExprClass, Type, VK_PRValue, OK_Ordinary),\n        TypeInfo(TypeInfo) {\n    CXXScalarValueInitExprBits.RParenLoc = RParenLoc;\n    setDependence(computeDependence(this));\n  }\n\n  explicit CXXScalarValueInitExpr(EmptyShell Shell)\n      : Expr(CXXScalarValueInitExprClass, Shell) {}\n\n  TypeSourceInfo *getTypeSourceInfo() const {\n    return TypeInfo;\n  }\n\n  SourceLocation getRParenLoc() const {\n    return CXXScalarValueInitExprBits.RParenLoc;\n  }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY;\n  SourceLocation getEndLoc() const { return getRParenLoc(); }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == CXXScalarValueInitExprClass;\n  }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
+  "id": "BLOCK-CPP-10789",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
+  "source_line": 2159,
+  "validation_status": "validated"
+}

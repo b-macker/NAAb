@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cstdint>\n#include <utility>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23202_execute() {\n    {\n    using PairTy = std::pair<const clang::CXXRecordDecl *, clang::CharUnits>;\n\n    return DenseMapInfo<PairTy>::getHashValue(PairTy(Base.getBase(),\n                                                     Base.getBaseOffset()));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23202",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/BaseSubobject.h",
+  "source_line": 70,
+  "validation_status": "validated"
+}

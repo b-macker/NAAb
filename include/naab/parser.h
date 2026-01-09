@@ -51,6 +51,8 @@ private:
     std::unique_ptr<ast::ImportStmt> parseImportStmt();    // Phase 3.1
     std::unique_ptr<ast::ExportStmt> parseExportStmt();    // Phase 3.1
     std::unique_ptr<ast::FunctionDecl> parseFunctionDecl();
+    std::unique_ptr<ast::StructDecl> parseStructDecl();
+    std::unique_ptr<ast::StructLiteralExpr> parseStructLiteral(const std::string& struct_name);
     std::unique_ptr<ast::MainBlock> parseMainBlock();
 
     // Statements

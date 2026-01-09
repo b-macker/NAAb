@@ -1,0 +1,8 @@
+{
+  "code": "#include <spdlog/common.h>\n#include <spdlog/details/backtracer.h>\n#include <spdlog/details/log_msg.h>\n    #include <spdlog/details/os.h>\n#include <vector>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00050_execute() {\n    {\n        bool log_enabled = should_log(lvl);\n        bool traceback_enabled = tracer_.enabled();\n        if (!log_enabled && !traceback_enabled) {\n            return;\n        }\n\n        memory_buf_t buf;\n        details::os::wstr_to_utf8buf(wstring_view_t(msg.data(), msg.size()), buf);\n        details::log_msg log_msg(log_time, loc, name_, lvl, string_view_t(buf.data(), buf.size()));\n        log_it_(log_msg, log_enabled, traceback_enabled);\n    }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00050",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/logger.h",
+  "source_line": 169,
+  "validation_status": "validated"
+}

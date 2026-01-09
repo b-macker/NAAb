@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/PartialDiagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cassert>\n#include <cstddef>\n#include <utility>\n\nusing namespace clang;\nusing namespace sema;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19754_execute() {\n    { return Diagnostics.empty(); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-19754",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DelayedDiagnostic.h",
+  "source_line": 319,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/IR/ModuleSummaryIndex.h\"\n#include <memory>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17413_execute() {\n    {\n  class BitcodeModule;\n  template <typename T> class Expected;\n  template <typename T> class IntrusiveRefCntPtr;\n  class Module;\n  class MemoryBufferRef;\n  namespace vfs {\n  class FileSystem;\n  } // namespace vfs\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17413",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/BackendUtil.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

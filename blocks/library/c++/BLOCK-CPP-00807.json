@@ -1,0 +1,8 @@
+{
+  "code": "{\n    std::time_t time_;\n    std::tm tm_;\n\n    dispatcher(std::time_t t) : time_(t) {}\n\n    bool run() {\n      using namespace fmt::detail;\n      return handle(localtime_r(&time_, &tm_));\n    }\n\n    bool handle(std::tm* tm) { return tm != nullptr; }\n\n    bool handle(detail::null<>) {\n      using namespace fmt::detail;\n      return fallback(localtime_s(&tm_, &time_));\n    }\n\n    bool fallback(int res) { return res == 0; }\n\n#if !FMT_MSC_VERSION\n    bool fallback(detail::null<>) {\n      using namespace fmt::detail;\n      std::tm* tm = std::localtime(&time_);\n      if (tm) tm_ = *tm;\n      return tm != nullptr;\n    }\n#endif\n  }",
+  "id": "BLOCK-CPP-00807",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 452,
+  "validation_status": "validated"
+}

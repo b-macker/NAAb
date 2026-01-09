@@ -1,0 +1,39 @@
+# REAL Block Function Calls - NO SIMULATION!
+# This file actually executes JavaScript block functions
+
+use BLOCK-JS-FORMAT as fmt
+
+main {
+    print("=================================================================")
+    print("  REAL Block Function Calls Demo")
+    print("=================================================================")
+    print()
+
+    # Call formatCurrency - REAL JavaScript execution
+    print("Calling fmt.formatCurrency(1234567.89)...")
+    let price = fmt.formatCurrency(1234567.89)
+    print("  Result:", price)
+    print()
+
+    # Call formatNumber - REAL JavaScript execution
+    print("Calling fmt.formatNumber(9876543)...")
+    let num = fmt.formatNumber(9876543)
+    print("  Result:", num)
+    print()
+
+    # Call formatPercent - REAL JavaScript execution
+    print("Calling fmt.formatPercent(0.8532)...")
+    let pct = fmt.formatPercent(0.8532)
+    print("  Result:", pct)
+    print()
+
+    # Call padLeft - REAL JavaScript execution
+    print("Calling fmt.padLeft(\"TOTAL\", 20, \"-\")...")
+    let padded = fmt.padLeft("TOTAL", 20, "-")
+    print("  Result:", padded)
+    print()
+
+    print("=================================================================")
+    print("  All calls executed via QuickJS engine - REAL results!")
+    print("=================================================================")
+}

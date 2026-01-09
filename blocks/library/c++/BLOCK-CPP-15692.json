@@ -1,0 +1,8 @@
+{
+  "code": "{\n  const ReturnStmt *RS;\n\nprotected:\n  explicit ReturnedValueConstructionContext(ConstructionContext::Kind K,\n                                            const ReturnStmt *RS)\n      : ConstructionContext(K), RS(RS) {\n    assert(classof(this));\n    assert(RS);\n  }\n\npublic:\n  const ReturnStmt *getReturnStmt() const { return RS; }\n\n  static bool classof(const ConstructionContext *CC) {\n    return CC->getKind() >= RETURNED_VALUE_BEGIN &&\n           CC->getKind() <= RETURNED_VALUE_END;\n  }\n}",
+  "id": "BLOCK-CPP-15692",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
+  "source_line": 582,
+  "validation_status": "validated"
+}

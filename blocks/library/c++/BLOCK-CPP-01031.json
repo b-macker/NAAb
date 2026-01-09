@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01031_execute() {\n    {\n    unsigned long long max_packed = detail::max_packed_args;\n    return static_cast<int>(is_packed() ? max_packed\n                                        : desc_ & ~detail::is_unpacked_bit);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01031",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 2052,
+  "validation_status": "validated"
+}

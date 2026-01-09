@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00369_execute() {\n    def visit_Tuple(self, node: nodes.Tuple, frame: Frame) -> None:\n        self.write(\"(\")\n        idx = -1\n        for idx, item in enumerate(node.items):\n            if idx:\n                self.write(\", \")\n            self.visit(item, frame)\n        self.write(\",)\" if idx == 0 else \")\")\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00369",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 1679,
+  "validation_status": "validated"
+}

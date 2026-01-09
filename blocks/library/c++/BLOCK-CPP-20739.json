@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/PartialDiagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cstddef>\n#include <limits>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20739_execute() {\n    {\n    if (CharDistance > MaximumDistance || QualifierDistance > MaximumDistance ||\n        CallbackDistance > MaximumDistance)\n      return InvalidDistance;\n    unsigned ED =\n        CharDistance * CharDistanceWeight +\n        QualifierDistance * QualifierDistanceWeight +\n        CallbackDistance * CallbackDistanceWeight;\n    if (ED > MaximumDistance)\n      return InvalidDistance;\n    // Half the CharDistanceWeight is added to ED to simulate rounding since\n    // integer division truncates the value (i.e. round-to-nearest-int instead\n    // of round-to-zero).\n    return Normalized ? NormalizeEditDistance(ED) : ED;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-20739",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/TypoCorrection.h",
+  "source_line": 128,
+  "validation_status": "validated"
+}

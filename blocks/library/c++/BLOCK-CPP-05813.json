@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include <intrin.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace numeric_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05813_execute() {\n    {\n  return (T{1} << (x + promotion)) >> promotion;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05813",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/internal/bits.h",
+  "source_line": 336,
+  "validation_status": "validated"
+}

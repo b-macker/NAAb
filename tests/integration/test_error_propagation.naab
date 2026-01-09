@@ -1,0 +1,93 @@
+// Integration Test: Error propagation across modules
+// Tests: try/catch across file boundaries, error objects, stack traces
+
+import {divide} from "./modules/math_utils.naab"
+
+// Test 1: Catch error from imported function
+let caught1 = false
+try {
+    let result = divide(10, 0)
+    print("FAIL: Should have thrown division by zero error")
+} catch (error) {
+    caught1 = true
+    print("PASS: caught error from imported function")
+}
+
+if (!caught1) {
+    throw "FAIL: error should have been caught"
+}
+
+// Test 2: Error propagation through call chain
+function level3() {
+    return divide(100, 0)
+}
+
+function level2() {
+    return level3()
+}
+
+function level1() {
+    return level2()
+}
+
+let caught2 = false
+try {
+    level1()
+} catch (error) {
+    caught2 = true
+    print("PASS: error propagated through call chain")
+}
+
+if (!caught2) {
+    throw "FAIL: error should have propagated through call chain"
+}
+
+// Test 3: Error in pipeline
+function safe_divide(x) {
+    return divide(x, 0)
+}
+
+let caught3 = false
+try {
+    let result = 42 |> safe_divide
+} catch (error) {
+    caught3 = true
+    print("PASS: error in pipeline caught")
+}
+
+if (!caught3) {
+    throw "FAIL: pipeline error should have been caught"
+}
+
+// Test 4: Finally block executes
+let finally_executed = false
+try {
+    divide(10, 0)
+} catch (error) {
+    // Error caught
+} finally {
+    finally_executed = true
+}
+
+if (!finally_executed) {
+    throw "FAIL: finally block should have executed"
+}
+print("PASS: finally block executed")
+
+// Test 5: Successful operation doesn't trigger catch
+let caught5 = false
+try {
+    let result = divide(10, 2)
+    if (result != 5) {
+        throw "FAIL: divide should return 5"
+    }
+} catch (error) {
+    caught5 = true
+}
+
+if (caught5) {
+    throw "FAIL: successful operation should not trigger catch"
+}
+print("PASS: successful operation bypasses catch")
+
+print("✓ All error propagation tests passed")

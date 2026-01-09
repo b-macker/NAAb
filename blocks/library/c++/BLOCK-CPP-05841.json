@@ -1,0 +1,8 @@
+{
+  "code": "#include <utility>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/fast_type_id.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05841_execute() {\n    {\n    using ResultT = typename DistrT::result_type;\n    using ArgTupleT = std::tuple<absl::decay_t<Args>...>;\n    using KeyT = ResultT(DistrT, ArgTupleT);\n\n    ArgTupleT arg_tuple(std::forward<Args>(args)...);\n    ResultT result;\n    if (!urbg->InvokeMock(::absl::base_internal::FastTypeId<KeyT>(), &arg_tuple,\n                          &result)) {\n      auto dist = absl::make_from_tuple<DistrT>(arg_tuple);\n      result = dist(*urbg);\n    }\n    return result;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05841",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/distribution_caller.h",
+  "source_line": 67,
+  "validation_status": "validated"
+}

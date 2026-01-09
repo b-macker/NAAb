@@ -1,0 +1,8 @@
+{
+  "code": "{\n\ntemplate <class Needle, class... Ts>\nconstexpr size_t Find(Needle, Needle, Ts...) {\n  static_assert(!Contains<Needle, Ts...>(), \"Duplicate element type\");\n  return 0;\n}\n\ntemplate <class Needle, class T, class... Ts>\nconstexpr size_t Find(Needle, T, Ts...) {\n  return adl_barrier::Find(Needle(), Ts()...) + 1;\n}\n\nconstexpr bool IsPow2(size_t n) { return !(n & (n - 1)); }\n\n// Returns `q * m` for the smallest `q` such that `q * m >= n`.\n// Requires: `m` is a power of two. It's enforced by IsLegalElementType below.\nconstexpr size_t Align(size_t n, size_t m) { return (n + m - 1) & ~(m - 1); }\n\nconstexpr size_t Min(size_t a, size_t b) { return b < a ? b : a; }\n\nconstexpr size_t Max(size_t a) { return a; }\n\ntemplate <class... Ts>\nconstexpr size_t Max(size_t a, size_t b, Ts... rest) {\n  return adl_barrier::Max(b < a ? a : b, rest...);\n}\n\ntemplate <class T>\nstd::string TypeName() {\n  std::string out;\n#if ABSL_INTERNAL_HAS_RTTI\n  absl::StrAppend(&out, \"<\",\n                  absl::debugging_internal::DemangleString(typeid(T).name()),\n                  \">\");\n#endif\n  return out;\n}\n\n}",
+  "id": "BLOCK-CPP-05126",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/layout.h",
+  "source_line": 259,
+  "validation_status": "validated"
+}

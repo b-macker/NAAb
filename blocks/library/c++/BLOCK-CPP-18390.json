@@ -1,0 +1,8 @@
+{
+  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18390_execute() {\n    {\npublic:\n  unsigned ShowCPP : 1;            ///< Print normal preprocessed output.\n  unsigned ShowComments : 1;       ///< Show comments.\n  unsigned ShowLineMarkers : 1;    ///< Show \\#line markers.\n  unsigned UseLineDirectives : 1;   ///< Use \\#line instead of GCC-style \\# N.\n  unsigned ShowMacroComments : 1;  ///< Show comments, even in macros.\n  unsigned ShowMacros : 1;         ///< Print macro definitions.\n  unsigned ShowIncludeDirectives : 1;  ///< Print includes, imports etc. within preprocessed output.\n  unsigned RewriteIncludes : 1;    ///< Preprocess include directives only.\n  unsigned RewriteImports  : 1;    ///< Include contents of transitively-imported modules.\n  unsigned MinimizeWhitespace : 1; ///< Ignore whitespace from input.\n  unsigned DirectivesOnly : 1; ///< Process directives but do not expand macros.\n\npublic:\n  PreprocessorOutputOptions() {\n    ShowCPP = 0;\n    ShowComments = 0;\n    ShowLineMarkers = 1;\n    UseLineDirectives = 0;\n    ShowMacroComments = 0;\n    ShowMacros = 0;\n    ShowIncludeDirectives = 0;\n    RewriteIncludes = 0;\n    RewriteImports = 0;\n    MinimizeWhitespace = 0;\n    DirectivesOnly = 0;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18390",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/PreprocessorOutputOptions.h",
+  "source_line": 16,
+  "validation_status": "validated"
+}

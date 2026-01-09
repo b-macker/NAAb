@@ -1,0 +1,8 @@
+{
+  "code": "#include <chrono>\n#include <iterator>\n#include <spdlog/common.h>\n#include <spdlog/fmt/fmt.h>\n#include <type_traits>\n    #include <charconv>\n    #include <limits>\n\nusing namespace spdlog;\nusing namespace details;\nusing namespace fmt_helper;\nusing namespace to;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00224_execute() {\n    {\n    if (n >= 0 && n < 100)  // 0-99\n    {\n        dest.push_back(static_cast<char>('0' + n / 10));\n        dest.push_back(static_cast<char>('0' + n % 10));\n    } else  // unlikely, but just in case, let fmt deal with it\n    {\n        fmt_lib::format_to(std::back_inserter(dest), SPDLOG_FMT_STRING(\"{:02}\"), n);\n    }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00224",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/fmt_helper.h",
+  "source_line": 84,
+  "validation_status": "validated"
+}

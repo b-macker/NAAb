@@ -1,0 +1,8 @@
+{
+  "code": "#include \"spdlog/async.h\"\n#include \"spdlog/details/log_msg.h\"\n#include \"spdlog/details/null_mutex.h\"\n#include \"spdlog/details/synchronous_factory.h\"\n#include \"spdlog/sinks/base_sink.h\"\n#include <mutex>\n#include <spdlog/common.h>\n#include <librdkafka/rdkafkacpp.h>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00420_execute() {\n    {\n    std::string server_addr;\n    std::string produce_topic;\n    int32_t flush_timeout_ms = 1000;\n\n    kafka_sink_config(std::string addr, std::string topic, int flush_timeout_ms = 1000)\n        : server_addr{std::move(addr)},\n          produce_topic{std::move(topic)},\n          flush_timeout_ms(flush_timeout_ms) {}\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00420",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/kafka_sink.h",
+  "source_line": 27,
+  "validation_status": "validated"
+}

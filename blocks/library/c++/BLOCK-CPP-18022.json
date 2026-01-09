@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/Lex/MacroInfo.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <vector>\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18022_execute() {\n    {\n    std::string Name;\n    DeclarationFragments Fragments;\n\n    Parameter(StringRef Name, DeclarationFragments Fragments)\n        : Name(Name), Fragments(Fragments) {}\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18022",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/DeclarationFragments.h",
+  "source_line": 187,
+  "validation_status": "validated"
+}

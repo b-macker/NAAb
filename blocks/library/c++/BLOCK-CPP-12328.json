@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12328_execute() {\n    {\nprotected:\n  ~PrintingCallbacks() = default;\n\npublic:\n  /// Remap a path to a form suitable for printing.\n  virtual std::string remapPath(StringRef Path) const {\n    return std::string(Path);\n  }\n\n  /// When printing type to be inserted into code in specific context, this\n  /// callback can be used to avoid printing the redundant part of the\n  /// qualifier. For example, when inserting code inside namespace foo, we\n  /// should print bar::SomeType instead of foo::bar::SomeType.\n  /// To do this, shouldPrintScope should return true on \"foo\" NamespaceDecl.\n  /// The printing stops at the first isScopeVisible() == true, so there will\n  /// be no calls with outer scopes.\n  virtual bool isScopeVisible(const DeclContext *DC) const { return false; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12328",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/PrettyPrinter.h",
+  "source_line": 32,
+  "validation_status": "validated"
+}

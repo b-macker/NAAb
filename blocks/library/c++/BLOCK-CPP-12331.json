@@ -1,0 +1,8 @@
+{
+  "code": "using namespace A;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12331_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12331",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/QualTypeNames.h",
+  "source_line": 21,
+  "validation_status": "validated"
+}

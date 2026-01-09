@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>  // std::max\n#include <limits>     // std::numeric_limits\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01546_execute() {\n    {\n  template <typename T> const Char* operator()(T) { return nullptr; }\n  const Char* operator()(const Char* s) { return s; }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01546",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
+  "source_line": 188,
+  "validation_status": "validated"
+}

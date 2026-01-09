@@ -1,0 +1,8 @@
+{
+  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01581_execute() {\n    {\n  static constexpr const bool value =\n      detail::is_tuple_formattable_<T, C>::value;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01581",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
+  "source_line": 319,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00439_execute() {\n    def args_as_const(\n    node: t.Union[\"_FilterTestCommon\", \"Call\"], eval_ctx: EvalContext | None\n) -> tuple[list[t.Any], dict[t.Any, t.Any]]:\n    args = [x.as_const(eval_ctx) for x in node.args]\n    kwargs = dict(x.as_const(eval_ctx) for x in node.kwargs)\n\n    if node.dyn_args is not None:\n        try:\n            args.extend(node.dyn_args.as_const(eval_ctx))\n        except Exception as e:\n            raise Impossible() from e\n\n    if node.dyn_kwargs is not None:\n        try:\n            kwargs.update(node.dyn_kwargs.as_const(eval_ctx))\n        except Exception as e:\n            raise Impossible() from e\n\n    return args, kwargs\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00439",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 714,
+  "validation_status": "validated"
+}

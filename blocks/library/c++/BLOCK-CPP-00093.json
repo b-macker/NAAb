@@ -1,0 +1,8 @@
+{
+  "code": "    #include <spdlog/pattern_formatter.h>\n#include <spdlog/details/fmt_helper.h>\n#include <spdlog/details/log_msg.h>\n#include <spdlog/details/os.h>\n#include <spdlog/fmt/fmt.h>\n#include <spdlog/formatter.h>\n#include <algorithm>\n#include <array>\n#include <cctype>\n#include <chrono>\n#include <cstring>\n#include <ctime>\n#include <iterator>\n#include <memory>\n#include <mutex>\n#include <string>\n#include <thread>\n#include <utility>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00093_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00093",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/pattern_formatter-inl.h",
+  "source_line": 376,
+  "validation_status": "validated"
+}

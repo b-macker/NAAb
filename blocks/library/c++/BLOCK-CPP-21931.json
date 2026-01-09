@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/Analyses/PostOrderCFGView.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/PriorityQueue.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21931_execute() {\n    {\n  PostOrderCFGView::BlockOrderCompare Cmp;\n  bool operator()(const CFGBlock *lhs, const CFGBlock *rhs) const {\n    return Cmp(rhs, lhs);\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21931",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DataflowWorklist.h",
+  "source_line": 52,
+  "validation_status": "validated"
+}

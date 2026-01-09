@@ -1,0 +1,8 @@
+{
+  "code": "{\n    using clock = std::chrono::steady_clock;\n    std::chrono::time_point<clock> start_tp_;\n\npublic:\n    stopwatch()\n        : start_tp_{clock::now()} {}\n\n    std::chrono::duration<double> elapsed() const {\n        return std::chrono::duration<double>(clock::now() - start_tp_);\n    }\n\n    void reset() { start_tp_ = clock::now(); }\n}",
+  "id": "BLOCK-CPP-00176",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/stopwatch.h",
+  "source_line": 30,
+  "validation_status": "validated"
+}

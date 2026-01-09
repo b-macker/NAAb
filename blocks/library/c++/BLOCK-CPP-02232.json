@@ -1,0 +1,8 @@
+{
+  "code": "#include <string.h>\n#include <cctype>\n#include <cstdint>\n#include \"absl/strings/match.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n#include \"absl/time/time.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02232_execute() {\n    {\n  return std::chrono::time_point_cast<cctz::seconds>(\n      std::chrono::system_clock::from_time_t(0));\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02232",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/format.cc",
+  "source_line": 46,
+  "validation_status": "validated"
+}

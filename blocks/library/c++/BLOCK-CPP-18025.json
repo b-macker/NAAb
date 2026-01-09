@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/ExtractAPI/API.h\"\n#include \"clang/ExtractAPI/APIIgnoresList.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18025_execute() {\n    {\nprotected:\n  /// A representation of the APIs this action extracts.\n  std::unique_ptr<extractapi::APISet> API;\n\n  /// A stream to the output file of this action.\n  std::unique_ptr<raw_pwrite_stream> OS;\n\n  /// The product this action is extracting API information for.\n  std::string ProductName;\n\n  /// The synthesized input buffer that contains all the provided input header\n  /// files.\n  std::unique_ptr<llvm::MemoryBuffer> Buffer;\n\n  /// The list of symbols to ignore during serialization\n  extractapi::APIIgnoresList IgnoresList;\n\n  /// Implements EndSourceFileAction for Symbol-Graph generation\n  ///\n  /// Use the serializer to generate output symbol graph files from\n  /// the information gathered during the execution of Action.\n  void ImplEndSourceFileAction();\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18025",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/ExtractAPIActionBase.h",
+  "source_line": 27,
+  "validation_status": "validated"
+}

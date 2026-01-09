@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <cstdint>\n#include <iterator>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include \"absl/base/macros.h\"\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/pool_urbg.h\"\n#include \"absl/random/internal/salted_seed_seq.h\"\n#include \"absl/random/internal/seed_material.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05900_execute() {\n    {  // NOLINT(runtime/int)\n    urbg_.discard(values);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05900",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/nonsecure_base.h",
+  "source_line": 129,
+  "validation_status": "validated"
+}

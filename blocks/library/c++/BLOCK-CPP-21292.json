@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/ASTMatchers/ASTMatchers.h\"\n#include \"clang/ASTMatchers/ASTMatchersInternal.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include <memory>\n#include <optional>\n#include <vector>\n\nusing namespace clang;\nusing namespace ast_matchers;\nusing namespace dynamic;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21292_execute() {\n    {\n    if (Value)\n      return Value->isConvertibleTo(Kind, Specificity);\n    return false;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21292",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/Dynamic/VariantValue.h",
+  "source_line": 200,
+  "validation_status": "validated"
+}

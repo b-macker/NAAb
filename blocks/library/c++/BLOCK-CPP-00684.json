@@ -1,0 +1,8 @@
+{
+  "code": "{\n    if (is_classic_ || ns == numeric_system::standard) {\n      auto year = tm_year();\n      auto upper = year / 100;\n      if (year >= -99 && year < 0) {\n        // Zero upper on negative year.\n        *out_++ = '-';\n        *out_++ = '0';\n      } else if (upper >= 0 && upper < 100) {\n        write2(static_cast<int>(upper));\n      } else {\n        out_ = write<Char>(out_, upper);\n      }\n    } else {\n      format_localized('C', 'E');\n    }\n  }",
+  "id": "BLOCK-CPP-00684",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1248,
+  "validation_status": "validated"
+}

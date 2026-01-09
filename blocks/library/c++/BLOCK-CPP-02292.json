@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/types/bad_variant_access.h\"\n#include <cstdlib>\n#include <stdexcept>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace variant_internal;\nusing namespace variant_internal;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02292_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace types_internal {\nextern const char kAvoidEmptyBadVariantAccessLibraryWarning;\nconst char kAvoidEmptyBadVariantAccessLibraryWarning = 0;\n}  // namespace types_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02292",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_variant_access.cc",
+  "source_line": 72,
+  "validation_status": "validated"
+}

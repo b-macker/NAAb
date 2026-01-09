@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  enum Kind {\n    None,\n    AsChar,       // 'hh'\n    AsShort,      // 'h'\n    AsShortLong,  // 'hl' (OpenCL float/int vector element)\n    AsLong,       // 'l'\n    AsLongLong,   // 'll'\n    AsQuad,       // 'q' (BSD, deprecated, for 64-bit integer types)\n    AsIntMax,     // 'j'\n    AsSizeT,      // 'z'\n    AsPtrDiff,    // 't'\n    AsInt32,      // 'I32' (MSVCRT, like __int32)\n    AsInt3264,    // 'I'   (MSVCRT, like __int3264 from MIDL)\n    AsInt64,      // 'I64' (MSVCRT, like __int64)\n    AsLongDouble, // 'L'\n    AsAllocate,   // for '%as', GNU extension to C90 scanf\n    AsMAllocate,  // for '%ms', GNU extension to scanf\n    AsWide,       // 'w' (MSVCRT, like l but only for c, C, s, S, or Z\n    AsWideChar = AsLong // for '%ls', only makes sense for printf\n  };\n\n  LengthModifier()\n    : Position(nullptr), kind(None) {}\n  LengthModifier(const char *pos, Kind k)\n    : Position(pos), kind(k) {}\n\n  const char *getStart() const {\n    return Position;\n  }\n\n  unsigned getLength() const {\n    switch (kind) {\n      default:\n        return 1;\n      case AsLongLong:\n      case AsChar:\n        return 2;\n      case AsInt32:\n      case AsInt64:\n        return 3;\n      case None:\n        return 0;\n    }\n  }\n\n  Kind getKind() const { return kind; }\n  void setKind(Kind k) { kind = k; }\n\n  const char *toString() const;\n\nprivate:\n  const char *Position;\n  Kind kind;\n}",
+  "id": "BLOCK-CPP-11199",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
+  "source_line": 65,
+  "validation_status": "validated"
+}

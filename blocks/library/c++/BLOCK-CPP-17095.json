@@ -1,0 +1,8 @@
+{
+  "code": "#include <map>\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include \"TargetCXXABI.def\"\n#include \"TargetCXXABI.def\"\n#include \"TargetCXXABI.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17095_execute() {\n    {\n    switch (Kind) {\n    case GenericARM:\n      return T.isARM() || T.isAArch64();\n\n    case iOS:\n    case WatchOS:\n    case AppleARM64:\n      return T.isOSDarwin();\n\n    case Fuchsia:\n      return T.isOSFuchsia();\n\n    case GenericAArch64:\n      return T.isAArch64();\n\n    case GenericMIPS:\n      return T.isMIPS();\n\n    case WebAssembly:\n      return T.isWasm();\n\n    case XL:\n      return T.isOSAIX();\n\n    case GenericItanium:\n      return true;\n\n    case Microsoft:\n      return T.isKnownWindowsMSVCEnvironment();\n    }\n    llvm_unreachable(\"invalid CXXABI kind\");\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17095",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TargetCXXABI.h",
+  "source_line": 87,
+  "validation_status": "validated"
+}

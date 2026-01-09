@@ -1,0 +1,31 @@
+{
+  "id": "BLOCK-PY-00562",
+  "version": "1.0",
+  "name": "_extract_dependencies",
+  "language": "python",
+  "category": "utility",
+  "subcategory": null,
+  "code": "def _extract_dependencies(self, code: str) -> List[str]:\n        \"\"\"Extract Python dependencies from code\"\"\"\n        import re\n        \n        dependencies = []\n        \n        # Extract standard imports\n        import_patterns = [\n            r'import\\s+([a-zA-Z_][a-zA-Z0-9_]*)',\n            r'from\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s+import',\n        ]\n        \n        for pattern in import_patterns:\n            matches = re.findall(pattern, code)\n            for match in matches:\n                if '.' in match:\n                    # Get root package\n                    root_package = match.split('.')[0]\n                    dependencies.append(root_package)\n                else:\n                    dependencies.append(match)\n        \n        # Filter out standard library modules\n        stdlib_modules = {\n            'os', 'sys', 'json', 'time', 'datetime', 'logging', 'typing',\n            'dataclasses', 'pathlib', 'functools', 'itertools', 'collections',\n            'concurrent', 'asyncio', 'unittest', 'tempfile', 're'\n        }\n        \n        external_deps = [dep for dep in dependencies if dep not in stdlib_modules]\n        \n        # Add common framework dependencies based on code content\n        if 'fastapi' in code.lower() or 'FastAPI' in code:\n            external_deps.extend(['fastapi', 'uvicorn', 'pydantic'])\n        if 'django' in code.lower():\n            external_deps.append('django')\n        if 'sklearn' in code or 'scikit-learn' in code:\n            external_deps.extend(['scikit-learn', 'numpy', 'pandas'])\n        if 'tensorflow' in code.lower():\n            external_deps.append('tensorflow')\n        if 'torch' in code.lower() or 'pytorch' in code.lower():\n            external_deps.append('torch')\n        if 'requests' in code:\n            external_deps.append('requests')\n        if 'aioredis' in code:\n            external_deps.append('aioredis')\n        if 'asyncpg' in code:\n            external_deps.append('asyncpg')\n        \n        return list(set(external_deps))",
+  "code_hash": "7c6f28edeb8c4b69f7a25e11cc796e5e98d64f6d8a59b33c3c8fa54a54d28645",
+  "imports": [],
+  "exports": {},
+  "parameters": [],
+  "dependencies": [],
+  "token_count": 503,
+  "times_used": 0,
+  "total_tokens_saved": 0,
+  "validation_status": "pending",
+  "tags": [
+    "django",
+    "async",
+    "fastapi",
+    "ai",
+    "redis"
+  ],
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/python_generator.py",
+  "source_line": null,
+  "docstring": "Extract Python dependencies from code",
+  "created_at": "2026-01-01T22:45:34.098625",
+  "last_used": null,
+  "is_active": true
+}

@@ -1,0 +1,8 @@
+{
+  "code": "{\npublic:\n  // A visitor returns a bool, representing success or failure.\n  using R_SExpr = bool;\n  using R_BasicBlock = bool;\n\n  // A visitor \"container\" is a single bool, which accumulates success.\n  template <class T> class Container {\n  public:\n    bool Success = true;\n\n    Container(VisitReducerBase &S, unsigned N) {}\n\n    void push_back(bool E) { Success = Success && E; }\n  };\n}",
+  "id": "BLOCK-CPP-21798",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTraverse.h",
+  "source_line": 165,
+  "validation_status": "validated"
+}

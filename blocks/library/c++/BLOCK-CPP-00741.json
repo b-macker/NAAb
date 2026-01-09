@@ -1,0 +1,8 @@
+{
+  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00741_execute() {\n    {\n    write_sign();\n    if (isnan(value)) return write_nan();\n    uint32_or_64_or_128_t<int> n =\n        to_unsigned(to_nonnegative_int(value, max_value<int>()));\n    int num_digits = detail::count_digits(n);\n    if (width > num_digits) out = std::fill_n(out, width - num_digits, '0');\n    out = format_decimal<char_type>(out, n, num_digits).end;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-00741",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
+  "source_line": 1657,
+  "validation_status": "validated"
+}

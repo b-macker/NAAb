@@ -1,0 +1,8 @@
+{
+  "code": "#include <atomic>\n#include <cassert>\n#include <cstdint>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04556_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04556",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/atomic_hook.h",
+  "source_line": 78,
+  "validation_status": "validated"
+}

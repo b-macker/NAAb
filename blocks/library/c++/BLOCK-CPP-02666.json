@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/hash/internal/city.h\"\n#include <string.h>  // for memcpy and memset\n#include <algorithm>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02666_execute() {\n    {\n  if (len >= 8) {\n    uint64_t mul = k2 + len * 2;\n    uint64_t a = Fetch64(s) + k2;\n    uint64_t b = Fetch64(s + len - 8);\n    uint64_t c = Rotate(b, 37) * mul + a;\n    uint64_t d = (Rotate(a, 25) + b) * mul;\n    return HashLen16(c, d, mul);\n  }\n  if (len >= 4) {\n    uint64_t mul = k2 + len * 2;\n    uint64_t a = Fetch32(s);\n    return HashLen16(len + (a << 3), Fetch32(s + len - 4), mul);\n  }\n  if (len > 0) {\n    uint8_t a = static_cast<uint8_t>(s[0]);\n    uint8_t b = static_cast<uint8_t>(s[len >> 1]);\n    uint8_t c = static_cast<uint8_t>(s[len - 1]);\n    uint32_t y = static_cast<uint32_t>(a) + (static_cast<uint32_t>(b) << 8);\n    uint32_t z = static_cast<uint32_t>(len) + (static_cast<uint32_t>(c) << 2);\n    return ShiftMix(y * k2 ^ z * k0) * k2;\n  }\n  return k2;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02666",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/city.cc",
+  "source_line": 218,
+  "validation_status": "validated"
+}

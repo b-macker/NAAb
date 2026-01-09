@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/strings/ascii.h\"\n#include <climits>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\nusing namespace ascii_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01822_execute() {\n    {\n  // The upper- and lowercase versions of ASCII characters differ by only 1 bit.\n  // When we need to flip the case, we can xor with this bit to achieve the\n  // desired result. Note that the choice of 'a' and 'A' here is arbitrary. We\n  // could have chosen 'z' and 'Z', or any other pair of characters as they all\n  // have the same single bit difference.\n  constexpr unsigned char kAsciiCaseBitFlip = 'a' ^ 'A';\n\n  using vec_t = size_t;\n  // TODO(b/316380338): When FDO becomes able to vectorize these,\n  // revert this manual optimization and just leave the naive loop.\n  if (static_cast<size_t>(end - p) >= sizeof(vec_t)) {\n    p = ascii_internal::PartialAsciiStrCaseFold<ToUpper>(p, end);\n  }\n  while (p < end) {\n    unsigned char v = static_cast<unsigned char>(*p);\n    v ^= AsciiInAZRange<ToUpper>(v) ? kAsciiCaseBitFlip : 0;\n    *p = static_cast<char>(v);\n    ++p;\n  }\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01822",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/ascii.cc",
+  "source_line": 230,
+  "validation_status": "validated"
+}

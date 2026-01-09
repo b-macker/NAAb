@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicReader.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23097_execute() {\n    {\n    unsigned bitWidth = asImpl().readUInt32();\n    unsigned numWords = llvm::APInt::getNumWords(bitWidth);\n    llvm::SmallVector<uint64_t, 4> data;\n    for (uint32_t i = 0; i != numWords; ++i)\n      data.push_back(asImpl().readUInt64());\n    return llvm::APInt(bitWidth, numWords, &data[0]);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23097",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
+  "source_line": 171,
+  "validation_status": "validated"
+}

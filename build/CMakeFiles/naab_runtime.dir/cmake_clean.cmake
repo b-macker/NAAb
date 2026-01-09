@@ -1,0 +1,41 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/naab_runtime.dir/src/runtime/block_loader.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/block_loader.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/block_registry.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/block_registry.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/block_search_index.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/block_search_index.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/cpp_executor.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/cpp_executor.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/cpp_executor_adapter.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/cpp_executor_adapter.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/js_executor.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/js_executor.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/js_executor_adapter.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/js_executor_adapter.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/language_registry.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/language_registry.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/semver.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/semver.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o.d"
+  "libnaab_runtime.a"
+  "libnaab_runtime.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/naab_runtime.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00466_execute() {\n    class MarkSafe(Expr):\n    \"\"\"Mark the wrapped expression as safe (wrap it as `Markup`).\"\"\"\n\n    fields = (\"expr\",)\n    expr: Expr\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> Markup:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        return Markup(self.expr.as_const(eval_ctx))\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00466",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
+  "source_line": 1079,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17019_execute() {\n    {\npublic:\n  virtual ~AtomicScopeModel() {}\n  /// Maps language specific synch scope values to internal\n  /// SyncScope enum.\n  virtual SyncScope map(unsigned S) const = 0;\n\n  /// Check if the compile-time constant synch scope value\n  /// is valid.\n  virtual bool isValid(unsigned S) const = 0;\n\n  /// Get all possible synch scope values that might be\n  /// encountered at runtime for the current language.\n  virtual ArrayRef<unsigned> getRuntimeValues() const = 0;\n\n  /// If atomic builtin function is called with invalid\n  /// synch scope value at runtime, it will fall back to a valid\n  /// synch scope value returned by this function.\n  virtual unsigned getFallBackValue() const = 0;\n\n  /// Create an atomic scope model by AtomicScopeModelKind.\n  /// \\return an empty std::unique_ptr for AtomicScopeModelKind::None.\n  static std::unique_ptr<AtomicScopeModel> create(AtomicScopeModelKind K);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-17019",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SyncScope.h",
+  "source_line": 83,
+  "validation_status": "validated"
+}

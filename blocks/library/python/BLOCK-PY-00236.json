@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00236_execute() {\n    def _generate_k8s_deployment_yaml(self) -> str:\n        \"\"\"Generate basic Kubernetes deployment YAML\"\"\"\n        return \"\"\"apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app-deployment\n  labels:\n    app: myapp\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: myapp\n  template:\n    metadata:\n      labels:\n        app: myapp\n    spec:\n      containers:\n      - name: myapp\n        image: myapp:latest\n        ports:\n        - containerPort: 8080\n        env:\n        - name: ENV\n          value: \"production\"\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: app-service\nspec:\n  selector:\n    app: myapp\n  ports:\n  - port: 80\n    targetPort: 8080\n  type: LoadBalancer\"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00236",
+  "language": "python",
+  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
+  "source_line": 0,
+  "validation_status": "validated"
+}

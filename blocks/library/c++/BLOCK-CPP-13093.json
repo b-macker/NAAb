@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/AST/StmtCXX.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13093_execute() {\n    { return NumGeneratedLoops; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-13093",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtOpenMP.h",
+  "source_line": 982,
+  "validation_status": "validated"
+}

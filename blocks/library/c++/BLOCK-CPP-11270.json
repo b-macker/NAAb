@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/RecursiveASTVisitor.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11270_execute() {\n    {\n    if (!DC)\n      return true;\n\n    for (auto I = DC->decls_begin(), E = DC->decls_end(); I != E;) {\n      Decl *Child = *I;\n      if (BaseType::canIgnoreChildDeclWhileTraversingDeclContext(Child)) {\n        ++I;\n        continue;\n      }\n      if (!isa<ObjCImplementationDecl>(Child) &&\n          !isa<ObjCCategoryImplDecl>(Child)) {\n        if (!BaseType::getDerived().TraverseDecl(Child))\n          return false;\n        ++I;\n        continue;\n      }\n      // Gather declarations that follow the Objective-C implementation\n      // declarations but are lexically contained in the implementation.\n      LexicallyNestedDeclarations.clear();\n      for (++I; I != E; ++I) {\n        Decl *Sibling = *I;\n        if (!SM.isBeforeInTranslationUnit(Sibling->getBeginLoc(),\n                                          Child->getEndLoc()))\n          break;\n        if (!BaseType::canIgnoreChildDeclWhileTraversingDeclContext(Sibling))\n          LexicallyNestedDeclarations.push_back(Sibling);\n      }\n      if (!BaseType::getDerived().TraverseDecl(Child))\n        return false;\n    }\n    return true;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11270",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LexicallyOrderedRecursiveASTVisitor.h",
+  "source_line": 79,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00287_execute() {\n    class CompilerExit(Exception):\n    \"\"\"Raised if the compiler encountered a situation where it just\n    doesn't make sense to further process the code.  Any block that\n    raises such an exception is not further processed.\n    \"\"\"\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-PY-00287",
+  "language": "python",
+  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
+  "source_line": 291,
+  "validation_status": "validated"
+}

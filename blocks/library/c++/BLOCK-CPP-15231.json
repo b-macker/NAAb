@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclFriend.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/AST/TemplateName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeLoc.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/OperatorKinds.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/ManagedStatic.h\"\n#include \"llvm/Support/Regex.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <map>\n#include <memory>\n#include <optional>\n#include <string>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace ast_matchers;\nusing namespace internal;\nusing namespace or;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15231_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-15231",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchersInternal.h",
+  "source_line": 1718,
+  "validation_status": "validated"
+}

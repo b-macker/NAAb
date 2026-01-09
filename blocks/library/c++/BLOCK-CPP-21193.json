@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include <set>\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21193_execute() {\n    { return m_flags & ReturnsPointer; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-21193",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/NodeIntrospection.h",
+  "source_line": 45,
+  "validation_status": "validated"
+}

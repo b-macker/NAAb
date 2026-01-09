@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/random/internal/seed_material.h\"\n#include <fcntl.h>\n#include <unistd.h>\n#include <io.h>\n#include <algorithm>\n#include <cerrno>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/escaping.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include <nacl/nacl_random.h>\n#include <windows.h>\n#include <zircon/syscalls.h>\n#include <sys/random.h>\n#include <bcrypt.h>\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02838_execute() {\n    {\n  BCRYPT_ALG_HANDLE hProvider;\n  NTSTATUS ret;\n  ret = BCryptOpenAlgorithmProvider(&hProvider, BCRYPT_RNG_ALGORITHM,\n                                    MS_PRIMITIVE_PROVIDER, 0);\n  if (!(BCRYPT_SUCCESS(ret))) {\n    ABSL_RAW_LOG(ERROR, \"Failed to open crypto provider.\");\n    return false;\n  }\n  ret = BCryptGenRandom(\n      hProvider,                                             // provider\n      reinterpret_cast<UCHAR*>(values.data()),               // buffer\n      static_cast<ULONG>(sizeof(uint32_t) * values.size()),  // bytes\n      0);                                                    // flags\n  BCryptCloseAlgorithmProvider(hProvider, 0);\n  return BCRYPT_SUCCESS(ret);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02838",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/seed_material.cc",
+  "source_line": 88,
+  "validation_status": "validated"
+}

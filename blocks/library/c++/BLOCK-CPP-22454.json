@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/RangedConstraintManager.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SVals.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <list>\n#include <memory>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace ento;\nusing namespace bugreporter;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22454_execute() {\n    {\nprivate:\n  Tracker &ParentTracker;\n\npublic:\n  StoreHandler(Tracker &ParentTracker) : ParentTracker(ParentTracker) {}\n  virtual ~StoreHandler() {}\n\n  /// Handle the given store and produce the node.\n  ///\n  /// \\param SI The information fully describing the store.\n  /// \\param Opts Tracking options specifying how we are tracking the value.\n  ///\n  /// \\return the produced note, null if the handler doesn't support this kind\n  ///         of stores.\n  virtual PathDiagnosticPieceRef handle(StoreInfo SI, BugReporterContext &BRC,\n                                        TrackingOptions Opts) = 0;\n\n  Tracker &getParentTracker() { return ParentTracker; }\n\nprotected:\n  PathDiagnosticPieceRef constructNote(StoreInfo SI, BugReporterContext &BRC,\n                                       StringRef NodeText);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-22454",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/BugReporter/BugReporterVisitors.h",
+  "source_line": 322,
+  "validation_status": "validated"
+}

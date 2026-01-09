@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Lex/DependencyDirectivesScanner.h\"\n#include \"clang/Lex/PreprocessorLexer.h\"\n#include \"clang/Lex/Token.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstdint>\n#include <optional>\n#include <string>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18625_execute() {\n    {\n    assert(LexingRawMode && \"Not already in raw mode!\");\n    Lex(Result);\n    // Note that lexing to the end of the buffer doesn't implicitly delete the\n    // lexer when in raw mode.\n    return BufferPtr == BufferEnd;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18625",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Lexer.h",
+  "source_line": 233,
+  "validation_status": "validated"
+}

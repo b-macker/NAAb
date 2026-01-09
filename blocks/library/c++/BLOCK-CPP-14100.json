@@ -1,0 +1,8 @@
+{
+  "code": "{\n  Qualifiers Quals;\n  bool HasAtomic;\n\npublic:\n  QualifiersAndAtomic() : HasAtomic(false) {}\n  QualifiersAndAtomic(Qualifiers Quals, bool HasAtomic)\n      : Quals(Quals), HasAtomic(HasAtomic) {}\n\n  operator Qualifiers() const { return Quals; }\n\n  bool hasVolatile() const { return Quals.hasVolatile(); }\n  bool hasConst() const { return Quals.hasConst(); }\n  bool hasRestrict() const { return Quals.hasRestrict(); }\n  bool hasAtomic() const { return HasAtomic; }\n\n  void addVolatile() { Quals.addVolatile(); }\n  void addConst() { Quals.addConst(); }\n  void addRestrict() { Quals.addRestrict(); }\n  void addAtomic() { HasAtomic = true; }\n\n  void removeVolatile() { Quals.removeVolatile(); }\n  void removeConst() { Quals.removeConst(); }\n  void removeRestrict() { Quals.removeRestrict(); }\n  void removeAtomic() { HasAtomic = false; }\n\n  QualifiersAndAtomic withVolatile() {\n    return {Quals.withVolatile(), HasAtomic};\n  }\n  QualifiersAndAtomic withConst() { return {Quals.withConst(), HasAtomic}; }\n  QualifiersAndAtomic withRestrict() {\n    return {Quals.withRestrict(), HasAtomic};\n  }\n  QualifiersAndAtomic withAtomic() { return {Quals, true}; }\n\n  QualifiersAndAtomic &operator+=(Qualifiers RHS) {\n    Quals += RHS;\n    return *this;\n  }\n}",
+  "id": "BLOCK-CPP-14100",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
+  "source_line": 626,
+  "validation_status": "validated"
+}

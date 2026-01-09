@@ -1,0 +1,23 @@
+# Test program - Calling blocks with parameters
+
+use BLOCK-PY-00001 as APIResponse
+
+# Find a Python block that uses parameters
+function test_params(x: int, y: int) -> int {
+    return x + y
+}
+
+main {
+    print("Testing block parameters")
+    print("")
+
+    # Test user function with params
+    print("User function: test_params(10, 20)")
+    let result = test_params(10, 20)
+    print("Result:", result)
+    print("")
+
+    # Test calling Python block with args
+    print("Calling APIResponse block with args:")
+    APIResponse(42, "success")
+}

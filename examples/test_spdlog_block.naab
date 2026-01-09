@@ -1,0 +1,25 @@
+# Test Real C++ Block from LLVM/Clang/spdlog
+# Tests if we can compile and run real extracted blocks
+
+use BLOCK-CPP-00004 as spdlog_init
+
+main {
+    print("================================================================")
+    print("  Testing Real C++ Block: BLOCK-CPP-00004 (spdlog)")
+    print("================================================================")
+    print()
+
+    print("Block ID: BLOCK-CPP-00004")
+    print("Source: spdlog/async.h line 91")
+    print("Function: init_thread_pool")
+    print()
+
+    print("Attempting to execute block...")
+
+    # This will likely fail because it's a code snippet without context
+    # But let's see what error we get
+    print("Test complete - checking if block can compile")
+    print()
+
+    print("================================================================")
+}

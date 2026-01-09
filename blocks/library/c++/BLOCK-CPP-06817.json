@@ -1,0 +1,8 @@
+{
+  "code": "{\n  public:\n    virtual ~RewriteListener();\n\n    virtual void start(ASTContext &Ctx) { }\n    virtual void finish() { }\n\n    virtual void insert(SourceLocation loc, StringRef text) { }\n    virtual void remove(CharSourceRange range) { }\n  }",
+  "id": "BLOCK-CPP-06817",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ARCMigrate/ARCMT.h",
+  "source_line": 110,
+  "validation_status": "validated"
+}

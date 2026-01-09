@@ -1,0 +1,8 @@
+{
+  "code": "{\n    SmallVector<FunctionProtoType::ExtParameterInfo, 16> Infos;\n    bool HasInteresting = false;\n\n  public:\n    /// Set the ExtParameterInfo for the parameter at the given index,\n    ///\n    void set(unsigned index, FunctionProtoType::ExtParameterInfo info) {\n      assert(Infos.size() <= index);\n      Infos.resize(index);\n      Infos.push_back(info);\n\n      if (!HasInteresting)\n        HasInteresting = (info != FunctionProtoType::ExtParameterInfo());\n    }\n\n    /// Return a pointer (suitable for setting in an ExtProtoInfo) to the\n    /// ExtParameterInfo array we've built up.\n    const FunctionProtoType::ExtParameterInfo *\n    getPointerOrNull(unsigned numParams) {\n      if (!HasInteresting) return nullptr;\n      Infos.resize(numParams);\n      return Infos.data();\n    }\n  }",
+  "id": "BLOCK-CPP-20557",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
+  "source_line": 10037,
+  "validation_status": "validated"
+}

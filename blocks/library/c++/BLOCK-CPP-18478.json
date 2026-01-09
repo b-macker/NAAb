@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/ASTConsumer.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Index/IndexingOptions.h\"\n#include \"clang/Lex/PPCallbacks.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include <memory>\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18478_execute() {\n    {\n  class ModuleFile;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18478",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Index/IndexingAction.h",
+  "source_line": 28,
+  "validation_status": "validated"
+}

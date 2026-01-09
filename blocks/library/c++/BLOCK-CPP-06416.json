@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdio>\n#include <ios>\n#include <ostream>\n#include <string>\n#include \"absl/base/port.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06416_execute() {\n    {\n  out->append(s.data(), s.size());\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-06416",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/output.h",
+  "source_line": 71,
+  "validation_status": "validated"
+}

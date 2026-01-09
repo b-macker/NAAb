@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicReader.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23099_execute() {\n    {\n    auto origTy = asImpl().readQualType();\n    auto elemTy = origTy;\n    unsigned pathLength = asImpl().readUInt32();\n    for (unsigned i = 0; i < pathLength; ++i) {\n      if (elemTy->template getAs<RecordType>()) {\n        unsigned int_ = asImpl().readUInt32();\n        Decl *decl = asImpl().template readDeclAs<Decl>();\n        if (auto *recordDecl = dyn_cast<CXXRecordDecl>(decl))\n          elemTy = getASTContext().getRecordType(recordDecl);\n        else\n          elemTy = cast<ValueDecl>(decl)->getType();\n        path.push_back(\n            APValue::LValuePathEntry(APValue::BaseOrMemberType(decl, int_)));\n      } else {\n        elemTy = getASTContext().getAsArrayType(elemTy)->getElementType();\n        path.push_back(\n            APValue::LValuePathEntry::ArrayIndex(asImpl().readUInt32()));\n      }\n    }\n    return APValue::LValuePathSerializationHelper(path, origTy);\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-23099",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
+  "source_line": 191,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/AST/CanonicalType.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace analyze_format_string;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11130_execute() {\n    { return K != InvalidTy; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-11130",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
+  "source_line": 298,
+  "validation_status": "validated"
+}

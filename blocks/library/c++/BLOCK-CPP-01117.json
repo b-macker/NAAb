@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01117_execute() {\n    {\n private:\n  const void* locale_;  // A type-erased pointer to std::locale.\n\n public:\n  constexpr locale_ref() : locale_(nullptr) {}\n  template <typename Locale> explicit locale_ref(const Locale& loc);\n\n  explicit operator bool() const noexcept { return locale_ != nullptr; }\n\n  template <typename Locale> auto get() const -> Locale;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01117",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
+  "source_line": 1710,
+  "validation_status": "validated"
+}

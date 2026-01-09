@@ -1,0 +1,8 @@
+{
+  "code": "{\n  SmallVector<TemplateArgumentLoc, 8> Arguments;\n  SourceLocation LAngleLoc;\n  SourceLocation RAngleLoc;\n\npublic:\n  TemplateArgumentListInfo() = default;\n\n  TemplateArgumentListInfo(SourceLocation LAngleLoc,\n                           SourceLocation RAngleLoc)\n      : LAngleLoc(LAngleLoc), RAngleLoc(RAngleLoc) {}\n\n  // This can leak if used in an AST node, use ASTTemplateArgumentListInfo\n  // instead.\n  void *operator new(size_t bytes, ASTContext &C) = delete;\n\n  SourceLocation getLAngleLoc() const { return LAngleLoc; }\n  SourceLocation getRAngleLoc() const { return RAngleLoc; }\n\n  void setLAngleLoc(SourceLocation Loc) { LAngleLoc = Loc; }\n  void setRAngleLoc(SourceLocation Loc) { RAngleLoc = Loc; }\n\n  unsigned size() const { return Arguments.size(); }\n\n  const TemplateArgumentLoc *getArgumentArray() const {\n    return Arguments.data();\n  }\n\n  llvm::ArrayRef<TemplateArgumentLoc> arguments() const {\n    return Arguments;\n  }\n\n  const TemplateArgumentLoc &operator[](unsigned I) const {\n    return Arguments[I];\n  }\n\n  TemplateArgumentLoc &operator[](unsigned I) {\n    return Arguments[I];\n  }\n\n  void addArgument(const TemplateArgumentLoc &Loc) {\n    Arguments.push_back(Loc);\n  }\n}",
+  "id": "BLOCK-CPP-13456",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TemplateBase.h",
+  "source_line": 590,
+  "validation_status": "validated"
+}

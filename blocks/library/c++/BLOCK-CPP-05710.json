@@ -1,0 +1,8 @@
+{
+  "code": "#include <stdint.h>\n#include <ostream>\n#include <sstream>\n#include <string>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/log/internal/nullguard.h\"\n#include \"absl/log/internal/nullstream.h\"\n#include \"absl/log/internal/strip.h\"\n// * We don't want this file to depend on `absl::Status` `#include`s or linkage,\n//   `Status` and the necessary `#include`s and linkage.\n\nusing namespace absl;\nusing namespace status_internal;\nusing namespace status_internal;\nusing namespace log_internal;\nusing namespace detect_specialization;\nusing namespace detect_specialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05710_execute() {\n    { return t; }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05710",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/check_op.h",
+  "source_line": 399,
+  "validation_status": "validated"
+}

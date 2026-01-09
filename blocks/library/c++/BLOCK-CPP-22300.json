@@ -1,0 +1,8 @@
+{
+  "code": "{\n  template <typename CHECKER>\n  static void _checkObjCMessage(void *checker, const ObjCMethodCall &msg,\n                                CheckerContext &C) {\n    ((const CHECKER *)checker)->checkPreObjCMessage(msg, C);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForPreObjCMessage(\n     CheckerManager::CheckObjCMessageFunc(checker, _checkObjCMessage<CHECKER>));\n  }\n}",
+  "id": "BLOCK-CPP-22300",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
+  "source_line": 119,
+  "validation_status": "validated"
+}

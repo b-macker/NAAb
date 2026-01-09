@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/Sanitizers.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/SpecialCaseList.h\"\n#include <memory>\n#include <vector>\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16744_execute() {\n    {\npublic:\n  static std::unique_ptr<SanitizerSpecialCaseList>\n  create(const std::vector<std::string> &Paths, llvm::vfs::FileSystem &VFS,\n         std::string &Error);\n\n  static std::unique_ptr<SanitizerSpecialCaseList>\n  createOrDie(const std::vector<std::string> &Paths,\n              llvm::vfs::FileSystem &VFS);\n\n  // Query ignorelisted entries if any bit in Mask matches the entry's section.\n  bool inSection(SanitizerMask Mask, StringRef Prefix, StringRef Query,\n                 StringRef Category = StringRef()) const;\n\nprotected:\n  // Initialize SanitizerSections.\n  void createSanitizerSections();\n\n  struct SanitizerSection {\n    SanitizerSection(SanitizerMask SM, SectionEntries &E)\n        : Mask(SM), Entries(E){};\n\n    SanitizerMask Mask;\n    SectionEntries &Entries;\n  };\n\n  std::vector<SanitizerSection> SanitizerSections;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-16744",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SanitizerSpecialCaseList.h",
+  "source_line": 32,
+  "validation_status": "validated"
+}

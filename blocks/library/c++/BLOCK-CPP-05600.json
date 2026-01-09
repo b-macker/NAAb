@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstddef>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/container/internal/compressed_tuple.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace functional_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05600_execute() {\n    {\n  return base_internal::invoke(\n      absl::forward<Tuple>(bound).template get<Idx>()...,\n      absl::forward<Args>(free)...);\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-05600",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/internal/front_binder.h",
+  "source_line": 34,
+  "validation_status": "validated"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace internal_compressed_tuple;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04956_execute() {\n    {\n  return decltype(\n      Or({std::integral_constant<bool, ShouldUseBase<Ts>()>()...})){};\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04956",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/compressed_tuple.h",
+  "source_line": 147,
+  "validation_status": "validated"
+}

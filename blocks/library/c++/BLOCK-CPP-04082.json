@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstring>\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04082_execute() {\n    {\n  return haystack.find(needle, 0) != haystack.npos;\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-04082",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/match.h",
+  "source_line": 46,
+  "validation_status": "validated"
+}

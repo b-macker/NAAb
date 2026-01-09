@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n\nusing namespace clang;\nusing namespace foo;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12326_execute() {\n    {\n    SuppressTagKeyword = true;\n    Bool = true;\n    UseVoidForZeroParams = false;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-12326",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/PrettyPrinter.h",
+  "source_line": 86,
+  "validation_status": "validated"
+}

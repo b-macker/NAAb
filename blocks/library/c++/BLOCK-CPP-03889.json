@@ -1,0 +1,8 @@
+{
+  "code": "#include <cassert>\n#include <cmath>\n#include <istream>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/random/internal/fast_uniform_bits.h\"\n#include \"absl/random/internal/fastmath.h\"\n#include \"absl/random/internal/generate_real.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n#include \"absl/random/internal/traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03889_execute() {\n    {\n    // Use split-knuth method.\n    split_ = 1 + static_cast<int>(mean_ / 10.0);\n    emu_ = std::exp(-mean_ / static_cast<double>(split_));\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03889",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/poisson_distribution.h",
+  "source_line": 147,
+  "validation_status": "validated"
+}

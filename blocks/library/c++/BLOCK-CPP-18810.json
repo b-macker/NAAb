@@ -1,0 +1,8 @@
+{
+  "code": "#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18810_execute() {\n    {\n    DefinedMacro = M;\n    DefinedLoc = Loc;\n  }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-18810",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MultipleIncludeOpt.h",
+  "source_line": 78,
+  "validation_status": "validated"
+}

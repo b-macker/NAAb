@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/log/initialize.h\"\n#include \"absl/base/config.h\"\n#include \"absl/log/internal/globals.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01784_execute() {\n    { InitializeLogImpl(absl::LocalTimeZone()); }\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01784",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/initialize.cc",
+  "source_line": 35,
+  "validation_status": "validated"
+}

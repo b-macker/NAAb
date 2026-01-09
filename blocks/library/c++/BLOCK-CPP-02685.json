@@ -1,0 +1,8 @@
+{
+  "code": "#include <cstdlib>\n#include \"absl/hash/hash.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02685_execute() {\n    {\n  if (argc < 2) return 1;\n  printf(\"%zu\\n\", absl::Hash<int>{}(std::atoi(argv[1])));  // NOLINT\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-02685",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/print_hash_of.cc",
+  "source_line": 20,
+  "validation_status": "validated"
+}

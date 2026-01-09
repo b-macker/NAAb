@@ -1,0 +1,8 @@
+{
+  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01552_execute() {\n    {\n  using std::get;\n  // using free function get<I>(T) now.\n  const int _[] = {0, ((void)f(get<Is>(tup)), 0)...};\n  (void)_;  // blocks warnings\n}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-01552",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
+  "source_line": 230,
+  "validation_status": "validated"
+}

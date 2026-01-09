@@ -1,0 +1,8 @@
+{
+  "code": "{\n  friend class ConstructionContext; // Allows to create<>() itself.\n\n  explicit SimpleConstructorInitializerConstructionContext(\n      const CXXCtorInitializer *I)\n      : ConstructorInitializerConstructionContext(\n            ConstructionContext::SimpleConstructorInitializerKind, I) {}\n\npublic:\n  static bool classof(const ConstructionContext *CC) {\n    return CC->getKind() == SimpleConstructorInitializerKind;\n  }\n}",
+  "id": "BLOCK-CPP-15686",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
+  "source_line": 414,
+  "validation_status": "validated"
+}

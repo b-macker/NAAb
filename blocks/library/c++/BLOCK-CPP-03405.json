@@ -1,0 +1,8 @@
+{
+  "code": "#include \"absl/base/config.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03405_execute() {\n    {...}\n}\n\n} // extern \"C\"\n",
+  "id": "BLOCK-CPP-03405",
+  "language": "c++",
+  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/attributes.h",
+  "source_line": 668,
+  "validation_status": "validated"
+}
