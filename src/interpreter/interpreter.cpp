@@ -880,6 +880,9 @@ void Interpreter::visit(ast::FunctionDecl& node) {
 }
 
 void Interpreter::visit(ast::StructDecl& node) {
+    explain("Defining struct '" + node.getName() + "' with " +
+            std::to_string(node.getFields().size()) + " fields");
+
     auto struct_def = std::make_shared<StructDef>();
     struct_def->name = node.getName();
 
@@ -997,6 +1000,8 @@ void Interpreter::visit(ast::ContinueStmt& node) {
 }
 
 void Interpreter::visit(ast::VarDeclStmt& node) {
+    explain("Declaring variable '" + node.getName() + "'");
+
     std::shared_ptr<Value> value;
     if (node.getInit()) {
         value = eval(*node.getInit());
@@ -1448,6 +1453,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
             // Call the specific function in the block
             if (block->metadata.language == "javascript") {
+                explain("Calling JavaScript block to evaluate: " + block->member_path);
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
@@ -1476,6 +1482,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             if (block->metadata.language == "cpp") {
+                explain("Calling C++ block to evaluate: " + block->member_path);
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
@@ -1504,6 +1511,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             if (block->metadata.language == "python") {
+                explain("Calling Python block to evaluate: " + block->member_path);
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
@@ -2153,6 +2161,8 @@ void Interpreter::visit(ast::ListExpr& node) {
 }
 
 void Interpreter::visit(ast::StructLiteralExpr& node) {
+    explain("Creating instance of struct '" + node.getStructName() + "'");
+
     profileStart("Struct creation");
 
     auto struct_def = runtime::StructRegistry::instance().getStruct(node.getStructName());
@@ -2256,6 +2266,13 @@ void Interpreter::printProfile() const {
         fmt::print("  {}: {:.2f}ms ({:.1f}%)\n", name, ms, pct);
     }
     fmt::print("=========================\n");
+}
+
+// Explain mode method
+void Interpreter::explain(const std::string& message) const {
+    if (explain_mode_) {
+        fmt::print("[EXPLAIN] {}\n", message);
+    }
 }
 
 } // namespace interpreter

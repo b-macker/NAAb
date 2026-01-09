@@ -338,6 +338,11 @@ public:
     void profileEnd(const std::string& name);
     void printProfile() const;
 
+    // Explain mode support
+    void setExplainMode(bool e) { explain_mode_ = e; }
+    bool isExplainMode() const { return explain_mode_; }
+    void explain(const std::string& message) const;
+
 private:
     std::shared_ptr<Environment> global_env_;
     std::shared_ptr<Environment> current_env_;
@@ -379,6 +384,9 @@ private:
     bool profile_mode_ = false;
     std::chrono::time_point<std::chrono::high_resolution_clock> profile_start_;
     std::unordered_map<std::string, long long> profile_timings_;  // microseconds
+
+    // Explain mode
+    bool explain_mode_ = false;
 
     // Helpers
     std::shared_ptr<Value> eval(ast::Expr& expr);

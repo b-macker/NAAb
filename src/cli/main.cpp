@@ -71,6 +71,7 @@ void print_usage() {
     fmt::print("Options:\n");
     fmt::print("  --verbose, -v                       Enable verbose output\n");
     fmt::print("  --profile, -p                       Enable performance profiling\n");
+    fmt::print("  --explain                           Explain execution step-by-step\n");
 }
 
 int main(int argc, char** argv) {
@@ -94,6 +95,7 @@ int main(int argc, char** argv) {
         // Parse flags
         bool verbose = false;
         bool profile = false;
+        bool explain = false;
         for (int i = 3; i < argc; ++i) {
             std::string arg(argv[i]);
             if (arg == "--verbose" || arg == "-v") {
@@ -101,6 +103,9 @@ int main(int argc, char** argv) {
             }
             if (arg == "--profile" || arg == "-p") {
                 profile = true;
+            }
+            if (arg == "--explain") {
+                explain = true;
             }
         }
 
@@ -116,6 +121,7 @@ int main(int argc, char** argv) {
             naab::interpreter::Interpreter interpreter;
             interpreter.setVerboseMode(verbose);
             interpreter.setProfileMode(profile);
+            interpreter.setExplainMode(explain);
 
             // Parse
             interpreter.profileStart("Parsing");
