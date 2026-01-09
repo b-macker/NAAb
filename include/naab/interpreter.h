@@ -12,6 +12,7 @@
 #include "naab/debugger.h"
 #include "naab/module_resolver.h"  // Phase 3.1
 #include <Python.h>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <vector>
@@ -330,6 +331,13 @@ public:
     void setVerboseMode(bool v) { verbose_mode_ = v; }
     bool isVerboseMode() const { return verbose_mode_; }
 
+    // Profile mode support
+    void setProfileMode(bool p) { profile_mode_ = p; }
+    bool isProfileMode() const { return profile_mode_; }
+    void profileStart(const std::string& name);
+    void profileEnd(const std::string& name);
+    void printProfile() const;
+
 private:
     std::shared_ptr<Environment> global_env_;
     std::shared_ptr<Environment> current_env_;
@@ -366,6 +374,11 @@ private:
 
     // Verbose mode
     bool verbose_mode_ = false;
+
+    // Profile mode
+    bool profile_mode_ = false;
+    std::chrono::time_point<std::chrono::high_resolution_clock> profile_start_;
+    std::unordered_map<std::string, long long> profile_timings_;  // microseconds
 
     // Helpers
     std::shared_ptr<Value> eval(ast::Expr& expr);

@@ -70,6 +70,7 @@ void print_usage() {
     fmt::print("\n");
     fmt::print("Options:\n");
     fmt::print("  --verbose, -v                       Enable verbose output\n");
+    fmt::print("  --profile, -p                       Enable performance profiling\n");
 }
 
 int main(int argc, char** argv) {
@@ -92,10 +93,14 @@ int main(int argc, char** argv) {
 
         // Parse flags
         bool verbose = false;
+        bool profile = false;
         for (int i = 3; i < argc; ++i) {
             std::string arg(argv[i]);
             if (arg == "--verbose" || arg == "-v") {
                 verbose = true;
+            }
+            if (arg == "--profile" || arg == "-p") {
+                profile = true;
             }
         }
 
@@ -107,14 +112,22 @@ int main(int argc, char** argv) {
             naab::lexer::Lexer lexer(source);
             auto tokens = lexer.tokenize();
 
-            // Parse
-            naab::parser::Parser parser(tokens);
-            auto program = parser.parseProgram();
-
             // Interpret
             naab::interpreter::Interpreter interpreter;
             interpreter.setVerboseMode(verbose);
+            interpreter.setProfileMode(profile);
+
+            // Parse
+            interpreter.profileStart("Parsing");
+            naab::parser::Parser parser(tokens);
+            auto program = parser.parseProgram();
+            interpreter.profileEnd("Parsing");
+
             interpreter.execute(*program);
+
+            if (profile) {
+                interpreter.printProfile();
+            }
 
             return 0;
 

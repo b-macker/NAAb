@@ -1451,8 +1451,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
+                profileStart("BLOCK-JS calls");
                 fmt::print("[JS CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
+                profileEnd("BLOCK-JS calls");
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
                 }
@@ -1477,8 +1479,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
+                profileStart("BLOCK-CPP calls");
                 fmt::print("[CPP CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
+                profileEnd("BLOCK-CPP calls");
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
                 }
@@ -1503,8 +1507,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
+                profileStart("BLOCK-PY calls");
                 fmt::print("[PY CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
+                profileEnd("BLOCK-PY calls");
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
                 }
@@ -2147,6 +2153,8 @@ void Interpreter::visit(ast::ListExpr& node) {
 }
 
 void Interpreter::visit(ast::StructLiteralExpr& node) {
+    profileStart("Struct creation");
+
     auto struct_def = runtime::StructRegistry::instance().getStruct(node.getStructName());
     if (!struct_def) {
         throw std::runtime_error("Undefined struct: " + node.getStructName());
@@ -2179,6 +2187,8 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
     }
 
     result_ = std::make_shared<Value>(struct_val);
+
+    profileEnd("Struct creation");
 }
 
 // ============================================================================
@@ -2207,6 +2217,45 @@ void StructValue::setField(const std::string& name, std::shared_ptr<Value> value
                                type_name + "'");
     }
     field_values[it->second] = value;
+}
+
+// Profile mode methods
+void Interpreter::profileStart(const std::string& name) {
+    if (!profile_mode_) return;
+    profile_start_ = std::chrono::high_resolution_clock::now();
+}
+
+void Interpreter::profileEnd(const std::string& name) {
+    if (!profile_mode_) return;
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+        end - profile_start_).count();
+    profile_timings_[name] += duration;
+}
+
+void Interpreter::printProfile() const {
+    if (!profile_mode_ || profile_timings_.empty()) return;
+
+    long long total = 0;
+    for (const auto& [name, time] : profile_timings_) {
+        total += time;
+    }
+
+    fmt::print("\n=== Execution Profile ===\n");
+    fmt::print("Total time: {:.2f}ms\n\n", total / 1000.0);
+
+    // Sort by time descending
+    std::vector<std::pair<std::string, long long>> sorted(
+        profile_timings_.begin(), profile_timings_.end());
+    std::sort(sorted.begin(), sorted.end(),
+        [](const auto& a, const auto& b) { return a.second > b.second; });
+
+    for (const auto& [name, time] : sorted) {
+        double ms = time / 1000.0;
+        double pct = (total > 0) ? (100.0 * time / total) : 0.0;
+        fmt::print("  {}: {:.2f}ms ({:.1f}%)\n", name, ms, pct);
+    }
+    fmt::print("=========================\n");
 }
 
 } // namespace interpreter
