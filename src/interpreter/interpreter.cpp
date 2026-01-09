@@ -627,6 +627,10 @@ void Interpreter::visit(ast::UseStatement& node) {
 
 // Phase 3.1: Import statement visitor
 void Interpreter::visit(ast::ImportStmt& node) {
+    if (isVerboseMode()) {
+        fmt::print("[VERBOSE] Loading module: {}\n", node.getModulePath());
+    }
+
     // Get current file directory (for relative imports)
     // For now, we'll use the current working directory
     std::filesystem::path current_dir = std::filesystem::current_path();
@@ -895,6 +899,11 @@ void Interpreter::visit(ast::StructDecl& node) {
     runtime::StructRegistry::instance().registerStruct(struct_def);
 
     fmt::print("[INFO] Defined struct: {}\n", node.getName());
+
+    if (isVerboseMode()) {
+        fmt::print("[VERBOSE] Registered struct '{}' with {} fields\n",
+                   node.getName(), node.getFields().size());
+    }
 
     // Struct declarations don't produce values
     result_ = std::make_shared<Value>();
@@ -1439,8 +1448,14 @@ void Interpreter::visit(ast::CallExpr& node) {
 
             // Call the specific function in the block
             if (block->metadata.language == "javascript") {
+                if (isVerboseMode()) {
+                    fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
+                }
                 fmt::print("[JS CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
+                if (isVerboseMode()) {
+                    fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
+                }
                 fmt::print("[SUCCESS] JavaScript function returned\n");
 
                 // Phase 4.4: Record block usage
@@ -1459,8 +1474,14 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             if (block->metadata.language == "cpp") {
+                if (isVerboseMode()) {
+                    fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
+                }
                 fmt::print("[CPP CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
+                if (isVerboseMode()) {
+                    fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
+                }
                 fmt::print("[SUCCESS] C++ function returned\n");
 
                 // Phase 4.4: Record block usage
@@ -1479,8 +1500,14 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             if (block->metadata.language == "python") {
+                if (isVerboseMode()) {
+                    fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
+                }
                 fmt::print("[PY CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
+                if (isVerboseMode()) {
+                    fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
+                }
                 fmt::print("[SUCCESS] Python function returned\n");
 
                 // Phase 4.4: Record block usage

@@ -67,6 +67,9 @@ void print_usage() {
     fmt::print("  naab-lang api [port]                Start REST API server\n");
     fmt::print("  naab-lang version                   Show version\n");
     fmt::print("  naab-lang help                      Show this help\n");
+    fmt::print("\n");
+    fmt::print("Options:\n");
+    fmt::print("  --verbose, -v                       Enable verbose output\n");
 }
 
 int main(int argc, char** argv) {
@@ -87,6 +90,15 @@ int main(int argc, char** argv) {
         }
         std::string filename = argv[2];
 
+        // Parse flags
+        bool verbose = false;
+        for (int i = 3; i < argc; ++i) {
+            std::string arg(argv[i]);
+            if (arg == "--verbose" || arg == "-v") {
+                verbose = true;
+            }
+        }
+
         try {
             // Read source file
             std::string source = read_file(filename);
@@ -101,6 +113,7 @@ int main(int argc, char** argv) {
 
             // Interpret
             naab::interpreter::Interpreter interpreter;
+            interpreter.setVerboseMode(verbose);
             interpreter.execute(*program);
 
             return 0;

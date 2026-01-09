@@ -326,6 +326,10 @@ public:
     std::shared_ptr<debugger::Debugger> getDebugger() const { return debugger_; }
     bool isDebugging() const { return debugger_ && debugger_->isActive(); }
 
+    // Verbose mode support
+    void setVerboseMode(bool v) { verbose_mode_ = v; }
+    bool isVerboseMode() const { return verbose_mode_; }
+
 private:
     std::shared_ptr<Environment> global_env_;
     std::shared_ptr<Environment> current_env_;
@@ -359,6 +363,9 @@ private:
     // Phase 4.1: Call stack for error reporting
     std::vector<StackFrame> call_stack_;
     std::string current_file_;  // Current source file being executed
+
+    // Verbose mode
+    bool verbose_mode_ = false;
 
     // Helpers
     std::shared_ptr<Value> eval(ast::Expr& expr);
