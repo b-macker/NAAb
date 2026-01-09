@@ -2205,30 +2205,6 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
 // StructValue Methods
 // ============================================================================
 
-std::shared_ptr<Value> StructValue::getField(const std::string& name) const {
-    if (!definition) {
-        throw std::runtime_error("Struct has no definition");
-    }
-    auto it = definition->field_index.find(name);
-    if (it == definition->field_index.end()) {
-        throw std::runtime_error("Field '" + name + "' not found in struct '" +
-                               type_name + "'");
-    }
-    return field_values[it->second];
-}
-
-void StructValue::setField(const std::string& name, std::shared_ptr<Value> value) {
-    if (!definition) {
-        throw std::runtime_error("Struct has no definition");
-    }
-    auto it = definition->field_index.find(name);
-    if (it == definition->field_index.end()) {
-        throw std::runtime_error("Field '" + name + "' not found in struct '" +
-                               type_name + "'");
-    }
-    field_values[it->second] = value;
-}
-
 // Profile mode methods
 void Interpreter::profileStart(const std::string& name) {
     if (!profile_mode_) return;

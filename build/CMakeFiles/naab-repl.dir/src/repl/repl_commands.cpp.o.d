@@ -845,6 +845,8 @@ CMakeFiles/naab-repl.dir/src/repl/repl_commands.cpp.o: \
   /data/data/com.termux/files/usr/include/python3.12/cpython/fileutils.h \
   /data/data/com.termux/files/usr/include/python3.12/cpython/pyfpe.h \
   /data/data/com.termux/files/usr/include/python3.12/tracemalloc.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/chrono \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/forward_list \
   /data/data/com.termux/files/home/.naab/language/include/naab/block_registry.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/lexer.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/parser.h \
