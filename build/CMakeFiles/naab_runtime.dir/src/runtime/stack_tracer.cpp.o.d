@@ -681,6 +681,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/system_error \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/streambuf \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/cstdarg \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_formatter.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/sstream \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__ostream/basic_ostream.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__ostream/put_character_sequence.h \

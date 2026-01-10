@@ -3209,6 +3209,30 @@ src/runtime/semver.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/semver.cpp.s
 .PHONY : src/runtime/semver.cpp.s
 
+src/runtime/stack_formatter.o: src/runtime/stack_formatter.cpp.o
+.PHONY : src/runtime/stack_formatter.o
+
+# target to build an object file
+src/runtime/stack_formatter.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o
+.PHONY : src/runtime/stack_formatter.cpp.o
+
+src/runtime/stack_formatter.i: src/runtime/stack_formatter.cpp.i
+.PHONY : src/runtime/stack_formatter.i
+
+# target to preprocess a source file
+src/runtime/stack_formatter.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.i
+.PHONY : src/runtime/stack_formatter.cpp.i
+
+src/runtime/stack_formatter.s: src/runtime/stack_formatter.cpp.s
+.PHONY : src/runtime/stack_formatter.s
+
+# target to generate assembly for a file
+src/runtime/stack_formatter.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.s
+.PHONY : src/runtime/stack_formatter.cpp.s
+
 src/runtime/stack_tracer.o: src/runtime/stack_tracer.cpp.o
 .PHONY : src/runtime/stack_tracer.o
 
@@ -5035,6 +5059,9 @@ help:
 	@echo "... src/runtime/semver.o"
 	@echo "... src/runtime/semver.i"
 	@echo "... src/runtime/semver.s"
+	@echo "... src/runtime/stack_formatter.o"
+	@echo "... src/runtime/stack_formatter.i"
+	@echo "... src/runtime/stack_formatter.s"
 	@echo "... src/runtime/stack_tracer.o"
 	@echo "... src/runtime/stack_tracer.i"
 	@echo "... src/runtime/stack_tracer.s"

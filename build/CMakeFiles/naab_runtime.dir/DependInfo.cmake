@@ -24,6 +24,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/data/data/com.termux/files/home/.naab/language/src/runtime/rust_executor.cpp" "CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o" "gcc" "CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/src/runtime/rust_ffi_bridge.cpp" "CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o" "gcc" "CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/src/runtime/semver.cpp" "CMakeFiles/naab_runtime.dir/src/runtime/semver.cpp.o" "gcc" "CMakeFiles/naab_runtime.dir/src/runtime/semver.cpp.o.d"
+  "/data/data/com.termux/files/home/.naab/language/src/runtime/stack_formatter.cpp" "CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o" "gcc" "CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/src/runtime/stack_tracer.cpp" "CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o" "gcc" "CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/src/runtime/struct_registry.cpp" "CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o" "gcc" "CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/src/runtime/type_marshaller.cpp" "CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o" "gcc" "CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o.d"

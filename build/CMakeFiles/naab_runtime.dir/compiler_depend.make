@@ -3090,6 +3090,8 @@ CMakeFiles/naab_runtime.dir/src/runtime/cpp_executor.cpp.o: /data/data/com.termu
   /data/data/com.termux/files/home/.naab/language/include/naab/module_resolver.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/resource_limits.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/sandbox.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/stdlib.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/type_marshaller.h \
   /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/bitsperlong.h \
@@ -14904,10 +14906,6 @@ CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o: /data/data/com.te
 
 /data/data/com.termux/files/home/.naab/language/include/naab/js_executor_adapter.h:
 
-/data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h:
-
-/data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h:
-
 /data/data/com.termux/files/home/.naab/language/include/naab/js_executor.h:
 
 /data/data/com.termux/files/home/.naab/language/external/quickjs-2021-03-27/quickjs-libc.h:
@@ -14953,6 +14951,10 @@ CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o: /data/data/com.te
 /data/data/com.termux/files/home/.naab/language/src/runtime/cpp_executor_adapter.cpp:
 
 /data/data/com.termux/files/usr/include/dlfcn.h:
+
+/data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h:
+
+/data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h:
 
 /data/data/com.termux/files/home/.naab/language/include/naab/input_validator.h:
 

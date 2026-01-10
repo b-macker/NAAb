@@ -1,0 +1,84 @@
+# Phase 4.2.6: Unified Stack Trace Demo
+# Demonstrates cross-language stack traces with color coding
+
+# Example 1: NAAb → Python error
+python {{{
+def python_divide(a, b):
+    """Divides two numbers - will raise ZeroDivisionError if b=0"""
+    return a / b
+
+def python_outer():
+    """Outer function that calls divide"""
+    return python_divide(10, 0)
+}}}
+
+# Example 2: NAAb → JavaScript error
+javascript {{{
+function js_divide(a, b) {
+    if (b === 0) {
+        throw new Error("Division by zero in JavaScript");
+    }
+    return a / b;
+}
+
+function js_outer() {
+    return js_divide(20, 0);
+}
+}}}
+
+# Example 3: Multi-level NAAb call
+function naab_level_3() {
+    # This would call a non-existent function
+    let result = undefined_function()
+    return result
+}
+
+function naab_level_2() {
+    return naab_level_3()
+}
+
+function naab_level_1() {
+    return naab_level_2()
+}
+
+main {
+    print("=== Stack Trace Demo ===")
+    print()
+
+    print("1. Testing Python stack trace:")
+    print("   Expected: NAAb → Python → Python (ZeroDivisionError)")
+    print()
+
+    # This will show:
+    # Stack trace (most recent call last):
+    #   at python_outer (<python>:0) [python]        <- green
+    #   at python_divide (test.py:7) [python]        <- green
+    # Error: ZeroDivisionError
+    # let py_result = python_outer()
+
+    print("2. Testing JavaScript stack trace:")
+    print("   Expected: NAAb → JavaScript → JavaScript (Error)")
+    print()
+
+    # This will show:
+    # Stack trace (most recent call last):
+    #   at js_outer (<javascript>:0) [javascript]     <- yellow
+    #   at js_divide (<eval>:5) [javascript]          <- yellow
+    # Error: Division by zero in JavaScript
+    # let js_result = js_outer()
+
+    print("3. Testing Multi-level NAAb stack trace:")
+    print("   Expected: main → naab_level_1 → naab_level_2 → naab_level_3")
+    print()
+
+    # This will show:
+    # Stack trace (most recent call last):
+    #   at main (stack_trace_demo.naab:55) [naab]           <- blue
+    #   at naab_level_1 (stack_trace_demo.naab:40) [naab]   <- blue
+    #   at naab_level_2 (stack_trace_demo.naab:36) [naab]   <- blue
+    #   at naab_level_3 (stack_trace_demo.naab:31) [naab]   <- blue
+    # Error: undefined_function not found
+    # let naab_result = naab_level_1()
+
+    print("Demo complete (actual errors commented out)")
+}

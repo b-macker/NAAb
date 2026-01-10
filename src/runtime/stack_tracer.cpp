@@ -2,6 +2,7 @@
 // Cross-language stack trace management (Phase 4.2)
 
 #include "naab/stack_tracer.h"
+#include "naab/stack_formatter.h"  // Phase 4.2.6: Enhanced formatting
 #include <sstream>
 
 namespace naab {
@@ -38,15 +39,10 @@ std::string StackTracer::formatTrace() {
         return "<empty stack trace>";
     }
 
-    std::ostringstream ss;
-    ss << "Stack trace (most recent call first):\n";
-
-    // Iterate in reverse order (most recent first)
-    for (auto it = stack_.rbegin(); it != stack_.rend(); ++it) {
-        ss << it->toString() << "\n";
-    }
-
-    return ss.str();
+    // Phase 4.2.6: Use enhanced formatter with color support
+    // TODO: Check global color setting from Diagnostic::isGlobalColorEnabled()
+    // For now, use colored output by default
+    return StackFormatter::formatColored(stack_);
 }
 
 } // namespace error
