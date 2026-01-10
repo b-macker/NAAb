@@ -163,3 +163,23 @@ NaabRustValue* valueToFfi(const std::shared_ptr<Value>& val) {
 
 } // namespace runtime
 } // namespace naab
+
+// ============================================================================
+// Error Handling (Phase 4.2.4) - Stub implementations
+// ============================================================================
+
+NaabRustError* naab_rust_get_last_error() {
+    // Stub: Returns nullptr since Rust library doesn't implement error tracking yet
+    // TODO: Implement thread-local error storage in Rust library
+    return nullptr;
+}
+
+void naab_rust_error_free(NaabRustError* error) {
+    // Stub: No-op since naab_rust_get_last_error() always returns nullptr
+    // TODO: Implement proper cleanup when Rust library provides error objects
+    if (error) {
+        free(error->message);
+        free(error->file);
+        delete error;
+    }
+}

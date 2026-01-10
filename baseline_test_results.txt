@@ -1,18 +1,1500 @@
-NAAb Language Test Baseline - Pre-Struct Implementation
-========================================================
-Date: 2026-01-08
-Baseline for struct implementation (8-week plan)
+Running main() from /data/data/com.termux/files/home/.naab/language/external/googletest/googletest/src/gtest_main.cc
+[==========] Running 353 tests from 21 test suites.
+[----------] Global test environment set-up.
+[----------] 67 tests from LexerTest
+[ RUN      ] LexerTest.EmptySource
+[       OK ] LexerTest.EmptySource (0 ms)
+[ RUN      ] LexerTest.Whitespace
+/data/data/com.termux/files/home/.naab/language/tests/unit/lexer_test.cpp:25: Failure
+Expected equality of these values:
+  tokens.size()
+    Which is: 2
+  1
 
-Available Test Executables:
-- test_cross_language_bridge
-- test_cross_language_performance
-- test_cross_language_simple  
-- test_error_reporting
-- test_library_detection
-- test_profiler
+[  FAILED  ] LexerTest.Whitespace (0 ms)
+[ RUN      ] LexerTest.SingleLineComment
+/data/data/com.termux/files/home/.naab/language/tests/unit/lexer_test.cpp:32: Failure
+Expected equality of these values:
+  tokens.size()
+    Which is: 2
+  1
 
-Note: naab_unit_tests executable not built due to pre-existing build issues
-This baseline records the state before struct implementation begins.
+[  FAILED  ] LexerTest.SingleLineComment (0 ms)
+[ RUN      ] LexerTest.MultiLineComment
+[       OK ] LexerTest.MultiLineComment (0 ms)
+[ RUN      ] LexerTest.KeywordLet
+[       OK ] LexerTest.KeywordLet (0 ms)
+[ RUN      ] LexerTest.KeywordFunction
+[       OK ] LexerTest.KeywordFunction (0 ms)
+[ RUN      ] LexerTest.KeywordReturn
+[       OK ] LexerTest.KeywordReturn (0 ms)
+[ RUN      ] LexerTest.KeywordIf
+[       OK ] LexerTest.KeywordIf (0 ms)
+[ RUN      ] LexerTest.KeywordElse
+[       OK ] LexerTest.KeywordElse (0 ms)
+[ RUN      ] LexerTest.KeywordFor
+[       OK ] LexerTest.KeywordFor (0 ms)
+[ RUN      ] LexerTest.KeywordWhile
+[       OK ] LexerTest.KeywordWhile (0 ms)
+[ RUN      ] LexerTest.KeywordBreak
+[       OK ] LexerTest.KeywordBreak (0 ms)
+[ RUN      ] LexerTest.KeywordContinue
+[       OK ] LexerTest.KeywordContinue (0 ms)
+[ RUN      ] LexerTest.KeywordTrue
+[       OK ] LexerTest.KeywordTrue (0 ms)
+[ RUN      ] LexerTest.KeywordFalse
+[       OK ] LexerTest.KeywordFalse (0 ms)
+[ RUN      ] LexerTest.KeywordUse
+[       OK ] LexerTest.KeywordUse (0 ms)
+[ RUN      ] LexerTest.KeywordImport
+[       OK ] LexerTest.KeywordImport (0 ms)
+[ RUN      ] LexerTest.KeywordExport
+[       OK ] LexerTest.KeywordExport (0 ms)
+[ RUN      ] LexerTest.KeywordTry
+[       OK ] LexerTest.KeywordTry (0 ms)
+[ RUN      ] LexerTest.KeywordCatch
+[       OK ] LexerTest.KeywordCatch (0 ms)
+[ RUN      ] LexerTest.KeywordFinally
+[       OK ] LexerTest.KeywordFinally (0 ms)
+[ RUN      ] LexerTest.KeywordThrow
+[       OK ] LexerTest.KeywordThrow (0 ms)
+[ RUN      ] LexerTest.SimpleIdentifier
+[       OK ] LexerTest.SimpleIdentifier (0 ms)
+[ RUN      ] LexerTest.IdentifierWithNumbers
+[       OK ] LexerTest.IdentifierWithNumbers (0 ms)
+[ RUN      ] LexerTest.IdentifierWithUnderscore
+[       OK ] LexerTest.IdentifierWithUnderscore (0 ms)
+[ RUN      ] LexerTest.IdentifierStartsWithUnderscore
+[       OK ] LexerTest.IdentifierStartsWithUnderscore (0 ms)
+[ RUN      ] LexerTest.IntegerLiteral
+[       OK ] LexerTest.IntegerLiteral (0 ms)
+[ RUN      ] LexerTest.ZeroLiteral
+[       OK ] LexerTest.ZeroLiteral (0 ms)
+[ RUN      ] LexerTest.FloatLiteral
+[       OK ] LexerTest.FloatLiteral (0 ms)
+[ RUN      ] LexerTest.FloatWithLeadingZero
+[       OK ] LexerTest.FloatWithLeadingZero (0 ms)
+[ RUN      ] LexerTest.StringLiteralDoubleQuotes
+[       OK ] LexerTest.StringLiteralDoubleQuotes (0 ms)
+[ RUN      ] LexerTest.StringLiteralSingleQuotes
+[       OK ] LexerTest.StringLiteralSingleQuotes (0 ms)
+[ RUN      ] LexerTest.EmptyString
+[       OK ] LexerTest.EmptyString (0 ms)
+[ RUN      ] LexerTest.StringWithEscapes
+[       OK ] LexerTest.StringWithEscapes (0 ms)
+[ RUN      ] LexerTest.PlusOperator
+[       OK ] LexerTest.PlusOperator (0 ms)
+[ RUN      ] LexerTest.MinusOperator
+[       OK ] LexerTest.MinusOperator (0 ms)
+[ RUN      ] LexerTest.StarOperator
+[       OK ] LexerTest.StarOperator (0 ms)
+[ RUN      ] LexerTest.SlashOperator
+[       OK ] LexerTest.SlashOperator (0 ms)
+[ RUN      ] LexerTest.PercentOperator
+[       OK ] LexerTest.PercentOperator (0 ms)
+[ RUN      ] LexerTest.EqualOperator
+[       OK ] LexerTest.EqualOperator (0 ms)
+[ RUN      ] LexerTest.EqualEqualOperator
+[       OK ] LexerTest.EqualEqualOperator (0 ms)
+[ RUN      ] LexerTest.BangOperator
+[       OK ] LexerTest.BangOperator (0 ms)
+[ RUN      ] LexerTest.BangEqualOperator
+[       OK ] LexerTest.BangEqualOperator (0 ms)
+[ RUN      ] LexerTest.LessOperator
+[       OK ] LexerTest.LessOperator (0 ms)
+[ RUN      ] LexerTest.LessEqualOperator
+[       OK ] LexerTest.LessEqualOperator (0 ms)
+[ RUN      ] LexerTest.GreaterOperator
+[       OK ] LexerTest.GreaterOperator (0 ms)
+[ RUN      ] LexerTest.GreaterEqualOperator
+[       OK ] LexerTest.GreaterEqualOperator (0 ms)
+[ RUN      ] LexerTest.AndOperator
+[       OK ] LexerTest.AndOperator (0 ms)
+[ RUN      ] LexerTest.OrOperator
+[       OK ] LexerTest.OrOperator (0 ms)
+[ RUN      ] LexerTest.PipeOperator
+/data/data/com.termux/files/home/.naab/language/tests/unit/lexer_test.cpp:390: Failure
+Expected equality of these values:
+  tokens[0].type
+    Which is: 4-byte object <30-00 00-00>
+  TokenType::PIPE
+    Which is: 4-byte object <2F-00 00-00>
 
-Test Count: 6 executables available
-Status: Build reaches 80% completion
+[  FAILED  ] LexerTest.PipeOperator (0 ms)
+[ RUN      ] LexerTest.LeftParen
+[       OK ] LexerTest.LeftParen (0 ms)
+[ RUN      ] LexerTest.RightParen
+[       OK ] LexerTest.RightParen (0 ms)
+[ RUN      ] LexerTest.LeftBrace
+[       OK ] LexerTest.LeftBrace (0 ms)
+[ RUN      ] LexerTest.RightBrace
+[       OK ] LexerTest.RightBrace (0 ms)
+[ RUN      ] LexerTest.LeftBracket
+[       OK ] LexerTest.LeftBracket (0 ms)
+[ RUN      ] LexerTest.RightBracket
+[       OK ] LexerTest.RightBracket (0 ms)
+[ RUN      ] LexerTest.Comma
+[       OK ] LexerTest.Comma (0 ms)
+[ RUN      ] LexerTest.Dot
+[       OK ] LexerTest.Dot (0 ms)
+[ RUN      ] LexerTest.Colon
+[       OK ] LexerTest.Colon (0 ms)
+[ RUN      ] LexerTest.SimpleExpression
+[       OK ] LexerTest.SimpleExpression (0 ms)
+[ RUN      ] LexerTest.FunctionCall
+[       OK ] LexerTest.FunctionCall (0 ms)
+[ RUN      ] LexerTest.ArrayLiteral
+[       OK ] LexerTest.ArrayLiteral (0 ms)
+[ RUN      ] LexerTest.DictLiteral
+[       OK ] LexerTest.DictLiteral (0 ms)
+[ RUN      ] LexerTest.VariableDeclaration
+[       OK ] LexerTest.VariableDeclaration (0 ms)
+[ RUN      ] LexerTest.MultipleStatementsOnOneLine
+/data/data/com.termux/files/home/.naab/language/tests/unit/lexer_test.cpp:525: Failure
+Expected equality of these values:
+  tokens[4].type
+    Which is: 4-byte object <42-00 00-00>
+  TokenType::LET
+    Which is: 4-byte object <1B-00 00-00>
+
+[  FAILED  ] LexerTest.MultipleStatementsOnOneLine (0 ms)
+[ RUN      ] LexerTest.NumbersWithoutSpaces
+[       OK ] LexerTest.NumbersWithoutSpaces (0 ms)
+[ RUN      ] LexerTest.LineNumberTracking
+[       OK ] LexerTest.LineNumberTracking (0 ms)
+[----------] 67 tests from LexerTest (0 ms total)
+
+[----------] 65 tests from ParserTest
+[ RUN      ] ParserTest.EmptyProgram
+[       OK ] ParserTest.EmptyProgram (0 ms)
+[ RUN      ] ParserTest.SimpleStatement
+[PARSER] Stopping parse at unknown token: print (line 1, col 1)
+[       OK ] ParserTest.SimpleStatement (0 ms)
+[ RUN      ] ParserTest.IntegerLiteral
+[PARSER] Stopping parse at unknown token: 42 (line 1, col 1)
+[       OK ] ParserTest.IntegerLiteral (0 ms)
+[ RUN      ] ParserTest.FloatLiteral
+[PARSER] Stopping parse at unknown token: 3.14 (line 1, col 1)
+[       OK ] ParserTest.FloatLiteral (0 ms)
+[ RUN      ] ParserTest.StringLiteral
+[PARSER] Stopping parse at unknown token: hello (line 1, col 1)
+[       OK ] ParserTest.StringLiteral (0 ms)
+[ RUN      ] ParserTest.BooleanTrue
+[PARSER] Stopping parse at unknown token: true (line 1, col 1)
+[       OK ] ParserTest.BooleanTrue (0 ms)
+[ RUN      ] ParserTest.BooleanFalse
+[PARSER] Stopping parse at unknown token: false (line 1, col 1)
+[       OK ] ParserTest.BooleanFalse (0 ms)
+[ RUN      ] ParserTest.ArrayLiteral
+[PARSER] Stopping parse at unknown token: [ (line 1, col 1)
+[       OK ] ParserTest.ArrayLiteral (0 ms)
+[ RUN      ] ParserTest.EmptyArray
+[PARSER] Stopping parse at unknown token: [ (line 1, col 1)
+[       OK ] ParserTest.EmptyArray (0 ms)
+[ RUN      ] ParserTest.DictLiteral
+[PARSER] Stopping parse at unknown token: { (line 1, col 1)
+[       OK ] ParserTest.DictLiteral (0 ms)
+[ RUN      ] ParserTest.EmptyDict
+[PARSER] Stopping parse at unknown token: { (line 1, col 1)
+[       OK ] ParserTest.EmptyDict (0 ms)
+[ RUN      ] ParserTest.SimpleVariableDeclaration
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[       OK ] ParserTest.SimpleVariableDeclaration (0 ms)
+[ RUN      ] ParserTest.VariableWithStringValue
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[       OK ] ParserTest.VariableWithStringValue (0 ms)
+[ RUN      ] ParserTest.VariableWithExpression
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[       OK ] ParserTest.VariableWithExpression (0 ms)
+[ RUN      ] ParserTest.MultipleVariableDeclarations
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[       OK ] ParserTest.MultipleVariableDeclarations (0 ms)
+[ RUN      ] ParserTest.Addition
+[PARSER] Stopping parse at unknown token: 1 (line 1, col 1)
+[       OK ] ParserTest.Addition (0 ms)
+[ RUN      ] ParserTest.Subtraction
+[PARSER] Stopping parse at unknown token: 5 (line 1, col 1)
+[       OK ] ParserTest.Subtraction (0 ms)
+[ RUN      ] ParserTest.Multiplication
+[PARSER] Stopping parse at unknown token: 4 (line 1, col 1)
+[       OK ] ParserTest.Multiplication (0 ms)
+[ RUN      ] ParserTest.Division
+[PARSER] Stopping parse at unknown token: 10 (line 1, col 1)
+[       OK ] ParserTest.Division (0 ms)
+[ RUN      ] ParserTest.Modulo
+[PARSER] Stopping parse at unknown token: 10 (line 1, col 1)
+[       OK ] ParserTest.Modulo (0 ms)
+[ RUN      ] ParserTest.CompoundExpression
+[PARSER] Stopping parse at unknown token: 1 (line 1, col 1)
+[       OK ] ParserTest.CompoundExpression (0 ms)
+[ RUN      ] ParserTest.ParenthesizedExpression
+[PARSER] Stopping parse at unknown token: ( (line 1, col 1)
+[       OK ] ParserTest.ParenthesizedExpression (0 ms)
+[ RUN      ] ParserTest.Equality
+[PARSER] Stopping parse at unknown token: x (line 1, col 1)
+[       OK ] ParserTest.Equality (0 ms)
+[ RUN      ] ParserTest.Inequality
+[PARSER] Stopping parse at unknown token: x (line 1, col 1)
+[       OK ] ParserTest.Inequality (0 ms)
+[ RUN      ] ParserTest.LessThan
+[PARSER] Stopping parse at unknown token: x (line 1, col 1)
+[       OK ] ParserTest.LessThan (0 ms)
+[ RUN      ] ParserTest.LessThanOrEqual
+[PARSER] Stopping parse at unknown token: x (line 1, col 1)
+[       OK ] ParserTest.LessThanOrEqual (0 ms)
+[ RUN      ] ParserTest.GreaterThan
+[PARSER] Stopping parse at unknown token: x (line 1, col 1)
+[       OK ] ParserTest.GreaterThan (0 ms)
+[ RUN      ] ParserTest.GreaterThanOrEqual
+[PARSER] Stopping parse at unknown token: x (line 1, col 1)
+[       OK ] ParserTest.GreaterThanOrEqual (0 ms)
+[ RUN      ] ParserTest.LogicalAnd
+[PARSER] Stopping parse at unknown token: true (line 1, col 1)
+[       OK ] ParserTest.LogicalAnd (0 ms)
+[ RUN      ] ParserTest.LogicalOr
+[PARSER] Stopping parse at unknown token: true (line 1, col 1)
+[       OK ] ParserTest.LogicalOr (0 ms)
+[ RUN      ] ParserTest.LogicalNot
+[PARSER] Stopping parse at unknown token: ! (line 1, col 1)
+[       OK ] ParserTest.LogicalNot (0 ms)
+[ RUN      ] ParserTest.ComplexLogicalExpression
+[PARSER] Stopping parse at unknown token: ( (line 1, col 1)
+[       OK ] ParserTest.ComplexLogicalExpression (0 ms)
+[ RUN      ] ParserTest.SimpleFunctionDeclaration
+unknown file: Failure
+C++ exception with description "Parse error at line 1, column 15: Expected ':' after parameter name
+  Got: ','" thrown in the test body.
+
+[  FAILED  ] ParserTest.SimpleFunctionDeclaration (0 ms)
+[ RUN      ] ParserTest.FunctionWithNoParameters
+[       OK ] ParserTest.FunctionWithNoParameters (0 ms)
+[ RUN      ] ParserTest.FunctionWithSingleParameter
+unknown file: Failure
+C++ exception with description "Parse error at line 1, column 18: Expected ':' after parameter name
+  Got: ')'" thrown in the test body.
+
+[  FAILED  ] ParserTest.FunctionWithSingleParameter (0 ms)
+[ RUN      ] ParserTest.FunctionWithDefaultParameter
+unknown file: Failure
+C++ exception with description "Parse error at line 1, column 21: Expected ':' after parameter name
+  Got: '='" thrown in the test body.
+
+[  FAILED  ] ParserTest.FunctionWithDefaultParameter (0 ms)
+[ RUN      ] ParserTest.SimpleFunctionCall
+[PARSER] Stopping parse at unknown token: print (line 1, col 1)
+[       OK ] ParserTest.SimpleFunctionCall (0 ms)
+[ RUN      ] ParserTest.FunctionCallWithMultipleArgs
+[PARSER] Stopping parse at unknown token: add (line 1, col 1)
+[       OK ] ParserTest.FunctionCallWithMultipleArgs (0 ms)
+[ RUN      ] ParserTest.NestedFunctionCall
+[PARSER] Stopping parse at unknown token: print (line 1, col 1)
+[       OK ] ParserTest.NestedFunctionCall (0 ms)
+[ RUN      ] ParserTest.FunctionCallNoArgs
+[PARSER] Stopping parse at unknown token: getValue (line 1, col 1)
+[       OK ] ParserTest.FunctionCallNoArgs (0 ms)
+[ RUN      ] ParserTest.PropertyAccess
+[PARSER] Stopping parse at unknown token: obj (line 1, col 1)
+[       OK ] ParserTest.PropertyAccess (0 ms)
+[ RUN      ] ParserTest.ChainedPropertyAccess
+[PARSER] Stopping parse at unknown token: obj (line 1, col 1)
+[       OK ] ParserTest.ChainedPropertyAccess (0 ms)
+[ RUN      ] ParserTest.MethodCall
+[PARSER] Stopping parse at unknown token: obj (line 1, col 1)
+[       OK ] ParserTest.MethodCall (0 ms)
+[ RUN      ] ParserTest.MethodCallWithArgs
+[PARSER] Stopping parse at unknown token: obj (line 1, col 1)
+[       OK ] ParserTest.MethodCallWithArgs (0 ms)
+[ RUN      ] ParserTest.SimpleIfStatement
+[PARSER] Stopping parse at unknown token: if (line 1, col 1)
+[       OK ] ParserTest.SimpleIfStatement (0 ms)
+[ RUN      ] ParserTest.IfElseStatement
+[PARSER] Stopping parse at unknown token: if (line 1, col 1)
+[       OK ] ParserTest.IfElseStatement (0 ms)
+[ RUN      ] ParserTest.IfElseIfElseStatement
+[PARSER] Stopping parse at unknown token: if (line 1, col 1)
+[       OK ] ParserTest.IfElseIfElseStatement (0 ms)
+[ RUN      ] ParserTest.ForLoop
+[PARSER] Stopping parse at unknown token: for (line 1, col 1)
+[       OK ] ParserTest.ForLoop (0 ms)
+[ RUN      ] ParserTest.WhileLoop
+[PARSER] Stopping parse at unknown token: while (line 1, col 1)
+[       OK ] ParserTest.WhileLoop (0 ms)
+[ RUN      ] ParserTest.BreakStatement
+[PARSER] Stopping parse at unknown token: while (line 1, col 1)
+[       OK ] ParserTest.BreakStatement (0 ms)
+[ RUN      ] ParserTest.ContinueStatement
+[PARSER] Stopping parse at unknown token: for (line 1, col 1)
+[       OK ] ParserTest.ContinueStatement (0 ms)
+[ RUN      ] ParserTest.TryCatchBlock
+[PARSER] Stopping parse at unknown token: try (line 1, col 1)
+[       OK ] ParserTest.TryCatchBlock (0 ms)
+[ RUN      ] ParserTest.TryFinallyBlock
+[PARSER] Stopping parse at unknown token: try (line 1, col 1)
+[       OK ] ParserTest.TryFinallyBlock (0 ms)
+[ RUN      ] ParserTest.TryCatchFinallyBlock
+[PARSER] Stopping parse at unknown token: try (line 1, col 1)
+[       OK ] ParserTest.TryCatchFinallyBlock (0 ms)
+[ RUN      ] ParserTest.ThrowStatement
+[PARSER] Stopping parse at unknown token: throw (line 1, col 1)
+[       OK ] ParserTest.ThrowStatement (0 ms)
+[ RUN      ] ParserTest.ImportStatement
+[       OK ] ParserTest.ImportStatement (0 ms)
+[ RUN      ] ParserTest.ExportStatement
+[       OK ] ParserTest.ExportStatement (0 ms)
+[ RUN      ] ParserTest.UseStatement
+[       OK ] ParserTest.UseStatement (0 ms)
+[ RUN      ] ParserTest.SimplePipeline
+[PARSER] Stopping parse at unknown token: x (line 1, col 1)
+[       OK ] ParserTest.SimplePipeline (0 ms)
+[ RUN      ] ParserTest.ChainedPipeline
+[PARSER] Stopping parse at unknown token: x (line 1, col 1)
+[       OK ] ParserTest.ChainedPipeline (0 ms)
+[ RUN      ] ParserTest.MissingClosingParen
+[PARSER] Stopping parse at unknown token: print (line 1, col 1)
+/data/data/com.termux/files/home/.naab/language/tests/unit/parser_test.cpp:382: Failure
+Expected: parse("print(\"hello\"") throws an exception of type std::runtime_error.
+  Actual: it throws nothing.
+
+[  FAILED  ] ParserTest.MissingClosingParen (0 ms)
+[ RUN      ] ParserTest.MissingClosingBracket
+[PARSER] Stopping parse at unknown token: [ (line 1, col 1)
+/data/data/com.termux/files/home/.naab/language/tests/unit/parser_test.cpp:386: Failure
+Expected: parse("[1, 2, 3") throws an exception of type std::runtime_error.
+  Actual: it throws nothing.
+
+[  FAILED  ] ParserTest.MissingClosingBracket (0 ms)
+[ RUN      ] ParserTest.MissingClosingBrace
+[PARSER] Stopping parse at unknown token: { (line 1, col 1)
+/data/data/com.termux/files/home/.naab/language/tests/unit/parser_test.cpp:390: Failure
+Expected: parse("{\"key\": \"value\"") throws an exception of type std::runtime_error.
+  Actual: it throws nothing.
+
+[  FAILED  ] ParserTest.MissingClosingBrace (0 ms)
+[ RUN      ] ParserTest.InvalidSyntax
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+/data/data/com.termux/files/home/.naab/language/tests/unit/parser_test.cpp:394: Failure
+Expected: parse("let = 42") throws an exception of type std::runtime_error.
+  Actual: it throws nothing.
+
+[  FAILED  ] ParserTest.InvalidSyntax (0 ms)
+[ RUN      ] ParserTest.UnexpectedToken
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+/data/data/com.termux/files/home/.naab/language/tests/unit/parser_test.cpp:398: Failure
+Expected: parse("let x = +") throws an exception of type std::runtime_error.
+  Actual: it throws nothing.
+
+[  FAILED  ] ParserTest.UnexpectedToken (0 ms)
+[----------] 65 tests from ParserTest (0 ms total)
+
+[----------] 44 tests from InterpreterTest
+[ RUN      ] InterpreterTest.IntegerLiteral
+[PARSER] Stopping parse at unknown token: 42 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] Python interpreter initialized
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:32: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.IntegerLiteral (16 ms)
+[ RUN      ] InterpreterTest.FloatLiteral
+[PARSER] Stopping parse at unknown token: 3.14 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:40: Failure
+Expected: (floatval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.FloatLiteral (0 ms)
+[ RUN      ] InterpreterTest.StringLiteral
+[PARSER] Stopping parse at unknown token: hello (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:48: Failure
+Expected: (strval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.StringLiteral (0 ms)
+[ RUN      ] InterpreterTest.BooleanTrue
+[PARSER] Stopping parse at unknown token: true (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:56: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.BooleanTrue (0 ms)
+[ RUN      ] InterpreterTest.BooleanFalse
+[PARSER] Stopping parse at unknown token: false (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:64: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.BooleanFalse (0 ms)
+[ RUN      ] InterpreterTest.Addition
+[PARSER] Stopping parse at unknown token: 2 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:75: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.Addition (0 ms)
+[ RUN      ] InterpreterTest.Subtraction
+[PARSER] Stopping parse at unknown token: 5 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:82: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.Subtraction (0 ms)
+[ RUN      ] InterpreterTest.Multiplication
+[PARSER] Stopping parse at unknown token: 4 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:89: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.Multiplication (0 ms)
+[ RUN      ] InterpreterTest.Division
+[PARSER] Stopping parse at unknown token: 10 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:96: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.Division (0 ms)
+[ RUN      ] InterpreterTest.Modulo
+[PARSER] Stopping parse at unknown token: 10 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:103: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.Modulo (0 ms)
+[ RUN      ] InterpreterTest.OperatorPrecedence
+[PARSER] Stopping parse at unknown token: 2 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:110: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.OperatorPrecedence (0 ms)
+[ RUN      ] InterpreterTest.Parentheses
+[PARSER] Stopping parse at unknown token: ( (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:117: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.Parentheses (0 ms)
+[ RUN      ] InterpreterTest.Equality
+[PARSER] Stopping parse at unknown token: 5 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:128: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.Equality (0 ms)
+[ RUN      ] InterpreterTest.Inequality
+[PARSER] Stopping parse at unknown token: 5 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:135: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.Inequality (0 ms)
+[ RUN      ] InterpreterTest.LessThan
+[PARSER] Stopping parse at unknown token: 3 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:142: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.LessThan (0 ms)
+[ RUN      ] InterpreterTest.LessThanOrEqual
+[PARSER] Stopping parse at unknown token: 5 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:149: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.LessThanOrEqual (0 ms)
+[ RUN      ] InterpreterTest.GreaterThan
+[PARSER] Stopping parse at unknown token: 5 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:156: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.GreaterThan (0 ms)
+[ RUN      ] InterpreterTest.GreaterThanOrEqual
+[PARSER] Stopping parse at unknown token: 5 (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:163: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.GreaterThanOrEqual (0 ms)
+[ RUN      ] InterpreterTest.LogicalAnd
+[PARSER] Stopping parse at unknown token: true (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:174: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.LogicalAnd (0 ms)
+[ RUN      ] InterpreterTest.LogicalAndShortCircuit
+[PARSER] Stopping parse at unknown token: false (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:181: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.LogicalAndShortCircuit (0 ms)
+[ RUN      ] InterpreterTest.LogicalOr
+[PARSER] Stopping parse at unknown token: false (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:188: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.LogicalOr (0 ms)
+[ RUN      ] InterpreterTest.LogicalOrShortCircuit
+[PARSER] Stopping parse at unknown token: true (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:195: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.LogicalOrShortCircuit (0 ms)
+[ RUN      ] InterpreterTest.LogicalNot
+[PARSER] Stopping parse at unknown token: ! (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:202: Failure
+Expected: (boolval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.LogicalNot (0 ms)
+[ RUN      ] InterpreterTest.VariableDeclaration
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:213: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.VariableDeclaration (0 ms)
+[ RUN      ] InterpreterTest.VariableReassignment
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:220: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.VariableReassignment (0 ms)
+[ RUN      ] InterpreterTest.MultipleVariables
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:227: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.MultipleVariables (0 ms)
+[ RUN      ] InterpreterTest.SimpleFunctionCall
+unknown file: Failure
+C++ exception with description "Parse error at line 1, column 15: Expected ':' after parameter name
+  Got: ','" thrown in the test body.
+
+[  FAILED  ] InterpreterTest.SimpleFunctionCall (0 ms)
+[ RUN      ] InterpreterTest.FunctionWithDefaultParameter
+unknown file: Failure
+C++ exception with description "Parse error at line 1, column 21: Expected ':' after parameter name
+  Got: '='" thrown in the test body.
+
+[  FAILED  ] InterpreterTest.FunctionWithDefaultParameter (0 ms)
+[ RUN      ] InterpreterTest.RecursiveFunction
+unknown file: Failure
+C++ exception with description "Parse error at line 1, column 15: Expected ':' after parameter name
+  Got: ')'" thrown in the test body.
+
+[  FAILED  ] InterpreterTest.RecursiveFunction (0 ms)
+[ RUN      ] InterpreterTest.ArrayLiteral
+[PARSER] Stopping parse at unknown token: [ (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:263: Failure
+Expected: (arrval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.ArrayLiteral (0 ms)
+[ RUN      ] InterpreterTest.ArrayIndexing
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:270: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.ArrayIndexing (0 ms)
+[ RUN      ] InterpreterTest.IfStatement
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:281: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.IfStatement (0 ms)
+[ RUN      ] InterpreterTest.IfElseStatement
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:288: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.IfElseStatement (0 ms)
+[ RUN      ] InterpreterTest.WhileLoop
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:295: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.WhileLoop (0 ms)
+[ RUN      ] InterpreterTest.ForLoop
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:302: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.ForLoop (0 ms)
+[ RUN      ] InterpreterTest.BreakStatement
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:309: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.BreakStatement (0 ms)
+[ RUN      ] InterpreterTest.ContinueStatement
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:316: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.ContinueStatement (0 ms)
+[ RUN      ] InterpreterTest.TryCatchBlock
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:327: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.TryCatchBlock (0 ms)
+[ RUN      ] InterpreterTest.ThrowAndCatch
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:334: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.ThrowAndCatch (0 ms)
+[ RUN      ] InterpreterTest.FinallyBlock
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:341: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.FinallyBlock (0 ms)
+[ RUN      ] InterpreterTest.GlobalScope
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:352: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.GlobalScope (0 ms)
+[ RUN      ] InterpreterTest.LocalScope
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:359: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.LocalScope (0 ms)
+[ RUN      ] InterpreterTest.GlobalScopeAfterLocalScope
+[PARSER] Stopping parse at unknown token: let (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:366: Failure
+Expected: (intval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.GlobalScopeAfterLocalScope (0 ms)
+[ RUN      ] InterpreterTest.StringConcatenation
+[PARSER] Stopping parse at unknown token: hello (line 1, col 1)
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp:377: Failure
+Expected: (strval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] InterpreterTest.StringConcatenation (0 ms)
+[----------] 44 tests from InterpreterTest (18 ms total)
+
+[----------] 37 tests from TypeSystemTest
+[ RUN      ] TypeSystemTest.IntType
+[       OK ] TypeSystemTest.IntType (0 ms)
+[ RUN      ] TypeSystemTest.FloatType
+[       OK ] TypeSystemTest.FloatType (0 ms)
+[ RUN      ] TypeSystemTest.StringType
+[       OK ] TypeSystemTest.StringType (0 ms)
+[ RUN      ] TypeSystemTest.BoolType
+[       OK ] TypeSystemTest.BoolType (0 ms)
+[ RUN      ] TypeSystemTest.VoidType
+[       OK ] TypeSystemTest.VoidType (0 ms)
+[ RUN      ] TypeSystemTest.AnyType
+[       OK ] TypeSystemTest.AnyType (0 ms)
+[ RUN      ] TypeSystemTest.ArrayType
+[       OK ] TypeSystemTest.ArrayType (0 ms)
+[ RUN      ] TypeSystemTest.NestedArrayType
+[       OK ] TypeSystemTest.NestedArrayType (0 ms)
+[ RUN      ] TypeSystemTest.DictType
+[       OK ] TypeSystemTest.DictType (0 ms)
+[ RUN      ] TypeSystemTest.FunctionType
+[       OK ] TypeSystemTest.FunctionType (0 ms)
+[ RUN      ] TypeSystemTest.ParseInt
+[       OK ] TypeSystemTest.ParseInt (0 ms)
+[ RUN      ] TypeSystemTest.ParseFloat
+[       OK ] TypeSystemTest.ParseFloat (0 ms)
+[ RUN      ] TypeSystemTest.ParseString
+[       OK ] TypeSystemTest.ParseString (0 ms)
+[ RUN      ] TypeSystemTest.ParseBool
+[       OK ] TypeSystemTest.ParseBool (0 ms)
+[ RUN      ] TypeSystemTest.ParseArrayInt
+[       OK ] TypeSystemTest.ParseArrayInt (0 ms)
+[ RUN      ] TypeSystemTest.ParseArrayString
+[       OK ] TypeSystemTest.ParseArrayString (0 ms)
+[ RUN      ] TypeSystemTest.ParseDictStringInt
+[       OK ] TypeSystemTest.ParseDictStringInt (0 ms)
+[ RUN      ] TypeSystemTest.ParseNestedArray
+[       OK ] TypeSystemTest.ParseNestedArray (0 ms)
+[ RUN      ] TypeSystemTest.ParseComplexDict
+[       OK ] TypeSystemTest.ParseComplexDict (0 ms)
+[ RUN      ] TypeSystemTest.IntCompatibleWithInt
+[       OK ] TypeSystemTest.IntCompatibleWithInt (0 ms)
+[ RUN      ] TypeSystemTest.IntCompatibleWithFloat
+[       OK ] TypeSystemTest.IntCompatibleWithFloat (0 ms)
+[ RUN      ] TypeSystemTest.FloatNotCompatibleWithInt
+[       OK ] TypeSystemTest.FloatNotCompatibleWithInt (0 ms)
+[ RUN      ] TypeSystemTest.StringNotCompatibleWithInt
+[       OK ] TypeSystemTest.StringNotCompatibleWithInt (0 ms)
+[ RUN      ] TypeSystemTest.AnyCompatibleWithEverything
+[       OK ] TypeSystemTest.AnyCompatibleWithEverything (0 ms)
+[ RUN      ] TypeSystemTest.EverythingCompatibleWithAny
+[       OK ] TypeSystemTest.EverythingCompatibleWithAny (0 ms)
+[ RUN      ] TypeSystemTest.ArrayIntCompatibleWithArrayInt
+[       OK ] TypeSystemTest.ArrayIntCompatibleWithArrayInt (0 ms)
+[ RUN      ] TypeSystemTest.ArrayIntNotCompatibleWithArrayString
+[       OK ] TypeSystemTest.ArrayIntNotCompatibleWithArrayString (0 ms)
+[ RUN      ] TypeSystemTest.DictCompatibility
+[       OK ] TypeSystemTest.DictCompatibility (0 ms)
+[ RUN      ] TypeSystemTest.DictIncompatibilityDifferentKeyType
+[       OK ] TypeSystemTest.DictIncompatibilityDifferentKeyType (0 ms)
+[ RUN      ] TypeSystemTest.DictIncompatibilityDifferentValueType
+[       OK ] TypeSystemTest.DictIncompatibilityDifferentValueType (0 ms)
+[ RUN      ] TypeSystemTest.IntEqualsInt
+[       OK ] TypeSystemTest.IntEqualsInt (0 ms)
+[ RUN      ] TypeSystemTest.IntNotEqualsFloat
+[       OK ] TypeSystemTest.IntNotEqualsFloat (0 ms)
+[ RUN      ] TypeSystemTest.ComplexNestedType
+[       OK ] TypeSystemTest.ComplexNestedType (0 ms)
+[ RUN      ] TypeSystemTest.ParseComplexNestedType
+[       OK ] TypeSystemTest.ParseComplexNestedType (0 ms)
+[ RUN      ] TypeSystemTest.ComplexTypeCompatibility
+[       OK ] TypeSystemTest.ComplexTypeCompatibility (0 ms)
+[ RUN      ] TypeSystemTest.VoidNotCompatibleWithInt
+[       OK ] TypeSystemTest.VoidNotCompatibleWithInt (0 ms)
+[ RUN      ] TypeSystemTest.EmptyArrayType
+[       OK ] TypeSystemTest.EmptyArrayType (0 ms)
+[----------] 37 tests from TypeSystemTest (0 ms total)
+
+[----------] 3 tests from StdLibTest
+[ RUN      ] StdLibTest.AllModulesAvailable
+[       OK ] StdLibTest.AllModulesAvailable (0 ms)
+[ RUN      ] StdLibTest.GetModule
+[       OK ] StdLibTest.GetModule (0 ms)
+[ RUN      ] StdLibTest.ModuleNotFound
+[       OK ] StdLibTest.ModuleNotFound (0 ms)
+[----------] 3 tests from StdLibTest (0 ms total)
+
+[----------] 12 tests from StringModuleTest
+[ RUN      ] StringModuleTest.Length
+[       OK ] StringModuleTest.Length (0 ms)
+[ RUN      ] StringModuleTest.Upper
+[       OK ] StringModuleTest.Upper (0 ms)
+[ RUN      ] StringModuleTest.Lower
+[       OK ] StringModuleTest.Lower (0 ms)
+[ RUN      ] StringModuleTest.Trim
+[       OK ] StringModuleTest.Trim (0 ms)
+[ RUN      ] StringModuleTest.Split
+[       OK ] StringModuleTest.Split (0 ms)
+[ RUN      ] StringModuleTest.Contains
+[       OK ] StringModuleTest.Contains (0 ms)
+[ RUN      ] StringModuleTest.StartsWith
+[       OK ] StringModuleTest.StartsWith (0 ms)
+[ RUN      ] StringModuleTest.EndsWith
+[       OK ] StringModuleTest.EndsWith (0 ms)
+[ RUN      ] StringModuleTest.Replace
+[       OK ] StringModuleTest.Replace (0 ms)
+[ RUN      ] StringModuleTest.Substring
+[       OK ] StringModuleTest.Substring (0 ms)
+[ RUN      ] StringModuleTest.IndexOf
+unknown file: Failure
+C++ exception with description "Unknown function: index_of" thrown in the test body.
+
+[  FAILED  ] StringModuleTest.IndexOf (0 ms)
+[ RUN      ] StringModuleTest.Repeat
+unknown file: Failure
+C++ exception with description "Unknown function: repeat" thrown in the test body.
+
+[  FAILED  ] StringModuleTest.Repeat (0 ms)
+[----------] 12 tests from StringModuleTest (0 ms total)
+
+[----------] 10 tests from ArrayModuleTest
+[ RUN      ] ArrayModuleTest.Length
+[       OK ] ArrayModuleTest.Length (0 ms)
+[ RUN      ] ArrayModuleTest.Push
+[       OK ] ArrayModuleTest.Push (0 ms)
+[ RUN      ] ArrayModuleTest.Pop
+[       OK ] ArrayModuleTest.Pop (0 ms)
+[ RUN      ] ArrayModuleTest.Shift
+[       OK ] ArrayModuleTest.Shift (0 ms)
+[ RUN      ] ArrayModuleTest.Unshift
+[       OK ] ArrayModuleTest.Unshift (0 ms)
+[ RUN      ] ArrayModuleTest.First
+[       OK ] ArrayModuleTest.First (0 ms)
+[ RUN      ] ArrayModuleTest.Last
+[       OK ] ArrayModuleTest.Last (0 ms)
+[ RUN      ] ArrayModuleTest.Reverse
+[       OK ] ArrayModuleTest.Reverse (0 ms)
+[ RUN      ] ArrayModuleTest.Contains
+[       OK ] ArrayModuleTest.Contains (0 ms)
+[ RUN      ] ArrayModuleTest.Join
+[       OK ] ArrayModuleTest.Join (0 ms)
+[----------] 10 tests from ArrayModuleTest (0 ms total)
+
+[----------] 8 tests from MathModuleTest
+[ RUN      ] MathModuleTest.Abs
+unknown file: Failure
+C++ exception with description "Unknown function: abs" thrown in the test body.
+
+[  FAILED  ] MathModuleTest.Abs (0 ms)
+[ RUN      ] MathModuleTest.Floor
+/data/data/com.termux/files/home/.naab/language/tests/unit/stdlib_test.cpp:270: Failure
+Expected: (floatval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] MathModuleTest.Floor (0 ms)
+[ RUN      ] MathModuleTest.Ceil
+/data/data/com.termux/files/home/.naab/language/tests/unit/stdlib_test.cpp:278: Failure
+Expected: (floatval) != (nullptr), actual: NULL vs (nullptr)
+
+[  FAILED  ] MathModuleTest.Ceil (0 ms)
+[ RUN      ] MathModuleTest.Round
+unknown file: Failure
+C++ exception with description "Unknown function: round" thrown in the test body.
+
+[  FAILED  ] MathModuleTest.Round (0 ms)
+[ RUN      ] MathModuleTest.Max
+unknown file: Failure
+C++ exception with description "Unknown function: max" thrown in the test body.
+
+[  FAILED  ] MathModuleTest.Max (0 ms)
+[ RUN      ] MathModuleTest.Min
+unknown file: Failure
+C++ exception with description "Unknown function: min" thrown in the test body.
+
+[  FAILED  ] MathModuleTest.Min (0 ms)
+[ RUN      ] MathModuleTest.Pow
+unknown file: Failure
+C++ exception with description "Unknown function: pow" thrown in the test body.
+
+[  FAILED  ] MathModuleTest.Pow (0 ms)
+[ RUN      ] MathModuleTest.Sqrt
+[       OK ] MathModuleTest.Sqrt (0 ms)
+[----------] 8 tests from MathModuleTest (0 ms total)
+
+[----------] 4 tests from IOModuleTest
+[ RUN      ] IOModuleTest.ModuleExists
+[       OK ] IOModuleTest.ModuleExists (0 ms)
+[ RUN      ] IOModuleTest.HasReadFile
+[       OK ] IOModuleTest.HasReadFile (0 ms)
+[ RUN      ] IOModuleTest.HasWriteFile
+[       OK ] IOModuleTest.HasWriteFile (0 ms)
+[ RUN      ] IOModuleTest.HasExists
+[       OK ] IOModuleTest.HasExists (0 ms)
+[----------] 4 tests from IOModuleTest (0 ms total)
+
+[----------] 3 tests from JSONModuleTest
+[ RUN      ] JSONModuleTest.ModuleExists
+[       OK ] JSONModuleTest.ModuleExists (0 ms)
+[ RUN      ] JSONModuleTest.HasParse
+[       OK ] JSONModuleTest.HasParse (0 ms)
+[ RUN      ] JSONModuleTest.HasStringify
+[       OK ] JSONModuleTest.HasStringify (0 ms)
+[----------] 3 tests from JSONModuleTest (0 ms total)
+
+[----------] 3 tests from HTTPModuleTest
+[ RUN      ] HTTPModuleTest.ModuleExists
+[       OK ] HTTPModuleTest.ModuleExists (0 ms)
+[ RUN      ] HTTPModuleTest.HasGet
+[       OK ] HTTPModuleTest.HasGet (0 ms)
+[ RUN      ] HTTPModuleTest.HasPost
+[       OK ] HTTPModuleTest.HasPost (0 ms)
+[----------] 3 tests from HTTPModuleTest (0 ms total)
+
+[----------] 1 test from CollectionsModuleTest
+[ RUN      ] CollectionsModuleTest.ModuleExists
+[       OK ] CollectionsModuleTest.ModuleExists (0 ms)
+[----------] 1 test from CollectionsModuleTest (0 ms total)
+
+[----------] 6 tests from ModuleAvailabilityTest
+[ RUN      ] ModuleAvailabilityTest.TimeModule
+[       OK ] ModuleAvailabilityTest.TimeModule (0 ms)
+[ RUN      ] ModuleAvailabilityTest.EnvModule
+[       OK ] ModuleAvailabilityTest.EnvModule (0 ms)
+[ RUN      ] ModuleAvailabilityTest.CsvModule
+[       OK ] ModuleAvailabilityTest.CsvModule (0 ms)
+[ RUN      ] ModuleAvailabilityTest.RegexModule
+[       OK ] ModuleAvailabilityTest.RegexModule (0 ms)
+[ RUN      ] ModuleAvailabilityTest.CryptoModule
+[       OK ] ModuleAvailabilityTest.CryptoModule (0 ms)
+[ RUN      ] ModuleAvailabilityTest.FileModule
+[       OK ] ModuleAvailabilityTest.FileModule (0 ms)
+[----------] 6 tests from ModuleAvailabilityTest (0 ms total)
+
+[----------] 10 tests from StructValueTest
+[ RUN      ] StructValueTest.CreateAndSetFields
+[       OK ] StructValueTest.CreateAndSetFields (0 ms)
+[ RUN      ] StructValueTest.InvalidFieldThrows
+[       OK ] StructValueTest.InvalidFieldThrows (0 ms)
+[ RUN      ] StructValueTest.NestedStruct
+[       OK ] StructValueTest.NestedStruct (0 ms)
+[ RUN      ] StructValueTest.StructArray
+[       OK ] StructValueTest.StructArray (0 ms)
+[ RUN      ] StructValueTest.StructInMap
+[       OK ] StructValueTest.StructInMap (0 ms)
+[ RUN      ] StructValueTest.DefaultFieldValue
+[       OK ] StructValueTest.DefaultFieldValue (0 ms)
+[ RUN      ] StructValueTest.StructToString
+[       OK ] StructValueTest.StructToString (0 ms)
+[ RUN      ] StructValueTest.StructCopy
+[       OK ] StructValueTest.StructCopy (0 ms)
+[ RUN      ] StructValueTest.LargeFieldCount
+[       OK ] StructValueTest.LargeFieldCount (0 ms)
+[ RUN      ] StructValueTest.UnicodeFieldName
+[       OK ] StructValueTest.UnicodeFieldName (0 ms)
+[----------] 10 tests from StructValueTest (0 ms total)
+
+[----------] 4 tests from StructRegistryTest
+[ RUN      ] StructRegistryTest.RegisterAndRetrieve
+[       OK ] StructRegistryTest.RegisterAndRetrieve (0 ms)
+[ RUN      ] StructRegistryTest.DuplicateThrows
+[       OK ] StructRegistryTest.DuplicateThrows (0 ms)
+[ RUN      ] StructRegistryTest.CircularDetection
+[       OK ] StructRegistryTest.CircularDetection (0 ms)
+[ RUN      ] StructRegistryTest.ThreadSafety
+[       OK ] StructRegistryTest.ThreadSafety (0 ms)
+[----------] 4 tests from StructRegistryTest (0 ms total)
+
+[----------] 5 tests from InterpreterStructTest
+[ RUN      ] InterpreterStructTest.StructDeclRegistration
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[INFO] Defined struct: Point
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+[       OK ] InterpreterStructTest.StructDeclRegistration (0 ms)
+[ RUN      ] InterpreterStructTest.StructLiteralCreation
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[INFO] Defined struct: Point
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+[       OK ] InterpreterStructTest.StructLiteralCreation (0 ms)
+[ RUN      ] InterpreterStructTest.StructMemberAccess
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[INFO] Defined struct: Point
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+[       OK ] InterpreterStructTest.StructMemberAccess (0 ms)
+[ RUN      ] InterpreterStructTest.StructMissingFieldError
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[INFO] Defined struct: Point
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+[       OK ] InterpreterStructTest.StructMissingFieldError (0 ms)
+[ RUN      ] InterpreterStructTest.StructUnknownFieldError
+[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)
+[INFO] C++ executor initialized
+[INFO] Standard library initialized: 13 modules available
+[INFO] Module resolver initialized
+[INFO] Array module configured with function evaluator
+[INFO] Defined struct: Point
+[DEBUG] Processing 0 standalone functions
+[DEBUG] Processing 0 export statements
+[       OK ] InterpreterStructTest.StructUnknownFieldError (0 ms)
+[----------] 5 tests from InterpreterStructTest (0 ms total)
+
+[----------] 10 tests from ParserStructTest
+[ RUN      ] ParserStructTest.EmptyStruct
+[       OK ] ParserStructTest.EmptyStruct (0 ms)
+[ RUN      ] ParserStructTest.SingleField
+[       OK ] ParserStructTest.SingleField (0 ms)
+[ RUN      ] ParserStructTest.MultipleFields
+[       OK ] ParserStructTest.MultipleFields (0 ms)
+[ RUN      ] ParserStructTest.StructLiteralBasic
+[       OK ] ParserStructTest.StructLiteralBasic (0 ms)
+[ RUN      ] ParserStructTest.StructLiteralSingleField
+[       OK ] ParserStructTest.StructLiteralSingleField (0 ms)
+[ RUN      ] ParserStructTest.StructLiteralNestedInArray
+[       OK ] ParserStructTest.StructLiteralNestedInArray (0 ms)
+[ RUN      ] ParserStructTest.StructLiteralInMap
+[       OK ] ParserStructTest.StructLiteralInMap (0 ms)
+[ RUN      ] ParserStructTest.NestedStructLiteral
+unknown file: Failure
+C++ exception with description "Parse error at line 3, column 34: Expected field name
+  Got: '
+'" thrown in the test body.
+
+[  FAILED  ] ParserStructTest.NestedStructLiteral (0 ms)
+[ RUN      ] ParserStructTest.MissingNewKeywordError
+unknown file: Failure
+C++ exception with description "Parse error at line 3, column 30: Unexpected token in expression
+  Got: ':'" thrown in the test body.
+
+[  FAILED  ] ParserStructTest.MissingNewKeywordError (0 ms)
+[ RUN      ] ParserStructTest.VariousFieldTypes
+[       OK ] ParserStructTest.VariousFieldTypes (0 ms)
+[----------] 10 tests from ParserStructTest (0 ms total)
+
+[----------] 13 tests from RustFFITest
+[ RUN      ] RustFFITest.CreateAndGetInt
+[       OK ] RustFFITest.CreateAndGetInt (0 ms)
+[ RUN      ] RustFFITest.CreateAndGetDouble
+[       OK ] RustFFITest.CreateAndGetDouble (0 ms)
+[ RUN      ] RustFFITest.CreateAndGetBool
+[       OK ] RustFFITest.CreateAndGetBool (0 ms)
+[ RUN      ] RustFFITest.CreateAndGetString
+[       OK ] RustFFITest.CreateAndGetString (0 ms)
+[ RUN      ] RustFFITest.CreateVoid
+[       OK ] RustFFITest.CreateVoid (0 ms)
+[ RUN      ] RustFFITest.TypeSafety
+[       OK ] RustFFITest.TypeSafety (0 ms)
+[ RUN      ] RustFFITest.NullHandling
+[       OK ] RustFFITest.NullHandling (0 ms)
+[ RUN      ] RustFFITest.RoundTripConversionInt
+[       OK ] RustFFITest.RoundTripConversionInt (0 ms)
+[ RUN      ] RustFFITest.RoundTripConversionDouble
+[       OK ] RustFFITest.RoundTripConversionDouble (0 ms)
+[ RUN      ] RustFFITest.RoundTripConversionBool
+[       OK ] RustFFITest.RoundTripConversionBool (0 ms)
+[ RUN      ] RustFFITest.RoundTripConversionString
+[       OK ] RustFFITest.RoundTripConversionString (0 ms)
+[ RUN      ] RustFFITest.ConversionNullValue
+[       OK ] RustFFITest.ConversionNullValue (0 ms)
+[ RUN      ] RustFFITest.StringMemoryManagement
+[       OK ] RustFFITest.StringMemoryManagement (0 ms)
+[----------] 13 tests from RustFFITest (0 ms total)
+
+[----------] 16 tests from ErrorCategoriesTest
+[ RUN      ] ErrorCategoriesTest.GetErrorCodePrefix
+[       OK ] ErrorCategoriesTest.GetErrorCodePrefix (0 ms)
+[ RUN      ] ErrorCategoriesTest.GetCategoryName
+[       OK ] ErrorCategoriesTest.GetCategoryName (0 ms)
+[ RUN      ] ErrorCategoriesTest.FormatTypeError
+[       OK ] ErrorCategoriesTest.FormatTypeError (0 ms)
+[ RUN      ] ErrorCategoriesTest.FormatConversionError
+[       OK ] ErrorCategoriesTest.FormatConversionError (0 ms)
+[ RUN      ] ErrorCategoriesTest.FormatOperatorTypeError
+[       OK ] ErrorCategoriesTest.FormatOperatorTypeError (0 ms)
+[ RUN      ] ErrorCategoriesTest.FormatDivisionByZero
+[       OK ] ErrorCategoriesTest.FormatDivisionByZero (0 ms)
+[ RUN      ] ErrorCategoriesTest.FormatNullPointerAccess
+[       OK ] ErrorCategoriesTest.FormatNullPointerAccess (0 ms)
+[ RUN      ] ErrorCategoriesTest.FormatIndexOutOfBounds
+[       OK ] ErrorCategoriesTest.FormatIndexOutOfBounds (0 ms)
+[ RUN      ] ErrorCategoriesTest.FormatModuleNotFound
+[       OK ] ErrorCategoriesTest.FormatModuleNotFound (0 ms)
+[ RUN      ] ErrorCategoriesTest.FormatCircularImport
+[       OK ] ErrorCategoriesTest.FormatCircularImport (0 ms)
+[ RUN      ] ErrorCategoriesTest.FormatInvalidImportPath
+[       OK ] ErrorCategoriesTest.FormatInvalidImportPath (0 ms)
+[ RUN      ] ErrorCategoriesTest.TypeErrorCodes
+[       OK ] ErrorCategoriesTest.TypeErrorCodes (0 ms)
+[ RUN      ] ErrorCategoriesTest.RuntimeErrorCodes
+[       OK ] ErrorCategoriesTest.RuntimeErrorCodes (0 ms)
+[ RUN      ] ErrorCategoriesTest.ImportErrorCodes
+[       OK ] ErrorCategoriesTest.ImportErrorCodes (0 ms)
+[ RUN      ] ErrorCategoriesTest.NameErrorCodes
+[       OK ] ErrorCategoriesTest.NameErrorCodes (0 ms)
+[ RUN      ] ErrorCategoriesTest.ValueErrorCodes
+[       OK ] ErrorCategoriesTest.ValueErrorCodes (0 ms)
+[----------] 16 tests from ErrorCategoriesTest (0 ms total)
+
+[----------] 20 tests from SuggestionSystemTest
+[ RUN      ] SuggestionSystemTest.FindClosestMatch_ExactMatch
+[       OK ] SuggestionSystemTest.FindClosestMatch_ExactMatch (0 ms)
+[ RUN      ] SuggestionSystemTest.FindClosestMatch_Distance1
+[       OK ] SuggestionSystemTest.FindClosestMatch_Distance1 (0 ms)
+[ RUN      ] SuggestionSystemTest.FindClosestMatch_Distance2
+[       OK ] SuggestionSystemTest.FindClosestMatch_Distance2 (0 ms)
+[ RUN      ] SuggestionSystemTest.FindClosestMatch_BeyondThreshold
+[       OK ] SuggestionSystemTest.FindClosestMatch_BeyondThreshold (0 ms)
+[ RUN      ] SuggestionSystemTest.FindClosestMatch_EmptyCandidates
+[       OK ] SuggestionSystemTest.FindClosestMatch_EmptyCandidates (0 ms)
+[ RUN      ] SuggestionSystemTest.FindClosestMatch_Typo
+[       OK ] SuggestionSystemTest.FindClosestMatch_Typo (0 ms)
+[ RUN      ] SuggestionSystemTest.SuggestVariable_Found
+[       OK ] SuggestionSystemTest.SuggestVariable_Found (0 ms)
+[ RUN      ] SuggestionSystemTest.SuggestVariable_NotFound
+[       OK ] SuggestionSystemTest.SuggestVariable_NotFound (0 ms)
+[ RUN      ] SuggestionSystemTest.SuggestTypeConversion_StringToInt
+[       OK ] SuggestionSystemTest.SuggestTypeConversion_StringToInt (0 ms)
+[ RUN      ] SuggestionSystemTest.SuggestTypeConversion_IntToString
+[       OK ] SuggestionSystemTest.SuggestTypeConversion_IntToString (0 ms)
+[ RUN      ] SuggestionSystemTest.SuggestTypeConversion_IntToDouble
+[       OK ] SuggestionSystemTest.SuggestTypeConversion_IntToDouble (0 ms)
+[ RUN      ] SuggestionSystemTest.SuggestTypeConversion_ToBool
+[       OK ] SuggestionSystemTest.SuggestTypeConversion_ToBool (0 ms)
+[ RUN      ] SuggestionSystemTest.SuggestTypeConversion_Generic
+[       OK ] SuggestionSystemTest.SuggestTypeConversion_Generic (0 ms)
+[ RUN      ] SuggestionSystemTest.SuggestImport
+[       OK ] SuggestionSystemTest.SuggestImport (0 ms)
+[ RUN      ] SuggestionSystemTest.SuggestImport_CustomModule
+[       OK ] SuggestionSystemTest.SuggestImport_CustomModule (0 ms)
+[ RUN      ] SuggestionSystemTest.RealWorld_MisspelledVariable1
+[       OK ] SuggestionSystemTest.RealWorld_MisspelledVariable1 (0 ms)
+[ RUN      ] SuggestionSystemTest.RealWorld_MisspelledVariable2
+[       OK ] SuggestionSystemTest.RealWorld_MisspelledVariable2 (0 ms)
+[ RUN      ] SuggestionSystemTest.RealWorld_CamelCaseTypo
+[       OK ] SuggestionSystemTest.RealWorld_CamelCaseTypo (0 ms)
+[ RUN      ] SuggestionSystemTest.RealWorld_SimilarNames
+[       OK ] SuggestionSystemTest.RealWorld_SimilarNames (0 ms)
+[ RUN      ] SuggestionSystemTest.RealWorld_OffByOne
+[       OK ] SuggestionSystemTest.RealWorld_OffByOne (0 ms)
+[----------] 20 tests from SuggestionSystemTest (0 ms total)
+
+[----------] 12 tests from StackTracerTest
+[ RUN      ] StackTracerTest.InitiallyEmpty
+[       OK ] StackTracerTest.InitiallyEmpty (0 ms)
+[ RUN      ] StackTracerTest.PushFrame
+[       OK ] StackTracerTest.PushFrame (0 ms)
+[ RUN      ] StackTracerTest.PopFrame
+[       OK ] StackTracerTest.PopFrame (0 ms)
+[ RUN      ] StackTracerTest.MultipleFrames
+[       OK ] StackTracerTest.MultipleFrames (0 ms)
+[ RUN      ] StackTracerTest.Clear
+[       OK ] StackTracerTest.Clear (0 ms)
+[ RUN      ] StackTracerTest.ScopedFrameRaii
+[       OK ] StackTracerTest.ScopedFrameRaii (0 ms)
+[ RUN      ] StackTracerTest.ScopedFrameNestedScopes
+[       OK ] StackTracerTest.ScopedFrameNestedScopes (0 ms)
+[ RUN      ] StackTracerTest.ScopedFrameWithException
+[       OK ] StackTracerTest.ScopedFrameWithException (0 ms)
+[ RUN      ] StackTracerTest.FormatSingleFrame
+[       OK ] StackTracerTest.FormatSingleFrame (0 ms)
+[ RUN      ] StackTracerTest.FormatFrameWithoutFile
+[       OK ] StackTracerTest.FormatFrameWithoutFile (0 ms)
+[ RUN      ] StackTracerTest.FormatFullTrace
+[       OK ] StackTracerTest.FormatFullTrace (0 ms)
+[ RUN      ] StackTracerTest.CrossLanguageStack
+[       OK ] StackTracerTest.CrossLanguageStack (0 ms)
+[----------] 12 tests from StackTracerTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 353 tests from 21 test suites ran. (22 ms total)
+[  PASSED  ] 286 tests.
+[  FAILED  ] 67 tests, listed below:
+[  FAILED  ] LexerTest.Whitespace
+[  FAILED  ] LexerTest.SingleLineComment
+[  FAILED  ] LexerTest.PipeOperator
+[  FAILED  ] LexerTest.MultipleStatementsOnOneLine
+[  FAILED  ] ParserTest.SimpleFunctionDeclaration
+[  FAILED  ] ParserTest.FunctionWithSingleParameter
+[  FAILED  ] ParserTest.FunctionWithDefaultParameter
+[  FAILED  ] ParserTest.MissingClosingParen
+[  FAILED  ] ParserTest.MissingClosingBracket
+[  FAILED  ] ParserTest.MissingClosingBrace
+[  FAILED  ] ParserTest.InvalidSyntax
+[  FAILED  ] ParserTest.UnexpectedToken
+[  FAILED  ] InterpreterTest.IntegerLiteral
+[  FAILED  ] InterpreterTest.FloatLiteral
+[  FAILED  ] InterpreterTest.StringLiteral
+[  FAILED  ] InterpreterTest.BooleanTrue
+[  FAILED  ] InterpreterTest.BooleanFalse
+[  FAILED  ] InterpreterTest.Addition
+[  FAILED  ] InterpreterTest.Subtraction
+[  FAILED  ] InterpreterTest.Multiplication
+[  FAILED  ] InterpreterTest.Division
+[  FAILED  ] InterpreterTest.Modulo
+[  FAILED  ] InterpreterTest.OperatorPrecedence
+[  FAILED  ] InterpreterTest.Parentheses
+[  FAILED  ] InterpreterTest.Equality
+[  FAILED  ] InterpreterTest.Inequality
+[  FAILED  ] InterpreterTest.LessThan
+[  FAILED  ] InterpreterTest.LessThanOrEqual
+[  FAILED  ] InterpreterTest.GreaterThan
+[  FAILED  ] InterpreterTest.GreaterThanOrEqual
+[  FAILED  ] InterpreterTest.LogicalAnd
+[  FAILED  ] InterpreterTest.LogicalAndShortCircuit
+[  FAILED  ] InterpreterTest.LogicalOr
+[  FAILED  ] InterpreterTest.LogicalOrShortCircuit
+[  FAILED  ] InterpreterTest.LogicalNot
+[  FAILED  ] InterpreterTest.VariableDeclaration
+[  FAILED  ] InterpreterTest.VariableReassignment
+[  FAILED  ] InterpreterTest.MultipleVariables
+[  FAILED  ] InterpreterTest.SimpleFunctionCall
+[  FAILED  ] InterpreterTest.FunctionWithDefaultParameter
+[  FAILED  ] InterpreterTest.RecursiveFunction
+[  FAILED  ] InterpreterTest.ArrayLiteral
+[  FAILED  ] InterpreterTest.ArrayIndexing
+[  FAILED  ] InterpreterTest.IfStatement
+[  FAILED  ] InterpreterTest.IfElseStatement
+[  FAILED  ] InterpreterTest.WhileLoop
+[  FAILED  ] InterpreterTest.ForLoop
+[  FAILED  ] InterpreterTest.BreakStatement
+[  FAILED  ] InterpreterTest.ContinueStatement
+[  FAILED  ] InterpreterTest.TryCatchBlock
+[  FAILED  ] InterpreterTest.ThrowAndCatch
+[  FAILED  ] InterpreterTest.FinallyBlock
+[  FAILED  ] InterpreterTest.GlobalScope
+[  FAILED  ] InterpreterTest.LocalScope
+[  FAILED  ] InterpreterTest.GlobalScopeAfterLocalScope
+[  FAILED  ] InterpreterTest.StringConcatenation
+[  FAILED  ] StringModuleTest.IndexOf
+[  FAILED  ] StringModuleTest.Repeat
+[  FAILED  ] MathModuleTest.Abs
+[  FAILED  ] MathModuleTest.Floor
+[  FAILED  ] MathModuleTest.Ceil
+[  FAILED  ] MathModuleTest.Round
+[  FAILED  ] MathModuleTest.Max
+[  FAILED  ] MathModuleTest.Min
+[  FAILED  ] MathModuleTest.Pow
+[  FAILED  ] ParserStructTest.NestedStructLiteral
+[  FAILED  ] ParserStructTest.MissingNewKeywordError
+
+67 FAILED TESTS

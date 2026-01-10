@@ -18,32 +18,10 @@
 
 using namespace naab::runtime;
 
-// Minimal Value type for testing (to avoid full interpreter dependency)
-namespace test_interpreter {
-    using ValueData = std::variant<
-        std::monostate,
-        int,
-        double,
-        bool,
-        std::string,
-        std::vector<std::shared_ptr<struct Value>>,
-        std::unordered_map<std::string, std::shared_ptr<struct Value>>
-    >;
+// Use real interpreter Value type
+#include "naab/interpreter.h"
 
-    struct Value {
-        ValueData data;
-
-        Value() : data(std::monostate{}) {}
-        explicit Value(int v) : data(v) {}
-        explicit Value(double v) : data(v) {}
-        explicit Value(bool v) : data(v) {}
-        explicit Value(std::string v) : data(std::move(v)) {}
-        explicit Value(std::vector<std::shared_ptr<Value>> v) : data(std::move(v)) {}
-        explicit Value(std::unordered_map<std::string, std::shared_ptr<Value>> v) : data(std::move(v)) {}
-    };
-}
-
-using Value = test_interpreter::Value;
+using Value = naab::interpreter::Value;
 
 // Test utilities
 int tests_passed = 0;
