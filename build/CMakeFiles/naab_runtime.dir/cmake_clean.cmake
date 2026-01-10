@@ -31,6 +31,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o.d"
   "CMakeFiles/naab_runtime.dir/src/runtime/semver.cpp.o"
   "CMakeFiles/naab_runtime.dir/src/runtime/semver.cpp.o.d"
+  "CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o"
+  "CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o.d"
   "CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o"
   "CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o.d"
   "CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o"

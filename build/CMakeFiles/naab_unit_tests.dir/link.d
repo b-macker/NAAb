@@ -11,6 +11,7 @@ naab_unit_tests: \
  CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o \
  CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o \
  CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o \
+ CMakeFiles/naab_unit_tests.dir/tests/unit/stack_tracer_test.cpp.o \
  lib/libgtest_main.a \
  lib/libgtest.a \
  libnaab_lexer.a \
@@ -110,6 +111,8 @@ CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o:
 CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o:
 
 CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o:
+
+CMakeFiles/naab_unit_tests.dir/tests/unit/stack_tracer_test.cpp.o:
 
 lib/libgtest_main.a:
 

@@ -3209,6 +3209,30 @@ src/runtime/semver.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/semver.cpp.s
 .PHONY : src/runtime/semver.cpp.s
 
+src/runtime/stack_tracer.o: src/runtime/stack_tracer.cpp.o
+.PHONY : src/runtime/stack_tracer.o
+
+# target to build an object file
+src/runtime/stack_tracer.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o
+.PHONY : src/runtime/stack_tracer.cpp.o
+
+src/runtime/stack_tracer.i: src/runtime/stack_tracer.cpp.i
+.PHONY : src/runtime/stack_tracer.i
+
+# target to preprocess a source file
+src/runtime/stack_tracer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.i
+.PHONY : src/runtime/stack_tracer.cpp.i
+
+src/runtime/stack_tracer.s: src/runtime/stack_tracer.cpp.s
+.PHONY : src/runtime/stack_tracer.s
+
+# target to generate assembly for a file
+src/runtime/stack_tracer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.s
+.PHONY : src/runtime/stack_tracer.cpp.s
+
 src/runtime/struct_registry.o: src/runtime/struct_registry.cpp.o
 .PHONY : src/runtime/struct_registry.o
 
@@ -4193,6 +4217,30 @@ tests/unit/rust_ffi_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.s
 .PHONY : tests/unit/rust_ffi_test.cpp.s
 
+tests/unit/stack_tracer_test.o: tests/unit/stack_tracer_test.cpp.o
+.PHONY : tests/unit/stack_tracer_test.o
+
+# target to build an object file
+tests/unit/stack_tracer_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/stack_tracer_test.cpp.o
+.PHONY : tests/unit/stack_tracer_test.cpp.o
+
+tests/unit/stack_tracer_test.i: tests/unit/stack_tracer_test.cpp.i
+.PHONY : tests/unit/stack_tracer_test.i
+
+# target to preprocess a source file
+tests/unit/stack_tracer_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/stack_tracer_test.cpp.i
+.PHONY : tests/unit/stack_tracer_test.cpp.i
+
+tests/unit/stack_tracer_test.s: tests/unit/stack_tracer_test.cpp.s
+.PHONY : tests/unit/stack_tracer_test.s
+
+# target to generate assembly for a file
+tests/unit/stack_tracer_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/stack_tracer_test.cpp.s
+.PHONY : tests/unit/stack_tracer_test.cpp.s
+
 tests/unit/stdlib_test.o: tests/unit/stdlib_test.cpp.o
 .PHONY : tests/unit/stdlib_test.o
 
@@ -4987,6 +5035,9 @@ help:
 	@echo "... src/runtime/semver.o"
 	@echo "... src/runtime/semver.i"
 	@echo "... src/runtime/semver.s"
+	@echo "... src/runtime/stack_tracer.o"
+	@echo "... src/runtime/stack_tracer.i"
+	@echo "... src/runtime/stack_tracer.s"
 	@echo "... src/runtime/struct_registry.o"
 	@echo "... src/runtime/struct_registry.i"
 	@echo "... src/runtime/struct_registry.s"
@@ -5110,6 +5161,9 @@ help:
 	@echo "... tests/unit/rust_ffi_test.o"
 	@echo "... tests/unit/rust_ffi_test.i"
 	@echo "... tests/unit/rust_ffi_test.s"
+	@echo "... tests/unit/stack_tracer_test.o"
+	@echo "... tests/unit/stack_tracer_test.i"
+	@echo "... tests/unit/stack_tracer_test.s"
 	@echo "... tests/unit/stdlib_test.o"
 	@echo "... tests/unit/stdlib_test.i"
 	@echo "... tests/unit/stdlib_test.s"

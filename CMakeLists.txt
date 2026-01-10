@@ -271,6 +271,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/cpp_block_interface.cpp  # C FFI for struct support
     src/runtime/rust_ffi_bridge.cpp  # Phase 3.1: Rust FFI bridge
     src/runtime/rust_executor.cpp  # Phase 3.1: Rust executor
+    src/runtime/stack_tracer.cpp  # Phase 4.2: Cross-language stack traces
 )
 
 # Add Python executor if pybind11 is available
@@ -925,6 +926,7 @@ add_executable(naab_unit_tests
     tests/unit/rust_ffi_test.cpp
     tests/unit/error_categories_test.cpp
     tests/unit/suggestion_system_test.cpp
+    tests/unit/stack_tracer_test.cpp
 )
 
 # Link GoogleTest and NAAb libraries
