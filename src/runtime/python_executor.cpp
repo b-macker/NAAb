@@ -6,6 +6,7 @@
 #include "naab/resource_limits.h"
 #include "naab/audit_logger.h"
 #include "naab/sandbox.h"
+#include "naab/stack_tracer.h"  // Phase 4.2.2: Cross-language stack traces
 #include <fmt/core.h>
 #include <stdexcept>
 #include <unordered_map>
@@ -76,6 +77,9 @@ std::shared_ptr<interpreter::Value> PythonExecutor::callFunction(
 
     fmt::print("[Python] Calling function: {}\n", function_name);
 
+    // Phase 4.2.2: Push stack frame for cross-language tracing
+    error::ScopedStackFrame stack_frame("python", function_name, "<python>", 0);
+
     // Check if function exists
     if (!global_namespace_.contains(function_name.c_str())) {
         throw std::runtime_error(fmt::format("Python function not found: {}", function_name));
@@ -105,7 +109,12 @@ std::shared_ptr<interpreter::Value> PythonExecutor::callFunction(
         security::AuditLogger::logTimeout("Python function: " + function_name, 30);
         throw std::runtime_error("Python function call timed out");
     } catch (const py::error_already_set& e) {
-        throw std::runtime_error(fmt::format("Python call error in {}: {}", function_name, e.what()));
+        // Phase 4.2.2: Extract Python traceback and add to stack
+        extractPythonTraceback(e);
+
+        // Re-throw with enriched stack trace
+        throw std::runtime_error(fmt::format("Python call error in {}: {}\n{}",
+            function_name, e.what(), error::StackTracer::formatTrace()));
     }
 }
 
@@ -277,6 +286,59 @@ std::shared_ptr<interpreter::Value> PythonExecutor::pythonToValue(const py::obje
     fmt::print("[WARN] Unknown Python type, converting to string\n");
     std::string str_repr = py::str(obj).cast<std::string>();
     return std::make_shared<interpreter::Value>(str_repr);
+}
+
+// ============================================================================
+// Phase 4.2.2: Python Traceback Extraction
+// ============================================================================
+
+void PythonExecutor::extractPythonTraceback(const py::error_already_set& e) {
+    try {
+        // Get Python exception info
+        PyObject* ptype = nullptr;
+        PyObject* pvalue = nullptr;
+        PyObject* ptraceback = nullptr;
+
+        // Fetch the exception from Python's error indicator
+        PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+        PyErr_NormalizeException(&ptype, &pvalue, &ptraceback);
+
+        if (ptraceback) {
+            // Extract traceback frames using Python's traceback module
+            py::object traceback_module = py::module_::import("traceback");
+            py::object extract_tb = traceback_module.attr("extract_tb");
+
+            // Convert ptraceback to py::object
+            py::handle tb_handle(ptraceback);
+            py::object tb_obj = py::reinterpret_borrow<py::object>(tb_handle);
+
+            // Extract frames
+            py::object frames = extract_tb(tb_obj);
+
+            // Iterate through frames and add to stack trace
+            for (const auto& frame_obj : frames) {
+                py::tuple frame = frame_obj.cast<py::tuple>();
+
+                // Frame format: (filename, line_number, function_name, text)
+                std::string filename = py::str(frame[0]).cast<std::string>();
+                size_t line_number = frame[1].cast<size_t>();
+                std::string function_name = py::str(frame[2]).cast<std::string>();
+
+                // Add Python frame to stack trace
+                error::StackFrame python_frame("python", function_name, filename, line_number);
+                error::StackTracer::pushFrame(python_frame);
+
+                fmt::print("[TRACE] Python frame: {} ({}:{})\n",
+                    function_name, filename, line_number);
+            }
+        }
+
+        // Restore exception for pybind11 to handle
+        PyErr_Restore(ptype, pvalue, ptraceback);
+
+    } catch (const std::exception& ex) {
+        fmt::print("[WARN] Failed to extract Python traceback: {}\n", ex.what());
+    }
 }
 
 } // namespace runtime

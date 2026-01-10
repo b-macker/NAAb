@@ -54,6 +54,9 @@ private:
     // Type conversion helpers
     py::object valueToPython(const std::shared_ptr<interpreter::Value>& val);
     std::shared_ptr<interpreter::Value> pythonToValue(const py::object& obj);
+
+    // Phase 4.2.2: Python traceback extraction
+    void extractPythonTraceback(const py::error_already_set& e);
 };
 
 } // namespace runtime

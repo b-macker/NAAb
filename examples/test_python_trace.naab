@@ -1,0 +1,24 @@
+# Test Python traceback extraction (Phase 4.2.2)
+# This program intentionally raises a Python exception to test stack tracing
+
+# Define Python functions that will raise an exception
+python {{{
+def divide_numbers(a, b):
+    """Divides two numbers - will raise ZeroDivisionError if b=0"""
+    return a / b
+
+def call_divide():
+    """Calls divide with zero - triggers exception"""
+    return divide_numbers(10, 0)
+}}}
+
+main {
+    print("=== Testing Python Stack Trace Extraction ===")
+    print()
+
+    # This will raise ZeroDivisionError in Python
+    # Stack trace should show: main → call_divide → divide_numbers
+    let result = call_divide()
+
+    print("Result:", result)
+}

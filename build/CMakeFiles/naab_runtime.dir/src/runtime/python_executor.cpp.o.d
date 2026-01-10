@@ -901,6 +901,8 @@ CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o: \
   /data/data/com.termux/files/home/.naab/language/include/naab/audit_logger.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/fstream \
   /data/data/com.termux/files/home/.naab/language/include/naab/sandbox.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h
