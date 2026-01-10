@@ -10240,6 +10240,8 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o
  /data/data/com.termux/files/home/.naab/language/include/naab/language_registry.h
  /data/data/com.termux/files/home/.naab/language/include/naab/rust_executor.h
  /data/data/com.termux/files/home/.naab/language/include/naab/rust_ffi.h
+ /data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h
+ /data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h
  /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/bitsperlong.h
  /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/errno.h
  /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/fcntl.h
@@ -10649,6 +10651,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o
  /data/data/com.termux/files/usr/include/c++/v1/__thread/poll_with_backoff.h
  /data/data/com.termux/files/usr/include/c++/v1/__thread/support.h
  /data/data/com.termux/files/usr/include/c++/v1/__thread/support/pthread.h
+ /data/data/com.termux/files/usr/include/c++/v1/__tree
  /data/data/com.termux/files/usr/include/c++/v1/__tuple/find_index.h
  /data/data/com.termux/files/usr/include/c++/v1/__tuple/ignore.h
  /data/data/com.termux/files/usr/include/c++/v1/__tuple/make_tuple_types.h
@@ -10837,6 +10840,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o
  /data/data/com.termux/files/usr/include/c++/v1/iterator
  /data/data/com.termux/files/usr/include/c++/v1/limits
  /data/data/com.termux/files/usr/include/c++/v1/locale
+ /data/data/com.termux/files/usr/include/c++/v1/map
  /data/data/com.termux/files/usr/include/c++/v1/math.h
  /data/data/com.termux/files/usr/include/c++/v1/memory
  /data/data/com.termux/files/usr/include/c++/v1/mutex

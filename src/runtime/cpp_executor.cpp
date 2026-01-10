@@ -7,6 +7,7 @@
 #include "naab/input_validator.h"
 #include "naab/audit_logger.h"
 #include "naab/sandbox.h"
+#include "naab/stack_tracer.h"  // Phase 4.2.5: Cross-language stack traces
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -360,6 +361,12 @@ std::shared_ptr<interpreter::Value> CppExecutor::callFunction(
 
     fmt::print("[CALL] Calling C++ function: {}::{}\n", block_id, function_name);
 
+    // Phase 4.2.5: Push stack frame for cross-language tracing
+    error::ScopedStackFrame stack_frame("cpp", function_name, "<cpp>", 0);
+
+    // Wrap function call in try/catch to capture C++ exceptions
+    try {
+
     // Check if we have a registered signature for this function
     auto sig_it = block->function_signatures.find(function_name);
 
@@ -418,6 +425,28 @@ std::shared_ptr<interpreter::Value> CppExecutor::callFunction(
         throw std::runtime_error(fmt::format(
             "Unsupported number of arguments for {}: {}",
             function_name, args.size()));
+    }
+
+    // Phase 4.2.5: End of try block
+    } catch (const std::exception& ex) {
+        // Phase 4.2.5: C++ exception caught - add to stack trace
+        error::StackFrame cpp_frame("cpp", ex.what(), "<cpp>", 0);
+        error::StackTracer::pushFrame(cpp_frame);
+
+        fmt::print("[TRACE] C++ frame: {} (<cpp>:0)\n", ex.what());
+
+        // Re-throw with enriched stack trace
+        throw std::runtime_error(fmt::format(
+            "C++ function '{}' threw exception: {}\n{}",
+            function_name, ex.what(), error::StackTracer::formatTrace()));
+    } catch (...) {
+        // Unknown exception type
+        error::StackFrame cpp_frame("cpp", "unknown exception", "<cpp>", 0);
+        error::StackTracer::pushFrame(cpp_frame);
+
+        throw std::runtime_error(fmt::format(
+            "C++ function '{}' threw unknown exception\n{}",
+            function_name, error::StackTracer::formatTrace()));
     }
 }
 
