@@ -6,11 +6,13 @@
 #include "naab/resource_limits.h"
 #include "naab/audit_logger.h"
 #include "naab/sandbox.h"
+#include "naab/stack_tracer.h"  // Phase 4.2.3: Cross-language stack traces
 #include <fmt/core.h>
 #include <stdexcept>
 #include <chrono>
 #include <thread>
 #include <atomic>
+#include <sstream>  // Phase 4.2.3: For parsing JS stack traces
 
 // Include QuickJS headers
 extern "C" {
@@ -120,6 +122,9 @@ std::shared_ptr<interpreter::Value> JsExecutor::callFunction(
 
     fmt::print("[CALL] Calling JavaScript function: {}\n", function_name);
 
+    // Phase 4.2.3: Push stack frame for cross-language tracing
+    error::ScopedStackFrame stack_frame("javascript", function_name, "<javascript>", 0);
+
     // Get global object
     JSValue global = JS_GetGlobalObject(ctx_);
 
@@ -161,6 +166,9 @@ std::shared_ptr<interpreter::Value> JsExecutor::callFunction(
 
     // Check for errors
     if (JS_IsException(result)) {
+        // Phase 4.2.3: Extract JavaScript stack trace and add to unified trace
+        extractJavaScriptStackTrace();
+
         std::string error = getLastError();
         JS_FreeValue(ctx_, func);
         JS_FreeValue(ctx_, global);
@@ -170,8 +178,10 @@ std::shared_ptr<interpreter::Value> JsExecutor::callFunction(
             security::AuditLogger::logTimeout("JavaScript function: " + function_name, 30);
         }
 
+        // Re-throw with enriched stack trace
         throw std::runtime_error(fmt::format(
-            "JavaScript function '{}' threw exception: {}", function_name, error));
+            "JavaScript function '{}' threw exception: {}\n{}",
+            function_name, error, error::StackTracer::formatTrace()));
     }
 
     // Convert result
@@ -308,6 +318,113 @@ std::string JsExecutor::getLastError() {
     JS_FreeValue(ctx_, exception);
 
     return result;
+}
+
+// ============================================================================
+// Phase 4.2.3: JavaScript Traceback Extraction
+// ============================================================================
+
+void JsExecutor::extractJavaScriptStackTrace() {
+    try {
+        // Get the exception object
+        JSValue exception = JS_GetException(ctx_);
+
+        if (JS_IsNull(exception) || JS_IsUndefined(exception)) {
+            return;
+        }
+
+        // Get the "stack" property from the exception
+        JSValue stack_val = JS_GetPropertyStr(ctx_, exception, "stack");
+
+        if (!JS_IsString(stack_val)) {
+            JS_FreeValue(ctx_, stack_val);
+            JS_FreeValue(ctx_, exception);
+            return;
+        }
+
+        // Convert stack trace to C string
+        const char* stack_str = JS_ToCString(ctx_, stack_val);
+        if (!stack_str) {
+            JS_FreeValue(ctx_, stack_val);
+            JS_FreeValue(ctx_, exception);
+            return;
+        }
+
+        std::string stack_trace(stack_str);
+        JS_FreeCString(ctx_, stack_str);
+
+        // Parse QuickJS stack trace format
+        // QuickJS format: "    at functionName (filename:line)\n"
+        std::istringstream ss(stack_trace);
+        std::string line;
+
+        while (std::getline(ss, line)) {
+            // Skip empty lines
+            if (line.empty() || line.find("at ") == std::string::npos) {
+                continue;
+            }
+
+            // Extract function name and location
+            size_t at_pos = line.find("at ");
+            if (at_pos == std::string::npos) {
+                continue;
+            }
+
+            // Extract function name
+            size_t func_start = at_pos + 3;
+            size_t func_end = line.find(" (", func_start);
+            if (func_end == std::string::npos) {
+                func_end = line.find("\n", func_start);
+                if (func_end == std::string::npos) {
+                    func_end = line.length();
+                }
+            }
+
+            std::string function_name = line.substr(func_start, func_end - func_start);
+
+            // Trim whitespace from function name
+            size_t first = function_name.find_first_not_of(" \t");
+            size_t last = function_name.find_last_not_of(" \t");
+            if (first != std::string::npos && last != std::string::npos) {
+                function_name = function_name.substr(first, last - first + 1);
+            }
+
+            // Extract filename and line number
+            std::string filename = "<javascript>";
+            size_t line_number = 0;
+
+            size_t paren_start = line.find('(', func_end);
+            size_t paren_end = line.find(')', paren_start);
+            if (paren_start != std::string::npos && paren_end != std::string::npos) {
+                std::string location = line.substr(paren_start + 1, paren_end - paren_start - 1);
+
+                // Parse "filename:line"
+                size_t colon_pos = location.rfind(':');
+                if (colon_pos != std::string::npos) {
+                    filename = location.substr(0, colon_pos);
+                    try {
+                        line_number = std::stoull(location.substr(colon_pos + 1));
+                    } catch (...) {
+                        line_number = 0;
+                    }
+                }
+            }
+
+            // Add JavaScript frame to stack trace
+            error::StackFrame js_frame("javascript", function_name, filename, line_number);
+            error::StackTracer::pushFrame(js_frame);
+
+            fmt::print("[TRACE] JavaScript frame: {} ({}:{})\n",
+                function_name, filename, line_number);
+        }
+
+        // Cleanup
+        JS_FreeValue(ctx_, stack_val);
+        JS_FreeValue(ctx_, exception);
+
+    } catch (const std::exception& ex) {
+        fmt::print("[WARN] Failed to extract JavaScript traceback: {}\n", ex.what());
+    }
 }
 
 } // namespace runtime

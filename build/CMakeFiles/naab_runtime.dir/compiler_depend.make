@@ -5525,6 +5525,8 @@ CMakeFiles/naab_runtime.dir/src/runtime/js_executor.cpp.o: /data/data/com.termux
   /data/data/com.termux/files/home/.naab/language/include/naab/module_resolver.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/resource_limits.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/sandbox.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/stdlib.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/type_marshaller.h \
   /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/bitsperlong.h \
@@ -8448,6 +8450,8 @@ CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o: /data/data/com.te
   /data/data/com.termux/files/home/.naab/language/include/naab/python_executor.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/resource_limits.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/sandbox.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/stdlib.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/type_marshaller.h \
   /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/bitsperlong.h \
@@ -14866,10 +14870,6 @@ CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o: /data/data/com.te
 
 /data/data/com.termux/files/home/.naab/language/src/runtime/struct_registry.cpp:
 
-/data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h:
-
-/data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h:
-
 /data/data/com.termux/files/home/.naab/language/src/runtime/semver.cpp:
 
 /data/data/com.termux/files/home/.naab/language/src/runtime/rust_ffi_bridge.cpp:
@@ -14899,6 +14899,10 @@ CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o: /data/data/com.te
 /data/data/com.termux/files/home/.naab/language/src/runtime/module_resolver.cpp:
 
 /data/data/com.termux/files/home/.naab/language/include/naab/js_executor_adapter.h:
+
+/data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h:
+
+/data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h:
 
 /data/data/com.termux/files/home/.naab/language/include/naab/js_executor.h:
 

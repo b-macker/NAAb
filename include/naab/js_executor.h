@@ -50,6 +50,9 @@ private:
     // Note: Type conversion uses JSValue internally - not exposed in header
     std::string getLastError();
     static int interruptHandler(JSRuntime* rt, void* opaque);
+
+    // Phase 4.2.3: JavaScript traceback extraction
+    void extractJavaScriptStackTrace();
 };
 
 } // namespace runtime
