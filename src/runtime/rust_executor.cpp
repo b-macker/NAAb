@@ -3,6 +3,7 @@
 
 #include "naab/rust_executor.h"
 #include "naab/rust_ffi.h"
+#include "naab/stack_tracer.h"  // Phase 4.2.4: Cross-language stack traces
 #include <dlfcn.h>
 #include <fmt/core.h>
 #include <stdexcept>
@@ -65,6 +66,9 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeBlock(
     std::string lib_path, func_name;
     parseRustURI(code, lib_path, func_name);
 
+    // Phase 4.2.4: Push stack frame for cross-language tracing
+    error::ScopedStackFrame stack_frame("rust", func_name, "<rust>", 0);
+
     // Check function cache first
     std::string cache_key = lib_path + "::" + func_name;
     NaabRustBlockFn func = nullptr;
@@ -109,7 +113,13 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeBlock(
 
     // Convert result back to C++ Value
     if (!ffi_result) {
-        throw std::runtime_error("Rust function returned null");
+        // Phase 4.2.4: Extract Rust error and add to unified trace
+        extractRustError();
+
+        // Re-throw with enriched stack trace
+        throw std::runtime_error(fmt::format(
+            "Rust function '{}' returned null (error occurred)\n{}",
+            func_name, error::StackTracer::formatTrace()));
     }
 
     auto result = ffiToValue(ffi_result);
@@ -194,6 +204,40 @@ NaabRustBlockFn RustExecutor::getFunction(void* lib_handle, const std::string& f
     fmt::print("[INFO] Resolved Rust function: {}\n", func_name);
 
     return func;
+}
+
+// ============================================================================
+// Phase 4.2.4: Rust Error Extraction
+// ============================================================================
+
+void RustExecutor::extractRustError() {
+    try {
+        // Get last error from Rust FFI
+        NaabRustError* rust_error = naab_rust_get_last_error();
+
+        if (!rust_error) {
+            // No error information available
+            return;
+        }
+
+        // Extract error details
+        std::string error_message = rust_error->message ? rust_error->message : "Unknown Rust error";
+        std::string error_file = rust_error->file ? rust_error->file : "<unknown>";
+        uint32_t error_line = rust_error->line;
+
+        // Add Rust frame to stack trace
+        error::StackFrame rust_frame("rust", error_message, error_file, error_line);
+        error::StackTracer::pushFrame(rust_frame);
+
+        fmt::print("[TRACE] Rust frame: {} ({}:{})\n",
+            error_message, error_file, error_line);
+
+        // Free error structure
+        naab_rust_error_free(rust_error);
+
+    } catch (const std::exception& ex) {
+        fmt::print("[WARN] Failed to extract Rust error: {}\n", ex.what());
+    }
 }
 
 } // namespace runtime

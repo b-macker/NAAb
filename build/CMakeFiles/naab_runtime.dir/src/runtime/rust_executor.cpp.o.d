@@ -666,13 +666,10 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: \
   /data/data/com.termux/files/home/.naab/language/include/naab/rust_ffi.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/stdbool.h \
   /data/data/com.termux/files/usr/lib/clang/21/include/stdbool.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/dlfcn.h \
-  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
-  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
-  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/regex \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/deque \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__fwd/deque.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_tracer.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/stack_frame.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/map \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__tree \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/functional \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/binary_negate.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/bind.h \
@@ -688,4 +685,11 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/boyer_moore_searcher.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/default_searcher.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/not_fn.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/perfect_forward.h
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/perfect_forward.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/dlfcn.h \
+  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
+  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
+  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/regex \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/deque \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__fwd/deque.h

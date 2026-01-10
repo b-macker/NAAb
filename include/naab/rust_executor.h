@@ -89,6 +89,9 @@ private:
 
     // Cache of resolved functions: "path::function" -> function pointer
     std::unordered_map<std::string, NaabRustBlockFn> function_cache_;
+
+    // Phase 4.2.4: Rust error extraction
+    void extractRustError();
 };
 
 } // namespace runtime

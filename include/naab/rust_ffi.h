@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>  // Phase 4.2.4: For uint32_t
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,6 +24,13 @@ typedef struct NaabRustValue NaabRustValue;
 // Block function signature
 typedef NaabRustValue* (*NaabRustBlockFn)(NaabRustValue** args, size_t arg_count);
 
+// Phase 4.2.4: Error metadata for stack tracing
+typedef struct {
+    char* message;
+    char* file;
+    uint32_t line;
+} NaabRustError;
+
 // Value creation functions
 NaabRustValue* naab_rust_value_create_int(int value);
 NaabRustValue* naab_rust_value_create_double(double value);
@@ -39,6 +47,10 @@ NaabRustValueType naab_rust_value_get_type(const NaabRustValue* value);
 
 // Memory management
 void naab_rust_value_free(NaabRustValue* value);
+
+// Phase 4.2.4: Error handling
+NaabRustError* naab_rust_get_last_error();
+void naab_rust_error_free(NaabRustError* error);
 
 #ifdef __cplusplus
 }

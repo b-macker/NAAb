@@ -25,6 +25,9 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o: \
   /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_offsetof.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/stdbool.h \
   /data/data/com.termux/files/usr/lib/clang/21/include/stdbool.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/stdint.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/stdint.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/wchar_limits.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/interpreter.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/ast.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/memory \
@@ -118,9 +121,6 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_trivially_constructible.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_trivially_copyable.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/cstdint \
-  /data/data/com.termux/files/usr/lib/clang/21/include/stdint.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/stdint.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/bits/wchar_limits.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_trivially_destructible.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_union.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_volatile.h \
