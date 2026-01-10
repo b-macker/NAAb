@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <optional>
+#include "naab/error_context.h"
 
 namespace naab {
 namespace error {
@@ -32,7 +33,17 @@ public:
           message(msg),
           line(line),
           column(column),
-          filename(filename) {}
+          filename(filename) {
+        show_colors = global_color_enabled_;  // Respect global setting
+    }
+
+    // Global color setting (Phase 4.1.32)
+    static void setGlobalColorEnabled(bool enabled) {
+        global_color_enabled_ = enabled;
+    }
+    static bool isGlobalColorEnabled() {
+        return global_color_enabled_;
+    }
 
     Severity severity;
     std::string message;
@@ -53,6 +64,9 @@ public:
 
     std::string toString() const;
     std::string toStringWithSource(const std::string& source_code) const;
+
+private:
+    static bool global_color_enabled_;  // Global color setting (Phase 4.1.32)
 };
 
 // Error reporter with source code tracking
@@ -99,6 +113,12 @@ public:
     // Get diagnostic counts
     size_t errorCount() const;
     size_t warningCount() const;
+
+    // Create ErrorContext from diagnostic (Phase 4.1)
+    ErrorContext createErrorContext(const Diagnostic& diag) const;
+
+    // Report error using ErrorContext (Phase 4.1)
+    void reportFromContext(const ErrorContext& ctx, Severity severity = Severity::Error);
 
 private:
     std::vector<Diagnostic> diagnostics_;

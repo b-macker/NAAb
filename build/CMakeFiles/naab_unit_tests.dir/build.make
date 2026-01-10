@@ -198,6 +198,34 @@ CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/tests/unit/rust_ffi_test.cpp -o CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.s
 
+CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o: CMakeFiles/naab_unit_tests.dir/flags.make
+CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o: /data/data/com.termux/files/home/.naab/language/tests/unit/error_categories_test.cpp
+CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o: CMakeFiles/naab_unit_tests.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o -MF CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o.d -o CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o -c /data/data/com.termux/files/home/.naab/language/tests/unit/error_categories_test.cpp
+
+CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/tests/unit/error_categories_test.cpp > CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.i
+
+CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/tests/unit/error_categories_test.cpp -o CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.s
+
+CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o: CMakeFiles/naab_unit_tests.dir/flags.make
+CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o: /data/data/com.termux/files/home/.naab/language/tests/unit/suggestion_system_test.cpp
+CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o: CMakeFiles/naab_unit_tests.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o -MF CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o.d -o CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o -c /data/data/com.termux/files/home/.naab/language/tests/unit/suggestion_system_test.cpp
+
+CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/tests/unit/suggestion_system_test.cpp > CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.i
+
+CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/tests/unit/suggestion_system_test.cpp -o CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.s
+
 # Object files for target naab_unit_tests
 naab_unit_tests_OBJECTS = \
 "CMakeFiles/naab_unit_tests.dir/tests/unit/lexer_test.cpp.o" \
@@ -208,7 +236,9 @@ naab_unit_tests_OBJECTS = \
 "CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o" \
 "CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_struct_test.cpp.o" \
 "CMakeFiles/naab_unit_tests.dir/tests/unit/parser_struct_test.cpp.o" \
-"CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o"
+"CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o" \
+"CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o" \
+"CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o"
 
 # External object files for target naab_unit_tests
 naab_unit_tests_EXTERNAL_OBJECTS =
@@ -222,6 +252,8 @@ naab_unit_tests: CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o
 naab_unit_tests: CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_struct_test.cpp.o
 naab_unit_tests: CMakeFiles/naab_unit_tests.dir/tests/unit/parser_struct_test.cpp.o
 naab_unit_tests: CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o
+naab_unit_tests: CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o
+naab_unit_tests: CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o
 naab_unit_tests: CMakeFiles/naab_unit_tests.dir/build.make
 naab_unit_tests: CMakeFiles/naab_unit_tests.dir/compiler_depend.ts
 naab_unit_tests: lib/libgtest_main.a
@@ -291,7 +323,7 @@ naab_unit_tests: /data/data/com.termux/files/usr/lib/libssl.so
 naab_unit_tests: /data/data/com.termux/files/usr/lib/libcrypto.so
 naab_unit_tests: /data/data/com.termux/files/usr/lib/libpython3.12.so
 naab_unit_tests: CMakeFiles/naab_unit_tests.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Linking CXX executable naab_unit_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Linking CXX executable naab_unit_tests"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/naab_unit_tests.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

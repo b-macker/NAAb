@@ -654,6 +654,7 @@ CMakeFiles/naab_semantic.dir/src/semantic/error_reporter.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/system_error \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/streambuf \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/cstdarg \
+  /data/data/com.termux/files/home/.naab/language/include/naab/error_context.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h \

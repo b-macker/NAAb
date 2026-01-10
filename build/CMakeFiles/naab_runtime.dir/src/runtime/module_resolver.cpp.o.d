@@ -716,6 +716,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o: \
   /data/data/com.termux/files/home/.naab/language/include/naab/lexer.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/parser.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/error_reporter.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/error_context.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h \

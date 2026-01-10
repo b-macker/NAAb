@@ -156,10 +156,24 @@ CMakeFiles/naab_semantic.dir/src/semantic/error_helpers.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_semantic.dir/src/semantic/error_helpers.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/semantic/error_helpers.cpp -o CMakeFiles/naab_semantic.dir/src/semantic/error_helpers.cpp.s
 
+CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o: CMakeFiles/naab_semantic.dir/flags.make
+CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o: /data/data/com.termux/files/home/.naab/language/src/semantic/suggestion_system.cpp
+CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o: CMakeFiles/naab_semantic.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o -MF CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o.d -o CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/semantic/suggestion_system.cpp
+
+CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/semantic/suggestion_system.cpp > CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.i
+
+CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/semantic/suggestion_system.cpp -o CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.s
+
 CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o: CMakeFiles/naab_semantic.dir/flags.make
 CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o: /data/data/com.termux/files/home/.naab/language/src/semantic/composition_validator.cpp
 CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o: CMakeFiles/naab_semantic.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o -MF CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o.d -o CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/semantic/composition_validator.cpp
 
 CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.i: cmake_force
@@ -178,6 +192,7 @@ naab_semantic_OBJECTS = \
 "CMakeFiles/naab_semantic.dir/src/semantic/type_system.cpp.o" \
 "CMakeFiles/naab_semantic.dir/src/semantic/error_reporter.cpp.o" \
 "CMakeFiles/naab_semantic.dir/src/semantic/error_helpers.cpp.o" \
+"CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o" \
 "CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o"
 
 # External object files for target naab_semantic
@@ -189,10 +204,11 @@ libnaab_semantic.a: CMakeFiles/naab_semantic.dir/src/semantic/type_checker.cpp.o
 libnaab_semantic.a: CMakeFiles/naab_semantic.dir/src/semantic/type_system.cpp.o
 libnaab_semantic.a: CMakeFiles/naab_semantic.dir/src/semantic/error_reporter.cpp.o
 libnaab_semantic.a: CMakeFiles/naab_semantic.dir/src/semantic/error_helpers.cpp.o
+libnaab_semantic.a: CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o
 libnaab_semantic.a: CMakeFiles/naab_semantic.dir/src/semantic/composition_validator.cpp.o
 libnaab_semantic.a: CMakeFiles/naab_semantic.dir/build.make
 libnaab_semantic.a: CMakeFiles/naab_semantic.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Linking CXX static library libnaab_semantic.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Linking CXX static library libnaab_semantic.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/naab_semantic.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/naab_semantic.dir/link.txt --verbose=$(VERBOSE)
 

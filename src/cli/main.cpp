@@ -6,6 +6,7 @@
 #include "naab/parser.h"
 #include "naab/interpreter.h"
 #include "naab/type_checker.h"
+#include "naab/error_reporter.h"
 #include "naab/language_registry.h"
 #include "naab/block_search_index.h"
 #include "naab/block_loader.h"
@@ -82,6 +83,7 @@ void print_usage() {
     fmt::print("  --verbose, -v                       Enable verbose output\n");
     fmt::print("  --profile, -p                       Enable performance profiling\n");
     fmt::print("  --explain                           Explain execution step-by-step\n");
+    fmt::print("  --no-color                          Disable colored error messages\n");
 }
 
 int main(int argc, char** argv) {
@@ -106,6 +108,7 @@ int main(int argc, char** argv) {
         bool verbose = false;
         bool profile = false;
         bool explain = false;
+        bool no_color = false;
         for (int i = 3; i < argc; ++i) {
             std::string arg(argv[i]);
             if (arg == "--verbose" || arg == "-v") {
@@ -117,7 +120,13 @@ int main(int argc, char** argv) {
             if (arg == "--explain") {
                 explain = true;
             }
+            if (arg == "--no-color") {
+                no_color = true;
+            }
         }
+
+        // Set global color preference for diagnostics (Phase 4.1.32)
+        naab::error::Diagnostic::setGlobalColorEnabled(!no_color);
 
         try {
             // Read source file

@@ -185,6 +185,7 @@ add_library(naab_semantic
     src/semantic/type_system.cpp  # Type system implementation
     src/semantic/error_reporter.cpp
     src/semantic/error_helpers.cpp
+    src/semantic/suggestion_system.cpp  # Phase 4.1: Enhanced error suggestions
     src/semantic/composition_validator.cpp  # Phase 4.3: Validation command
 )
 target_link_libraries(naab_semantic
@@ -922,6 +923,8 @@ add_executable(naab_unit_tests
     tests/unit/interpreter_struct_test.cpp
     tests/unit/parser_struct_test.cpp
     tests/unit/rust_ffi_test.cpp
+    tests/unit/error_categories_test.cpp
+    tests/unit/suggestion_system_test.cpp
 )
 
 # Link GoogleTest and NAAb libraries

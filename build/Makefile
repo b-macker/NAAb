@@ -3353,6 +3353,30 @@ src/semantic/error_reporter.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_semantic.dir/build.make CMakeFiles/naab_semantic.dir/src/semantic/error_reporter.cpp.s
 .PHONY : src/semantic/error_reporter.cpp.s
 
+src/semantic/suggestion_system.o: src/semantic/suggestion_system.cpp.o
+.PHONY : src/semantic/suggestion_system.o
+
+# target to build an object file
+src/semantic/suggestion_system.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_semantic.dir/build.make CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o
+.PHONY : src/semantic/suggestion_system.cpp.o
+
+src/semantic/suggestion_system.i: src/semantic/suggestion_system.cpp.i
+.PHONY : src/semantic/suggestion_system.i
+
+# target to preprocess a source file
+src/semantic/suggestion_system.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_semantic.dir/build.make CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.i
+.PHONY : src/semantic/suggestion_system.cpp.i
+
+src/semantic/suggestion_system.s: src/semantic/suggestion_system.cpp.s
+.PHONY : src/semantic/suggestion_system.s
+
+# target to generate assembly for a file
+src/semantic/suggestion_system.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_semantic.dir/build.make CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.s
+.PHONY : src/semantic/suggestion_system.cpp.s
+
 src/semantic/symbol_table.o: src/semantic/symbol_table.cpp.o
 .PHONY : src/semantic/symbol_table.o
 
@@ -4001,6 +4025,30 @@ tests/test_cross_language_simple.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_cross_language_simple.dir/build.make CMakeFiles/test_cross_language_simple.dir/tests/test_cross_language_simple.cpp.s
 .PHONY : tests/test_cross_language_simple.cpp.s
 
+tests/unit/error_categories_test.o: tests/unit/error_categories_test.cpp.o
+.PHONY : tests/unit/error_categories_test.o
+
+# target to build an object file
+tests/unit/error_categories_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o
+.PHONY : tests/unit/error_categories_test.cpp.o
+
+tests/unit/error_categories_test.i: tests/unit/error_categories_test.cpp.i
+.PHONY : tests/unit/error_categories_test.i
+
+# target to preprocess a source file
+tests/unit/error_categories_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.i
+.PHONY : tests/unit/error_categories_test.cpp.i
+
+tests/unit/error_categories_test.s: tests/unit/error_categories_test.cpp.s
+.PHONY : tests/unit/error_categories_test.s
+
+# target to generate assembly for a file
+tests/unit/error_categories_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.s
+.PHONY : tests/unit/error_categories_test.cpp.s
+
 tests/unit/interpreter_struct_test.o: tests/unit/interpreter_struct_test.cpp.o
 .PHONY : tests/unit/interpreter_struct_test.o
 
@@ -4192,6 +4240,30 @@ tests/unit/struct_test.s: tests/unit/struct_test.cpp.s
 tests/unit/struct_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.s
 .PHONY : tests/unit/struct_test.cpp.s
+
+tests/unit/suggestion_system_test.o: tests/unit/suggestion_system_test.cpp.o
+.PHONY : tests/unit/suggestion_system_test.o
+
+# target to build an object file
+tests/unit/suggestion_system_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o
+.PHONY : tests/unit/suggestion_system_test.cpp.o
+
+tests/unit/suggestion_system_test.i: tests/unit/suggestion_system_test.cpp.i
+.PHONY : tests/unit/suggestion_system_test.i
+
+# target to preprocess a source file
+tests/unit/suggestion_system_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.i
+.PHONY : tests/unit/suggestion_system_test.cpp.i
+
+tests/unit/suggestion_system_test.s: tests/unit/suggestion_system_test.cpp.s
+.PHONY : tests/unit/suggestion_system_test.s
+
+# target to generate assembly for a file
+tests/unit/suggestion_system_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.s
+.PHONY : tests/unit/suggestion_system_test.cpp.s
 
 tests/unit/test_block_registry.o: tests/unit/test_block_registry.cpp.o
 .PHONY : tests/unit/test_block_registry.o
@@ -4933,6 +5005,9 @@ help:
 	@echo "... src/semantic/error_reporter.o"
 	@echo "... src/semantic/error_reporter.i"
 	@echo "... src/semantic/error_reporter.s"
+	@echo "... src/semantic/suggestion_system.o"
+	@echo "... src/semantic/suggestion_system.i"
+	@echo "... src/semantic/suggestion_system.s"
 	@echo "... src/semantic/symbol_table.o"
 	@echo "... src/semantic/symbol_table.i"
 	@echo "... src/semantic/symbol_table.s"
@@ -5014,6 +5089,9 @@ help:
 	@echo "... tests/test_cross_language_simple.o"
 	@echo "... tests/test_cross_language_simple.i"
 	@echo "... tests/test_cross_language_simple.s"
+	@echo "... tests/unit/error_categories_test.o"
+	@echo "... tests/unit/error_categories_test.i"
+	@echo "... tests/unit/error_categories_test.s"
 	@echo "... tests/unit/interpreter_struct_test.o"
 	@echo "... tests/unit/interpreter_struct_test.i"
 	@echo "... tests/unit/interpreter_struct_test.s"
@@ -5038,6 +5116,9 @@ help:
 	@echo "... tests/unit/struct_test.o"
 	@echo "... tests/unit/struct_test.i"
 	@echo "... tests/unit/struct_test.s"
+	@echo "... tests/unit/suggestion_system_test.o"
+	@echo "... tests/unit/suggestion_system_test.i"
+	@echo "... tests/unit/suggestion_system_test.s"
 	@echo "... tests/unit/test_block_registry.o"
 	@echo "... tests/unit/test_block_registry.i"
 	@echo "... tests/unit/test_block_registry.s"

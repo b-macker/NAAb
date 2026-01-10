@@ -665,6 +665,7 @@ CMakeFiles/naab_parser.dir/src/parser/parser.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__iterator/ranges_iterator_traits.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__node_handle \
   /data/data/com.termux/files/home/.naab/language/include/naab/error_reporter.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/error_context.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h

@@ -7,6 +7,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/naab_semantic.dir/src/semantic/error_helpers.cpp.o.d"
   "CMakeFiles/naab_semantic.dir/src/semantic/error_reporter.cpp.o"
   "CMakeFiles/naab_semantic.dir/src/semantic/error_reporter.cpp.o.d"
+  "CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o"
+  "CMakeFiles/naab_semantic.dir/src/semantic/suggestion_system.cpp.o.d"
   "CMakeFiles/naab_semantic.dir/src/semantic/symbol_table.cpp.o"
   "CMakeFiles/naab_semantic.dir/src/semantic/symbol_table.cpp.o.d"
   "CMakeFiles/naab_semantic.dir/src/semantic/type_checker.cpp.o"

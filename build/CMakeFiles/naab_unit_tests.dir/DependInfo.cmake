@@ -8,6 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/data/data/com.termux/files/home/.naab/language/tests/unit/error_categories_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_struct_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_struct_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_struct_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/interpreter_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/lexer_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/lexer_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/lexer_test.cpp.o.d"
@@ -16,6 +17,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/data/data/com.termux/files/home/.naab/language/tests/unit/rust_ffi_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/stdlib_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/stdlib_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/stdlib_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/struct_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o.d"
+  "/data/data/com.termux/files/home/.naab/language/tests/unit/suggestion_system_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/type_system_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/type_system_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/type_system_test.cpp.o.d"
   "" "naab_unit_tests" "gcc" "CMakeFiles/naab_unit_tests.dir/link.d"
   )

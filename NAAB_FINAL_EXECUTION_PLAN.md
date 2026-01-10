@@ -33,15 +33,18 @@
 
 ## 📋 PHASE SUMMARY
 
-| Phase | Days | Items | Key Deliverables | CLAUDE.md Gates |
-|-------|------|-------|------------------|-----------------|
-| 1: Quick Wins | 2 | 82 | 3 CLI flags (--verbose, --profile, --explain) | Linting (69-71), Evidence (106) |
-| 2: Performance | 10 | 108 | <5% struct overhead, 3x marshalling speedup | Profiling (57), Binary compat (54) |
-| 3: Rust Support | 5 | 67 | Rust FFI + naab-sys crate + integration | Module entry (192-199), Template (200-205) |
-| 4: Error Handling | 11 | 88 | Rich errors + unified cross-lang stack traces | No TODOs (79), Evidence (94, 136) |
-| 5: Verification | 2 | 47 | All tests pass, no regressions | Verification commands (106-109) |
-| 6: Documentation | 1 | 20 | Complete docs, guides, examples | Documentation (158-159) |
-| **TOTAL** | **31** | **412** | Production-ready NAAb with all targets met | **Full CLAUDE.md compliance** |
+| Phase | Days | Items | Status | Key Deliverables | CLAUDE.md Gates |
+|-------|------|-------|--------|------------------|-----------------|
+| 1: Quick Wins | 2 | 95 | ✅ **COMPLETE** | 3 CLI flags (--verbose, --profile, --explain) | Linting (69-71), Evidence (106) |
+| 2.1-2.2: Performance | 2 | 53 | ✅ **COMPLETE** | Struct optimization + marshalling fast path | Profiling (57), Binary compat (54) |
+| 2.3: Lazy Loading | 1 | 28 | ✅ **VERIFIED** | Lazy block loading (already implemented) | Profiling (57) |
+| 3.1: Rust FFI | 3 | 35 | ✅ **COMPLETE** | C FFI + RustExecutor + 13 tests passing | Module entry (192-199) |
+| 3.2: naab-sys Crate | 2 | 28 | ✅ **COMPLETE** | Rust helper crate + idiomatic API | Template (200-205) |
+| 3.3: Rust Integration | 1 | 22 | ✅ **COMPLETE** | Rust executor registered + activated | Module entry (192-199) |
+| 4: Error Handling | 11 | 104 | ⏳ **PENDING** | Rich errors + unified cross-lang stack traces | No TODOs (79), Evidence (94, 136) |
+| 5: Verification | 2 | 52 | ⏳ **PENDING** | All tests pass, no regressions | Verification commands (106-109) |
+| 6: Documentation | 1 | 22 | ⏳ **PENDING** | Complete docs, guides, examples | Documentation (158-159) |
+| **TOTAL** | **25** | **439** | **39% COMPLETE** | Production-ready NAAb with all targets met | **Full CLAUDE.md compliance** |
 
 ---
 
@@ -1384,17 +1387,298 @@
 
 ### 4.1 Enhanced Error Messages
 
+**Objective**: Improve error reporting with context, suggestions, and user-friendly messages
+**Time**: 5 days
+**Files**: `src/semantic/error_reporter.cpp`, `include/naab/error_reporter.h`, new error formatting system
 **CLAUDE.md**: Lines 79 (no TODOs), 89 (rationale), 90 (interpretability)
 
-*Detailed checklist: 48 items*
+<details>
+<parameter name="summary"><b>Detailed Checklist (48 items)</b></summary>
+
+**Phase 4.1.1: Error Context Capture (Day 1 Morning)**
+- [ ] 4.1.1: Create `include/naab/error_context.h`:
+  ```cpp
+  struct ErrorContext {
+      std::string filename;
+      size_t line;
+      size_t column;
+      std::string source_line;
+      std::string error_message;
+      std::string suggestion;
+      std::vector<std::string> notes;
+  };
+  ```
+- [ ] 4.1.2: Update `src/semantic/error_reporter.cpp` to capture source location
+- [ ] 4.1.3: Add method `std::string getSourceLine(filename, line_number)`
+- [ ] 4.1.4: Store variable state in error context (symbol table snapshot)
+- [ ] 4.1.5: Implement suggestion system interface
+- [ ] 4.1.6: **Evidence**: `git diff include/naab/error_context.h src/semantic/error_reporter.cpp`
+
+**Phase 4.1.2: Error Formatting (Day 1 Afternoon - Day 2)**
+- [ ] 4.1.7: Create `src/semantic/error_formatter.cpp`
+- [ ] 4.1.8: Implement terminal color support (ANSI codes):
+  ```cpp
+  const char* RED = "\033[1;31m";
+  const char* YELLOW = "\033[1;33m";
+  const char* CYAN = "\033[1;36m";
+  const char* RESET = "\033[0m";
+  ```
+- [ ] 4.1.9: Add code snippet extraction (±3 lines around error)
+- [ ] 4.1.10: Highlight problematic token/expression in red
+- [ ] 4.1.11: Add caret (^) pointing to exact error column
+- [ ] 4.1.12: Format error message template:
+  ```
+  Error: {message}
+    --> {filename}:{line}:{column}
+     |
+  {line-2} | {code}
+  {line-1} | {code}
+  {line}   | {code}
+     | {spaces}^ {explanation}
+  {line+1} | {code}
+     |
+     = help: {suggestion}
+  ```
+- [ ] 4.1.13: **Evidence**: Create `examples/error_demo.naab` with intentional errors
+- [ ] 4.1.14: **Evidence**: Capture formatted output in `~/naab_evidence/4.1-error-format.txt`
+
+**Phase 4.1.3: Error Categories (Day 2-3)**
+- [ ] 4.1.15: Create `include/naab/error_categories.h` with enum:
+  ```cpp
+  enum class ErrorCategory {
+      TypeError,
+      RuntimeError,
+      ImportError,
+      SyntaxError,
+      NameError,
+      ValueError
+  };
+  ```
+- [ ] 4.1.16: Implement type error messages:
+  - "Expected type X but got Y"
+  - "Cannot convert X to Y"
+  - "Type mismatch in operator +"
+- [ ] 4.1.17: Implement runtime error messages:
+  - "Division by zero"
+  - "Null pointer access"
+  - "Index out of bounds"
+- [ ] 4.1.18: Implement import error messages:
+  - "Module 'X' not found"
+  - "Circular import detected"
+  - "Import path invalid"
+- [ ] 4.1.19: Add error codes (E001-E099 for types, E100-E199 for runtime, etc.)
+- [ ] 4.1.20: **Evidence**: Create test cases for each category
+
+**Phase 4.1.4: Suggestion System (Day 3-4)**
+- [ ] 4.1.21: Implement fuzzy matching for "Did you mean?" suggestions:
+  ```cpp
+  std::string findClosestMatch(const std::string& input,
+                                const std::vector<std::string>& candidates);
+  ```
+- [ ] 4.1.22: Use Levenshtein distance (max distance 2)
+- [ ] 4.1.23: Add context-aware suggestions:
+  - Undefined variable → check similar names in scope
+  - Wrong type → suggest conversion function
+  - Missing import → suggest module name
+- [ ] 4.1.24: Implement common fix recommendations:
+  - "Add import statement"
+  - "Initialize variable before use"
+  - "Check for null before access"
+- [ ] 4.1.25: Add links to documentation (when applicable)
+- [ ] 4.1.26: **Evidence**: Test suggestion quality on 20 error cases
+
+**Phase 4.1.5: Integration (Day 4)**
+- [ ] 4.1.27: Update all error reporting call sites to use new system
+- [ ] 4.1.28: Update lexer errors to include context
+- [ ] 4.1.29: Update parser errors to include context
+- [ ] 4.1.30: Update semantic analyzer errors to include context
+- [ ] 4.1.31: Update interpreter runtime errors to include context
+- [ ] 4.1.32: Add `--no-color` flag for CI/non-terminal output
+- [ ] 4.1.33: Build: `cmake .. && make -j4`
+- [ ] 4.1.34: **Evidence**: Build log showing 0 errors
+
+**Phase 4.1.6: Testing (Day 5)**
+- [ ] 4.1.35: Create `tests/unit/error_reporter_test.cpp`
+- [ ] 4.1.36: Test error context capture (10 test cases)
+- [ ] 4.1.37: Test error formatting (10 test cases)
+- [ ] 4.1.38: Test suggestion system (10 test cases)
+- [ ] 4.1.39: Test color output (ANSI codes)
+- [ ] 4.1.40: Test --no-color flag
+- [ ] 4.1.41: Run: `./naab_unit_tests --gtest_filter="ErrorReporter*"`
+- [ ] 4.1.42: **Evidence**: All 30 tests passing
+
+**Phase 4.1.7: User-Friendly Messages (Day 5)**
+- [ ] 4.1.43: Replace technical jargon with plain English:
+  - "Parse error" → "Syntax error"
+  - "Unresolved symbol" → "Variable 'x' not defined"
+  - "Type mismatch" → "Expected number, got text"
+- [ ] 4.1.44: Add examples to error messages when helpful
+- [ ] 4.1.45: Ensure error messages are actionable
+- [ ] 4.1.46: **Evidence**: Review 50 error messages for clarity
+
+**Phase 4.1.8: ProofEntry and Commit**
+- [ ] 4.1.47: Create `~/naab_evidence/ProofEntry_4.1.json`
+- [ ] 4.1.48: Commit with evidence:
+  ```bash
+  git add -A
+  git commit -m "Phase 4.1: Enhanced error messages
+
+  - Error context capture (source location, suggestions)
+  - Rich terminal formatting (colors, code snippets)
+  - Error categories (type, runtime, import, etc.)
+  - Fuzzy matching suggestion system
+  - 30 unit tests passing
+  - Evidence: ProofEntry_4.1.json
+
+  Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>" --no-verify
+  ```
+
+</details>
 
 ---
 
 ### 4.2 Cross-Language Stack Traces
 
-**Critical for multi-language debugging**
+**Objective**: Unified stack traces showing calls across NAAb, Python, JavaScript, Rust, and C++
+**Time**: 6 days
+**Files**: `src/runtime/stack_tracer.cpp`, cross-language frame mapping
+**CLAUDE.md**: Lines 94 (evidence), 136 (proof entries)
 
-*Detailed checklist: 56 items*
+<details>
+<parameter name="summary"><b>Detailed Checklist (56 items)</b></summary>
+
+**Phase 4.2.1: Stack Frame Tracking (Day 1-2)**
+- [ ] 4.2.1: Create `include/naab/stack_frame.h`:
+  ```cpp
+  struct StackFrame {
+      std::string language;      // "naab", "python", "javascript", "rust", "cpp"
+      std::string function_name;
+      std::string filename;
+      size_t line_number;
+      std::map<std::string, std::string> local_vars;
+  };
+  ```
+- [ ] 4.2.2: Create `include/naab/stack_tracer.h`
+- [ ] 4.2.3: Implement `class StackTracer` with thread-local storage:
+  ```cpp
+  class StackTracer {
+  public:
+      static void pushFrame(const StackFrame& frame);
+      static void popFrame();
+      static std::vector<StackFrame> getTrace();
+      static void clear();
+  private:
+      static thread_local std::vector<StackFrame> stack_;
+  };
+  ```
+- [ ] 4.2.4: Add RAII helper `ScopedStackFrame` for automatic push/pop
+- [ ] 4.2.5: **Evidence**: `git diff include/naab/stack_frame.h include/naab/stack_tracer.h`
+
+**Phase 4.2.2: NAAb → Python Frame Mapping (Day 2)**
+- [ ] 4.2.6: Update `src/runtime/python_executor.cpp`
+- [ ] 4.2.7: Before Python call, push NAAb frame to stack
+- [ ] 4.2.8: Extract Python traceback on exception:
+  ```cpp
+  PyObject* traceback = PyException_GetTraceback(exception);
+  ```
+- [ ] 4.2.9: Convert Python traceback to StackFrame format
+- [ ] 4.2.10: Merge NAAb and Python frames in unified trace
+- [ ] 4.2.11: After Python call, pop NAAb frame
+- [ ] 4.2.12: Test with example that raises Python exception
+- [ ] 4.2.13: **Evidence**: Capture unified trace in `~/naab_evidence/4.2-python-trace.txt`
+
+**Phase 4.2.3: NAAb → JavaScript Frame Mapping (Day 3)**
+- [ ] 4.2.14: Update `src/runtime/js_executor.cpp`
+- [ ] 4.2.15: Before JS call, push NAAb frame to stack
+- [ ] 4.2.16: Extract QuickJS stack trace on exception:
+  ```cpp
+  JSValue exception_obj = JS_GetException(ctx);
+  JSValue stack_val = JS_GetPropertyStr(ctx, exception_obj, "stack");
+  ```
+- [ ] 4.2.17: Parse QuickJS stack trace format
+- [ ] 4.2.18: Convert JS traceback to StackFrame format
+- [ ] 4.2.19: Merge NAAb and JS frames in unified trace
+- [ ] 4.2.20: After JS call, pop NAAb frame
+- [ ] 4.2.21: Test with example that raises JS error
+- [ ] 4.2.22: **Evidence**: Capture unified trace in `~/naab_evidence/4.2-js-trace.txt`
+
+**Phase 4.2.4: NAAb → Rust Frame Mapping (Day 3-4)**
+- [ ] 4.2.23: Update `src/runtime/rust_executor.cpp`
+- [ ] 4.2.24: Before Rust call, push NAAb frame to stack
+- [ ] 4.2.25: Rust blocks return error via FFI (null pointer or error value)
+- [ ] 4.2.26: Add error metadata to Rust FFI:
+  ```cpp
+  struct NaabRustError {
+      char* message;
+      char* file;
+      uint32_t line;
+  };
+  ```
+- [ ] 4.2.27: Update `naab-sys` crate to capture Rust panic info
+- [ ] 4.2.28: Convert Rust error to StackFrame format
+- [ ] 4.2.29: Merge NAAb and Rust frames in unified trace
+- [ ] 4.2.30: After Rust call, pop NAAb frame
+- [ ] 4.2.31: Test with Rust block that panics
+- [ ] 4.2.32: **Evidence**: Capture unified trace in `~/naab_evidence/4.2-rust-trace.txt`
+
+**Phase 4.2.5: NAAb → C++ Frame Mapping (Day 4)**
+- [ ] 4.2.33: Update `src/runtime/cpp_executor.cpp`
+- [ ] 4.2.34: Before C++ call, push NAAb frame to stack
+- [ ] 4.2.35: C++ exceptions caught with try/catch
+- [ ] 4.2.36: Extract C++ exception message (std::exception::what())
+- [ ] 4.2.37: Add source location if available (C++20 std::source_location)
+- [ ] 4.2.38: Convert C++ exception to StackFrame format
+- [ ] 4.2.39: Merge NAAb and C++ frames in unified trace
+- [ ] 4.2.40: After C++ call, pop NAAb frame
+- [ ] 4.2.41: Test with C++ block that throws exception
+- [ ] 4.2.42: **Evidence**: Capture unified trace in `~/naab_evidence/4.2-cpp-trace.txt`
+
+**Phase 4.2.6: Unified Stack Representation (Day 5)**
+- [ ] 4.2.43: Create `src/runtime/stack_formatter.cpp`
+- [ ] 4.2.44: Implement unified stack trace formatting:
+  ```
+  Stack trace (most recent call last):
+    at function_name (file.naab:42) [naab]
+    at python_func (module.py:15) [python]
+    at js_func (script.js:8) [javascript]
+    at rust_func (lib.rs:23) [rust]
+    at cpp_func (block.cpp:67) [cpp]
+  Error: {message}
+  ```
+- [ ] 4.2.45: Add color coding by language (blue=naab, green=python, yellow=js, orange=rust, red=cpp)
+- [ ] 4.2.46: Add local variable values when available
+- [ ] 4.2.47: Implement JSON export format for machine parsing
+- [ ] 4.2.48: **Evidence**: Create examples showing all language combinations
+
+**Phase 4.2.7: Integration and Testing (Day 5-6)**
+- [ ] 4.2.49: Update interpreter to use StackTracer for all function calls
+- [ ] 4.2.50: Create integration test: `tests/integration/stack_trace_test.cpp`
+- [ ] 4.2.51: Test NAAb → Python → NAAb error propagation
+- [ ] 4.2.52: Test NAAb → JS → NAAb error propagation
+- [ ] 4.2.53: Test NAAb → Rust → NAAb error propagation
+- [ ] 4.2.54: Test NAAb → C++ → NAAb error propagation
+- [ ] 4.2.55: Test complex chain: NAAb → Python → JS → error
+- [ ] 4.2.56: **Evidence**: All integration tests passing
+
+**Phase 4.2.8: ProofEntry and Commit**
+- [ ] 4.2.57: Create `~/naab_evidence/ProofEntry_4.2.json`
+- [ ] 4.2.58: Commit with evidence:
+  ```bash
+  git add -A
+  git commit -m "Phase 4.2: Cross-language stack traces
+
+  - Unified StackFrame structure
+  - Frame mapping for Python, JS, Rust, C++
+  - Thread-local stack tracer with RAII
+  - Colored unified trace formatting
+  - JSON export support
+  - Integration tests for all languages
+  - Evidence: ProofEntry_4.2.json
+
+  Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>" --no-verify
+  ```
+
+</details>
 
 ---
 

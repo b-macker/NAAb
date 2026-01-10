@@ -666,6 +666,7 @@ CMakeFiles/naab-lang.dir/src/cli/main.cpp.o: \
   /data/data/com.termux/files/home/.naab/language/include/naab/parser.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/ast.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/error_reporter.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/error_context.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/interpreter.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/block_loader.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/map \

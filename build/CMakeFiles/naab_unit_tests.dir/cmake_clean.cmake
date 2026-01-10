@@ -1,5 +1,7 @@
 file(REMOVE_RECURSE
   "CMakeFiles/naab_unit_tests.dir/link.d"
+  "CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o"
+  "CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.o.d"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_struct_test.cpp.o"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_struct_test.cpp.o.d"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_test.cpp.o"
@@ -16,6 +18,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/naab_unit_tests.dir/tests/unit/stdlib_test.cpp.o.d"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o.d"
+  "CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o"
+  "CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.o.d"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/type_system_test.cpp.o"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/type_system_test.cpp.o.d"
   "naab_unit_tests"

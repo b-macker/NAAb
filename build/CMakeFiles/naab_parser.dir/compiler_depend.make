@@ -662,6 +662,7 @@ CMakeFiles/naab_parser.dir/src/parser/parser.cpp.o: /data/data/com.termux/files/
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/ast.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/error_context.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/error_reporter.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/lexer.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/parser.h \
@@ -1419,6 +1420,8 @@ CMakeFiles/naab_parser.dir/src/parser/parser.cpp.o: /data/data/com.termux/files/
 /data/data/com.termux/files/usr/include/c++/v1/locale:
 
 /data/data/com.termux/files/usr/include/c++/v1/limits:
+
+/data/data/com.termux/files/home/.naab/language/include/naab/error_context.h:
 
 /data/data/com.termux/files/usr/include/c++/v1/iosfwd:
 

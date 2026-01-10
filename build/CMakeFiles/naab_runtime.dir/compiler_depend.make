@@ -7714,6 +7714,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o: /data/data/com.te
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/ast.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/error_context.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/error_reporter.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/lexer.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/module_resolver.h \
@@ -10218,6 +10219,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: /data/data/com.term
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/language_registry.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/rust_executor.h \
   /data/data/com.termux/files/home/.naab/language/include/naab/rust_ffi.h \
   /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/bitsperlong.h \
@@ -14682,6 +14684,8 @@ CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.o: /data/data/com.te
 /data/data/com.termux/files/usr/include/c++/v1/__iterator/unreachable_sentinel.h:
 
 /data/data/com.termux/files/usr/include/sched.h:
+
+/data/data/com.termux/files/home/.naab/language/include/naab/error_context.h:
 
 /data/data/com.termux/files/usr/include/c++/v1/__variant/monostate.h:
 

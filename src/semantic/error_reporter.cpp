@@ -9,6 +9,9 @@
 namespace naab {
 namespace error {
 
+// Static member initialization (Phase 4.1.32)
+bool Diagnostic::global_color_enabled_ = true;  // Enabled by default
+
 // ANSI color codes
 namespace colors {
     const char* RESET = "\033[0m";
@@ -311,6 +314,45 @@ std::string ErrorReporter::severityToColor(Severity sev) const {
         case Severity::Hint: return colors::CYAN;
     }
     return colors::RESET;
+}
+
+// ============================================================================
+// ErrorContext Integration (Phase 4.1)
+// ============================================================================
+
+ErrorContext ErrorReporter::createErrorContext(const Diagnostic& diag) const {
+    ErrorContext ctx;
+    ctx.filename = diag.filename.empty() ? filename_ : diag.filename;
+    ctx.line = diag.line;
+    ctx.column = diag.column;
+    ctx.error_message = diag.message;
+    ctx.source_line = getSourceLine(diag.line);
+
+    // Copy suggestions
+    if (!diag.suggestions.empty()) {
+        ctx.suggestion = diag.suggestions[0];  // Use first suggestion as main
+    }
+
+    // Copy related diagnostics as notes
+    for (const auto& related : diag.related) {
+        ctx.notes.push_back(related.message);
+    }
+
+    return ctx;
+}
+
+void ErrorReporter::reportFromContext(const ErrorContext& ctx, Severity severity) {
+    diagnostics_.emplace_back(severity, ctx.error_message, ctx.line, ctx.column, ctx.filename);
+
+    // Add suggestion if present
+    if (!ctx.suggestion.empty()) {
+        diagnostics_.back().suggestions.push_back(ctx.suggestion);
+    }
+
+    // Add notes as additional suggestions
+    for (const auto& note : ctx.notes) {
+        diagnostics_.back().suggestions.push_back(note);
+    }
 }
 
 } // namespace error
