@@ -13,6 +13,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/data/data/com.termux/files/home/.naab/language/tests/unit/lexer_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/lexer_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/lexer_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/parser_struct_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/parser_struct_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/parser_struct_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/parser_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/parser_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/parser_test.cpp.o.d"
+  "/data/data/com.termux/files/home/.naab/language/tests/unit/rust_ffi_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/stdlib_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/stdlib_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/stdlib_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/struct_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/tests/unit/type_system_test.cpp" "CMakeFiles/naab_unit_tests.dir/tests/unit/type_system_test.cpp.o" "gcc" "CMakeFiles/naab_unit_tests.dir/tests/unit/type_system_test.cpp.o.d"

@@ -268,10 +268,38 @@ CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/cpp_block_interface.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.s
 
+CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/rust_ffi_bridge.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/rust_ffi_bridge.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/rust_ffi_bridge.cpp > CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/rust_ffi_bridge.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.s
+
+CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/rust_executor.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/rust_executor.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/rust_executor.cpp > CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/rust_executor.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.s
+
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/python_executor.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/python_executor.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.i: cmake_force
@@ -285,7 +313,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.s: cmake_force
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/python_executor_adapter.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/python_executor_adapter.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.i: cmake_force
@@ -312,6 +340,8 @@ naab_runtime_OBJECTS = \
 "CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o"
 
@@ -332,11 +362,13 @@ libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/build.make
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Linking CXX static library libnaab_runtime.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Linking CXX static library libnaab_runtime.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/naab_runtime.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/naab_runtime.dir/link.txt --verbose=$(VERBOSE)
 

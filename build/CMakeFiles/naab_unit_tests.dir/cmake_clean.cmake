@@ -10,6 +10,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/naab_unit_tests.dir/tests/unit/parser_struct_test.cpp.o.d"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/parser_test.cpp.o"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/parser_test.cpp.o.d"
+  "CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o"
+  "CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o.d"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/stdlib_test.cpp.o"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/stdlib_test.cpp.o.d"
   "CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o"

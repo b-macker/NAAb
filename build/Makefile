@@ -3113,6 +3113,54 @@ src/runtime/resource_limits.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/resource_limits.cpp.s
 .PHONY : src/runtime/resource_limits.cpp.s
 
+src/runtime/rust_executor.o: src/runtime/rust_executor.cpp.o
+.PHONY : src/runtime/rust_executor.o
+
+# target to build an object file
+src/runtime/rust_executor.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o
+.PHONY : src/runtime/rust_executor.cpp.o
+
+src/runtime/rust_executor.i: src/runtime/rust_executor.cpp.i
+.PHONY : src/runtime/rust_executor.i
+
+# target to preprocess a source file
+src/runtime/rust_executor.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.i
+.PHONY : src/runtime/rust_executor.cpp.i
+
+src/runtime/rust_executor.s: src/runtime/rust_executor.cpp.s
+.PHONY : src/runtime/rust_executor.s
+
+# target to generate assembly for a file
+src/runtime/rust_executor.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.s
+.PHONY : src/runtime/rust_executor.cpp.s
+
+src/runtime/rust_ffi_bridge.o: src/runtime/rust_ffi_bridge.cpp.o
+.PHONY : src/runtime/rust_ffi_bridge.o
+
+# target to build an object file
+src/runtime/rust_ffi_bridge.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o
+.PHONY : src/runtime/rust_ffi_bridge.cpp.o
+
+src/runtime/rust_ffi_bridge.i: src/runtime/rust_ffi_bridge.cpp.i
+.PHONY : src/runtime/rust_ffi_bridge.i
+
+# target to preprocess a source file
+src/runtime/rust_ffi_bridge.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.i
+.PHONY : src/runtime/rust_ffi_bridge.cpp.i
+
+src/runtime/rust_ffi_bridge.s: src/runtime/rust_ffi_bridge.cpp.s
+.PHONY : src/runtime/rust_ffi_bridge.s
+
+# target to generate assembly for a file
+src/runtime/rust_ffi_bridge.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.s
+.PHONY : src/runtime/rust_ffi_bridge.cpp.s
+
 src/runtime/sandbox.o: src/runtime/sandbox.cpp.o
 .PHONY : src/runtime/sandbox.o
 
@@ -4073,6 +4121,30 @@ tests/unit/parser_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/parser_test.cpp.s
 .PHONY : tests/unit/parser_test.cpp.s
 
+tests/unit/rust_ffi_test.o: tests/unit/rust_ffi_test.cpp.o
+.PHONY : tests/unit/rust_ffi_test.o
+
+# target to build an object file
+tests/unit/rust_ffi_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o
+.PHONY : tests/unit/rust_ffi_test.cpp.o
+
+tests/unit/rust_ffi_test.i: tests/unit/rust_ffi_test.cpp.i
+.PHONY : tests/unit/rust_ffi_test.i
+
+# target to preprocess a source file
+tests/unit/rust_ffi_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.i
+.PHONY : tests/unit/rust_ffi_test.cpp.i
+
+tests/unit/rust_ffi_test.s: tests/unit/rust_ffi_test.cpp.s
+.PHONY : tests/unit/rust_ffi_test.s
+
+# target to generate assembly for a file
+tests/unit/rust_ffi_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.s
+.PHONY : tests/unit/rust_ffi_test.cpp.s
+
 tests/unit/stdlib_test.o: tests/unit/stdlib_test.cpp.o
 .PHONY : tests/unit/stdlib_test.o
 
@@ -4831,6 +4903,12 @@ help:
 	@echo "... src/runtime/resource_limits.o"
 	@echo "... src/runtime/resource_limits.i"
 	@echo "... src/runtime/resource_limits.s"
+	@echo "... src/runtime/rust_executor.o"
+	@echo "... src/runtime/rust_executor.i"
+	@echo "... src/runtime/rust_executor.s"
+	@echo "... src/runtime/rust_ffi_bridge.o"
+	@echo "... src/runtime/rust_ffi_bridge.i"
+	@echo "... src/runtime/rust_ffi_bridge.s"
 	@echo "... src/runtime/sandbox.o"
 	@echo "... src/runtime/sandbox.i"
 	@echo "... src/runtime/sandbox.s"
@@ -4951,6 +5029,9 @@ help:
 	@echo "... tests/unit/parser_test.o"
 	@echo "... tests/unit/parser_test.i"
 	@echo "... tests/unit/parser_test.s"
+	@echo "... tests/unit/rust_ffi_test.o"
+	@echo "... tests/unit/rust_ffi_test.i"
+	@echo "... tests/unit/rust_ffi_test.s"
 	@echo "... tests/unit/stdlib_test.o"
 	@echo "... tests/unit/stdlib_test.i"
 	@echo "... tests/unit/stdlib_test.s"

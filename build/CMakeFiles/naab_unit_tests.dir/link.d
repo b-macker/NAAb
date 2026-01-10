@@ -8,6 +8,7 @@ naab_unit_tests: \
  CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o \
  CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_struct_test.cpp.o \
  CMakeFiles/naab_unit_tests.dir/tests/unit/parser_struct_test.cpp.o \
+ CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o \
  lib/libgtest_main.a \
  lib/libgtest.a \
  libnaab_lexer.a \
@@ -101,6 +102,8 @@ CMakeFiles/naab_unit_tests.dir/tests/unit/struct_test.cpp.o:
 CMakeFiles/naab_unit_tests.dir/tests/unit/interpreter_struct_test.cpp.o:
 
 CMakeFiles/naab_unit_tests.dir/tests/unit/parser_struct_test.cpp.o:
+
+CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.o:
 
 lib/libgtest_main.a:
 
