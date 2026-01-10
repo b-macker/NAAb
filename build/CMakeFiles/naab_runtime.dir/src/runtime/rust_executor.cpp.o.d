@@ -1,8 +1,8 @@
 CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: \
   /data/data/com.termux/files/home/.naab/language/src/runtime/rust_executor.cpp \
   /data/data/com.termux/files/home/.naab/language/include/naab/rust_executor.h \
-  /data/data/com.termux/files/home/.naab/language/include/naab/rust_ffi.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/stddef.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/language_registry.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/memory \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__config \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__config_site \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__configuration/abi.h \
@@ -15,18 +15,6 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/android/ndk-version.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__configuration/availability.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__configuration/language.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/stddef.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_header_macro.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_ptrdiff_t.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_size_t.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_wchar_t.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_null.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_nullptr_t.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_max_align_t.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_offsetof.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/stdbool.h \
-  /data/data/com.termux/files/usr/lib/clang/21/include/stdbool.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/memory \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/addressof.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/align.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__cstddef/size_t.h \
@@ -120,6 +108,16 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: \
   /data/data/com.termux/files/usr/lib/clang/21/include/stdint.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/stdint.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/wchar_limits.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/stddef.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/stddef.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_header_macro.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_ptrdiff_t.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_size_t.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_wchar_t.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_null.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_nullptr_t.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_max_align_t.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/__stddef_offsetof.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_trivially_destructible.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_union.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_volatile.h \
@@ -665,6 +663,9 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/system_error \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/streambuf \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/cstdarg \
+  /data/data/com.termux/files/home/.naab/language/include/naab/rust_ffi.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/stdbool.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/stdbool.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/dlfcn.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
   /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \

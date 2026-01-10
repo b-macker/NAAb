@@ -13,6 +13,7 @@
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
 #include "naab/python_executor_adapter.h"
+#include "naab/rust_executor.h"
 #include "naab/rest_api.h"
 #include <fmt/core.h>
 #include <fstream>
@@ -40,6 +41,15 @@ void initialize_executors() {
         std::make_unique<naab::runtime::PyExecutorAdapter>());
     #else
     fmt::print("[INIT] HAVE_PYBIND11 is NOT defined, Python executor disabled\n");
+    #endif
+
+    // Register Rust executor (Phase 3.1-3.3)
+    #ifdef HAVE_RUST
+    fmt::print("[INIT] HAVE_RUST is defined, registering Rust executor\n");
+    registry.registerExecutor("rust",
+        std::make_unique<naab::runtime::RustExecutor>());
+    #else
+    fmt::print("[INIT] HAVE_RUST is NOT defined, Rust executor disabled\n");
     #endif
 }
 

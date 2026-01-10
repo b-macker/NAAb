@@ -1,6 +1,7 @@
 #ifndef NAAB_RUST_EXECUTOR_H
 #define NAAB_RUST_EXECUTOR_H
 
+#include "naab/language_registry.h"
 #include "naab/rust_ffi.h"
 #include <memory>
 #include <string>
@@ -26,20 +27,29 @@ namespace runtime {
  * The Rust library must export functions with signature:
  *   extern "C" NaabRustValue* function_name(NaabRustValue** args, size_t arg_count)
  */
-class RustExecutor {
+class RustExecutor : public Executor {
 public:
     RustExecutor();
-    ~RustExecutor();
+    ~RustExecutor() override;
+
+    // Executor interface implementation
+    bool execute(const std::string& code) override;
+    std::shared_ptr<interpreter::Value> callFunction(
+        const std::string& function_name,
+        const std::vector<std::shared_ptr<interpreter::Value>>& args
+    ) override;
+    bool isInitialized() const override;
+    std::string getLanguage() const override;
 
     /**
-     * Execute a Rust block function
+     * Execute a Rust block function directly (non-Executor interface)
      *
      * @param code URI in format "rust://path/to/lib.so::function_name"
      * @param args Arguments to pass to Rust function
      * @return Result from Rust function as C++ Value
      * @throws std::runtime_error on dlopen/dlsym failures or missing functions
      */
-    std::shared_ptr<interpreter::Value> execute(
+    std::shared_ptr<interpreter::Value> executeBlock(
         const std::string& code,
         const std::vector<std::shared_ptr<interpreter::Value>>& args
     );

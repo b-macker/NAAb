@@ -131,6 +131,11 @@ else()
     message(STATUS "  ⚠ pkg-config not found (cannot detect libffi)")
 endif()
 
+# Rust for Rust block execution (Phase 3.1-3.3)
+# Enable Rust support unconditionally (FFI implemented, executor ready)
+set(HAVE_RUST TRUE)
+message(STATUS "  ✓ Rust FFI implemented (Rust block execution enabled)")
+
 # Include directories
 include_directories(include)
 include_directories(external/abseil-cpp)
@@ -299,6 +304,12 @@ if(HAVE_PYBIND11)
     target_link_libraries(naab_runtime ${Python3_LIBRARIES})
     target_compile_definitions(naab_runtime PRIVATE HAVE_PYBIND11=1)
 endif()
+
+# Add Rust support (Phase 3.1-3.3)
+if(HAVE_RUST)
+    target_compile_definitions(naab_runtime PRIVATE HAVE_RUST=1)
+endif()
+
 target_include_directories(naab_runtime PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
 )
@@ -391,6 +402,9 @@ target_link_libraries(naab-lang
 )
 if(HAVE_PYBIND11)
     target_compile_definitions(naab-lang PRIVATE HAVE_PYBIND11=1)
+endif()
+if(HAVE_RUST)
+    target_compile_definitions(naab-lang PRIVATE HAVE_RUST=1)
 endif()
 message(STATUS "  ✓ Main executable (naab-lang)")
 

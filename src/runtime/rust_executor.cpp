@@ -29,7 +29,35 @@ RustExecutor::~RustExecutor() {
     }
 }
 
-std::shared_ptr<interpreter::Value> RustExecutor::execute(
+// Executor interface: execute code (store for later call)
+bool RustExecutor::execute(const std::string& code) {
+    // For Rust, we don't need to pre-compile/store code
+    // Just return success - actual execution happens in callFunction()
+    return true;
+}
+
+// Executor interface: call a function
+std::shared_ptr<interpreter::Value> RustExecutor::callFunction(
+    const std::string& function_name,
+    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+
+    // For Rust, function_name should be the full URI
+    // rust://path/to/lib.so::function_name
+    return executeBlock(function_name, args);
+}
+
+// Executor interface: check if initialized
+bool RustExecutor::isInitialized() const {
+    return true;  // Rust executor is always ready
+}
+
+// Executor interface: get language name
+std::string RustExecutor::getLanguage() const {
+    return "rust";
+}
+
+// Direct execution method
+std::shared_ptr<interpreter::Value> RustExecutor::executeBlock(
     const std::string& code,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
 
