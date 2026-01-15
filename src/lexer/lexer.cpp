@@ -198,6 +198,23 @@ std::string Lexer::readString() {
     return value;
 }
 
+std::string Lexer::readInlineCode() {
+    // Called after we've seen "<<", should read until ">>"
+    size_t start = pos_;
+
+    while (currentChar()) {
+        if (*currentChar() == '>' && peekChar() && *peekChar() == '>') {
+            // Found the closing >>
+            std::string code = source_.substr(start, pos_ - start);
+            return code;
+        }
+        advance();
+    }
+
+    // If we get here, we never found the closing >>
+    throw std::runtime_error("Unclosed inline code block at line " + std::to_string(line_));
+}
+
 std::vector<Token> Lexer::tokenize() {
     tokens_.clear();
 
@@ -283,8 +300,56 @@ std::vector<Token> Lexer::tokenize() {
             continue;
         }
 
+        if (ch == '<' && next && *next == '<') {
+            // Inline code block: <<language ... >>
+            advance();  // Skip first <
+            advance();  // Skip second <
+
+            // Skip whitespace after <<
+            while (currentChar() && (*currentChar() == ' ' || *currentChar() == '\t')) {
+                advance();
+            }
+
+            // Read language name
+            if (!currentChar() || !std::isalpha(*currentChar())) {
+                throw std::runtime_error("Expected language name after '<<' at line " + std::to_string(line_));
+            }
+
+            std::string language = readIdentifier();
+
+            // Skip whitespace/newlines after language name
+            while (currentChar() && (*currentChar() == ' ' || *currentChar() == '\t' || *currentChar() == '\n' || *currentChar() == '\r')) {
+                if (*currentChar() == '\n') {
+                    line_++;
+                    column_ = 1;
+                }
+                advance();
+            }
+
+            // Read the inline code
+            std::string code = readInlineCode();
+
+            // Skip the closing >>
+            if (currentChar() && *currentChar() == '>' && peekChar() && *peekChar() == '>') {
+                advance();  // Skip first >
+                advance();  // Skip second >
+            }
+
+            // Create INLINE_CODE token with format "language:code"
+            std::string value = language + ":" + code;
+            tokens_.emplace_back(TokenType::INLINE_CODE, value, line, col);
+            continue;
+        }
+
         if (ch == '<' && next && *next == '=') {
             tokens_.emplace_back(TokenType::LE, "<=", line, col);
+            advance();
+            advance();
+            continue;
+        }
+
+        if (ch == '>' && next && *next == '>') {
+            tokens_.emplace_back(TokenType::GT_GT, ">>", line, col);
             advance();
             advance();
             continue;

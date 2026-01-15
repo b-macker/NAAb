@@ -427,6 +427,17 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     return return_value;
 }
 
+// Phase 11.1: Helper to flush captured output from polyglot executors
+void Interpreter::flushExecutorOutput(runtime::Executor* executor) {
+    if (!executor) return;
+
+    std::string captured_output = executor->getCapturedOutput();
+    if (!captured_output.empty()) {
+        fmt::print("{}", captured_output);
+        std::cout.flush(); // Ensure immediate output
+    }
+}
+
 // ============================================================================
 // Phase 4.1: Stack Trace Helpers
 // ============================================================================
@@ -992,10 +1003,12 @@ void Interpreter::visit(ast::WhileStmt& node) {
 }
 
 void Interpreter::visit(ast::BreakStmt& node) {
+    (void)node; // Node info not needed for break control flow
     breaking_ = true;
 }
 
 void Interpreter::visit(ast::ContinueStmt& node) {
+    (void)node; // Node info not needed for continue control flow
     continuing_ = true;
 }
 
@@ -1211,6 +1224,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                         throw std::runtime_error("No executor for block in pipeline");
                     }
                     result_ = executor->callFunction((*block)->metadata.block_id, args);
+                    flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
 
                     // Phase 4.4: Record block usage for analytics
                     if (block_loader_) {
@@ -1255,6 +1269,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                         throw std::runtime_error("No executor for block in pipeline");
                     }
                     result_ = executor->callFunction((*block)->metadata.block_id, args);
+                    flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
 
                     // Phase 4.4: Record block usage for analytics
                     if (block_loader_) {
@@ -1460,6 +1475,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 profileStart("BLOCK-JS calls");
                 fmt::print("[JS CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
+                flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-JS calls");
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
@@ -1489,6 +1505,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 profileStart("BLOCK-CPP calls");
                 fmt::print("[CPP CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
+                flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-CPP calls");
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
@@ -1518,6 +1535,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 profileStart("BLOCK-PY calls");
                 fmt::print("[PY CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
+                flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-PY calls");
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
@@ -1752,6 +1770,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                 fmt::print("[INFO] Calling function: {}\n", function_to_call);
                 result_ = executor->callFunction(function_to_call, args);
+                flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
 
                 if (result_) {
                     fmt::print("[SUCCESS] Block call completed\n");
@@ -2199,6 +2218,69 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
     result_ = std::make_shared<Value>(struct_val);
 
     profileEnd("Struct creation");
+}
+
+void Interpreter::visit(ast::InlineCodeExpr& node) {
+    std::string language = node.getLanguage();
+    std::string raw_code = node.getCode();
+
+    // Strip common leading whitespace from all lines
+    std::vector<std::string> lines;
+    std::istringstream stream(raw_code);
+    std::string line;
+    while (std::getline(stream, line)) {
+        lines.push_back(line);
+    }
+
+    // Find minimum indentation (ignoring empty lines and first line)
+    size_t min_indent = std::string::npos;
+    for (size_t i = 1; i < lines.size(); ++i) {  // Skip first line (i=0)
+        const auto& l = lines[i];
+        if (l.empty() || l.find_first_not_of(" \t") == std::string::npos) continue;
+        size_t indent = l.find_first_not_of(" \t");
+        if (indent < min_indent) min_indent = indent;
+    }
+
+    // Strip the common indentation from all lines (except first)
+    std::string code;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        const auto& l = lines[i];
+
+        if (i == 0) {
+            // Keep first line as-is
+            code += l + "\n";
+        } else if (l.empty() || l.find_first_not_of(" \t") == std::string::npos) {
+            code += "\n";
+        } else {
+            if (min_indent != std::string::npos && l.length() > min_indent) {
+                code += l.substr(min_indent) + "\n";
+            } else {
+                code += l + "\n";
+            }
+        }
+    }
+
+    explain("Executing inline " + language + " code");
+
+    // Get the executor for this language
+    auto& registry = runtime::LanguageRegistry::instance();
+    auto* executor = registry.getExecutor(language);
+    if (!executor) {
+        throw std::runtime_error("No executor found for language: " + language);
+    }
+
+    // Execute the code
+    try {
+        executor->execute(code);
+
+        // Flush stdout from executor
+        flushExecutorOutput(executor);
+
+        // Return void/unit value
+        result_ = std::make_shared<Value>();
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Inline " + language + " execution failed: " + e.what());
+    }
 }
 
 // ============================================================================

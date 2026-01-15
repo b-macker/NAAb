@@ -27,6 +27,7 @@ enum class TokenType {
     NUMBER,
     STRING,
     BOOLEAN,
+    INLINE_CODE,   // Raw code inside << ... >>
 
     // Operators
     PLUS,          // +
@@ -41,6 +42,8 @@ enum class TokenType {
     LE,            // <=
     GT,            // >
     GE,            // >=
+    LT_LT,         // << (inline code start)
+    GT_GT,         // >> (inline code end)
     PIPE,          // |
     PIPELINE,      // |>
     AMPERSAND,     // &
@@ -114,6 +117,7 @@ private:
     std::string readBlockId();
     std::string readNumber();
     std::string readString();
+    std::string readInlineCode();  // Read code between << and >>
 
     // Keywords map
     static const std::unordered_map<std::string, TokenType> keywords_;

@@ -15,6 +15,9 @@
 #include "naab/js_executor_adapter.h"
 #include "naab/python_executor_adapter.h"
 #include "naab/rust_executor.h"
+#include "naab/csharp_executor.h"
+#include "naab/shell_executor.h"
+#include "naab/generic_subprocess_executor.h"
 #include "naab/rest_api.h"
 #include <fmt/core.h>
 #include <fstream>
@@ -52,6 +55,30 @@ void initialize_executors() {
     #else
     fmt::print("[INIT] HAVE_RUST is NOT defined, Rust executor disabled\n");
     #endif
+
+    // Polyglot Phase 7: Register shell executor
+    fmt::print("[INIT] Registering Shell executor\n");
+    registry.registerExecutor("shell",
+        std::make_unique<naab::runtime::ShellExecutor>());
+    registry.registerExecutor("sh",
+        std::make_unique<naab::runtime::ShellExecutor>());
+    registry.registerExecutor("bash",
+        std::make_unique<naab::runtime::ShellExecutor>());
+
+    // Polyglot Phase 7: Register Ruby executor (via GenericSubprocessExecutor)
+    fmt::print("[INIT] Registering Ruby executor\n");
+    registry.registerExecutor("ruby",
+        std::make_unique<naab::runtime::GenericSubprocessExecutor>("ruby", "ruby {}", ".rb"));
+
+    // Polyglot Phase 7: Register Go executor (via GenericSubprocessExecutor)
+    fmt::print("[INIT] Registering Go executor\n");
+    registry.registerExecutor("go",
+        std::make_unique<naab::runtime::GenericSubprocessExecutor>("go", "go run {}", ".go"));
+
+    // Polyglot Phase 11: Register C# executor
+    fmt::print("[INIT] Registering C# executor\n");
+    registry.registerExecutor("csharp", std::make_unique<naab::runtime::CSharpExecutor>());
+    registry.registerExecutor("cs", std::make_unique<naab::runtime::CSharpExecutor>());
 }
 
 std::string read_file(const std::string& filename) {

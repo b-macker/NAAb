@@ -18,6 +18,7 @@ class Expr;
 class Stmt;
 class StructDecl;
 class StructLiteralExpr;
+class InlineCodeExpr;
 
 // Source location for error reporting
 struct SourceLocation {
@@ -68,6 +69,7 @@ enum class NodeKind {
     DictExpr,
     ListExpr,
     StructLiteralExpr,    // Struct literal expression
+    InlineCodeExpr,       // Inline polyglot code: <<language code >>
 };
 
 class ASTNode {
@@ -731,6 +733,25 @@ private:
     std::vector<std::pair<std::string, std::unique_ptr<Expr>>> field_inits_;
 };
 
+// Inline polyglot code: <<language code >>
+class InlineCodeExpr : public Expr {
+public:
+    InlineCodeExpr(std::string language, std::string code,
+                   SourceLocation loc = SourceLocation())
+        : Expr(NodeKind::InlineCodeExpr, loc),
+          language_(std::move(language)), code_(std::move(code)) {}
+
+    const std::string& getLanguage() const { return language_; }
+    const std::string& getCode() const { return code_; }
+
+    Type getType() const override { return Type::makeVoid(); }
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::string language_;
+    std::string code_;
+};
+
 // ============================================================================
 // Program (top-level)
 // ============================================================================
@@ -823,10 +844,16 @@ public:
 
     // Struct support (default implementations - non-breaking)
     virtual void visit(StructDecl& node) {
+        (void)node; // Mark as intentionally unused
         throw std::runtime_error("StructDecl not supported by this visitor");
     }
     virtual void visit(StructLiteralExpr& node) {
+        (void)node; // Mark as intentionally unused
         throw std::runtime_error("StructLiteralExpr not supported by this visitor");
+    }
+    virtual void visit(InlineCodeExpr& node) {
+        (void)node; // Mark as intentionally unused
+        throw std::runtime_error("InlineCodeExpr not supported by this visitor");
     }
 };
 

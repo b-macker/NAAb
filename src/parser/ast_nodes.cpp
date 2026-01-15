@@ -157,6 +157,10 @@ void StructLiteralExpr::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void InlineCodeExpr::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 void Program::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }

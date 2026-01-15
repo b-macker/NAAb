@@ -364,6 +364,7 @@ public:
     void visit(ast::DictExpr& node) override;
     void visit(ast::ListExpr& node) override;
     void visit(ast::StructLiteralExpr& node) override;
+    void visit(ast::InlineCodeExpr& node) override;
 
     // Get last evaluated value
     std::shared_ptr<Value> getResult() const { return result_; }
@@ -371,6 +372,9 @@ public:
     // Call a function value with arguments (for higher-order functions)
     std::shared_ptr<Value> callFunction(std::shared_ptr<Value> fn,
                                         const std::vector<std::shared_ptr<Value>>& args);
+
+    // Phase 11.1: Flush captured output from polyglot executors
+    void flushExecutorOutput(runtime::Executor* executor);
 
     // Debugger support
     void setDebugger(std::shared_ptr<debugger::Debugger> debugger);

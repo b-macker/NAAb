@@ -3,6 +3,7 @@
 
 #include "naab/language_registry.h"
 #include "naab/rust_ffi.h"
+#include "naab/output_buffer.h"
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -40,6 +41,7 @@ public:
     ) override;
     bool isInitialized() const override;
     std::string getLanguage() const override;
+    std::string getCapturedOutput() override;
 
     /**
      * Execute a Rust block function directly (non-Executor interface)
@@ -89,6 +91,10 @@ private:
 
     // Cache of resolved functions: "path::function" -> function pointer
     std::unordered_map<std::string, NaabRustBlockFn> function_cache_;
+
+    // Output buffers for capturing stdout/stderr
+    OutputBuffer stdout_buffer_;
+    OutputBuffer stderr_buffer_;
 
     // Phase 4.2.4: Rust error extraction
     void extractRustError();

@@ -4,10 +4,13 @@
 #include "naab/rust_executor.h"
 #include "naab/rust_ffi.h"
 #include "naab/stack_tracer.h"  // Phase 4.2.4: Cross-language stack traces
+#include "naab/subprocess_helpers.h"  // For execute_subprocess_with_pipes
 #include <dlfcn.h>
 #include <fmt/core.h>
 #include <stdexcept>
 #include <regex>
+#include <fstream>
+#include <filesystem>
 
 namespace naab {
 namespace runtime {
@@ -32,9 +35,69 @@ RustExecutor::~RustExecutor() {
 
 // Executor interface: execute code (store for later call)
 bool RustExecutor::execute(const std::string& code) {
-    // For Rust, we don't need to pre-compile/store code
-    // Just return success - actual execution happens in callFunction()
-    return true;
+    // For inline Rust code, compile and execute immediately
+
+    // Create temp source file
+    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+    std::filesystem::path temp_rs = temp_dir / "naab_temp_rust.rs";
+    std::filesystem::path temp_bin = temp_dir / "naab_temp_rust";
+
+    // Write code to temp file
+    std::ofstream ofs(temp_rs);
+    if (!ofs.is_open()) {
+        fmt::print("[ERROR] Failed to create temp Rust source file\n");
+        return false;
+    }
+    ofs << code;
+    ofs.close();
+
+    // Compile with rustc
+    std::string compile_cmd = fmt::format("rustc {} -o {}", temp_rs.string(), temp_bin.string());
+    fmt::print("[INFO] Compiling Rust code: {}\n", compile_cmd);
+
+    std::string compile_stdout, compile_stderr;
+    int compile_exit = execute_subprocess_with_pipes(
+        "rustc",
+        {temp_rs.string(), "-o", temp_bin.string()},
+        compile_stdout,
+        compile_stderr,
+        nullptr
+    );
+
+    if (compile_exit != 0) {
+        fmt::print("[ERROR] Rust compilation failed:\n{}\n", compile_stderr);
+        std::filesystem::remove(temp_rs);
+        return false;
+    }
+
+    // Execute the binary
+    std::string exec_stdout, exec_stderr;
+    int exec_exit = execute_subprocess_with_pipes(
+        temp_bin.string(),
+        {},
+        exec_stdout,
+        exec_stderr,
+        nullptr
+    );
+
+    // Store output in buffer
+    stdout_buffer_.append(exec_stdout);
+    if (!exec_stderr.empty()) {
+        stderr_buffer_.append(exec_stderr);
+    }
+
+    // Cleanup
+    std::filesystem::remove(temp_rs);
+    std::filesystem::remove(temp_bin);
+
+    bool success = (exec_exit == 0);
+    if (success) {
+        fmt::print("[SUCCESS] Rust program executed (exit code {})\n", exec_exit);
+    } else {
+        fmt::print("[ERROR] Rust program failed with code {}\n", exec_exit);
+    }
+
+    return success;
 }
 
 // Executor interface: call a function
@@ -238,6 +301,15 @@ void RustExecutor::extractRustError() {
     } catch (const std::exception& ex) {
         fmt::print("[WARN] Failed to extract Rust error: {}\n", ex.what());
     }
+}
+
+std::string RustExecutor::getCapturedOutput() {
+    std::string output = stdout_buffer_.getAndClear();
+    std::string errors = stderr_buffer_.getAndClear();
+    if (!errors.empty()) {
+        output += "\n[Rust stderr]: " + errors;
+    }
+    return output;
 }
 
 } // namespace runtime

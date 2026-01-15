@@ -968,6 +968,22 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         return parseStructLiteral(name_token.value);
     }
 
+    // Inline polyglot code: <<language ... >>
+    if (match(lexer::TokenType::INLINE_CODE)) {
+        std::string value = tokens_[pos_ - 1].value;
+
+        // Parse "language:code" format
+        size_t colon_pos = value.find(':');
+        if (colon_pos == std::string::npos) {
+            throw ParseError("Invalid inline code format at line " + std::to_string(tokens_[pos_ - 1].line));
+        }
+
+        std::string language = value.substr(0, colon_pos);
+        std::string code = value.substr(colon_pos + 1);
+
+        return std::make_unique<ast::InlineCodeExpr>(language, code, ast::SourceLocation());
+    }
+
     // Identifier
     if (match(lexer::TokenType::IDENTIFIER)) {
         std::string name = tokens_[pos_ - 1].value;

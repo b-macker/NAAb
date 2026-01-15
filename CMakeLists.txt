@@ -265,12 +265,16 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/language_registry.cpp
     src/runtime/cpp_executor_adapter.cpp
     src/runtime/js_executor_adapter.cpp
+    src/runtime/shell_executor.cpp  # Polyglot: Shell executor
+    src/runtime/generic_subprocess_executor.cpp  # Polyglot: Generic subprocess executor
+    src/runtime/subprocess_helpers.cpp  # Polyglot: Subprocess utility functions
     src/runtime/cross_language_bridge.cpp
     src/runtime/module_resolver.cpp  # Phase 3.1: Module system
     src/runtime/struct_registry.cpp  # Struct support
     src/runtime/cpp_block_interface.cpp  # C FFI for struct support
     src/runtime/rust_ffi_bridge.cpp  # Phase 3.1: Rust FFI bridge
     src/runtime/rust_executor.cpp  # Phase 3.1: Rust executor
+    src/runtime/csharp_executor.cpp  # Phase 11: C# executor
     src/runtime/stack_tracer.cpp  # Phase 4.2: Cross-language stack traces
     src/runtime/stack_formatter.cpp  # Phase 4.2.6: Enhanced stack trace formatting
 )
