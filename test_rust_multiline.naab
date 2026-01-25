@@ -1,0 +1,23 @@
+main {
+    print("=== Rust Multi-line Code Test ===\n\n")
+
+    // Test 1: Simple multi-line calculation
+    print("1. Rust - Multi-line calculation:\n")
+    let rust_calc = <<rust
+let x = 50;
+let y = 30;
+x + y
+    >>
+    print("   Result: ", rust_calc, "\n\n")
+
+    // Test 2: Rust with type annotations
+    print("2. Rust - With type annotations:\n")
+    let rust_typed = <<rust
+let a: i32 = 100;
+let b: i32 = 200;
+a * b
+    >>
+    print("   Result: ", rust_typed, "\n\n")
+
+    print("=== Rust Multi-line Test Complete ===\n")
+}

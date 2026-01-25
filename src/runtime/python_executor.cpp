@@ -11,6 +11,14 @@
 #include <stdexcept>
 #include <unordered_map>
 
+// This block defines how Python can interact with our C++ class
+PYBIND11_EMBEDDED_MODULE(naab_internal, m) {
+    py::class_<naab::runtime::PythonExecutor::PythonOutputRedirector>(m, "OutputRedirector")
+        .def(py::init<naab::runtime::OutputBuffer&>())
+        .def("write", &naab::runtime::PythonExecutor::PythonOutputRedirector::write)
+        .def("flush", &naab::runtime::PythonExecutor::PythonOutputRedirector::flush);
+}
+
 namespace naab {
 namespace runtime {
 
@@ -23,10 +31,27 @@ PythonExecutor::PythonExecutor()
     try {
         py::module_::import("sys");
         py::module_::import("os");
-        fmt::print("[Python] Imported standard modules (sys, os)\n");
+        // Ensure our internal module is loaded so OutputRedirector type is registered
+        py::module_::import("naab_internal");
+        fmt::print("[Python] Imported standard modules (sys, os) and naab_internal\n");
     } catch (const py::error_already_set& e) {
         fmt::print("[WARN] Failed to import standard modules: {}\n", e.what());
     }
+
+    // --- Redirect Python stdout/stderr ---
+    // Use low-level C-API PySys_SetObject to bypass potential pybind11 proxy issues
+    // Pybind11 casts automatically handle ref-counting for the new C++ objects
+    stdout_redirector_ = py::cast(new PythonOutputRedirector(stdout_buffer_), py::return_value_policy::take_ownership);
+    stderr_redirector_ = py::cast(new PythonOutputRedirector(stderr_buffer_), py::return_value_policy::take_ownership);
+
+    if (PySys_SetObject("stdout", stdout_redirector_.ptr()) != 0) {
+        fmt::print("[WARN] Failed to set sys.stdout via PySys_SetObject\n");
+    }
+    if (PySys_SetObject("stderr", stderr_redirector_.ptr()) != 0) {
+        fmt::print("[WARN] Failed to set sys.stderr via PySys_SetObject\n");
+    }
+
+    fmt::print("[Python] Redirected stdout/stderr to internal buffers\n");
 }
 
 PythonExecutor::~PythonExecutor() {
@@ -40,6 +65,19 @@ void PythonExecutor::execute(const std::string& code) {
         fmt::print("[ERROR] Sandbox violation: Python execution denied\n");
         sandbox->logViolation("executePython", "<code>", "BLOCK_CALL capability required");
         throw std::runtime_error("Python execution denied by sandbox");
+    }
+
+    // Restore sys.stdout/stderr if missing (using robust C-API)
+    // We don't need to import sys module object to use PySys_SetObject
+    if (PySys_GetObject("stdout") == NULL) {
+        if (PySys_SetObject("stdout", stdout_redirector_.ptr()) != 0) {
+             fmt::print("[WARN] Failed to restore sys.stdout\n");
+        }
+    }
+    if (PySys_GetObject("stderr") == NULL) {
+        if (PySys_SetObject("stderr", stderr_redirector_.ptr()) != 0) {
+             fmt::print("[WARN] Failed to restore sys.stderr\n");
+        }
     }
 
     try {
@@ -60,14 +98,104 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
     try {
         // Execute with 30-second timeout
         security::ScopedTimeout timeout(30);
-        py::object result = py::eval(code, global_namespace_);
-        return pythonToValue(result);
+
+        // Try eval() first for simple expressions (backwards compatible)
+        try {
+            py::object result = py::eval(code, global_namespace_);
+            return pythonToValue(result);
+        } catch (const py::error_already_set& e) {
+            // Check if it's a SyntaxError (likely multi-line statements)
+            std::string error_msg = e.what();
+            if (error_msg.find("SyntaxError") != std::string::npos) {
+                // Fall back to exec() for multi-line statements
+                fmt::print("[Python] eval() failed, trying exec() for multi-line code\n");
+
+                // Clear the error state before trying exec
+                PyErr_Clear();
+
+                // Phase 2.3: Auto-capture last expression value
+                // Strategy: Find the last non-indented statement and prepend `_ = ` to capture its value
+                std::string modified_code = code;
+                std::vector<std::string> lines;
+                std::istringstream stream(modified_code);
+                std::string line;
+                while (std::getline(stream, line)) {
+                    lines.push_back(line);
+                }
+
+                // Find the last non-empty, non-comment, non-indented line (top-level statement)
+                int last_line_idx = -1;
+                for (int i = lines.size() - 1; i >= 0; i--) {
+                    std::string trimmed = lines[i];
+                    // Check if line starts without indentation (top-level)
+                    if (!trimmed.empty() && trimmed[0] != ' ' && trimmed[0] != '\t') {
+                        // Skip comment lines
+                        if (trimmed[0] != '#') {
+                            last_line_idx = i;
+                            break;
+                        }
+                    }
+                }
+
+                // Build modified code with `_ = ` before the last top-level statement
+                if (last_line_idx >= 0) {
+                    std::string wrapped_code;
+                    for (size_t i = 0; i < lines.size(); i++) {
+                        if (static_cast<int>(i) == last_line_idx) {
+                            // Check if last line is already an assignment or control structure
+                            std::string trimmed = lines[i];
+
+                            // Skip control structures (if, for, while, def, class, etc.)
+                            // Also skip imports and statements that don't produce a value
+                            if (trimmed.find("if ") == 0 || trimmed.find("if(") == 0 ||
+                                trimmed.find("for ") == 0 || trimmed.find("while ") == 0 ||
+                                trimmed.find("def ") == 0 || trimmed.find("class ") == 0 ||
+                                trimmed.find("with ") == 0 || trimmed.find("try:") == 0 ||
+                                trimmed.find("except") == 0 || trimmed.find("finally:") == 0 ||
+                                trimmed.find("else:") == 0 || trimmed.find("elif ") == 0 ||
+                                trimmed.find("import ") == 0 || trimmed.find("from ") == 0 ||
+                                trimmed.find("_ =") == 0 || trimmed.find("_=") == 0) {
+                                // Don't modify control structures, imports, or existing _ assignments
+                                wrapped_code += lines[i] + "\n";
+                            } else {
+                                // Prepend `_ = ` to capture the expression value
+                                wrapped_code += "_ = " + lines[i] + "\n";
+                            }
+                        } else {
+                            wrapped_code += lines[i] + "\n";
+                        }
+                    }
+                    modified_code = wrapped_code;
+                }
+
+                // Use exec() for multi-line statements
+                py::exec(modified_code, global_namespace_);
+
+                // Try to get the result from the `_` variable
+                try {
+                    if (global_namespace_.contains("_")) {
+                        py::object result = global_namespace_["_"];
+                        if (!result.is_none()) {
+                            return pythonToValue(result);
+                        }
+                    }
+                } catch (...) {
+                    // Ignore if '_' doesn't exist or can't be converted
+                }
+
+                // If no '_' variable, return None/void
+                return std::make_shared<interpreter::Value>();
+            } else {
+                // Not a SyntaxError, re-throw the original error
+                throw;
+            }
+        }
     } catch (const security::ResourceLimitException& e) {
-        fmt::print("[ERROR] Python eval timeout: {}\n", e.what());
-        security::AuditLogger::logTimeout("Python eval()", 30);
-        throw std::runtime_error("Python eval timed out");
+        fmt::print("[ERROR] Python execution timeout: {}\n", e.what());
+        security::AuditLogger::logTimeout("Python exec()", 30);
+        throw std::runtime_error("Python execution timed out");
     } catch (const py::error_already_set& e) {
-        throw std::runtime_error(fmt::format("Python eval error: {}", e.what()));
+        throw std::runtime_error(fmt::format("Python execution error: {}", e.what()));
     }
 }
 
@@ -188,7 +316,9 @@ py::object PythonExecutor::valueToPython(const std::shared_ptr<interpreter::Valu
         else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>) {
             // Dictionary → Python dict
             py::dict result;
-            for (const auto& [key, value] : arg) {
+            for (const auto& pair : arg) {
+                const auto& key = pair.first;
+                const auto& value = pair.second;
                 // Simple conversion for nested values
                 std::visit([&result, &key](auto&& inner_arg) {
                     using InnerT = std::decay_t<decltype(inner_arg)>;
@@ -293,6 +423,8 @@ std::shared_ptr<interpreter::Value> PythonExecutor::pythonToValue(const py::obje
 // ============================================================================
 
 void PythonExecutor::extractPythonTraceback(const py::error_already_set& e) {
+    (void)e; // Exception info fetched from Python's global error state instead
+
     try {
         // Get Python exception info
         PyObject* ptype = nullptr;
@@ -339,6 +471,15 @@ void PythonExecutor::extractPythonTraceback(const py::error_already_set& e) {
     } catch (const std::exception& ex) {
         fmt::print("[WARN] Failed to extract Python traceback: {}\n", ex.what());
     }
+}
+
+std::string PythonExecutor::getCapturedOutput() {
+    std::string output = stdout_buffer_.getAndClear();
+    std::string error_output = stderr_buffer_.getAndClear();
+    if (!error_output.empty()) {
+        output += " (stderr: " + error_output + ")";
+    }
+    return output;
 }
 
 } // namespace runtime

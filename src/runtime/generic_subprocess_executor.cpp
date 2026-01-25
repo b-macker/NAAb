@@ -9,6 +9,7 @@
 #include <stdexcept>    // For std::runtime_error
 #include <fmt/core.h>   // For fmt::print
 #include <fstream>      // For temporary file I/O
+#include <sstream>      // For string stream
 #include <string_view>  // For string_view
 #include <filesystem>   // For std::filesystem::path and temp_directory_path
 
@@ -114,6 +115,160 @@ bool naab::runtime::GenericSubprocessExecutor::execute(const std::string& code) 
         // temp_file_guard's destructor will handle deletion
         return success;
     }
+}
+
+// Phase 2.3: Execute and return stdout as value
+std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn(
+    const std::string& code) {
+
+    std::string stdout_output;
+    std::string stderr_output;
+    int exit_code;
+
+    if (file_extension_.empty()) {
+        // Run directly from code string
+        std::string command_line = format_command(command_template_, code);
+
+        // Parse command for subprocess execution
+        std::istringstream iss(command_line);
+        std::string cmd;
+        iss >> cmd;
+        std::vector<std::string> args;
+        std::string arg;
+        while (iss >> arg) {
+            args.push_back(arg);
+        }
+
+        exit_code = execute_subprocess_with_pipes(
+            cmd, args, stdout_output, stderr_output, nullptr);
+
+    } else {
+        // Write to temp file and run
+        std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+        std::filesystem::path temp_file_path = temp_dir / ("naab_temp_" + language_id_ + file_extension_);
+
+        int counter = 0;
+        while (std::filesystem::exists(temp_file_path)) {
+            temp_file_path = temp_dir / (
+                "naab_temp_" + language_id_ + "_" + std::to_string(counter++) + file_extension_
+            );
+            if (counter > 1000) {
+                throw std::runtime_error("Failed to find unique temp file name");
+            }
+        }
+
+        TempFileGuard temp_file_guard(temp_file_path);
+
+        // Phase 2.3: Multi-line support - add language-specific wrapping
+        std::string wrapped_code = code;
+
+        // Go-specific wrapping: if no package main, wrap in it
+        if (language_id_ == "go" && code.find("package main") == std::string::npos) {
+            // Check if multi-line
+            if (code.find('\n') != std::string::npos) {
+                // Multi-line: wrap in main() and print last expression
+                std::vector<std::string> lines;
+                std::istringstream stream(code);
+                std::string line;
+                while (std::getline(stream, line)) {
+                    lines.push_back(line);
+                }
+
+                // Find last non-empty line
+                int last_line_idx = -1;
+                for (int i = lines.size() - 1; i >= 0; i--) {
+                    std::string trimmed = lines[i];
+                    size_t s = trimmed.find_first_not_of(" \t\r");
+                    if (s != std::string::npos) {
+                        last_line_idx = i;
+                        break;
+                    }
+                }
+
+                wrapped_code = "package main\nimport \"fmt\"\nfunc main() {\n";
+                for (size_t i = 0; i < lines.size(); i++) {
+                    if (static_cast<int>(i) == last_line_idx) {
+                        // Last line: print it
+                        std::string trimmed = lines[i];
+                        size_t s = trimmed.find_first_not_of(" \t\r");
+                        if (s != std::string::npos) {
+                            trimmed = trimmed.substr(s);
+                            wrapped_code += "\tfmt.Println(" + trimmed + ")\n";
+                        }
+                    } else {
+                        wrapped_code += "\t" + lines[i] + "\n";
+                    }
+                }
+                wrapped_code += "}\n";
+            } else {
+                // Single-line expression
+                std::string expr = code;
+                size_t s = expr.find_first_not_of(" \t\r");
+                if (s != std::string::npos) {
+                    expr = expr.substr(s);
+                }
+                wrapped_code = "package main\nimport \"fmt\"\nfunc main() {\n\tfmt.Println(" + expr + ")\n}\n";
+            }
+        }
+
+        std::ofstream ofs(temp_file_path);
+        if (!ofs.is_open()) {
+            throw std::runtime_error("Failed to create temp file");
+        }
+        ofs << wrapped_code;
+        ofs.close();
+
+        std::string command_line = format_command(command_template_, temp_file_path.string());
+
+        // Parse command for subprocess execution
+        std::istringstream iss(command_line);
+        std::string cmd;
+        iss >> cmd;
+        std::vector<std::string> args;
+        std::string arg;
+        while (iss >> arg) {
+            args.push_back(arg);
+        }
+
+        exit_code = execute_subprocess_with_pipes(
+            cmd, args, stdout_output, stderr_output, nullptr);
+    }
+
+    // Print output (side effects preserved)
+    if (!stdout_output.empty()) {
+        fmt::print("{}", stdout_output);
+    }
+    if (!stderr_output.empty()) {
+        fmt::print("[{} stderr]: {}", language_id_, stderr_output);
+    }
+
+    // Trim trailing newline
+    std::string result = stdout_output;
+    if (!result.empty() && result.back() == '\n') {
+        result.pop_back();
+    }
+
+    // Try to parse as number
+    if (!result.empty()) {
+        try {
+            size_t pos;
+            int i = std::stoi(result, &pos);
+            if (pos == result.size()) {
+                return std::make_shared<naab::interpreter::Value>(i);
+            }
+        } catch (...) {}
+
+        try {
+            size_t pos;
+            double d = std::stod(result, &pos);
+            if (pos == result.size()) {
+                return std::make_shared<naab::interpreter::Value>(d);
+            }
+        } catch (...) {}
+    }
+
+    // Return as string
+    return std::make_shared<naab::interpreter::Value>(result);
 }
 
 std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::callFunction(

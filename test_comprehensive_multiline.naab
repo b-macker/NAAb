@@ -1,0 +1,66 @@
+main {
+    print("=== Comprehensive Multi-line Code Test ===\n\n")
+
+    // JavaScript - Multi-line object creation
+    print("1. JavaScript - Multi-line Object:\n")
+    let js_obj = <<javascript
+const config = {
+    name: "production",
+    servers: ["web-01", "web-02"],
+    timeout: 30,
+    enabled: true
+};
+JSON.stringify(config);
+    >>
+    print("   ", js_obj, "\n\n")
+
+    // JavaScript - Multi-statement with variables
+    print("2. JavaScript - Multi-statement:\n")
+    let js_calc = <<javascript
+const a = 10;
+const b = 20;
+const result = {
+    sum: a + b,
+    product: a * b
+};
+JSON.stringify(result);
+    >>
+    print("   ", js_calc, "\n\n")
+
+    // Python - Multi-line with control flow
+    print("3. Python - Multi-line with if/else:\n")
+    let py_result = <<python
+data = [1, 2, 3, 4, 5]
+total = sum(data)
+if total > 10:
+    result = {"status": "high", "value": total}
+else:
+    result = {"status": "low", "value": total}
+import json
+json.dumps(result)
+    >>
+    print("   ", py_result, "\n\n")
+
+    // Python - Multi-line statistics
+    print("4. Python - Statistics:\n")
+    let py_stats = <<python
+import statistics
+numbers = [10, 20, 30, 40, 50]
+mean_val = statistics.mean(numbers)
+median_val = statistics.median(numbers)
+str({"mean": mean_val, "median": median_val})
+    >>
+    print("   ", py_stats, "\n\n")
+
+    // Shell - Multi-line script
+    print("5. Shell - Multi-line script:\n")
+    let sh_result = <<bash
+NAME="test-server"
+PORT=8080
+STATUS="running"
+echo "{\"name\":\"$NAME\",\"port\":$PORT,\"status\":\"$STATUS\"}"
+    >>
+    print("   ", sh_result, "\n\n")
+
+    print("=== All Multi-line Tests Passed! ===\n")
+}

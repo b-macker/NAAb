@@ -1,6 +1,7 @@
 // NAAb Rust Executor Implementation
 // Loads and executes Rust blocks via dlopen and FFI
 
+#include "naab/interpreter.h"  // Phase 2.3: MUST be first for Value definition
 #include "naab/rust_executor.h"
 #include "naab/rust_ffi.h"
 #include "naab/stack_tracer.h"  // Phase 4.2.4: Cross-language stack traces
@@ -10,6 +11,7 @@
 #include <stdexcept>
 #include <regex>
 #include <fstream>
+#include <sstream>
 #include <filesystem>
 
 namespace naab {
@@ -98,6 +100,134 @@ bool RustExecutor::execute(const std::string& code) {
     }
 
     return success;
+}
+
+// Phase 2.3: Execute and return stdout as value
+std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
+    const std::string& code) {
+
+    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+    std::filesystem::path temp_rs = temp_dir / "naab_temp_rust_ret.rs";
+    std::filesystem::path temp_bin = temp_dir / "naab_temp_rust_ret";
+
+    // Phase 2.3: Multi-line support - check if code needs wrapping
+    std::string rust_code = code;
+
+    // If code contains main(), use as-is
+    if (code.find("fn main()") == std::string::npos &&
+        code.find("fn main (") == std::string::npos) {
+
+        // No main() - need to wrap
+        // Check if multi-line
+        if (code.find('\n') != std::string::npos) {
+            // Multi-line: wrap in main() and print last expression
+            std::vector<std::string> lines;
+            std::istringstream stream(code);
+            std::string line;
+            while (std::getline(stream, line)) {
+                lines.push_back(line);
+            }
+
+            // Find last non-empty line
+            int last_line_idx = -1;
+            for (int i = lines.size() - 1; i >= 0; i--) {
+                std::string trimmed = lines[i];
+                size_t s = trimmed.find_first_not_of(" \t\r");
+                if (s != std::string::npos) {
+                    last_line_idx = i;
+                    break;
+                }
+            }
+
+            rust_code = "fn main() {\n";
+            for (size_t i = 0; i < lines.size(); i++) {
+                if (static_cast<int>(i) == last_line_idx) {
+                    // Last line: print it
+                    std::string trimmed = lines[i];
+                    size_t s = trimmed.find_first_not_of(" \t\r");
+                    if (s != std::string::npos) {
+                        trimmed = trimmed.substr(s);
+                        // Remove trailing semicolon if present
+                        if (!trimmed.empty() && trimmed.back() == ';') {
+                            trimmed.pop_back();
+                        }
+                        rust_code += "    println!(\"{}\", " + trimmed + ");\n";
+                    }
+                } else {
+                    rust_code += "    " + lines[i] + "\n";
+                }
+            }
+            rust_code += "}\n";
+        } else {
+            // Single-line expression
+            std::string expr = code;
+            size_t s = expr.find_first_not_of(" \t\r");
+            if (s != std::string::npos) {
+                expr = expr.substr(s);
+            }
+            // Remove trailing semicolon
+            if (!expr.empty() && expr.back() == ';') {
+                expr.pop_back();
+            }
+            rust_code = "fn main() {\n    println!(\"{}\", " + expr + ");\n}\n";
+        }
+    }
+
+    std::ofstream ofs(temp_rs);
+    if (!ofs.is_open()) {
+        return std::make_shared<interpreter::Value>();
+    }
+    ofs << rust_code;
+    ofs.close();
+
+    // Compile
+    std::string compile_stdout, compile_stderr;
+    int compile_exit = execute_subprocess_with_pipes(
+        "rustc", {temp_rs.string(), "-o", temp_bin.string()},
+        compile_stdout, compile_stderr, nullptr
+    );
+
+    if (compile_exit != 0) {
+        std::filesystem::remove(temp_rs);
+        return std::make_shared<interpreter::Value>();
+    }
+
+    // Execute
+    std::string exec_stdout, exec_stderr;
+    int exec_exit = execute_subprocess_with_pipes(
+        temp_bin.string(), {},
+        exec_stdout, exec_stderr, nullptr
+    );
+
+    // Print output
+    if (!exec_stdout.empty()) fmt::print("{}", exec_stdout);
+    if (!exec_stderr.empty()) fmt::print("[Rust stderr]: {}", exec_stderr);
+
+    // Cleanup
+    std::filesystem::remove(temp_rs);
+    std::filesystem::remove(temp_bin);
+
+    // Trim trailing newline
+    std::string result = exec_stdout;
+    if (!result.empty() && result.back() == '\n') result.pop_back();
+
+    // Try to parse as number
+    if (!result.empty()) {
+        try {
+            size_t pos;
+            int i = std::stoi(result, &pos);
+            if (pos == result.size()) return std::make_shared<interpreter::Value>(i);
+        } catch (...) {}
+
+        try {
+            size_t pos;
+            double d = std::stod(result, &pos);
+            if (pos == result.size()) return std::make_shared<interpreter::Value>(d);
+        } catch (...) {}
+    }
+
+    // Return as string
+    return std::make_shared<interpreter::Value>(result);
 }
 
 // Executor interface: call a function

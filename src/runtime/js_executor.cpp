@@ -79,6 +79,10 @@ bool JsExecutor::execute(const std::string& code) {
 
     fmt::print("[JS] Executing JavaScript code ({} bytes)\n", code.size());
 
+    // Wrap code in IIFE to isolate variable scope between blocks
+    // This prevents variable redeclaration errors when using const/let
+    std::string wrapped_code = "(function() {\n" + code + "\n})();";
+
     // Set up timeout mechanism (30 seconds)
     timeout_triggered_ = false;
     std::thread timeout_thread([this]() {
@@ -87,8 +91,8 @@ bool JsExecutor::execute(const std::string& code) {
     });
     timeout_thread.detach();
 
-    // Evaluate code in global context
-    JSValue result = JS_Eval(ctx_, code.c_str(), code.length(),
+    // Evaluate wrapped code in global context (IIFE creates local scope)
+    JSValue result = JS_Eval(ctx_, wrapped_code.c_str(), wrapped_code.length(),
                               "<naab-block>", JS_EVAL_TYPE_GLOBAL);
 
     // Clear timeout flag
@@ -205,23 +209,71 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
         throw std::runtime_error("JavaScript runtime not initialized");
     }
 
-    // Evaluate expression
-    JSValue result = JS_Eval(ctx_, expression.c_str(), expression.length(),
-                              "<eval>", JS_EVAL_TYPE_GLOBAL);
+    // Phase 2.3: Fixed multi-line code handling
+    // Strategy: Just evaluate the code directly - QuickJS eval returns the last expression value
 
-    // Check for errors
-    if (JS_IsException(result)) {
-        std::string error = getLastError();
-        JS_FreeValue(ctx_, result);
-        throw std::runtime_error(fmt::format(
-            "JavaScript evaluation failed: {}", error));
+    std::string code = expression;
+
+    // Trim leading/trailing whitespace
+    size_t first = code.find_first_not_of(" \t\n\r");
+    size_t last = code.find_last_not_of(" \t\n\r");
+    if (first != std::string::npos && last != std::string::npos) {
+        code = code.substr(first, last - first + 1);
     }
 
-    // Convert result
-    auto naab_result = fromJSValue(ctx_, result);
-    JS_FreeValue(ctx_, result);
+    // In JavaScript, when you eval a sequence of statements, the value is the value of
+    // the last expression statement. We wrap in parens to ensure we get a value back.
+    // For multi-line code with declarations, we use a different approach:
+    // wrap in an IIFE and evaluate as a module/script
 
-    return naab_result;
+    // Check if code contains newlines (multi-statement)
+    if (code.find('\n') != std::string::npos) {
+        // Multi-line code: wrap in IIFE and use eval() to get last expression value
+        // JavaScript's eval() returns the value of the last expression statement
+
+        // Escape backticks and backslashes for template literal
+        std::string escaped_code = code;
+        std::string result_str;
+        for (char c : escaped_code) {
+            if (c == '`') result_str += "\\`";
+            else if (c == '\\') result_str += "\\\\";
+            else if (c == '$') result_str += "\\$";
+            else result_str += c;
+        }
+
+        std::string wrapped = "(function() { return eval(`" + result_str + "`); })()";
+
+        JSValue result = JS_Eval(ctx_, wrapped.c_str(), wrapped.length(),
+                                  "<eval>", JS_EVAL_TYPE_GLOBAL);
+
+        if (JS_IsException(result)) {
+            std::string error = getLastError();
+            JS_FreeValue(ctx_, result);
+            throw std::runtime_error(fmt::format(
+                "JavaScript evaluation failed: {}", error));
+        }
+
+        auto naab_result = fromJSValue(ctx_, result);
+        JS_FreeValue(ctx_, result);
+        return naab_result;
+    } else {
+        // Single-line expression: wrap in parens and evaluate
+        std::string wrapped_expr = "(" + code + ")";
+
+        JSValue result = JS_Eval(ctx_, wrapped_expr.c_str(), wrapped_expr.length(),
+                                  "<eval>", JS_EVAL_TYPE_GLOBAL);
+
+        if (JS_IsException(result)) {
+            std::string error = getLastError();
+            JS_FreeValue(ctx_, result);
+            throw std::runtime_error(fmt::format(
+                "JavaScript evaluation failed: {}", error));
+        }
+
+        auto naab_result = fromJSValue(ctx_, result);
+        JS_FreeValue(ctx_, result);
+        return naab_result;
+    }
 }
 
 // Interrupt handler for QuickJS timeout support
