@@ -101,6 +101,7 @@ void print_usage() {
     fmt::print("  naab-lang stats                     Show usage statistics\n");
     fmt::print("  naab-lang blocks list               List block statistics\n");
     fmt::print("  naab-lang blocks search <query>     Search blocks\n");
+    fmt::print("  naab-lang blocks info <block-id>    Show block details\n");
     fmt::print("  naab-lang blocks index [path]       Build search index\n");
     fmt::print("  naab-lang api [port]                Start REST API server\n");
     fmt::print("  naab-lang version                   Show version\n");
@@ -131,24 +132,26 @@ int main(int argc, char** argv) {
         }
         std::string filename = argv[2];
 
-        // Parse flags
+        // Parse flags and collect script arguments
         bool verbose = false;
         bool profile = false;
         bool explain = false;
         bool no_color = false;
+        std::vector<std::string> script_args; // GEMINI FIX: Collect arguments for the NAAb script
+
         for (int i = 3; i < argc; ++i) {
             std::string arg(argv[i]);
             if (arg == "--verbose" || arg == "-v") {
                 verbose = true;
-            }
-            if (arg == "--profile" || arg == "-p") {
+            } else if (arg == "--profile" || arg == "-p") {
                 profile = true;
-            }
-            if (arg == "--explain") {
+            } else if (arg == "--explain") {
                 explain = true;
-            }
-            if (arg == "--no-color") {
+            } else if (arg == "--no-color") {
                 no_color = true;
+            } else {
+                // If it's not a recognized naab-lang flag, it's an argument for the NAAb script
+                script_args.push_back(arg); // GEMINI FIX: Store argument for NAAb script
             }
         }
 
@@ -164,7 +167,8 @@ int main(int argc, char** argv) {
             auto tokens = lexer.tokenize();
 
             // Interpret
-            naab::interpreter::Interpreter interpreter;
+            // GEMINI FIX: Pass collected script arguments to interpreter
+            naab::interpreter::Interpreter interpreter(script_args);
             interpreter.setVerboseMode(verbose);
             interpreter.setProfileMode(profile);
             interpreter.setExplainMode(explain);
@@ -172,8 +176,12 @@ int main(int argc, char** argv) {
             // Parse
             interpreter.profileStart("Parsing");
             naab::parser::Parser parser(tokens);
+            parser.setSource(source, filename);  // Phase 3.1: Set source for AST location tracking
             auto program = parser.parseProgram();
             interpreter.profileEnd("Parsing");
+
+            // Phase 3.1: Set source code for enhanced error messages
+            interpreter.setSourceCode(source, filename);
 
             interpreter.execute(*program);
 
@@ -183,6 +191,10 @@ int main(int argc, char** argv) {
 
             return 0;
 
+        } catch (const naab::interpreter::NaabError& e) {
+            // NaabError has full stack trace - print it
+            fmt::print("{}\n", e.formatError());
+            return 1;
         } catch (const std::exception& e) {
             fmt::print("Error: {}\n", e.what());
             return 1;
@@ -201,6 +213,7 @@ int main(int argc, char** argv) {
             auto tokens = lexer.tokenize();
 
             naab::parser::Parser parser(tokens);
+            parser.setSource(source, filename);  // Phase 3.1: Set source for AST location tracking
             auto program = parser.parseProgram();
 
             fmt::print("Parsed successfully!\n");
@@ -227,6 +240,7 @@ int main(int argc, char** argv) {
             auto tokens = lexer.tokenize();
 
             naab::parser::Parser parser(tokens);
+            parser.setSource(source, filename);  // Phase 3.1: Set source for AST location tracking
             auto program = parser.parseProgram();
 
             // Type check
@@ -417,6 +431,7 @@ int main(int argc, char** argv) {
             fmt::print("Usage:\n");
             fmt::print("  naab-lang blocks list\n");
             fmt::print("  naab-lang blocks search <query>\n");
+            fmt::print("  naab-lang blocks info <block-id>\n");
             fmt::print("  naab-lang blocks index [path]\n");
             return 1;
         }
@@ -539,9 +554,84 @@ int main(int argc, char** argv) {
                 return 1;
             }
 
+        } else if (subcmd == "info") {
+            // ISS-013 Fix: Implement 'blocks info' command
+            if (argc < 4) {
+                fmt::print("Error: Missing block ID\n");
+                fmt::print("Usage: naab-lang blocks info <block-id>\n");
+                return 1;
+            }
+
+            std::string block_id = argv[3];
+
+            try {
+                // Use default blocks database location
+                std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+                naab::runtime::BlockSearchIndex search_index(db_path);
+
+                // Get block metadata
+                auto block_opt = search_index.getBlock(block_id);
+
+                if (!block_opt.has_value()) {
+                    fmt::print("Block not found: {}\n", block_id);
+                    fmt::print("Use 'naab-lang blocks search <query>' to find blocks\n");
+                    return 1;
+                }
+
+                const auto& block = block_opt.value();
+
+                // Display block information
+                fmt::print("Block Information\n");
+                fmt::print("=================\n\n");
+                fmt::print("ID:           {}\n", block.block_id);
+                fmt::print("Language:     {}\n", block.language);
+                fmt::print("Description:  {}\n", block.description);
+
+                if (!block.input_types.empty() || !block.output_type.empty()) {
+                    fmt::print("Input Types:  {}\n", block.input_types.empty() ? "void" : block.input_types);
+                    fmt::print("Output Type:  {}\n", block.output_type.empty() ? "void" : block.output_type);
+                }
+
+                if (!block.category.empty()) {
+                    fmt::print("Category:     {}\n", block.category);
+                }
+
+                if (!block.tags.empty()) {
+                    fmt::print("Tags:         ");
+                    for (size_t i = 0; i < block.tags.size(); i++) {
+                        if (i > 0) fmt::print(", ");
+                        fmt::print("{}", block.tags[i]);
+                    }
+                    fmt::print("\n");
+                }
+
+                if (!block.performance_tier.empty()) {
+                    fmt::print("Performance:  {}\n", block.performance_tier);
+                }
+
+                if (block.success_rate_percent >= 0) {
+                    fmt::print("Success Rate: {}%\n", block.success_rate_percent);
+                }
+
+                if (block.avg_tokens_saved > 0) {
+                    fmt::print("Tokens Saved: {}\n", block.avg_tokens_saved);
+                }
+
+                if (block.times_used > 0) {
+                    fmt::print("Times Used:   {}\n", block.times_used);
+                }
+
+                return 0;
+
+            } catch (const std::exception& e) {
+                fmt::print("Error getting block info: {}\n", e.what());
+                fmt::print("Hint: Run 'naab-lang blocks index' to build the search index\n");
+                return 1;
+            }
+
         } else {
             fmt::print("Unknown blocks subcommand: {}\n", subcmd);
-            fmt::print("Available: list, search, index\n");
+            fmt::print("Available: list, search, index, info\n");
             return 1;
         }
 

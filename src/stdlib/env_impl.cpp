@@ -31,10 +31,15 @@ static std::shared_ptr<interpreter::Value> makeMap(const std::unordered_map<std:
 static std::shared_ptr<interpreter::Value> makeNull();
 static std::unordered_map<std::string, std::string> parseEnvFile(const std::string& content);
 
+// GEMINI FIX: EnvModule constructor now takes Interpreter pointer
+EnvModule::EnvModule(interpreter::Interpreter* interpreter)
+    : interpreter_(interpreter) {}
+
 bool EnvModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "get", "set_var", "has", "delete_var", "get_all",
-        "load_dotenv", "parse_env_file", "get_int", "get_float", "get_bool"
+        "load_dotenv", "parse_env_file", "get_int", "get_float", "get_bool",
+        "get_args" // GEMINI FIX: Add get_args to available functions
     };
     return functions.count(name) > 0;
 }
@@ -42,6 +47,22 @@ bool EnvModule::hasFunction(const std::string& name) const {
 std::shared_ptr<interpreter::Value> EnvModule::call(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+
+    // GEMINI FIX: Function to get command-line arguments passed to the NAAb script
+    if (function_name == "get_args") {
+        if (args.size() != 0) {
+            throw std::runtime_error("get_args() takes no arguments");
+        }
+        if (!interpreter_) {
+            throw std::runtime_error("Interpreter not set for EnvModule.");
+        }
+        // Convert std::vector<std::string> to NAAb list<string>
+        std::vector<std::shared_ptr<interpreter::Value>> naab_args;
+        for (const auto& arg : interpreter_->getScriptArgs()) {
+            naab_args.push_back(makeString(arg));
+        }
+        return std::make_shared<interpreter::Value>(naab_args);
+    }
 
     // Function 1: get - Get environment variable
     if (function_name == "get") {
@@ -242,29 +263,7 @@ static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
     }, val->data);
 }
 
-static int getInt(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> int {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected integer value");
-        }
-    }, val->data);
-}
-
-static double getDouble(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> double {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, double>) {
-            return arg;
-        } else if constexpr (std::is_same_v<T, int>) {
-            return static_cast<double>(arg);
-        } else {
-            throw std::runtime_error("Expected numeric value");
-        }
-    }, val->data);
-}
+// Note: getInt() and getDouble() helper functions removed (unused)
 
 static bool getBool(const std::shared_ptr<interpreter::Value>& val) {
     return std::visit([](auto&& arg) -> bool {

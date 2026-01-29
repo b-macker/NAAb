@@ -7,6 +7,7 @@
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
+#include <iostream>
 #include <filesystem>
 #include <stdexcept>
 
@@ -21,13 +22,15 @@ namespace stdlib {
 
 bool IOModule::hasFunction(const std::string& name) const {
     return name == "read_file" || name == "write_file" ||
-           name == "exists" || name == "list_dir";
+           name == "exists" || name == "list_dir" ||
+           name == "write" || name == "write_error" || name == "read_line";
 }
 
 std::shared_ptr<interpreter::Value> IOModule::call(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
 
+    // File I/O functions
     if (function_name == "read_file") {
         return read_file(args);
     } else if (function_name == "write_file") {
@@ -36,6 +39,38 @@ std::shared_ptr<interpreter::Value> IOModule::call(
         return exists(args);
     } else if (function_name == "list_dir") {
         return list_dir(args);
+    }
+
+    // Console I/O functions
+    else if (function_name == "write") {
+        // Write to stdout
+        if (args.empty()) {
+            throw std::runtime_error("write() requires at least one argument");
+        }
+        for (const auto& arg : args) {
+            std::cout << arg->toString();
+        }
+        std::cout.flush();
+        return std::make_shared<interpreter::Value>();  // Return null/void
+    }
+    else if (function_name == "write_error") {
+        // Write to stderr
+        if (args.empty()) {
+            throw std::runtime_error("write_error() requires at least one argument");
+        }
+        for (const auto& arg : args) {
+            std::cerr << arg->toString();
+        }
+        std::cerr.flush();
+        return std::make_shared<interpreter::Value>();  // Return null/void
+    }
+    else if (function_name == "read_line") {
+        // Read line from stdin
+        std::string line;
+        if (std::getline(std::cin, line)) {
+            return std::make_shared<interpreter::Value>(line);
+        }
+        return std::make_shared<interpreter::Value>("");  // Return empty string on EOF
     }
 
     throw std::runtime_error("Unknown io function: " + function_name);
@@ -124,7 +159,8 @@ std::shared_ptr<interpreter::Value> IOModule::list_dir(
 // ============================================================================
 
 bool CollectionsModule::hasFunction(const std::string& name) const {
-    return name == "Set" || name == "set_add" || name == "set_contains";
+    return name == "Set" || name == "set_add" || name == "set_contains" ||
+           name == "set_remove" || name == "set_size";
 }
 
 std::shared_ptr<interpreter::Value> CollectionsModule::call(
@@ -137,6 +173,10 @@ std::shared_ptr<interpreter::Value> CollectionsModule::call(
         return set_add(args);
     } else if (function_name == "set_contains") {
         return set_contains(args);
+    } else if (function_name == "set_remove") {
+        return set_remove(args);
+    } else if (function_name == "set_size") {
+        return set_size(args);
     }
 
     throw std::runtime_error("Unknown collections function: " + function_name);
@@ -144,6 +184,7 @@ std::shared_ptr<interpreter::Value> CollectionsModule::call(
 
 std::shared_ptr<interpreter::Value> CollectionsModule::set_create(
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    (void)args; // Intentionally unused - creates empty set
 
     // Create empty set (represented as list for now)
     std::vector<std::shared_ptr<interpreter::Value>> set_data;
@@ -158,10 +199,29 @@ std::shared_ptr<interpreter::Value> CollectionsModule::set_add(
         throw std::runtime_error("set_add requires set and value arguments");
     }
 
-    // Simplified implementation - production needs proper set type
-    fmt::print("[COLLECTIONS] set_add called (placeholder)\n");
+    // Get the set (represented as vector)
+    auto& set_value = args[0];
+    auto& new_value = args[1];
 
-    return std::make_shared<interpreter::Value>(true);
+    // Extract vector from set
+    auto vec_ptr = std::get_if<std::vector<std::shared_ptr<interpreter::Value>>>(&set_value->data);
+    if (!vec_ptr) {
+        throw std::runtime_error("set_add: first argument must be a set");
+    }
+
+    // Check if value already exists (ensure uniqueness)
+    for (const auto& item : *vec_ptr) {
+        if (item->toString() == new_value->toString()) {
+            // Value already exists, return the same set
+            return set_value;
+        }
+    }
+
+    // Create new set with the additional value
+    std::vector<std::shared_ptr<interpreter::Value>> new_set = *vec_ptr;
+    new_set.push_back(new_value);
+
+    return std::make_shared<interpreter::Value>(new_set);
 }
 
 std::shared_ptr<interpreter::Value> CollectionsModule::set_contains(
@@ -171,17 +231,81 @@ std::shared_ptr<interpreter::Value> CollectionsModule::set_contains(
         throw std::runtime_error("set_contains requires set and value arguments");
     }
 
-    // Simplified implementation
-    fmt::print("[COLLECTIONS] set_contains called (placeholder)\n");
+    auto& set_value = args[0];
+    auto& search_value = args[1];
+
+    // Extract vector from set
+    auto vec_ptr = std::get_if<std::vector<std::shared_ptr<interpreter::Value>>>(&set_value->data);
+    if (!vec_ptr) {
+        throw std::runtime_error("set_contains: first argument must be a set");
+    }
+
+    // Search for value in set
+    std::string search_str = search_value->toString();
+    for (const auto& item : *vec_ptr) {
+        if (item->toString() == search_str) {
+            return std::make_shared<interpreter::Value>(true);
+        }
+    }
 
     return std::make_shared<interpreter::Value>(false);
+}
+
+std::shared_ptr<interpreter::Value> CollectionsModule::set_remove(
+    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+
+    if (args.size() < 2) {
+        throw std::runtime_error("set_remove requires set and value arguments");
+    }
+
+    auto& set_value = args[0];
+    auto& remove_value = args[1];
+
+    // Extract vector from set
+    auto vec_ptr = std::get_if<std::vector<std::shared_ptr<interpreter::Value>>>(&set_value->data);
+    if (!vec_ptr) {
+        throw std::runtime_error("set_remove: first argument must be a set");
+    }
+
+    // Create new set without the specified value
+    std::vector<std::shared_ptr<interpreter::Value>> new_set;
+    std::string remove_str = remove_value->toString();
+
+    for (const auto& item : *vec_ptr) {
+        if (item->toString() != remove_str) {
+            new_set.push_back(item);
+        }
+    }
+
+    return std::make_shared<interpreter::Value>(new_set);
+}
+
+std::shared_ptr<interpreter::Value> CollectionsModule::set_size(
+    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+
+    if (args.size() < 1) {
+        throw std::runtime_error("set_size requires set argument");
+    }
+
+    auto& set_value = args[0];
+
+    // Extract vector from set
+    auto vec_ptr = std::get_if<std::vector<std::shared_ptr<interpreter::Value>>>(&set_value->data);
+    if (!vec_ptr) {
+        throw std::runtime_error("set_size: argument must be a set");
+    }
+
+    return std::make_shared<interpreter::Value>(static_cast<int>(vec_ptr->size()));
 }
 
 // ============================================================================
 // Standard Library Manager
 // ============================================================================
 
-StdLib::StdLib() {
+// GEMINI FIX: Constructor now takes Interpreter pointer
+StdLib::StdLib(interpreter::Interpreter* interpreter)
+    : interpreter_(interpreter) // GEMINI FIX: Store interpreter pointer
+{
     registerModules();
 }
 
@@ -197,7 +321,8 @@ void StdLib::registerModules() {
     modules_["array"] = std::make_shared<ArrayModule>();
     modules_["math"] = std::make_shared<MathModule>();
     modules_["time"] = std::make_shared<TimeModule>();
-    modules_["env"] = std::make_shared<EnvModule>();
+    // GEMINI FIX: Pass interpreter pointer to EnvModule constructor
+    modules_["env"] = std::make_shared<EnvModule>(interpreter_);
     modules_["csv"] = std::make_shared<CsvModule>();
     modules_["regex"] = std::make_shared<RegexModule>();
     modules_["crypto"] = std::make_shared<CryptoModule>();

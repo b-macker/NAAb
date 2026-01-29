@@ -11,6 +11,8 @@
 #include "naab/language_registry.h"
 #include "naab/debugger.h"
 #include "naab/module_resolver.h"  // Phase 3.1
+#include "naab/environment.h" // GEMINI FIX: Added include for Environment
+#include "naab/value.h" // GEMINI FIX: Added include for Value
 #include <Python.h>
 #include <chrono>
 #include <memory>
@@ -24,99 +26,14 @@ namespace naab {
 namespace interpreter {
 
 // Forward declarations
-class Value;
-class Environment;
+// class Value; // GEMINI FIX: Removed forward declaration as full header is included
+// class Environment; // GEMINI FIX: Removed forward declaration as full header is included
 
-// Block wrapper for loaded blocks (multi-language support)
-struct BlockValue {
-    runtime::BlockMetadata metadata;
-    std::string code;
-    std::string python_namespace;  // Python namespace name for this block (Python only)
-    std::string member_path;        // For member access like "Class.method"
+#include "naab/block_value.h"
 
-    // Phase 7: Executor support (either owned or borrowed)
-    runtime::Executor* executor_;              // Borrowed executor (for shared executors like JS)
-    std::unique_ptr<runtime::Executor> owned_executor_;  // Owned executor (for C++ blocks)
+#include "naab/function_value.h"
 
-    BlockValue(const runtime::BlockMetadata& meta, const std::string& c,
-               const std::string& ns = "", const std::string& mp = "")
-        : metadata(meta), code(c), python_namespace(ns), member_path(mp), executor_(nullptr) {}
-
-    // Phase 7: Constructor with borrowed executor (for JS, Python, etc.)
-    BlockValue(const runtime::BlockMetadata& meta, const std::string& c,
-               runtime::Executor* exec)
-        : metadata(meta), code(c), python_namespace(""), member_path(""), executor_(exec) {}
-
-    // Phase 7: Constructor with owned executor (for C++)
-    BlockValue(const runtime::BlockMetadata& meta, const std::string& c,
-               std::unique_ptr<runtime::Executor> exec)
-        : metadata(meta), code(c), python_namespace(""), member_path(""),
-          executor_(nullptr), owned_executor_(std::move(exec)) {}
-
-    // Phase 7: Get active executor (owned or borrowed)
-    runtime::Executor* getExecutor() const {
-        return owned_executor_ ? owned_executor_.get() : executor_;
-    }
-};
-
-// Function wrapper for user-defined functions
-struct FunctionValue {
-    std::string name;
-    std::vector<std::string> params;
-    std::vector<ast::Expr*> defaults;  // Default values for parameters (non-owning pointers)
-    std::shared_ptr<ast::CompoundStmt> body;
-
-    FunctionValue(const std::string& n,
-                  const std::vector<std::string>& p,
-                  std::vector<ast::Expr*> d,
-                  std::shared_ptr<ast::CompoundStmt> b)
-        : name(n), params(p), defaults(std::move(d)), body(b) {}
-};
-
-// Python object wrapper for method chaining
-struct PythonObjectValue {
-    PyObject* obj;       // Owned reference
-    std::string repr;    // String representation for display
-
-    explicit PythonObjectValue(PyObject* o) : obj(o), repr("<python-object>") {
-        if (obj) {
-            Py_INCREF(obj);  // Take ownership
-            // Get string representation
-            PyObject* str_obj = PyObject_Str(obj);
-            if (str_obj) {
-                const char* str_val = PyUnicode_AsUTF8(str_obj);
-                if (str_val) repr = str_val;
-                Py_DECREF(str_obj);
-            }
-        }
-    }
-
-    ~PythonObjectValue() {
-        if (obj) {
-            Py_DECREF(obj);  // Release reference
-        }
-    }
-
-    // Delete copy constructor/assignment to prevent double-free
-    PythonObjectValue(const PythonObjectValue&) = delete;
-    PythonObjectValue& operator=(const PythonObjectValue&) = delete;
-
-    // Allow move
-    PythonObjectValue(PythonObjectValue&& other) noexcept
-        : obj(other.obj), repr(std::move(other.repr)) {
-        other.obj = nullptr;
-    }
-
-    PythonObjectValue& operator=(PythonObjectValue&& other) noexcept {
-        if (this != &other) {
-            if (obj) Py_DECREF(obj);
-            obj = other.obj;
-            repr = std::move(other.repr);
-            other.obj = nullptr;
-        }
-        return *this;
-    }
-};
+#include "naab/python_object_value.h"
 
 // ============================================================================
 // Error Handling - Phase 4.1
@@ -184,149 +101,12 @@ private:
     std::shared_ptr<Value> value_;  // For throw <value> support
 };
 
-// Forward declarations for struct types
-struct StructDef;
-struct StructValue;
+#include "naab/struct_value.h"
 
-// Struct type definition
-struct StructDef {
-    std::string name;
-    std::vector<ast::StructField> fields;
-    std::unordered_map<std::string, size_t> field_index;
+class Value; // GEMINI FIX: Forward declaration, full definition moved to naab/value.h
 
-    StructDef() = default;
-    StructDef(std::string n, std::vector<ast::StructField> f)
-        : name(std::move(n)), fields(std::move(f)) {
-        for (size_t i = 0; i < fields.size(); ++i) {
-            field_index[fields[i].name] = i;
-        }
-    }
-};
 
-// Struct instance value
-struct StructValue {
-    std::string type_name;
-    std::shared_ptr<StructDef> definition;
-    std::vector<std::shared_ptr<Value>> field_values;
 
-    StructValue() = default;
-    StructValue(std::string name, std::shared_ptr<StructDef> def)
-        : type_name(std::move(name)), definition(def) {
-        if (def) {
-            field_values.resize(def->fields.size());
-        }
-    }
-
-    // Optimized: inline for zero call overhead
-    inline std::shared_ptr<Value> getField(const std::string& name) const {
-        if (!definition) [[unlikely]] {
-            throw std::runtime_error("Struct has no definition");
-        }
-        auto it = definition->field_index.find(name);
-        if (it == definition->field_index.end()) [[unlikely]] {
-            throw std::runtime_error("Field '" + name +
-                                   "' not found in struct '" + type_name + "'");
-        }
-        return field_values[it->second];
-    }
-    // Optimized: inline for zero call overhead
-    inline void setField(const std::string& name, std::shared_ptr<Value> value) {
-        if (!definition) [[unlikely]] {
-            throw std::runtime_error("Struct has no definition");
-        }
-        auto it = definition->field_index.find(name);
-        if (it == definition->field_index.end()) [[unlikely]] {
-            throw std::runtime_error("Field '" + name +
-                                   "' not found in struct '" + type_name + "'");
-        }
-        field_values[it->second] = value;
-    }
-
-    // Fast path: direct indexed access (bypasses hash lookup)
-    inline std::shared_ptr<Value> getFieldByIndex(size_t index) const {
-        if (index >= field_values.size()) [[unlikely]] {
-            throw std::runtime_error("Field index out of bounds");
-        }
-        return field_values[index];
-    }
-
-    inline void setFieldByIndex(size_t index, std::shared_ptr<Value> value) {
-        if (index >= field_values.size()) [[unlikely]] {
-            throw std::runtime_error("Field index out of bounds");
-        }
-        field_values[index] = value;
-    }
-
-    // Get field index by name (for caching)
-    inline size_t getFieldIndex(const std::string& name) const {
-        if (!definition) [[unlikely]] {
-            throw std::runtime_error("Struct has no definition");
-        }
-        auto it = definition->field_index.find(name);
-        if (it == definition->field_index.end()) [[unlikely]] {
-            throw std::runtime_error("Field '" + name +
-                                   "' not found in struct '" + type_name + "'");
-        }
-        return it->second;
-    }
-};
-
-// Runtime value types
-using ValueData = std::variant<
-    std::monostate,  // void/null (index 0)
-    int,             // index 1
-    double,          // index 2
-    bool,            // index 3
-    std::string,     // index 4
-    std::vector<std::shared_ptr<Value>>,  // list (index 5)
-    std::unordered_map<std::string, std::shared_ptr<Value>>,  // dict (index 6)
-    std::shared_ptr<BlockValue>,  // block (index 7)
-    std::shared_ptr<FunctionValue>,  // function (index 8)
-    std::shared_ptr<PythonObjectValue>,  // python object (index 9)
-    std::shared_ptr<StructValue>  // struct (index 10)
->;
-
-class Value {
-public:
-    ValueData data;
-
-    Value() : data(std::monostate{}) {}
-    explicit Value(int v) : data(v) {}
-    explicit Value(double v) : data(v) {}
-    explicit Value(bool v) : data(v) {}
-    explicit Value(std::string v) : data(std::move(v)) {}
-    explicit Value(std::vector<std::shared_ptr<Value>> v) : data(std::move(v)) {}
-    explicit Value(std::unordered_map<std::string, std::shared_ptr<Value>> v) : data(std::move(v)) {}
-    explicit Value(std::shared_ptr<BlockValue> v) : data(std::move(v)) {}
-    explicit Value(std::shared_ptr<FunctionValue> v) : data(std::move(v)) {}
-    explicit Value(std::shared_ptr<PythonObjectValue> v) : data(std::move(v)) {}
-    explicit Value(std::shared_ptr<StructValue> v) : data(std::move(v)) {}
-
-    std::string toString() const;
-    bool toBool() const;
-    int toInt() const;
-    double toFloat() const;
-};
-
-// Variable environment (scoping)
-class Environment {
-public:
-    Environment() : parent_(nullptr) {}
-    explicit Environment(std::shared_ptr<Environment> parent) : parent_(parent) {}
-
-    void define(const std::string& name, std::shared_ptr<Value> value);
-    std::shared_ptr<Value> get(const std::string& name);
-    void set(const std::string& name, std::shared_ptr<Value> value);
-    bool has(const std::string& name) const;
-    std::vector<std::string> getAllNames() const;
-
-    // Exported structs from this module (Week 7)
-    std::unordered_map<std::string, std::shared_ptr<StructDef>> exported_structs_;
-
-private:
-    std::unordered_map<std::string, std::shared_ptr<Value>> values_;
-    std::shared_ptr<Environment> parent_;
-};
 
 // Interpreter
 class Interpreter : public ast::ASTVisitor {

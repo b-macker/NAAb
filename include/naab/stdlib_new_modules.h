@@ -13,7 +13,7 @@ namespace stdlib {
 // String Module
 class StringModule : public Module {
 public:
-    std::string getName() const override { return "string"; }
+    std::string getName() const override; // GEMINI FIX: Removed inline definition
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -31,7 +31,7 @@ public:
     ArrayModule() = default;
     explicit ArrayModule(FunctionEvaluator evaluator) : evaluator_(std::move(evaluator)) {}
 
-    std::string getName() const override { return "array"; }
+    std::string getName() const override; // GEMINI FIX: Removed inline definition
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -47,7 +47,7 @@ private:
 // Math Module
 class MathModule : public Module {
 public:
-    std::string getName() const override { return "math"; }
+    std::string getName() const override; // GEMINI FIX: Removed inline definition
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -57,7 +57,7 @@ public:
 // Time Module
 class TimeModule : public Module {
 public:
-    std::string getName() const override { return "time"; }
+    std::string getName() const override; // GEMINI FIX: Removed inline definition
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -67,17 +67,20 @@ public:
 // Env Module
 class EnvModule : public Module {
 public:
-    std::string getName() const override { return "env"; }
+    EnvModule(naab::interpreter::Interpreter* interpreter);
+    std::string getName() const override; // GEMINI FIX: Removed inline definition
     bool hasFunction(const std::string& name) const override;
-    std::shared_ptr<interpreter::Value> call(
+    std::shared_ptr<naab::interpreter::Value> call(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+        const std::vector<std::shared_ptr<naab::interpreter::Value>>& args) override;
+private:
+    naab::interpreter::Interpreter* interpreter_;
 };
 
 // CSV Module
 class CsvModule : public Module {
 public:
-    std::string getName() const override { return "csv"; }
+    std::string getName() const override; // GEMINI FIX: Removed inline definition
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -87,7 +90,7 @@ public:
 // Regex Module
 class RegexModule : public Module {
 public:
-    std::string getName() const override { return "regex"; }
+    std::string getName() const override; // GEMINI FIX: Removed inline definition
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -97,7 +100,7 @@ public:
 // Crypto Module
 class CryptoModule : public Module {
 public:
-    std::string getName() const override { return "crypto"; }
+    std::string getName() const override; // GEMINI FIX: Removed inline definition
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -107,12 +110,13 @@ public:
 // File Module
 class FileModule : public Module {
 public:
-    std::string getName() const override { return "file"; }
+    std::string getName() const override; // GEMINI FIX: Removed inline definition
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
         const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
 };
+
 
 } // namespace stdlib
 } // namespace naab
