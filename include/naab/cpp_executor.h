@@ -96,6 +96,7 @@ private:
     // Helper methods
     std::string getSourcePath(const std::string& block_id) const;
     std::string getLibraryPath(const std::string& block_id) const;
+    std::string wrapFragmentIfNeeded(const std::string& code);
     bool compileToSharedLibrary(
         const std::string& source_path,
         const std::string& so_path,

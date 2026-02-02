@@ -18,8 +18,10 @@ enum class TokenType {
     USE, AS, FUNCTION, ASYNC, METHOD, RETURN,
     IF, ELSE, FOR, IN, WHILE, BREAK, CONTINUE,
     MATCH, TRY, CATCH, THROW, FINALLY,  // Phase 4.1: Exception handling
-    STRUCT, CLASS, INIT, MODULE, EXPORT, IMPORT, NEW,
-    CONFIG, MAIN, LET, CONST, AWAIT,
+    STRUCT, CLASS, INIT, MODULE, EXPORT, IMPORT, FROM, DEFAULT, NEW,
+    CONFIG, MAIN, LET, CONST, AWAIT, NULL_LITERAL,
+    REF,  // Phase 2.1: Reference types
+    ENUM,  // Phase 2.4.3: Enum types
 
     // Literals
     IDENTIFIER,
@@ -51,6 +53,8 @@ enum class TokenType {
     OR,            // ||
     NOT,           // !
     DOT,           // .
+    DOTDOT,        // .. (range operator - exclusive)
+    DOTDOT_EQ,     // ..= (range operator - inclusive)
     ARROW,         // ->
     FAT_ARROW,     // =>
     QUESTION,      // ?

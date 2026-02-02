@@ -70,6 +70,31 @@ std::string CppExecutor::getLibraryPath(const std::string& block_id) const {
     return cache_dir_ + "/" + block_id + ".so";
 }
 
+// Helper to wrap code fragments in main() if needed
+std::string CppExecutor::wrapFragmentIfNeeded(const std::string& code) {
+    // Heuristic: Check if code looks like a complete program
+    bool has_includes = code.find("#include") != std::string::npos;
+    bool has_main = code.find("int main") != std::string::npos ||
+                   code.find("void main") != std::string::npos;
+
+    // If it has main, assume it's complete
+    if (has_main) {
+        return code;
+    }
+
+    // Otherwise, wrap it in a main function
+    std::ostringstream wrapped;
+
+    // If no includes, the headers are already added by compileBlock
+    // Just wrap the code in main
+    wrapped << "int main() {\n";
+    wrapped << "    " << code << "\n";
+    wrapped << "    return 0;\n";
+    wrapped << "}\n";
+
+    return wrapped.str();
+}
+
 bool CppExecutor::compileBlock(
     const std::string& block_id,
     const std::string& code,
@@ -106,9 +131,25 @@ bool CppExecutor::compileBlock(
     // If it's a fragment, we'll need wrapping (not implemented yet)
     source_file << "// Auto-generated from NAAb C++ block: " << block_id << "\n\n";
 
-    // Write the code directly
-    // TODO: Detect if code is a fragment and needs wrapping
-    source_file << code;
+    // Inject common STL headers for inline C++ code
+    // This allows users to use std::cout, std::vector, std::sort, etc. without explicit includes
+    source_file << "#include <iostream>\n";
+    source_file << "#include <vector>\n";
+    source_file << "#include <algorithm>\n";
+    source_file << "#include <string>\n";
+    source_file << "#include <map>\n";
+    source_file << "#include <unordered_map>\n";
+    source_file << "#include <set>\n";
+    source_file << "#include <unordered_set>\n";
+    source_file << "#include <memory>\n";
+    source_file << "#include <utility>\n";
+    source_file << "#include <cmath>\n";
+    source_file << "#include <cstdlib>\n";
+    source_file << "\n";
+
+    // Write the code (wrapped if it's a fragment)
+    std::string final_code = wrapFragmentIfNeeded(code);
+    source_file << final_code;
 
     source_file.close();
 
@@ -138,12 +179,19 @@ bool CppExecutor::compileToSharedLibrary(
     // Build library flags from dependencies
     std::string lib_flags = buildLibraryFlags(dependencies);
 
+    // Get NAAb include directory (relative to executable or known location)
+    // For Termux, assume NAAb is installed in a standard location
+    std::string naab_include = "/data/data/com.termux/files/home/.naab/language/include";
+    std::string python_include = "/data/data/com.termux/files/usr/include/python3.12";
+
     std::ostringstream cmd;
     cmd << compiler << " "
         << "-std=c++17 "
         << "-fPIC "           // Position-independent code
         << "-shared "         // Build shared library
         << "-O2 "             // Optimize
+        << "-I" << naab_include << " "  // Include NAAb headers
+        << "-I" << python_include << " "  // Include Python headers (for pybind11)
         << "-o " << so_path << " "
         << source_path << " ";
 

@@ -2,6 +2,7 @@
 // Ported from Python implementation (naab/compiler/lexer.py)
 
 #include "naab/lexer.h"
+#include "naab/limits.h"  // Week 1, Task 1.2: Input size caps
 #include <cctype>
 #include <stdexcept>
 
@@ -35,18 +36,26 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"module", TokenType::MODULE},
     {"export", TokenType::EXPORT},
     {"import", TokenType::IMPORT},
+    {"from", TokenType::FROM},
+    {"default", TokenType::DEFAULT},
     {"new", TokenType::NEW},
     {"config", TokenType::CONFIG},
     {"main", TokenType::MAIN},
     {"let", TokenType::LET},
     {"const", TokenType::CONST},
     {"await", TokenType::AWAIT},
+    {"null", TokenType::NULL_LITERAL},
+    {"ref", TokenType::REF},  // Phase 2.1: Reference types
+    {"enum", TokenType::ENUM},  // Phase 2.4.3: Enum types
     {"true", TokenType::BOOLEAN},
     {"false", TokenType::BOOLEAN},
 };
 
 Lexer::Lexer(const std::string& source)
-    : source_(source), pos_(0), line_(1), column_(1) {}
+    : source_(source), pos_(0), line_(1), column_(1) {
+    // Week 1, Task 1.2: Check input size to prevent DoS
+    limits::checkStringSize(source.size(), "Source file");
+}
 
 std::optional<char> Lexer::currentChar() const {
     if (pos_ < source_.length()) {
@@ -162,6 +171,12 @@ std::string Lexer::readNumber() {
 
     while (currentChar() && (std::isdigit(*currentChar()) || *currentChar() == '.')) {
         if (*currentChar() == '.') {
+            // Check if this is the range operator (..)
+            auto next = peekChar();
+            if (next && *next == '.') {
+                // This is .., not a decimal point - stop reading the number
+                break;
+            }
             if (has_dot) {
                 break;
             }
@@ -177,19 +192,34 @@ std::string Lexer::readString() {
     char quote = *currentChar();
     advance();  // Skip opening quote
 
-    size_t start = pos_;
+    std::string value;
     while (currentChar() && *currentChar() != quote) {
         if (*currentChar() == '\\') {
-            advance();  // Skip escape char
+            advance();  // Skip backslash
             if (currentChar()) {
-                advance();  // Skip escaped char
+                // Interpret escape sequences
+                char escaped = *currentChar();
+                switch (escaped) {
+                    case 'n':  value += '\n'; break;  // Newline
+                    case 't':  value += '\t'; break;  // Tab
+                    case 'r':  value += '\r'; break;  // Carriage return
+                    case '\\': value += '\\'; break;  // Backslash
+                    case '"':  value += '"';  break;  // Double quote
+                    case '\'': value += '\''; break;  // Single quote
+                    case '0':  value += '\0'; break;  // Null character
+                    default:
+                        // Unknown escape sequence - keep the backslash and character
+                        value += '\\';
+                        value += escaped;
+                        break;
+                }
+                advance();
             }
         } else {
+            value += *currentChar();
             advance();
         }
     }
-
-    std::string value = source_.substr(start, pos_ - start);
 
     if (currentChar() && *currentChar() == quote) {
         advance();  // Skip closing quote
@@ -317,7 +347,24 @@ std::vector<Token> Lexer::tokenize() {
 
             std::string language = readIdentifier();
 
-            // Skip whitespace/newlines after language name
+            // Phase 2.2: Check for optional variable binding list [var1, var2]
+            std::string var_list;
+            if (currentChar() && *currentChar() == '[') {
+                advance();  // Skip [
+
+                // Read everything until ]
+                while (currentChar() && *currentChar() != ']') {
+                    var_list += *currentChar();
+                    advance();
+                }
+
+                if (!currentChar() || *currentChar() != ']') {
+                    throw std::runtime_error("Expected ']' after variable list at line " + std::to_string(line_));
+                }
+                advance();  // Skip ]
+            }
+
+            // Skip whitespace/newlines after language name (or var list)
             while (currentChar() && (*currentChar() == ' ' || *currentChar() == '\t' || *currentChar() == '\n' || *currentChar() == '\r')) {
                 if (*currentChar() == '\n') {
                     line_++;
@@ -335,8 +382,13 @@ std::vector<Token> Lexer::tokenize() {
                 advance();  // Skip second >
             }
 
-            // Create INLINE_CODE token with format "language:code"
-            std::string value = language + ":" + code;
+            // Phase 2.2: Create INLINE_CODE token with format "language[var1,var2]:code" or "language:code"
+            std::string value;
+            if (!var_list.empty()) {
+                value = language + "[" + var_list + "]:" + code;
+            } else {
+                value = language + ":" + code;
+            }
             tokens_.emplace_back(TokenType::INLINE_CODE, value, line, col);
             continue;
         }
@@ -399,6 +451,23 @@ std::vector<Token> Lexer::tokenize() {
 
         if (ch == ':' && next && *next == ':') {
             tokens_.emplace_back(TokenType::DOUBLE_COLON, "::", line, col);
+            advance();
+            advance();
+            continue;
+        }
+
+        if (ch == '.' && next && *next == '.') {
+            // Check for ..= (inclusive range)
+            auto third = peekChar(2);
+            if (third && *third == '=') {
+                tokens_.emplace_back(TokenType::DOTDOT_EQ, "..=", line, col);
+                advance();
+                advance();
+                advance();
+                continue;
+            }
+            // Otherwise it's .. (exclusive range)
+            tokens_.emplace_back(TokenType::DOTDOT, "..", line, col);
             advance();
             advance();
             continue;

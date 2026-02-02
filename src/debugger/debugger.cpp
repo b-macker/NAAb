@@ -230,6 +230,8 @@ int Debugger::getCurrentDepth() const {
 
 // Variable inspection
 std::shared_ptr<interpreter::Value> Debugger::inspectVariable(const std::string& name) {
+    (void)name; // TODO: Use when Environment interface is available
+
     if (!current_environment_) {
         return nullptr;
     }
@@ -340,10 +342,44 @@ void Debugger::setBreakpointCallback(BreakpointCallback callback) {
 
 // Helper methods
 bool Debugger::evaluateCondition(const std::string& condition) {
-    // Placeholder: condition evaluation requires interpreter integration
-    // For now, always return true
-    // TODO: Implement condition evaluation using interpreter
-    return true;
+    if (condition.empty()) {
+        return true;  // No condition = always break
+    }
+
+    if (!current_frame_ || !current_frame_->env) {
+        return false;  // No environment to evaluate in
+    }
+
+    try {
+        // Parse the condition expression
+        lexer::Lexer lexer(condition);
+        auto tokens = lexer.tokenize();
+
+        parser::Parser parser(tokens);
+        parser.setSource(condition, "<breakpoint-condition>");
+        auto expr = parser.parseExpression();
+
+        // Evaluate in current environment
+        // Note: This requires the interpreter to be accessible
+        // For now, we'll do simple variable lookups
+
+        // Simple implementation: check if it's a variable name and evaluate truthiness
+        if (auto* ident = dynamic_cast<ast::IdentifierExpr*>(expr.get())) {
+            auto value = current_frame_->env->get(ident->getName());
+            if (value) {
+                return value->toBool();
+            }
+        }
+
+        // For complex expressions, we'd need full interpreter integration
+        // For now, return true to not block debugging
+        return true;
+
+    } catch (const std::exception& e) {
+        // On error, break anyway (safer for debugging)
+        std::cerr << "Breakpoint condition error: " << e.what() << "\n";
+        return true;
+    }
 }
 
 bool Debugger::matchesLocation(const std::string& location, const std::string& breakpoint_location) {
@@ -382,6 +418,8 @@ bool Debugger::matchesLocation(const std::string& location, const std::string& b
 }
 
 std::string Debugger::formatLocation(const ast::Node& node) {
+    (void)node; // TODO: Extract location when AST nodes include source location
+
     // Get location from AST node
     // This depends on AST node having location information
     // For now, return a placeholder

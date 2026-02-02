@@ -13,11 +13,42 @@ namespace stdlib {
 // String Module
 class StringModule : public Module {
 public:
-    std::string getName() const override; // GEMINI FIX: Removed inline definition
+    std::string getName() const override { return "string"; }
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
         const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+
+private:
+    // String operations (14 functions)
+    static std::shared_ptr<interpreter::Value> length(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> upper(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> lower(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> trim(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> split(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> join(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> replace(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> substring(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> startswith(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> endswith(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> contains(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> find(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> repeat(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    static std::shared_ptr<interpreter::Value> reverse(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
 };
 
 // Array Module
@@ -31,7 +62,7 @@ public:
     ArrayModule() = default;
     explicit ArrayModule(FunctionEvaluator evaluator) : evaluator_(std::move(evaluator)) {}
 
-    std::string getName() const override; // GEMINI FIX: Removed inline definition
+    std::string getName() const override { return "array"; }
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -47,7 +78,7 @@ private:
 // Math Module
 class MathModule : public Module {
 public:
-    std::string getName() const override; // GEMINI FIX: Removed inline definition
+    std::string getName() const override { return "math"; }
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -57,7 +88,7 @@ public:
 // Time Module
 class TimeModule : public Module {
 public:
-    std::string getName() const override; // GEMINI FIX: Removed inline definition
+    std::string getName() const override { return "time"; }
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -67,20 +98,29 @@ public:
 // Env Module
 class EnvModule : public Module {
 public:
-    EnvModule(naab::interpreter::Interpreter* interpreter);
-    std::string getName() const override; // GEMINI FIX: Removed inline definition
+    // Type for script arguments provider callback
+    using ArgsProvider = std::function<std::vector<std::string>()>;
+
+    EnvModule() = default;
+    explicit EnvModule(ArgsProvider provider) : args_provider_(std::move(provider)) {}
+
+    std::string getName() const override { return "env"; }
     bool hasFunction(const std::string& name) const override;
-    std::shared_ptr<naab::interpreter::Value> call(
+    std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<naab::interpreter::Value>>& args) override;
+        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+
+    // Set script arguments provider (for env.get_args())
+    void setArgsProvider(ArgsProvider provider) { args_provider_ = std::move(provider); }
+
 private:
-    naab::interpreter::Interpreter* interpreter_;
+    ArgsProvider args_provider_;
 };
 
 // CSV Module
 class CsvModule : public Module {
 public:
-    std::string getName() const override; // GEMINI FIX: Removed inline definition
+    std::string getName() const override { return "csv"; }
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -90,7 +130,7 @@ public:
 // Regex Module
 class RegexModule : public Module {
 public:
-    std::string getName() const override; // GEMINI FIX: Removed inline definition
+    std::string getName() const override { return "regex"; }
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -100,7 +140,7 @@ public:
 // Crypto Module
 class CryptoModule : public Module {
 public:
-    std::string getName() const override; // GEMINI FIX: Removed inline definition
+    std::string getName() const override { return "crypto"; }
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
@@ -110,13 +150,12 @@ public:
 // File Module
 class FileModule : public Module {
 public:
-    std::string getName() const override; // GEMINI FIX: Removed inline definition
+    std::string getName() const override { return "file"; }
     bool hasFunction(const std::string& name) const override;
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
         const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
 };
-
 
 } // namespace stdlib
 } // namespace naab

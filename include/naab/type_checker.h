@@ -5,6 +5,7 @@
 // Provides type inference, checking, and error reporting
 
 #include "naab/ast.h"
+#include "naab/symbol_table.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -128,6 +129,7 @@ public:
     void visit(ast::VarDeclStmt& node) override;
     void visit(ast::ImportStmt& node) override;   // Phase 3.1
     void visit(ast::ExportStmt& node) override;   // Phase 3.1
+    void visit(ast::ModuleUseStmt& node) override; // Phase 4.0
     void visit(ast::TryStmt& node) override;      // Phase 4.1
     void visit(ast::ThrowStmt& node) override;    // Phase 4.1
     void visit(ast::BinaryExpr& node) override;
@@ -143,9 +145,11 @@ private:
     std::shared_ptr<TypeEnvironment> env_;
     std::shared_ptr<Type> current_type_;
     std::vector<TypeError> errors_;
+    semantic::SymbolTable symbol_table_;  // Symbol table for LSP support
 
     // Current function return type (for return statement checking)
     std::shared_ptr<Type> current_function_return_type_;
+    std::string current_filename_;  // Track current file for symbol locations
 
     // Type inference helpers
     std::shared_ptr<Type> inferBinaryOpType(

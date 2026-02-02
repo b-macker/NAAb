@@ -43,6 +43,7 @@ enum class NodeKind {
     FunctionDecl,
     MainBlock,
     StructDecl,           // Struct declaration
+    EnumDecl,             // Phase 2.4.3: Enum declaration
 
     // Statements
     CompoundStmt,
@@ -58,6 +59,7 @@ enum class NodeKind {
     ExportStmt,     // Phase 3.1: export statement
     TryStmt,        // Phase 4.1: try statement
     ThrowStmt,      // Phase 4.1: throw statement
+    ModuleUseStmt,  // Phase 4.0: module use statement (use math_utils)
 
     // Expressions
     BinaryExpr,
@@ -68,6 +70,7 @@ enum class NodeKind {
     LiteralExpr,
     DictExpr,
     ListExpr,
+    RangeExpr,            // Range operator: start..end
     StructLiteralExpr,    // Struct literal expression
     InlineCodeExpr,       // Inline polyglot code: <<language code >>
 };
@@ -104,6 +107,10 @@ enum class TypeKind {
     Any,
     Block,  // Block reference type
     Struct, // Struct type
+    Function,  // P3 ISS-002: Function type
+    TypeParameter,  // Phase 2.4.1: Generic type parameter (T, U, etc.)
+    Union,  // Phase 2.4.2: Union type (int | string)
+    Enum,   // Phase 4.1: Enum type
 };
 
 struct Type {
@@ -111,9 +118,16 @@ struct Type {
     std::shared_ptr<Type> element_type;  // For list[T]
     std::shared_ptr<std::pair<Type, Type>> key_value_types;  // For dict[K,V]
     std::string struct_name;  // For struct types
+    std::string enum_name;    // Phase 4.1: For enum types
+    std::string module_prefix;  // ISS-024 Fix: For module-qualified types (module.Type)
+    bool is_nullable;  // For nullable types (?Type)
+    bool is_reference;  // Phase 2.1: For reference types (ref Type)
+    std::vector<Type> type_arguments;  // Phase 2.4.1: For generic types (List<int>)
+    std::string type_parameter_name;  // Phase 2.4.1: If this is a type parameter reference (T, U)
+    std::vector<Type> union_types;  // Phase 2.4.2: For union types (int | string)
 
-    explicit Type(TypeKind k, std::string sn = "")
-        : kind(k), element_type(nullptr), key_value_types(nullptr), struct_name(std::move(sn)) {}
+    explicit Type(TypeKind k, std::string sn = "", bool nullable = false, bool reference = false)
+        : kind(k), element_type(nullptr), key_value_types(nullptr), struct_name(std::move(sn)), is_nullable(nullable), is_reference(reference) {}
 
     static Type makeVoid() { return Type(TypeKind::Void); }
     static Type makeInt() { return Type(TypeKind::Int); }
@@ -122,9 +136,16 @@ struct Type {
     static Type makeBool() { return Type(TypeKind::Bool); }
     static Type makeAny() { return Type(TypeKind::Any); }
     static Type makeBlock() { return Type(TypeKind::Block); }
+    static Type makeFunction() { return Type(TypeKind::Function); }
     static Type makeStruct(std::string name) { return Type(TypeKind::Struct, std::move(name)); }
+    static Type makeEnum(std::string name) {
+        Type t(TypeKind::Enum);
+        t.enum_name = std::move(name);
+        return t;
+    }
 
     const std::string& getStructName() const { return struct_name; }
+    const std::string& getEnumName() const { return enum_name; }
 };
 
 // Struct field definition
@@ -169,15 +190,20 @@ public:
                  std::vector<Parameter> params,
                  Type return_type,
                  std::unique_ptr<Stmt> body,
+                 std::vector<std::string> type_params = {},  // Phase 2.4.1: Generic type parameters
+                 bool is_async = false,  // Phase 6 (deferred): async functions
                  SourceLocation loc = SourceLocation())
         : ASTNode(NodeKind::FunctionDecl, loc),
           name_(name), params_(std::move(params)),
-          return_type_(return_type), body_(std::move(body)) {}
+          return_type_(return_type), body_(std::move(body)),
+          type_params_(std::move(type_params)), is_async_(is_async) {}
 
     const std::string& getName() const { return name_; }
     const std::vector<Parameter>& getParams() const { return params_; }
     Type getReturnType() const { return return_type_; }
     Stmt* getBody() const { return body_.get(); }
+    const std::vector<std::string>& getTypeParams() const { return type_params_; }  // Phase 2.4.1
+    bool isAsync() const { return is_async_; }  // Phase 6 (deferred)
 
     void accept(ASTVisitor& visitor) override;
 
@@ -186,6 +212,8 @@ private:
     std::vector<Parameter> params_;
     Type return_type_;
     std::unique_ptr<Stmt> body_;
+    std::vector<std::string> type_params_;  // Phase 2.4.1: Generic type parameters (T, U, etc.)
+    bool is_async_;  // Phase 6 (deferred): async function flag
 };
 
 // main { ... }
@@ -207,18 +235,48 @@ private:
 class StructDecl : public ASTNode {
 public:
     StructDecl(std::string name, std::vector<StructField> fields,
+               std::vector<std::string> type_params,  // Phase 2.4.1: Generic type parameters
                SourceLocation loc)
         : ASTNode(NodeKind::StructDecl, loc),
-          name_(std::move(name)), fields_(std::move(fields)) {}
+          name_(std::move(name)), fields_(std::move(fields)),
+          type_params_(std::move(type_params)) {}
 
     const std::string& getName() const { return name_; }
     const std::vector<StructField>& getFields() const { return fields_; }
+    const std::vector<std::string>& getTypeParams() const { return type_params_; }  // Phase 2.4.1
 
     void accept(ASTVisitor& visitor) override;
 
 private:
     std::string name_;
     std::vector<StructField> fields_;
+    std::vector<std::string> type_params_;  // Phase 2.4.1: Generic type parameters (T, U, etc.)
+};
+
+// Phase 2.4.3: enum Name { Variant1, Variant2, ... }
+class EnumDecl : public ASTNode {
+public:
+    struct EnumVariant {
+        std::string name;
+        std::optional<int> value;  // Optional explicit value
+
+        EnumVariant(std::string n, std::optional<int> v = std::nullopt)
+            : name(std::move(n)), value(v) {}
+    };
+
+    EnumDecl(std::string name, std::vector<EnumVariant> variants,
+             SourceLocation loc = SourceLocation())
+        : ASTNode(NodeKind::EnumDecl, loc),
+          name_(std::move(name)), variants_(std::move(variants)) {}
+
+    const std::string& getName() const { return name_; }
+    const std::vector<EnumVariant>& getVariants() const { return variants_; }
+
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::string name_;
+    std::vector<EnumVariant> variants_;
 };
 
 // ============================================================================
@@ -426,7 +484,8 @@ public:
         Function,      // export function foo() { ... }
         Variable,      // export var x = 10
         DefaultExpr,   // export default expr
-        Struct         // export struct Point { ... } (Week 7)
+        Struct,        // export struct Point { ... } (Week 7)
+        Enum           // export enum LogLevel { ... } (Phase 4.1: Module System)
     };
 
     // For exporting function
@@ -450,6 +509,13 @@ public:
           kind_(ExportKind::Struct),
           struct_decl_(std::move(struct_decl)) {}
 
+    // For exporting enum (Phase 4.1: Module System)
+    ExportStmt(std::unique_ptr<EnumDecl> enum_decl,
+               SourceLocation loc = SourceLocation())
+        : Stmt(NodeKind::ExportStmt, loc),
+          kind_(ExportKind::Enum),
+          enum_decl_(std::move(enum_decl)) {}
+
     // For default export (public constructor needed for make_unique)
     explicit ExportStmt(SourceLocation loc = SourceLocation())
         : Stmt(NodeKind::ExportStmt, loc), kind_(ExportKind::DefaultExpr) {}
@@ -468,6 +534,7 @@ public:
     VarDeclStmt* getVarDecl() const { return variable_.get(); }
     Expr* getExpr() const { return default_expr_.get(); }
     StructDecl* getStructDecl() const { return struct_decl_.get(); }  // Week 7
+    EnumDecl* getEnumDecl() const { return enum_decl_.get(); }  // Phase 4.1
 
     void accept(ASTVisitor& visitor) override;
 
@@ -478,6 +545,7 @@ private:
     std::unique_ptr<VarDeclStmt> variable_;
     std::unique_ptr<Expr> default_expr_;
     std::unique_ptr<StructDecl> struct_decl_;  // Week 7
+    std::unique_ptr<EnumDecl> enum_decl_;  // Phase 4.1: Module System
 };
 
 // Phase 4.1: try { ... } catch (e) { ... } finally { ... }
@@ -527,6 +595,28 @@ public:
 
 private:
     std::unique_ptr<Expr> expr_;
+};
+
+// Phase 4.0: use module_name
+// Simple module import statement for Rust-style module system
+class ModuleUseStmt : public Stmt {
+public:
+    explicit ModuleUseStmt(const std::string& module_path,
+                          const std::string& alias = "",
+                          SourceLocation loc = SourceLocation())
+        : Stmt(NodeKind::ModuleUseStmt, loc),
+          module_path_(module_path),
+          alias_(alias) {}
+
+    const std::string& getModulePath() const { return module_path_; }
+    const std::string& getAlias() const { return alias_; }
+    bool hasAlias() const { return !alias_.empty(); }
+
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::string module_path_;  // "math_utils" or "data.processor"
+    std::string alias_;        // Optional alias (e.g., "use data.processor as dp")
 };
 
 // ============================================================================
@@ -602,13 +692,19 @@ class CallExpr : public Expr {
 public:
     CallExpr(std::unique_ptr<Expr> callee,
              std::vector<std::unique_ptr<Expr>> args,
+             std::vector<Type> type_args = {},
              SourceLocation loc = SourceLocation())
         : Expr(NodeKind::CallExpr, loc),
-          callee_(std::move(callee)), args_(std::move(args)) {}
+          callee_(std::move(callee)),
+          args_(std::move(args)),
+          type_arguments_(std::move(type_args)) {}
 
     Expr* getCallee() const { return callee_.get(); }
     const std::vector<std::unique_ptr<Expr>>& getArgs() const {
         return args_;
+    }
+    const std::vector<Type>& getTypeArguments() const {
+        return type_arguments_;
     }
 
     Type getType() const override;
@@ -617,6 +713,7 @@ public:
 private:
     std::unique_ptr<Expr> callee_;
     std::vector<std::unique_ptr<Expr>> args_;
+    std::vector<Type> type_arguments_;  // Phase 2.4.4: Explicit type arguments for generics
 };
 
 // Member access: obj.member
@@ -657,7 +754,7 @@ private:
 
 // Literals: 42, 3.14, "hello", true
 enum class LiteralKind {
-    Int, Float, String, Bool
+    Int, Float, String, Bool, Null
 };
 
 class LiteralExpr : public Expr {
@@ -713,6 +810,29 @@ private:
     std::vector<std::unique_ptr<Expr>> elements_;
 };
 
+// Range operator: start..end (exclusive) or start..=end (inclusive)
+class RangeExpr : public Expr {
+public:
+    RangeExpr(std::unique_ptr<Expr> start,
+              std::unique_ptr<Expr> end,
+              bool inclusive = false,
+              SourceLocation loc = SourceLocation())
+        : Expr(NodeKind::RangeExpr, loc),
+          start_(std::move(start)), end_(std::move(end)), inclusive_(inclusive) {}
+
+    Expr* getStart() const { return start_.get(); }
+    Expr* getEnd() const { return end_.get(); }
+    bool isInclusive() const { return inclusive_; }
+
+    Type getType() const override;
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::unique_ptr<Expr> start_;
+    std::unique_ptr<Expr> end_;
+    bool inclusive_;
+};
+
 class StructLiteralExpr : public Expr {
 public:
     StructLiteralExpr(std::string name,
@@ -733,16 +853,19 @@ private:
     std::vector<std::pair<std::string, std::unique_ptr<Expr>>> field_inits_;
 };
 
-// Inline polyglot code: <<language code >>
+// Inline polyglot code: <<language code >> or <<language[var1, var2] code >>
 class InlineCodeExpr : public Expr {
 public:
     InlineCodeExpr(std::string language, std::string code,
+                   std::vector<std::string> bound_variables = {},
                    SourceLocation loc = SourceLocation())
         : Expr(NodeKind::InlineCodeExpr, loc),
-          language_(std::move(language)), code_(std::move(code)) {}
+          language_(std::move(language)), code_(std::move(code)),
+          bound_variables_(std::move(bound_variables)) {}
 
     const std::string& getLanguage() const { return language_; }
     const std::string& getCode() const { return code_; }
+    const std::vector<std::string>& getBoundVariables() const { return bound_variables_; }
 
     Type getType() const override { return Type::makeVoid(); }
     void accept(ASTVisitor& visitor) override;
@@ -750,6 +873,7 @@ public:
 private:
     std::string language_;
     std::string code_;
+    std::vector<std::string> bound_variables_;  // Phase 2.2: Variables to bind from NAAb scope
 };
 
 // ============================================================================
@@ -773,6 +897,9 @@ public:
     const std::vector<std::unique_ptr<ImportStmt>>& getModuleImports() const {
         return module_imports_;
     }
+    const std::vector<std::unique_ptr<ModuleUseStmt>>& getModuleUses() const {  // Phase 4.0
+        return module_uses_;
+    }
     const std::vector<std::unique_ptr<ExportStmt>>& getExports() const {
         return exports_;
     }
@@ -782,11 +909,17 @@ public:
     const std::vector<std::unique_ptr<StructDecl>>& getStructs() const {
         return structs_;
     }
+    const std::vector<std::unique_ptr<EnumDecl>>& getEnums() const {  // Phase 2.4.3
+        return enums_;
+    }
     MainBlock* getMainBlock() const { return main_block_.get(); }
 
     // Phase 3.1: Add module imports and exports
     void addModuleImport(std::unique_ptr<ImportStmt> import) {
         module_imports_.push_back(std::move(import));
+    }
+    void addModuleUse(std::unique_ptr<ModuleUseStmt> module_use) {  // Phase 4.0
+        module_uses_.push_back(std::move(module_use));
     }
     void addExport(std::unique_ptr<ExportStmt> export_stmt) {
         exports_.push_back(std::move(export_stmt));
@@ -794,15 +927,20 @@ public:
     void addStruct(std::unique_ptr<StructDecl> struct_decl) {
         structs_.push_back(std::move(struct_decl));
     }
+    void addEnum(std::unique_ptr<EnumDecl> enum_decl) {  // Phase 2.4.3
+        enums_.push_back(std::move(enum_decl));
+    }
 
     void accept(ASTVisitor& visitor) override;
 
 private:
     std::vector<std::unique_ptr<UseStatement>> imports_;  // Legacy block imports
-    std::vector<std::unique_ptr<ImportStmt>> module_imports_;  // Phase 3.1: Module imports
+    std::vector<std::unique_ptr<ImportStmt>> module_imports_;  // Phase 3.1: Module imports (ES6-style)
+    std::vector<std::unique_ptr<ModuleUseStmt>> module_uses_;  // Phase 4.0: Module uses (Rust-style)
     std::vector<std::unique_ptr<ExportStmt>> exports_;  // Phase 3.1: Module exports
     std::vector<std::unique_ptr<FunctionDecl>> functions_;
     std::vector<std::unique_ptr<StructDecl>> structs_;  // Struct declarations
+    std::vector<std::unique_ptr<EnumDecl>> enums_;  // Phase 2.4.3: Enum declarations
     std::unique_ptr<MainBlock> main_block_;
 };
 
@@ -832,6 +970,7 @@ public:
     virtual void visit(ExportStmt& node) = 0;   // Phase 3.1
     virtual void visit(TryStmt& node) = 0;      // Phase 4.1
     virtual void visit(ThrowStmt& node) = 0;    // Phase 4.1
+    virtual void visit(ModuleUseStmt& node) = 0;  // Phase 4.0
 
     virtual void visit(BinaryExpr& node) = 0;
     virtual void visit(UnaryExpr& node) = 0;
@@ -841,6 +980,12 @@ public:
     virtual void visit(LiteralExpr& node) = 0;
     virtual void visit(DictExpr& node) = 0;
     virtual void visit(ListExpr& node) = 0;
+
+    // Range operator (default implementation - non-breaking)
+    virtual void visit(RangeExpr& node) {
+        (void)node; // Mark as intentionally unused
+        throw std::runtime_error("RangeExpr not supported by this visitor");
+    }
 
     // Struct support (default implementations - non-breaking)
     virtual void visit(StructDecl& node) {
@@ -854,6 +999,11 @@ public:
     virtual void visit(InlineCodeExpr& node) {
         (void)node; // Mark as intentionally unused
         throw std::runtime_error("InlineCodeExpr not supported by this visitor");
+    }
+    // Phase 2.4.3: Enum support
+    virtual void visit(EnumDecl& node) {
+        (void)node; // Mark as intentionally unused
+        throw std::runtime_error("EnumDecl not supported by this visitor");
     }
 };
 
