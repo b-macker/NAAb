@@ -1837,6 +1837,7 @@ CMakeFiles/naab_interpreter.dir/src/interpreter/environment.cpp.o: /data/data/co
   /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/types/span.h \
   /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/types/variant.h \
   /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/utility/utility.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/environment.h \
   /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/bitsperlong.h \
   /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/errno.h \
   /data/data/com.termux/files/usr/include/aarch64-linux-android/asm/fcntl.h \
@@ -4211,6 +4212,8 @@ CMakeFiles/naab_interpreter.dir/src/interpreter/interpreter.cpp.o: /data/data/co
 /data/data/com.termux/files/usr/include/c++/v1/__numeric/gcd_lcm.h:
 
 /data/data/com.termux/files/usr/include/c++/v1/__numeric/adjacent_difference.h:
+
+/data/data/com.termux/files/home/.naab/language/include/naab/environment.h:
 
 /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/utility/utility.h:
 

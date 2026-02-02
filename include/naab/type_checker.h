@@ -176,6 +176,9 @@ private:
 
     void reportError(const std::string& message, size_t line, size_t column);
 
+    // Type annotation parsing
+    std::shared_ptr<Type> parseTypeAnnotation(const std::string& annotation);
+
     // Environment management
     void pushScope();
     void popScope();

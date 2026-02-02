@@ -167,31 +167,22 @@ NaabRustValue* valueToFfi(const std::shared_ptr<Value>& val) {
 // ============================================================================
 // Error Handling (Phase 4.2.4) - Stub implementations
 // ============================================================================
+// These will be replaced with actual Rust implementations when integrated
 
-// External Rust FFI functions for error handling
 extern "C" {
-    const char* naab_rust_get_last_error();
-    void naab_rust_clear_error();
-    void naab_rust_free_error(char* s);
+
+// Stub: Return null error (no error occurred)
+NaabRustError* naab_rust_get_last_error() {
+    return nullptr;
 }
 
-std::string RustFFIBridge::getLastError() {
-    const char* error_ptr = naab_rust_get_last_error();
-    if (error_ptr == nullptr) {
-        return "";
+// Stub: Free error structure
+void naab_rust_error_free(NaabRustError* error) {
+    if (error) {
+        if (error->message) free(error->message);
+        if (error->file) free(error->file);
+        free(error);
     }
-
-    std::string error_msg(error_ptr);
-
-    // Free the error string
-    naab_rust_free_error(const_cast<char*>(error_ptr));
-
-    // Clear error after reading
-    naab_rust_clear_error();
-
-    return error_msg;
 }
 
-void RustFFIBridge::clearError() {
-    naab_rust_clear_error();
-}
+} // extern "C"

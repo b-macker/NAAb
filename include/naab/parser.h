@@ -32,6 +32,9 @@ public:
     // Parse complete program
     std::unique_ptr<ast::Program> parseProgram();
 
+    // Parse a single expression (useful for REPL, debugger conditions, etc.)
+    std::unique_ptr<ast::Expr> parseExpression();
+
     // Set source code for error reporting (Phase 1.3)
     void setSource(const std::string& source_code, const std::string& filename = "");
 
@@ -98,7 +101,6 @@ private:
     std::unique_ptr<ast::ExprStmt> parseExprStmt();
 
     // Expressions
-    std::unique_ptr<ast::Expr> parseExpression();
     std::unique_ptr<ast::Expr> parseAssignment();
     std::unique_ptr<ast::Expr> parsePipeline();  // Phase 3.4
     std::unique_ptr<ast::Expr> parseLogicalOr();
