@@ -1,0 +1,81 @@
+// Verification test for QUICK_START.md examples
+use io
+use json
+use string as str
+use time
+use math
+
+// Test struct from Quick Start
+struct Person {
+    name: string
+    age: int
+}
+
+// Test exported function (if this file is imported)
+export fn double(x: int) -> int {
+    return x * 2
+}
+
+main {
+    io.write("=== Quick Start Guide Verification ===\n\n")
+
+    // Test 1: Entry point works (main {})
+    io.write("✓ Test 1: Entry point 'main {}' works\n")
+
+    // Test 2: Dictionary syntax with quoted keys
+    let person_dict = {
+        "name": "Alice",
+        "age": 30,
+        "active": true
+    }
+    io.write("✓ Test 2: Dictionary with quoted keys: ", person_dict["name"], "\n")
+
+    // Test 3: Struct with dot notation
+    let person_struct = new Person {
+        name: "Bob",
+        age: 25
+    }
+    io.write("✓ Test 3: Struct with dot notation: ", person_struct.name, "\n")
+
+    // Test 4: Array access
+    let numbers = [10, 20, 30]
+    io.write("✓ Test 4: Array access: ", json.stringify(numbers[1]), "\n")
+
+    // Test 5: Standard library with use statement
+    let upper = str.upper("hello")
+    io.write("✓ Test 5: Stdlib with use: ", upper, "\n")
+
+    // Test 6: Simple polyglot block
+    let py_result = <<python 42 + 8 >>
+    io.write("✓ Test 6: Simple polyglot: ", json.stringify(py_result), "\n")
+
+    // Test 7: Polyglot with variable binding
+    let count = 10
+    let factor = 2.5
+    let bound_result = <<python[count, factor]
+count * factor
+    >>
+    io.write("✓ Test 7: Polyglot with binding: ", json.stringify(bound_result), "\n")
+
+    // Test 8: Control flow
+    let age = 25
+    io.write("✓ Test 8: Control flow: ")
+    if age >= 18 {
+        io.write("Adult\n")
+    } else {
+        io.write("Not adult\n")
+    }
+
+    // Test 9: For loop with range
+    io.write("✓ Test 9: For loop with range: ")
+    for i in 0..3 {
+        io.write(json.stringify(i), " ")
+    }
+    io.write("\n")
+
+    // Test 10: Function call
+    let doubled = double(21)
+    io.write("✓ Test 10: Function call: ", json.stringify(doubled), "\n")
+
+    io.write("\n=== All Quick Start examples verified! ===\n")
+}

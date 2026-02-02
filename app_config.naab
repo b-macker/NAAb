@@ -1,0 +1,76 @@
+// app_config.naab - Module for loading and managing application configuration
+
+// Import standard library modules
+use json
+use file
+use io
+
+// Define structs for configuration
+struct HarvestingConfig {
+    target_url: string,
+    mode: string, // "static" or "dynamic"
+    browser_type: string?, // "chromium", "firefox", "webkit" (for dynamic)
+    extraction_rules: dict<string, string>, // CSS selectors
+    output_format: string, // "json", "csv"
+    data_file_prefix: string,
+    headless: bool // for dynamic
+}
+
+struct AnalysisConfig {
+    threshold_cpu: float,
+    threshold_memory: float,
+    sentiment_model: string? // e.g., "textblob"
+}
+
+struct ReportConfig {
+    template_path: string,
+    output_dir: string
+}
+
+struct EngineConfig {
+    harvesting: HarvestingConfig,
+    analysis: AnalysisConfig,
+    report: ReportConfig
+}
+
+// Function to load the entire engine configuration from a JSON file
+fn load_engine_config(config_file: string) -> EngineConfig? {
+    if !file.exists(config_file) {
+        io.write_error("❌ Error: Configuration file not found: ", config_file, "\n")
+        return null
+    }
+
+    let config_content = file.read(config_file)
+    let parsed_config = json.parse(config_content)
+
+    // Populate HarvestingConfig
+    let harvesting_config = new HarvestingConfig {
+        target_url: parsed_config.harvesting.target_url,
+        mode: parsed_config.harvesting.mode,
+        browser_type: parsed_config.harvesting.browser_type, // Optional field, handles null correctly
+        extraction_rules: parsed_config.harvesting.extraction_rules,
+        output_format: parsed_config.harvesting.output_format,
+        data_file_prefix: parsed_config.harvesting.data_file_prefix,
+        headless: parsed_config.harvesting.headless
+    }
+
+    // Populate AnalysisConfig
+    let analysis_config = new AnalysisConfig {
+        threshold_cpu: parsed_config.analysis.threshold_cpu,
+        threshold_memory: parsed_config.analysis.threshold_memory,
+        sentiment_model: parsed_config.analysis.sentiment_model // Optional field
+    }
+
+    // Populate ReportConfig
+    let report_config = new ReportConfig {
+        template_path: parsed_config.report.template_path,
+        output_dir: parsed_config.report.output_dir
+    }
+
+    // Return the complete EngineConfig
+    return new EngineConfig {
+        harvesting: harvesting_config,
+        analysis: analysis_config,
+        report: report_config
+    }
+}

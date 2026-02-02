@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_statusor.a CMakeFiles/absl_statusor.dir/statusor.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_statusor.a

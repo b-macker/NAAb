@@ -1,0 +1,134 @@
+# Phase 3.1: Exception System Comprehensive Tests
+# Tests try/catch/throw, finally blocks, stack traces, and exception propagation
+
+fn throwError() {
+    throw "Error from throwError function"
+}
+
+fn level3() {
+    throw "Error at level 3"
+}
+
+fn level2() {
+    level3()
+}
+
+fn level1() {
+    level2()
+}
+
+fn divide(a: int, b: int) -> int {
+    if (b == 0) {
+        throw "Division by zero"
+    }
+    return a / b
+}
+
+main {
+    print("=== Phase 3.1: Exception System Tests ===")
+    print("")
+
+    # Test 1: Basic throw/catch
+    print("Test 1: Basic throw/catch")
+    try {
+        throw "Test error message"
+    } catch (e) {
+        print("  ✓ Caught: " + e)
+    }
+    print("")
+
+    # Test 2: Exception with string value
+    print("Test 2: String exception")
+    try {
+        throw "This is a string error"
+    } catch (err) {
+        print("  ✓ Caught string: " + err)
+    }
+    print("")
+
+    # Test 3: Finally executes even with exception
+    print("Test 3: Finally block (with exception)")
+    let finally_ran = 0
+    try {
+        throw "Error in try block"
+    } catch (e) {
+        print("  - Catch executed: " + e)
+        finally_ran = finally_ran + 1
+    } finally {
+        finally_ran = finally_ran + 10
+        print("  ✓ Finally executed even with exception")
+    }
+    print("  Result: " + finally_ran.toString() + " (should be 11)")
+    print("")
+
+    # Test 4: Exception propagation from function
+    print("Test 4: Exception propagation from function")
+    try {
+        throwError()
+    } catch (e) {
+        print("  ✓ Caught from function: " + e)
+    }
+    print("")
+
+    # Test 5: Stack trace (multi-level call)
+    print("Test 5: Stack trace (3-level deep)")
+    try {
+        level1()
+    } catch (e) {
+        print("  ✓ Caught from level 1->2->3: " + e)
+        print("  (Stack trace should show: level1 -> level2 -> level3)")
+    }
+    print("")
+
+    # Test 6: Conditional error handling
+    print("Test 6: Conditional exception (division)")
+    try {
+        let result = divide(10, 2)
+        print("  ✓ Division 10/2 = " + result.toString())
+    } catch (e) {
+        print("  ✗ Unexpected error: " + e)
+    }
+    print("")
+
+    # Test 7: Catching division by zero
+    print("Test 7: Division by zero")
+    try {
+        let bad_result = divide(10, 0)
+        print("  ✗ Should have thrown error")
+    } catch (e) {
+        print("  ✓ Caught: " + e)
+    }
+    print("")
+
+    # Test 8: Nested try/catch
+    print("Test 8: Nested try/catch")
+    try {
+        print("  - Outer try block")
+        try {
+            print("  - Inner try block")
+            throw "Inner error"
+        } catch (inner_e) {
+            print("  ✓ Inner catch: " + inner_e)
+        }
+        print("  - After inner try/catch")
+    } catch (outer_e) {
+        print("  ✗ Outer catch (should not reach): " + outer_e)
+    }
+    print("")
+
+    # Test 9: Exception re-throwing from catch
+    print("Test 9: Re-throw from catch block")
+    try {
+        try {
+            throw "Original error"
+        } catch (e) {
+            print("  - Caught in inner: " + e)
+            throw "Re-thrown: " + e
+        }
+    } catch (e2) {
+        print("  ✓ Caught re-thrown: " + e2)
+    }
+    print("")
+
+    print("=== All Exception Tests Complete ===")
+}

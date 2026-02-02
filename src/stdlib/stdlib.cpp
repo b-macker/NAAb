@@ -302,10 +302,7 @@ std::shared_ptr<interpreter::Value> CollectionsModule::set_size(
 // Standard Library Manager
 // ============================================================================
 
-// GEMINI FIX: Constructor now takes Interpreter pointer
-StdLib::StdLib(interpreter::Interpreter* interpreter)
-    : interpreter_(interpreter) // GEMINI FIX: Store interpreter pointer
-{
+StdLib::StdLib() {
     registerModules();
 }
 
@@ -321,8 +318,7 @@ void StdLib::registerModules() {
     modules_["array"] = std::make_shared<ArrayModule>();
     modules_["math"] = std::make_shared<MathModule>();
     modules_["time"] = std::make_shared<TimeModule>();
-    // GEMINI FIX: Pass interpreter pointer to EnvModule constructor
-    modules_["env"] = std::make_shared<EnvModule>(interpreter_);
+    modules_["env"] = std::make_shared<EnvModule>();
     modules_["csv"] = std::make_shared<CsvModule>();
     modules_["regex"] = std::make_shared<RegexModule>();
     modules_["crypto"] = std::make_shared<CryptoModule>();

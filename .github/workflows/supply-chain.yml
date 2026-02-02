@@ -1,0 +1,272 @@
+name: Supply Chain Security
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+permissions:
+  contents: write
+  id-token: write  # For cosign keyless signing
+  security-events: write  # For uploading SARIF results
+
+jobs:
+  # ==========================================================================
+  # Job 1: Secret Scanning
+  # ==========================================================================
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Full history for comprehensive scanning
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+      - name: Upload Gitleaks SARIF
+        if: failure()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif
+
+  # ==========================================================================
+  # Job 2: Dependency Check
+  # ==========================================================================
+  dependency-check:
+    name: Dependency Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Verify DEPENDENCIES.lock exists
+        run: |
+          if [ ! -f DEPENDENCIES.lock ]; then
+            echo "Error: DEPENDENCIES.lock not found"
+            echo "Run: scripts/generate-dependency-lock.sh"
+            exit 1
+          fi
+          echo "✓ DEPENDENCIES.lock found"
+
+      - name: Check for dependency changes
+        run: |
+          # This would compare current dependencies with lockfile
+          # For now, just verify the lockfile is valid
+          grep -q "version: 1" DEPENDENCIES.lock
+          echo "✓ Dependency lockfile is valid"
+
+  # ==========================================================================
+  # Job 3: SBOM Generation
+  # ==========================================================================
+  sbom-generate:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Generate SBOM
+        run: |
+          chmod +x scripts/generate-sbom.sh
+          ./scripts/generate-sbom.sh
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: |
+            sbom/naab-sbom.spdx.json
+            sbom/naab-sbom.cdx.json
+            sbom/naab-sbom.txt
+
+      - name: Attach SBOM to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            sbom/naab-sbom.spdx.json
+            sbom/naab-sbom.cdx.json
+            sbom/naab-sbom.txt
+
+  # ==========================================================================
+  # Job 4: Vulnerability Scanning (using SBOM)
+  # ==========================================================================
+  vulnerability-scan:
+    name: Vulnerability Scanning
+    runs-on: ubuntu-latest
+    needs: sbom-generate
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download SBOM
+        uses: actions/download-artifact@v3
+        with:
+          name: sbom
+          path: sbom/
+
+      - name: Scan for vulnerabilities with Grype
+        uses: anchore/scan-action@v3
+        with:
+          sbom: sbom/naab-sbom.spdx.json
+          fail-build: true
+          severity-cutoff: high
+
+      - name: Upload vulnerability report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: results.sarif
+
+  # ==========================================================================
+  # Job 5: Build and Sign Release Artifacts
+  # ==========================================================================
+  build-and-sign:
+    name: Build and Sign Artifacts
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            ninja-build \
+            libsqlite3-dev \
+            python3-dev \
+            python3-pybind11 \
+            libssl-dev \
+            libffi-dev \
+            libcurl4-openssl-dev \
+            pkg-config
+
+      - name: Build release binary
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build naab-lang
+          strip build/naab-lang
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Generate checksums
+        run: |
+          cd build
+          sha256sum naab-lang > naab-lang.sha256
+          sha512sum naab-lang > naab-lang.sha512
+
+      - name: Sign binary with cosign
+        run: |
+          chmod +x scripts/sign-artifacts.sh
+          SIGN_METHOD=cosign ./scripts/sign-artifacts.sh build/naab-lang
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            build/naab-lang
+            build/naab-lang.sig
+            build/naab-lang.pem
+            build/naab-lang.sha256
+            build/naab-lang.sha512
+
+  # ==========================================================================
+  # Job 6: Supply Chain Provenance (SLSA)
+  # ==========================================================================
+  provenance:
+    name: Generate SLSA Provenance
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-and-sign
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate provenance
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v1.9.0
+        with:
+          base64-subjects: |
+            ${{ hashFiles('build/naab-lang') }}
+
+      - name: Upload provenance
+        uses: softprops/action-gh-release@v1
+        with:
+          files: provenance.json
+
+  # ==========================================================================
+  # Job 7: License Compliance Check
+  # ==========================================================================
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check licenses
+        run: |
+          # Verify all dependencies have acceptable licenses
+          # This is a simple check; could use tools like licensee or FOSSology
+          echo "Checking dependency licenses..."
+
+          # Check for GPL licenses (uncompatible with Apache-2.0)
+          if grep -r "GPL" external/ --include="LICENSE" --include="COPYING"; then
+            echo "Warning: GPL dependencies found"
+            echo "Verify compatibility with project license"
+          fi
+
+          echo "✓ License check complete"
+
+  # ==========================================================================
+  # Job 8: Supply Chain Summary
+  # ==========================================================================
+  summary:
+    name: Supply Chain Summary
+    runs-on: ubuntu-latest
+    needs: [secret-scan, dependency-check, sbom-generate, vulnerability-scan]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Supply Chain Security Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Secret Scanning: ${{ needs.secret-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Dependency Check: ${{ needs.dependency-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- SBOM Generation: ${{ needs.sbom-generate.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Vulnerability Scan: ${{ needs.vulnerability-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Security Features" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Dependency lockfile (DEPENDENCIES.lock)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SBOM generation (SPDX + CycloneDX)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Artifact signing (cosign)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Secret scanning (gitleaks)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Vulnerability scanning (Grype)" >> $GITHUB_STEP_SUMMARY

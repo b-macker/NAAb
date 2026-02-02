@@ -1,0 +1,11 @@
+struct Box {
+    value: int
+}
+
+main {
+    let box = new Box { value: 42 }
+    print("Initial value:", box.value)
+
+    box.value = 100
+    print("After assignment:", box.value)
+}

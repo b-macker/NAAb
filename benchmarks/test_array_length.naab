@@ -1,0 +1,15 @@
+# Test array module length function
+
+use array as array
+
+main {
+    print("Testing array.length()")
+
+    let sizes = [10, 20, 30]
+    print("List: ", sizes)
+
+    let len = array.length(sizes)
+    print("Length: ", len)
+
+    print("Complete")
+}

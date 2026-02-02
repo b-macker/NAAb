@@ -1,0 +1,8 @@
+struct Box {
+    value: int
+}
+
+main {
+    let b = Box { value: 42 }
+    print("done")
+}

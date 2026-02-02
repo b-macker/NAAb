@@ -166,6 +166,32 @@ naab_semantic/fast:
 .PHONY : naab_semantic/fast
 
 #=============================================================================
+# Target rules for targets named naab_formatter
+
+# Build rule for target.
+naab_formatter: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 naab_formatter
+.PHONY : naab_formatter
+
+# fast build rule for target.
+naab_formatter/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_formatter.dir/build.make CMakeFiles/naab_formatter.dir/build
+.PHONY : naab_formatter/fast
+
+#=============================================================================
+# Target rules for targets named naab_linter
+
+# Build rule for target.
+naab_linter: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 naab_linter
+.PHONY : naab_linter
+
+# fast build rule for target.
+naab_linter/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_linter.dir/build.make CMakeFiles/naab_linter.dir/build
+.PHONY : naab_linter/fast
+
+#=============================================================================
 # Target rules for targets named naab_debugger
 
 # Build rule for target.
@@ -359,6 +385,19 @@ naab-doc: cmake_check_build_system
 naab-doc/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab-doc.dir/build.make CMakeFiles/naab-doc.dir/build
 .PHONY : naab-doc/fast
+
+#=============================================================================
+# Target rules for targets named naab-verify-audit
+
+# Build rule for target.
+naab-verify-audit: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 naab-verify-audit
+.PHONY : naab-verify-audit
+
+# fast build rule for target.
+naab-verify-audit/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab-verify-audit.dir/build.make CMakeFiles/naab-verify-audit.dir/build
+.PHONY : naab-verify-audit/fast
 
 #=============================================================================
 # Target rules for targets named naab_block_enricher
@@ -2297,6 +2336,84 @@ gtest_main/fast:
 	$(MAKE) $(MAKESILENT) -f external/googletest/googletest/CMakeFiles/gtest_main.dir/build.make external/googletest/googletest/CMakeFiles/gtest_main.dir/build
 .PHONY : gtest_main/fast
 
+#=============================================================================
+# Target rules for targets named fuzz_lexer
+
+# Build rule for target.
+fuzz_lexer: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 fuzz_lexer
+.PHONY : fuzz_lexer
+
+# fast build rule for target.
+fuzz_lexer/fast:
+	$(MAKE) $(MAKESILENT) -f fuzz/CMakeFiles/fuzz_lexer.dir/build.make fuzz/CMakeFiles/fuzz_lexer.dir/build
+.PHONY : fuzz_lexer/fast
+
+#=============================================================================
+# Target rules for targets named fuzz_parser
+
+# Build rule for target.
+fuzz_parser: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 fuzz_parser
+.PHONY : fuzz_parser
+
+# fast build rule for target.
+fuzz_parser/fast:
+	$(MAKE) $(MAKESILENT) -f fuzz/CMakeFiles/fuzz_parser.dir/build.make fuzz/CMakeFiles/fuzz_parser.dir/build
+.PHONY : fuzz_parser/fast
+
+#=============================================================================
+# Target rules for targets named fuzz_interpreter
+
+# Build rule for target.
+fuzz_interpreter: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 fuzz_interpreter
+.PHONY : fuzz_interpreter
+
+# fast build rule for target.
+fuzz_interpreter/fast:
+	$(MAKE) $(MAKESILENT) -f fuzz/CMakeFiles/fuzz_interpreter.dir/build.make fuzz/CMakeFiles/fuzz_interpreter.dir/build
+.PHONY : fuzz_interpreter/fast
+
+#=============================================================================
+# Target rules for targets named fuzz_python_executor
+
+# Build rule for target.
+fuzz_python_executor: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 fuzz_python_executor
+.PHONY : fuzz_python_executor
+
+# fast build rule for target.
+fuzz_python_executor/fast:
+	$(MAKE) $(MAKESILENT) -f fuzz/CMakeFiles/fuzz_python_executor.dir/build.make fuzz/CMakeFiles/fuzz_python_executor.dir/build
+.PHONY : fuzz_python_executor/fast
+
+#=============================================================================
+# Target rules for targets named fuzz_value_conversion
+
+# Build rule for target.
+fuzz_value_conversion: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 fuzz_value_conversion
+.PHONY : fuzz_value_conversion
+
+# fast build rule for target.
+fuzz_value_conversion/fast:
+	$(MAKE) $(MAKESILENT) -f fuzz/CMakeFiles/fuzz_value_conversion.dir/build.make fuzz/CMakeFiles/fuzz_value_conversion.dir/build
+.PHONY : fuzz_value_conversion/fast
+
+#=============================================================================
+# Target rules for targets named fuzz_json_marshal
+
+# Build rule for target.
+fuzz_json_marshal: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 fuzz_json_marshal
+.PHONY : fuzz_json_marshal
+
+# fast build rule for target.
+fuzz_json_marshal/fast:
+	$(MAKE) $(MAKESILENT) -f fuzz/CMakeFiles/fuzz_json_marshal.dir/build.make fuzz/CMakeFiles/fuzz_json_marshal.dir/build
+.PHONY : fuzz_json_marshal/fast
+
 external/linenoise.o: external/linenoise.c.o
 .PHONY : external/linenoise.o
 
@@ -2393,6 +2510,30 @@ src/cli/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab-lang.dir/build.make CMakeFiles/naab-lang.dir/src/cli/main.cpp.s
 .PHONY : src/cli/main.cpp.s
 
+src/cli/verify_audit.o: src/cli/verify_audit.cpp.o
+.PHONY : src/cli/verify_audit.o
+
+# target to build an object file
+src/cli/verify_audit.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab-verify-audit.dir/build.make CMakeFiles/naab-verify-audit.dir/src/cli/verify_audit.cpp.o
+.PHONY : src/cli/verify_audit.cpp.o
+
+src/cli/verify_audit.i: src/cli/verify_audit.cpp.i
+.PHONY : src/cli/verify_audit.i
+
+# target to preprocess a source file
+src/cli/verify_audit.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab-verify-audit.dir/build.make CMakeFiles/naab-verify-audit.dir/src/cli/verify_audit.cpp.i
+.PHONY : src/cli/verify_audit.cpp.i
+
+src/cli/verify_audit.s: src/cli/verify_audit.cpp.s
+.PHONY : src/cli/verify_audit.s
+
+# target to generate assembly for a file
+src/cli/verify_audit.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab-verify-audit.dir/build.make CMakeFiles/naab-verify-audit.dir/src/cli/verify_audit.cpp.s
+.PHONY : src/cli/verify_audit.cpp.s
+
 src/debugger/debugger.o: src/debugger/debugger.cpp.o
 .PHONY : src/debugger/debugger.o
 
@@ -2441,6 +2582,102 @@ src/doc/doc_generator.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_doc_generator.dir/build.make CMakeFiles/naab_doc_generator.dir/src/doc/doc_generator.cpp.s
 .PHONY : src/doc/doc_generator.cpp.s
 
+src/formatter/formatter.o: src/formatter/formatter.cpp.o
+.PHONY : src/formatter/formatter.o
+
+# target to build an object file
+src/formatter/formatter.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_formatter.dir/build.make CMakeFiles/naab_formatter.dir/src/formatter/formatter.cpp.o
+.PHONY : src/formatter/formatter.cpp.o
+
+src/formatter/formatter.i: src/formatter/formatter.cpp.i
+.PHONY : src/formatter/formatter.i
+
+# target to preprocess a source file
+src/formatter/formatter.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_formatter.dir/build.make CMakeFiles/naab_formatter.dir/src/formatter/formatter.cpp.i
+.PHONY : src/formatter/formatter.cpp.i
+
+src/formatter/formatter.s: src/formatter/formatter.cpp.s
+.PHONY : src/formatter/formatter.s
+
+# target to generate assembly for a file
+src/formatter/formatter.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_formatter.dir/build.make CMakeFiles/naab_formatter.dir/src/formatter/formatter.cpp.s
+.PHONY : src/formatter/formatter.cpp.s
+
+src/formatter/style_config.o: src/formatter/style_config.cpp.o
+.PHONY : src/formatter/style_config.o
+
+# target to build an object file
+src/formatter/style_config.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_formatter.dir/build.make CMakeFiles/naab_formatter.dir/src/formatter/style_config.cpp.o
+.PHONY : src/formatter/style_config.cpp.o
+
+src/formatter/style_config.i: src/formatter/style_config.cpp.i
+.PHONY : src/formatter/style_config.i
+
+# target to preprocess a source file
+src/formatter/style_config.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_formatter.dir/build.make CMakeFiles/naab_formatter.dir/src/formatter/style_config.cpp.i
+.PHONY : src/formatter/style_config.cpp.i
+
+src/formatter/style_config.s: src/formatter/style_config.cpp.s
+.PHONY : src/formatter/style_config.s
+
+# target to generate assembly for a file
+src/formatter/style_config.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_formatter.dir/build.make CMakeFiles/naab_formatter.dir/src/formatter/style_config.cpp.s
+.PHONY : src/formatter/style_config.cpp.s
+
+src/interpreter/cycle_detector.o: src/interpreter/cycle_detector.cpp.o
+.PHONY : src/interpreter/cycle_detector.o
+
+# target to build an object file
+src/interpreter/cycle_detector.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o
+.PHONY : src/interpreter/cycle_detector.cpp.o
+
+src/interpreter/cycle_detector.i: src/interpreter/cycle_detector.cpp.i
+.PHONY : src/interpreter/cycle_detector.i
+
+# target to preprocess a source file
+src/interpreter/cycle_detector.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.i
+.PHONY : src/interpreter/cycle_detector.cpp.i
+
+src/interpreter/cycle_detector.s: src/interpreter/cycle_detector.cpp.s
+.PHONY : src/interpreter/cycle_detector.s
+
+# target to generate assembly for a file
+src/interpreter/cycle_detector.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.s
+.PHONY : src/interpreter/cycle_detector.cpp.s
+
+src/interpreter/debugger.o: src/interpreter/debugger.cpp.o
+.PHONY : src/interpreter/debugger.o
+
+# target to build an object file
+src/interpreter/debugger.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o
+.PHONY : src/interpreter/debugger.cpp.o
+
+src/interpreter/debugger.i: src/interpreter/debugger.cpp.i
+.PHONY : src/interpreter/debugger.i
+
+# target to preprocess a source file
+src/interpreter/debugger.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.i
+.PHONY : src/interpreter/debugger.cpp.i
+
+src/interpreter/debugger.s: src/interpreter/debugger.cpp.s
+.PHONY : src/interpreter/debugger.s
+
+# target to generate assembly for a file
+src/interpreter/debugger.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.s
+.PHONY : src/interpreter/debugger.cpp.s
+
 src/interpreter/environment.o: src/interpreter/environment.cpp.o
 .PHONY : src/interpreter/environment.o
 
@@ -2464,6 +2701,30 @@ src/interpreter/environment.s: src/interpreter/environment.cpp.s
 src/interpreter/environment.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/environment.cpp.s
 .PHONY : src/interpreter/environment.cpp.s
+
+src/interpreter/error_context.o: src/interpreter/error_context.cpp.o
+.PHONY : src/interpreter/error_context.o
+
+# target to build an object file
+src/interpreter/error_context.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o
+.PHONY : src/interpreter/error_context.cpp.o
+
+src/interpreter/error_context.i: src/interpreter/error_context.cpp.i
+.PHONY : src/interpreter/error_context.i
+
+# target to preprocess a source file
+src/interpreter/error_context.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.i
+.PHONY : src/interpreter/error_context.cpp.i
+
+src/interpreter/error_context.s: src/interpreter/error_context.cpp.s
+.PHONY : src/interpreter/error_context.s
+
+# target to generate assembly for a file
+src/interpreter/error_context.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_interpreter.dir/build.make CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.s
+.PHONY : src/interpreter/error_context.cpp.s
 
 src/interpreter/evaluator.o: src/interpreter/evaluator.cpp.o
 .PHONY : src/interpreter/evaluator.o
@@ -2537,6 +2798,54 @@ src/lexer/lexer.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_lexer.dir/build.make CMakeFiles/naab_lexer.dir/src/lexer/lexer.cpp.s
 .PHONY : src/lexer/lexer.cpp.s
 
+src/linter/llm_patterns.o: src/linter/llm_patterns.cpp.o
+.PHONY : src/linter/llm_patterns.o
+
+# target to build an object file
+src/linter/llm_patterns.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_linter.dir/build.make CMakeFiles/naab_linter.dir/src/linter/llm_patterns.cpp.o
+.PHONY : src/linter/llm_patterns.cpp.o
+
+src/linter/llm_patterns.i: src/linter/llm_patterns.cpp.i
+.PHONY : src/linter/llm_patterns.i
+
+# target to preprocess a source file
+src/linter/llm_patterns.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_linter.dir/build.make CMakeFiles/naab_linter.dir/src/linter/llm_patterns.cpp.i
+.PHONY : src/linter/llm_patterns.cpp.i
+
+src/linter/llm_patterns.s: src/linter/llm_patterns.cpp.s
+.PHONY : src/linter/llm_patterns.s
+
+# target to generate assembly for a file
+src/linter/llm_patterns.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_linter.dir/build.make CMakeFiles/naab_linter.dir/src/linter/llm_patterns.cpp.s
+.PHONY : src/linter/llm_patterns.cpp.s
+
+src/linter/quality_hints.o: src/linter/quality_hints.cpp.o
+.PHONY : src/linter/quality_hints.o
+
+# target to build an object file
+src/linter/quality_hints.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_linter.dir/build.make CMakeFiles/naab_linter.dir/src/linter/quality_hints.cpp.o
+.PHONY : src/linter/quality_hints.cpp.o
+
+src/linter/quality_hints.i: src/linter/quality_hints.cpp.i
+.PHONY : src/linter/quality_hints.i
+
+# target to preprocess a source file
+src/linter/quality_hints.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_linter.dir/build.make CMakeFiles/naab_linter.dir/src/linter/quality_hints.cpp.i
+.PHONY : src/linter/quality_hints.cpp.i
+
+src/linter/quality_hints.s: src/linter/quality_hints.cpp.s
+.PHONY : src/linter/quality_hints.s
+
+# target to generate assembly for a file
+src/linter/quality_hints.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_linter.dir/build.make CMakeFiles/naab_linter.dir/src/linter/quality_hints.cpp.s
+.PHONY : src/linter/quality_hints.cpp.s
+
 src/parser/ast_nodes.o: src/parser/ast_nodes.cpp.o
 .PHONY : src/parser/ast_nodes.o
 
@@ -2560,6 +2869,30 @@ src/parser/ast_nodes.s: src/parser/ast_nodes.cpp.s
 src/parser/ast_nodes.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_parser.dir/build.make CMakeFiles/naab_parser.dir/src/parser/ast_nodes.cpp.s
 .PHONY : src/parser/ast_nodes.cpp.s
+
+src/parser/error_hints.o: src/parser/error_hints.cpp.o
+.PHONY : src/parser/error_hints.o
+
+# target to build an object file
+src/parser/error_hints.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_parser.dir/build.make CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o
+.PHONY : src/parser/error_hints.cpp.o
+
+src/parser/error_hints.i: src/parser/error_hints.cpp.i
+.PHONY : src/parser/error_hints.i
+
+# target to preprocess a source file
+src/parser/error_hints.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_parser.dir/build.make CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.i
+.PHONY : src/parser/error_hints.cpp.i
+
+src/parser/error_hints.s: src/parser/error_hints.cpp.s
+.PHONY : src/parser/error_hints.s
+
+# target to generate assembly for a file
+src/parser/error_hints.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_parser.dir/build.make CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.s
+.PHONY : src/parser/error_hints.cpp.s
 
 src/parser/parser.o: src/parser/parser.cpp.o
 .PHONY : src/parser/parser.o
@@ -2921,6 +3254,126 @@ src/runtime/crypto_utils.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/crypto_utils.cpp.s
 .PHONY : src/runtime/crypto_utils.cpp.s
 
+src/runtime/csharp_executor.o: src/runtime/csharp_executor.cpp.o
+.PHONY : src/runtime/csharp_executor.o
+
+# target to build an object file
+src/runtime/csharp_executor.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o
+.PHONY : src/runtime/csharp_executor.cpp.o
+
+src/runtime/csharp_executor.i: src/runtime/csharp_executor.cpp.i
+.PHONY : src/runtime/csharp_executor.i
+
+# target to preprocess a source file
+src/runtime/csharp_executor.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.i
+.PHONY : src/runtime/csharp_executor.cpp.i
+
+src/runtime/csharp_executor.s: src/runtime/csharp_executor.cpp.s
+.PHONY : src/runtime/csharp_executor.s
+
+# target to generate assembly for a file
+src/runtime/csharp_executor.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.s
+.PHONY : src/runtime/csharp_executor.cpp.s
+
+src/runtime/ffi_async_callback.o: src/runtime/ffi_async_callback.cpp.o
+.PHONY : src/runtime/ffi_async_callback.o
+
+# target to build an object file
+src/runtime/ffi_async_callback.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o
+.PHONY : src/runtime/ffi_async_callback.cpp.o
+
+src/runtime/ffi_async_callback.i: src/runtime/ffi_async_callback.cpp.i
+.PHONY : src/runtime/ffi_async_callback.i
+
+# target to preprocess a source file
+src/runtime/ffi_async_callback.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.i
+.PHONY : src/runtime/ffi_async_callback.cpp.i
+
+src/runtime/ffi_async_callback.s: src/runtime/ffi_async_callback.cpp.s
+.PHONY : src/runtime/ffi_async_callback.s
+
+# target to generate assembly for a file
+src/runtime/ffi_async_callback.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.s
+.PHONY : src/runtime/ffi_async_callback.cpp.s
+
+src/runtime/ffi_callback_validator.o: src/runtime/ffi_callback_validator.cpp.o
+.PHONY : src/runtime/ffi_callback_validator.o
+
+# target to build an object file
+src/runtime/ffi_callback_validator.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o
+.PHONY : src/runtime/ffi_callback_validator.cpp.o
+
+src/runtime/ffi_callback_validator.i: src/runtime/ffi_callback_validator.cpp.i
+.PHONY : src/runtime/ffi_callback_validator.i
+
+# target to preprocess a source file
+src/runtime/ffi_callback_validator.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.i
+.PHONY : src/runtime/ffi_callback_validator.cpp.i
+
+src/runtime/ffi_callback_validator.s: src/runtime/ffi_callback_validator.cpp.s
+.PHONY : src/runtime/ffi_callback_validator.s
+
+# target to generate assembly for a file
+src/runtime/ffi_callback_validator.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.s
+.PHONY : src/runtime/ffi_callback_validator.cpp.s
+
+src/runtime/generic_subprocess_executor.o: src/runtime/generic_subprocess_executor.cpp.o
+.PHONY : src/runtime/generic_subprocess_executor.o
+
+# target to build an object file
+src/runtime/generic_subprocess_executor.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o
+.PHONY : src/runtime/generic_subprocess_executor.cpp.o
+
+src/runtime/generic_subprocess_executor.i: src/runtime/generic_subprocess_executor.cpp.i
+.PHONY : src/runtime/generic_subprocess_executor.i
+
+# target to preprocess a source file
+src/runtime/generic_subprocess_executor.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.i
+.PHONY : src/runtime/generic_subprocess_executor.cpp.i
+
+src/runtime/generic_subprocess_executor.s: src/runtime/generic_subprocess_executor.cpp.s
+.PHONY : src/runtime/generic_subprocess_executor.s
+
+# target to generate assembly for a file
+src/runtime/generic_subprocess_executor.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.s
+.PHONY : src/runtime/generic_subprocess_executor.cpp.s
+
+src/runtime/inline_code_cache.o: src/runtime/inline_code_cache.cpp.o
+.PHONY : src/runtime/inline_code_cache.o
+
+# target to build an object file
+src/runtime/inline_code_cache.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o
+.PHONY : src/runtime/inline_code_cache.cpp.o
+
+src/runtime/inline_code_cache.i: src/runtime/inline_code_cache.cpp.i
+.PHONY : src/runtime/inline_code_cache.i
+
+# target to preprocess a source file
+src/runtime/inline_code_cache.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.i
+.PHONY : src/runtime/inline_code_cache.cpp.i
+
+src/runtime/inline_code_cache.s: src/runtime/inline_code_cache.cpp.s
+.PHONY : src/runtime/inline_code_cache.s
+
+# target to generate assembly for a file
+src/runtime/inline_code_cache.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.s
+.PHONY : src/runtime/inline_code_cache.cpp.s
+
 src/runtime/input_validator.o: src/runtime/input_validator.cpp.o
 .PHONY : src/runtime/input_validator.o
 
@@ -3041,6 +3494,54 @@ src/runtime/module_resolver.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.s
 .PHONY : src/runtime/module_resolver.cpp.s
 
+src/runtime/module_system.o: src/runtime/module_system.cpp.o
+.PHONY : src/runtime/module_system.o
+
+# target to build an object file
+src/runtime/module_system.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o
+.PHONY : src/runtime/module_system.cpp.o
+
+src/runtime/module_system.i: src/runtime/module_system.cpp.i
+.PHONY : src/runtime/module_system.i
+
+# target to preprocess a source file
+src/runtime/module_system.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.i
+.PHONY : src/runtime/module_system.cpp.i
+
+src/runtime/module_system.s: src/runtime/module_system.cpp.s
+.PHONY : src/runtime/module_system.s
+
+# target to generate assembly for a file
+src/runtime/module_system.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.s
+.PHONY : src/runtime/module_system.cpp.s
+
+src/runtime/polyglot_async_executor.o: src/runtime/polyglot_async_executor.cpp.o
+.PHONY : src/runtime/polyglot_async_executor.o
+
+# target to build an object file
+src/runtime/polyglot_async_executor.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o
+.PHONY : src/runtime/polyglot_async_executor.cpp.o
+
+src/runtime/polyglot_async_executor.i: src/runtime/polyglot_async_executor.cpp.i
+.PHONY : src/runtime/polyglot_async_executor.i
+
+# target to preprocess a source file
+src/runtime/polyglot_async_executor.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.i
+.PHONY : src/runtime/polyglot_async_executor.cpp.i
+
+src/runtime/polyglot_async_executor.s: src/runtime/polyglot_async_executor.cpp.s
+.PHONY : src/runtime/polyglot_async_executor.s
+
+# target to generate assembly for a file
+src/runtime/polyglot_async_executor.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.s
+.PHONY : src/runtime/polyglot_async_executor.cpp.s
+
 src/runtime/python_executor.o: src/runtime/python_executor.cpp.o
 .PHONY : src/runtime/python_executor.o
 
@@ -3088,6 +3589,30 @@ src/runtime/python_executor_adapter.s: src/runtime/python_executor_adapter.cpp.s
 src/runtime/python_executor_adapter.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.s
 .PHONY : src/runtime/python_executor_adapter.cpp.s
+
+src/runtime/python_interpreter_manager.o: src/runtime/python_interpreter_manager.cpp.o
+.PHONY : src/runtime/python_interpreter_manager.o
+
+# target to build an object file
+src/runtime/python_interpreter_manager.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o
+.PHONY : src/runtime/python_interpreter_manager.cpp.o
+
+src/runtime/python_interpreter_manager.i: src/runtime/python_interpreter_manager.cpp.i
+.PHONY : src/runtime/python_interpreter_manager.i
+
+# target to preprocess a source file
+src/runtime/python_interpreter_manager.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.i
+.PHONY : src/runtime/python_interpreter_manager.cpp.i
+
+src/runtime/python_interpreter_manager.s: src/runtime/python_interpreter_manager.cpp.s
+.PHONY : src/runtime/python_interpreter_manager.s
+
+# target to generate assembly for a file
+src/runtime/python_interpreter_manager.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.s
+.PHONY : src/runtime/python_interpreter_manager.cpp.s
 
 src/runtime/resource_limits.o: src/runtime/resource_limits.cpp.o
 .PHONY : src/runtime/resource_limits.o
@@ -3209,6 +3734,30 @@ src/runtime/semver.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/semver.cpp.s
 .PHONY : src/runtime/semver.cpp.s
 
+src/runtime/shell_executor.o: src/runtime/shell_executor.cpp.o
+.PHONY : src/runtime/shell_executor.o
+
+# target to build an object file
+src/runtime/shell_executor.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o
+.PHONY : src/runtime/shell_executor.cpp.o
+
+src/runtime/shell_executor.i: src/runtime/shell_executor.cpp.i
+.PHONY : src/runtime/shell_executor.i
+
+# target to preprocess a source file
+src/runtime/shell_executor.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.i
+.PHONY : src/runtime/shell_executor.cpp.i
+
+src/runtime/shell_executor.s: src/runtime/shell_executor.cpp.s
+.PHONY : src/runtime/shell_executor.s
+
+# target to generate assembly for a file
+src/runtime/shell_executor.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.s
+.PHONY : src/runtime/shell_executor.cpp.s
+
 src/runtime/stack_formatter.o: src/runtime/stack_formatter.cpp.o
 .PHONY : src/runtime/stack_formatter.o
 
@@ -3281,6 +3830,54 @@ src/runtime/struct_registry.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.s
 .PHONY : src/runtime/struct_registry.cpp.s
 
+src/runtime/subprocess_helpers.o: src/runtime/subprocess_helpers.cpp.o
+.PHONY : src/runtime/subprocess_helpers.o
+
+# target to build an object file
+src/runtime/subprocess_helpers.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o
+.PHONY : src/runtime/subprocess_helpers.cpp.o
+
+src/runtime/subprocess_helpers.i: src/runtime/subprocess_helpers.cpp.i
+.PHONY : src/runtime/subprocess_helpers.i
+
+# target to preprocess a source file
+src/runtime/subprocess_helpers.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.i
+.PHONY : src/runtime/subprocess_helpers.cpp.i
+
+src/runtime/subprocess_helpers.s: src/runtime/subprocess_helpers.cpp.s
+.PHONY : src/runtime/subprocess_helpers.s
+
+# target to generate assembly for a file
+src/runtime/subprocess_helpers.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.s
+.PHONY : src/runtime/subprocess_helpers.cpp.s
+
+src/runtime/tamper_evident_logger.o: src/runtime/tamper_evident_logger.cpp.o
+.PHONY : src/runtime/tamper_evident_logger.o
+
+# target to build an object file
+src/runtime/tamper_evident_logger.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o
+.PHONY : src/runtime/tamper_evident_logger.cpp.o
+
+src/runtime/tamper_evident_logger.i: src/runtime/tamper_evident_logger.cpp.i
+.PHONY : src/runtime/tamper_evident_logger.i
+
+# target to preprocess a source file
+src/runtime/tamper_evident_logger.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.i
+.PHONY : src/runtime/tamper_evident_logger.cpp.i
+
+src/runtime/tamper_evident_logger.s: src/runtime/tamper_evident_logger.cpp.s
+.PHONY : src/runtime/tamper_evident_logger.s
+
+# target to generate assembly for a file
+src/runtime/tamper_evident_logger.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.s
+.PHONY : src/runtime/tamper_evident_logger.cpp.s
+
 src/runtime/type_marshaller.o: src/runtime/type_marshaller.cpp.o
 .PHONY : src/runtime/type_marshaller.o
 
@@ -3304,6 +3901,30 @@ src/runtime/type_marshaller.s: src/runtime/type_marshaller.cpp.s
 src/runtime/type_marshaller.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_runtime.dir/build.make CMakeFiles/naab_runtime.dir/src/runtime/type_marshaller.cpp.s
 .PHONY : src/runtime/type_marshaller.cpp.s
+
+src/safe_regex.o: src/safe_regex.cpp.o
+.PHONY : src/safe_regex.o
+
+# target to build an object file
+src/safe_regex.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/safe_regex.cpp.o
+.PHONY : src/safe_regex.cpp.o
+
+src/safe_regex.i: src/safe_regex.cpp.i
+.PHONY : src/safe_regex.i
+
+# target to preprocess a source file
+src/safe_regex.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/safe_regex.cpp.i
+.PHONY : src/safe_regex.cpp.i
+
+src/safe_regex.s: src/safe_regex.cpp.s
+.PHONY : src/safe_regex.s
+
+# target to generate assembly for a file
+src/safe_regex.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_security.dir/build.make CMakeFiles/naab_security.dir/src/safe_regex.cpp.s
+.PHONY : src/safe_regex.cpp.s
 
 src/semantic/analyzer.o: src/semantic/analyzer.cpp.o
 .PHONY : src/semantic/analyzer.o
@@ -4097,6 +4718,54 @@ tests/unit/error_categories_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/error_categories_test.cpp.s
 .PHONY : tests/unit/error_categories_test.cpp.s
 
+tests/unit/ffi_async_callback_test.o: tests/unit/ffi_async_callback_test.cpp.o
+.PHONY : tests/unit/ffi_async_callback_test.o
+
+# target to build an object file
+tests/unit/ffi_async_callback_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/ffi_async_callback_test.cpp.o
+.PHONY : tests/unit/ffi_async_callback_test.cpp.o
+
+tests/unit/ffi_async_callback_test.i: tests/unit/ffi_async_callback_test.cpp.i
+.PHONY : tests/unit/ffi_async_callback_test.i
+
+# target to preprocess a source file
+tests/unit/ffi_async_callback_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/ffi_async_callback_test.cpp.i
+.PHONY : tests/unit/ffi_async_callback_test.cpp.i
+
+tests/unit/ffi_async_callback_test.s: tests/unit/ffi_async_callback_test.cpp.s
+.PHONY : tests/unit/ffi_async_callback_test.s
+
+# target to generate assembly for a file
+tests/unit/ffi_async_callback_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/ffi_async_callback_test.cpp.s
+.PHONY : tests/unit/ffi_async_callback_test.cpp.s
+
+tests/unit/ffi_callback_validator_test.o: tests/unit/ffi_callback_validator_test.cpp.o
+.PHONY : tests/unit/ffi_callback_validator_test.o
+
+# target to build an object file
+tests/unit/ffi_callback_validator_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/ffi_callback_validator_test.cpp.o
+.PHONY : tests/unit/ffi_callback_validator_test.cpp.o
+
+tests/unit/ffi_callback_validator_test.i: tests/unit/ffi_callback_validator_test.cpp.i
+.PHONY : tests/unit/ffi_callback_validator_test.i
+
+# target to preprocess a source file
+tests/unit/ffi_callback_validator_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/ffi_callback_validator_test.cpp.i
+.PHONY : tests/unit/ffi_callback_validator_test.cpp.i
+
+tests/unit/ffi_callback_validator_test.s: tests/unit/ffi_callback_validator_test.cpp.s
+.PHONY : tests/unit/ffi_callback_validator_test.s
+
+# target to generate assembly for a file
+tests/unit/ffi_callback_validator_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/ffi_callback_validator_test.cpp.s
+.PHONY : tests/unit/ffi_callback_validator_test.cpp.s
+
 tests/unit/interpreter_struct_test.o: tests/unit/interpreter_struct_test.cpp.o
 .PHONY : tests/unit/interpreter_struct_test.o
 
@@ -4217,6 +4886,30 @@ tests/unit/parser_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/parser_test.cpp.s
 .PHONY : tests/unit/parser_test.cpp.s
 
+tests/unit/polyglot_async_test.o: tests/unit/polyglot_async_test.cpp.o
+.PHONY : tests/unit/polyglot_async_test.o
+
+# target to build an object file
+tests/unit/polyglot_async_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/polyglot_async_test.cpp.o
+.PHONY : tests/unit/polyglot_async_test.cpp.o
+
+tests/unit/polyglot_async_test.i: tests/unit/polyglot_async_test.cpp.i
+.PHONY : tests/unit/polyglot_async_test.i
+
+# target to preprocess a source file
+tests/unit/polyglot_async_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/polyglot_async_test.cpp.i
+.PHONY : tests/unit/polyglot_async_test.cpp.i
+
+tests/unit/polyglot_async_test.s: tests/unit/polyglot_async_test.cpp.s
+.PHONY : tests/unit/polyglot_async_test.s
+
+# target to generate assembly for a file
+tests/unit/polyglot_async_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/polyglot_async_test.cpp.s
+.PHONY : tests/unit/polyglot_async_test.cpp.s
+
 tests/unit/rust_ffi_test.o: tests/unit/rust_ffi_test.cpp.o
 .PHONY : tests/unit/rust_ffi_test.o
 
@@ -4240,6 +4933,78 @@ tests/unit/rust_ffi_test.s: tests/unit/rust_ffi_test.cpp.s
 tests/unit/rust_ffi_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/rust_ffi_test.cpp.s
 .PHONY : tests/unit/rust_ffi_test.cpp.s
+
+tests/unit/safe_regex_test.o: tests/unit/safe_regex_test.cpp.o
+.PHONY : tests/unit/safe_regex_test.o
+
+# target to build an object file
+tests/unit/safe_regex_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/safe_regex_test.cpp.o
+.PHONY : tests/unit/safe_regex_test.cpp.o
+
+tests/unit/safe_regex_test.i: tests/unit/safe_regex_test.cpp.i
+.PHONY : tests/unit/safe_regex_test.i
+
+# target to preprocess a source file
+tests/unit/safe_regex_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/safe_regex_test.cpp.i
+.PHONY : tests/unit/safe_regex_test.cpp.i
+
+tests/unit/safe_regex_test.s: tests/unit/safe_regex_test.cpp.s
+.PHONY : tests/unit/safe_regex_test.s
+
+# target to generate assembly for a file
+tests/unit/safe_regex_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/safe_regex_test.cpp.s
+.PHONY : tests/unit/safe_regex_test.cpp.s
+
+tests/unit/safe_time_test.o: tests/unit/safe_time_test.cpp.o
+.PHONY : tests/unit/safe_time_test.o
+
+# target to build an object file
+tests/unit/safe_time_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/safe_time_test.cpp.o
+.PHONY : tests/unit/safe_time_test.cpp.o
+
+tests/unit/safe_time_test.i: tests/unit/safe_time_test.cpp.i
+.PHONY : tests/unit/safe_time_test.i
+
+# target to preprocess a source file
+tests/unit/safe_time_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/safe_time_test.cpp.i
+.PHONY : tests/unit/safe_time_test.cpp.i
+
+tests/unit/safe_time_test.s: tests/unit/safe_time_test.cpp.s
+.PHONY : tests/unit/safe_time_test.s
+
+# target to generate assembly for a file
+tests/unit/safe_time_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/safe_time_test.cpp.s
+.PHONY : tests/unit/safe_time_test.cpp.s
+
+tests/unit/secure_string_test.o: tests/unit/secure_string_test.cpp.o
+.PHONY : tests/unit/secure_string_test.o
+
+# target to build an object file
+tests/unit/secure_string_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/secure_string_test.cpp.o
+.PHONY : tests/unit/secure_string_test.cpp.o
+
+tests/unit/secure_string_test.i: tests/unit/secure_string_test.cpp.i
+.PHONY : tests/unit/secure_string_test.i
+
+# target to preprocess a source file
+tests/unit/secure_string_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/secure_string_test.cpp.i
+.PHONY : tests/unit/secure_string_test.cpp.i
+
+tests/unit/secure_string_test.s: tests/unit/secure_string_test.cpp.s
+.PHONY : tests/unit/secure_string_test.s
+
+# target to generate assembly for a file
+tests/unit/secure_string_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/secure_string_test.cpp.s
+.PHONY : tests/unit/secure_string_test.cpp.s
 
 tests/unit/stack_tracer_test.o: tests/unit/stack_tracer_test.cpp.o
 .PHONY : tests/unit/stack_tracer_test.o
@@ -4336,6 +5101,30 @@ tests/unit/suggestion_system_test.s: tests/unit/suggestion_system_test.cpp.s
 tests/unit/suggestion_system_test.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/suggestion_system_test.cpp.s
 .PHONY : tests/unit/suggestion_system_test.cpp.s
+
+tests/unit/tamper_evident_logger_test.o: tests/unit/tamper_evident_logger_test.cpp.o
+.PHONY : tests/unit/tamper_evident_logger_test.o
+
+# target to build an object file
+tests/unit/tamper_evident_logger_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/tamper_evident_logger_test.cpp.o
+.PHONY : tests/unit/tamper_evident_logger_test.cpp.o
+
+tests/unit/tamper_evident_logger_test.i: tests/unit/tamper_evident_logger_test.cpp.i
+.PHONY : tests/unit/tamper_evident_logger_test.i
+
+# target to preprocess a source file
+tests/unit/tamper_evident_logger_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/tamper_evident_logger_test.cpp.i
+.PHONY : tests/unit/tamper_evident_logger_test.cpp.i
+
+tests/unit/tamper_evident_logger_test.s: tests/unit/tamper_evident_logger_test.cpp.s
+.PHONY : tests/unit/tamper_evident_logger_test.s
+
+# target to generate assembly for a file
+tests/unit/tamper_evident_logger_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/naab_unit_tests.dir/build.make CMakeFiles/naab_unit_tests.dir/tests/unit/tamper_evident_logger_test.cpp.s
+.PHONY : tests/unit/tamper_evident_logger_test.cpp.s
 
 tests/unit/test_block_registry.o: tests/unit/test_block_registry.cpp.o
 .PHONY : tests/unit/test_block_registry.o
@@ -4903,6 +5692,12 @@ help:
 	@echo "... example_simple_pipeline"
 	@echo "... example_web_scraper"
 	@echo "... fmt"
+	@echo "... fuzz_interpreter"
+	@echo "... fuzz_json_marshal"
+	@echo "... fuzz_lexer"
+	@echo "... fuzz_parser"
+	@echo "... fuzz_python_executor"
+	@echo "... fuzz_value_conversion"
 	@echo "... gtest"
 	@echo "... gtest_main"
 	@echo "... linenoise"
@@ -4911,11 +5706,14 @@ help:
 	@echo "... naab-repl"
 	@echo "... naab-repl-opt"
 	@echo "... naab-repl-rl"
+	@echo "... naab-verify-audit"
 	@echo "... naab_block_enricher"
 	@echo "... naab_debugger"
 	@echo "... naab_doc_generator"
+	@echo "... naab_formatter"
 	@echo "... naab_interpreter"
 	@echo "... naab_lexer"
+	@echo "... naab_linter"
 	@echo "... naab_parser"
 	@echo "... naab_profiling"
 	@echo "... naab_rest_api"
@@ -4957,15 +5755,33 @@ help:
 	@echo "... src/cli/main.o"
 	@echo "... src/cli/main.i"
 	@echo "... src/cli/main.s"
+	@echo "... src/cli/verify_audit.o"
+	@echo "... src/cli/verify_audit.i"
+	@echo "... src/cli/verify_audit.s"
 	@echo "... src/debugger/debugger.o"
 	@echo "... src/debugger/debugger.i"
 	@echo "... src/debugger/debugger.s"
 	@echo "... src/doc/doc_generator.o"
 	@echo "... src/doc/doc_generator.i"
 	@echo "... src/doc/doc_generator.s"
+	@echo "... src/formatter/formatter.o"
+	@echo "... src/formatter/formatter.i"
+	@echo "... src/formatter/formatter.s"
+	@echo "... src/formatter/style_config.o"
+	@echo "... src/formatter/style_config.i"
+	@echo "... src/formatter/style_config.s"
+	@echo "... src/interpreter/cycle_detector.o"
+	@echo "... src/interpreter/cycle_detector.i"
+	@echo "... src/interpreter/cycle_detector.s"
+	@echo "... src/interpreter/debugger.o"
+	@echo "... src/interpreter/debugger.i"
+	@echo "... src/interpreter/debugger.s"
 	@echo "... src/interpreter/environment.o"
 	@echo "... src/interpreter/environment.i"
 	@echo "... src/interpreter/environment.s"
+	@echo "... src/interpreter/error_context.o"
+	@echo "... src/interpreter/error_context.i"
+	@echo "... src/interpreter/error_context.s"
 	@echo "... src/interpreter/evaluator.o"
 	@echo "... src/interpreter/evaluator.i"
 	@echo "... src/interpreter/evaluator.s"
@@ -4975,9 +5791,18 @@ help:
 	@echo "... src/lexer/lexer.o"
 	@echo "... src/lexer/lexer.i"
 	@echo "... src/lexer/lexer.s"
+	@echo "... src/linter/llm_patterns.o"
+	@echo "... src/linter/llm_patterns.i"
+	@echo "... src/linter/llm_patterns.s"
+	@echo "... src/linter/quality_hints.o"
+	@echo "... src/linter/quality_hints.i"
+	@echo "... src/linter/quality_hints.s"
 	@echo "... src/parser/ast_nodes.o"
 	@echo "... src/parser/ast_nodes.i"
 	@echo "... src/parser/ast_nodes.s"
+	@echo "... src/parser/error_hints.o"
+	@echo "... src/parser/error_hints.i"
+	@echo "... src/parser/error_hints.s"
 	@echo "... src/parser/parser.o"
 	@echo "... src/parser/parser.i"
 	@echo "... src/parser/parser.s"
@@ -5023,6 +5848,21 @@ help:
 	@echo "... src/runtime/crypto_utils.o"
 	@echo "... src/runtime/crypto_utils.i"
 	@echo "... src/runtime/crypto_utils.s"
+	@echo "... src/runtime/csharp_executor.o"
+	@echo "... src/runtime/csharp_executor.i"
+	@echo "... src/runtime/csharp_executor.s"
+	@echo "... src/runtime/ffi_async_callback.o"
+	@echo "... src/runtime/ffi_async_callback.i"
+	@echo "... src/runtime/ffi_async_callback.s"
+	@echo "... src/runtime/ffi_callback_validator.o"
+	@echo "... src/runtime/ffi_callback_validator.i"
+	@echo "... src/runtime/ffi_callback_validator.s"
+	@echo "... src/runtime/generic_subprocess_executor.o"
+	@echo "... src/runtime/generic_subprocess_executor.i"
+	@echo "... src/runtime/generic_subprocess_executor.s"
+	@echo "... src/runtime/inline_code_cache.o"
+	@echo "... src/runtime/inline_code_cache.i"
+	@echo "... src/runtime/inline_code_cache.s"
 	@echo "... src/runtime/input_validator.o"
 	@echo "... src/runtime/input_validator.i"
 	@echo "... src/runtime/input_validator.s"
@@ -5038,12 +5878,21 @@ help:
 	@echo "... src/runtime/module_resolver.o"
 	@echo "... src/runtime/module_resolver.i"
 	@echo "... src/runtime/module_resolver.s"
+	@echo "... src/runtime/module_system.o"
+	@echo "... src/runtime/module_system.i"
+	@echo "... src/runtime/module_system.s"
+	@echo "... src/runtime/polyglot_async_executor.o"
+	@echo "... src/runtime/polyglot_async_executor.i"
+	@echo "... src/runtime/polyglot_async_executor.s"
 	@echo "... src/runtime/python_executor.o"
 	@echo "... src/runtime/python_executor.i"
 	@echo "... src/runtime/python_executor.s"
 	@echo "... src/runtime/python_executor_adapter.o"
 	@echo "... src/runtime/python_executor_adapter.i"
 	@echo "... src/runtime/python_executor_adapter.s"
+	@echo "... src/runtime/python_interpreter_manager.o"
+	@echo "... src/runtime/python_interpreter_manager.i"
+	@echo "... src/runtime/python_interpreter_manager.s"
 	@echo "... src/runtime/resource_limits.o"
 	@echo "... src/runtime/resource_limits.i"
 	@echo "... src/runtime/resource_limits.s"
@@ -5059,6 +5908,9 @@ help:
 	@echo "... src/runtime/semver.o"
 	@echo "... src/runtime/semver.i"
 	@echo "... src/runtime/semver.s"
+	@echo "... src/runtime/shell_executor.o"
+	@echo "... src/runtime/shell_executor.i"
+	@echo "... src/runtime/shell_executor.s"
 	@echo "... src/runtime/stack_formatter.o"
 	@echo "... src/runtime/stack_formatter.i"
 	@echo "... src/runtime/stack_formatter.s"
@@ -5068,9 +5920,18 @@ help:
 	@echo "... src/runtime/struct_registry.o"
 	@echo "... src/runtime/struct_registry.i"
 	@echo "... src/runtime/struct_registry.s"
+	@echo "... src/runtime/subprocess_helpers.o"
+	@echo "... src/runtime/subprocess_helpers.i"
+	@echo "... src/runtime/subprocess_helpers.s"
+	@echo "... src/runtime/tamper_evident_logger.o"
+	@echo "... src/runtime/tamper_evident_logger.i"
+	@echo "... src/runtime/tamper_evident_logger.s"
 	@echo "... src/runtime/type_marshaller.o"
 	@echo "... src/runtime/type_marshaller.i"
 	@echo "... src/runtime/type_marshaller.s"
+	@echo "... src/safe_regex.o"
+	@echo "... src/safe_regex.i"
+	@echo "... src/safe_regex.s"
 	@echo "... src/semantic/analyzer.o"
 	@echo "... src/semantic/analyzer.i"
 	@echo "... src/semantic/analyzer.s"
@@ -5170,6 +6031,12 @@ help:
 	@echo "... tests/unit/error_categories_test.o"
 	@echo "... tests/unit/error_categories_test.i"
 	@echo "... tests/unit/error_categories_test.s"
+	@echo "... tests/unit/ffi_async_callback_test.o"
+	@echo "... tests/unit/ffi_async_callback_test.i"
+	@echo "... tests/unit/ffi_async_callback_test.s"
+	@echo "... tests/unit/ffi_callback_validator_test.o"
+	@echo "... tests/unit/ffi_callback_validator_test.i"
+	@echo "... tests/unit/ffi_callback_validator_test.s"
 	@echo "... tests/unit/interpreter_struct_test.o"
 	@echo "... tests/unit/interpreter_struct_test.i"
 	@echo "... tests/unit/interpreter_struct_test.s"
@@ -5185,9 +6052,21 @@ help:
 	@echo "... tests/unit/parser_test.o"
 	@echo "... tests/unit/parser_test.i"
 	@echo "... tests/unit/parser_test.s"
+	@echo "... tests/unit/polyglot_async_test.o"
+	@echo "... tests/unit/polyglot_async_test.i"
+	@echo "... tests/unit/polyglot_async_test.s"
 	@echo "... tests/unit/rust_ffi_test.o"
 	@echo "... tests/unit/rust_ffi_test.i"
 	@echo "... tests/unit/rust_ffi_test.s"
+	@echo "... tests/unit/safe_regex_test.o"
+	@echo "... tests/unit/safe_regex_test.i"
+	@echo "... tests/unit/safe_regex_test.s"
+	@echo "... tests/unit/safe_time_test.o"
+	@echo "... tests/unit/safe_time_test.i"
+	@echo "... tests/unit/safe_time_test.s"
+	@echo "... tests/unit/secure_string_test.o"
+	@echo "... tests/unit/secure_string_test.i"
+	@echo "... tests/unit/secure_string_test.s"
 	@echo "... tests/unit/stack_tracer_test.o"
 	@echo "... tests/unit/stack_tracer_test.i"
 	@echo "... tests/unit/stack_tracer_test.s"
@@ -5200,6 +6079,9 @@ help:
 	@echo "... tests/unit/suggestion_system_test.o"
 	@echo "... tests/unit/suggestion_system_test.i"
 	@echo "... tests/unit/suggestion_system_test.s"
+	@echo "... tests/unit/tamper_evident_logger_test.o"
+	@echo "... tests/unit/tamper_evident_logger_test.i"
+	@echo "... tests/unit/tamper_evident_logger_test.s"
 	@echo "... tests/unit/test_block_registry.o"
 	@echo "... tests/unit/test_block_registry.i"
 	@echo "... tests/unit/test_block_registry.s"

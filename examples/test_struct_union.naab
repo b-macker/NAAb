@@ -1,0 +1,27 @@
+// Test struct with union field - success case
+
+struct Config {
+    port: int | string
+    debug: bool
+}
+
+main {
+    print("Testing struct with union field...")
+
+    // Valid: int for port
+    Config {
+        port: 8080,
+        debug: true
+    }
+
+    print("Created config with int port")
+
+    // Valid: string for port
+    Config {
+        port: "8080",
+        debug: false
+    }
+
+    print("Created config with string port")
+    print("Done!")
+}

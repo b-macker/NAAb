@@ -19,8 +19,8 @@ static double getDouble(const std::shared_ptr<interpreter::Value>& val);
 bool MathModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "PI", "E",
-        "abs_fn", "sqrt", "pow_fn", "floor", "ceil", "round_fn",
-        "min_fn", "max_fn", "sin", "cos", "tan"
+        "abs", "sqrt", "pow", "floor", "ceil", "round",
+        "min", "max", "sin", "cos", "tan"
     };
     return functions.count(name) > 0;
 }
@@ -37,10 +37,10 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         return std::make_shared<interpreter::Value>(2.71828182845904523536);
     }
 
-    // Function 1: abs_fn
-    if (function_name == "abs_fn") {
+    // Function 1: abs
+    if (function_name == "abs") {
         if (args.size() != 1) {
-            throw std::runtime_error("abs_fn() takes exactly 1 argument");
+            throw std::runtime_error("abs() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
         return std::make_shared<interpreter::Value>(std::abs(x));
@@ -58,10 +58,10 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         return std::make_shared<interpreter::Value>(std::sqrt(x));
     }
 
-    // Function 3: pow_fn
-    if (function_name == "pow_fn") {
+    // Function 3: pow
+    if (function_name == "pow") {
         if (args.size() != 2) {
-            throw std::runtime_error("pow_fn() takes exactly 2 arguments");
+            throw std::runtime_error("pow() takes exactly 2 arguments");
         }
         double base = getDouble(args[0]);
         double exp = getDouble(args[1]);
@@ -86,29 +86,29 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         return std::make_shared<interpreter::Value>(static_cast<int>(std::ceil(x)));
     }
 
-    // Function 6: round_fn
-    if (function_name == "round_fn") {
+    // Function 6: round
+    if (function_name == "round") {
         if (args.size() != 1) {
-            throw std::runtime_error("round_fn() takes exactly 1 argument");
+            throw std::runtime_error("round() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
         return std::make_shared<interpreter::Value>(static_cast<int>(std::round(x)));
     }
 
-    // Function 7: min_fn
-    if (function_name == "min_fn") {
+    // Function 7: min
+    if (function_name == "min") {
         if (args.size() != 2) {
-            throw std::runtime_error("min_fn() takes exactly 2 arguments");
+            throw std::runtime_error("min() takes exactly 2 arguments");
         }
         double a = getDouble(args[0]);
         double b = getDouble(args[1]);
         return std::make_shared<interpreter::Value>(std::min(a, b));
     }
 
-    // Function 8: max_fn
-    if (function_name == "max_fn") {
+    // Function 8: max
+    if (function_name == "max") {
         if (args.size() != 2) {
-            throw std::runtime_error("max_fn() takes exactly 2 arguments");
+            throw std::runtime_error("max() takes exactly 2 arguments");
         }
         double a = getDouble(args[0]);
         double b = getDouble(args[1]);

@@ -1,0 +1,15 @@
+{
+    "id": "BLOCK-RUST-TEST-STDOUT",
+    "name": "Rust Stdout Test",
+    "language": "rust",
+    "description": "Test block to verify Rust stdout works",
+    "version": "1.0.0",
+    "code": "fn main() {\n    println!(\"Hello from Rust stdout!\");\n    println!(\"This should be visible if stdout fix works\");\n    println!(\"Counting: 1, 2, 3, 4, 5\");\n    for i in 1..=5 {\n        println!(\"Number: {}\", i);\n    }\n}",
+    "functions": [
+        {
+            "name": "test_stdout",
+            "description": "Tests basic println! output",
+            "returns": "string"
+        }
+    ]
+}

@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_log_internal_message.a CMakeFiles/absl_log_internal_message.dir/internal/log_message.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_log_internal_message.a

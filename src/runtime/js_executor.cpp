@@ -7,6 +7,7 @@
 #include "naab/audit_logger.h"
 #include "naab/sandbox.h"
 #include "naab/stack_tracer.h"  // Phase 4.2.3: Cross-language stack traces
+#include "naab/limits.h"  // Week 1, Task 1.2: Input size caps
 #include <fmt/core.h>
 #include <stdexcept>
 #include <chrono>
@@ -64,6 +65,14 @@ JsExecutor::~JsExecutor() {
 }
 
 bool JsExecutor::execute(const std::string& code) {
+    // Week 1, Task 1.2: Check polyglot block size
+    try {
+        limits::checkPolyglotBlockSize(code.size(), "JavaScript");
+    } catch (const limits::InputSizeException& e) {
+        fmt::print("[ERROR] {}\n", e.what());
+        return false;
+    }
+
     if (!isInitialized()) {
         fmt::print("[ERROR] JavaScript runtime not initialized\n");
         return false;

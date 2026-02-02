@@ -1,0 +1,63 @@
+// test_module_system.naab - Test Phase 4 Module System
+// This file tests the Rust-style module system implementation
+
+// Import the math_utils module
+use math_utils
+
+main {
+    print("=== Phase 4 Module System Test ===")
+    print("")
+
+    // Test 1: Simple function call
+    print("Test 1: Simple function call")
+    let sum = math_utils.add(5, 10)
+    print("  math_utils.add(5, 10) = ", sum)
+    print("  Expected: 15")
+    print("")
+
+    // Test 2: Multiple function calls
+    print("Test 2: Multiple function calls")
+    let product = math_utils.multiply(3, 4)
+    let difference = math_utils.subtract(20, 8)
+    print("  math_utils.multiply(3, 4) = ", product)
+    print("  Expected: 12")
+    print("  math_utils.subtract(20, 8) = ", difference)
+    print("  Expected: 12")
+    print("")
+
+    // Test 3: Struct instantiation
+    print("Test 3: Struct instantiation")
+    let p = new math_utils.Point {
+        x: 100
+        y: 200
+    }
+    print("  Created Point: x=", p.x, ", y=", p.y)
+    print("  Expected: x=100, y=200")
+    print("")
+
+    // Test 4: Multiple struct instances
+    print("Test 4: Multiple struct instances")
+    let v1 = new math_utils.Vector { x: 3, y: 4 }
+    let v2 = new math_utils.Vector { x: 5, y: 12 }
+    print("  Vector 1: x=", v1.x, ", y=", v1.y)
+    print("  Vector 2: x=", v2.x, ", y=", v2.y)
+    print("")
+
+    // Test 5: Function with struct parameter
+    print("Test 5: Function with struct parameter")
+    let length = math_utils.vector_length(v1)
+    print("  vector_length(v1) = ", length)
+    print("  (Note: sqrt not implemented yet, returns 0.0)")
+    print("")
+
+    // Test 6: Chained operations
+    print("Test 6: Chained operations")
+    let a = math_utils.add(10, 20)
+    let b = math_utils.multiply(a, 2)
+    let c = math_utils.subtract(b, 10)
+    print("  ((10 + 20) * 2) - 10 = ", c)
+    print("  Expected: 50")
+    print("")
+
+    print("=== Module System Test Complete ===")
+}

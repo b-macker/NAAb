@@ -1,0 +1,52 @@
+// Debugger breakpoint test
+// Run with: naab-lang run --debug breakpoint_test.naab
+// Set breakpoints with: b breakpoint_test.naab:15
+
+use io
+
+fn calculate(x: int, y: int) -> int {
+    io.write("Calculating...\n")
+
+    let sum = x + y  // Set breakpoint here (line 8)
+    let product = x * y  // And here (line 9)
+
+    return sum + product
+}
+
+fn processData(data: list<int>) -> int {
+    let total = 0
+
+    for item in data {  // Set breakpoint here (line 17)
+        total = total + item
+    }
+
+    return total
+}
+
+main {
+    io.write("=== Debugger Test ===\n")
+
+    // Test 1: Breakpoint in function
+    let result1 = calculate(10, 20)
+    io.write("Result 1: ")
+    io.write(result1)
+    io.write("\n")
+
+    // Test 2: Breakpoint in loop
+    let numbers = [1, 2, 3, 4, 5]
+    let result2 = processData(numbers)
+    io.write("Result 2: ")
+    io.write(result2)
+    io.write("\n")
+
+    io.write("=== Test Complete ===\n")
+}
+
+// Debug Commands to test:
+// - c / continue: Continue execution
+// - s / step: Step to next statement
+// - v / vars: Show local variables
+// - p <expr>: Print expression (e.g., "p sum", "p x + y")
+// - b <file>:<line>: Set breakpoint
+// - h / help: Show help
+// - q / quit: Exit debugger

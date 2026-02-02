@@ -1,0 +1,120 @@
+// dpre_app/engine.naab
+// Main entry point for the Data Processing and Reporting Engine (DPRE)
+
+// Import standard library modules
+use io       // For input/output operations
+use string   // For string manipulation
+use json     // For JSON parsing and serialization
+use env      // For environment variables, especially command-line arguments
+use file     // For file system operations
+use time     // For timestamps
+
+// Import application-specific modules
+use cli_parser as cli       // Handles command-line argument parsing
+use data_models as dm       // Defines data structures (structs, enums)
+use ingestion as ing         // Handles data ingestion from files
+use processing as proc       // Contains core data processing logic
+use reporting as rep         // Handles report generation and output
+
+main {
+    io.write("DPRE: Data Processing and Reporting Engine started.\n")
+    io.write("DPRE: Current Time: ", string.from(time.now()), "\n")
+
+    // 1. Get command-line arguments
+    let args = env.get_args()
+    if string.length(args) < 2 { // args[0] is typically the executable/script name
+        cli.print_help()
+        io.write_error("DPRE: Error: No arguments provided. Use --help for usage.\n")
+        return
+    }
+
+    // 2. Parse command-line arguments
+    let cli_config_result = cli.parse_args(args)
+    if cli_config_result.err != null {
+        if cli_config_result.err.message != "Help requested." { // Don't print error if help was requested
+            io.write_error("DPRE: CLI Error: ", cli_config_result.err.message, "\n")
+            if cli_config_result.err.details != null {
+                io.write_error("DPRE: Details: ", cli_config_result.err.details, "\n")
+            }
+        }
+        return
+    }
+    let cli_config = cli_config_result.ok
+
+    if cli_config.verbose {
+        io.write("DPRE: CLI Config parsed successfully.\n")
+        io.write("DPRE: Input File: ", cli_config.input_file, "\n")
+        io.write("DPRE: Config File: ", string.from(cli_config.config_file), "\n")
+        io.write("DPRE: Output Format: ", string.from(cli_config.output_format), "\n")
+        io.write("DPRE: Output File: ", string.from(cli_config.output_file), "\n")
+    }
+
+    // 3. Determine FileType for Ingestion
+    let input_file_type: dm.FileType? = ing.get_file_type_from_path(cli_config.input_file)
+    if input_file_type == null {
+        io.write_error("DPRE: Error: Could not determine input file type from extension for '", cli_config.input_file, "'.\n")
+        io.write_error("DPRE: Supported extensions are .csv and .json.\n")
+        return
+    }
+
+    // 4. Ingest raw data
+    let ingestion_config = dm.IngestionConfig {
+        input_file: cli_config.input_file,
+        file_type: input_file_type
+    }
+    let raw_data_result = ing.read_data(ingestion_config)
+    if raw_data_result.err != null {
+        io.write_error("DPRE: Ingestion Error: ", raw_data_result.err.message, "\n")
+        if raw_data_result.err.details != null {
+            io.write_error("DPRE: Details: ", raw_data_result.err.details, "\n")
+        }
+        return
+    }
+    let raw_data = raw_data_result.ok
+    if cli_config.verbose {
+        io.write("DPRE: Successfully ingested ", string.from(string.length(raw_data)), " raw records.\n")
+    }
+
+    // 5. Construct Processing Configuration (hardcoded for now, will come from config_file later)
+    let processing_config = dm.ProcessingConfig {
+        filters: [
+            dm.FilterRule { field: "value", operator: "gt", value: 100 } // Example filter
+        ],
+        aggregations: [
+            dm.AggregationRule { group_by_field: "category", target_field: "value", operation: "sum" } // Example aggregation
+        ],
+        transformations: [
+            dm.TransformationRule { new_field: "double_value", formula: "value * 2" } // Example transformation
+        ]
+    }
+    // TODO: Implement reading processing config from config_file (JSON) if specified.
+
+    // 6. Apply Processing Pipeline
+    let summary_report_result = proc.apply_pipeline(raw_data, processing_config)
+    if summary_report_result.err != null {
+        io.write_error("DPRE: Processing Error: ", summary_report_result.err.message, "\n")
+        if summary_report_result.err.details != null {
+            io.write_error("DPRE: Details: ", summary_report_result.err.details, "\n")
+        }
+        return
+    }
+    let summary_report = summary_report_result.ok
+    if cli_config.verbose {
+        io.write("DPRE: Processing pipeline completed successfully.\n")
+    }
+
+    // 7. Generate and Output Report
+    let report_success_result = rep.generate_report(summary_report, cli_config.output_format, cli_config.output_file)
+    if report_success_result.err != null {
+        io.write_error("DPRE: Reporting Error: ", report_success_result.err.message, "\n")
+        if report_success_result.err.details != null {
+            io.write_error("DPRE: Details: ", report_success_result.err.details, "\n")
+        }
+        return
+    }
+    if cli_config.verbose {
+        io.write("DPRE: Report generated and outputted successfully.\n")
+    }
+
+    io.write("DPRE: Data Processing and Reporting Engine finished.\n")
+}

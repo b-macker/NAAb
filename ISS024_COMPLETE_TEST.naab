@@ -1,0 +1,43 @@
+// ISS-024 COMPLETE TEST: Module.Type syntax in parameters and return types
+use test_module_types_def as types
+
+// Test 1: Module type in parameter
+function test_param(cfg: types.Config) {
+    print("[TEST 1] Parameter with module.Type - Config name: ", cfg.name, "\n")
+}
+
+// Test 2: Module type in return type
+function test_return() -> types.Config {
+    return new types.Config {
+        name: "returned-config"
+        port: 9000
+    }
+}
+
+// Test 3: Both parameter and return type
+function transform(input: types.Config) -> types.Result {
+    print("[TEST 3] Transform - Input port: ", input.port, "\n")
+    return new types.Result {
+        success: true
+        message: "Transformed successfully"
+    }
+}
+
+main {
+    print("=== ISS-024 COMPLETE TEST ===\n\n")
+
+    // Test 1
+    let config1 = new types.Config { name: "test1", port: 8080 }
+    test_param(config1)
+    print("\n")
+
+    // Test 2
+    let config2 = test_return()
+    print("[TEST 2] Return with module.Type - Config name: ", config2.name, "\n\n")
+
+    // Test 3
+    let result = transform(config1)
+    print("[TEST 3] Result: ", result.success, " - ", result.message, "\n\n")
+
+    print("=== ALL TESTS PASSED ===\n")
+}

@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <cstring>
+#include <new>  // For placement new
 
 // Linenoise for line editing
 extern "C" {
@@ -185,7 +186,9 @@ private:
             fmt::print("Use 'use BLOCK-ID as Name' to load a block\n");
         } else if (cmd == ":reset") {
             fmt::print("Resetting interpreter state...\n");
-            interpreter_ = interpreter::Interpreter();
+            // Use placement new to reconstruct interpreter (copy assignment is deleted)
+            interpreter_.~Interpreter();
+            new (&interpreter_) interpreter::Interpreter();
             statement_count_ = 0;
             total_exec_time_ms_ = 0;
             fmt::print("State reset complete\n");

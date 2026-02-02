@@ -1,0 +1,71 @@
+// dpre_app/test_utils.naab
+// Provides basic assertion functions for unit-like testing.
+
+use io     // For printing test results
+use string // For string manipulation and conversion
+
+// Asserts that two values are equal.
+// Returns true if equal, false otherwise.
+fn assert_eq<T>(actual: T, expected: T, message: string) -> bool {
+    if actual == expected {
+        io.write("PASS: ", message, "\n")
+        return true
+    } else {
+        io.write("FAIL: ", message, ". Expected: ", string.from(expected), ", Got: ", string.from(actual), "\n")
+        return false
+    }
+}
+
+// Asserts that a value is not null.
+// Returns true if not null, false otherwise.
+fn assert_not_null<T>(value: T?, message: string) -> bool {
+    if value != null {
+        io.write("PASS: ", message, "\n")
+        return true
+    } else {
+        io.write("FAIL: ", message, ". Value was null.\n")
+        return false
+    }
+}
+
+// Asserts that a value is null.
+// Returns true if null, false otherwise.
+fn assert_null<T>(value: T?, message: string) -> bool {
+    if value == null {
+        io.write("PASS: ", message, "\n")
+        return true
+    } else {
+        io.write("FAIL: ", message, ". Value was not null: ", string.from(value), "\n")
+        return false
+    }
+}
+
+// Asserts that an operation resulted in an error (i.e., Result.err is not null).
+// Returns true if error, false otherwise.
+fn assert_is_error<T, E>(result: T, message: string) -> bool {
+    // This assumes `result` is a struct like dm.Result<T,E> and has an 'err' field.
+    // Dynamic access `result.err` might be needed if generic `E` doesn't expose it.
+    let error_field = result.err // This line might fail if 'err' isn't directly accessible on 'T'
+
+    if error_field != null {
+        io.write("PASS: ", message, ". Error: ", string.from(error_field), "\n")
+        return true
+    } else {
+        io.write("FAIL: ", message, ". Expected error, but got success.\n")
+        return false
+    }
+}
+
+// Asserts that an operation was successful (i.e., Result.ok is not null and Result.err is null).
+// Returns true if successful, false otherwise.
+fn assert_is_success<T, E>(result: T, message: string) -> bool {
+    let error_field = result.err // Again, potential dynamic access needed
+
+    if error_field == null {
+        io.write("PASS: ", message, "\n")
+        return true
+    } else {
+        io.write("FAIL: ", message, ". Expected success, but got error: ", string.from(error_field), "\n")
+        return false
+    }
+}

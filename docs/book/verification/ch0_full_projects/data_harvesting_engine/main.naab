@@ -1,0 +1,167 @@
+// ============================================================================ 
+// NAAb-Orchestrated Cross-Platform Data Harvesting & Analytics Engine 
+// main.naab - Orchestrates the entire data harvesting pipeline. 
+// ============================================================================ 
+
+// Standard library imports
+use io as io
+use string as str
+use array as arr
+use json as json
+use time as time
+use regex as regex
+use crypto as crypto
+
+// Custom NAAb Modules for pipeline stages
+use app_config
+use web_scraper
+use data_transformer
+use insight_generator
+use report_publisher
+use asset_manager
+
+// --- Main Application Execution (Non-Interactive Full Pipeline) ---
+main {
+    io.write("Welcome to the NAAb Data Harvesting & Analytics Engine!\n")
+    io.write("Executing full data pipeline in non-interactive mode.\n")
+    io.write("Please ensure Python dependencies are installed for full functionality (requests, beautifulsoup4, playwright, pandas, numpy, scikit-learn, textblob, jinja2, jsonschema).\n")
+    io.write("If using dynamic scraping, run 'playwright install' in your Python environment.\n\n")
+
+    let engine_config: app_config.EngineConfig? = null
+    let scraped_items: list<web_scraper.ScrapedItem>? = null
+    let processed_items: list<data_transformer.ProcessedItem>? = null
+    let analysis_results: insight_generator.AnalysisResults? = null
+
+    // --- STAGE 1: Load Configuration ---
+    io.write("--- Stage 1: Loading Configuration ---\n")
+    try {
+        io.write("Loading engine_config.json...\n")
+        engine_config = app_config.load_engine_config("engine_config.json")
+        if engine_config != null {
+            io.write("✓ Configuration loaded successfully.\n\n")
+        } else {
+            io.write_error("❌ Failed to load configuration. Aborting pipeline.\n")
+            return
+        }
+    } catch (e) {
+        io.write_error("A critical error occurred during configuration loading: ", e, "\n")
+        return
+    }
+
+    // --- STAGE 2: Run Data Harvesting ---
+    io.write("--- Stage 2: Running Data Harvesting ---\n")
+    try {
+        io.write("Starting data harvesting...\n")
+        scraped_items = web_scraper.scrape_data(engine_config.harvesting)
+        if scraped_items != null && arr.length(scraped_items) > 0 {
+            io.write("✓ Data harvesting completed. Found ", arr.length(scraped_items), " items.\n\n")
+        } else {
+            io.write_error("❌ Data harvesting failed or returned no items. Aborting pipeline.\n")
+            return
+        }
+    } catch (e) {
+        io.write_error("A critical error occurred during data harvesting: ", e, "\n")
+        return
+    }
+
+    // --- STAGE 3: Process & Validate Raw Data ---
+    io.write("--- Stage 3: Processing & Validating Raw Data ---\n")
+    try {
+        io.write("Processing and validating raw data...\n")
+        processed_items = data_transformer.process_and_validate_data(scraped_items)
+        if processed_items != null && arr.length(processed_items) > 0 {
+            io.write("✓ Data processing and validation completed. Processed ", arr.length(processed_items), " items.\n\n")
+        } else {
+            io.write_error("❌ Data processing and validation failed or returned no items. Aborting pipeline.\n")
+            return
+        }
+    } catch (e) {
+        io.write_error("A critical error occurred during data processing: ", e, "\n")
+        return
+    }
+
+    // --- STAGE 4: Analyze Processed Data ---
+    io.write("--- Stage 4: Analyzing Processed Data ---\n")
+    try {
+        io.write("Analyzing processed data...\n")
+        analysis_results = insight_generator.perform_analytics(processed_items, engine_config.analysis)
+        if analysis_results != null {
+            io.write("✓ Data analysis completed. Total items: ", analysis_results.total_items, ", Anomalies: ", analysis_results.anomalies_detected, ".\n\n")
+        } else {
+            io.write_error("❌ Data analysis failed. Aborting pipeline.\n")
+            return
+        }
+    } catch (e) {
+        io.write_error("A critical error occurred during data analysis: ", e, "\n")
+        return
+    }
+
+    // --- STAGE 5: Generate Reports (HTML & CSV) ---
+    io.write("--- Stage 5: Generating Reports (HTML & CSV) ---\n")
+    try {
+        // Ensure report output directory exists
+        if !asset_manager.create_directory_if_not_exists(engine_config.report.output_dir) {
+            io.write_error("❌ Failed to ensure report output directory exists. Aborting pipeline.\n")
+            return
+        }
+        
+        let timestamp_str = json.stringify(time.now())
+        let report_prefix = str.concat(engine_config.report.output_dir, "/report_")
+        let report_filename_base = str.concat(report_prefix, timestamp_str)
+        let html_report_filename = str.concat(report_filename_base, ".html")
+        let csv_report_filename = str.concat(report_filename_base, ".csv")
+
+        // Generate HTML Report
+        let html_content = report_publisher.generate_html_report(analysis_results, processed_items, engine_config.report)
+        if html_content != null {
+            if asset_manager.save_data(html_content, html_report_filename, false) {
+                io.write("✓ HTML report generated and saved to ", html_report_filename, ".\n")
+            } else {
+                io.write_error("❌ Failed to save HTML report.\n")
+            }
+        } else {
+            io.write_error("❌ HTML report generation failed.\n")
+        }
+
+        // Export to CSV
+        if report_publisher.export_to_csv(processed_items, csv_report_filename) {
+            io.write("✓ CSV report generated and saved to ", csv_report_filename, ".\n\n")
+        } else {
+            io.write_error("❌ CSV report generation failed.\n")
+        }
+    } catch (e) {
+        io.write_error("A critical error occurred during report generation: ", e, "\n")
+        return
+    }
+
+    // --- STAGE 6: Manage Assets ---
+    io.write("--- Stage 6: Managing Assets ---\n")
+    try {
+        io.write("Performing asset management (e.g., archiving old files)...
+")
+        let data_dir = "harvested_data" // Example: where raw data might be saved
+        let archive_dir = "archives"
+        let retention = 7 // days
+        
+        // Ensure data directory exists
+        if !asset_manager.create_directory_if_not_exists(data_dir) {
+            io.write_error("❌ Failed to ensure data directory exists.\n")
+        }
+        // Ensure archive directory exists
+        if !asset_manager.create_directory_if_not_exists(archive_dir) {
+            io.write_error("❌ Failed to ensure archive directory exists.\n")
+        }
+
+        // Archive old files
+        if asset_manager.archive_old_files(data_dir, archive_dir, retention) {
+            io.write("✓ Old files archived successfully.\n\n")
+        } else {
+            io.write_error("❌ Failed to archive old files.\n")
+        }
+    } catch (e) {
+        io.write_error("A critical error occurred during asset management: ", e, "\n")
+        return
+    }
+
+    io.write("✅ Data Harvesting & Analytics Pipeline completed successfully!\n")
+}

@@ -1,0 +1,23 @@
+// Example: Command-line argument processing
+// Usage: ./build/naab-lang run example_args.naab <name> <age>
+
+use io
+use env
+use array
+
+main {
+    let args = env.get_args()
+    let arg_count = array.length(args)
+
+    if arg_count < 2 {
+        io.write("Usage: example_args.naab <name> <age>\n")
+        io.write("Example: ./build/naab-lang run example_args.naab Alice 30\n")
+        return
+    }
+
+    let name = args[0]
+    let age = args[1]
+
+    io.write("Hello, ", name, "!\n")
+    io.write("You are ", age, " years old.\n")
+}

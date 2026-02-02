@@ -1,0 +1,42 @@
+// Test: Advanced generics - custom structs and functions
+
+// Generic struct
+struct Box<T> {
+    value: T
+}
+
+// Generic function
+function identity<T>(x: T) -> T {
+    return x
+}
+
+function first<T>(items: list<T>) -> T {
+    return items[0]
+}
+
+main {
+    print("=== Testing Advanced Generics ===\n")
+
+    // Test 1: Generic struct with int
+    let box1 = new Box<int> { value: 42 }
+    print("Test 1 - Box<int>.value: ", box1.value, "\n")
+
+    // Test 2: Generic struct with string
+    let box2 = new Box<string> { value: "hello" }
+    print("Test 2 - Box<string>.value: ", box2.value, "\n")
+
+    // Test 3: Generic function with int
+    let num = identity<int>(42)
+    print("Test 3 - identity<int>(42): ", num, "\n")
+
+    // Test 4: Generic function with string
+    let str = identity<string>("world")
+    print("Test 4 - identity<string>(\"world\"): ", str, "\n")
+
+    // Test 5: Generic function with list
+    let numbers = [1, 2, 3]
+    let firstNum = first<int>(numbers)
+    print("Test 5 - first<int>([1,2,3]): ", firstNum, "\n")
+
+    print("=== All tests complete ===\n")
+}

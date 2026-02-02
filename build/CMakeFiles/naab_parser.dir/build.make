@@ -100,19 +100,35 @@ CMakeFiles/naab_parser.dir/src/parser/ast_nodes.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_parser.dir/src/parser/ast_nodes.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/parser/ast_nodes.cpp -o CMakeFiles/naab_parser.dir/src/parser/ast_nodes.cpp.s
 
+CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o: CMakeFiles/naab_parser.dir/flags.make
+CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o: /data/data/com.termux/files/home/.naab/language/src/parser/error_hints.cpp
+CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o: CMakeFiles/naab_parser.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o -MF CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o.d -o CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/parser/error_hints.cpp
+
+CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/parser/error_hints.cpp > CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.i
+
+CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/parser/error_hints.cpp -o CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.s
+
 # Object files for target naab_parser
 naab_parser_OBJECTS = \
 "CMakeFiles/naab_parser.dir/src/parser/parser.cpp.o" \
-"CMakeFiles/naab_parser.dir/src/parser/ast_nodes.cpp.o"
+"CMakeFiles/naab_parser.dir/src/parser/ast_nodes.cpp.o" \
+"CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o"
 
 # External object files for target naab_parser
 naab_parser_EXTERNAL_OBJECTS =
 
 libnaab_parser.a: CMakeFiles/naab_parser.dir/src/parser/parser.cpp.o
 libnaab_parser.a: CMakeFiles/naab_parser.dir/src/parser/ast_nodes.cpp.o
+libnaab_parser.a: CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o
 libnaab_parser.a: CMakeFiles/naab_parser.dir/build.make
 libnaab_parser.a: CMakeFiles/naab_parser.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX static library libnaab_parser.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX static library libnaab_parser.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/naab_parser.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/naab_parser.dir/link.txt --verbose=$(VERBOSE)
 

@@ -1,0 +1,423 @@
+// ============================================================================ 
+// Enterprise DevOps Monitoring & Alerting System
+// Real-world example showcasing all NAAb features
+// ============================================================================ 
+
+// Standard library imports (must come first)
+use time as time
+use array as array
+use json as json
+use string as string
+use regex as regex
+use crypto as crypto
+
+// Custom module imports
+// use http_monitor
+// use log_analyzer
+// use alert_manager
+// use metrics_engine
+
+// Phase 2: Enums for system status
+enum ServiceStatus {
+    HEALTHY,
+    DEGRADED,
+    DOWN,
+    UNKNOWN
+}
+
+enum AlertSeverity {
+    INFO,
+    WARNING,
+    CRITICAL,
+    EMERGENCY
+}
+
+// Phase 2: Structs with null safety and generics
+struct ServerMetrics {
+    hostname: string,
+    cpu_percent: float,
+    memory_percent: float,
+    disk_percent: float,
+    network_bytes: int,
+    timestamp: float,
+    status: string,
+    error_message: string?  // Phase 2.4.5: Nullable type
+}
+
+struct MonitoringConfig {
+    check_interval_seconds: int,
+    alert_threshold_cpu: float,
+    alert_threshold_memory: float,
+    alert_threshold_disk: float,
+    webhook_url: string,
+    log_retention_days: int
+}
+
+struct Alert {
+    severity: AlertSeverity,
+    message: string,
+    server: string,
+    metric_value: float,
+    timestamp: float,
+    sent: bool
+}
+
+// Phase 2.4.1: Generic Result type for error handling
+struct Result<T> {
+    success: bool,
+    value: T?,
+    error: string?
+}
+
+// Configuration loader with error handling
+fn load_config() -> Result<MonitoringConfig> {
+    // Phase 3.1: Try/catch error handling
+    try {
+        let config_data = <<javascript
+const monitor_config = {
+    check_interval_seconds: 60,
+    alert_threshold_cpu: 80.0,
+    alert_threshold_memory: 85.0,
+    alert_threshold_disk: 90.0,
+    webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+    log_retention_days: 30
+};
+JSON.stringify(monitor_config);
+        >>
+
+        let parsed = json.parse(config_data)
+
+        let monitor_config = new MonitoringConfig {
+            check_interval_seconds: parsed.check_interval_seconds,
+            alert_threshold_cpu: 80.0,
+            alert_threshold_memory: 85.0,
+            alert_threshold_disk: 90.0,
+            webhook_url: parsed.webhook_url,
+            log_retention_days: parsed.log_retention_days
+        }
+
+        return new Result<MonitoringConfig> {
+            success: true,
+            value: monitor_config,
+            error: null
+        }
+    } catch (e) {
+        return new Result<MonitoringConfig> {
+            success: false,
+            value: null,
+            error: string.concat("Failed to load config: ", e)
+        }
+    }
+}
+
+// Collect server metrics using polyglot execution
+fn collect_server_metrics(hostname: string) -> ServerMetrics {
+    // Phase 5: Use time module
+    let timestamp = time.now()
+
+    // Get CPU usage using Python (numpy for calculation)
+    let cpu_usage = <<python
+import psutil
+import random
+_ = random.uniform(20.0, 95.0)
+_
+    >>
+
+    // Get memory usage using shell command
+    let memory_usage = <<bash
+# Simulate memory check (in real deployment, use actual system calls)
+echo "72.5"
+    >>
+
+    // Parse memory as float
+    let memory_percent = <<python[memory_usage]
+float(memory_usage)
+    >>
+
+    // Get disk usage (simplified for testing)
+    let disk_usage = 75.5
+
+    // Determine status based on thresholds
+    let status = "HEALTHY"
+    if cpu_usage > 90.0 || memory_percent > 90.0 || disk_usage > 95.0 {
+        status = "DOWN"
+    } else if cpu_usage > 75.0 || memory_percent > 80.0 {
+        status = "DEGRADED"
+    }
+
+    return new ServerMetrics {
+        hostname: hostname,
+        cpu_percent: cpu_usage,
+        memory_percent: memory_percent,
+        disk_percent: disk_usage,
+        network_bytes: 1048576,  // Simulate 1MB
+        timestamp: timestamp,
+        status: status,
+        error_message: null
+    }
+}
+
+// Analyze metrics and generate alerts
+fn analyze_metrics(metrics: ServerMetrics, monitor_config: MonitoringConfig) -> Alert? {
+    let current_time = time.now()
+
+    // Check CPU threshold
+    if metrics.cpu_percent > monitor_config.alert_threshold_cpu {
+        return new Alert {
+            severity: AlertSeverity.CRITICAL,
+            message: string.concat(
+                "High CPU usage detected on ",
+                metrics.hostname
+            ),
+            server: metrics.hostname,
+            metric_value: metrics.cpu_percent,
+            timestamp: current_time,
+            sent: false
+        }
+    }
+
+    // Check memory threshold
+    if metrics.memory_percent > monitor_config.alert_threshold_memory {
+        return new Alert {
+            severity: AlertSeverity.WARNING,
+            message: string.concat(
+                "High memory usage on ",
+                metrics.hostname
+            ),
+            server: metrics.hostname,
+            metric_value: metrics.memory_percent,
+            timestamp: current_time,
+            sent: false
+        }
+    }
+
+    // Check disk threshold
+    if metrics.disk_percent > monitor_config.alert_threshold_disk {
+        return new Alert {
+            severity: AlertSeverity.EMERGENCY,
+            message: string.concat(
+                "Critical disk space on ",
+                metrics.hostname
+            ),
+            server: metrics.hostname,
+            metric_value: metrics.disk_percent,
+            timestamp: current_time,
+            sent: false
+        }
+    }
+
+    return null
+}
+
+// Store metrics to file for historical analysis
+fn store_metrics(metrics: ServerMetrics, filename: string) {
+    try {
+        // Phase 5: JSON module for serialization
+        let metrics_json = <<javascript[metrics]
+JSON.stringify({
+    hostname: metrics.hostname,
+    cpu_percent: metrics.cpu_percent,
+    memory_percent: metrics.memory_percent,
+    disk_percent: metrics.disk_percent,
+    network_bytes: metrics.network_bytes,
+    timestamp: metrics.timestamp,
+    status: "status_value"
+});
+        >>
+
+        // Append to file
+        <<python[filename, metrics_json]
+with open(filename, 'a') as f:
+    f.write(metrics_json + '\n')
+        >>
+
+        print("✓ Metrics stored to ", filename)
+    } catch (e) {
+        print("✗ Failed to store metrics: ", e)
+    }
+}
+
+// Generate executive dashboard (simplified for testing)
+fn generate_dashboard(all_metrics: list) -> string {
+    return "Dashboard: Monitoring completed"
+}
+
+// Perform advanced statistical analysis using Python
+fn analyze_trends(metrics_history: list) {
+    print("\n📊 Performing trend analysis...")
+
+    // Extract CPU values
+    let cpu_values = []
+    let j = 0
+    while j < array.length(metrics_history) {
+        let m = metrics_history[j]
+        array.push(cpu_values, m["cpu_percent"])
+        j = j + 1
+    }
+
+    <<python[cpu_values]
+import statistics
+
+if not cpu_values or len(cpu_values) == 0:
+    print("No historical data available for trend analysis")
+else:
+    mean_cpu = statistics.mean(cpu_values)
+    median_cpu = statistics.median(cpu_values)
+
+    if len(cpu_values) >= 2:
+        stdev_cpu = statistics.stdev(cpu_values)
+        print(f"CPU Trend Analysis:")
+        print(f"  Mean:   {mean_cpu:.2f}%")
+        print(f"  Median: {median_cpu:.2f}%")
+        print(f"  StdDev: {stdev_cpu:.2f}%")
+
+        # Detect anomalies (values > 2 std deviations from mean)
+        anomalies = [v for v in cpu_values if abs(v - mean_cpu) > 2 * stdev_cpu]
+        if anomalies:
+            print(f"  ⚠️  Detected {len(anomalies)} anomalies!")
+    else:
+        print(f"CPU Mean: {mean_cpu:.2f}%")
+    >>
+}
+
+
+
+// Send alert via webhook using HTTP module
+fn send_alert(alert: Alert, webhook_url: string) -> bool {
+    try {
+        // Phase 5: Crypto module for signature
+        let alert_hash = crypto.sha256(alert.message)
+
+        // Create alert payload
+        let payload = <<javascript[alert, alert_hash]
+JSON.stringify({
+    text: `🚨 ${alert.message}`,
+    severity: "critical",
+    server: alert.server,
+    metric_value: alert.metric_value,
+    timestamp: alert.timestamp,
+    signature: alert_hash
+});
+        >>
+
+        // Phase 5: HTTP module (simulated - in real app, use http.post)
+        print("🔔 ALERT SENT: ", alert.message)
+        print("   Severity: ", alert.severity)
+        print("   Server: ", alert.server)
+        print("   Value: ", alert.metric_value)
+        print("   Hash: ", string.substring(alert_hash, 0, 16), "...")
+
+        return true
+    } catch (e) {
+        print("✗ Failed to send alert: ", e)
+        return false
+    }
+}
+
+// Main monitoring loop
+main {
+    print("╔══════════════════════════════════════════════════════════╗")
+    print("║   NAAb Enterprise DevOps Monitoring System v1.0         ║")
+    print("║   Showcasing All Language Features                      ║")
+    print("╚══════════════════════════════════════════════════════════╝\n")
+
+    // Phase 3.1: Error handling with try/catch - Disabled due to parser bug
+    // try {
+        // Load configuration
+        print("📋 Loading configuration...")
+        let config_result = load_config()
+
+        if !config_result.success {
+            throw config_result.error
+        }
+
+        let monitor_config = config_result.value
+        print("✓ Configuration loaded")
+        print("  Alert thresholds: CPU=", monitor_config.alert_threshold_cpu,
+              "% Memory=", monitor_config.alert_threshold_memory,
+              "% Disk=", monitor_config.alert_threshold_disk, "\n")
+
+        // Define servers to monitor
+        let servers = ["web-prod-01", "web-prod-02", "db-primary-01",
+                      "cache-redis-01", "api-gateway-01"]
+
+        print("🖥️  Monitoring ", array.length(servers), " production servers\n")
+
+        // Collect metrics from all servers
+        let all_metrics = []
+        let metrics_history = []  // For trend analysis
+
+        let i = 0
+        while i < array.length(servers) {
+            let server = servers[i]
+            print("→ Checking ", server, "...")
+
+            // Phase 4: Module usage for metrics collection
+            let metrics = collect_server_metrics(server)
+
+            // Store in history (structs work directly in arrays)
+            array.push(all_metrics, metrics)
+            array.push(metrics_history, metrics)
+
+
+            // Display metrics
+            print("  CPU: ", metrics.cpu_percent, "% | Memory: ",
+                  metrics.memory_percent, "% | Disk: ", metrics.disk_percent, "%")
+            print("  Status: ", metrics.status, "\n")
+
+            // Analyze and alert if needed
+            let alert: Alert? = analyze_metrics(metrics, monitor_config)
+            if alert != null {
+                send_alert(alert, monitor_config.webhook_url)
+                print("")
+            }
+
+            // Store metrics for historical analysis
+            store_metrics(metrics, "monitoring_data.jsonl")
+
+            i = i + 1
+        }
+
+        print("───────────────────────────────────────────────────────────\n")
+
+        // Generate executive dashboard
+        let dashboard = generate_dashboard(all_metrics)
+        print(dashboard)
+
+        // Perform trend analysis
+        analyze_trends(metrics_history)
+
+        print("\n───────────────────────────────────────────────────────────")
+
+        // Performance summary using C++ expression
+        print("\n⚡ Performance Metrics:")
+        let processing_time = <<cpp (std::rand() % 500) + 100 >>
+        print("  Total processing time: ", processing_time, " ms")
+        print("  Servers processed: ", array.length(servers))
+        print("  Average time per server: ", processing_time / array.length(servers), " ms")
+
+        // Phase 5: Regex for log pattern matching
+        print("\n🔍 Log Analysis Sample:")
+        let sample_log = "2026-01-23 19:30:45 ERROR: Database connection timeout on db-primary-01"
+        let has_error = regex.matches(sample_log, "ERROR|CRITICAL|FATAL")
+        if has_error {
+            print("  ⚠️  Error pattern detected in logs")
+            print("  Log entry: ", sample_log)
+        }
+
+        print("\n✅ Monitoring cycle completed successfully!")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+        // Phase 3.2: Trigger garbage collection
+        print("🗑️  Running garbage collection...")
+        gc_collect()
+        print("✓ Memory cleanup completed\n")
+
+    /* } catch (error) {
+        print("\n❌ CRITICAL ERROR in monitoring system:")
+        print("   ", error)
+        print("\n   System will attempt recovery on next cycle...")
+    } finally { */
+        print("📊 Session complete - All resources released")
+    // }
+}

@@ -103,7 +103,6 @@ test_cross_language: /data/data/com.termux/files/usr/lib/libpython3.12.so
 test_cross_language: /data/data/com.termux/files/usr/lib/libsqlite3.so
 test_cross_language: /data/data/com.termux/files/home/.naab/language/external/quickjs-2021-03-27/libquickjs.a
 test_cross_language: libnaab_block_enricher.a
-test_cross_language: libnaab_security.a
 test_cross_language: /data/data/com.termux/files/usr/lib/libpython3.12.so
 test_cross_language: libnaab_semantic.a
 test_cross_language: libnaab_parser.a
@@ -113,6 +112,7 @@ test_cross_language: external/abseil-cpp/absl/debugging/libabsl_leak_check.a
 test_cross_language: external/abseil-cpp/absl/base/libabsl_strerror.a
 test_cross_language: libnaab_lexer.a
 test_cross_language: libnaab_stdlib.a
+test_cross_language: libnaab_security.a
 test_cross_language: /data/data/com.termux/files/usr/lib/libssl.so
 test_cross_language: /data/data/com.termux/files/usr/lib/libcrypto.so
 test_cross_language: external/spdlog/libspdlog.a

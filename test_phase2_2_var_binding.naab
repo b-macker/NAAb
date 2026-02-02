@@ -1,0 +1,24 @@
+main {
+    print("=== Phase 2.2: Testing variable binding to inline code ===")
+
+    let count = 42
+    let name = "NAAb"
+    let active = true
+
+    print("Testing Python with variable binding:")
+    <<python[count, name, active]
+print(f"Python: count={count}, name={name}, active={active}")
+    >>
+
+    print("Testing JavaScript with variable binding:")
+    <<javascript[count, name]
+console.log(`JavaScript: count=${count}, name=${name}`);
+    >>
+
+    print("Testing Shell with variable binding:")
+    <<bash[count, name]
+echo "Bash: count=$count, name=$name"
+    >>
+
+    print("=== Phase 2.2 variable binding tests complete ===")
+}

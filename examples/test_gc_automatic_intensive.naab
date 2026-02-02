@@ -1,0 +1,77 @@
+# Phase 3.2: Intensive Automatic GC Test
+# Creates 2000+ allocations to trigger automatic garbage collection
+
+struct Node {
+    value: int
+    data: string
+    next: Node?
+}
+
+main {
+    print("=== Intensive Automatic Garbage Collection Test ===")
+    print("")
+    print("This test creates 2000+ allocations.")
+    print("With GC threshold=1000, automatic GC should trigger 2+ times.")
+    print("")
+    print("Watch for [GC] messages indicating automatic collection!")
+    print("")
+
+    # Create many allocations in a loop
+    print("Creating 1000 nodes in first batch...")
+    let i = 0
+    let head: Node? = null
+
+    while i < 1000 {
+        # Each iteration creates multiple allocations:
+        # - Node struct
+        # - int value
+        # - string data
+        # - next pointer
+        let node = new Node {
+            value: i
+            data: "Node"
+            next: head
+        }
+        head = node
+        i = i + 1
+
+        if i % 200 == 0 {
+            print("  Progress:", i, "/1000")
+        }
+    }
+    print("✅ First batch complete (1000 nodes)")
+    print("")
+
+    # Create second batch to definitely trigger GC
+    print("Creating 1000 nodes in second batch...")
+    i = 0
+    while i < 1000 {
+        let node = new Node {
+            value: i
+            data: "Node"
+            next: null
+        }
+        i = i + 1
+
+        if i % 200 == 0 {
+            print("  Progress:", i, "/1000")
+        }
+    }
+    print("✅ Second batch complete (1000 nodes)")
+    print("")
+
+    # Create cyclic structure
+    print("Creating cyclic structure...")
+    let a = new Node { value: 1, data: "A", next: null }
+    let b = new Node { value: 2, data: "B", next: a }
+    a.next = b
+    print("Cycle created: a <-> b")
+    print("")
+
+    print("=== Test Complete ===")
+    print("✅ Created 2000+ node allocations")
+    print("✅ Automatic GC should have triggered 2+ times")
+    print("✅ Cyclic structure created for GC testing")
+    print("")
+    print("If you saw [GC] messages above, automatic GC is working!")
+}

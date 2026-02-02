@@ -276,6 +276,40 @@ public:
             sqlite3_step(stmt);
             sqlite3_finalize(stmt);
 
+            // ISS-013 Fix: Insert into FTS5 table for full-text search
+            std::string keywords_str;
+            if (block_json.contains("keywords") && block_json["keywords"].is_array()) {
+                for (const auto& keyword : block_json["keywords"]) {
+                    if (!keywords_str.empty()) keywords_str += " ";
+                    keywords_str += keyword.get<std::string>();
+                }
+            }
+
+            std::string use_cases_str;
+            if (block_json.contains("use_cases") && block_json["use_cases"].is_array()) {
+                for (const auto& use_case : block_json["use_cases"]) {
+                    if (!use_cases_str.empty()) use_cases_str += " ";
+                    use_cases_str += use_case.get<std::string>();
+                }
+            }
+
+            const char* fts_sql = R"(
+                INSERT INTO blocks_fts (block_id, name, description, short_desc, keywords, use_cases)
+                VALUES (?, ?, ?, ?, ?, ?)
+            )";
+
+            sqlite3_stmt* fts_stmt;
+            if (sqlite3_prepare_v2(db_, fts_sql, -1, &fts_stmt, nullptr) == SQLITE_OK) {
+                sqlite3_bind_text(fts_stmt, 1, block_id.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(fts_stmt, 2, block_json.value("name", block_id).c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(fts_stmt, 3, block_json.value("description", "").c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(fts_stmt, 4, block_json.value("short_desc", "").c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(fts_stmt, 5, keywords_str.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(fts_stmt, 6, use_cases_str.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_step(fts_stmt);
+                sqlite3_finalize(fts_stmt);
+            }
+
             // Index keywords
             if (block_json.contains("keywords") && block_json["keywords"].is_array()) {
                 for (const auto& keyword : block_json["keywords"]) {

@@ -21,6 +21,10 @@ public:
     // Execute code and store in runtime context
     bool execute(const std::string& code) override;
 
+    // Phase 2.3: Execute code and return the result value
+    std::shared_ptr<interpreter::Value> executeWithReturn(
+        const std::string& code) override;
+
     // Call a function in the executor
     std::shared_ptr<interpreter::Value> callFunction(
         const std::string& function_name,
@@ -32,6 +36,9 @@ public:
 
     // Get language name
     std::string getLanguage() const override { return "python"; }
+
+    // Get captured output
+    std::string getCapturedOutput() override;
 
 private:
     std::unique_ptr<PythonExecutor> executor_;

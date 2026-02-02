@@ -1,0 +1,23 @@
+// test_circular_dependency.naab - Test circular dependency detection
+// Phase 4: This test should FAIL with a clear error message
+
+use circular_a  // This will trigger circular dependency detection
+
+main {
+    print("This should not execute!")
+    print("The module system should detect the circular dependency")
+    print("and fail with a helpful error message.")
+
+    let x = circular_a.func_a()
+    print("Result: ", x)
+}
+
+// Expected error message:
+// [ERROR] Circular dependency detected: circular_a
+//
+//   Dependency cycle:
+//     circular_a
+//       -> circular_b
+//         -> circular_a (cycle!)
+//
+//   Help: Remove one of these imports to break the cycle

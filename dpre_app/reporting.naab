@@ -1,0 +1,174 @@
+// dpre_app/reporting.naab
+// Handles report generation and output.
+
+use io       // For console output
+use file     // For writing to files
+use json     // For JSON serialization
+use string   // For string manipulation
+use time     // For timestamps
+
+use data_models as dm // Import data models
+
+// Prints a formatted report to the console.
+fn print_to_console(summary: dm.SummaryReport) -> bool {
+    io.write("--- ", summary.title, " ---\n")
+    io.write("Generated At: ", summary.generated_at, "\n")
+    io.write("Results:\n")
+    
+    let keys = summary.results.keys() // Assuming dict.keys() exists
+    let i = 0
+    while i < string.length(keys) {
+        let key = keys[i]
+        io.write("  ", key, ": ", string.from(summary.results[key]), "\n") // Assuming string.from(any) exists
+        i = i + 1
+    }
+
+    if summary.details != null && string.length(summary.details) > 0 {
+        io.write("Details (first 5 records):\n")
+        let limit = 5
+        if string.length(summary.details) < limit { limit = string.length(summary.details) }
+        let j = 0
+        while j < limit {
+            let record = summary.details[j]
+            io.write("  Record ID: ", record.id, "\n")
+            let record_keys = record.data.keys()
+            let k = 0
+            while k < string.length(record_keys) {
+                let key = record_keys[k]
+                io.write("    ", key, ": ", string.from(record.data[key]), "\n")
+                k = k + 1
+            }
+            j = j + 1
+        }
+        if string.length(summary.details) > 5 {
+            io.write("  ... (", string.from(string.length(summary.details) - 5), " more records)\n")
+        }
+    }
+
+    io.write("--------------------------\n")
+    return true
+}
+
+// Writes the report as JSON to a file.
+fn write_json_report(summary: dm.SummaryReport, path: string) -> dm.Result<bool, dm.AppError> {
+    let json_string_result = json.stringify(summary)
+    if json_string_result.err != null {
+        return dm.Result<bool, dm.AppError> {
+            ok: null,
+            err: dm.AppError {
+                code: dm.ErrorCode.ReportingError,
+                message: string.concat("Failed to serialize summary report to JSON: ", json_string_result.err.message),
+                details: null
+            }
+        }
+    }
+
+    let write_result = file.write(path, json_string_result.ok)
+    if write_result.err != null {
+        return dm.Result<bool, dm.AppError> {
+            ok: null,
+            err: dm.AppError {
+                code: dm.ErrorCode.ReportingError,
+                message: string.concat("Failed to write JSON report to file: ", path),
+                details: write_result.err.message
+            }
+        }
+    }
+    return dm.Result<bool, dm.AppError> { ok: true, err: null }
+}
+
+// Writes the report as CSV to a file.
+fn write_csv_report(summary: dm.SummaryReport, path: string) -> dm.Result<bool, dm.AppError> {
+    // This is more complex than JSON due to dynamic columns.
+    // For simplicity, assume summary.results is flat dict or details are primary.
+    // Polyglot (Python's pandas) would be ideal here for robust CSV writing.
+
+    let csv_content = ""
+    
+    if summary.details != null && string.length(summary.details) > 0 {
+        // Assume all details records have the same keys for header
+        let first_record_keys = summary.details[0].data.keys()
+        csv_content = string.join(first_record_keys, ",") // Header row
+
+        let i = 0
+        while i < string.length(summary.details) {
+            let record = summary.details[i]
+            let values: list<string> = []
+            let j = 0
+            while j < string.length(first_record_keys) {
+                let key = first_record_keys[j]
+                // Convert value to string, handling nulls/complex types
+                values.append(string.from(record.data[key]))
+                j = j + 1
+            }
+            csv_content = string.concat(csv_content, "\n", string.join(values, ","))
+            i = i + 1
+        }
+    } else if string.length(summary.results) > 0 {
+        // Fallback: write aggregated results as a simple two-column CSV
+        csv_content = "Metric,Value"
+        let keys = summary.results.keys()
+        let i = 0
+        while i < string.length(keys) {
+            let key = keys[i]
+            csv_content = string.concat(csv_content, "\n", key, ",", string.from(summary.results[key]))
+            i = i + 1
+        }
+    } else {
+        csv_content = "No data to report."
+    }
+
+    let write_result = file.write(path, csv_content)
+    if write_result.err != null {
+        return dm.Result<bool, dm.AppError> {
+            ok: null,
+            err: dm.AppError {
+                code: dm.ErrorCode.ReportingError,
+                message: string.concat("Failed to write CSV report to file: ", path),
+                details: write_result.err.message
+            }
+        }
+    }
+    return dm.Result<bool, dm.AppError> { ok: true, err: null }
+}
+
+// Main report generation function.
+fn generate_report(summary: dm.SummaryReport, format: dm.ReportFormat, outputPath: string?) -> dm.Result<bool, dm.AppError> {
+    if format == dm.ReportFormat.Console {
+        let success = print_to_console(summary)
+        return dm.Result<bool, dm.AppError> { ok: success, err: null }
+    } else if format == dm.ReportFormat.Json {
+        if outputPath == null {
+            return dm.Result<bool, dm.AppError> {
+                ok: null,
+                err: dm.AppError {
+                    code: dm.ErrorCode.CliError,
+                    message: "Output file path is required for JSON report format.",
+                    details: null
+                }
+            }
+        }
+        return write_json_report(summary, outputPath)
+    } else if format == dm.ReportFormat.Csv {
+        if outputPath == null {
+            return dm.Result<bool, dm.AppError> {
+                ok: null,
+                err: dm.AppError {
+                    code: dm.ErrorCode.CliError,
+                    message: "Output file path is required for CSV report format.",
+                    details: null
+                }
+            }
+        }
+        return write_csv_report(summary, outputPath)
+    } else {
+        return dm.Result<bool, dm.AppError> {
+            ok: null,
+            err: dm.AppError {
+                code: dm.ErrorCode.ReportingError,
+                message: string.concat("Unsupported report format: ", string.from(format)),
+                details: null
+            }
+        }
+    }
+}

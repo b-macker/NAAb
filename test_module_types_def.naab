@@ -1,0 +1,11 @@
+// Module that defines types for ISS-024 testing
+
+export struct Config {
+    name: string
+    port: int
+}
+
+export struct Result {
+    success: bool
+    message: string
+}

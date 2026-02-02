@@ -1,0 +1,11 @@
+// Test return type validation
+
+fn returnsIntOrString() -> int | string {
+    // This should error - bool is not int | string
+    return true
+}
+
+main {
+    print("Testing return type validation...")
+    returnsIntOrString()
+}

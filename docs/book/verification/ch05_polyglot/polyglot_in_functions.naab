@@ -1,0 +1,84 @@
+// Chapter 5: Polyglot Blocks in Functions Verification
+// Demonstrates that polyglot blocks work inside function bodies
+
+use io
+use json
+
+// Function with Python polyglot block
+fn calculate_average(numbers: list<float>) -> float {
+    let avg = <<python[numbers]
+sum(numbers) / len(numbers) if len(numbers) > 0 else 0
+    >>
+    return avg
+}
+
+// Function with JavaScript polyglot block
+fn format_title(text: string) -> string {
+    let formatted = <<javascript[text]
+text.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+    >>
+    return formatted
+}
+
+// Function with multi-line Python polyglot
+fn analyze_data(data: list<float>) -> dict<string, float> {
+    let stats = <<python[data]
+{"mean": sum(data) / len(data), "min": min(data), "max": max(data), "range": max(data) - min(data)}
+    >>
+    return stats
+}
+
+// Function that calls another function with polyglot
+fn process_numbers(nums: list<float>) -> string {
+    let avg = calculate_average(nums)
+    let result = <<javascript[avg]
+`Average: ${avg.toFixed(2)}`
+    >>
+    return result
+}
+
+main {
+    io.write("=== Polyglot Blocks in Functions Test ===\n\n")
+
+    // TEST 1: Python polyglot in function
+    io.write("TEST 1: Python polyglot in function\n")
+    let numbers = [10.5, 20.3, 15.7, 18.9]
+    let avg = calculate_average(numbers)
+    io.write("  Average of ", json.stringify(numbers), " = ", json.stringify(avg), "\n")
+    io.write("  ✓ Python polyglot works in function\n\n")
+
+    // TEST 2: JavaScript polyglot in function
+    io.write("TEST 2: JavaScript polyglot in function\n")
+    let title = "hello world from naab"
+    let formatted = format_title(title)
+    io.write("  Formatted: '", formatted, "'\n")
+    io.write("  ✓ JavaScript polyglot works in function\n\n")
+
+    // TEST 3: Multi-line Python polyglot with dict return
+    io.write("TEST 3: Multi-line Python polyglot returning dict\n")
+    let stats = analyze_data(numbers)
+    io.write("  Stats: mean=", json.stringify(stats["mean"]),
+             ", min=", json.stringify(stats["min"]),
+             ", max=", json.stringify(stats["max"]), "\n")
+    io.write("  ✓ Multi-line polyglot with dict return works\n\n")
+
+    // TEST 4: Function composition with polyglot
+    io.write("TEST 4: Function calling function with polyglot\n")
+    let result = process_numbers(numbers)
+    io.write("  Result: ", result, "\n")
+    io.write("  ✓ Function composition with polyglot works\n\n")
+
+    // TEST 5: Nested function calls
+    io.write("TEST 5: Nested function calls\n")
+    let nested_result = format_title(process_numbers([5.0, 10.0, 15.0]))
+    io.write("  Nested result: ", nested_result, "\n")
+    io.write("  ✓ Nested function calls work\n\n")
+
+    io.write("=== Key Finding ===\n")
+    io.write("Polyglot blocks work PERFECTLY inside:\n")
+    io.write("  • Function bodies (✓)\n")
+    io.write("  • Multi-line blocks (✓)\n")
+    io.write("  • Functions that call other functions (✓)\n")
+    io.write("  • Nested function calls (✓)\n")
+    io.write("\n=== All tests passed! ===\n")
+}

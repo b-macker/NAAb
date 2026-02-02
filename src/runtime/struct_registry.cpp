@@ -1,6 +1,7 @@
 #include "naab/struct_registry.h"
 #include "naab/ast.h"
 #include <stdexcept>
+#include <fmt/core.h>
 
 namespace naab {
 namespace runtime {
@@ -12,10 +13,55 @@ StructRegistry& StructRegistry::instance() {
 
 void StructRegistry::registerStruct(std::shared_ptr<interpreter::StructDef> def) {
     std::lock_guard<std::mutex> lock(mutex_);
+
+    // ISS-036 FIX: Allow idempotent registration for module system
     if (structs_.count(def->name)) {
-        throw std::runtime_error("Struct '" + def->name + "' already defined");
+        auto& existing = structs_[def->name];
+
+        // Validate that the duplicate has the same definition
+        bool same_definition = true;
+        std::string mismatch_reason;
+
+        // Check field count
+        if (existing->fields.size() != def->fields.size()) {
+            same_definition = false;
+            mismatch_reason = fmt::format("field count mismatch ({} vs {})",
+                                         existing->fields.size(), def->fields.size());
+        }
+        // Check field names and types
+        else {
+            for (size_t i = 0; i < existing->fields.size(); i++) {
+                if (existing->fields[i].name != def->fields[i].name) {
+                    same_definition = false;
+                    mismatch_reason = fmt::format("field[{}] name mismatch ('{}' vs '{}')",
+                                                 i, existing->fields[i].name, def->fields[i].name);
+                    break;
+                }
+                // Note: Type comparison is complex, so we only check names for now
+                // Full type comparison would require deep type equality checking
+            }
+        }
+
+        if (same_definition) {
+            // Same struct definition - safe to ignore (normal for module reuse)
+            fmt::print("[STRUCT] Struct '{}' already registered, skipping duplicate (same definition)\n",
+                      def->name);
+        } else {
+            // Different struct definitions with same name - warn user but allow it
+            // (First definition wins, this is for backward compatibility)
+            fmt::print("[WARN] Struct '{}' already registered with different definition!\n", def->name);
+            fmt::print("[WARN]   Reason: {}\n", mismatch_reason);
+            fmt::print("[WARN]   Using existing definition (first one wins)\n");
+            fmt::print("[WARN]   This may indicate a naming conflict between modules\n");
+        }
+
+        return;  // Skip re-registration
     }
+
+    // First time registration
     structs_[def->name] = def;
+    fmt::print("[STRUCT] Registered new struct: '{}' with {} field(s)\n",
+              def->name, def->fields.size());
 }
 
 std::shared_ptr<interpreter::StructDef> StructRegistry::getStruct(

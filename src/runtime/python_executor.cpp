@@ -7,6 +7,8 @@
 #include "naab/audit_logger.h"
 #include "naab/sandbox.h"
 #include "naab/stack_tracer.h"  // Phase 4.2.2: Cross-language stack traces
+#include "naab/limits.h"  // Week 1, Task 1.2: Input size caps
+#include "naab/ffi_callback_validator.h"  // Phase 1 Item 9: FFI callback safety
 #include <fmt/core.h>
 #include <stdexcept>
 #include <unordered_map>
@@ -22,43 +24,87 @@ PYBIND11_EMBEDDED_MODULE(naab_internal, m) {
 namespace naab {
 namespace runtime {
 
-PythonExecutor::PythonExecutor()
-    : guard_(), global_namespace_(py::globals()) {
+PythonExecutor::PythonExecutor(bool redirect_output) {
+    // NOTE: Caller must hold GIL before creating PythonExecutor
+    // In async contexts, the callback already acquired GIL
+    // In sync contexts, acquire GIL before calling this constructor
 
-    fmt::print("[Python] Initialized CPython interpreter\n");
+    fmt::print("[DEBUG] PythonExecutor constructor started (redirect_output={})\n", redirect_output);
+
+    // Note: We don't store py::globals() as a member to avoid cleanup issues
+    // Instead, we call py::globals() each time we need it
+    fmt::print("[DEBUG] Verifying access to py::globals()...\n");
+    auto globals = py::globals();  // Test access
+    (void)globals;  // Unused
+    fmt::print("[DEBUG] Global namespace accessible\n");
+
+    fmt::print("[Python] PythonExecutor initialized (using global interpreter)\n");
 
     // Import commonly used modules
     try {
+        fmt::print("[DEBUG] Importing sys module...\n");
         py::module_::import("sys");
+        fmt::print("[DEBUG] Importing os module...\n");
         py::module_::import("os");
         // Ensure our internal module is loaded so OutputRedirector type is registered
+        fmt::print("[DEBUG] Importing naab_internal module...\n");
         py::module_::import("naab_internal");
         fmt::print("[Python] Imported standard modules (sys, os) and naab_internal\n");
     } catch (const py::error_already_set& e) {
         fmt::print("[WARN] Failed to import standard modules: {}\n", e.what());
     }
 
-    // --- Redirect Python stdout/stderr ---
-    // Use low-level C-API PySys_SetObject to bypass potential pybind11 proxy issues
-    // Pybind11 casts automatically handle ref-counting for the new C++ objects
-    stdout_redirector_ = py::cast(new PythonOutputRedirector(stdout_buffer_), py::return_value_policy::take_ownership);
-    stderr_redirector_ = py::cast(new PythonOutputRedirector(stderr_buffer_), py::return_value_policy::take_ownership);
+    // --- Optionally redirect Python stdout/stderr ---
+    if (redirect_output) {
+        // Use low-level C-API PySys_SetObject to bypass potential pybind11 proxy issues
+        // Pybind11 casts automatically handle ref-counting for the new C++ objects
+        stdout_redirector_ = std::make_unique<py::object>(
+            py::cast(new PythonOutputRedirector(stdout_buffer_), py::return_value_policy::take_ownership)
+        );
+        stderr_redirector_ = std::make_unique<py::object>(
+            py::cast(new PythonOutputRedirector(stderr_buffer_), py::return_value_policy::take_ownership)
+        );
 
-    if (PySys_SetObject("stdout", stdout_redirector_.ptr()) != 0) {
-        fmt::print("[WARN] Failed to set sys.stdout via PySys_SetObject\n");
-    }
-    if (PySys_SetObject("stderr", stderr_redirector_.ptr()) != 0) {
-        fmt::print("[WARN] Failed to set sys.stderr via PySys_SetObject\n");
-    }
+        if (PySys_SetObject("stdout", (*stdout_redirector_).ptr()) != 0) {
+            fmt::print("[WARN] Failed to set sys.stdout via PySys_SetObject\n");
+        }
+        if (PySys_SetObject("stderr", (*stderr_redirector_).ptr()) != 0) {
+            fmt::print("[WARN] Failed to set sys.stderr via PySys_SetObject\n");
+        }
 
-    fmt::print("[Python] Redirected stdout/stderr to internal buffers\n");
+        fmt::print("[Python] Redirected stdout/stderr to internal buffers\n");
+    } else {
+        // Don't create redirector objects at all in async mode
+        stdout_redirector_ = nullptr;
+        stderr_redirector_ = nullptr;
+        fmt::print("[Python] Skipped stdout/stderr redirection (async mode)\n");
+    }
 }
 
 PythonExecutor::~PythonExecutor() {
-    fmt::print("[Python] Shutting down CPython interpreter\n");
+    // Only need GIL if we have redirectors to clean up
+    if (stdout_redirector_ || stderr_redirector_) {
+        py::gil_scoped_acquire gil;
+
+        fmt::print("[Python] Cleaning up PythonExecutor with redirectors (GIL held)\n");
+
+        // CRITICAL: Explicitly destroy Python objects WHILE holding GIL
+        // unique_ptr::reset() destroys the object it points to
+        stdout_redirector_.reset();  // Destroys py::object if it exists
+        stderr_redirector_.reset();  // Destroys py::object if it exists
+
+        fmt::print("[Python] Python redirector objects cleaned up successfully\n");
+
+        // GIL is automatically released when gil goes out of scope
+    } else {
+        fmt::print("[Python] Cleaning up PythonExecutor (no redirectors, no GIL needed)\n");
+    }
 }
 
 void PythonExecutor::execute(const std::string& code) {
+    // Week 1, Task 1.2: Check polyglot block size
+    limits::checkPolyglotBlockSize(code.size(), "Python");
+
     // Check sandbox permissions for code execution
     auto* sandbox = security::ScopedSandbox::getCurrent();
     if (sandbox && !sandbox->getConfig().hasCapability(security::Capability::BLOCK_CALL)) {
@@ -69,13 +115,14 @@ void PythonExecutor::execute(const std::string& code) {
 
     // Restore sys.stdout/stderr if missing (using robust C-API)
     // We don't need to import sys module object to use PySys_SetObject
-    if (PySys_GetObject("stdout") == NULL) {
-        if (PySys_SetObject("stdout", stdout_redirector_.ptr()) != 0) {
+    // Only if redirectors were created
+    if (stdout_redirector_ && PySys_GetObject("stdout") == NULL) {
+        if (PySys_SetObject("stdout", (*stdout_redirector_).ptr()) != 0) {
              fmt::print("[WARN] Failed to restore sys.stdout\n");
         }
     }
-    if (PySys_GetObject("stderr") == NULL) {
-        if (PySys_SetObject("stderr", stderr_redirector_.ptr()) != 0) {
+    if (stderr_redirector_ && PySys_GetObject("stderr") == NULL) {
+        if (PySys_SetObject("stderr", (*stderr_redirector_).ptr()) != 0) {
              fmt::print("[WARN] Failed to restore sys.stderr\n");
         }
     }
@@ -83,7 +130,7 @@ void PythonExecutor::execute(const std::string& code) {
     try {
         // Execute with 30-second timeout
         security::ScopedTimeout timeout(30);
-        py::exec(code, global_namespace_);
+        py::exec(code, py::globals());
         fmt::print("[Python] Executed code successfully\n");
     } catch (const security::ResourceLimitException& e) {
         fmt::print("[ERROR] Python execution timeout: {}\n", e.what());
@@ -95,13 +142,16 @@ void PythonExecutor::execute(const std::string& code) {
 }
 
 std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std::string& code) {
+    // Week 1, Task 1.2: Check polyglot block size
+    limits::checkPolyglotBlockSize(code.size(), "Python");
+
     try {
-        // Execute with 30-second timeout
-        security::ScopedTimeout timeout(30);
+        // Note: Timeout is now handled by AsyncCallbackWrapper for async execution
+        // For blocking execution, the wrapper also provides timeout control
 
         // Try eval() first for simple expressions (backwards compatible)
         try {
-            py::object result = py::eval(code, global_namespace_);
+            py::object result = py::eval(code, py::globals());
             return pythonToValue(result);
         } catch (const py::error_already_set& e) {
             // Check if it's a SyntaxError (likely multi-line statements)
@@ -154,6 +204,10 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
                                 trimmed.find("except") == 0 || trimmed.find("finally:") == 0 ||
                                 trimmed.find("else:") == 0 || trimmed.find("elif ") == 0 ||
                                 trimmed.find("import ") == 0 || trimmed.find("from ") == 0 ||
+                                trimmed.find("raise ") == 0 || trimmed.find("raise(") == 0 ||
+                                trimmed.find("return ") == 0 || trimmed.find("break") == 0 ||
+                                trimmed.find("continue") == 0 || trimmed.find("pass") == 0 ||
+                                trimmed.find("assert ") == 0 || trimmed.find("del ") == 0 ||
                                 trimmed.find("_ =") == 0 || trimmed.find("_=") == 0) {
                                 // Don't modify control structures, imports, or existing _ assignments
                                 wrapped_code += lines[i] + "\n";
@@ -169,31 +223,73 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
                 }
 
                 // Use exec() for multi-line statements
-                py::exec(modified_code, global_namespace_);
+                py::exec(modified_code, py::globals());
 
                 // Try to get the result from the `_` variable
                 try {
-                    if (global_namespace_.contains("_")) {
-                        py::object result = global_namespace_["_"];
+                    auto globals = py::globals();
+                    if (globals.contains("_")) {
+                        py::object result = globals["_"];
                         if (!result.is_none()) {
                             return pythonToValue(result);
+                        } else {
+                            // Python block returned None explicitly
+                            fmt::print("[WARN] Python block returned None\n");
+                            throw std::runtime_error(
+                                "Python block returned None/null\n\n"
+                                "Help: Python blocks return the LAST EXPRESSION at the top level.\n\n"
+                                "  ✗ Wrong - expressions inside if/else blocks:\n"
+                                "    if error:\n"
+                                "        json.dumps({\"error\": error})\n"
+                                "    else:\n"
+                                "        json.dumps(data)\n\n"
+                                "  ✓ Correct - assign in if/else, return at top level:\n"
+                                "    if error:\n"
+                                "        result_data = {\"error\": error}\n"
+                                "    else:\n"
+                                "        result_data = data\n"
+                                "    \n"
+                                "    json.dumps(result_data)  # ← This is returned\n\n"
+                                "  Common issues:\n"
+                                "  - Last line is inside an if/else/for/while block\n"
+                                "  - Last line is an assignment (use variable name on next line)\n"
+                                "  - Function returns None instead of a value\n"
+                                "  - Variable binding names don't match (check binding list)\n"
+                            );
                         }
+                    } else {
+                        // No '_' variable captured - last line wasn't an expression
+                        fmt::print("[WARN] Python block has no return value (no '_' variable)\n");
+                        throw std::runtime_error(
+                            "Python block has no return value\n\n"
+                            "Help: The last line of your Python block must be an expression.\n\n"
+                            "  ✗ Wrong - last line is a statement:\n"
+                            "    import json\n"
+                            "    data = {\"key\": \"value\"}\n"
+                            "    # No return value!\n\n"
+                            "  ✓ Correct - expression on last line:\n"
+                            "    import json\n"
+                            "    data = {\"key\": \"value\"}\n"
+                            "    json.dumps(data)  # ← This is returned\n\n"
+                            "  Or use the variable name directly:\n"
+                            "    import json\n"
+                            "    result = json.dumps({\"key\": \"value\"})\n"
+                            "    result  # ← This is returned\n"
+                        );
                     }
+                } catch (const std::runtime_error& e) {
+                    // Re-throw our helpful error messages
+                    throw;
                 } catch (...) {
-                    // Ignore if '_' doesn't exist or can't be converted
+                    // Ignore other errors (type conversion failures, etc.)
+                    fmt::print("[WARN] Failed to retrieve Python block result\n");
+                    return std::make_shared<interpreter::Value>();
                 }
-
-                // If no '_' variable, return None/void
-                return std::make_shared<interpreter::Value>();
             } else {
                 // Not a SyntaxError, re-throw the original error
                 throw;
             }
         }
-    } catch (const security::ResourceLimitException& e) {
-        fmt::print("[ERROR] Python execution timeout: {}\n", e.what());
-        security::AuditLogger::logTimeout("Python exec()", 30);
-        throw std::runtime_error("Python execution timed out");
     } catch (const py::error_already_set& e) {
         throw std::runtime_error(fmt::format("Python execution error: {}", e.what()));
     }
@@ -209,40 +305,59 @@ std::shared_ptr<interpreter::Value> PythonExecutor::callFunction(
     error::ScopedStackFrame stack_frame("python", function_name, "<python>", 0);
 
     // Check if function exists
-    if (!global_namespace_.contains(function_name.c_str())) {
+    auto globals = py::globals();
+    if (!globals.contains(function_name.c_str())) {
         throw std::runtime_error(fmt::format("Python function not found: {}", function_name));
     }
 
+    // Phase 1 Item 9: FFI callback safety - wrap with exception boundary
+    // Temporarily simplified for compilation
+    auto execute_call = [this, &function_name, &args]() -> interpreter::Value {
+            // Get the function object
+            py::object func = py::globals()[function_name.c_str()];
+
+            // Phase 1 Item 9: Validate function pointer
+            if (!ffi::CallbackValidator::validatePointer(func.ptr())) {
+                throw ffi::CallbackValidationException(
+                    fmt::format("Invalid Python function pointer: {}", function_name)
+                );
+            }
+
+            // Convert NAAb arguments to Python objects
+            py::list py_args;
+            for (const auto& arg : args) {
+                py_args.append(valueToPython(arg));
+            }
+
+            // Call the function with 30-second timeout
+            py::object result;
+            try {
+                security::ScopedTimeout timeout(30);
+                result = func(*py_args);
+            } catch (const security::ResourceLimitException& e) {
+                fmt::print("[ERROR] Python function timeout: {}\n", e.what());
+                security::AuditLogger::logTimeout("Python function: " + function_name, 30);
+                throw std::runtime_error("Python function call timed out");
+            }
+
+            // Convert result back to NAAb Value
+            auto naab_value = pythonToValue(result);
+            if (naab_value) {
+                return *naab_value;
+            } else {
+                return interpreter::Value();  // Return null if conversion fails
+            }
+    };
+
+    // Execute the call directly (simplified for now)
     try {
-        // Get the function object
-        py::object func = global_namespace_[function_name.c_str()];
-
-        // Convert NAAb arguments to Python objects
-        py::list py_args;
-        for (const auto& arg : args) {
-            py_args.append(valueToPython(arg));
-        }
-
-        // Call the function with 30-second timeout
-        py::object result;
-        {
-            security::ScopedTimeout timeout(30);
-            result = func(*py_args);
-        }
-
-        // Convert result back to NAAb Value
-        return pythonToValue(result);
-    } catch (const security::ResourceLimitException& e) {
-        fmt::print("[ERROR] Python function timeout: {}\n", e.what());
-        security::AuditLogger::logTimeout("Python function: " + function_name, 30);
-        throw std::runtime_error("Python function call timed out");
-    } catch (const py::error_already_set& e) {
-        // Phase 4.2.2: Extract Python traceback and add to stack
-        extractPythonTraceback(e);
-
-        // Re-throw with enriched stack trace
-        throw std::runtime_error(fmt::format("Python call error in {}: {}\n{}",
-            function_name, e.what(), error::StackTracer::formatTrace()));
+        auto result = execute_call();
+        return std::make_shared<interpreter::Value>(result);
+    } catch (const std::exception& e) {
+        security::AuditLogger::logSecurityViolation(
+            fmt::format("Python FFI error in {}: {}", function_name, e.what())
+        );
+        throw;
     }
 }
 
@@ -251,7 +366,7 @@ bool PythonExecutor::loadModule(const std::string& module_name, const std::strin
 
     try {
         // Execute the module code in the global namespace
-        py::exec(code, global_namespace_);
+        py::exec(code, py::globals());
         fmt::print("[Python] Module {} loaded successfully\n", module_name);
         return true;
     } catch (const py::error_already_set& e) {
@@ -261,7 +376,8 @@ bool PythonExecutor::loadModule(const std::string& module_name, const std::strin
 }
 
 bool PythonExecutor::hasFunction(const std::string& function_name) const {
-    return global_namespace_.contains(function_name.c_str());
+    py::gil_scoped_acquire gil;  // Acquire GIL for const method
+    return py::globals().contains(function_name.c_str());
 }
 
 // ============================================================================

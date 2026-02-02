@@ -1,0 +1,34 @@
+// Phase 2.4.2: Simple Union Type Test
+// Testing function parameters and return types only
+
+fn printValue(value: int | string) {
+    print("Value: ", value)
+}
+
+fn getValue(flag: bool) -> int | string {
+    if (flag) {
+        return 42
+    } else {
+        return "hello"
+    }
+}
+
+main {
+    print("=== Testing Union Types ===")
+
+    print("\nTest 1: Union parameters")
+    printValue(42)
+    printValue("test")
+
+    print("\nTest 2: Union returns")
+    let val1 = getValue(true)
+    print("Result: ", val1)
+    let val2 = getValue(false)
+    print("Result: ", val2)
+
+    print("\nTest 3: typeof operator")
+    print("typeof(val1): ", typeof(val1))
+    print("typeof(val2): ", typeof(val2))
+
+    print("\n=== Done ===")
+}

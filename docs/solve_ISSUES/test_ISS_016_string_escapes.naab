@@ -1,0 +1,14 @@
+# Test ISS-016: Parser Bug with \n in String Literal
+# Status in ISSUES.md: ❌ Failed - Parser fails with 'Unexpected character \' error
+# Test: Try to use escape sequences in strings
+
+main {
+    print("=== Testing ISS-016: String Escape Sequences ===")
+
+    # Test 1: Newline escape
+    print("Test 1: String with newline")
+    let message = "Line 1\nLine 2"
+    print(message)
+
+    print("VERDICT: If you see this, escape sequences work!")
+}

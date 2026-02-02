@@ -1,0 +1,28 @@
+# Test ISS-009: Regex Module
+# Status in ISSUES.md: ❌ Failed - All regex functions reported as "Unknown function"
+# Despite docs claiming "ALL WORKING ✅"
+
+use regex as re
+
+main {
+    print("=== Testing ISS-009: Regex Module ===")
+
+    let text = "Hello World 123"
+
+    # Test 1: re.match
+    print("Test 1: re.match")
+    let m = re.match(text, "Hello")
+    print("  Match result:", m)
+
+    # Test 2: re.search
+    print("Test 2: re.search")
+    let s = re.search(text, "\\d+")
+    print("  Search result:", s)
+
+    # Test 3: re.find_all
+    print("Test 3: re.find_all")
+    let all = re.find_all(text, "\\w+")
+    print("  Find all result:", all)
+
+    print("VERDICT: If you see results, regex module works!")
+}

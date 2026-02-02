@@ -1,0 +1,25 @@
+use io
+use json
+
+// Test different import syntaxes
+
+// Test 1: Full module import with alias
+use test_module_helper as helper
+
+main {
+    io.write("=== Testing Module Import Syntax ===\n\n")
+
+    io.write("Test 1: Use module with alias\n")
+    let doubled = helper.double(21)
+    io.write("helper.double(21) = ", json.stringify(doubled), "\n")
+
+    io.write("\nTest 2: Call exported function with string\n")
+    let greeting = helper.greet("World")
+    io.write("helper.greet('World') = ", greeting, "\n")
+
+    io.write("\nTest 3: Call exported function with polyglot block inside\n")
+    let calc_result = helper.polyglot_calc()
+    io.write("helper.polyglot_calc() = ", json.stringify(calc_result), "\n")
+
+    io.write("\n=== All import tests complete ===\n")
+}

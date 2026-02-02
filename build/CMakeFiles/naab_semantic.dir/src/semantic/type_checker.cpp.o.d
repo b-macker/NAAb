@@ -220,11 +220,15 @@ CMakeFiles/naab_semantic.dir/src/semantic/type_checker.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/xlocale.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/strcasecmp.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/strings.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/strings.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/string.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android/asm/fcntl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/asm-generic/fcntl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/flock64.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/flock.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/seek_constants.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stdio.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stdlib.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/android/legacy_stdlib_inlines.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/uninitialized_algorithms.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__algorithm/copy.h \
@@ -655,29 +659,26 @@ CMakeFiles/naab_semantic.dir/src/semantic/type_checker.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/system_error \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/streambuf \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/cstdarg \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/unordered_map \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/is_transparent.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__hash_table \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/can_extract_key.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/remove_const_ref.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__iterator/erase_if_container.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__iterator/ranges_iterator_traits.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__node_handle \
-  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
-  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
-  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/sstream \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__ostream/basic_ostream.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__ostream/put_character_sequence.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/bitset \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_char_like_type.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/istream \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/ostream \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/format \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/queue \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__fwd/deque.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__fwd/queue.h \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/deque \
+  /data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/flat_hash_map.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/algorithm/container.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/cassert \
+  /data/data/com.termux/files/usr/bin/../../usr/include/assert.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/numeric \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/accumulate.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/adjacent_difference.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/inner_product.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/iota.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/exclusive_scan.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/gcd_lcm.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/inclusive_scan.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/pstl.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/reduce.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/transform_exclusive_scan.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/transform_inclusive_scan.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__numeric/transform_reduce.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/execution \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_execution_policy.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/functional \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/binary_negate.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/bind.h \
@@ -691,10 +692,173 @@ CMakeFiles/naab_semantic.dir/src/semantic/type_checker.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/function.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/strip_signature.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/boyer_moore_searcher.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/unordered_map \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/is_transparent.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__hash_table \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/can_extract_key.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/remove_const_ref.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__iterator/erase_if_container.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__iterator/ranges_iterator_traits.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__node_handle \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/default_searcher.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/not_fn.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__functional/perfect_forward.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/unordered_set \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/algorithm/algorithm.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/config.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/options.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/policy_checks.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/macros.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/attributes.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/optimization.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/port.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/meta/type_traits.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/hash_container_defaults.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/hash_function_defaults.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/common.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/types/optional.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/utility/utility.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/hash/hash.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/functional/function_ref.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/functional/internal/function_ref.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/functional/any_invocable.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/nullability.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/functional/internal/any_invocable.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/hash/internal/hash.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/bitset \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__type_traits/is_char_like_type.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/deque \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__fwd/deque.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/forward_list \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/list \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/map \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__tree \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/set \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/unaligned_access.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/fixed_array.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/dynamic_annotations.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/dynamic_annotations.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/iterator_traits.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/throw_delegate.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/compressed_tuple.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/hash/internal/weakly_mixed_integer.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/memory/memory.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/hash/internal/city.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/numeric/bits.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/endian.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/casts.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/numeric/internal/bits.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/numeric/int128.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/types/compare.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/numeric/int128_have_intrinsic.inc \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/string_view.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/types/variant.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/filesystem \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/copy_options.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/directory_entry.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/file_status.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/file_type.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/perms.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/file_time_type.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__chrono/file_clock.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/filesystem_error.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/path.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/iomanip \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__ostream/put_character_sequence.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/format \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/queue \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__fwd/queue.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/stack \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__fwd/stack.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/istream \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__ostream/basic_ostream.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/ostream \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/print \
-  /data/data/com.termux/files/usr/bin/../../usr/include/unistd.h
+  /data/data/com.termux/files/usr/bin/../../usr/include/unistd.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/operations.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/perm_options.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/space_info.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/directory_iterator.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/directory_options.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/path_iterator.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/u8path.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/cord.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/crc/internal/crc_cord_state.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/crc/crc32c.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/crc/internal/crc32c_inline.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/crc/internal/crc32_x86_arm_combined_simd.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/str_format.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/str_format/arg.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/sstream \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/has_absl_stringify.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/str_format/extension.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/str_format/output.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/str_format/bind.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/inlined_vector.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/inlined_vector.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/types/span.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/types/internal/span.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/str_format/checker.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/str_format/constexpr_parser.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/const_init.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/str_format/parser.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/cord_analysis.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cord_internal.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/container_memory.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/cord_buffer.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cord_rep_flat.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cord_data_edge.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cord_rep_btree.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/raw_logging.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/atomic_hook.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/log_severity.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cord_rep_btree_reader.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cord_rep_btree_navigator.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/iostream \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cord_rep_crc.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cordz_info.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/thread_annotations.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cordz_functions.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cordz_handle.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cordz_statistics.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cordz_update_tracker.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/synchronization/mutex.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/thread_identity.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fcntl.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/getentropy.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/getopt.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/ioctl.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/lockf.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/sysconf.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/unistd.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/android/legacy_unistd_inlines.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/per_thread_tls.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/tsan_mutex_interface.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/synchronization/internal/kernel_timeout.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/chrono \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/time/clock.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/time/time.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/time/civil_time.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/time/internal/cctz/include/cctz/civil_time.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/time/internal/cctz/include/cctz/civil_time_detail.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/time/internal/cctz/include/cctz/time_zone.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/synchronization/internal/per_thread_sem.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/synchronization/internal/create_thread_identity.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/cordz_update_scope.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/strings/internal/string_constant.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_map.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/common_policy_traits.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_set.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/prefetch.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/hash_policy_traits.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/hashtable_control_bytes.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/arm_neon.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/arm_bf16.h \
+  /data/data/com.termux/files/usr/lib/clang/21/include/arm_vector_types.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/hashtable_debug_hooks.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/hashtablez_sampler.h \
+  /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/profiling/internal/sample_recorder.h \
+  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
+  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
+  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h

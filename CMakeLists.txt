@@ -11,6 +11,88 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
+# ============================================================================
+# Sanitizer Build Options (Week 1: Security Hardening Sprint)
+# ============================================================================
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
+option(ENABLE_MSAN "Enable MemorySanitizer" OFF)
+option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
+
+# AddressSanitizer (memory errors: use-after-free, buffer overflow, leaks)
+if(ENABLE_ASAN)
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address)
+    message(STATUS "🔍 AddressSanitizer enabled")
+endif()
+
+# UndefinedBehaviorSanitizer (undefined behavior: null deref, integer overflow, etc.)
+if(ENABLE_UBSAN)
+    add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=undefined)
+    message(STATUS "🔍 UndefinedBehaviorSanitizer enabled")
+endif()
+
+# MemorySanitizer (uninitialized reads)
+if(ENABLE_MSAN)
+    add_compile_options(-fsanitize=memory -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=memory)
+    message(STATUS "🔍 MemorySanitizer enabled")
+endif()
+
+# ThreadSanitizer (data races)
+if(ENABLE_TSAN)
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=thread)
+    message(STATUS "🔍 ThreadSanitizer enabled")
+endif()
+
+# ============================================================================
+# Advanced Security Options (Phase 1: Path to 97%)
+# ============================================================================
+option(ENABLE_CFI "Enable Control Flow Integrity" OFF)
+option(ENABLE_HARDENING "Enable additional hardening flags" ON)
+
+# Control Flow Integrity (CFI) - prevents control flow hijacking
+if(ENABLE_CFI)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_compile_options(-fsanitize=cfi -flto -fvisibility=hidden)
+        add_link_options(-fsanitize=cfi -flto)
+        message(STATUS "🛡️  Control Flow Integrity (CFI) enabled")
+    else()
+        message(WARNING "CFI requires Clang compiler")
+    endif()
+endif()
+
+# Hardening flags (enabled by default)
+if(ENABLE_HARDENING)
+    # Stack protection
+    add_compile_options(-fstack-protector-strong)
+
+    # Position-independent code (PIE) for ASLR
+    add_compile_options(-fPIE)
+    add_link_options(-pie)
+
+    # Fortify source (buffer overflow detection)
+    add_compile_definitions(_FORTIFY_SOURCE=2)
+
+    # Integer conversion warnings
+    add_compile_options(
+        -Wconversion
+        -Wsign-conversion
+        -Wnarrowing
+    )
+
+    # Additional security warnings
+    add_compile_options(
+        -Wformat=2
+        -Wformat-security
+        -Werror=format-security
+    )
+
+    message(STATUS "🛡️  Hardening flags enabled (stack protection, PIE, fortify, conversion warnings)")
+endif()
+
 # Extract git information for build metadata
 execute_process(
     COMMAND git rev-parse --short HEAD
@@ -169,6 +251,7 @@ message(STATUS "  ✓ Lexer library")
 add_library(naab_parser
     src/parser/parser.cpp
     src/parser/ast_nodes.cpp
+    src/parser/error_hints.cpp
 )
 target_link_libraries(naab_parser
     naab_lexer
@@ -176,6 +259,7 @@ target_link_libraries(naab_parser
     absl::statusor
 )
 message(STATUS "  ✓ Parser library (from LLVM blocks)")
+message(STATUS "  ✓ Parser error hints (Phase 4.2)")
 
 # Semantic analyzer (use Clang type checker blocks)
 add_library(naab_semantic
@@ -198,6 +282,29 @@ message(STATUS "  ✓ Type checker")
 message(STATUS "  ✓ Error reporter")
 message(STATUS "  ✓ Error helpers (fuzzy matching)")
 
+# Formatter library (Phase 4.2: Auto-formatter)
+add_library(naab_formatter
+    src/formatter/formatter.cpp
+    src/formatter/style_config.cpp
+)
+target_link_libraries(naab_formatter
+    naab_parser
+    naab_lexer
+    fmt::fmt
+)
+message(STATUS "  ✓ Formatter library (auto-formatter)")
+
+# Linter library (Phase 4.2: Code quality hints)
+add_library(naab_linter
+    src/linter/llm_patterns.cpp
+    src/linter/quality_hints.cpp
+)
+target_link_libraries(naab_linter
+    naab_parser
+    fmt::fmt
+)
+message(STATUS "  ✓ Linter library (quality hints)")
+
 # Debugger library
 add_library(naab_debugger
     src/debugger/debugger.cpp
@@ -215,6 +322,10 @@ add_library(naab_security
     src/runtime/crypto_utils.cpp
     src/runtime/audit_logger.cpp
     src/runtime/sandbox.cpp
+    src/safe_regex.cpp                       # Phase 1 Item 7: Regex timeout protection
+    src/runtime/tamper_evident_logger.cpp    # Phase 1 Item 8: Tamper-evident logging
+    src/runtime/ffi_callback_validator.cpp   # Phase 1 Item 9: FFI callback safety
+    src/runtime/ffi_async_callback.cpp       # Phase 1 Item 10: FFI async callback safety
 )
 target_link_libraries(naab_security
     fmt::fmt
@@ -230,6 +341,9 @@ add_library(naab_interpreter
     src/interpreter/interpreter.cpp
     src/interpreter/evaluator.cpp
     src/interpreter/environment.cpp
+    src/interpreter/cycle_detector.cpp  # Phase 3.2: Garbage collection
+    src/interpreter/error_context.cpp   # Phase 4.2: Enhanced error reporting
+    src/interpreter/debugger.cpp        # Phase 4.2: Interactive debugger
 )
 target_link_libraries(naab_interpreter
     naab_parser
@@ -237,11 +351,13 @@ target_link_libraries(naab_interpreter
     naab_stdlib
     naab_debugger
     absl::flat_hash_map
+    fmt::fmt
 )
 if(Python3_FOUND)
     target_link_libraries(naab_interpreter ${Python3_LIBRARIES})
 endif()
 message(STATUS "  ✓ Interpreter")
+message(STATUS "  ✓ Runtime error enhancement (Phase 4.2)")
 
 # QuickJS library for JavaScript execution
 add_library(quickjs STATIC IMPORTED)
@@ -270,6 +386,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/subprocess_helpers.cpp  # Polyglot: Subprocess utility functions
     src/runtime/cross_language_bridge.cpp
     src/runtime/module_resolver.cpp  # Phase 3.1: Module system
+    src/runtime/module_system.cpp    # Phase 4.0: Module system (Rust-style)
     src/runtime/struct_registry.cpp  # Struct support
     src/runtime/cpp_block_interface.cpp  # C FFI for struct support
     src/runtime/rust_ffi_bridge.cpp  # Phase 3.1: Rust FFI bridge
@@ -277,10 +394,13 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/csharp_executor.cpp  # Phase 11: C# executor
     src/runtime/stack_tracer.cpp  # Phase 4.2: Cross-language stack traces
     src/runtime/stack_formatter.cpp  # Phase 4.2.6: Enhanced stack trace formatting
+    src/runtime/inline_code_cache.cpp  # Phase 3.3.1: Inline code caching
+    src/runtime/polyglot_async_executor.cpp  # Phase 1 Item 10 Day 5: Polyglot async execution
 )
 
 # Add Python executor if pybind11 is available
 if(HAVE_PYBIND11)
+    list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_interpreter_manager.cpp)  # Phase 2: Global Python interpreter
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor.cpp)
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor_adapter.cpp)
 endif()
@@ -349,6 +469,7 @@ target_link_libraries(naab_stdlib
     spdlog::spdlog
     absl::strings
     curl
+    naab_security  # For SafeRegex ReDoS protection
 )
 if(OPENSSL_FOUND)
     target_link_libraries(naab_stdlib OpenSSL::SSL OpenSSL::Crypto)
@@ -400,6 +521,8 @@ target_link_libraries(naab-lang
     naab_lexer
     naab_parser
     naab_semantic
+    naab_formatter
+    naab_linter
     naab_interpreter
     naab_runtime
     naab_stdlib
@@ -482,6 +605,19 @@ target_link_libraries(naab-doc
     fmt::fmt
 )
 message(STATUS "  ✓ Documentation generator tool (naab-doc)")
+
+# Phase 1 Item 8: Tamper-evident log verification tool
+add_executable(naab-verify-audit
+    src/cli/verify_audit.cpp
+)
+target_link_libraries(naab-verify-audit
+    naab_security
+    fmt::fmt
+)
+if(OPENSSL_FOUND)
+    target_link_libraries(naab-verify-audit OpenSSL::SSL OpenSSL::Crypto)
+endif()
+message(STATUS "  ✓ Tamper-evident log verification tool (naab-verify-audit)")
 
 # Block Enricher library
 add_library(naab_block_enricher
@@ -932,6 +1068,13 @@ add_executable(naab_unit_tests
     tests/unit/error_categories_test.cpp
     tests/unit/suggestion_system_test.cpp
     tests/unit/stack_tracer_test.cpp
+    tests/unit/safe_time_test.cpp
+    tests/unit/secure_string_test.cpp
+    tests/unit/safe_regex_test.cpp  # Phase 1 Item 7: Regex timeout tests
+    tests/unit/tamper_evident_logger_test.cpp  # Phase 1 Item 8: Tamper-evident logging tests
+    tests/unit/ffi_callback_validator_test.cpp  # Phase 1 Item 9: FFI callback safety tests
+    tests/unit/ffi_async_callback_test.cpp  # Phase 1 Item 10 Day 4: FFI async callback safety tests
+    tests/unit/polyglot_async_test.cpp  # Phase 1 Item 10 Day 5: Polyglot async integration tests
 )
 
 # Link GoogleTest and NAAb libraries
@@ -944,6 +1087,7 @@ target_link_libraries(naab_unit_tests
     naab_runtime
     naab_stdlib
     naab_semantic
+    naab_security  # For SafeRegex tests
     fmt::fmt
     spdlog::spdlog
 )
@@ -955,4 +1099,9 @@ target_link_libraries(naab_unit_tests
 
 message(STATUS "  ✓ Unit tests configured")
 message(STATUS "  Run tests with: ./build/naab_unit_tests")
+
+# ============================================================================
+# Fuzzing Infrastructure (Week 2: Security Hardening Sprint)
+# ============================================================================
+add_subdirectory(fuzz)
 

@@ -1,0 +1,39 @@
+# Test Runtime Fixes for NAAb
+# Tests C++, Python, and JavaScript inline executor fixes
+
+main {
+    print("=== Testing Runtime Fixes ===")
+    print("")
+
+    # Test 1: C++ with headers (should work now)
+    print("Test 1: C++ inline with std headers")
+    <<cpp
+    #include <iostream>
+    std::cout << "✓ C++ headers working!" << std::endl;
+    >>
+    print("")
+
+    # Test 2: Python multi-line statements (should work now)
+    print("Test 2: Python multi-line statements")
+    <<python
+import statistics
+numbers = [1, 2, 3, 4, 5]
+mean = statistics.mean(numbers)
+print(f"✓ Python multi-line working! Mean: {mean}")
+    >>
+    print("")
+
+    # Test 3: JavaScript variable scope isolation (should work now)
+    print("Test 3: JavaScript variable scope isolation")
+    <<javascript
+    const data = [1, 2, 3];
+    console.log("✓ JavaScript block 1: data =", data);
+    >>
+    <<javascript
+    const data = [4, 5, 6];  // Should NOT cause redeclaration error
+    console.log("✓ JavaScript block 2: data =", data);
+    >>
+    print("")
+
+    print("=== All Runtime Fixes Verified! ===")
+}

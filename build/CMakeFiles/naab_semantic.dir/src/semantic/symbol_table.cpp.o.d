@@ -1,5 +1,6 @@
 CMakeFiles/naab_semantic.dir/src/semantic/symbol_table.cpp.o: \
   /data/data/com.termux/files/home/.naab/language/src/semantic/symbol_table.cpp \
+  /data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h \
   /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/flat_hash_map.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/cstddef \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__config \
@@ -219,11 +220,15 @@ CMakeFiles/naab_semantic.dir/src/semantic/symbol_table.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/xlocale.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/strcasecmp.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/strings.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/strings.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/string.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android/asm/fcntl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/asm-generic/fcntl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/flock64.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/flock.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/seek_constants.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stdio.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stdlib.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/android/legacy_stdlib_inlines.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/uninitialized_algorithms.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__algorithm/copy.h \
@@ -824,6 +829,7 @@ CMakeFiles/naab_semantic.dir/src/semantic/symbol_table.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/ioctl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/lockf.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/sysconf.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/unistd.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/android/legacy_unistd_inlines.h \
   /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/per_thread_tls.h \
   /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/base/internal/tsan_mutex_interface.h \

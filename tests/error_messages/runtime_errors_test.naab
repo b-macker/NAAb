@@ -1,0 +1,44 @@
+// Test runtime error messages and hints
+// Each function tests a different runtime error type
+
+use io
+
+// Test 1: Undefined variable
+fn testUndefinedVariable() {
+    io.write(unknownVariable)  // Should suggest similar variables
+}
+
+// Test 2: Division by zero
+fn testDivisionByZero() {
+    let x = 10
+    let y = 0
+    let result = x / y  // Should hint about adding check
+}
+
+// Test 3: Index out of bounds
+fn testIndexOutOfBounds() {
+    let arr = [1, 2, 3]
+    let value = arr[10]  // Should show valid range
+}
+
+// Test 4: Null access
+fn testNullAccess() {
+    let obj = null
+    let field = obj.name  // Should hint about null check
+}
+
+// Test 5: Type mismatch
+fn testTypeMismatch() {
+    let x: int = "hello"  // Should suggest type conversion
+}
+
+main {
+    io.write("=== Runtime Error Tests ===\n")
+
+    // Uncomment one at a time to test each error
+    // testUndefinedVariable()
+    // testDivisionByZero()
+    // testIndexOutOfBounds()
+    // testNullAccess()
+    // testTypeMismatch()
+}

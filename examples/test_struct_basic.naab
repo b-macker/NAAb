@@ -1,0 +1,15 @@
+# Test basic struct functionality
+
+struct Point {
+    x: int
+    y: int
+}
+
+main {
+    print("Testing basic struct")
+    let p = Point {
+        x: 10
+        y: 20
+    }
+    print("Created point")
+}

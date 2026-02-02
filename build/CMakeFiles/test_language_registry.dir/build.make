@@ -107,13 +107,13 @@ test_language_registry: /data/data/com.termux/files/usr/lib/libpython3.12.so
 test_language_registry: /data/data/com.termux/files/usr/lib/libsqlite3.so
 test_language_registry: /data/data/com.termux/files/home/.naab/language/external/quickjs-2021-03-27/libquickjs.a
 test_language_registry: libnaab_block_enricher.a
-test_language_registry: libnaab_security.a
 test_language_registry: libnaab_parser.a
 test_language_registry: external/abseil-cpp/absl/status/libabsl_statusor.a
 test_language_registry: external/abseil-cpp/absl/status/libabsl_status.a
 test_language_registry: external/abseil-cpp/absl/debugging/libabsl_leak_check.a
 test_language_registry: external/abseil-cpp/absl/base/libabsl_strerror.a
 test_language_registry: libnaab_lexer.a
+test_language_registry: libnaab_security.a
 test_language_registry: /data/data/com.termux/files/usr/lib/libssl.so
 test_language_registry: /data/data/com.termux/files/usr/lib/libcrypto.so
 test_language_registry: /data/data/com.termux/files/usr/lib/libpython3.12.so

@@ -14,6 +14,7 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <new>  // For placement new
 
 namespace naab {
 namespace repl {
@@ -131,7 +132,9 @@ private:
             printHistory();
         } else if (cmd == ":reset") {
             fmt::print("[INFO] Resetting interpreter state...\n");
-            interpreter_ = interpreter::Interpreter();
+            // Use placement new to reconstruct interpreter (copy assignment is deleted)
+            interpreter_.~Interpreter();
+            new (&interpreter_) interpreter::Interpreter();
             accumulated_program_.clear();
             line_number_ = 1;
             fmt::print("[SUCCESS] State reset complete\n");

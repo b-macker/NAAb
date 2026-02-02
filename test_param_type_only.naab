@@ -1,0 +1,12 @@
+// Test parameter with module-qualified type
+use test_module_types_def as types
+
+function process(cfg: types.Config) {
+    print("Got config\n")
+}
+
+main {
+    print("Testing module type in parameter\n")
+    let c = new types.Config { name: "test", port: 8080 }
+    process(c)
+}

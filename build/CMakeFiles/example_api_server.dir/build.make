@@ -103,7 +103,6 @@ example_api_server: /data/data/com.termux/files/usr/lib/libpython3.12.so
 example_api_server: /data/data/com.termux/files/usr/lib/libsqlite3.so
 example_api_server: /data/data/com.termux/files/home/.naab/language/external/quickjs-2021-03-27/libquickjs.a
 example_api_server: libnaab_block_enricher.a
-example_api_server: libnaab_security.a
 example_api_server: /data/data/com.termux/files/usr/lib/libpython3.12.so
 example_api_server: libnaab_semantic.a
 example_api_server: libnaab_parser.a
@@ -113,6 +112,7 @@ example_api_server: external/abseil-cpp/absl/debugging/libabsl_leak_check.a
 example_api_server: external/abseil-cpp/absl/base/libabsl_strerror.a
 example_api_server: libnaab_lexer.a
 example_api_server: libnaab_stdlib.a
+example_api_server: libnaab_security.a
 example_api_server: /data/data/com.termux/files/usr/lib/libssl.so
 example_api_server: /data/data/com.termux/files/usr/lib/libcrypto.so
 example_api_server: external/spdlog/libspdlog.a

@@ -1,0 +1,27 @@
+// Test: Generic functions with type inference
+
+function identity<T>(x: T) -> T {
+    return x
+}
+
+function first<T>(items: list<T>) -> T {
+    return items[0]
+}
+
+main {
+    print("=== Testing Generic Functions ===\n")
+
+    // Test 1: Call without type arguments - let inference work
+    let num = identity(42)
+    print("Test 1 - identity(42): ", num, "\n")
+
+    let str = identity("hello")
+    print("Test 2 - identity(\"hello\"): ", str, "\n")
+
+    // Test 3: Generic function with list
+    let numbers = [1, 2, 3]
+    let firstNum = first(numbers)
+    print("Test 3 - first([1,2,3]): ", firstNum, "\n")
+
+    print("=== All tests complete ===\n")
+}

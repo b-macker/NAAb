@@ -103,7 +103,6 @@ example_simple_pipeline: /data/data/com.termux/files/usr/lib/libpython3.12.so
 example_simple_pipeline: /data/data/com.termux/files/usr/lib/libsqlite3.so
 example_simple_pipeline: /data/data/com.termux/files/home/.naab/language/external/quickjs-2021-03-27/libquickjs.a
 example_simple_pipeline: libnaab_block_enricher.a
-example_simple_pipeline: libnaab_security.a
 example_simple_pipeline: /data/data/com.termux/files/usr/lib/libpython3.12.so
 example_simple_pipeline: libnaab_semantic.a
 example_simple_pipeline: libnaab_parser.a
@@ -113,6 +112,7 @@ example_simple_pipeline: external/abseil-cpp/absl/debugging/libabsl_leak_check.a
 example_simple_pipeline: external/abseil-cpp/absl/base/libabsl_strerror.a
 example_simple_pipeline: libnaab_lexer.a
 example_simple_pipeline: libnaab_stdlib.a
+example_simple_pipeline: libnaab_security.a
 example_simple_pipeline: /data/data/com.termux/files/usr/lib/libssl.so
 example_simple_pipeline: /data/data/com.termux/files/usr/lib/libcrypto.so
 example_simple_pipeline: external/spdlog/libspdlog.a

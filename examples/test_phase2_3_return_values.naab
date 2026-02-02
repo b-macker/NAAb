@@ -1,0 +1,70 @@
+// Phase 2.3: Return Values from Inline Code Blocks
+// Test file to verify that inline code blocks can return values
+
+main {
+    print("=== Phase 2.3: Testing Return Values from Inline Code ===\n");
+
+    // Test 1: C++ inline code with return value
+    print("\n[Test 1] C++ inline code returning integer:");
+    let cpp_result = <<cpp
+    #include <iostream>
+    int main() {
+        std::cout << 42;
+        return 0;
+    }
+    >>;
+    print(cpp_result);
+
+    // Test 2: JavaScript inline code with return value
+    print("\n[Test 2] JavaScript inline code returning value:");
+    let js_result = <<javascript
+    let x = 10;
+    let y = 32;
+    x + y
+    >>;
+    print(js_result);
+
+    // Test 3: Python inline code with return value
+    print("\n[Test 3] Python inline code returning value:");
+    let py_result = <<python
+    def calculate():
+        return 7 * 6
+    calculate()
+    >>;
+    print(py_result);
+
+    // Test 4: JavaScript string return
+    print("\n[Test 4] JavaScript returning string:");
+    let js_string = <<javascript
+    "Hello from JavaScript"
+    >>;
+    print(js_string);
+
+    // Test 5: Python string return
+    print("\n[Test 5] Python returning string:");
+    let py_string = <<python
+    "Hello from Python"
+    >>;
+    print(py_string);
+
+    // Test 6: C++ with arithmetic
+    print("\n[Test 6] C++ arithmetic result:");
+    let cpp_math = <<cpp
+    #include <iostream>
+    int main() {
+        int result = 100 - 58;
+        std::cout << result;
+        return 0;
+    }
+    >>;
+    print(cpp_math);
+
+    // Test 7: JavaScript with floating point
+    print("\n[Test 7] JavaScript floating point:");
+    let js_float = <<javascript
+    3.14159 * 2
+    >>;
+    print(js_float);
+
+    print("\n\n=== Phase 2.3: All tests completed ===");
+}

@@ -114,11 +114,56 @@ CMakeFiles/naab_interpreter.dir/src/interpreter/environment.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_interpreter.dir/src/interpreter/environment.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/interpreter/environment.cpp -o CMakeFiles/naab_interpreter.dir/src/interpreter/environment.cpp.s
 
+CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o: CMakeFiles/naab_interpreter.dir/flags.make
+CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o: /data/data/com.termux/files/home/.naab/language/src/interpreter/cycle_detector.cpp
+CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o: CMakeFiles/naab_interpreter.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o -MF CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o.d -o CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/interpreter/cycle_detector.cpp
+
+CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/interpreter/cycle_detector.cpp > CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.i
+
+CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/interpreter/cycle_detector.cpp -o CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.s
+
+CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o: CMakeFiles/naab_interpreter.dir/flags.make
+CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o: /data/data/com.termux/files/home/.naab/language/src/interpreter/error_context.cpp
+CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o: CMakeFiles/naab_interpreter.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o -MF CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o.d -o CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/interpreter/error_context.cpp
+
+CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/interpreter/error_context.cpp > CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.i
+
+CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/interpreter/error_context.cpp -o CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.s
+
+CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o: CMakeFiles/naab_interpreter.dir/flags.make
+CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o: /data/data/com.termux/files/home/.naab/language/src/interpreter/debugger.cpp
+CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o: CMakeFiles/naab_interpreter.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o -MF CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o.d -o CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/interpreter/debugger.cpp
+
+CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/interpreter/debugger.cpp > CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.i
+
+CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/interpreter/debugger.cpp -o CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.s
+
 # Object files for target naab_interpreter
 naab_interpreter_OBJECTS = \
 "CMakeFiles/naab_interpreter.dir/src/interpreter/interpreter.cpp.o" \
 "CMakeFiles/naab_interpreter.dir/src/interpreter/evaluator.cpp.o" \
-"CMakeFiles/naab_interpreter.dir/src/interpreter/environment.cpp.o"
+"CMakeFiles/naab_interpreter.dir/src/interpreter/environment.cpp.o" \
+"CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o" \
+"CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o" \
+"CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o"
 
 # External object files for target naab_interpreter
 naab_interpreter_EXTERNAL_OBJECTS =
@@ -126,9 +171,12 @@ naab_interpreter_EXTERNAL_OBJECTS =
 libnaab_interpreter.a: CMakeFiles/naab_interpreter.dir/src/interpreter/interpreter.cpp.o
 libnaab_interpreter.a: CMakeFiles/naab_interpreter.dir/src/interpreter/evaluator.cpp.o
 libnaab_interpreter.a: CMakeFiles/naab_interpreter.dir/src/interpreter/environment.cpp.o
+libnaab_interpreter.a: CMakeFiles/naab_interpreter.dir/src/interpreter/cycle_detector.cpp.o
+libnaab_interpreter.a: CMakeFiles/naab_interpreter.dir/src/interpreter/error_context.cpp.o
+libnaab_interpreter.a: CMakeFiles/naab_interpreter.dir/src/interpreter/debugger.cpp.o
 libnaab_interpreter.a: CMakeFiles/naab_interpreter.dir/build.make
 libnaab_interpreter.a: CMakeFiles/naab_interpreter.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX static library libnaab_interpreter.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Linking CXX static library libnaab_interpreter.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/naab_interpreter.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/naab_interpreter.dir/link.txt --verbose=$(VERBOSE)
 

@@ -1,0 +1,37 @@
+main {
+    print("=== Testing Multi-line Code for All Languages ===\n\n")
+
+    // JavaScript
+    print("1. JavaScript:\n")
+    let js_result = <<javascript
+const config = {
+    name: "test",
+    value: 42
+};
+JSON.stringify(config);
+    >>
+    print("   Result: ", js_result, "\n\n")
+
+    // Python
+    print("2. Python:\n")
+    let py_result = <<python
+data = {
+    "name": "test",
+    "value": 42
+}
+import json
+json.dumps(data)
+    >>
+    print("   Result: ", py_result, "\n\n")
+
+    // Shell/Bash
+    print("3. Shell:\n")
+    let sh_result = <<bash
+NAME="test"
+VALUE=42
+echo "{\"name\":\"$NAME\",\"value\":$VALUE}"
+    >>
+    print("   Result: ", sh_result, "\n\n")
+
+    print("=== All Tests Complete ===\n")
+}

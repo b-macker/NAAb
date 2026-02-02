@@ -9,7 +9,7 @@ namespace semantic {
 // ============================================================================
 
 void Scope::define(const std::string& name, Symbol symbol) {
-    symbols_[name] = std::move(symbol);
+    symbols_.insert_or_assign(name, std::move(symbol));
 }
 
 std::optional<Symbol> Scope::lookup_local(const std::string& name) const {

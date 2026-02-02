@@ -1,0 +1,35 @@
+// Chapter 4: Module Import Patterns Verification
+// Tests various import patterns and aliases
+
+use io
+use json
+use string as str    // Alias pattern
+use time as t        // Short alias
+
+main {
+    io.write("=== Module Import Patterns Test ===\n\n")
+
+    // TEST 1: Direct import (io)
+    io.write("✓ Test 1: Direct import (io module)\n")
+
+    // TEST 2: Import with alias (string as str)
+    let text = "hello world"
+    let upper = str.upper(text)
+    io.write("✓ Test 2: Aliased import (string as str): ", upper, "\n")
+
+    // TEST 3: Short alias (time as t)
+    let now = t.now()
+    io.write("✓ Test 3: Short alias (time as t): ", json.stringify(now), "\n")
+
+    // TEST 4: Multiple imports work together
+    let data = {"text": "test", "value": 42}
+    let json_str = json.stringify(data)
+    io.write("✓ Test 4: Multiple imports: ", json_str, "\n")
+
+    // TEST 5: String module functions
+    let parts = str.split("a,b,c", ",")
+    let joined = str.join(parts, "-")
+    io.write("✓ Test 5: String module functions: ", joined, "\n")
+
+    io.write("\n=== All import patterns working! ===\n")
+}

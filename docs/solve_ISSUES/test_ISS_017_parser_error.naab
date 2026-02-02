@@ -1,0 +1,19 @@
+# Test ISS-017: Parser Bug - Misleading Error Report
+# Status in ISSUES.md: ❌ Critical
+# Parser reports errors at wrong line/column, making debugging impossible
+
+main {
+    print("Testing ISS-017")
+
+    # Line 7: No backslash here
+    let x = 42
+
+    # Line 10: No backslash here either
+    let y = 100
+
+    # Line 13: Introduce actual syntax error
+    let z =
+
+    # If parser reports error at line 37 column 43 (which doesn't exist),
+    # that confirms ISS-017
+}

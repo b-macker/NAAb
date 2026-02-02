@@ -1,0 +1,75 @@
+// Polyglot block common issues
+// Tests detection of polyglot block misuse
+
+use io
+
+fn testMissingVariableList() {
+    let data = [1, 2, 3, 4, 5]
+
+    // ISSUE 1: Missing variable list
+    // Should warn: "Polyglot block missing variable list"
+    let result = <<python
+    sum(data) / len(data)
+    >>
+}
+
+fn testWrongSyntax() {
+    let x = 10
+    let y = 20
+
+    // ISSUE 2: Wrong variable list syntax
+    // Should suggest: <<python[x, y] ...>>
+    let result = <<python(x, y)
+    x + y
+    >>
+}
+
+fn testUndeclaredVariable() {
+    let x = 10
+
+    // ISSUE 3: Using undeclared variable in polyglot block
+    // Should warn about 'y' not being in scope
+    let result = <<python[x]
+    x + y
+    >>
+}
+
+fn testMultilineString() {
+    let data = {"name": "Alice", "age": 30}
+
+    // ISSUE 4: Multi-line dict in Python block (ISS-005)
+    // Old issue - should work now, but test detection
+    let result = <<python[data]
+    {
+        "name": data["name"],
+        "age": data["age"]
+    }
+    >>
+}
+
+fn testAsyncInPolyglot() {
+    let url = "https://api.example.com"
+
+    // ISSUE 5: Using async/await in polyglot (not supported)
+    let result = <<javascript[url]
+    async function fetchData() {
+        const response = await fetch(url)
+        return response.json()
+    }
+    fetchData()
+    >>
+}
+
+fn testShellInjection() {
+    let filename = getUserInput()
+
+    // ISSUE 6: Potential shell injection
+    // Should warn about user input in shell command
+    let result = <<shell[filename]
+    cat $filename
+    >>
+}
+
+main {
+    io.write("Polyglot issues test\n")
+}

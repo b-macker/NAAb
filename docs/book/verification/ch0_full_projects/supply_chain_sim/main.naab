@@ -1,0 +1,91 @@
+// Global Supply Chain Simulator - Main Entry Point
+
+// 1. Standard Library Imports (UseStatement)
+use io
+use array
+use file
+
+// 2. Module Path Imports (ModuleUseStmt)
+use modules.config_loader as cfg_loader
+use modules.demand_forecast as forecaster
+use modules.route_optimizer as optimizer
+use modules.simulation_engine as sim_engine
+use modules.logistics_net as logistics
+use modules.finance_core as finance
+use modules.reporter
+
+// 3. Import Specific Items (ImportStmt - Experimental)
+// NOTE: This syntax is being tested as per requirements.
+// If the parser does not support 'import { }', this block will cause an error.
+// Backup plan: Access via module alias (e.g. forecaster.Forecast).
+// import { Forecast } from "modules/demand_forecast.naab"
+
+main {
+    io.write("=== Global Supply Chain Simulator Starting ===\n")
+
+    // --- Phase 1: Environment Prep (Bash) ---
+    io.write("1. [Bash] Preparing environment...\n")
+    let prep_result = <<sh
+    rm -rf output/*
+    mkdir -p output
+    echo "Environment Cleaned"
+    >>
+    io.write("   ", prep_result.stdout, "\n")
+
+    // --- Phase 2: Config Loading (NAAb) ---
+    io.write("2. [NAAb] Loading configuration...\n")
+    // Relative path from where 'naab-lang run' is executed matters. 
+    // We assume running from project root, so path should be docs/book/...
+    // BUT relative imports are fixed (ISS-035), so maybe file path can be relative to main.naab?
+    // 'file.read' uses CWD. So we need the full relative path from root.
+    let config_path = "docs/book/verification/ch0_full_projects/supply_chain_sim/config/simulation_config.json"
+    let sim_config = cfg_loader.load(config_path)
+    
+    if sim_config != null {
+        io.write("   Loaded config for ", sim_config.simulation_days, " days.\n")
+    } else {
+        io.write_error("   ❌ Failed to load config from ", config_path, "\n")
+    }
+
+    // --- Phase 3: Demand Forecasting (Python) ---
+    io.write("3. [Python] Forecasting demand...\n")
+    let sales_data_path = "docs/book/verification/ch0_full_projects/supply_chain_sim/data/historical_sales.csv"
+    
+    if file.exists(sales_data_path) {
+        let sales_csv_content = file.read(sales_data_path)
+        let forecasts = forecaster.predict(sales_csv_content)
+        io.write("   Generated ", array.length(forecasts), " forecasts.\n")
+    } else {
+        io.write_error("   ❌ Failed to read sales data from ", sales_data_path, "\n")
+    }
+
+    // --- Phase 4: Route Optimization (C++) ---
+    io.write("4. [C++] Optimizing routes...\n")
+    let route = optimizer.optimize("North America")
+    io.write("   Route to ", route.to_loc, " distance: ", route.distance_km, "km\n")
+
+    // --- Phase 5: Simulation (Rust) ---
+    io.write("5. [Rust] Running simulation...\n")
+    let sim_status = sim_engine.run_simulation(30)
+    io.write("   Simulation success: ", sim_status, "\n")
+
+    // --- Phase 6: Logistics (Go) ---
+    io.write("6. [Go] Scheduling logistics...\n")
+    let tracking = logistics.schedule_shipment("Route 101")
+    io.write("   Shipment Tracking ID: ", tracking, "\n")
+
+    // --- Phase 7: Financials (C#) ---
+    io.write("7. [C#] Calculating financials...\n")
+    let revenue = finance.calculate_revenue(100, 99.99)
+    io.write("   Total Revenue: ", revenue, "\n")
+
+    // --- Phase 8: Reporting (Ruby & JS) ---
+    io.write("8. [Ruby/JS] Generating reports...\n")
+    let text_report = reporter.format_report(revenue)
+    io.write("   ", text_report, "\n")
+    
+    let json_dash = reporter.generate_dashboard_json(revenue)
+    io.write("   Dashboard JSON: ", json_dash, "\n")
+
+    io.write("=== Simulation Complete ===\n")
+}

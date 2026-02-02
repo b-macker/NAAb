@@ -1,0 +1,59 @@
+use io
+
+main {
+    io.write("=== Testing Shell Block Return Values ===\n\n")
+
+    // Test 1: Simple command with exit code 0
+    io.write("Test 1: Simple successful command\n")
+    let result1 = <<sh
+echo "Hello from shell"
+    >>
+
+    io.write("  exit_code: ", result1.exit_code, "\n")
+    io.write("  stdout: '", result1.stdout, "'\n")
+    io.write("  stderr: '", result1.stderr, "'\n\n")
+
+    // Test 2: Command with stderr output
+    io.write("Test 2: Command with stderr\n")
+    let result2 = <<sh
+echo "stdout message"
+echo "stderr message" >&2
+    >>
+
+    io.write("  exit_code: ", result2.exit_code, "\n")
+    io.write("  stdout: '", result2.stdout, "'\n")
+    io.write("  stderr: '", result2.stderr, "'\n\n")
+
+    // Test 3: Failing command
+    io.write("Test 3: Failing command (non-zero exit)\n")
+    let result3 = <<sh
+exit 42
+    >>
+
+    io.write("  exit_code: ", result3.exit_code, "\n")
+    io.write("  stdout: '", result3.stdout, "'\n")
+    io.write("  stderr: '", result3.stderr, "'\n\n")
+
+    // Test 4: Directory creation
+    io.write("Test 4: mkdir command\n")
+    let result4 = <<sh
+mkdir -p /data/data/com.termux/files/home/.naab/language/test_output
+    >>
+
+    io.write("  exit_code: ", result4.exit_code, "\n")
+    io.write("  Success: ", result4.exit_code == 0, "\n\n")
+
+    // Test 5: Using result in conditional
+    io.write("Test 5: Conditional based on exit code\n")
+    let check_result = <<sh
+test -d /data/data/com.termux/files/home/.naab/language/build
+    >>
+
+    if check_result.exit_code == 0 {
+        io.write("  ✓ build directory exists!\n")
+    } else {
+        io.write("  ✗ build directory not found\n")
+    }
+
+    io.write("\n=== All tests completed ===\n")
+}

@@ -1,5 +1,8 @@
 #include "naab/debugger.h"
 #include "naab/ast.h"
+#include "naab/lexer.h"
+#include "naab/parser.h"
+#include "naab/interpreter.h"
 #include <sstream>
 #include <algorithm>
 #include <iostream>
@@ -346,7 +349,7 @@ bool Debugger::evaluateCondition(const std::string& condition) {
         return true;  // No condition = always break
     }
 
-    if (!current_frame_ || !current_frame_->env) {
+    if (!current_environment_) {
         return false;  // No environment to evaluate in
     }
 
@@ -365,7 +368,7 @@ bool Debugger::evaluateCondition(const std::string& condition) {
 
         // Simple implementation: check if it's a variable name and evaluate truthiness
         if (auto* ident = dynamic_cast<ast::IdentifierExpr*>(expr.get())) {
-            auto value = current_frame_->env->get(ident->getName());
+            auto value = current_environment_->get(ident->getName());
             if (value) {
                 return value->toBool();
             }

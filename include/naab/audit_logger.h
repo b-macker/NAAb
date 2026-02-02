@@ -4,6 +4,10 @@
 #include <map>
 #include <mutex>
 #include <fstream>
+#include <memory>
+
+// Forward declarations
+namespace naab { namespace security { class TamperEvidenceLogger; } }
 
 namespace naab {
 namespace security {
@@ -52,6 +56,12 @@ public:
     static void setMaxFileSize(size_t max_size_bytes);
     static void setEnabled(bool enabled);
 
+    // Phase 1 Item 8: Tamper-evident logging
+    static void setTamperEvidence(bool enabled);
+    static void enableHMAC(const std::string& secret_key);
+    static void disableHMAC();
+    static bool isTamperEvidenceEnabled();
+
     // Flush logs to disk
     static void flush();
 
@@ -80,6 +90,10 @@ private:
     static bool enabled_;
     static std::mutex mutex_;
     static std::ofstream log_stream_;
+
+    // Phase 1 Item 8: Tamper-evident logging
+    static bool tamper_evidence_enabled_;
+    static std::unique_ptr<TamperEvidenceLogger> tamper_logger_;
 };
 
 } // namespace security

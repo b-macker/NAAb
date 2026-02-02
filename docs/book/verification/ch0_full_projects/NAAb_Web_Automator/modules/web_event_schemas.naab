@@ -1,0 +1,64 @@
+// NAAb_Web_Automator/modules/web_event_schemas.naab
+// Defines NAAb structs for various web events, automation steps, and scraped data.
+
+// Struct for DOM mutation events
+struct DomEvent {
+    // CSS selector of the element
+    selector: string,
+    // Type of mutation (e.g., "added", "removed", "text_changed")
+    type: string,
+    // HTML snippet of the affected element (optional)
+    html_snippet: string?,
+    // Timestamp of the event
+    ts: float
+}
+
+// Struct for Network events
+struct NetEvent {
+    // URL of the network request
+    url: string,
+    // HTTP method (e.g., "GET", "POST")
+    http_method: string,
+    // HTTP status code
+    status: int,
+    // Timestamp of the event
+    ts: float
+}
+
+// Struct for User Action events
+struct UserActionEvent {
+    // Type of action (e.g., "click", "input", "scroll")
+    type: string,
+    // CSS selector of the interacted element
+    selector: string,
+    // Value entered (for input events, optional)
+    value: string?,
+    // Timestamp of the event
+    ts: float
+}
+
+// Generic struct to encapsulate any site event
+struct SiteEvent {
+    // Type of event (e.g., "dom", "net", "action", "error")
+    kind: string,
+    // Event-specific data as a dictionary
+    data: dict<string, any>
+}
+
+// Struct for a single scraped data item
+struct ScrapedItem {
+    // Name/label of the extracted item
+    name: string,
+    // The extracted value (e.g., text, URL)
+    value: string,
+    // URL from which the item was scraped
+    url: string,
+    // XPath of the element (optional)
+    xpath: string?,
+    // CSS selector of the element (optional)
+    css_selector: string?,
+    // Timestamp when the item was captured
+    captured_ts: float,
+    // Raw HTML of the element (optional)
+    raw_html_snippet: string?
+}

@@ -1,0 +1,62 @@
+# NAAb Benchmarking Utilities
+# Provides timing and reporting functions for benchmarks
+
+use time as time
+
+# Run a benchmark and report results
+fn benchmark(name: string, iterations: int, f: function) {
+    print("\n[BENCH] ", name)
+    print("  Iterations: ", iterations)
+
+    # Warmup (1% of iterations)
+    let warmup = iterations / 100
+    if warmup > 0 {
+        for i in 0..warmup {
+            f()
+        }
+    }
+
+    # Actual benchmark
+    let start = time.milliseconds()
+
+    for i in 0..iterations {
+        f()
+    }
+
+    let end = time.milliseconds()
+    let duration = end - start
+    let per_op = duration / iterations
+    let ops_per_sec = 1000 / per_op
+
+    print("  Total time: ", duration, " ms")
+    print("  Per operation: ", per_op, " ms")
+    print("  Throughput: ", ops_per_sec, " ops/sec")
+}
+
+# Compare two benchmarks
+fn compare(name1: string, time1: int, name2: string, time2: int) {
+    print("\n[COMPARE] ", name1, " vs ", name2)
+
+    let ratio = time1 / time2
+    let percent_diff = ((time1 - time2) / time2) * 100
+
+    if time1 < time2 {
+        print("  ", name1, " is ", ratio, "x faster")
+        print("  ", percent_diff, "% improvement")
+    } else {
+        print("  ", name2, " is ", ratio, "x faster")
+        print("  ", percent_diff, "% slower")
+    }
+}
+
+# Simple timing wrapper
+fn time_operation(f: function) -> int {
+    let start = time.milliseconds()
+    f()
+    let end = time.milliseconds()
+    return end - start
+}
+
+export benchmark
+export compare
+export time_operation

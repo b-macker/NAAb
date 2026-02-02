@@ -1,0 +1,29 @@
+// Test struct serialization with json.stringify()
+
+use io
+use json
+
+struct Person {
+    name: string,
+    age: int,
+    active: bool
+}
+
+main {
+    io.write("Testing struct serialization...\n")
+
+    let person = new Person {
+        name: "Alice",
+        age: 30,
+        active: true
+    }
+
+    // Serialize struct to JSON
+    let json_str = json.stringify(person)
+    io.write("✅ Serialized: ", json_str, "\n")
+
+    // Test with list of structs
+    let people = [person]
+    let list_json = json.stringify(people)
+    io.write("✅ List serialized: ", list_json, "\n")
+}

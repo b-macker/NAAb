@@ -1,0 +1,46 @@
+# Test ISS-007: Array HOF Naming Mismatch
+# Status in ISSUES.md: ❌ Naming Mismatch
+# Implementation uses: map_fn, filter_fn, reduce_fn
+# Documentation uses: map, filter, reduce (without _fn suffix)
+
+use array as arr
+
+fn double(x: int) -> int {
+    return x * 2
+}
+
+fn is_even(x: int) -> bool {
+    return x % 2 == 0
+}
+
+fn sum_fn(acc: int, x: int) -> int {
+    return acc + x
+}
+
+main {
+    print("=== Testing ISS-007: Array HOF Naming ===")
+
+    let numbers = [1, 2, 3, 4, 5]
+
+    # Test 1: Try without _fn suffix (as docs say)
+    print("Test 1: arr.map (without _fn suffix)")
+    # This will likely fail
+    # let doubled = arr.map(numbers, double)
+
+    # Test 2: Try with _fn suffix (as implementation has)
+    print("Test 2: arr.map_fn (with _fn suffix)")
+    let doubled = arr.map_fn(numbers, double)
+    print("  Doubled:", doubled)
+
+    # Test 3: filter_fn
+    print("Test 3: arr.filter_fn")
+    let evens = arr.filter_fn(numbers, is_even)
+    print("  Evens:", evens)
+
+    # Test 4: reduce_fn
+    print("Test 4: arr.reduce_fn")
+    let sum = arr.reduce_fn(numbers, sum_fn, 0)
+    print("  Sum:", sum)
+
+    print("VERDICT: _fn suffix is required")
+}

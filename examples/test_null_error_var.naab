@@ -1,0 +1,10 @@
+// Test null safety error: assigning null to non-nullable variable
+
+fn test() {
+    let x: int = null  // Should error
+}
+
+main {
+    print("Testing null assignment error...")
+    test()
+}

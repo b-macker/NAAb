@@ -1,0 +1,1 @@
+/data/data/com.termux/files/usr/bin/c++  -Wall -Wextra -g -fsanitize=address -Xlinker --dependency-file=CMakeFiles/enrich_tool.dir/link.d CMakeFiles/enrich_tool.dir/tools/enrich_tool.cpp.o -o enrich_tool  libnaab_block_enricher.a external/fmt/libfmtd.a

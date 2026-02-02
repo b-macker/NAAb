@@ -100,6 +100,23 @@ json valueToJson(const interpreter::Value& val) {
                 obj[key] = valueToJson(*value);
             }
             return obj;
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<interpreter::StructValue>>) {
+            // Struct serialization - convert to JSON object
+            json obj = json::object();
+            if (arg && arg->definition) {
+                const auto& fields = arg->definition->fields;
+                const auto& values = arg->field_values;
+
+                for (size_t i = 0; i < fields.size() && i < values.size(); ++i) {
+                    const std::string& field_name = fields[i].name;
+                    if (values[i]) {
+                        obj[field_name] = valueToJson(*values[i]);
+                    } else {
+                        obj[field_name] = nullptr;  // null field
+                    }
+                }
+            }
+            return obj;
         } else {
             // Unsupported type - convert to string
             return "<unsupported>";

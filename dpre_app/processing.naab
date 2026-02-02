@@ -1,0 +1,307 @@
+// dpre_app/processing.naab
+// Contains core data processing logic: conversion, filtering, aggregation, transformation.
+
+use io       // For error messages
+use string   // For string manipulation
+use time     // For timestamps in reports
+
+use data_models as dm // Import data models
+
+// Helper to generate a unique ID for a record
+fn generate_record_id() -> string {
+    // In a real scenario, this might be a hash of some fields or a UUID.
+    // For simplicity, a timestamp-based ID for now.
+    return string.from(time.nanoseconds())
+}
+
+// Converts a string value to an appropriate type (int, float, bool, or string).
+fn infer_and_convert_type(s: string) -> any {
+    // Try to convert to int
+    let int_val = string.to_int(s)
+    if int_val != null { return int_val }
+
+    // Try to convert to float
+    let float_val = string.to_float(s)
+    if float_val != null { return float_val }
+
+    // Try to convert to boolean
+    let lower_s = string.lower(s)
+    if lower_s == "true" { return true }
+    if lower_s == "false" { return false }
+
+    // Default to string
+    return s
+}
+
+// Converts a list of RawRecord (all string values) to ProcessedRecord (typed values).
+fn process_raw_records(raw_data: list<dm.RawRecord>) -> list<dm.ProcessedRecord> {
+    let processed_records: list<dm.ProcessedRecord> = []
+    let i = 0
+    while i < string.length(raw_data) {
+        let raw_record = raw_data[i]
+        let processed_data: dict<string, any> = {}
+
+        // Iterate over raw_record.data and infer/convert types
+        let keys = raw_record.data.keys() // Assuming dict.keys() exists
+        let j = 0
+        while j < string.length(keys) {
+            let key = keys[j]
+            processed_data[key] = infer_and_convert_type(raw_record.data[key])
+            j = j + 1
+        }
+        processed_records.append(dm.ProcessedRecord {
+            id: generate_record_id(),
+            data: processed_data
+        })
+        i = i + 1
+    }
+    return processed_records
+}
+
+// Applies filtering rules to a list of ProcessedRecord.
+fn apply_filters(data: list<dm.ProcessedRecord>, rules: list<dm.FilterRule>) -> dm.Result<list<dm.ProcessedRecord>, dm.AppError> {
+    let filtered_data = data
+    let rule_idx = 0
+    while rule_idx < string.length(rules) {
+        let rule = rules[rule_idx]
+        let current_pass_data: list<dm.ProcessedRecord> = []
+        let record_idx = 0
+        while record_idx < string.length(filtered_data) {
+            let record = filtered_data[record_idx]
+            let field_value = record.data[rule.field]
+
+            // Perform comparison based on operator
+            let passes_filter = false
+            if rule.operator == "eq" {
+                if field_value == rule.value { passes_filter = true }
+            } else if rule.operator == "gt" {
+                if field_value > rule.value { passes_filter = true }
+            } else if rule.operator == "lt" {
+                if field_value < rule.value { passes_filter = true }
+            } else if rule.operator == "contains" {
+                // Assuming string.contains(haystack: string, needle: string) exists
+                if string.is_string(field_value) && string.contains(field_value as string, rule.value as string) {
+                    passes_filter = true
+                }
+            } else {
+                return dm.Result<list<dm.ProcessedRecord>, dm.AppError> {
+                    ok: null,
+                    err: dm.AppError {
+                        code: dm.ErrorCode.ProcessingError,
+                        message: string.concat("Unknown filter operator: ", rule.operator),
+                        details: null
+                    }
+                }
+            }
+
+            if passes_filter {
+                current_pass_data.append(record)
+            }
+            record_idx = record_idx + 1
+        }
+        filtered_data = current_pass_data
+        rule_idx = rule_idx + 1
+    }
+    return dm.Result<list<dm.ProcessedRecord>, dm.AppError> { ok: filtered_data, err: null }
+}
+
+// Applies transformation rules to a list of ProcessedRecord.
+fn apply_transformations(data: list<dm.ProcessedRecord>, rules: list<dm.TransformationRule>) -> dm.Result<list<dm.ProcessedRecord>, dm.AppError> {
+    let transformed_data = data
+    let rule_idx = 0
+    while rule_idx < string.length(rules) {
+        let rule = rules[rule_idx]
+        let record_idx = 0
+        while record_idx < string.length(transformed_data) {
+            let record = transformed_data[record_idx]
+            
+            // This is a complex area - formula evaluation.
+            // For now, we'll support very basic "field_a * field_b" type formulas.
+            // A full expression evaluator would be very complex to implement in NAAb.
+            // This is a prime polyglot integration point (e.g., Python's eval).
+
+            // Simple example: assuming formula is "FIELD_A OPERATOR FIELD_B" or "FIELD_A OPERATOR CONSTANT"
+            let parts = string.split(rule.formula, " ")
+            if string.length(parts) == 3 {
+                let field1_name = parts[0]
+                let operator = parts[1]
+                let field2_expr = parts[2] // Could be another field or a constant string
+
+                let val1 = record.data[field1_name]
+                let val2: any = null
+
+                if record.data.contains_key(field2_expr) { // Assuming dict.contains_key exists
+                    val2 = record.data[field2_expr]
+                } else {
+                    // Try to parse as constant
+                    val2 = infer_and_convert_type(field2_expr)
+                }
+
+                // Assume val1 and val2 are numbers for arithmetic operations
+                if string.is_number(val1) && string.is_number(val2) { // Assuming string.is_number exists for any type
+                    if operator == "*" {
+                        record.data[rule.new_field] = val1 * val2
+                    } else if operator == "+" {
+                        record.data[rule.new_field] = val1 + val2
+                    } else if operator == "-" {
+                        record.data[rule.new_field] = val1 - val2
+                    } else if operator == "/" {
+                        if val2 != 0 {
+                            record.data[rule.new_field] = val1 / val2
+                        } else {
+                             return dm.Result<list<dm.ProcessedRecord>, dm.AppError> {
+                                ok: null,
+                                err: dm.AppError {
+                                    code: dm.ErrorCode.ProcessingError,
+                                    message: string.concat("Division by zero in transformation formula for field: ", rule.new_field),
+                                    details: null
+                                }
+                            }
+                        }
+                    } else {
+                         return dm.Result<list<dm.ProcessedRecord>, dm.AppError> {
+                            ok: null,
+                            err: dm.AppError {
+                                code: dm.ErrorCode.ProcessingError,
+                                message: string.concat("Unsupported operator in transformation formula: ", operator),
+                                details: null
+                            }
+                        }
+                    }
+                } else {
+                     return dm.Result<list<dm.ProcessedRecord>, dm.AppError> {
+                        ok: null,
+                        err: dm.AppError {
+                            code: dm.ErrorCode.ProcessingError,
+                            message: string.concat("Non-numeric values for arithmetic transformation in formula: ", rule.formula),
+                            details: null
+                        }
+                    }
+                }
+            } else {
+                return dm.Result<list<dm.ProcessedRecord>, dm.AppError> {
+                    ok: null,
+                    err: dm.AppError {
+                        code: dm.ErrorCode.ProcessingError,
+                        message: string.concat("Unsupported transformation formula format: ", rule.formula, ". Expected 'FIELD_A OPERATOR FIELD_B_OR_CONSTANT'"),
+                        details: null
+                    }
+                }
+            }
+            record_idx = record_idx + 1
+        }
+        rule_idx = rule_idx + 1
+    }
+    return dm.Result<list<dm.ProcessedRecord>, dm.AppError> { ok: transformed_data, err: null }
+}
+
+// Applies aggregation rules to a list of ProcessedRecord.
+fn apply_aggregations(data: list<dm.ProcessedRecord>, rules: list<dm.AggregationRule>) -> dm.Result<dm.SummaryReport, dm.AppError> {
+    let results: dict<string, any> = {}
+    
+    // For simplicity, handle only one aggregation rule for now.
+    if string.length(rules) == 0 {
+        return dm.Result<dm.SummaryReport, dm.AppError> {
+            ok: dm.SummaryReport {
+                title: "No Aggregations Performed",
+                generated_at: string.from(time.now()),
+                results: {},
+                details: data
+            },
+            err: null
+        }
+    }
+
+    let rule = rules[0] // Process first rule only
+
+    let grouped_data: dict<string, list<any>> = {} // Group by field value
+
+    let record_idx = 0
+    while record_idx < string.length(data) {
+        let record = data[record_idx]
+        let group_key = string.from(record.data[rule.group_by_field]) // Convert key to string
+
+        if grouped_data.contains_key(group_key) { // Assuming dict.contains_key exists
+            grouped_data[group_key].append(record.data[rule.target_field]) // Assuming list.append exists
+        } else {
+            grouped_data[group_key] = [record.data[rule.target_field]]
+        }
+        record_idx = record_idx + 1
+    }
+
+    let group_keys = grouped_data.keys() // Assuming dict.keys() exists
+    let group_key_idx = 0
+    while group_key_idx < string.length(group_keys) {
+        let group_key = group_keys[group_key_idx]
+        let values = grouped_data[group_key]
+        
+        let op_result: any = null
+        if rule.operation == "sum" {
+            let current_sum = 0
+            let val_idx = 0
+            while val_idx < string.length(values) {
+                if string.is_number(values[val_idx]) { current_sum = current_sum + values[val_idx] }
+                val_idx = val_idx + 1
+            }
+            op_result = current_sum
+        } else if rule.operation == "avg" {
+            let current_sum = 0
+            let count = 0
+            let val_idx = 0
+            while val_idx < string.length(values) {
+                if string.is_number(values[val_idx]) {
+                    current_sum = current_sum + values[val_idx]
+                    count = count + 1
+                }
+                val_idx = val_idx + 1
+            }
+            if count > 0 { op_result = current_sum / count } else { op_result = 0.0 }
+        } else if rule.operation == "count" {
+            op_result = string.length(values)
+        } else {
+            return dm.Result<dm.SummaryReport, dm.AppError> {
+                ok: null,
+                err: dm.AppError {
+                    code: dm.ErrorCode.ProcessingError,
+                    message: string.concat("Unknown aggregation operation: ", rule.operation),
+                    details: null
+                }
+            }
+        }
+        results[group_key] = op_result
+        group_key_idx = group_key_idx + 1
+    }
+
+    return dm.Result<dm.SummaryReport, dm.AppError> {
+        ok: dm.SummaryReport {
+            title: string.concat("Aggregation Report by ", rule.group_by_field, " on ", rule.target_field),
+            generated_at: string.from(time.now()),
+            results: results,
+            details: null // Aggregation typically doesn't include individual details
+        },
+        err: null
+    }
+}
+
+
+// Orchestrates the entire processing pipeline.
+fn apply_pipeline(raw_data: list<dm.RawRecord>, config: dm.ProcessingConfig) -> dm.Result<dm.SummaryReport, dm.AppError> {
+    // 1. Process Raw Records (type conversion)
+    let processed_records = process_raw_records(raw_data)
+
+    // 2. Apply Filters
+    let filtered_result = apply_filters(processed_records, config.filters)
+    if filtered_result.err != null { return dm.Result<dm.SummaryReport, dm.AppError> { ok: null, err: filtered_result.err } }
+    let filtered_data = filtered_result.ok
+
+    // 3. Apply Transformations
+    let transformed_result = apply_transformations(filtered_data, config.transformations)
+    if transformed_result.err != null { return dm.Result<dm.SummaryReport, dm.AppError> { ok: null, err: transformed_result.err } }
+    let transformed_data = transformed_result.ok
+
+    // 4. Apply Aggregations
+    let aggregated_result = apply_aggregations(transformed_data, config.aggregations)
+    if aggregated_result.err != null { return dm.Result<dm.SummaryReport, dm.AppError> { ok: null, err: aggregated_result.err } }
+    
+    return aggregated_result
+}

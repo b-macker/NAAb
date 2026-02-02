@@ -1,0 +1,31 @@
+# Phase 3.2: Simple Garbage Collection Test
+# Tests the mark-and-sweep cycle detector
+
+struct Node {
+    value: int
+    next: Node?
+}
+
+main {
+    print("=== Testing Garbage Collection ==")
+    print("")
+
+    print("Creating two nodes...")
+    let a = new Node { value: 1, next: null }
+    let b = new Node { value: 2, next: null }
+
+    print("Creating cycle: a.next = b, b.next = a")
+    a.next = b
+    b.next = a
+
+    print("Cycle created!")
+    print("Node a.value =", a.value)
+    print("Node b.value =", b.value)
+
+    print("")
+    print("When this program exits, the GC should detect and")
+    print("collect the cycle between nodes a and b.")
+    print("")
+    print("Without GC: Both nodes leak (refcount=2 each)")
+    print("With GC: Both nodes collected (cycle detected)")
+}

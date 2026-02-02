@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_utf8_for_code_point.a CMakeFiles/absl_utf8_for_code_point.dir/internal/utf8_for_code_point.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_utf8_for_code_point.a

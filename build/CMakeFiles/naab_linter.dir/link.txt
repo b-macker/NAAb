@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_linter.a CMakeFiles/naab_linter.dir/src/linter/llm_patterns.cpp.o CMakeFiles/naab_linter.dir/src/linter/quality_hints.cpp.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_linter.a

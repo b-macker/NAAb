@@ -1,0 +1,54 @@
+# Chapter 8: Strings, Text, and Math Verification
+
+use string as str
+use regex as re
+use math as math
+
+main {
+    print(">>> Chapter 8 Verification: Strings, Text, and Math <<<")
+
+    # 1. String Module
+    print("--- String Module ---")
+    let message = "  Hello, NAAb World!  "
+    print("Original:", message)
+    print("Trimmed:", str.trim(message))
+    print("Uppercase:", str.upper(message))
+    print("Lowercase:", str.lower(message))
+    print("Length:", str.length(message))
+
+    let csv_data = "apple,banana,cherry"
+    let fruits = str.split(csv_data, ",")
+    print("Split fruits:", fruits)
+    let joined_data = str.join(fruits, " | ")
+    print("Joined data:", joined_data)
+
+    let full_string = "NAAb Programming"
+    print("Substring 'Pro':", str.substring(full_string, 5, 8))
+    print("Index of 'Program':", str.index_of(full_string, "Program"))
+    print("Repeated 'NAAb':", str.repeat("NAAb", 3))
+
+    # 2. Regex Module
+    print("--- Regex Module ---")
+    # ISS-009 Fixed: Regex functions work with (text, pattern) order and 'matches' name
+    let text_regex = "The quick brown fox jumps over the lazy dog."
+    print("Text matches 'fox|dog':", re.search(text_regex, "fox|dog"))
+    print("All words:", re.find_all(text_regex, "[a-z]+"))
+    print("Replaced 'fox' with 'cat':", re.replace(text_regex, "fox", "cat"))
+    print("'NAAb' matches '^NAAb$':", re.matches("NAAb", "^NAAb$"))
+    print("'NAAb Language' matches '^NAAb$':", re.matches("NAAb Language", "^NAAb$"))
+
+    # 3. Math Module
+    print("--- Math Module ---")
+    print("Absolute value of -10:", math.abs(-10))
+    print("Square root of 25:", math.sqrt(25.0))
+    print("2 to the power of 8:", math.pow(2.0, 8.0))
+    print("Floor of 3.7:", math.floor(3.7))
+    print("Ceil of 3.2:", math.ceil(3.2))
+    print("Round of 3.4:", math.round(3.4))
+    print("Min of (10, 20):", math.min(10, 20))
+    print("Max of (10, 20):", math.max(10, 20))
+    print("Value of PI:", math.PI)
+    print("Value of E:", math.E)
+
+    print(">>> Chapter 8 Verification: COMPLETE <<<")
+}

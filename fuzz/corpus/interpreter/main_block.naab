@@ -1,0 +1,6 @@
+use io
+
+main {
+    let x = 42
+    io.write("Value: " + toString(x))
+}

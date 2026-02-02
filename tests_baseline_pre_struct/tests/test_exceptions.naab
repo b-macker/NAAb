@@ -1,0 +1,28 @@
+# Test exception handling - Phase 4.1
+
+# Test 1: Basic try/catch
+try {
+    throw "Error occurred!"
+} catch (e) {
+    print("Caught error: " + e)
+}
+
+# Test 2: Try/catch/finally
+let cleanup_ran = false
+try {
+    throw "Another error"
+} catch (e) {
+    print("Caught: " + e)
+} finally {
+    cleanup_ran = true
+    print("Finally block executed")
+}
+
+# Test 3: No error thrown
+try {
+    print("No error here")
+} catch (e) {
+    print("Should not execute")
+}
+
+print("All exception tests passed!")

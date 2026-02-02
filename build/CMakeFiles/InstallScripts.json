@@ -28,7 +28,8 @@
 		"/data/data/com.termux/files/home/.naab/language/build/external/fmt/cmake_install.cmake",
 		"/data/data/com.termux/files/home/.naab/language/build/external/spdlog/cmake_install.cmake",
 		"/data/data/com.termux/files/home/.naab/language/build/external/googletest/cmake_install.cmake",
-		"/data/data/com.termux/files/home/.naab/language/build/external/googletest/googletest/cmake_install.cmake"
+		"/data/data/com.termux/files/home/.naab/language/build/external/googletest/googletest/cmake_install.cmake",
+		"/data/data/com.termux/files/home/.naab/language/build/fuzz/cmake_install.cmake"
 	],
 	"Parallel" : false
 }

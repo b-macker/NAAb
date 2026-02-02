@@ -1,0 +1,3 @@
+/* styles/table_enhancements.css */
+.blank-summary span { margin-right: 12px; font-weight: bold; }
+.blank-highlight { background: #fffa65 !important; transition: none; }

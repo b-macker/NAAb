@@ -31,15 +31,11 @@ static std::shared_ptr<interpreter::Value> makeMap(const std::unordered_map<std:
 static std::shared_ptr<interpreter::Value> makeNull();
 static std::unordered_map<std::string, std::string> parseEnvFile(const std::string& content);
 
-// GEMINI FIX: EnvModule constructor now takes Interpreter pointer
-EnvModule::EnvModule(interpreter::Interpreter* interpreter)
-    : interpreter_(interpreter) {}
-
 bool EnvModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "get", "set_var", "has", "delete_var", "get_all",
         "load_dotenv", "parse_env_file", "get_int", "get_float", "get_bool",
-        "get_args" // GEMINI FIX: Add get_args to available functions
+        "get_args"  // ISS-028: Command-line arguments access
     };
     return functions.count(name) > 0;
 }
@@ -47,22 +43,6 @@ bool EnvModule::hasFunction(const std::string& name) const {
 std::shared_ptr<interpreter::Value> EnvModule::call(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
-
-    // GEMINI FIX: Function to get command-line arguments passed to the NAAb script
-    if (function_name == "get_args") {
-        if (args.size() != 0) {
-            throw std::runtime_error("get_args() takes no arguments");
-        }
-        if (!interpreter_) {
-            throw std::runtime_error("Interpreter not set for EnvModule.");
-        }
-        // Convert std::vector<std::string> to NAAb list<string>
-        std::vector<std::shared_ptr<interpreter::Value>> naab_args;
-        for (const auto& arg : interpreter_->getScriptArgs()) {
-            naab_args.push_back(makeString(arg));
-        }
-        return std::make_shared<interpreter::Value>(naab_args);
-    }
 
     // Function 1: get - Get environment variable
     if (function_name == "get") {
@@ -245,6 +225,31 @@ std::shared_ptr<interpreter::Value> EnvModule::call(
             return args[1];  // Return default
         } else {
             return makeBool(false);
+        }
+    }
+
+    // Function 11: get_args - Get command-line arguments (ISS-028)
+    if (function_name == "get_args") {
+        if (!args.empty()) {
+            throw std::runtime_error("get_args() takes no arguments");
+        }
+
+        // Use args provider callback if available
+        if (args_provider_) {
+            std::vector<std::string> script_args = args_provider_();
+            std::vector<std::shared_ptr<interpreter::Value>> args_list;
+            args_list.reserve(script_args.size());
+
+            for (const auto& arg : script_args) {
+                args_list.push_back(makeString(arg));
+            }
+
+            return std::make_shared<interpreter::Value>(std::move(args_list));
+        } else {
+            // Return empty list if no provider set
+            return std::make_shared<interpreter::Value>(
+                std::vector<std::shared_ptr<interpreter::Value>>{}
+            );
         }
     }
 

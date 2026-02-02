@@ -1,0 +1,28 @@
+use io
+use json
+use string as str
+use time
+use math
+use env
+
+main {
+    io.write("Testing stdlib WITH use:\n\n")
+    io.write("✓ io works\n")
+
+    let data = json.stringify(42)
+    io.write("✓ json works\n")
+
+    let upper = str.upper("hello")
+    io.write("✓ string works\n")
+
+    let now = time.now()
+    io.write("✓ time works\n")
+
+    let sqrt_val = math.sqrt(16)
+    io.write("✓ math works\n")
+
+    let home = env.get("HOME")
+    io.write("✓ env works\n")
+
+    io.write("\n=== All modules work! ===\n")
+}

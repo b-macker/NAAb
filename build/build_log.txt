@@ -1,0 +1,203 @@
+[  0%] Built target absl_civil_time
+[  1%] Built target absl_log_severity
+[  1%] Built target absl_raw_logging_internal
+[  1%] Built target absl_throw_delegate
+[  1%] Built target absl_spinlock_wait
+[  2%] Built target absl_base
+[  3%] Built target absl_malloc_internal
+[  3%] Built target absl_tracing_internal
+[  3%] Built target absl_string_view
+[  3%] Built target absl_int128
+[  3%] Built target absl_strings_internal
+[  8%] Built target absl_strings
+[ 10%] Built target absl_city
+[ 11%] Built target absl_hash
+[ 11%] Built target absl_borrowed_fixup_buffer
+[ 12%] Built target absl_debugging_internal
+[ 12%] Built target absl_stacktrace
+[ 13%] Built target absl_utf8_for_code_point
+[ 13%] Built target absl_decode_rust_punycode
+[ 13%] Built target absl_demangle_rust
+[ 15%] Built target absl_demangle_internal
+[ 16%] Built target absl_symbolize
+[ 16%] Built target absl_exponential_biased
+[ 16%] Built target absl_graphcycles_internal
+[ 20%] Built target absl_time_zone
+[ 21%] Built target absl_time
+[ 22%] Built target absl_kernel_timeout_internal
+[ 26%] Built target absl_synchronization
+[ 27%] Built target absl_hashtablez_sampler
+[ 27%] Built target absl_crc_cpu_detect
+[ 28%] Built target absl_crc_internal
+[ 30%] Built target absl_str_format_internal
+[ 31%] Built target absl_crc32c
+[ 32%] Built target absl_crc_cord_state
+[ 33%] Built target absl_cord_internal
+[ 35%] Built target absl_cordz_functions
+[ 35%] Built target absl_cordz_handle
+[ 36%] Built target absl_cordz_info
+[ 37%] Built target absl_cord
+[ 38%] Built target absl_raw_hash_set
+[ 40%] Built target naab_lexer
+[ 41%] Built target absl_strerror
+[ 41%] Built target absl_leak_check
+[ 42%] Built target absl_status
+[ 43%] Built target absl_statusor
+[ 45%] Building CXX object CMakeFiles/naab_parser.dir/src/parser/parser.cpp.o
+/data/data/com.termux/files/home/.naab/language/src/parser/parser.cpp:104:30: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
+  104 |     size_t peek_pos = pos_ + offset;
+      |                            ~ ^~~~~~
+/data/data/com.termux/files/home/.naab/language/src/parser/parser.cpp:149:50: warning: implicit conversion changes signedness: 'const int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
+  149 |     error_reporter_.error(msg, token.line, token.column);
+      |                     ~~~~~                  ~~~~~~^~~~~~
+/data/data/com.termux/files/home/.naab/language/src/parser/parser.cpp:149:38: warning: implicit conversion changes signedness: 'const int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
+  149 |     error_reporter_.error(msg, token.line, token.column);
+      |                     ~~~~~      ~~~~~~^~~~
+/data/data/com.termux/files/home/.naab/language/src/parser/parser.cpp:186:50: warning: implicit conversion changes signedness: 'const int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
+  186 |     error_reporter_.error(msg, token.line, token.column);
+      |                     ~~~~~                  ~~~~~~^~~~~~
+/data/data/com.termux/files/home/.naab/language/src/parser/parser.cpp:186:38: warning: implicit conversion changes signedness: 'const int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
+  186 |     error_reporter_.error(msg, token.line, token.column);
+      |                     ~~~~~      ~~~~~~^~~~
+/data/data/com.termux/files/home/.naab/language/src/parser/parser.cpp:1001:64: warning: implicit conversion changes signedness: 'const int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
+ 1001 |         error_reporter_.error(msg, name_token.line, name_token.column);
+      |                         ~~~~~                       ~~~~~~~~~~~^~~~~~
+/data/data/com.termux/files/home/.naab/language/src/parser/parser.cpp:1001:47: warning: implicit conversion changes signedness: 'const int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
+ 1001 |         error_reporter_.error(msg, name_token.line, name_token.column);
+      |                         ~~~~~      ~~~~~~~~~~~^~~~
+/data/data/com.termux/files/home/.naab/language/src/parser/parser.cpp:1623:35: warning: implicit conversion changes signedness: 'const int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
+ 1620 |             error_reporter_.error(
+      |                             ~~~~~
+ 1621 |                 fmt::format("Type names must be lowercase. Use '{}' instead of '{}'",
+ 1622 |                            lowercase_name, type_name),
+ 1623 |                 token.line, token.column
+      |                             ~~~~~~^~~~~~
+/data/data/com.termux/files/home/.naab/language/src/parser/parser.cpp:1623:23: warning: implicit conversion changes signedness: 'const int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
+ 1620 |             error_reporter_.error(
+      |                             ~~~~~
+ 1621 |                 fmt::format("Type names must be lowercase. Use '{}' instead of '{}'",
+ 1622 |                            lowercase_name, type_name),
+ 1623 |                 token.line, token.column
+      |                 ~~~~~~^~~~
+9 warnings generated.
+[ 52%] Building CXX object CMakeFiles/naab_parser.dir/src/parser/ast_nodes.cpp.o
+[ 68%] Building CXX object CMakeFiles/naab_parser.dir/src/parser/error_hints.cpp.o
+[ 70%] Linking CXX static library libnaab_parser.a
+[ 71%] Built target naab_parser
+[ 71%] Built target fmt
+[ 71%] Building CXX object CMakeFiles/naab_semantic.dir/src/semantic/analyzer.cpp.o
+[ 71%] Building CXX object CMakeFiles/naab_semantic.dir/src/semantic/symbol_table.cpp.o
+In file included from /data/data/com.termux/files/home/.naab/language/src/semantic/symbol_table.cpp:1:
+In file included from /data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h:3:
+In file included from /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/flat_hash_map.h:36:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/memory:947:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/inout_ptr.h:16:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/shared_ptr.h:34:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/uninitialized_algorithms.h:13:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__algorithm/copy.h:12:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__algorithm/copy_move_common.h:13:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__algorithm/unwrap_range.h:19:
+/data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__utility/pair.h:440:9: error: no matching constructor for initialization of 'naab::semantic::Symbol'
+  440 |         second(std::forward<_Args2>(std::get<_I2>(__second_args))...) {}
+      |         ^
+/data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__utility/pair.h:219:9: note: in instantiation of function template specialization 'std::pair<std::string, naab::semantic::Symbol>::pair<const std::string &, 0UL>' requested here
+  219 |       : pair(__pc,
+      |         ^
+/data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/allocator.h:153:24: note: in instantiation of function template specialization 'std::pair<std::string, naab::semantic::Symbol>::pair<const std::string &>' requested here
+  153 |     ::new ((void*)__p) _Up(std::forward<_Args>(__args)...);
+      |                        ^
+/data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/allocator_traits.h:309:9: note: in instantiation of function template specialization 'std::allocator<std::pair<const std::string, naab::semantic::Symbol>>::construct<std::pair<std::string, naab::semantic::Symbol>, const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>>' requested here
+  309 |     __a.construct(__p, std::forward<_Args>(__args)...);
+      |         ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/container_memory.h:399:42: note: in instantiation of function template specialization 'std::allocator_traits<std::allocator<std::pair<const std::string, naab::semantic::Symbol>>>::construct<std::pair<std::string, naab::semantic::Symbol>, const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>, 0>' requested here
+  399 |       absl::allocator_traits<Allocator>::construct(*alloc, &slot->mutable_value,
+      |                                          ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/flat_hash_map.h:650:18: note: in instantiation of function template specialization 'absl::container_internal::map_slot_policy<std::string, naab::semantic::Symbol>::construct<std::allocator<std::pair<const std::string, naab::semantic::Symbol>>, const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>>' requested here
+  650 |     slot_policy::construct(alloc, slot, std::forward<Args>(args)...);
+      |                  ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/common_policy_traits.h:52:13: note: (skipping 2 contexts in backtrace; use -ftemplate-backtrace-limit=0 to see all)
+   52 |     Policy::construct(alloc, slot, std::forward<Args>(args)...);
+      |             ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_set.h:3374:5: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_set<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::construct<const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>>' requested here
+ 3374 |     construct(iter.slot(), std::forward<Args>(args)...);
+      |     ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_map.h:370:13: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_set<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::emplace_at<const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>>' requested here
+  370 |       this->emplace_at(res.first, std::piecewise_construct,
+      |             ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_map.h:245:12: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_map<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::try_emplace_impl<const std::string &>' requested here
+  245 |     return try_emplace_impl(k, std::forward<Args>(args)...);
+      |            ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_map.h:335:49: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_map<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::try_emplace<std::string, 0, 0>' requested here
+  335 |     return Policy::value(&this->unchecked_deref(try_emplace(key).first));
+      |                                                 ^
+/data/data/com.termux/files/home/.naab/language/src/semantic/symbol_table.cpp:12:13: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_map<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::operator[]<std::string, absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>, 0>' requested here
+   12 |     symbols_[name] = std::move(symbol);
+      |             ^
+/data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h:33:8: note: candidate constructor (the implicit copy constructor) not viable: requires 1 argument, but 0 were provided
+   33 | struct Symbol {
+      |        ^~~~~~
+/data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h:33:8: note: candidate constructor (the implicit move constructor) not viable: requires 1 argument, but 0 were provided
+   33 | struct Symbol {
+      |        ^~~~~~
+/data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h:41:5: note: candidate constructor not viable: requires 4 arguments, but 0 were provided
+   41 |     Symbol(std::string n, SymbolKind k, std::string t, SourceLocation loc)
+      |     ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /data/data/com.termux/files/home/.naab/language/src/semantic/symbol_table.cpp:1:
+In file included from /data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h:3:
+In file included from /data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/flat_hash_map.h:36:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/memory:947:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/inout_ptr.h:16:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/shared_ptr.h:34:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/uninitialized_algorithms.h:13:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__algorithm/copy.h:12:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__algorithm/copy_move_common.h:13:
+In file included from /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__algorithm/unwrap_range.h:19:
+/data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__utility/pair.h:440:9: error: no matching constructor for initialization of 'naab::semantic::Symbol'
+  440 |         second(std::forward<_Args2>(std::get<_I2>(__second_args))...) {}
+      |         ^
+/data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__utility/pair.h:219:9: note: in instantiation of function template specialization 'std::pair<const std::string, naab::semantic::Symbol>::pair<const std::string &, 0UL>' requested here
+  219 |       : pair(__pc,
+      |         ^
+/data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/allocator.h:153:24: note: in instantiation of function template specialization 'std::pair<const std::string, naab::semantic::Symbol>::pair<const std::string &>' requested here
+  153 |     ::new ((void*)__p) _Up(std::forward<_Args>(__args)...);
+      |                        ^
+/data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/allocator_traits.h:309:9: note: in instantiation of function template specialization 'std::allocator<std::pair<const std::string, naab::semantic::Symbol>>::construct<std::pair<const std::string, naab::semantic::Symbol>, const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>>' requested here
+  309 |     __a.construct(__p, std::forward<_Args>(__args)...);
+      |         ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/container_memory.h:402:42: note: in instantiation of function template specialization 'std::allocator_traits<std::allocator<std::pair<const std::string, naab::semantic::Symbol>>>::construct<std::pair<const std::string, naab::semantic::Symbol>, const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>, 0>' requested here
+  402 |       absl::allocator_traits<Allocator>::construct(*alloc, &slot->value,
+      |                                          ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/flat_hash_map.h:650:18: note: in instantiation of function template specialization 'absl::container_internal::map_slot_policy<std::string, naab::semantic::Symbol>::construct<std::allocator<std::pair<const std::string, naab::semantic::Symbol>>, const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>>' requested here
+  650 |     slot_policy::construct(alloc, slot, std::forward<Args>(args)...);
+      |                  ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/common_policy_traits.h:52:13: note: (skipping 2 contexts in backtrace; use -ftemplate-backtrace-limit=0 to see all)
+   52 |     Policy::construct(alloc, slot, std::forward<Args>(args)...);
+      |             ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_set.h:3374:5: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_set<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::construct<const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>>' requested here
+ 3374 |     construct(iter.slot(), std::forward<Args>(args)...);
+      |     ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_map.h:370:13: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_set<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::emplace_at<const std::piecewise_construct_t &, std::tuple<const std::string &>, std::tuple<>>' requested here
+  370 |       this->emplace_at(res.first, std::piecewise_construct,
+      |             ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_map.h:245:12: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_map<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::try_emplace_impl<const std::string &>' requested here
+  245 |     return try_emplace_impl(k, std::forward<Args>(args)...);
+      |            ^
+/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/absl/container/internal/raw_hash_map.h:335:49: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_map<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::try_emplace<std::string, 0, 0>' requested here
+  335 |     return Policy::value(&this->unchecked_deref(try_emplace(key).first));
+      |                                                 ^
+/data/data/com.termux/files/home/.naab/language/src/semantic/symbol_table.cpp:12:13: note: in instantiation of function template specialization 'absl::container_internal::raw_hash_map<absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>>::operator[]<std::string, absl::container_internal::FlatHashMapPolicy<std::string, naab::semantic::Symbol>, 0>' requested here
+   12 |     symbols_[name] = std::move(symbol);
+      |             ^
+/data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h:33:8: note: candidate constructor (the implicit copy constructor) not viable: requires 1 argument, but 0 were provided
+   33 | struct Symbol {
+      |        ^~~~~~
+/data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h:33:8: note: candidate constructor (the implicit move constructor) not viable: requires 1 argument, but 0 were provided
+   33 | struct Symbol {
+      |        ^~~~~~
+/data/data/com.termux/files/home/.naab/language/include/naab/symbol_table.h:41:5: note: candidate constructor not viable: requires 4 arguments, but 0 were provided
+   41 |     Symbol(std::string n, SymbolKind k, std::string t, SourceLocation loc)
+      |     ^      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+make[2]: *** [CMakeFiles/naab_semantic.dir/build.make:93: CMakeFiles/naab_semantic.dir/src/semantic/symbol_table.cpp.o] Error 1
+make[1]: *** [CMakeFiles/Makefile2:1314: CMakeFiles/naab_semantic.dir/all] Error 2
+make: *** [Makefile:101: all] Error 2

@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <vector>
 #include <string>
+#include <unordered_set>
+#include <fmt/core.h>
 
 namespace naab {
 namespace error {
@@ -90,7 +92,27 @@ std::string suggestForUndefinedVariable(
     const std::vector<std::string>& defined_vars) {
 
     // Check for empty input
-    if (var_name.empty() || defined_vars.empty()) {
+    if (var_name.empty()) {
+        return "";
+    }
+
+    // Check if it's a standard library module
+    static const std::unordered_set<std::string> stdlib_modules = {
+        "io", "json", "string", "array", "math", "file", "http",
+        "time", "regex", "crypto", "csv", "env", "collections", "core"
+    };
+
+    if (stdlib_modules.count(var_name) > 0) {
+        return fmt::format(
+            "Help: '{}' is a standard library module. Did you forget to import it?\n"
+            "  Add this at the top of your file:\n"
+            "    use {}\n\n"
+            "  Available stdlib modules: io, json, string, array, file, http, time, regex, crypto, ...",
+            var_name, var_name
+        );
+    }
+
+    if (defined_vars.empty()) {
         return "";
     }
 

@@ -20,6 +20,8 @@ public:
     ~CSharpExecutor() override = default;
 
     bool execute(const std::string& code) override;
+    std::shared_ptr<interpreter::Value> executeWithReturn(
+        const std::string& code) override;
     std::shared_ptr<interpreter::Value> callFunction(
         const std::string& function_name,
         const std::vector<std::shared_ptr<interpreter::Value>>& args

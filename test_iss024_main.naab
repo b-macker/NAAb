@@ -1,0 +1,39 @@
+// Test ISS-024: module.Type syntax in type annotations and function parameters
+use test_types_module as types
+
+// Test 1: Function parameter with module.Type syntax
+function print_config_info(cfg: types.Config) {
+    let host = types.get_host(cfg)
+    let port = types.get_port(cfg)
+    print("Host: ", host, ", Port: ", port, "\n")
+}
+
+// Test 2: Nullable module.Type syntax
+function handle_optional(cfg: types.Config?) {
+    if cfg == null {
+        print("Config is null\n")
+    } else {
+        print_config_info(cfg)
+    }
+}
+
+main {
+    print("=== ISS-024 module.Type Syntax Test ===\n")
+
+    // Create a Config struct instance using new keyword
+    let cfg = new types.Config { host: "example.com", port: 443 }
+    print("Created config with module.Type syntax\n")
+
+    // Test 1: Variable declaration with module.Type syntax
+    let my_cfg: types.Config = cfg
+    print("Assigned to typed variable\n")
+
+    // Test 2: Passing module.Type to function parameter
+    print_config_info(my_cfg)
+
+    // Test 3: Nullable module.Type
+    handle_optional(my_cfg)
+    handle_optional(null)
+
+    print("=== ALL TESTS PASSED ===\n")
+}

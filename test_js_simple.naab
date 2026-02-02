@@ -1,0 +1,7 @@
+main {
+    let result = <<javascript
+"test string"
+    >>
+
+    print("Result: ", result, "\n")
+}

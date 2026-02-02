@@ -6,6 +6,7 @@
 
 #include "naab/language_registry.h"
 #include "naab/cpp_executor.h"
+#include "naab/inline_code_cache.h"  // Phase 3.3.1
 #include <memory>
 #include <string>
 
@@ -21,6 +22,10 @@ public:
     // Execute code and store in runtime context
     bool execute(const std::string& code) override;
 
+    // Phase 2.3: Execute code and return the result value
+    std::shared_ptr<interpreter::Value> executeWithReturn(
+        const std::string& code) override;
+
     // Call a function in the executor
     std::shared_ptr<interpreter::Value> callFunction(
         const std::string& function_name,
@@ -33,10 +38,15 @@ public:
     // Get language name
     std::string getLanguage() const override { return "cpp"; }
 
+    // Get captured output
+    std::string getCapturedOutput() override;
+
 private:
     CppExecutor executor_;
     std::string current_block_id_;
     int block_counter_;
+    std::string captured_output_;  // For inline main() execution
+    InlineCodeCache cache_;  // Phase 3.3.1: Content-based caching
 };
 
 } // namespace runtime

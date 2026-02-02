@@ -106,13 +106,13 @@ test_string_methods: external/spdlog/libspdlog.a
 test_string_methods: /data/data/com.termux/files/usr/lib/libsqlite3.so
 test_string_methods: /data/data/com.termux/files/home/.naab/language/external/quickjs-2021-03-27/libquickjs.a
 test_string_methods: libnaab_block_enricher.a
-test_string_methods: libnaab_security.a
 test_string_methods: libnaab_parser.a
 test_string_methods: external/abseil-cpp/absl/status/libabsl_statusor.a
 test_string_methods: external/abseil-cpp/absl/status/libabsl_status.a
 test_string_methods: external/abseil-cpp/absl/debugging/libabsl_leak_check.a
 test_string_methods: external/abseil-cpp/absl/base/libabsl_strerror.a
 test_string_methods: libnaab_lexer.a
+test_string_methods: libnaab_security.a
 test_string_methods: /data/data/com.termux/files/usr/lib/libssl.so
 test_string_methods: /data/data/com.termux/files/usr/lib/libcrypto.so
 test_string_methods: /data/data/com.termux/files/usr/lib/libpython3.12.so

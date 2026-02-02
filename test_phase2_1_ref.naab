@@ -1,0 +1,29 @@
+struct Box {
+    value: int
+}
+
+function modify_value(box: Box) -> void {
+    box.value = 100
+}
+
+function modify_ref(box: ref Box) -> void {
+    box.value = 999
+}
+
+main {
+    print("=== Phase 2.1: Testing ref keyword ===")
+
+    let box1 = new Box { value: 42 }
+    print("Before modify_value: box1.value =", box1.value)
+    modify_value(box1)
+    print("After modify_value: box1.value =", box1.value)
+    print("Expected: 42 (no change)")
+
+    let box2 = new Box { value: 42 }
+    print("Before modify_ref: box2.value =", box2.value)
+    modify_ref(box2)
+    print("After modify_ref: box2.value =", box2.value)
+    print("Expected: 999 (changed!)")
+
+    print("=== Phase 2.1 test complete ===")
+}

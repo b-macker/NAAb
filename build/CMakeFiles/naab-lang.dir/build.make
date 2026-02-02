@@ -99,6 +99,8 @@ naab-lang: CMakeFiles/naab-lang.dir/compiler_depend.ts
 naab-lang: libnaab_lexer.a
 naab-lang: libnaab_parser.a
 naab-lang: libnaab_semantic.a
+naab-lang: libnaab_formatter.a
+naab-lang: libnaab_linter.a
 naab-lang: libnaab_interpreter.a
 naab-lang: libnaab_runtime.a
 naab-lang: libnaab_stdlib.a

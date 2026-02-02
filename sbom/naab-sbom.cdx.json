@@ -1,0 +1,137 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:3e671687-395b-41f5-a30f-a58921a69b79",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-01-30T00:00:00Z",
+    "tools": [
+      {
+        "vendor": "NAAb Project",
+        "name": "naab-sbom-generator",
+        "version": "1.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "bom-ref": "pkg:generic/naab-lang@0.1.0",
+      "name": "naab-lang",
+      "version": "0.1.0",
+      "description": "NAAb Block Assembly Language - Polyglot programming language"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/abseil/abseil-cpp@20230125.3",
+      "name": "abseil-cpp",
+      "version": "20230125.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "purl": "pkg:github/abseil/abseil-cpp@20230125.3"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/fmtlib/fmt@10.1.1",
+      "name": "fmt",
+      "version": "10.1.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:github/fmtlib/fmt@10.1.1"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/gabime/spdlog@1.12.0",
+      "name": "spdlog",
+      "version": "1.12.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:github/gabime/spdlog@1.12.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/nlohmann/json@3.11.2",
+      "name": "nlohmann-json",
+      "version": "3.11.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:github/nlohmann/json@3.11.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/google/googletest@1.14.0",
+      "name": "googletest",
+      "version": "1.14.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "purl": "pkg:github/google/googletest@1.14.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/yhirose/cpp-httplib@0.14.0",
+      "name": "cpp-httplib",
+      "version": "0.14.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:github/yhirose/cpp-httplib@0.14.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:generic/quickjs@2021-03-27",
+      "name": "quickjs",
+      "version": "2021-03-27",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "purl": "pkg:generic/quickjs@2021-03-27"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:generic/naab-lang@0.1.0",
+      "dependsOn": [
+        "pkg:github/abseil/abseil-cpp@20230125.3",
+        "pkg:github/fmtlib/fmt@10.1.1",
+        "pkg:github/gabime/spdlog@1.12.0",
+        "pkg:github/nlohmann/json@3.11.2",
+        "pkg:github/google/googletest@1.14.0",
+        "pkg:github/yhirose/cpp-httplib@0.14.0",
+        "pkg:generic/quickjs@2021-03-27"
+      ]
+    }
+  ]
+}

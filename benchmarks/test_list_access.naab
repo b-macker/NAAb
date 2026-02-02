@@ -1,0 +1,27 @@
+# Test list access
+
+main {
+    print("Testing list access")
+
+    let sizes = [10, 20, 30]
+    print("List: ", sizes)
+
+    let idx = 0
+    print("Element at 0: ", sizes[idx])
+
+    let idx1 = 1
+    print("Element at 1: ", sizes[idx1])
+
+    print("Direct access [2]: ", sizes[2])
+
+    print("Testing in loop...")
+    let i = 0
+    while i < 3 {
+        print("i=", i)
+        let val = sizes[i]
+        print("  value: ", val)
+        i = i + 1
+    }
+
+    print("Complete")
+}

@@ -1,0 +1,23 @@
+{
+  "harvesting": {
+    "target_url": "https://example.com",
+    "mode": "static",
+    "browser_type": null,
+    "extraction_rules": {
+      "agent_name": "h1",
+      "agent_description": "p"
+    },
+    "output_format": "json",
+    "data_file_prefix": "scraped_data",
+    "headless": true
+  },
+  "analysis": {
+    "threshold_cpu": 80.0,
+    "threshold_memory": 90.0,
+    "sentiment_model": null
+  },
+  "report": {
+    "template_path": "report_template.html",
+    "output_dir": "reports"
+  }
+}

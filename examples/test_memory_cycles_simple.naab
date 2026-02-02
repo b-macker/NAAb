@@ -1,0 +1,30 @@
+# Phase 3.2: Simple Memory Cycle Test
+# Demonstrates the most basic cycle that leaks memory
+
+struct Node {
+    value: int
+    next: Node?
+}
+
+main {
+    print("=== Simple Memory Cycle Test ===")
+    print("")
+    
+    print("Creating two nodes...")
+    let a = new Node { value: 1, next: null }
+    let b = new Node { value: 2, next: null }
+    
+    print("Linking: a.next = b")
+    a.next = b
+    
+    print("Creating cycle: b.next = a")  
+    b.next = a
+    
+    print("")
+    print("Cycle created: a <-> b")
+    print("Both nodes now have refcount = 2")
+    print("When main exits, both will leak (without GC)")
+    print("")
+    print("Run with valgrind to observe the leak:")
+    print("  valgrind --leak-check=full ./naab-lang run test_memory_cycles_simple.naab")
+}

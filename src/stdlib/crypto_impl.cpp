@@ -19,6 +19,7 @@
 #  if __has_include(<openssl/md5.h>)
 #    include <openssl/md5.h>
 #    include <openssl/sha.h>
+#    include <openssl/evp.h>
 #    define HAS_OPENSSL
 #  endif
 #endif
@@ -391,7 +392,15 @@ static std::string generate_random_bytes(size_t length) {
 #ifdef HAS_OPENSSL
 static std::string hash_md5(const std::string& input) {
     unsigned char hash[MD5_DIGEST_LENGTH];
-    MD5(reinterpret_cast<const unsigned char*>(input.c_str()), input.length(), hash);
+
+    // Use EVP API instead of deprecated MD5() function
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(ctx, EVP_md5(), nullptr);
+    EVP_DigestUpdate(ctx, input.c_str(), input.length());
+    unsigned int length = 0;
+    EVP_DigestFinal_ex(ctx, hash, &length);
+    EVP_MD_CTX_free(ctx);
+
     return hex_encode(std::string(reinterpret_cast<char*>(hash), MD5_DIGEST_LENGTH));
 }
 

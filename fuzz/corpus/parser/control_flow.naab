@@ -1,0 +1,9 @@
+if x > 0 {
+    let y = x * 2
+} else {
+    let y = 0
+}
+
+for i in [1, 2, 3] {
+    let z = i + 1
+}

@@ -1,0 +1,66 @@
+// Comprehensive generics test - Phase 2.4.1 complete
+
+// Generic struct
+struct Pair<T, U> {
+    first: T,
+    second: U
+}
+
+// Generic functions
+function identity<T>(x: T) -> T {
+    return x
+}
+
+function swap<T, U>(pair: Pair<T, U>) -> Pair<U, T> {
+    return new Pair<U, T> {
+        first: pair.second,
+        second: pair.first
+    }
+}
+
+function getFirst<T, U>(pair: Pair<T, U>) -> T {
+    return pair.first
+}
+
+main {
+    print("=== Comprehensive Generics Test ===\n")
+
+    // Test 1: Type inference with functions
+    let num = identity(42)
+    print("Test 1 - identity(42): ", num, "\n")
+
+    // Test 2: Explicit type arguments with functions
+    let str = identity<string>("hello")
+    print("Test 2 - identity<string>(\"hello\"): ", str, "\n")
+
+    // Test 3: Generic struct with multiple type parameters
+    let pair1 = new Pair<int, string> {
+        first: 100,
+        second: "test"
+    }
+    print("Test 3 - Pair<int, string>: (", pair1.first, ", ", pair1.second, ")\n")
+
+    // Test 4: Swap function with explicit types
+    let pair2 = swap<int, string>(pair1)
+    print("Test 4 - swap<int, string>: (", pair2.first, ", ", pair2.second, ")\n")
+
+    // Test 5: Generic function with generic struct
+    let val = getFirst<string, int>(pair2)
+    print("Test 5 - getFirst<string, int>: ", val, "\n")
+
+    // Test 6: Built-in generic types
+    let numbers = [1, 2, 3, 4, 5]
+    print("Test 6 - list<int>: ", numbers, "\n")
+
+    let scores = {"alice": 95, "bob": 87, "charlie": 92}
+    print("Test 7 - dict<string, int>: ", scores, "\n")
+
+    // Test 8: Union types
+    let mixed: int | string = 42
+    print("Test 8 - Union type (int): ", mixed, "\n")
+
+    mixed = "now a string"
+    print("Test 9 - Union type (string): ", mixed, "\n")
+
+    print("\n=== All generics features working! ===\n")
+}

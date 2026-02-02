@@ -1,0 +1,35 @@
+use json as json
+
+struct MonitoringConfig {
+    check_interval_seconds: int,
+    alert_threshold_cpu: float,
+    alert_threshold_memory: float,
+    alert_threshold_disk: float,
+    webhook_url: string,
+    log_retention_days: int
+}
+
+main {
+    let config_data = <<javascript
+const config = {check_interval_seconds: 60, alert_threshold_cpu: 80.0, alert_threshold_memory: 85.0, alert_threshold_disk: 90.0, webhook_url: "https://example.com/webhook", log_retention_days: 30};
+JSON.stringify(config);
+    >>
+
+    print("Config JSON: ", config_data, "\n")
+
+    let parsed = json.parse(config_data)
+    print("Parsed successfully\n")
+    print("check_interval: ", parsed.check_interval_seconds, "\n")
+
+    let monitor_config = new MonitoringConfig {
+        check_interval_seconds: parsed.check_interval_seconds,
+        alert_threshold_cpu: parsed.alert_threshold_cpu,
+        alert_threshold_memory: parsed.alert_threshold_memory,
+        alert_threshold_disk: parsed.alert_threshold_disk,
+        webhook_url: parsed.webhook_url,
+        log_retention_days: parsed.log_retention_days
+    }
+
+    print("Config created successfully\n")
+    print("CPU threshold: ", monitor_config.alert_threshold_cpu, "\n")
+}

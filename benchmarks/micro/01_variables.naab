@@ -1,0 +1,50 @@
+# Micro-benchmark: Variable Operations
+# Tests basic variable assignment and access
+
+use time as time
+
+main {
+    print("╔═══════════════════════════════════════╗")
+    print("║  MICRO-BENCHMARK: Variables          ║")
+    print("╚═══════════════════════════════════════╝")
+
+    let iterations = 1000000  # 1 million
+
+    # Benchmark 1: Variable assignment
+    print("\n[1] Variable Assignment")
+    let start1 = time.milliseconds()
+    for i in 0..iterations {
+        let x = 42
+    }
+    let end1 = time.milliseconds()
+    let duration1 = end1 - start1
+    print("  ", iterations, " assignments in ", duration1, " ms")
+    print("  Throughput: ", iterations / duration1, " ops/ms")
+
+    # Benchmark 2: Variable access
+    print("\n[2] Variable Access")
+    let value = 42
+    let sum = 0
+    let start2 = time.milliseconds()
+    for i in 0..iterations {
+        sum = sum + value  # Access 'value' each iteration
+    }
+    let end2 = time.milliseconds()
+    let duration2 = end2 - start2
+    print("  ", iterations, " accesses in ", duration2, " ms")
+    print("  Throughput: ", iterations / duration2, " ops/ms")
+
+    # Benchmark 3: Variable reassignment
+    print("\n[3] Variable Reassignment")
+    let counter = 0
+    let start3 = time.milliseconds()
+    for i in 0..iterations {
+        counter = counter + 1
+    }
+    let end3 = time.milliseconds()
+    let duration3 = end3 - start3
+    print("  ", iterations, " reassignments in ", duration3, " ms")
+    print("  Throughput: ", iterations / duration3, " ops/ms")
+
+    print("\n✓ Variable benchmarks complete")
+}

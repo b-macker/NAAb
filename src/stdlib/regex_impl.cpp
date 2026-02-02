@@ -1,10 +1,12 @@
 //
 // NAAb Standard Library - Regex Module
 // Complete implementation with 12 regex functions
+// Now with ReDoS protection via SafeRegex
 //
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/safe_regex.h"
 #include <regex>
 #include <string>
 #include <vector>
@@ -23,7 +25,7 @@ static std::shared_ptr<interpreter::Value> makeNull();
 
 bool RegexModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
-        "match", "search", "find", "find_all", "replace", "replace_first",
+        "matches", "search", "find", "find_all", "replace", "replace_first",
         "split", "groups", "find_groups", "escape", "is_valid", "compile_pattern"
     };
     return functions.count(name) > 0;
@@ -33,126 +35,106 @@ std::shared_ptr<interpreter::Value> RegexModule::call(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
 
-    // Function 1: match - Full string match
-    if (function_name == "match") {
+    // Function 1: matches - Full string match
+    // Renamed from "match" to avoid keyword conflict
+    // Now with ReDoS protection
+    if (function_name == "matches") {
         if (args.size() != 2) {
-            throw std::runtime_error("match() takes exactly 2 arguments (pattern, text)");
+            throw std::runtime_error("matches() takes exactly 2 arguments (text, pattern)");
         }
-        std::string pattern = getString(args[0]);
-        std::string text = getString(args[1]);
+        std::string text = getString(args[0]);
+        std::string pattern = getString(args[1]);
 
-        try {
-            std::regex re(pattern);
-            return makeBool(std::regex_match(text, re));
-        } catch (const std::regex_error& e) {
-            throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));
-        }
+        auto& safe_regex = regex_safety::getGlobalSafeRegex();
+        bool result = safe_regex.safeMatch(text, pattern);
+        return makeBool(result);
     }
 
     // Function 2: search - Partial match
+    // Now with ReDoS protection
     if (function_name == "search") {
         if (args.size() != 2) {
-            throw std::runtime_error("search() takes exactly 2 arguments (pattern, text)");
+            throw std::runtime_error("search() takes exactly 2 arguments (text, pattern)");
         }
-        std::string pattern = getString(args[0]);
-        std::string text = getString(args[1]);
+        std::string text = getString(args[0]);
+        std::string pattern = getString(args[1]);
 
-        try {
-            std::regex re(pattern);
-            return makeBool(std::regex_search(text, re));
-        } catch (const std::regex_error& e) {
-            throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));
-        }
+        auto& safe_regex = regex_safety::getGlobalSafeRegex();
+        bool result = safe_regex.safeSearch(text, pattern);
+        return makeBool(result);
     }
 
     // Function 3: find - Find first match
+    // Now with ReDoS protection
     if (function_name == "find") {
         if (args.size() != 2) {
-            throw std::runtime_error("find() takes exactly 2 arguments (pattern, text)");
+            throw std::runtime_error("find() takes exactly 2 arguments (text, pattern)");
         }
-        std::string pattern = getString(args[0]);
-        std::string text = getString(args[1]);
+        std::string text = getString(args[0]);
+        std::string pattern = getString(args[1]);
 
-        try {
-            std::regex re(pattern);
-            std::smatch match;
-            if (std::regex_search(text, match, re)) {
-                return makeString(match.str(0));
-            }
-            return makeNull();
-        } catch (const std::regex_error& e) {
-            throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));
+        auto& safe_regex = regex_safety::getGlobalSafeRegex();
+        std::smatch match;
+        bool found = safe_regex.safeSearch(text, pattern, match);
+        if (found) {
+            return makeString(match.str(0));
         }
+        return makeNull();
     }
 
     // Function 4: find_all - Find all matches
+    // Now with ReDoS protection and match limit
     if (function_name == "find_all") {
         if (args.size() != 2) {
-            throw std::runtime_error("find_all() takes exactly 2 arguments (pattern, text)");
+            throw std::runtime_error("find_all() takes exactly 2 arguments (text, pattern)");
         }
-        std::string pattern = getString(args[0]);
-        std::string text = getString(args[1]);
+        std::string text = getString(args[0]);
+        std::string pattern = getString(args[1]);
 
-        try {
-            std::regex re(pattern);
-            std::vector<std::string> matches;
-            auto begin = std::sregex_iterator(text.begin(), text.end(), re);
-            auto end = std::sregex_iterator();
-
-            for (std::sregex_iterator i = begin; i != end; ++i) {
-                matches.push_back(i->str(0));
-            }
-
-            return makeStringArray(matches);
-        } catch (const std::regex_error& e) {
-            throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));
-        }
+        auto& safe_regex = regex_safety::getGlobalSafeRegex();
+        std::vector<std::string> matches = safe_regex.safeFindAll(text, pattern);
+        return makeStringArray(matches);
     }
 
     // Function 5: replace - Replace all matches
+    // Now with ReDoS protection
     if (function_name == "replace") {
         if (args.size() != 3) {
-            throw std::runtime_error("replace() takes exactly 3 arguments (pattern, replacement, text)");
+            throw std::runtime_error("replace() takes exactly 3 arguments (text, pattern, replacement)");
         }
-        std::string pattern = getString(args[0]);
-        std::string replacement = getString(args[1]);
-        std::string text = getString(args[2]);
+        std::string text = getString(args[0]);
+        std::string pattern = getString(args[1]);
+        std::string replacement = getString(args[2]);
 
-        try {
-            std::regex re(pattern);
-            std::string result = std::regex_replace(text, re, replacement);
-            return makeString(result);
-        } catch (const std::regex_error& e) {
-            throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));
-        }
+        auto& safe_regex = regex_safety::getGlobalSafeRegex();
+        std::string result = safe_regex.safeReplace(text, pattern, replacement,
+                                                     std::chrono::milliseconds(0), true);
+        return makeString(result);
     }
 
     // Function 6: replace_first - Replace first match
+    // Now with ReDoS protection
     if (function_name == "replace_first") {
         if (args.size() != 3) {
-            throw std::runtime_error("replace_first() takes exactly 3 arguments (pattern, replacement, text)");
+            throw std::runtime_error("replace_first() takes exactly 3 arguments (text, pattern, replacement)");
         }
-        std::string pattern = getString(args[0]);
-        std::string replacement = getString(args[1]);
-        std::string text = getString(args[2]);
+        std::string text = getString(args[0]);
+        std::string pattern = getString(args[1]);
+        std::string replacement = getString(args[2]);
 
-        try {
-            std::regex re(pattern);
-            std::string result = std::regex_replace(
-                text, re, replacement, std::regex_constants::format_first_only);
-            return makeString(result);
-        } catch (const std::regex_error& e) {
-            throw std::runtime_error("Invalid regex pattern: " + std::string(e.what()));
-        }
+        auto& safe_regex = regex_safety::getGlobalSafeRegex();
+        std::string result = safe_regex.safeReplace(text, pattern, replacement,
+                                                     std::chrono::milliseconds(0), false);
+        return makeString(result);
     }
 
     // Function 7: split - Split by regex
     if (function_name == "split") {
         if (args.size() != 2) {
-            throw std::runtime_error("split() takes exactly 2 arguments (pattern, text)");
+            throw std::runtime_error("split() takes exactly 2 arguments (text, pattern)");
         }
-        std::string pattern = getString(args[0]);
-        std::string text = getString(args[1]);
+        std::string text = getString(args[0]);
+        std::string pattern = getString(args[1]);
 
         try {
             std::regex re(pattern);
@@ -173,10 +155,10 @@ std::shared_ptr<interpreter::Value> RegexModule::call(
     // Function 8: groups - Get capture groups from first match
     if (function_name == "groups") {
         if (args.size() != 2) {
-            throw std::runtime_error("groups() takes exactly 2 arguments (pattern, text)");
+            throw std::runtime_error("groups() takes exactly 2 arguments (text, pattern)");
         }
-        std::string pattern = getString(args[0]);
-        std::string text = getString(args[1]);
+        std::string text = getString(args[0]);
+        std::string pattern = getString(args[1]);
 
         try {
             std::regex re(pattern);
@@ -197,10 +179,10 @@ std::shared_ptr<interpreter::Value> RegexModule::call(
     // Function 9: find_groups - Get capture groups from all matches
     if (function_name == "find_groups") {
         if (args.size() != 2) {
-            throw std::runtime_error("find_groups() takes exactly 2 arguments (pattern, text)");
+            throw std::runtime_error("find_groups() takes exactly 2 arguments (text, pattern)");
         }
-        std::string pattern = getString(args[0]);
-        std::string text = getString(args[1]);
+        std::string text = getString(args[0]);
+        std::string pattern = getString(args[1]);
 
         try {
             std::regex re(pattern);

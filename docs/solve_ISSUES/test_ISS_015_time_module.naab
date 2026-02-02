@@ -1,0 +1,41 @@
+# Test ISS-015: Time Module Status Discrepancy
+# AI_ASSISTANT_GUIDE.md says: "❌ Missing Feature"
+# But TIME_MODULE_DISCOVERY_2026_01_21.md says: "✅ PRODUCTION READY"
+
+use time as time
+
+main {
+    print("=== Testing ISS-015: Time Module ===")
+
+    # Test 1: time.now()
+    print("Test 1: time.now()")
+    let timestamp = time.now()
+    print("  Current timestamp:", timestamp)
+
+    # Test 2: time.now_millis()
+    print("Test 2: time.now_millis()")
+    let millis = time.now_millis()
+    print("  Current millis:", millis)
+
+    # Test 3: time.sleep()
+    print("Test 3: time.sleep(0.1)")
+    time.sleep(0.1)
+    print("  Slept for 100ms")
+
+    # Test 4: Benchmarking
+    print("Test 4: Benchmarking loop")
+    let start = time.now_millis()
+    let sum = 0
+    for i in 0..1000 {
+        sum = sum + i
+    }
+    let end = time.now_millis()
+    let elapsed = end - start
+    print("  1000 iterations:", elapsed, "ms")
+
+    if timestamp > 0 {
+        print("VERDICT: Time module is WORKING")
+    } else {
+        print("VERDICT: Time module is BROKEN")
+    }
+}

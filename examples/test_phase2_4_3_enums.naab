@@ -1,0 +1,64 @@
+// Phase 2.4.3: Enum Types
+// Test file to verify enum declarations and usage
+
+enum Status {
+    Pending,
+    Running,
+    Complete,
+    Failed
+}
+
+enum HttpCode {
+    OK = 200,
+    NotFound = 404,
+    ServerError = 500
+}
+
+enum Priority {
+    Low = 1,
+    Medium,
+    High,
+    Critical = 10
+}
+
+main {
+    print("=== Phase 2.4.3: Testing Enum Types ===\n");
+
+    // Test 1: Auto-increment enum values
+    print("\n[Test 1] Auto-increment enum (Status):");
+    print("Pending: " + Status.Pending);
+    print("Running: " + Status.Running);
+    print("Complete: " + Status.Complete);
+    print("Failed: " + Status.Failed);
+
+    // Test 2: Explicit values
+    print("\n[Test 2] Explicit values (HttpCode):");
+    print("OK: " + HttpCode.OK);
+    print("NotFound: " + HttpCode.NotFound);
+    print("ServerError: " + HttpCode.ServerError);
+
+    // Test 3: Mixed auto-increment and explicit
+    print("\n[Test 3] Mixed (Priority):");
+    print("Low: " + Priority.Low);
+    print("Medium: " + Priority.Medium);
+    print("High: " + Priority.High);
+    print("Critical: " + Priority.Critical);
+
+    // Test 4: Use enums in variables
+    print("\n[Test 4] Enum in variables:");
+    let current_status = Status.Running;
+    print("Current status: " + current_status);
+
+    // Test 5: Enum comparison
+    print("\n[Test 5] Enum comparison:");
+    if (current_status == Status.Running) {
+        print("Status is Running");
+    }
+
+    // Test 6: Enum in expressions
+    print("\n[Test 6] Enum arithmetic:");
+    let next_priority = Priority.Low + 1;
+    print("Next priority after Low: " + next_priority);
+
+    print("\n\n=== Phase 2.4.3: All tests completed ===");
+}

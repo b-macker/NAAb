@@ -1,0 +1,75 @@
+// Verification Test: Interactive debugger
+// Tests breakpoints, stepping, and variable inspection
+// Run with: naab-lang run --debug debugger_test.naab
+
+use io
+
+fn fibonacci(n: int) -> int {
+    if n <= 1 {
+        return n
+    }
+
+    let a = 0
+    let b = 1
+    let i = 2
+
+    while i <= n {
+        // breakpoint
+        let temp = a + b
+        a = b
+        b = temp
+        i = i + 1
+    }
+
+    return b
+}
+
+fn factorial(n: int) -> int {
+    if n <= 1 {
+        return 1
+    }
+    // breakpoint
+    return n * factorial(n - 1)
+}
+
+fn processData(data: list<int>) -> dict<string, int> {
+    let sum = 0
+    let count = 0
+
+    for item in data {
+        // breakpoint
+        sum = sum + item
+        count = count + 1
+    }
+
+    return {
+        "sum": sum,
+        "count": count,
+        "average": sum / count
+    }
+}
+
+main {
+    io.write("Debugger Test Started")
+    io.write("=====================")
+
+    // Test 1: Fibonacci with loop
+    io.write("\nTest 1: Fibonacci")
+    let fib_result = fibonacci(10)
+    io.write("Fibonacci(10) = " + toString(fib_result))
+
+    // Test 2: Factorial with recursion
+    io.write("\nTest 2: Factorial")
+    let fact_result = factorial(5)
+    io.write("Factorial(5) = " + toString(fact_result))
+
+    // Test 3: Data processing
+    io.write("\nTest 3: Data Processing")
+    let numbers = [10, 20, 30, 40, 50]
+    let stats = processData(numbers)
+    io.write("Sum: " + toString(stats["sum"]))
+    io.write("Count: " + toString(stats["count"]))
+    io.write("Average: " + toString(stats["average"]))
+
+    io.write("\nDebugger test complete!")
+}

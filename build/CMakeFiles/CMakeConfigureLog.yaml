@@ -20,7 +20,6 @@ events:
     names:
       - "uname"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -37,13 +36,11 @@ events:
       - "/usr/bin/"
       - "/usr/local/bin/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/uname"
       - "/data/data/com.termux/files/home/.naab/cli/uname"
       - "/data/data/com.termux/files/home/bin/uname"
     found: "/data/data/com.termux/files/usr/bin/uname"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -84,7 +81,6 @@ events:
       - "make"
       - "smake"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -98,7 +94,6 @@ events:
       - "/vendor/bin/"
       - "/vendor/xbin/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/gmake"
       - "/data/data/com.termux/files/home/.naab/cli/gmake"
       - "/data/data/com.termux/files/home/bin/gmake"
       - "/data/data/com.termux/files/usr/bin/gmake"
@@ -111,13 +106,11 @@ events:
       - "/odm/bin/gmake"
       - "/vendor/bin/gmake"
       - "/vendor/xbin/gmake"
-      - "/data/data/com.termux/files/home/.cargo/bin/make"
       - "/data/data/com.termux/files/home/.naab/cli/make"
       - "/data/data/com.termux/files/home/bin/make"
     found: "/data/data/com.termux/files/usr/bin/make"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -156,7 +149,6 @@ events:
       - "icx"
       - "clang"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -170,13 +162,11 @@ events:
       - "/vendor/bin/"
       - "/vendor/xbin/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/cc"
       - "/data/data/com.termux/files/home/.naab/cli/cc"
       - "/data/data/com.termux/files/home/bin/cc"
     found: "/data/data/com.termux/files/usr/bin/cc"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -216,7 +206,6 @@ events:
     found: "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCCompilerId.c.in"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -249,7 +238,7 @@ events:
       Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
       
       The C compiler identification is Clang, found in:
-        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/4.2.1/CompilerIdC/a.out
+        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/4.2.2/CompilerIdC/a.out
       
   -
     kind: "find-v1"
@@ -273,7 +262,6 @@ events:
       - "ar"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -288,7 +276,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-ar"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -323,7 +310,6 @@ events:
       - "ranlib"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -338,7 +324,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-ranlib"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -373,7 +358,6 @@ events:
       - "strip"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -388,7 +372,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-strip"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -423,7 +406,6 @@ events:
       - "ld"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -438,7 +420,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/ld.lld"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -473,7 +454,6 @@ events:
       - "nm"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -488,7 +468,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-nm"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -523,7 +502,6 @@ events:
       - "objdump"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -538,7 +516,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-objdump"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -573,7 +550,6 @@ events:
       - "objcopy"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -588,7 +564,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-objcopy"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -623,7 +598,6 @@ events:
       - "readelf"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -638,7 +612,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-readelf"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -673,7 +646,6 @@ events:
       - "dlltool"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -688,7 +660,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-dlltool"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -723,7 +694,6 @@ events:
       - "addr2line"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -738,7 +708,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-addr2line"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -772,7 +741,6 @@ events:
       - "tapi"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -786,7 +754,6 @@ events:
       - "/vendor/xbin/"
     searched_directories:
       - "/data/data/com.termux/files/usr/bin/tapi"
-      - "/data/data/com.termux/files/home/.cargo/bin/tapi"
       - "/data/data/com.termux/files/home/.naab/cli/tapi"
       - "/data/data/com.termux/files/home/bin/tapi"
       - "/product/bin/tapi"
@@ -801,7 +768,6 @@ events:
     found: false
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -838,7 +804,6 @@ events:
       - "llvm-ar"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -852,7 +817,6 @@ events:
       - "/vendor/xbin/"
     searched_directories:
       - "/data/data/com.termux/files/usr/bin/llvm-ar-21.1"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ar-21.1"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ar-21.1"
       - "/data/data/com.termux/files/home/bin/llvm-ar-21.1"
       - "/product/bin/llvm-ar-21.1"
@@ -865,7 +829,6 @@ events:
       - "/vendor/bin/llvm-ar-21.1"
       - "/vendor/xbin/llvm-ar-21.1"
       - "/data/data/com.termux/files/usr/bin/llvm-ar-21"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ar-21"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ar-21"
       - "/data/data/com.termux/files/home/bin/llvm-ar-21"
       - "/product/bin/llvm-ar-21"
@@ -878,7 +841,6 @@ events:
       - "/vendor/bin/llvm-ar-21"
       - "/vendor/xbin/llvm-ar-21"
       - "/data/data/com.termux/files/usr/bin/llvm-ar21"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ar21"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ar21"
       - "/data/data/com.termux/files/home/bin/llvm-ar21"
       - "/product/bin/llvm-ar21"
@@ -893,7 +855,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-ar"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -930,7 +891,6 @@ events:
       - "llvm-ranlib"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -944,7 +904,6 @@ events:
       - "/vendor/xbin/"
     searched_directories:
       - "/data/data/com.termux/files/usr/bin/llvm-ranlib-21.1"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ranlib-21.1"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ranlib-21.1"
       - "/data/data/com.termux/files/home/bin/llvm-ranlib-21.1"
       - "/product/bin/llvm-ranlib-21.1"
@@ -957,7 +916,6 @@ events:
       - "/vendor/bin/llvm-ranlib-21.1"
       - "/vendor/xbin/llvm-ranlib-21.1"
       - "/data/data/com.termux/files/usr/bin/llvm-ranlib-21"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ranlib-21"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ranlib-21"
       - "/data/data/com.termux/files/home/bin/llvm-ranlib-21"
       - "/product/bin/llvm-ranlib-21"
@@ -970,7 +928,6 @@ events:
       - "/vendor/bin/llvm-ranlib-21"
       - "/vendor/xbin/llvm-ranlib-21"
       - "/data/data/com.termux/files/usr/bin/llvm-ranlib21"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ranlib21"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ranlib21"
       - "/data/data/com.termux/files/home/bin/llvm-ranlib21"
       - "/product/bin/llvm-ranlib21"
@@ -985,7 +942,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-ranlib"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -1022,7 +978,6 @@ events:
       - "clang-scan-deps"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -1036,7 +991,6 @@ events:
       - "/vendor/xbin/"
     searched_directories:
       - "/data/data/com.termux/files/usr/bin/clang-scan-deps-21.1"
-      - "/data/data/com.termux/files/home/.cargo/bin/clang-scan-deps-21.1"
       - "/data/data/com.termux/files/home/.naab/cli/clang-scan-deps-21.1"
       - "/data/data/com.termux/files/home/bin/clang-scan-deps-21.1"
       - "/product/bin/clang-scan-deps-21.1"
@@ -1049,7 +1003,6 @@ events:
       - "/vendor/bin/clang-scan-deps-21.1"
       - "/vendor/xbin/clang-scan-deps-21.1"
       - "/data/data/com.termux/files/usr/bin/clang-scan-deps-21"
-      - "/data/data/com.termux/files/home/.cargo/bin/clang-scan-deps-21"
       - "/data/data/com.termux/files/home/.naab/cli/clang-scan-deps-21"
       - "/data/data/com.termux/files/home/bin/clang-scan-deps-21"
       - "/product/bin/clang-scan-deps-21"
@@ -1062,7 +1015,6 @@ events:
       - "/vendor/bin/clang-scan-deps-21"
       - "/vendor/xbin/clang-scan-deps-21"
       - "/data/data/com.termux/files/usr/bin/clang-scan-deps21"
-      - "/data/data/com.termux/files/home/.cargo/bin/clang-scan-deps21"
       - "/data/data/com.termux/files/home/.naab/cli/clang-scan-deps21"
       - "/data/data/com.termux/files/home/bin/clang-scan-deps21"
       - "/product/bin/clang-scan-deps21"
@@ -1077,7 +1029,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -1123,7 +1074,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/c++"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -1163,7 +1113,6 @@ events:
     found: "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXCompilerId.cpp.in"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -1196,7 +1145,7 @@ events:
       Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
       
       The CXX compiler identification is Clang, found in:
-        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/4.2.1/CompilerIdCXX/a.out
+        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/4.2.2/CompilerIdCXX/a.out
       
   -
     kind: "find-v1"
@@ -1222,7 +1171,6 @@ events:
       - "llvm-ar"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -1236,7 +1184,6 @@ events:
       - "/vendor/xbin/"
     searched_directories:
       - "/data/data/com.termux/files/usr/bin/llvm-ar-21.1"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ar-21.1"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ar-21.1"
       - "/data/data/com.termux/files/home/bin/llvm-ar-21.1"
       - "/product/bin/llvm-ar-21.1"
@@ -1249,7 +1196,6 @@ events:
       - "/vendor/bin/llvm-ar-21.1"
       - "/vendor/xbin/llvm-ar-21.1"
       - "/data/data/com.termux/files/usr/bin/llvm-ar-21"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ar-21"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ar-21"
       - "/data/data/com.termux/files/home/bin/llvm-ar-21"
       - "/product/bin/llvm-ar-21"
@@ -1262,7 +1208,6 @@ events:
       - "/vendor/bin/llvm-ar-21"
       - "/vendor/xbin/llvm-ar-21"
       - "/data/data/com.termux/files/usr/bin/llvm-ar21"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ar21"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ar21"
       - "/data/data/com.termux/files/home/bin/llvm-ar21"
       - "/product/bin/llvm-ar21"
@@ -1277,7 +1222,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-ar"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -1314,7 +1258,6 @@ events:
       - "llvm-ranlib"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -1328,7 +1271,6 @@ events:
       - "/vendor/xbin/"
     searched_directories:
       - "/data/data/com.termux/files/usr/bin/llvm-ranlib-21.1"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ranlib-21.1"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ranlib-21.1"
       - "/data/data/com.termux/files/home/bin/llvm-ranlib-21.1"
       - "/product/bin/llvm-ranlib-21.1"
@@ -1341,7 +1283,6 @@ events:
       - "/vendor/bin/llvm-ranlib-21.1"
       - "/vendor/xbin/llvm-ranlib-21.1"
       - "/data/data/com.termux/files/usr/bin/llvm-ranlib-21"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ranlib-21"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ranlib-21"
       - "/data/data/com.termux/files/home/bin/llvm-ranlib-21"
       - "/product/bin/llvm-ranlib-21"
@@ -1354,7 +1295,6 @@ events:
       - "/vendor/bin/llvm-ranlib-21"
       - "/vendor/xbin/llvm-ranlib-21"
       - "/data/data/com.termux/files/usr/bin/llvm-ranlib21"
-      - "/data/data/com.termux/files/home/.cargo/bin/llvm-ranlib21"
       - "/data/data/com.termux/files/home/.naab/cli/llvm-ranlib21"
       - "/data/data/com.termux/files/home/bin/llvm-ranlib21"
       - "/product/bin/llvm-ranlib21"
@@ -1369,7 +1309,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/llvm-ranlib"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -1406,7 +1345,6 @@ events:
       - "clang-scan-deps"
     candidate_directories:
       - "/data/data/com.termux/files/usr/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/product/bin/"
@@ -1420,7 +1358,6 @@ events:
       - "/vendor/xbin/"
     searched_directories:
       - "/data/data/com.termux/files/usr/bin/clang-scan-deps-21.1"
-      - "/data/data/com.termux/files/home/.cargo/bin/clang-scan-deps-21.1"
       - "/data/data/com.termux/files/home/.naab/cli/clang-scan-deps-21.1"
       - "/data/data/com.termux/files/home/bin/clang-scan-deps-21.1"
       - "/product/bin/clang-scan-deps-21.1"
@@ -1433,7 +1370,6 @@ events:
       - "/vendor/bin/clang-scan-deps-21.1"
       - "/vendor/xbin/clang-scan-deps-21.1"
       - "/data/data/com.termux/files/usr/bin/clang-scan-deps-21"
-      - "/data/data/com.termux/files/home/.cargo/bin/clang-scan-deps-21"
       - "/data/data/com.termux/files/home/.naab/cli/clang-scan-deps-21"
       - "/data/data/com.termux/files/home/bin/clang-scan-deps-21"
       - "/product/bin/clang-scan-deps-21"
@@ -1446,7 +1382,6 @@ events:
       - "/vendor/bin/clang-scan-deps-21"
       - "/vendor/xbin/clang-scan-deps-21"
       - "/data/data/com.termux/files/usr/bin/clang-scan-deps21"
-      - "/data/data/com.termux/files/home/.cargo/bin/clang-scan-deps21"
       - "/data/data/com.termux/files/home/.naab/cli/clang-scan-deps21"
       - "/data/data/com.termux/files/home/bin/clang-scan-deps21"
       - "/product/bin/clang-scan-deps21"
@@ -1461,7 +1396,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -1483,8 +1417,8 @@ events:
     checks:
       - "Detecting C compiler ABI info"
     directories:
-      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L"
-      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L"
+      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA"
+      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
       CMAKE_C_FLAGS: ""
@@ -1494,19 +1428,21 @@ events:
       variable: "CMAKE_C_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L'
+        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA'
         
-        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_8cce5/fast
-        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_8cce5.dir/build.make CMakeFiles/cmTC_8cce5.dir/build
-        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L'
-        Building C object CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o
-        /data/data/com.termux/files/usr/bin/cc   -O2 -g -DNDEBUG   -v -MD -MT CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o -c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCCompilerABI.c
+        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_357b0/fast
+        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_357b0.dir/build.make CMakeFiles/cmTC_357b0.dir/build
+        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA'
+        Building C object CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o
+        /data/data/com.termux/files/usr/bin/cc   -O2 -g -DNDEBUG   -v -MD -MT CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o -c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCCompilerABI.c
         clang version 21.1.8
         Target: aarch64-unknown-linux-android30
         Thread model: posix
         InstalledDir: /data/data/com.termux/files/usr/bin
+        Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../../usr/lib/gcc/aarch64-linux-android/8.3.0
+        Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../lib/gcc/aarch64-linux-android/8.3.0
          (in-process)
-         "/data/data/com.termux/files/usr/bin/cc" -cc1 -triple aarch64-unknown-linux-android30 -O2 -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=non-leaf -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -enable-tlsdesc -target-cpu generic -target-feature +v8a -target-feature +fp-armv8 -target-feature +neon -target-feature +fix-cortex-a53-835769 -target-abi aapcs -debug-info-kind=constructor -dwarf-version=4 -debugger-tuning=gdb -fdebug-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L -v -fcoverage-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L -resource-dir /data/data/com.termux/files/usr/lib/clang/21 -dependency-file CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o -sys-header-deps -D NDEBUG -isysroot /data/data/com.termux/files/usr/bin/../.. -internal-isystem /data/data/com.termux/files/usr/lib/clang/21/include -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/local/include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -vectorize-loops -vectorize-slp -target-feature +outline-atomics -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o -x c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCCompilerABI.c
+         "/data/data/com.termux/files/usr/bin/cc" -cc1 -triple aarch64-unknown-linux-android30 -O2 -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=non-leaf -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -enable-tlsdesc -target-cpu generic -target-feature +v8a -target-feature +fp-armv8 -target-feature +neon -target-feature +fix-cortex-a53-835769 -target-abi aapcs -debug-info-kind=constructor -dwarf-version=4 -debugger-tuning=gdb -fdebug-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA -v -fcoverage-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA -resource-dir /data/data/com.termux/files/usr/lib/clang/21 -dependency-file CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o -sys-header-deps -D NDEBUG -isysroot /data/data/com.termux/files/usr/bin/../.. -internal-isystem /data/data/com.termux/files/usr/lib/clang/21/include -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/local/include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -vectorize-loops -vectorize-slp -target-feature +outline-atomics -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o -x c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCCompilerABI.c
         clang -cc1 version 21.1.8 based upon LLVM 21.1.8 default target aarch64-unknown-linux-android30
         ignoring nonexistent directory "/data/data/com.termux/files/usr/bin/../../usr/local/include"
         ignoring nonexistent directory "/data/data/com.termux/files/usr/bin/../../include"
@@ -1516,15 +1452,17 @@ events:
          /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android
          /data/data/com.termux/files/usr/bin/../../usr/include
         End of search list.
-        Linking C executable cmTC_8cce5
-        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8cce5.dir/link.txt --verbose=1
+        Linking C executable cmTC_357b0
+        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_357b0.dir/link.txt --verbose=1
         clang version 21.1.8
         Target: aarch64-unknown-linux-android30
         Thread model: posix
         InstalledDir: /data/data/com.termux/files/usr/bin
-         "/data/data/com.termux/files/usr/bin/ld.lld" --sysroot=/data/data/com.termux/files/usr/bin/../.. -EL --fix-cortex-a53-843419 -z now -z relro -z max-page-size=16384 --use-android-relr-tags --pack-dyn-relocs=relr --hash-style=gnu -rpath=/data/data/com.termux/files/usr/bin/../../usr/lib --eh-frame-hdr -m aarch64linux -pie -dynamic-linker /system/bin/linker64 -o cmTC_8cce5 /data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o -L/data/data/com.termux/files/usr/bin/../../usr/lib -L/system/lib64 CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl -lc /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl /data/data/com.termux/files/usr/bin/../../usr/lib/crtend_android.o
-        /data/data/com.termux/files/usr/bin/cc -O2 -g -DNDEBUG  -v CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o -o cmTC_8cce5
-        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L'
+        Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../../usr/lib/gcc/aarch64-linux-android/8.3.0
+        Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../lib/gcc/aarch64-linux-android/8.3.0
+         "/data/data/com.termux/files/usr/bin/ld.lld" --sysroot=/data/data/com.termux/files/usr/bin/../.. -EL --fix-cortex-a53-843419 -z now -z relro -z max-page-size=16384 --use-android-relr-tags --pack-dyn-relocs=relr --hash-style=gnu -rpath=/data/data/com.termux/files/usr/bin/../../usr/lib --eh-frame-hdr -m aarch64linux -pie -dynamic-linker /system/bin/linker64 -o cmTC_357b0 /data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o -L/data/data/com.termux/files/usr/bin/../../usr/lib -L/system/lib64 CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl -lc /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl /data/data/com.termux/files/usr/bin/../../usr/lib/crtend_android.o
+        /data/data/com.termux/files/usr/bin/cc -O2 -g -DNDEBUG  -v CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o -o cmTC_357b0
+        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA'
         
       exitCode: 0
   -
@@ -1557,19 +1495,21 @@ events:
       Parsed C implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
-        ignore line: [Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L']
+        ignore line: [Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA']
         ignore line: []
-        ignore line: [Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_8cce5/fast]
-        ignore line: [/data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_8cce5.dir/build.make CMakeFiles/cmTC_8cce5.dir/build]
-        ignore line: [make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L']
-        ignore line: [Building C object CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o]
-        ignore line: [/data/data/com.termux/files/usr/bin/cc   -O2 -g -DNDEBUG   -v -MD -MT CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o -c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCCompilerABI.c]
+        ignore line: [Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_357b0/fast]
+        ignore line: [/data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_357b0.dir/build.make CMakeFiles/cmTC_357b0.dir/build]
+        ignore line: [make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA']
+        ignore line: [Building C object CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o]
+        ignore line: [/data/data/com.termux/files/usr/bin/cc   -O2 -g -DNDEBUG   -v -MD -MT CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o -MF CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o.d -o CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o -c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCCompilerABI.c]
         ignore line: [clang version 21.1.8]
         ignore line: [Target: aarch64-unknown-linux-android30]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /data/data/com.termux/files/usr/bin]
+        ignore line: [Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../../usr/lib/gcc/aarch64-linux-android/8.3.0]
+        ignore line: [Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../lib/gcc/aarch64-linux-android/8.3.0]
         ignore line: [ (in-process)]
-        ignore line: [ "/data/data/com.termux/files/usr/bin/cc" -cc1 -triple aarch64-unknown-linux-android30 -O2 -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=non-leaf -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -enable-tlsdesc -target-cpu generic -target-feature +v8a -target-feature +fp-armv8 -target-feature +neon -target-feature +fix-cortex-a53-835769 -target-abi aapcs -debug-info-kind=constructor -dwarf-version=4 -debugger-tuning=gdb -fdebug-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L -v -fcoverage-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-LY6n8L -resource-dir /data/data/com.termux/files/usr/lib/clang/21 -dependency-file CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o -sys-header-deps -D NDEBUG -isysroot /data/data/com.termux/files/usr/bin/../.. -internal-isystem /data/data/com.termux/files/usr/lib/clang/21/include -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/local/include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -vectorize-loops -vectorize-slp -target-feature +outline-atomics -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o -x c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCCompilerABI.c]
+        ignore line: [ "/data/data/com.termux/files/usr/bin/cc" -cc1 -triple aarch64-unknown-linux-android30 -O2 -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=non-leaf -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -enable-tlsdesc -target-cpu generic -target-feature +v8a -target-feature +fp-armv8 -target-feature +neon -target-feature +fix-cortex-a53-835769 -target-abi aapcs -debug-info-kind=constructor -dwarf-version=4 -debugger-tuning=gdb -fdebug-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA -v -fcoverage-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-8qbHoA -resource-dir /data/data/com.termux/files/usr/lib/clang/21 -dependency-file CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o.d -MT CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o -sys-header-deps -D NDEBUG -isysroot /data/data/com.termux/files/usr/bin/../.. -internal-isystem /data/data/com.termux/files/usr/lib/clang/21/include -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/local/include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -vectorize-loops -vectorize-slp -target-feature +outline-atomics -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o -x c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCCompilerABI.c]
         ignore line: [clang -cc1 version 21.1.8 based upon LLVM 21.1.8 default target aarch64-unknown-linux-android30]
         ignore line: [ignoring nonexistent directory "/data/data/com.termux/files/usr/bin/../../usr/local/include"]
         ignore line: [ignoring nonexistent directory "/data/data/com.termux/files/usr/bin/../../include"]
@@ -1579,13 +1519,15 @@ events:
         ignore line: [ /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android]
         ignore line: [ /data/data/com.termux/files/usr/bin/../../usr/include]
         ignore line: [End of search list.]
-        ignore line: [Linking C executable cmTC_8cce5]
-        ignore line: [/data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8cce5.dir/link.txt --verbose=1]
+        ignore line: [Linking C executable cmTC_357b0]
+        ignore line: [/data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_357b0.dir/link.txt --verbose=1]
         ignore line: [clang version 21.1.8]
         ignore line: [Target: aarch64-unknown-linux-android30]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /data/data/com.termux/files/usr/bin]
-        link line: [ "/data/data/com.termux/files/usr/bin/ld.lld" --sysroot=/data/data/com.termux/files/usr/bin/../.. -EL --fix-cortex-a53-843419 -z now -z relro -z max-page-size=16384 --use-android-relr-tags --pack-dyn-relocs=relr --hash-style=gnu -rpath=/data/data/com.termux/files/usr/bin/../../usr/lib --eh-frame-hdr -m aarch64linux -pie -dynamic-linker /system/bin/linker64 -o cmTC_8cce5 /data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o -L/data/data/com.termux/files/usr/bin/../../usr/lib -L/system/lib64 CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl -lc /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl /data/data/com.termux/files/usr/bin/../../usr/lib/crtend_android.o]
+        ignore line: [Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../../usr/lib/gcc/aarch64-linux-android/8.3.0]
+        ignore line: [Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../lib/gcc/aarch64-linux-android/8.3.0]
+        link line: [ "/data/data/com.termux/files/usr/bin/ld.lld" --sysroot=/data/data/com.termux/files/usr/bin/../.. -EL --fix-cortex-a53-843419 -z now -z relro -z max-page-size=16384 --use-android-relr-tags --pack-dyn-relocs=relr --hash-style=gnu -rpath=/data/data/com.termux/files/usr/bin/../../usr/lib --eh-frame-hdr -m aarch64linux -pie -dynamic-linker /system/bin/linker64 -o cmTC_357b0 /data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o -L/data/data/com.termux/files/usr/bin/../../usr/lib -L/system/lib64 CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl -lc /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl /data/data/com.termux/files/usr/bin/../../usr/lib/crtend_android.o]
           arg [/data/data/com.termux/files/usr/bin/ld.lld] ==> ignore
           arg [--sysroot=/data/data/com.termux/files/usr/bin/../..] ==> ignore
           arg [-EL] ==> ignore
@@ -1604,11 +1546,11 @@ events:
           arg [-dynamic-linker] ==> ignore
           arg [/system/bin/linker64] ==> ignore
           arg [-o] ==> ignore
-          arg [cmTC_8cce5] ==> ignore
+          arg [cmTC_357b0] ==> ignore
           arg [/data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o] ==> obj [/data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o]
           arg [-L/data/data/com.termux/files/usr/bin/../../usr/lib] ==> dir [/data/data/com.termux/files/usr/bin/../../usr/lib]
           arg [-L/system/lib64] ==> dir [/system/lib64]
-          arg [CMakeFiles/cmTC_8cce5.dir/CMakeCCompilerABI.c.o] ==> ignore
+          arg [CMakeFiles/cmTC_357b0.dir/CMakeCCompilerABI.c.o] ==> ignore
           arg [/data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a] ==> lib [/data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a]
           arg [-l:libunwind.a] ==> lib [-l:libunwind.a]
           arg [-ldl] ==> lib [dl]
@@ -1649,8 +1591,8 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi"
-      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi"
+      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi"
+      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
       CMAKE_CXX_FLAGS: ""
@@ -1661,19 +1603,21 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi'
+        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi'
         
-        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_7cdeb/fast
-        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_7cdeb.dir/build.make CMakeFiles/cmTC_7cdeb.dir/build
-        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi'
-        Building CXX object CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o
-        /data/data/com.termux/files/usr/bin/c++   -O2 -g -DNDEBUG   -v -MD -MT CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXCompilerABI.cpp
+        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_1abe2/fast
+        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_1abe2.dir/build.make CMakeFiles/cmTC_1abe2.dir/build
+        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi'
+        Building CXX object CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o
+        /data/data/com.termux/files/usr/bin/c++   -O2 -g -DNDEBUG   -v -MD -MT CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXCompilerABI.cpp
         clang version 21.1.8
         Target: aarch64-unknown-linux-android30
         Thread model: posix
         InstalledDir: /data/data/com.termux/files/usr/bin
+        Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../../usr/lib/gcc/aarch64-linux-android/8.3.0
+        Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../lib/gcc/aarch64-linux-android/8.3.0
          (in-process)
-         "/data/data/com.termux/files/usr/bin/c++" -cc1 -triple aarch64-unknown-linux-android30 -O2 -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=non-leaf -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -enable-tlsdesc -target-cpu generic -target-feature +v8a -target-feature +fp-armv8 -target-feature +neon -target-feature +fix-cortex-a53-835769 -target-abi aapcs -debug-info-kind=constructor -dwarf-version=4 -debugger-tuning=gdb -fdebug-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi -v -fcoverage-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi -resource-dir /data/data/com.termux/files/usr/lib/clang/21 -dependency-file CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -D NDEBUG -isysroot /data/data/com.termux/files/usr/bin/../.. -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1 -internal-isystem /data/data/com.termux/files/usr/lib/clang/21/include -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/local/include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include -fdeprecated-macro -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -vectorize-loops -vectorize-slp -target-feature +outline-atomics -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -x c++ /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXCompilerABI.cpp
+         "/data/data/com.termux/files/usr/bin/c++" -cc1 -triple aarch64-unknown-linux-android30 -O2 -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=non-leaf -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -enable-tlsdesc -target-cpu generic -target-feature +v8a -target-feature +fp-armv8 -target-feature +neon -target-feature +fix-cortex-a53-835769 -target-abi aapcs -debug-info-kind=constructor -dwarf-version=4 -debugger-tuning=gdb -fdebug-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi -v -fcoverage-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi -resource-dir /data/data/com.termux/files/usr/lib/clang/21 -dependency-file CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -D NDEBUG -isysroot /data/data/com.termux/files/usr/bin/../.. -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1 -internal-isystem /data/data/com.termux/files/usr/lib/clang/21/include -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/local/include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include -fdeprecated-macro -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -vectorize-loops -vectorize-slp -target-feature +outline-atomics -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -x c++ /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXCompilerABI.cpp
         clang -cc1 version 21.1.8 based upon LLVM 21.1.8 default target aarch64-unknown-linux-android30
         ignoring nonexistent directory "/data/data/com.termux/files/usr/bin/../../usr/local/include"
         ignoring nonexistent directory "/data/data/com.termux/files/usr/bin/../../include"
@@ -1684,15 +1628,17 @@ events:
          /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android
          /data/data/com.termux/files/usr/bin/../../usr/include
         End of search list.
-        Linking CXX executable cmTC_7cdeb
-        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7cdeb.dir/link.txt --verbose=1
+        Linking CXX executable cmTC_1abe2
+        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1abe2.dir/link.txt --verbose=1
         clang version 21.1.8
         Target: aarch64-unknown-linux-android30
         Thread model: posix
         InstalledDir: /data/data/com.termux/files/usr/bin
-         "/data/data/com.termux/files/usr/bin/ld.lld" --sysroot=/data/data/com.termux/files/usr/bin/../.. -EL --fix-cortex-a53-843419 -z now -z relro -z max-page-size=16384 --use-android-relr-tags --pack-dyn-relocs=relr --hash-style=gnu -rpath=/data/data/com.termux/files/usr/bin/../../usr/lib --eh-frame-hdr -m aarch64linux -pie -dynamic-linker /system/bin/linker64 -o cmTC_7cdeb /data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o -L/data/data/com.termux/files/usr/bin/../../usr/lib -L/system/lib64 CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -lc++_shared /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl -lm -lc /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl /data/data/com.termux/files/usr/bin/../../usr/lib/crtend_android.o
-        /data/data/com.termux/files/usr/bin/c++ -O2 -g -DNDEBUG  -v CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_7cdeb
-        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi'
+        Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../../usr/lib/gcc/aarch64-linux-android/8.3.0
+        Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../lib/gcc/aarch64-linux-android/8.3.0
+         "/data/data/com.termux/files/usr/bin/ld.lld" --sysroot=/data/data/com.termux/files/usr/bin/../.. -EL --fix-cortex-a53-843419 -z now -z relro -z max-page-size=16384 --use-android-relr-tags --pack-dyn-relocs=relr --hash-style=gnu -rpath=/data/data/com.termux/files/usr/bin/../../usr/lib --eh-frame-hdr -m aarch64linux -pie -dynamic-linker /system/bin/linker64 -o cmTC_1abe2 /data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o -L/data/data/com.termux/files/usr/bin/../../usr/lib -L/system/lib64 CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -lc++_shared /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl -lm -lc /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl /data/data/com.termux/files/usr/bin/../../usr/lib/crtend_android.o
+        /data/data/com.termux/files/usr/bin/c++ -O2 -g -DNDEBUG  -v CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_1abe2
+        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi'
         
       exitCode: 0
   -
@@ -1727,19 +1673,21 @@ events:
       Parsed CXX implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
-        ignore line: [Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi']
+        ignore line: [Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi']
         ignore line: []
-        ignore line: [Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_7cdeb/fast]
-        ignore line: [/data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_7cdeb.dir/build.make CMakeFiles/cmTC_7cdeb.dir/build]
-        ignore line: [make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi']
-        ignore line: [Building CXX object CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o]
-        ignore line: [/data/data/com.termux/files/usr/bin/c++   -O2 -g -DNDEBUG   -v -MD -MT CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_1abe2/fast]
+        ignore line: [/data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_1abe2.dir/build.make CMakeFiles/cmTC_1abe2.dir/build]
+        ignore line: [make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi']
+        ignore line: [Building CXX object CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o]
+        ignore line: [/data/data/com.termux/files/usr/bin/c++   -O2 -g -DNDEBUG   -v -MD -MT CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -MF CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o.d -o CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -c /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXCompilerABI.cpp]
         ignore line: [clang version 21.1.8]
         ignore line: [Target: aarch64-unknown-linux-android30]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /data/data/com.termux/files/usr/bin]
+        ignore line: [Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../../usr/lib/gcc/aarch64-linux-android/8.3.0]
+        ignore line: [Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../lib/gcc/aarch64-linux-android/8.3.0]
         ignore line: [ (in-process)]
-        ignore line: [ "/data/data/com.termux/files/usr/bin/c++" -cc1 -triple aarch64-unknown-linux-android30 -O2 -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=non-leaf -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -enable-tlsdesc -target-cpu generic -target-feature +v8a -target-feature +fp-armv8 -target-feature +neon -target-feature +fix-cortex-a53-835769 -target-abi aapcs -debug-info-kind=constructor -dwarf-version=4 -debugger-tuning=gdb -fdebug-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi -v -fcoverage-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-USlLOi -resource-dir /data/data/com.termux/files/usr/lib/clang/21 -dependency-file CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -D NDEBUG -isysroot /data/data/com.termux/files/usr/bin/../.. -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1 -internal-isystem /data/data/com.termux/files/usr/lib/clang/21/include -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/local/include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include -fdeprecated-macro -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -vectorize-loops -vectorize-slp -target-feature +outline-atomics -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -x c++ /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [ "/data/data/com.termux/files/usr/bin/c++" -cc1 -triple aarch64-unknown-linux-android30 -O2 -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model pic -pic-level 2 -pic-is-pie -mframe-pointer=non-leaf -ffp-contract=on -fno-rounding-math -mconstructor-aliases -funwind-tables=2 -enable-tlsdesc -target-cpu generic -target-feature +v8a -target-feature +fp-armv8 -target-feature +neon -target-feature +fix-cortex-a53-835769 -target-abi aapcs -debug-info-kind=constructor -dwarf-version=4 -debugger-tuning=gdb -fdebug-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi -v -fcoverage-compilation-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-OBFasi -resource-dir /data/data/com.termux/files/usr/lib/clang/21 -dependency-file CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o.d -MT CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -sys-header-deps -D NDEBUG -isysroot /data/data/com.termux/files/usr/bin/../.. -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1 -internal-isystem /data/data/com.termux/files/usr/lib/clang/21/include -internal-isystem /data/data/com.termux/files/usr/bin/../../usr/local/include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../include -internal-externc-isystem /data/data/com.termux/files/usr/bin/../../usr/include -fdeprecated-macro -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -vectorize-loops -vectorize-slp -target-feature +outline-atomics -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -x c++ /data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXCompilerABI.cpp]
         ignore line: [clang -cc1 version 21.1.8 based upon LLVM 21.1.8 default target aarch64-unknown-linux-android30]
         ignore line: [ignoring nonexistent directory "/data/data/com.termux/files/usr/bin/../../usr/local/include"]
         ignore line: [ignoring nonexistent directory "/data/data/com.termux/files/usr/bin/../../include"]
@@ -1750,13 +1698,15 @@ events:
         ignore line: [ /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android]
         ignore line: [ /data/data/com.termux/files/usr/bin/../../usr/include]
         ignore line: [End of search list.]
-        ignore line: [Linking CXX executable cmTC_7cdeb]
-        ignore line: [/data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7cdeb.dir/link.txt --verbose=1]
+        ignore line: [Linking CXX executable cmTC_1abe2]
+        ignore line: [/data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1abe2.dir/link.txt --verbose=1]
         ignore line: [clang version 21.1.8]
         ignore line: [Target: aarch64-unknown-linux-android30]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /data/data/com.termux/files/usr/bin]
-        link line: [ "/data/data/com.termux/files/usr/bin/ld.lld" --sysroot=/data/data/com.termux/files/usr/bin/../.. -EL --fix-cortex-a53-843419 -z now -z relro -z max-page-size=16384 --use-android-relr-tags --pack-dyn-relocs=relr --hash-style=gnu -rpath=/data/data/com.termux/files/usr/bin/../../usr/lib --eh-frame-hdr -m aarch64linux -pie -dynamic-linker /system/bin/linker64 -o cmTC_7cdeb /data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o -L/data/data/com.termux/files/usr/bin/../../usr/lib -L/system/lib64 CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o -lc++_shared /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl -lm -lc /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl /data/data/com.termux/files/usr/bin/../../usr/lib/crtend_android.o]
+        ignore line: [Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../../usr/lib/gcc/aarch64-linux-android/8.3.0]
+        ignore line: [Found candidate GCC installation: /data/data/com.termux/files/usr/bin/../lib/gcc/aarch64-linux-android/8.3.0]
+        link line: [ "/data/data/com.termux/files/usr/bin/ld.lld" --sysroot=/data/data/com.termux/files/usr/bin/../.. -EL --fix-cortex-a53-843419 -z now -z relro -z max-page-size=16384 --use-android-relr-tags --pack-dyn-relocs=relr --hash-style=gnu -rpath=/data/data/com.termux/files/usr/bin/../../usr/lib --eh-frame-hdr -m aarch64linux -pie -dynamic-linker /system/bin/linker64 -o cmTC_1abe2 /data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o -L/data/data/com.termux/files/usr/bin/../../usr/lib -L/system/lib64 CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o -lc++_shared /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl -lm -lc /data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a -l:libunwind.a -ldl /data/data/com.termux/files/usr/bin/../../usr/lib/crtend_android.o]
           arg [/data/data/com.termux/files/usr/bin/ld.lld] ==> ignore
           arg [--sysroot=/data/data/com.termux/files/usr/bin/../..] ==> ignore
           arg [-EL] ==> ignore
@@ -1775,11 +1725,11 @@ events:
           arg [-dynamic-linker] ==> ignore
           arg [/system/bin/linker64] ==> ignore
           arg [-o] ==> ignore
-          arg [cmTC_7cdeb] ==> ignore
+          arg [cmTC_1abe2] ==> ignore
           arg [/data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o] ==> obj [/data/data/com.termux/files/usr/bin/../../usr/lib/crtbegin_dynamic.o]
           arg [-L/data/data/com.termux/files/usr/bin/../../usr/lib] ==> dir [/data/data/com.termux/files/usr/bin/../../usr/lib]
           arg [-L/system/lib64] ==> dir [/system/lib64]
-          arg [CMakeFiles/cmTC_7cdeb.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
+          arg [CMakeFiles/cmTC_1abe2.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
           arg [-lc++_shared] ==> lib [c++_shared]
           arg [/data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a] ==> lib [/data/data/com.termux/files/usr/lib/clang/21/lib/linux/libclang_rt.builtins-aarch64-android.a]
           arg [-l:libunwind.a] ==> lib [-l:libunwind.a]
@@ -1832,7 +1782,6 @@ events:
     names:
       - "git"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -1866,13 +1815,11 @@ events:
       - "/opt/sbin/"
       - "/opt/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/git"
       - "/data/data/com.termux/files/home/.naab/cli/git"
       - "/data/data/com.termux/files/home/bin/git"
     found: "/data/data/com.termux/files/usr/bin/git"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -1919,7 +1866,6 @@ events:
       - "cuda-memcheck"
       - "compute-sanitizer"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -1953,7 +1899,6 @@ events:
       - "/opt/sbin/"
       - "/opt/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/purify"
       - "/data/data/com.termux/files/home/.naab/cli/purify"
       - "/data/data/com.termux/files/home/bin/purify"
       - "/data/data/com.termux/files/usr/bin/purify"
@@ -1986,7 +1931,6 @@ events:
       - "/opt/bin/purify"
       - "/opt/sbin/purify"
       - "/opt/purify"
-      - "/data/data/com.termux/files/home/.cargo/bin/valgrind"
       - "/data/data/com.termux/files/home/.naab/cli/valgrind"
       - "/data/data/com.termux/files/home/bin/valgrind"
       - "/data/data/com.termux/files/usr/bin/valgrind"
@@ -2019,7 +1963,6 @@ events:
       - "/opt/bin/valgrind"
       - "/opt/sbin/valgrind"
       - "/opt/valgrind"
-      - "/data/data/com.termux/files/home/.cargo/bin/boundscheck"
       - "/data/data/com.termux/files/home/.naab/cli/boundscheck"
       - "/data/data/com.termux/files/home/bin/boundscheck"
       - "/data/data/com.termux/files/usr/bin/boundscheck"
@@ -2052,7 +1995,6 @@ events:
       - "/opt/bin/boundscheck"
       - "/opt/sbin/boundscheck"
       - "/opt/boundscheck"
-      - "/data/data/com.termux/files/home/.cargo/bin/drmemory"
       - "/data/data/com.termux/files/home/.naab/cli/drmemory"
       - "/data/data/com.termux/files/home/bin/drmemory"
       - "/data/data/com.termux/files/usr/bin/drmemory"
@@ -2085,7 +2027,6 @@ events:
       - "/opt/bin/drmemory"
       - "/opt/sbin/drmemory"
       - "/opt/drmemory"
-      - "/data/data/com.termux/files/home/.cargo/bin/cuda-memcheck"
       - "/data/data/com.termux/files/home/.naab/cli/cuda-memcheck"
       - "/data/data/com.termux/files/home/bin/cuda-memcheck"
       - "/data/data/com.termux/files/usr/bin/cuda-memcheck"
@@ -2118,7 +2059,6 @@ events:
       - "/opt/bin/cuda-memcheck"
       - "/opt/sbin/cuda-memcheck"
       - "/opt/cuda-memcheck"
-      - "/data/data/com.termux/files/home/.cargo/bin/compute-sanitizer"
       - "/data/data/com.termux/files/home/.naab/cli/compute-sanitizer"
       - "/data/data/com.termux/files/home/bin/compute-sanitizer"
       - "/data/data/com.termux/files/usr/bin/compute-sanitizer"
@@ -2154,7 +2094,6 @@ events:
     found: false
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -2196,7 +2135,6 @@ events:
     names:
       - "gcov"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -2230,7 +2168,6 @@ events:
       - "/opt/sbin/"
       - "/opt/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/gcov"
       - "/data/data/com.termux/files/home/.naab/cli/gcov"
       - "/data/data/com.termux/files/home/bin/gcov"
       - "/data/data/com.termux/files/usr/bin/gcov"
@@ -2266,7 +2203,6 @@ events:
     found: false
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -2299,8 +2235,8 @@ events:
     checks:
       - "Performing Test ABSL_INTERNAL_AT_LEAST_CXX17"
     directories:
-      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-EyRC4x"
-      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-EyRC4x"
+      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-6oOcsh"
+      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-6oOcsh"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
       CMAKE_CXX_FLAGS: " -Wall -Wextra"
@@ -2312,17 +2248,17 @@ events:
       variable: "ABSL_INTERNAL_AT_LEAST_CXX17"
       cached: true
       stdout: |
-        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-EyRC4x'
+        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-6oOcsh'
         
-        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_65266/fast
-        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_65266.dir/build.make CMakeFiles/cmTC_65266.dir/build
-        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-EyRC4x'
-        Building CXX object CMakeFiles/cmTC_65266.dir/src.cxx.o
-        /data/data/com.termux/files/usr/bin/c++ -DABSL_INTERNAL_AT_LEAST_CXX17  -Wall -Wextra  -O2 -g -DNDEBUG -std=gnu++17 -MD -MT CMakeFiles/cmTC_65266.dir/src.cxx.o -MF CMakeFiles/cmTC_65266.dir/src.cxx.o.d -o CMakeFiles/cmTC_65266.dir/src.cxx.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-EyRC4x/src.cxx
-        Linking CXX executable cmTC_65266
-        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_65266.dir/link.txt --verbose=1
-        /data/data/com.termux/files/usr/bin/c++  -Wall -Wextra  -O2 -g -DNDEBUG CMakeFiles/cmTC_65266.dir/src.cxx.o -o cmTC_65266
-        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-EyRC4x'
+        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_7250b/fast
+        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_7250b.dir/build.make CMakeFiles/cmTC_7250b.dir/build
+        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-6oOcsh'
+        Building CXX object CMakeFiles/cmTC_7250b.dir/src.cxx.o
+        /data/data/com.termux/files/usr/bin/c++ -DABSL_INTERNAL_AT_LEAST_CXX17  -Wall -Wextra  -O2 -g -DNDEBUG -std=gnu++17 -MD -MT CMakeFiles/cmTC_7250b.dir/src.cxx.o -MF CMakeFiles/cmTC_7250b.dir/src.cxx.o.d -o CMakeFiles/cmTC_7250b.dir/src.cxx.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-6oOcsh/src.cxx
+        Linking CXX executable cmTC_7250b
+        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7250b.dir/link.txt --verbose=1
+        /data/data/com.termux/files/usr/bin/c++  -Wall -Wextra  -O2 -g -DNDEBUG CMakeFiles/cmTC_7250b.dir/src.cxx.o -o cmTC_7250b
+        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-6oOcsh'
         
       exitCode: 0
   -
@@ -2335,8 +2271,8 @@ events:
     checks:
       - "Performing Test ABSL_INTERNAL_AT_LEAST_CXX20"
     directories:
-      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lrJiT0"
-      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lrJiT0"
+      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lS5vW7"
+      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lS5vW7"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
       CMAKE_CXX_FLAGS: " -Wall -Wextra"
@@ -2348,20 +2284,20 @@ events:
       variable: "ABSL_INTERNAL_AT_LEAST_CXX20"
       cached: true
       stdout: |
-        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lrJiT0'
+        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lS5vW7'
         
-        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_6835a/fast
-        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_6835a.dir/build.make CMakeFiles/cmTC_6835a.dir/build
-        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lrJiT0'
-        Building CXX object CMakeFiles/cmTC_6835a.dir/src.cxx.o
-        /data/data/com.termux/files/usr/bin/c++ -DABSL_INTERNAL_AT_LEAST_CXX20  -Wall -Wextra  -O2 -g -DNDEBUG -std=gnu++17 -MD -MT CMakeFiles/cmTC_6835a.dir/src.cxx.o -MF CMakeFiles/cmTC_6835a.dir/src.cxx.o.d -o CMakeFiles/cmTC_6835a.dir/src.cxx.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lrJiT0/src.cxx
-        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lrJiT0/src.cxx:6:4: error: "The compiler defaults or is configured for C++ < 20"
+        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_57f7f/fast
+        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_57f7f.dir/build.make CMakeFiles/cmTC_57f7f.dir/build
+        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lS5vW7'
+        Building CXX object CMakeFiles/cmTC_57f7f.dir/src.cxx.o
+        /data/data/com.termux/files/usr/bin/c++ -DABSL_INTERNAL_AT_LEAST_CXX20  -Wall -Wextra  -O2 -g -DNDEBUG -std=gnu++17 -MD -MT CMakeFiles/cmTC_57f7f.dir/src.cxx.o -MF CMakeFiles/cmTC_57f7f.dir/src.cxx.o.d -o CMakeFiles/cmTC_57f7f.dir/src.cxx.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lS5vW7/src.cxx
+        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lS5vW7/src.cxx:6:4: error: "The compiler defaults or is configured for C++ < 20"
             6 | #  error "The compiler defaults or is configured for C++ < 20"
               |    ^
         1 error generated.
-        make[1]: *** [CMakeFiles/cmTC_6835a.dir/build.make:82: CMakeFiles/cmTC_6835a.dir/src.cxx.o] Error 1
-        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lrJiT0'
-        make: *** [Makefile:134: cmTC_6835a/fast] Error 2
+        make[1]: *** [CMakeFiles/cmTC_57f7f.dir/build.make:82: CMakeFiles/cmTC_57f7f.dir/src.cxx.o] Error 1
+        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-lS5vW7'
+        make: *** [Makefile:134: cmTC_57f7f/fast] Error 2
         
       exitCode: 2
   -
@@ -2375,8 +2311,8 @@ events:
     checks:
       - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
     directories:
-      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-kHBDGs"
-      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-kHBDGs"
+      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-Rs8tsG"
+      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-Rs8tsG"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
       CMAKE_C_FLAGS: ""
@@ -2388,24 +2324,24 @@ events:
       variable: "CMAKE_HAVE_LIBC_PTHREAD"
       cached: true
       stdout: |
-        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-kHBDGs'
+        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-Rs8tsG'
         
-        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_08e97/fast
-        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_08e97.dir/build.make CMakeFiles/cmTC_08e97.dir/build
-        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-kHBDGs'
-        Building C object CMakeFiles/cmTC_08e97.dir/src.c.o
-        /data/data/com.termux/files/usr/bin/cc -DCMAKE_HAVE_LIBC_PTHREAD  -O2 -g -DNDEBUG -MD -MT CMakeFiles/cmTC_08e97.dir/src.c.o -MF CMakeFiles/cmTC_08e97.dir/src.c.o.d -o CMakeFiles/cmTC_08e97.dir/src.c.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-kHBDGs/src.c
-        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-kHBDGs/src.c:13:3: error: call to undeclared function 'pthread_cancel'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_9ffcf/fast
+        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_9ffcf.dir/build.make CMakeFiles/cmTC_9ffcf.dir/build
+        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-Rs8tsG'
+        Building C object CMakeFiles/cmTC_9ffcf.dir/src.c.o
+        /data/data/com.termux/files/usr/bin/cc -DCMAKE_HAVE_LIBC_PTHREAD  -O2 -g -DNDEBUG -MD -MT CMakeFiles/cmTC_9ffcf.dir/src.c.o -MF CMakeFiles/cmTC_9ffcf.dir/src.c.o.d -o CMakeFiles/cmTC_9ffcf.dir/src.c.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-Rs8tsG/src.c
+        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-Rs8tsG/src.c:13:3: error: call to undeclared function 'pthread_cancel'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
            13 |   pthread_cancel(thread);
               |   ^
-        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-kHBDGs/src.c:13:3: note: did you mean 'pthread_once'?
+        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-Rs8tsG/src.c:13:3: note: did you mean 'pthread_once'?
         /data/data/com.termux/files/usr/bin/../../usr/include/pthread.h:250:5: note: 'pthread_once' declared here
           250 | int pthread_once(pthread_once_t* _Nonnull __once, void (* _Nonnull __init_routine)(void));
               |     ^
         1 error generated.
-        make[1]: *** [CMakeFiles/cmTC_08e97.dir/build.make:82: CMakeFiles/cmTC_08e97.dir/src.c.o] Error 1
-        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-kHBDGs'
-        make: *** [Makefile:134: cmTC_08e97/fast] Error 2
+        make[1]: *** [CMakeFiles/cmTC_9ffcf.dir/build.make:82: CMakeFiles/cmTC_9ffcf.dir/src.c.o] Error 1
+        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-Rs8tsG'
+        make: *** [Makefile:134: cmTC_9ffcf/fast] Error 2
         
       exitCode: 2
   -
@@ -2418,8 +2354,8 @@ events:
     checks:
       - "Looking for pthread_create in pthreads"
     directories:
-      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-ZAg5Ih"
-      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-ZAg5Ih"
+      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-PLA0lF"
+      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-PLA0lF"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
       CMAKE_C_FLAGS: ""
@@ -2431,21 +2367,21 @@ events:
       variable: "CMAKE_HAVE_PTHREADS_CREATE"
       cached: true
       stdout: |
-        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-ZAg5Ih'
+        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-PLA0lF'
         
-        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_87c14/fast
-        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_87c14.dir/build.make CMakeFiles/cmTC_87c14.dir/build
-        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-ZAg5Ih'
-        Building C object CMakeFiles/cmTC_87c14.dir/CheckFunctionExists.c.o
-        /data/data/com.termux/files/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create -O2 -g -DNDEBUG -MD -MT CMakeFiles/cmTC_87c14.dir/CheckFunctionExists.c.o -MF CMakeFiles/cmTC_87c14.dir/CheckFunctionExists.c.o.d -o CMakeFiles/cmTC_87c14.dir/CheckFunctionExists.c.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-ZAg5Ih/CheckFunctionExists.c
-        Linking C executable cmTC_87c14
-        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_87c14.dir/link.txt --verbose=1
+        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_39dd0/fast
+        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_39dd0.dir/build.make CMakeFiles/cmTC_39dd0.dir/build
+        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-PLA0lF'
+        Building C object CMakeFiles/cmTC_39dd0.dir/CheckFunctionExists.c.o
+        /data/data/com.termux/files/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create -O2 -g -DNDEBUG -MD -MT CMakeFiles/cmTC_39dd0.dir/CheckFunctionExists.c.o -MF CMakeFiles/cmTC_39dd0.dir/CheckFunctionExists.c.o.d -o CMakeFiles/cmTC_39dd0.dir/CheckFunctionExists.c.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-PLA0lF/CheckFunctionExists.c
+        Linking C executable cmTC_39dd0
+        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_39dd0.dir/link.txt --verbose=1
         ld.lld: error: unable to find library -lpthreads
         cc: error: linker command failed with exit code 1 (use -v to see invocation)
-        /data/data/com.termux/files/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create -O2 -g -DNDEBUG CMakeFiles/cmTC_87c14.dir/CheckFunctionExists.c.o -o cmTC_87c14  -lpthreads
-        make[1]: *** [CMakeFiles/cmTC_87c14.dir/build.make:103: cmTC_87c14] Error 1
-        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-ZAg5Ih'
-        make: *** [Makefile:134: cmTC_87c14/fast] Error 2
+        /data/data/com.termux/files/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create -O2 -g -DNDEBUG CMakeFiles/cmTC_39dd0.dir/CheckFunctionExists.c.o -o cmTC_39dd0  -lpthreads
+        make[1]: *** [CMakeFiles/cmTC_39dd0.dir/build.make:103: cmTC_39dd0] Error 1
+        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-PLA0lF'
+        make: *** [Makefile:134: cmTC_39dd0/fast] Error 2
         
       exitCode: 2
   -
@@ -2458,8 +2394,8 @@ events:
     checks:
       - "Looking for pthread_create in pthread"
     directories:
-      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-YmjkmC"
-      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-YmjkmC"
+      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-SXAtXt"
+      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-SXAtXt"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
       CMAKE_C_FLAGS: ""
@@ -2471,17 +2407,17 @@ events:
       variable: "CMAKE_HAVE_PTHREAD_CREATE"
       cached: true
       stdout: |
-        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-YmjkmC'
+        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-SXAtXt'
         
-        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_9dfb6/fast
-        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_9dfb6.dir/build.make CMakeFiles/cmTC_9dfb6.dir/build
-        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-YmjkmC'
-        Building C object CMakeFiles/cmTC_9dfb6.dir/CheckFunctionExists.c.o
-        /data/data/com.termux/files/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create -O2 -g -DNDEBUG -MD -MT CMakeFiles/cmTC_9dfb6.dir/CheckFunctionExists.c.o -MF CMakeFiles/cmTC_9dfb6.dir/CheckFunctionExists.c.o.d -o CMakeFiles/cmTC_9dfb6.dir/CheckFunctionExists.c.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-YmjkmC/CheckFunctionExists.c
-        Linking C executable cmTC_9dfb6
-        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9dfb6.dir/link.txt --verbose=1
-        /data/data/com.termux/files/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create -O2 -g -DNDEBUG CMakeFiles/cmTC_9dfb6.dir/CheckFunctionExists.c.o -o cmTC_9dfb6  -lpthread
-        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-YmjkmC'
+        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_da22a/fast
+        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_da22a.dir/build.make CMakeFiles/cmTC_da22a.dir/build
+        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-SXAtXt'
+        Building C object CMakeFiles/cmTC_da22a.dir/CheckFunctionExists.c.o
+        /data/data/com.termux/files/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create -O2 -g -DNDEBUG -MD -MT CMakeFiles/cmTC_da22a.dir/CheckFunctionExists.c.o -MF CMakeFiles/cmTC_da22a.dir/CheckFunctionExists.c.o.d -o CMakeFiles/cmTC_da22a.dir/CheckFunctionExists.c.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-SXAtXt/CheckFunctionExists.c
+        Linking C executable cmTC_da22a
+        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_da22a.dir/link.txt --verbose=1
+        /data/data/com.termux/files/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create -O2 -g -DNDEBUG CMakeFiles/cmTC_da22a.dir/CheckFunctionExists.c.o -o cmTC_da22a  -lpthread
+        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-SXAtXt'
         
       exitCode: 0
   -
@@ -2502,7 +2438,6 @@ events:
     names:
       - "rt"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -2515,7 +2450,6 @@ events:
       - "/data/data/com.termux/files/usr/lib/"
       - "/data/data/com.termux/files/usr/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -2528,7 +2462,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/librt.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -2571,7 +2504,6 @@ events:
     names:
       - "execinfo"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -2584,7 +2516,6 @@ events:
       - "/data/data/com.termux/files/usr/lib/"
       - "/data/data/com.termux/files/usr/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -2597,7 +2528,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/libexecinfo.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -2632,8 +2562,8 @@ events:
     checks:
       - "Performing Test HAS_NULLPTR_WARNING"
     directories:
-      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-NNtw1k"
-      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-NNtw1k"
+      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-FmwPVj"
+      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-FmwPVj"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
       CMAKE_CXX_FLAGS: " -Wall -Wextra"
@@ -2644,17 +2574,17 @@ events:
       variable: "HAS_NULLPTR_WARNING"
       cached: true
       stdout: |
-        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-NNtw1k'
+        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-FmwPVj'
         
-        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_a63e7/fast
-        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_a63e7.dir/build.make CMakeFiles/cmTC_a63e7.dir/build
-        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-NNtw1k'
-        Building CXX object CMakeFiles/cmTC_a63e7.dir/src.cxx.o
-        /data/data/com.termux/files/usr/bin/c++ -DHAS_NULLPTR_WARNING  -Wall -Wextra  -O2 -g -DNDEBUG -std=gnu++17   -Wzero-as-null-pointer-constant -MD -MT CMakeFiles/cmTC_a63e7.dir/src.cxx.o -MF CMakeFiles/cmTC_a63e7.dir/src.cxx.o.d -o CMakeFiles/cmTC_a63e7.dir/src.cxx.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-NNtw1k/src.cxx
-        Linking CXX executable cmTC_a63e7
-        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a63e7.dir/link.txt --verbose=1
-        /data/data/com.termux/files/usr/bin/c++  -Wall -Wextra  -O2 -g -DNDEBUG CMakeFiles/cmTC_a63e7.dir/src.cxx.o -o cmTC_a63e7
-        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-NNtw1k'
+        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_5ad1a/fast
+        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_5ad1a.dir/build.make CMakeFiles/cmTC_5ad1a.dir/build
+        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-FmwPVj'
+        Building CXX object CMakeFiles/cmTC_5ad1a.dir/src.cxx.o
+        /data/data/com.termux/files/usr/bin/c++ -DHAS_NULLPTR_WARNING  -Wall -Wextra  -O2 -g -DNDEBUG -std=gnu++17   -Wzero-as-null-pointer-constant -MD -MT CMakeFiles/cmTC_5ad1a.dir/src.cxx.o -MF CMakeFiles/cmTC_5ad1a.dir/src.cxx.o.d -o CMakeFiles/cmTC_5ad1a.dir/src.cxx.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-FmwPVj/src.cxx
+        Linking CXX executable cmTC_5ad1a
+        /data/data/com.termux/files/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_5ad1a.dir/link.txt --verbose=1
+        /data/data/com.termux/files/usr/bin/c++  -Wall -Wextra  -O2 -g -DNDEBUG CMakeFiles/cmTC_5ad1a.dir/src.cxx.o -o cmTC_5ad1a
+        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-FmwPVj'
         
       exitCode: 0
   -
@@ -2666,8 +2596,8 @@ events:
     checks:
       - "Looking for fwrite_unlocked"
     directories:
-      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-JnmzYj"
-      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-JnmzYj"
+      source: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-KcYUyz"
+      binary: "/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-KcYUyz"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "/data/data/com.termux/files/usr/bin/clang-scan-deps"
       CMAKE_C_FLAGS: ""
@@ -2677,14 +2607,14 @@ events:
       variable: "HAVE_FWRITE_UNLOCKED"
       cached: true
       stdout: |
-        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-JnmzYj'
+        Change Dir: '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-KcYUyz'
         
-        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_79a01/fast
-        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_79a01.dir/build.make CMakeFiles/cmTC_79a01.dir/build
-        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-JnmzYj'
-        Building C object CMakeFiles/cmTC_79a01.dir/CheckSymbolExists.c.o
-        /data/data/com.termux/files/usr/bin/cc   -O2 -g -DNDEBUG -MD -MT CMakeFiles/cmTC_79a01.dir/CheckSymbolExists.c.o -MF CMakeFiles/cmTC_79a01.dir/CheckSymbolExists.c.o.d -o CMakeFiles/cmTC_79a01.dir/CheckSymbolExists.c.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-JnmzYj/CheckSymbolExists.c
-        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-JnmzYj/CheckSymbolExists.c:8:19: error: use of undeclared identifier 'fwrite_unlocked'; did you mean 'ferror_unlocked'?
+        Run Build Command(s): /data/data/com.termux/files/usr/bin/cmake -E env VERBOSE=1 /data/data/com.termux/files/usr/bin/make -f Makefile cmTC_9bd1d/fast
+        /data/data/com.termux/files/usr/bin/make  -f CMakeFiles/cmTC_9bd1d.dir/build.make CMakeFiles/cmTC_9bd1d.dir/build
+        make[1]: Entering directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-KcYUyz'
+        Building C object CMakeFiles/cmTC_9bd1d.dir/CheckSymbolExists.c.o
+        /data/data/com.termux/files/usr/bin/cc   -O2 -g -DNDEBUG -MD -MT CMakeFiles/cmTC_9bd1d.dir/CheckSymbolExists.c.o -MF CMakeFiles/cmTC_9bd1d.dir/CheckSymbolExists.c.o.d -o CMakeFiles/cmTC_9bd1d.dir/CheckSymbolExists.c.o -c /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-KcYUyz/CheckSymbolExists.c
+        /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-KcYUyz/CheckSymbolExists.c:8:19: error: use of undeclared identifier 'fwrite_unlocked'; did you mean 'ferror_unlocked'?
             8 |   return ((int*)(&fwrite_unlocked))[argc];
               |                   ^~~~~~~~~~~~~~~
               |                   ferror_unlocked
@@ -2692,9 +2622,9 @@ events:
           332 | __nodiscard int ferror_unlocked(FILE* _Nonnull __fp) __INTRODUCED_IN(23);
               |                 ^
         1 error generated.
-        make[1]: *** [CMakeFiles/cmTC_79a01.dir/build.make:82: CMakeFiles/cmTC_79a01.dir/CheckSymbolExists.c.o] Error 1
-        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-JnmzYj'
-        make: *** [Makefile:134: cmTC_79a01/fast] Error 2
+        make[1]: *** [CMakeFiles/cmTC_9bd1d.dir/build.make:82: CMakeFiles/cmTC_9bd1d.dir/CheckSymbolExists.c.o] Error 1
+        make[1]: Leaving directory '/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/CMakeScratch/TryCompile-KcYUyz'
+        make: *** [Makefile:134: cmTC_9bd1d/fast] Error 2
         
       exitCode: 2
   -
@@ -2702,7 +2632,7 @@ events:
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:517 (find_program)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindSQLite3.cmake:61 (find_package)"
-      - "CMakeLists.txt:75 (find_package)"
+      - "CMakeLists.txt:157 (find_package)"
     mode: "program"
     variable: "PKG_CONFIG_EXECUTABLE"
     description: "pkg-config executable"
@@ -2718,7 +2648,6 @@ events:
       - "pkg-config"
       - "pkgconf"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -2752,8 +2681,6 @@ events:
       - "/opt/sbin/"
       - "/opt/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/pkg-config"
-      - "/data/data/com.termux/files/home/.cargo/bin/pkgconf"
       - "/data/data/com.termux/files/home/.naab/cli/pkg-config"
       - "/data/data/com.termux/files/home/.naab/cli/pkgconf"
       - "/data/data/com.termux/files/home/bin/pkg-config"
@@ -2761,7 +2688,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/pkg-config"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -2792,7 +2718,7 @@ events:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:1149 (_pkg_recalculate)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:1166 (_pkg_check_modules_internal)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindSQLite3.cmake:63 (pkg_check_modules)"
-      - "CMakeLists.txt:75 (find_package)"
+      - "CMakeLists.txt:157 (find_package)"
     mode: "library"
     variable: "pkgcfg_lib_PC_SQLite3_sqlite3"
     description: "Path to a library."
@@ -2811,7 +2737,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/libsqlite3.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -2840,7 +2765,7 @@ events:
     kind: "find-v1"
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindSQLite3.cmake:67 (find_path)"
-      - "CMakeLists.txt:75 (find_package)"
+      - "CMakeLists.txt:157 (find_package)"
     mode: "path"
     variable: "SQLite3_INCLUDE_DIR"
     description: "Path to a file."
@@ -2856,7 +2781,6 @@ events:
       - "sqlite3.h"
     candidate_directories:
       - "/data/data/com.termux/files/usr/include/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -2886,7 +2810,6 @@ events:
     found: "/data/data/com.termux/files/usr/include/"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -2915,7 +2838,7 @@ events:
     kind: "find-v1"
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindSQLite3.cmake:74 (find_library)"
-      - "CMakeLists.txt:75 (find_package)"
+      - "CMakeLists.txt:157 (find_package)"
     mode: "library"
     variable: "SQLite3_LIBRARY"
     description: "Path to a library."
@@ -2932,7 +2855,6 @@ events:
       - "sqlite"
     candidate_directories:
       - "/data/data/com.termux/files/usr/lib/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -2947,7 +2869,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/libsqlite3.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -2977,7 +2898,7 @@ events:
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPython/Support.cmake:2076 (find_program)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPython3.cmake:671 (include)"
-      - "CMakeLists.txt:83 (find_package)"
+      - "CMakeLists.txt:165 (find_package)"
     mode: "program"
     variable: "_Python3_EXECUTABLE"
     description: "Path to a program."
@@ -3123,7 +3044,6 @@ events:
     found: false
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -3151,7 +3071,7 @@ events:
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPython/Support.cmake:2088 (find_program)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPython3.cmake:671 (include)"
-      - "CMakeLists.txt:83 (find_package)"
+      - "CMakeLists.txt:165 (find_package)"
     mode: "program"
     variable: "_Python3_EXECUTABLE"
     description: "Path to a program."
@@ -3295,9 +3215,6 @@ events:
       - "python3"
       - "python"
     candidate_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/Scripts/"
       - "/data/data/com.termux/files/home/.naab/cli/"
@@ -3395,396 +3312,6 @@ events:
       - "/opt/Scripts/"
       - "/opt/"
     searched_directories:
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.15mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.15m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.15u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.15"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.15dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.15dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.15du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.15d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.14mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.14m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.14u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.14"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.14dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.14dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.14du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.14d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.13mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.13m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.13u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.13"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.13dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.13dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.13du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.13d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.12mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.12m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.12u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.12"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.12dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.12dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.12du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.12d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.11mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.11m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.11u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.11"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.11dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.11dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.11du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.11d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.10mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.10m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.10u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.10"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.10dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.10dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.10du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.10d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.9mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.9m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.9u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.9"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.9dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.9dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.9du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.9d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.8mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.8m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.8u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.8"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.8dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.8dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.8du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.8d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.7mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.7m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.7u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.7"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.7dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.7dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.7du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.7d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.6mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.6m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.6u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.6"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.6dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.6dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.6du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.6d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.5mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.5m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.5u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.5"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.5dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.5dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.5du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.5d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.4mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.4m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.4u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.4"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.4dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.4dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.4du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.4d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.3mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.3m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.3u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.3"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.3dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.3dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.3du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.3d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.2mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.2m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.2u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.2"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.2dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.2dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.2du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.2d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.1mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.1m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.1u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.1"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.1dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.1dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.1du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.1d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.0mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.0m"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.0u"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.0"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.0dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.0dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.0du"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3.0d"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python3"
-      - "/data/data/com.termux/files/home/.cargo/bin/bin/python"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.15mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.15m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.15u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.15"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.15dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.15dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.15du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.15d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.14mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.14m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.14u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.14"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.14dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.14dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.14du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.14d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.13mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.13m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.13u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.13"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.13dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.13dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.13du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.13d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.12mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.12m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.12u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.12"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.12dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.12dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.12du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.12d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.11mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.11m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.11u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.11"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.11dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.11dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.11du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.11d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.10mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.10m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.10u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.10"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.10dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.10dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.10du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.10d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.9mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.9m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.9u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.9"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.9dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.9dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.9du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.9d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.8mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.8m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.8u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.8"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.8dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.8dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.8du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.8d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.7mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.7m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.7u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.7"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.7dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.7dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.7du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.7d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.6mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.6m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.6u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.6"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.6dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.6dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.6du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.6d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.5mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.5m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.5u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.5"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.5dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.5dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.5du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.5d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.4mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.4m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.4u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.4"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.4dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.4dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.4du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.4d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.3mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.3m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.3u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.3"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.3dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.3dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.3du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.3d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.2mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.2m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.2u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.2"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.2dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.2dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.2du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.2d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.1mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.1m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.1u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.1"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.1dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.1dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.1du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.1d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.0mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.0m"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.0u"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.0"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.0dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.0dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.0du"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3.0d"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python3"
-      - "/data/data/com.termux/files/home/.cargo/bin/Scripts/python"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.15mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.15m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.15u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.15"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.15dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.15dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.15du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.15d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.14mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.14m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.14u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.14"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.14dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.14dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.14du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.14d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.13mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.13m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.13u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.13"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.13dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.13dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.13du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.13d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.12mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.12m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.12u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.12"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.12dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.12dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.12du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.12d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.11mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.11m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.11u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.11"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.11dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.11dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.11du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.11d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.10mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.10m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.10u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.10"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.10dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.10dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.10du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.10d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.9mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.9m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.9u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.9"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.9dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.9dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.9du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.9d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.8mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.8m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.8u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.8"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.8dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.8dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.8du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.8d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.7mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.7m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.7u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.7"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.7dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.7dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.7du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.7d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.6mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.6m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.6u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.6"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.6dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.6dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.6du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.6d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.5mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.5m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.5u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.5"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.5dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.5dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.5du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.5d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.4mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.4m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.4u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.4"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.4dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.4dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.4du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.4d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.3mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.3m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.3u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.3"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.3dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.3dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.3du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.3d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.2mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.2m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.2u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.2"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.2dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.2dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.2du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.2d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.1mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.1m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.1u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.1"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.1dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.1dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.1du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.1d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.0mu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.0m"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.0u"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.0"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.0dmu"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.0dm"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.0du"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3.0d"
-      - "/data/data/com.termux/files/home/.cargo/bin/python3"
-      - "/data/data/com.termux/files/home/.cargo/bin/python"
       - "/data/data/com.termux/files/home/.naab/cli/bin/python3.15mu"
       - "/data/data/com.termux/files/home/.naab/cli/bin/python3.15m"
       - "/data/data/com.termux/files/home/.naab/cli/bin/python3.15u"
@@ -4855,7 +4382,6 @@ events:
     found: "/data/data/com.termux/files/usr/bin/python3.12"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -4883,7 +4409,7 @@ events:
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPython/Support.cmake:3201 (find_library)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPython3.cmake:671 (include)"
-      - "CMakeLists.txt:83 (find_package)"
+      - "CMakeLists.txt:165 (find_package)"
     mode: "library"
     variable: "_Python3_LIBRARY_RELEASE"
     description: "Path to a library."
@@ -4908,7 +4434,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/libpython3.12.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -4938,7 +4463,7 @@ events:
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPython/Support.cmake:3716 (find_path)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPython3.cmake:671 (include)"
-      - "CMakeLists.txt:83 (find_package)"
+      - "CMakeLists.txt:165 (find_package)"
     mode: "path"
     variable: "_Python3_INCLUDE_DIR"
     description: "Path to a file."
@@ -4957,7 +4482,6 @@ events:
     found: "/data/data/com.termux/files/usr/include/python3.12/"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -4990,7 +4514,7 @@ events:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:1149 (_pkg_recalculate)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:1166 (_pkg_check_modules_internal)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindOpenSSL.cmake:297 (pkg_check_modules)"
-      - "CMakeLists.txt:114 (find_package)"
+      - "CMakeLists.txt:196 (find_package)"
     mode: "library"
     variable: "pkgcfg_lib__OPENSSL_ssl"
     description: "Path to a library."
@@ -5009,7 +4533,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/libssl.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -5042,7 +4565,7 @@ events:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:1149 (_pkg_recalculate)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:1166 (_pkg_check_modules_internal)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindOpenSSL.cmake:297 (pkg_check_modules)"
-      - "CMakeLists.txt:114 (find_package)"
+      - "CMakeLists.txt:196 (find_package)"
     mode: "library"
     variable: "pkgcfg_lib__OPENSSL_crypto"
     description: "Path to a library."
@@ -5061,7 +4584,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/libcrypto.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -5090,7 +4612,7 @@ events:
     kind: "find-v1"
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindOpenSSL.cmake:370 (find_path)"
-      - "CMakeLists.txt:114 (find_package)"
+      - "CMakeLists.txt:196 (find_package)"
     mode: "path"
     variable: "OPENSSL_INCLUDE_DIR"
     description: "Path to a file."
@@ -5107,8 +4629,6 @@ events:
     candidate_directories:
       - "/data/data/com.termux/files/usr/include/include/"
       - "/data/data/com.termux/files/usr/include/"
-      - "/data/data/com.termux/files/home/.cargo/bin/include/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/include/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/include/"
@@ -5166,7 +4686,6 @@ events:
     found: "/data/data/com.termux/files/usr/include/"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -5195,7 +4714,7 @@ events:
     kind: "find-v1"
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindOpenSSL.cmake:628 (find_library)"
-      - "CMakeLists.txt:114 (find_package)"
+      - "CMakeLists.txt:196 (find_package)"
     mode: "library"
     variable: "OPENSSL_SSL_LIBRARY"
     description: "Path to a library."
@@ -5213,7 +4732,6 @@ events:
       - "ssleay32MD"
     candidate_directories:
       - "/data/data/com.termux/files/usr/lib/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -5229,7 +4747,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/libssl.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -5258,7 +4775,7 @@ events:
     kind: "find-v1"
     backtrace:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindOpenSSL.cmake:642 (find_library)"
-      - "CMakeLists.txt:114 (find_package)"
+      - "CMakeLists.txt:196 (find_package)"
     mode: "library"
     variable: "OPENSSL_CRYPTO_LIBRARY"
     description: "Path to a library."
@@ -5274,7 +4791,6 @@ events:
       - "crypto"
     candidate_directories:
       - "/data/data/com.termux/files/usr/lib/"
-      - "/data/data/com.termux/files/home/.cargo/bin/"
       - "/data/data/com.termux/files/home/.naab/cli/"
       - "/data/data/com.termux/files/home/bin/"
       - "/data/data/com.termux/files/usr/bin/"
@@ -5290,7 +4806,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/libcrypto.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"
@@ -5322,7 +4837,7 @@ events:
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:811 (_pkg_find_libs)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:1149 (_pkg_recalculate)"
       - "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/FindPkgConfig.cmake:1166 (_pkg_check_modules_internal)"
-      - "CMakeLists.txt:124 (pkg_check_modules)"
+      - "CMakeLists.txt:206 (pkg_check_modules)"
     mode: "library"
     variable: "pkgcfg_lib_FFI_ffi"
     description: "Path to a library."
@@ -5341,7 +4856,6 @@ events:
     found: "/data/data/com.termux/files/usr/lib/libffi.so"
     search_context:
       ENV{PATH}:
-        - "/data/data/com.termux/files/home/.cargo/bin"
         - "/data/data/com.termux/files/home/.naab/cli"
         - "/data/data/com.termux/files/home/bin"
         - "/data/data/com.termux/files/usr/bin"

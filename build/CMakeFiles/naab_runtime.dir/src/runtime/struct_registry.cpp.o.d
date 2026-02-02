@@ -221,11 +221,15 @@ CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/xlocale.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/strcasecmp.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/strings.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/strings.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/string.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android/asm/fcntl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/asm-generic/fcntl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/flock64.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/flock.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/seek_constants.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stdio.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stdlib.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/android/legacy_stdlib_inlines.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__memory/uninitialized_algorithms.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__algorithm/copy.h \
@@ -725,6 +729,11 @@ CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/path_iterator.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/u8path.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/module_system.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/unordered_set \
+  /data/data/com.termux/files/home/.naab/language/include/naab/error_reporter.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/error_context.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/suggestion_system.h \
   /data/data/com.termux/files/usr/include/python3.12/Python.h \
   /data/data/com.termux/files/usr/include/python3.12/patchlevel.h \
   /data/data/com.termux/files/usr/include/python3.12/pyconfig.h \
@@ -735,6 +744,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/ioctl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/lockf.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/sysconf.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/unistd.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/android/legacy_unistd_inlines.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/assert.h \
   /data/data/com.termux/files/usr/include/python3.12/pyport.h \
@@ -743,6 +753,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/inttypes.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/sys/stat.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/linux/stat.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stat.h \
   /data/data/com.termux/files/usr/include/python3.12/exports.h \
   /data/data/com.termux/files/usr/include/python3.12/pymacro.h \
   /data/data/com.termux/files/usr/include/python3.12/pymath.h \
@@ -849,4 +860,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o: \
   /data/data/com.termux/files/usr/include/python3.12/tracemalloc.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/chrono \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/forward_list \
-  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/set
+  /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/set \
+  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/core.h \
+  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/format.h \
+  /data/data/com.termux/files/home/.naab/language/external/fmt/include/fmt/base.h

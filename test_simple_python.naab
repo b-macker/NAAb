@@ -1,0 +1,17 @@
+// Simplest Python test
+
+main {
+    print("Testing Python variable binding\n")
+
+    let name = "World"
+    let result: string? = <<python[name]
+message = "Hello, " + name
+message
+    >>
+
+    if result == null {
+        print("Error: Python returned null\n")
+    } else {
+        print("Result: ", result, "\n")
+    }
+}

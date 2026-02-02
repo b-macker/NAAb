@@ -1,0 +1,41 @@
+// Phase 2.4.1: Simple Generic Types Test
+// Tests type inference-based monomorphization
+
+// Generic struct with single type parameter
+struct Box<T> {
+    value: T
+}
+
+// Generic struct with two type parameters
+struct Pair<T, U> {
+    first: T
+    second: U
+}
+
+main {
+    print("=== Testing Generic Structs with Type Inference ===\n")
+
+    // Test 1: Box<int> (inferred from value: 42)
+    print("\n[Test 1] Box with int:")
+    let int_box = Box { value: 42 }
+    print("Box.value = " + int_box.value)
+
+    // Test 2: Box<string> (inferred from value: "hello")
+    print("\n[Test 2] Box with string:")
+    let string_box = Box { value: "hello" }
+    print("Box.value = " + string_box.value)
+
+    // Test 3: Pair<int, string> (inferred from values)
+    print("\n[Test 3] Pair with int and string:")
+    let pair1 = Pair { first: 1, second: "one" }
+    print("Pair.first = " + pair1.first)
+    print("Pair.second = " + pair1.second)
+
+    // Test 4: Different Pair instantiation
+    print("\n[Test 4] Pair with float and bool:")
+    let pair2 = Pair { first: 3.14, second: true }
+    print("Pair.first = " + pair2.first)
+    print("Pair.second = " + pair2.second)
+
+    print("\n\n=== All Tests Complete ===")
+}

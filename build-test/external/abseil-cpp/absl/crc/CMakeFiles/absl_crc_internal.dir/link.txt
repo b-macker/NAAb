@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_crc_internal.a CMakeFiles/absl_crc_internal.dir/internal/crc.cc.o CMakeFiles/absl_crc_internal.dir/internal/crc_x86_arm_combined.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_crc_internal.a

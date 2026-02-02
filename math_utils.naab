@@ -1,0 +1,16 @@
+// math_utils.naab
+export fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+export let PI: float = 3.14159
+
+export struct Vector2 {
+    x: int,
+    y: int
+}
+
+export enum Operation {
+    Add,
+    Subtract
+}

@@ -1,0 +1,40 @@
+// test_use_with_main.naab - Demonstrates module import, aliasing, and function calls.
+
+// Import the 'math_utils' module and assign it the alias 'math'.
+use math_utils as math
+
+main {
+    // Declare and initialize integer variables.
+    let x = 10
+    print("Value of x: ", x, "\n")
+
+    let y = 20
+    print("Value of y: ", y, "\n")
+
+    // Call the 'add' function from the 'math' module using the alias.
+    let sum = math.add(x, y)
+    print("Sum of x and y (using math.add): ", sum, "\n")
+
+    // Test the new 'power' function
+    print("\n--- Testing power function ---\n")
+    let base = 2
+    let exponent = 3
+    let result_power = math.power(base, exponent) // 2^3 = 8
+    print("Result of ", base, " raised to the power of ", exponent, " (using math.power): ", result_power, "\n")
+
+    let base_neg_test = 5
+    let exponent_zero_test = 0
+    let result_power_zero = math.power(base_neg_test, exponent_zero_test) // 5^0 = 1
+    print("Result of ", base_neg_test, " raised to the power of ", exponent_zero_test, " (using math.power): ", result_power_zero, "\n")
+
+    // Example of error handling for negative exponent (will throw error)
+    // try { // NAAb does not have try/catch, so this will be a runtime error.
+    //     let result_error = math.power(2, -1)
+    //     print("This should not be printed if error handling works: ", result_error, "\n")
+    // } catch (e) {
+    //     print("Caught expected error for negative exponent: ", e, "\n")
+    // }
+    print("Attempting to call power with negative exponent (expect runtime error):\n")
+    let result_error = math.power(2, -1) // This will cause a runtime error.
+    print("This line will not be reached.\n")
+}

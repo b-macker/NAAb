@@ -1,0 +1,27 @@
+# Test ISS-002: Function Type Annotation
+# Status in ISSUES.md: ❌ Failed - `function` keyword as type not recognized
+# Expected: Parser does not implement function<T...> type
+
+main {
+    print("=== Testing ISS-002: Function Type Annotation ===")
+
+    # Test 1: Declare variable with function type
+    print("Test 1: let callback: function = add_five")
+    let callback: function = add_five
+    print("  Calling callback(10):", callback(10))
+
+    # Test 2: Function parameter with function type
+    print("Test 2: apply_fn(5, callback)")
+    let result = apply_fn(5, callback)
+    print("  Result:", result)
+
+    print("VERDICT: If you see this, function types work!")
+}
+
+fn add_five(x: int) -> int {
+    return x + 5
+}
+
+fn apply_fn(value: int, fn: function) -> int {
+    return fn(value)
+}

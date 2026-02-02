@@ -1,0 +1,41 @@
+# Chapter 4: Functions and Pipelines Verification
+
+# 1. Standard Function
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+# 2. Higher-Order Function (takes a function)
+fn apply_fn(x: int, func: function) -> int {
+    return func(x)
+}
+
+fn double(x: int) -> int {
+    return x * 2
+}
+
+fn square(x: int) -> int {
+    return x * x
+}
+
+main {
+    print(">>> Chapter 4 Verification <<<")
+
+    # Call standard function
+    let sum = add(10, 5)
+    print("Sum(10, 5) = ", sum)
+
+    # Call higher-order function
+    let res = apply_fn(10, double)
+    print("Apply double(10) = ", res)
+
+    # 3. Pipeline Operator (|>)
+    print("Testing Pipeline Operator:")
+    let result = 5 
+        |> double 
+        |> square
+    
+    print("Result computed.")
+    print("Value: ", result) 
+    # Expected: (5*2)^2 = 100
+}

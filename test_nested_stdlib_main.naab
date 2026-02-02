@@ -1,0 +1,14 @@
+// Test ISS-022 fix: custom module importing stdlib
+use test_nested_stdlib_module as processor
+
+main {
+    print("=== ISS-022 Nested Stdlib Import Test ===\n")
+
+    let result = processor.process_json("test data")
+    print("Result: ", result, "\n")
+
+    let cfg = processor.parse_config("{}")
+    print("Config parsed successfully\n")
+
+    print("=== TEST PASSED ===\n")
+}

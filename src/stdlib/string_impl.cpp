@@ -28,7 +28,7 @@ bool StringModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "length", "substring", "concat", "split", "join",
         "trim", "upper", "lower", "replace", "contains",
-        "starts_with", "ends_with"
+        "starts_with", "ends_with", "index_of", "repeat"
     };
     return functions.count(name) > 0;
 }
@@ -201,6 +201,40 @@ std::shared_ptr<interpreter::Value> StringModule::call(
         if (suffix.length() > s.length()) return makeBool(false);
         return makeBool(s.compare(s.length() - suffix.length(),
                                    suffix.length(), suffix) == 0);
+    }
+
+    // Function 13: index_of
+    if (function_name == "index_of") {
+        if (args.size() != 2) {
+            throw std::runtime_error("index_of() takes exactly 2 arguments");
+        }
+        std::string s = getString(args[0]);
+        std::string substr = getString(args[1]);
+        size_t pos = s.find(substr);
+        if (pos == std::string::npos) {
+            return makeInt(-1);
+        }
+        return makeInt(static_cast<int>(pos));
+    }
+
+    // Function 14: repeat
+    if (function_name == "repeat") {
+        if (args.size() != 2) {
+            throw std::runtime_error("repeat() takes exactly 2 arguments");
+        }
+        std::string s = getString(args[0]);
+        int count = getInt(args[1]);
+        if (count < 0) {
+            throw std::runtime_error("repeat() count must be non-negative");
+        }
+        if (count == 0) return makeString("");
+
+        std::string result;
+        result.reserve(s.length() * count);
+        for (int i = 0; i < count; ++i) {
+            result += s;
+        }
+        return makeString(result);
     }
 
     throw std::runtime_error("Unknown function: " + function_name);

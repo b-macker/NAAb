@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_hashtable_profiler.a CMakeFiles/absl_hashtable_profiler.dir/hashtable.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_hashtable_profiler.a

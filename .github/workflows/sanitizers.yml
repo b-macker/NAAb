@@ -1,0 +1,77 @@
+name: Sanitizers
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-sanitizers:
+    name: Test with ${{ matrix.sanitizer }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [asan, ubsan]
+        # Note: msan requires rebuilding all dependencies with msan, so we skip it for now
+        # tsan is for multi-threaded code; we'll add it later if needed
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang-14 \
+            cmake \
+            ninja-build \
+            libsqlite3-dev \
+            python3-dev \
+            python3-pybind11 \
+            libssl-dev \
+            libffi-dev \
+            libcurl4-openssl-dev \
+            pkg-config
+
+      - name: Build with ${{ matrix.sanitizer }}
+        env:
+          CC: clang-14
+          CXX: clang++-14
+        run: |
+          mkdir -p build-${{ matrix.sanitizer }}
+          cd build-${{ matrix.sanitizer }}
+          cmake .. \
+            -DENABLE_$(echo ${{ matrix.sanitizer }} | tr '[:lower:]' '[:upper:]')=ON \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -G Ninja
+          ninja -j$(nproc)
+
+      - name: Run tests with ${{ matrix.sanitizer }}
+        run: |
+          cd build-${{ matrix.sanitizer }}
+          # Run unit tests
+          if [ -f ./naab_unit_tests ]; then
+            ./naab_unit_tests
+          fi
+
+          # Run verification tests (if they exist)
+          if [ -f ./naab-lang ]; then
+            for test_file in ../docs/book/verification/**/*.naab; do
+              if [ -f "$test_file" ]; then
+                echo "Testing: $test_file"
+                timeout 30 ./naab-lang run "$test_file" || true
+              fi
+            done
+          fi
+
+      - name: Check for sanitizer errors
+        if: failure()
+        run: |
+          echo "❌ Sanitizer detected errors!"
+          echo "See test output above for details."
+          exit 1

@@ -1,0 +1,19 @@
+{"timestamp":"2026-02-01T13:06:32.891Z","event":"SECURITY_VIOLATION","details":"FFI callback validation failed: null pointer"}
+{"timestamp":"2026-02-01T13:06:32.891Z","event":"SECURITY_VIOLATION","details":"FFI callback argument count mismatch: expected 3, got 2"}
+{"timestamp":"2026-02-01T13:06:32.891Z","event":"SECURITY_VIOLATION","details":"FFI callback argument count mismatch: expected 4, got 5"}
+{"timestamp":"2026-02-01T13:06:32.891Z","event":"SECURITY_VIOLATION","details":"FFI callback argument count mismatch: expected 1, got 0"}
+{"timestamp":"2026-02-01T13:06:32.892Z","event":"SECURITY_VIOLATION","details":"FFI callback validation failed: null pointer"}
+{"timestamp":"2026-02-01T13:06:32.892Z","event":"BLOCK_EXECUTE","details":"[simple_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-01T13:06:32.892Z","event":"BLOCK_EXECUTE","details":"[simple_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-01T13:06:32.892Z","event":"BLOCK_EXECUTE","details":"[simple_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-01T13:06:32.893Z","event":"BLOCK_EXECUTE","details":"[simple_test] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-01T13:06:32.893Z","event":"BLOCK_EXECUTE","details":"[async_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-01T13:06:32.893Z","event":"BLOCK_EXECUTE","details":"[async_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-01T13:06:32.894Z","event":"BLOCK_EXECUTE","details":"[async_test] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-01T13:06:32.894Z","event":"BLOCK_EXECUTE","details":"[timed_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-01T13:06:32.894Z","event":"BLOCK_EXECUTE","details":"[timed_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-01T13:06:32.894Z","event":"BLOCK_EXECUTE","details":"[timed_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-01T13:06:32.945Z","event":"BLOCK_EXECUTE","details":"[timed_test] completed: Execution completed successfully in 51ms"}
+{"timestamp":"2026-02-01T13:06:32.946Z","event":"BLOCK_EXECUTE","details":"[exception_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-01T13:06:32.946Z","event":"BLOCK_EXECUTE","details":"[exception_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-01T13:06:32.946Z","event":"BLOCK_EXECUTE","details":"[exception_test] execute_async: Starting async execution"}

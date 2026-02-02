@@ -1,0 +1,50 @@
+// Test file for basic formatter functionality
+// Tests: indentation, spacing, brace styles, line breaking
+
+use io
+
+struct Person {
+    name: string,
+    age: int,
+    email: string
+}
+
+fn greet(person: Person) -> string {
+    return "Hello, " + person.name
+}
+
+fn calculate(x: int, y: int) -> int {
+    if x > y {
+        return x + y
+    } else {
+        return x - y
+    }
+}
+
+fn processArray(items: list<int>) -> int {
+    let total = 0
+    for item in items {
+        total = total + item
+    }
+    return total
+}
+
+main {
+    let person = Person {
+        name: "Alice",
+        age: 30,
+        email: "alice@example.com"
+    }
+
+    let greeting = greet(person)
+    io.write(greeting)
+
+    let numbers = [1, 2, 3, 4, 5]
+    let sum = processArray(numbers)
+    io.write("Sum: ")
+    io.write(sum)
+
+    let result = calculate(10, 5)
+    io.write("Result: ")
+    io.write(result)
+}

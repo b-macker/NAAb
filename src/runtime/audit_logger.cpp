@@ -1,4 +1,5 @@
 #include "naab/audit_logger.h"
+#include "naab/tamper_evident_logger.h"
 #include <chrono>
 #include <iomanip>
 #include <sstream>
@@ -16,6 +17,10 @@ bool AuditLogger::enabled_ = true;
 std::mutex AuditLogger::mutex_;
 std::ofstream AuditLogger::log_stream_;
 
+// Phase 1 Item 8: Tamper-evident logging
+bool AuditLogger::tamper_evidence_enabled_ = false;
+std::unique_ptr<TamperEvidenceLogger> AuditLogger::tamper_logger_ = nullptr;
+
 void AuditLogger::log(AuditEvent event, const std::string& details) {
     logWithMetadata(event, details, {});
 }
@@ -26,6 +31,13 @@ void AuditLogger::logWithMetadata(AuditEvent event, const std::string& details,
         return;
     }
 
+    // Phase 1 Item 8: Route to tamper-evident logger if enabled
+    if (tamper_evidence_enabled_ && tamper_logger_) {
+        tamper_logger_->logEvent(event, details, metadata);
+        return;  // Tamper-evident logger handles everything
+    }
+
+    // Standard (non-tamper-evident) logging
     AuditLogEntry entry;
     entry.timestamp = getCurrentTimestamp();
     entry.event = event;
@@ -232,6 +244,61 @@ void AuditLogger::rotateLog() {
     rename(log_file_path_.c_str(), rotated.c_str());
 
     // Stream will be reopened on next write
+}
+
+// Phase 1 Item 8: Tamper-evident logging methods
+void AuditLogger::setTamperEvidence(bool enabled) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    tamper_evidence_enabled_ = enabled;
+
+    if (enabled && !tamper_logger_) {
+        // Initialize tamper-evident logger
+        std::string log_path = log_file_path_;
+        if (log_path.empty()) {
+            const char* home = std::getenv("HOME");
+            if (home) {
+                log_path = std::string(home) + "/.naab/logs/security_tamper_evident.log";
+            } else {
+                log_path = "/tmp/naab_security_tamper_evident.log";
+            }
+        } else {
+            // Use separate file for tamper-evident logs
+            log_path += ".tamper_evident";
+        }
+
+        tamper_logger_ = std::make_unique<TamperEvidenceLogger>(log_path);
+    } else if (!enabled && tamper_logger_) {
+        // Flush and reset
+        tamper_logger_->flush();
+        tamper_logger_.reset();
+    }
+}
+
+void AuditLogger::enableHMAC(const std::string& secret_key) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (!tamper_logger_) {
+        // Auto-enable tamper-evidence if HMAC is requested
+        setTamperEvidence(true);
+    }
+
+    if (tamper_logger_) {
+        tamper_logger_->enableHMAC(secret_key);
+    }
+}
+
+void AuditLogger::disableHMAC() {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (tamper_logger_) {
+        tamper_logger_->disableHMAC();
+    }
+}
+
+bool AuditLogger::isTamperEvidenceEnabled() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return tamper_evidence_enabled_;
 }
 
 } // namespace security

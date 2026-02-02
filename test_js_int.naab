@@ -1,0 +1,11 @@
+main {
+    let result = <<javascript
+const monitor_config = {
+    check_interval_seconds: 60,
+    alert_threshold_cpu: 80
+};
+JSON.stringify(monitor_config);
+    >>
+
+    print("Result: ", result, "\n")
+}

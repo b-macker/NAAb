@@ -1,0 +1,24 @@
+// Comprehensive stack trace test
+// Tests: nested calls, multiple files, and error propagation
+
+function deepest() {
+    print("In deepest function\n")
+    return undefined_var  // Error at line 6
+}
+
+function middle() {
+    print("In middle function\n")
+    return deepest()  // Line 11
+}
+
+function outer() {
+    print("In outer function\n")
+    return middle()  // Line 16
+}
+
+main {
+    print("=== Stack Trace Comprehensive Test ===\n")
+    print("Testing nested function calls...\n")
+    let result = outer()  // Line 22
+    print("This should not print\n")
+}

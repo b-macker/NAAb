@@ -24,6 +24,10 @@ public:
     // Execute code and store in runtime context
     virtual bool execute(const std::string& code) = 0;
 
+    // Phase 2.3: Execute code and return the result value
+    virtual std::shared_ptr<interpreter::Value> executeWithReturn(
+        const std::string& code) = 0;
+
     // Call a function in the executor
     virtual std::shared_ptr<interpreter::Value> callFunction(
         const std::string& function_name,
@@ -35,6 +39,9 @@ public:
 
     // Get language name
     virtual std::string getLanguage() const = 0;
+
+    // Get captured stdout/stderr from the executor
+    virtual std::string getCapturedOutput() = 0;
 };
 
 // Language Registry - manages language-specific executors

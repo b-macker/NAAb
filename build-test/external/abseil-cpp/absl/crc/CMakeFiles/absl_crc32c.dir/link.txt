@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_crc32c.a CMakeFiles/absl_crc32c.dir/crc32c.cc.o CMakeFiles/absl_crc32c.dir/internal/crc_memcpy_fallback.cc.o CMakeFiles/absl_crc32c.dir/internal/crc_memcpy_x86_arm_combined.cc.o CMakeFiles/absl_crc32c.dir/internal/crc_non_temporal_memcpy.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_crc32c.a

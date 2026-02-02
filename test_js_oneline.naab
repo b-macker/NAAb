@@ -1,0 +1,5 @@
+main {
+    let result = <<javascript JSON.stringify({check_interval_seconds: 60}) >>
+
+    print("Result: ", result, "\n")
+}

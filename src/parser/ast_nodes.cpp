@@ -72,6 +72,10 @@ void ThrowStmt::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void ModuleUseStmt::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 void BinaryExpr::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
@@ -149,7 +153,20 @@ Type ListExpr::getType() const {
     return Type::makeAny();
 }
 
+void RangeExpr::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
+Type RangeExpr::getType() const {
+    // Range type - for now return Any, will be implemented as iterator
+    return Type::makeAny();
+}
+
 void StructDecl::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
+void EnumDecl::accept(ASTVisitor& visitor) {  // Phase 2.4.3
     visitor.visit(*this);
 }
 

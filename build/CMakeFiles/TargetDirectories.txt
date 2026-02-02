@@ -1,6 +1,8 @@
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_lexer.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_parser.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_semantic.dir
+/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_formatter.dir
+/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_linter.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_debugger.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_security.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_interpreter.dir
@@ -16,6 +18,7 @@
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab-repl-rl.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_doc_generator.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab-doc.dir
+/data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab-verify-audit.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/naab_block_enricher.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/enrich_tool.dir
 /data/data/com.termux/files/home/.naab/language/build/CMakeFiles/test_cpp_executor.dir
@@ -249,3 +252,12 @@
 /data/data/com.termux/files/home/.naab/language/build/external/googletest/googletest/CMakeFiles/test.dir
 /data/data/com.termux/files/home/.naab/language/build/external/googletest/googletest/CMakeFiles/edit_cache.dir
 /data/data/com.termux/files/home/.naab/language/build/external/googletest/googletest/CMakeFiles/rebuild_cache.dir
+/data/data/com.termux/files/home/.naab/language/build/fuzz/CMakeFiles/fuzz_lexer.dir
+/data/data/com.termux/files/home/.naab/language/build/fuzz/CMakeFiles/fuzz_parser.dir
+/data/data/com.termux/files/home/.naab/language/build/fuzz/CMakeFiles/fuzz_interpreter.dir
+/data/data/com.termux/files/home/.naab/language/build/fuzz/CMakeFiles/fuzz_python_executor.dir
+/data/data/com.termux/files/home/.naab/language/build/fuzz/CMakeFiles/fuzz_value_conversion.dir
+/data/data/com.termux/files/home/.naab/language/build/fuzz/CMakeFiles/fuzz_json_marshal.dir
+/data/data/com.termux/files/home/.naab/language/build/fuzz/CMakeFiles/test.dir
+/data/data/com.termux/files/home/.naab/language/build/fuzz/CMakeFiles/edit_cache.dir
+/data/data/com.termux/files/home/.naab/language/build/fuzz/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_base.a CMakeFiles/absl_base.dir/internal/cycleclock.cc.o CMakeFiles/absl_base.dir/internal/spinlock.cc.o CMakeFiles/absl_base.dir/internal/sysinfo.cc.o CMakeFiles/absl_base.dir/internal/thread_identity.cc.o CMakeFiles/absl_base.dir/internal/unscaledcycleclock.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_base.a

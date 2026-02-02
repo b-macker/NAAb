@@ -1,0 +1,36 @@
+// Simple module system test - Phase 4.0
+// Test basic module loading and function calls only
+
+use math_utils
+
+main {
+    print("=== Phase 4 Simple Module Test ===")
+    print("")
+
+    // Test 1: Simple function call
+    print("Test 1: Simple function call")
+    let sum = math_utils.add(5, 10)
+    print("  math_utils.add(5, 10) = ", sum)
+    print("  Expected: 15")
+    print("")
+
+    // Test 2: Multiple function calls
+    print("Test 2: Multiple function calls")
+    let product = math_utils.multiply(3, 4)
+    print("  math_utils.multiply(3, 4) = ", product)
+    print("  Expected: 12")
+
+    let difference = math_utils.subtract(20, 8)
+    print("  math_utils.subtract(20, 8) = ", difference)
+    print("  Expected: 12")
+    print("")
+
+    // Test 3: Chained operations
+    print("Test 3: Chained operations")
+    let result = math_utils.add(math_utils.multiply(2, 3), math_utils.subtract(10, 5))
+    print("  add(multiply(2, 3), subtract(10, 5)) = ", result)
+    print("  Expected: 11  (2*3=6, 10-5=5, 6+5=11)")
+    print("")
+
+    print("=== Simple Module Test Complete ===")
+}

@@ -1,0 +1,114 @@
+// dpre_app/data_models.naab
+// Defines all data structures (structs, enums) used throughout the DPRE application.
+
+// --- Helper for simulated Result Type ---
+// Represents the outcome of an operation: either success (Ok) or failure (Err).
+// NAAb doesn't have native Result types, so this is a basic simulation.
+struct Result<T, E> {
+    ok: T?,    // The successful result, if any.
+    err: E?    // The error message or object, if any.
+}
+
+// --- Configuration Structs ---
+
+// Configuration for command-line arguments.
+struct CommandLineConfig {
+    input_file: string,
+    config_file: string?,          // Path to processing config file (optional)
+    output_format: ReportFormat,   // Enum: Console, Json, Csv
+    output_file: string?,          // Path to output file (optional)
+    verbose: bool
+}
+
+// Configuration for data ingestion.
+struct IngestionConfig {
+    input_file: string,
+    file_type: FileType          // Enum: Csv, Json
+}
+
+// Configuration for data processing pipeline.
+struct ProcessingConfig {
+    filters: list<FilterRule>,
+    aggregations: list<AggregationRule>,
+    transformations: list<TransformationRule>
+}
+
+// Represents a single filtering rule.
+struct FilterRule {
+    field: string,
+    operator: string, // e.g., "eq", "gt", "lt", "contains"
+    value: any        // The value to compare against
+}
+
+// Represents a single aggregation rule.
+struct AggregationRule {
+    group_by_field: string,
+    target_field: string,
+    operation: string // e.g., "sum", "avg", "count"
+}
+
+// Represents a single transformation rule.
+struct TransformationRule {
+    new_field: string,
+    formula: string // e.g., "field_a * field_b", or a more complex expression
+}
+
+
+// --- Data Record Structs ---
+
+// Represents a raw record after initial ingestion (e.g., a row from CSV or item from JSON).
+// Keys are strings, values are strings, as typically read from raw input.
+struct RawRecord {
+    data: dict<string, string>
+}
+
+// Represents a record after initial parsing and type conversion.
+// Values are now 'any' to allow for different types (int, float, string, bool).
+struct ProcessedRecord {
+    id: string, // Unique identifier for the record (e.g., hash or generated ID)
+    data: dict<string, any>
+}
+
+
+// --- Report Structs ---
+
+// Represents a summary report generated after processing.
+struct SummaryReport {
+    title: string,
+    generated_at: string, // Timestamp
+    results: dict<string, any>, // Aggregated results
+    details: list<ProcessedRecord>? // Optional: if report includes individual records
+}
+
+
+// --- Enums ---
+
+// Defines allowed types of input files.
+enum FileType {
+    Csv,
+    Json
+}
+
+// Defines allowed output report formats.
+enum ReportFormat {
+    Console,
+    Json,
+    Csv
+}
+
+// Defines possible error codes or types.
+enum ErrorCode {
+    FileNotFound,
+    InvalidFormat,
+    CliError,
+    ProcessingError,
+    ReportingError,
+    UnknownError
+}
+
+// Represents a detailed error structure.
+struct AppError {
+    code: ErrorCode,
+    message: string,
+    details: string?
+}

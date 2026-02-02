@@ -96,6 +96,7 @@ public:
     std::shared_ptr<Type> get(const std::string& name);
     void set(const std::string& name, std::shared_ptr<Type> type);
     bool has(const std::string& name) const;
+    std::shared_ptr<TypeEnvironment> getParent() const { return parent_; }
 
 private:
     std::unordered_map<std::string, std::shared_ptr<Type>> types_;

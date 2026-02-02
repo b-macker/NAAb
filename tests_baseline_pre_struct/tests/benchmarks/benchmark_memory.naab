@@ -1,0 +1,156 @@
+// Performance Benchmark: Memory Usage
+// Tests: Large data structures, memory allocation patterns
+
+import "stdlib" as std
+
+print("========================================")
+print("  Memory Usage Benchmark")
+print("========================================")
+print("")
+
+// Helper: Measure execution time
+function benchmark(name, fn) {
+    let start = std.now()
+    fn()
+    let end = std.now()
+    let elapsed = end - start
+
+    print(name + ": " + elapsed + "ms")
+    return elapsed
+}
+
+// Benchmark 1: Large array creation
+function bench_large_array() {
+    let arr = []
+    let i = 0
+    while (i < 10000) {
+        arr = std.push(arr, i)
+        i = i + 1
+    }
+    return std.length(arr)
+}
+
+let time1 = benchmark("Large array (10,000 elements)", bench_large_array)
+
+// Benchmark 2: Large dict creation
+function bench_large_dict() {
+    let dict = {}
+    let i = 0
+    while (i < 5000) {
+        dict["key_" + i] = "value_" + i
+        i = i + 1
+    }
+    return std.length(std.keys(dict))
+}
+
+let time2 = benchmark("Large dict (5,000 entries)", bench_large_dict)
+
+// Benchmark 3: Nested data structures
+function bench_nested_structures() {
+    let data = []
+    let i = 0
+    while (i < 100) {
+        let record = {
+            "id": i,
+            "name": "Record " + i,
+            "values": [i, i * 2, i * 3, i * 4, i * 5],
+            "metadata": {
+                "created": std.now(),
+                "updated": std.now(),
+                "status": "active"
+            }
+        }
+        data = std.push(data, record)
+        i = i + 1
+    }
+    return std.length(data)
+}
+
+let time3 = benchmark("Nested structures (100 records)", bench_nested_structures)
+
+// Benchmark 4: String concatenation
+function bench_string_concat() {
+    let result = ""
+    let i = 0
+    while (i < 1000) {
+        result = result + "x"
+        i = i + 1
+    }
+    return std.length(result)
+}
+
+let time4 = benchmark("String concatenation (1,000 chars)", bench_string_concat)
+
+// Benchmark 5: Array copying
+function bench_array_copy() {
+    let original = []
+    let i = 0
+    while (i < 1000) {
+        original = std.push(original, i)
+        i = i + 1
+    }
+
+    let iterations = 100
+    i = 0
+    while (i < iterations) {
+        let copy = []
+        for (item in original) {
+            copy = std.push(copy, item)
+        }
+        i = i + 1
+    }
+}
+
+let time5 = benchmark("Array copying (100x1000)", bench_array_copy)
+
+// Benchmark 6: Memory churn (allocate and discard)
+function bench_memory_churn() {
+    let iterations = 1000
+    let i = 0
+    while (i < iterations) {
+        let temp = []
+        let j = 0
+        while (j < 100) {
+            temp = std.push(temp, j)
+            j = j + 1
+        }
+        // temp goes out of scope and should be garbage collected
+        i = i + 1
+    }
+}
+
+let time6 = benchmark("Memory churn (1000 iterations)", bench_memory_churn)
+
+// Summary
+print("")
+print("========================================")
+print("Summary:")
+let total = time1 + time2 + time3 + time4 + time5 + time6
+print("  Total execution time: " + total + "ms")
+print("  Average per benchmark: " + (total / 6) + "ms")
+print("")
+
+// Check for memory-related performance issues
+let all_pass = true
+if (time1 > 5000) {
+    print("  WARNING: Large array creation very slow (> 5s)")
+    all_pass = false
+}
+if (time2 > 5000) {
+    print("  WARNING: Large dict creation very slow (> 5s)")
+    all_pass = false
+}
+if (time4 > 5000) {
+    print("  WARNING: String concatenation very slow (> 5s)")
+    all_pass = false
+}
+
+if (all_pass) {
+    print("  Status: PASS (no major memory performance issues)")
+} else {
+    print("  Status: WARNING (some memory operations are slow)")
+}
+
+print("")
+print("Note: Actual memory usage requires external profiling tools")
+print("========================================")

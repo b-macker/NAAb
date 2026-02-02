@@ -1,0 +1,28 @@
+// Verify time module works for benchmarking
+use time as time
+
+main {
+    print("Testing time module...")
+
+    // Test 1: now_millis() - critical for benchmarking
+    let start = time.now_millis()
+    print("Start time (ms): ", start)
+
+    // Do some work
+    let sum = 0
+    for i in 1..=1000 {
+        sum = sum + i
+    }
+
+    let end = time.now_millis()
+    print("End time (ms): ", end)
+
+    let elapsed = end - start
+    print("Elapsed time (ms): ", elapsed)
+
+    // Test 2: now() - timestamp in seconds
+    let timestamp = time.now()
+    print("Current timestamp (s): ", timestamp)
+
+    print("\n✓ Time module works for benchmarking!")
+}

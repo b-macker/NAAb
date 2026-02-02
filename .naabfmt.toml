@@ -1,0 +1,24 @@
+# NAAb Formatter Configuration
+# Place this file in your project root to customize formatting
+
+[style]
+indent_width = 4              # Number of spaces per indentation level (2 or 4)
+max_line_length = 100         # Maximum characters before line wrapping (80-120)
+semicolons = "never"          # "always", "never", or "as-needed"
+trailing_commas = true        # Add trailing commas in multi-line lists
+
+[braces]
+function_brace_style = "same_line"        # "same_line" (K&R) or "next_line" (Allman)
+control_flow_brace_style = "same_line"
+
+[spacing]
+blank_lines_between_declarations = 1   # Lines between top-level declarations
+blank_lines_between_sections = 2       # Lines between major sections (imports, types, functions)
+space_before_function_paren = false    # fn name () vs fn name()
+space_in_empty_parens = false          # fn() vs fn( )
+
+[wrapping]
+wrap_function_params = "auto"      # "auto", "always", or "never"
+wrap_struct_fields = "auto"        # When to wrap struct field definitions
+wrap_array_elements = "auto"       # When to wrap array/dict elements
+align_wrapped_params = true        # Align parameters when wrapped

@@ -1,0 +1,37 @@
+# Test ISS-008: Collections Module Functional Style
+# Status in ISSUES.md: ❌ Buggy Internal State
+# Issue: set_add returns NEW set (functional style), requires reassignment
+
+use collections as coll
+
+main {
+    print("=== Testing ISS-008: Collections Module ===")
+
+    # Test 1: Create a set
+    print("Test 1: Create set")
+    let my_set = coll.Set()
+    print("  Initial set:", my_set)
+
+    # Test 2: Try adding without reassignment (will fail if functional)
+    print("Test 2: Add without reassignment")
+    coll.set_add(my_set, 1)
+    print("  After add(1):", my_set, "(should be empty if functional)")
+
+    # Test 3: Add with reassignment (correct way if functional)
+    print("Test 3: Add with reassignment")
+    my_set = coll.set_add(my_set, 1)
+    print("  After set = add(1):", my_set)
+    my_set = coll.set_add(my_set, 2)
+    print("  After set = add(2):", my_set)
+    my_set = coll.set_add(my_set, 1)
+    print("  After set = add(1) again:", my_set, "(should still be {1,2})")
+
+    # Test 4: Check if contains
+    print("Test 4: Check contains")
+    let has_1 = coll.set_contains(my_set, 1)
+    let has_3 = coll.set_contains(my_set, 3)
+    print("  Contains 1:", has_1)
+    print("  Contains 3:", has_3)
+
+    print("VERDICT: Functional style confirmed if reassignment needed")
+}

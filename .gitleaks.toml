@@ -1,0 +1,227 @@
+# Gitleaks Configuration for NAAb Language
+# Week 3, Task 3.4: Secret Scanning
+#
+# This file configures gitleaks to detect secrets in code, commits, and files
+# See: https://github.com/gitleaks/gitleaks
+
+title = "NAAb Language Secret Scanning Configuration"
+
+[extend]
+# Use default gitleaks rules as base
+useDefault = true
+
+# ============================================================================
+# Allowlist - Files/Paths to Ignore
+# ============================================================================
+
+[allowlist]
+description = "Allowed patterns that are not secrets"
+
+# Test files can have dummy secrets
+paths = [
+    '''tests/.*''',
+    '''examples/.*''',
+    '''fuzz/corpus/.*''',
+    '''docs/.*\.md''',
+]
+
+# Specific known false positives
+regexes = [
+    # Build timestamps and version hashes
+    '''[0-9]{8}\.[0-9]{6}''',  # Build timestamps (YYYYMMDD.HHMMSS)
+    '''[a-f0-9]{7,40}''',  # Git commit hashes (in CHANGELOG, docs, etc.)
+
+    # Common words that trigger false positives
+    '''password.*=.*example''',  # Example passwords in docs
+    '''api[_-]?key.*=.*demo''',  # Demo API keys in docs
+]
+
+commits = [
+    # Add specific commit SHAs to ignore if needed
+]
+
+# ============================================================================
+# Custom Rules for NAAb-Specific Secrets
+# ============================================================================
+
+[[rules]]
+id = "naab-api-key"
+description = "NAAb API Key"
+regex = '''naab[_-]?api[_-]?key[_-]?[:=]\s*['"]?([a-zA-Z0-9]{32,})['"]?'''
+tags = ["naab", "api-key"]
+
+[[rules]]
+id = "naab-access-token"
+description = "NAAb Access Token"
+regex = '''naab[_-]?access[_-]?token[_-]?[:=]\s*['"]?([a-zA-Z0-9]{40,})['"]?'''
+tags = ["naab", "token"]
+
+[[rules]]
+id = "github-pat"
+description = "GitHub Personal Access Token"
+regex = '''ghp_[0-9a-zA-Z]{36}'''
+tags = ["github", "pat"]
+
+[[rules]]
+id = "github-oauth"
+description = "GitHub OAuth Access Token"
+regex = '''gho_[0-9a-zA-Z]{36}'''
+tags = ["github", "oauth"]
+
+[[rules]]
+id = "github-app-token"
+description = "GitHub App Token"
+regex = '''(ghu|ghs)_[0-9a-zA-Z]{36}'''
+tags = ["github", "app-token"]
+
+[[rules]]
+id = "slack-token"
+description = "Slack Token"
+regex = '''xox[baprs]-([0-9a-zA-Z]{10,48})'''
+tags = ["slack", "token"]
+
+[[rules]]
+id = "slack-webhook"
+description = "Slack Webhook"
+regex = '''https://hooks\.slack\.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}'''
+tags = ["slack", "webhook"]
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key ID"
+regex = '''AKIA[0-9A-Z]{16}'''
+tags = ["aws", "access-key"]
+
+[[rules]]
+id = "aws-secret-key"
+description = "AWS Secret Access Key"
+regex = '''aws[_-]?secret[_-]?access[_-]?key[_-]?[:=]\s*['"]?([A-Za-z0-9/+=]{40})['"]?'''
+tags = ["aws", "secret-key"]
+
+[[rules]]
+id = "gcp-api-key"
+description = "Google Cloud Platform API Key"
+regex = '''AIza[0-9A-Za-z\\-_]{35}'''
+tags = ["gcp", "api-key"]
+
+[[rules]]
+id = "gcp-oauth"
+description = "Google OAuth Access Token"
+regex = '''ya29\.[0-9A-Za-z\-_]+'''
+tags = ["gcp", "oauth"]
+
+[[rules]]
+id = "azure-storage-key"
+description = "Azure Storage Account Key"
+regex = '''DefaultEndpointsProtocol=https;AccountName=[^;]+;AccountKey=([^;]+);'''
+tags = ["azure", "storage-key"]
+
+[[rules]]
+id = "private-key"
+description = "Private Key"
+regex = '''-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'''
+tags = ["private-key", "crypto"]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)api[_-]?key[_-]?[:=]\s*['"]?([0-9a-zA-Z]{32,})['"]?'''
+tags = ["api-key", "generic"]
+[rules.allowlist]
+regexes = [
+    # Ignore example/demo/test API keys
+    '''api[_-]?key[_-]?[:=].*example''',
+    '''api[_-]?key[_-]?[:=].*demo''',
+    '''api[_-]?key[_-]?[:=].*test''',
+]
+
+[[rules]]
+id = "generic-secret"
+description = "Generic Secret"
+regex = '''(?i)secret[_-]?[:=]\s*['"]?([0-9a-zA-Z]{20,})['"]?'''
+tags = ["secret", "generic"]
+[rules.allowlist]
+regexes = [
+    '''secret[_-]?[:=].*example''',
+    '''secret[_-]?[:=].*demo''',
+    '''secret[_-]?[:=].*test''',
+]
+
+[[rules]]
+id = "password"
+description = "Password in Code"
+regex = '''(?i)password[_-]?[:=]\s*['"]([^'"]{8,})['"]'''
+tags = ["password"]
+[rules.allowlist]
+regexes = [
+    '''password[_-]?[:=].*example''',
+    '''password[_-]?[:=].*demo''',
+    '''password[_-]?[:=].*test''',
+    '''password[_-]?[:=].*123456''',  # Obviously fake passwords
+]
+
+[[rules]]
+id = "jwt-token"
+description = "JSON Web Token"
+regex = '''eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*'''
+tags = ["jwt", "token"]
+
+[[rules]]
+id = "database-url"
+description = "Database Connection String"
+regex = '''(?i)(mysql|postgres|mongodb|redis)://[^:]+:[^@]+@[^/]+/'''
+tags = ["database", "connection-string"]
+[rules.allowlist]
+regexes = [
+    # Ignore localhost and example databases
+    '''://.*localhost''',
+    '''://.*127\.0\.0\.1''',
+    '''://.*example\.com''',
+]
+
+[[rules]]
+id = "ssh-key"
+description = "SSH Private Key"
+regex = '''-----BEGIN OPENSSH PRIVATE KEY-----'''
+tags = ["ssh", "private-key"]
+
+[[rules]]
+id = "pypi-token"
+description = "PyPI Upload Token"
+regex = '''pypi-[A-Za-z0-9-_]{32,}'''
+tags = ["pypi", "token"]
+
+[[rules]]
+id = "npm-token"
+description = "NPM Access Token"
+regex = '''npm_[A-Za-z0-9]{36}'''
+tags = ["npm", "token"]
+
+[[rules]]
+id = "docker-config"
+description = "Docker Auth Config"
+regex = '''"auth"\s*:\s*"[A-Za-z0-9+/=]{20,}"'''
+tags = ["docker", "auth"]
+
+# ============================================================================
+# Entropy Detection
+# ============================================================================
+
+[[rules]]
+id = "high-entropy-string"
+description = "High Entropy String (Possible Secret)"
+regex = '''[a-zA-Z0-9+/]{40,}'''
+entropy = 4.5
+tags = ["entropy", "generic"]
+[rules.allowlist]
+paths = [
+    # Ignore test fixtures and example data
+    '''tests/.*''',
+    '''examples/.*''',
+    # Ignore binary data and base64-encoded assets
+    '''.*\.(png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot)$''',
+]
+regexes = [
+    # Ignore known base64 patterns that aren't secrets
+    '''data:image/.*base64''',
+]

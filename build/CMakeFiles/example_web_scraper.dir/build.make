@@ -103,7 +103,6 @@ example_web_scraper: /data/data/com.termux/files/usr/lib/libpython3.12.so
 example_web_scraper: /data/data/com.termux/files/usr/lib/libsqlite3.so
 example_web_scraper: /data/data/com.termux/files/home/.naab/language/external/quickjs-2021-03-27/libquickjs.a
 example_web_scraper: libnaab_block_enricher.a
-example_web_scraper: libnaab_security.a
 example_web_scraper: /data/data/com.termux/files/usr/lib/libpython3.12.so
 example_web_scraper: libnaab_semantic.a
 example_web_scraper: libnaab_parser.a
@@ -113,6 +112,7 @@ example_web_scraper: external/abseil-cpp/absl/debugging/libabsl_leak_check.a
 example_web_scraper: external/abseil-cpp/absl/base/libabsl_strerror.a
 example_web_scraper: libnaab_lexer.a
 example_web_scraper: libnaab_stdlib.a
+example_web_scraper: libnaab_security.a
 example_web_scraper: /data/data/com.termux/files/usr/lib/libssl.so
 example_web_scraper: /data/data/com.termux/files/usr/lib/libcrypto.so
 example_web_scraper: external/spdlog/libspdlog.a

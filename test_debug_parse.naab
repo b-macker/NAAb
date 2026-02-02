@@ -1,0 +1,9 @@
+use test_module_types_def as types
+
+function test1(x: types.Config) {
+    print("test1\n")
+}
+
+main {
+    print("OK\n")
+}

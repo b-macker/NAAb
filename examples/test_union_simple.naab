@@ -1,0 +1,5 @@
+// Simple union type test
+
+main {
+    print("Testing simple union")
+}

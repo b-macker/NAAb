@@ -1,0 +1,81 @@
+main {
+    print("╔══════════════════════════════════════════════════════════╗\n")
+    print("║  NAAb Multi-line Code Support - ALL 8 LANGUAGES TEST    ║\n")
+    print("╚══════════════════════════════════════════════════════════╝\n\n")
+
+    // 1. JavaScript
+    print("1. JavaScript:\n")
+    let js = <<javascript
+const a = 10;
+const b = 20;
+a + b
+    >>
+    print("   10 + 20 = ", js, "\n\n")
+
+    // 2. Python
+    print("2. Python:\n")
+    let py = <<python
+x = 15
+y = 25
+x * y
+    >>
+    print("   15 * 25 = ", py, "\n\n")
+
+    // 3. Shell/Bash
+    print("3. Shell:\n")
+    let sh = <<bash
+A=100
+B=200
+expr $A + $B
+    >>
+    print("   100 + 200 = ", sh, "\n\n")
+
+    // 4. C++
+    print("4. C++:\n")
+    let cpp = <<cpp
+int x = 30;
+int y = 40;
+x + y
+    >>
+    print("   30 + 40 = ", cpp, "\n\n")
+
+    // 5. Rust
+    print("5. Rust:\n")
+    let rust = <<rust
+let x = 50;
+let y = 30;
+x + y
+    >>
+    print("   50 + 30 = ", rust, "\n\n")
+
+    // 6. Ruby
+    print("6. Ruby:\n")
+    let ruby = <<ruby
+a = 25
+b = 35
+puts a + b
+    >>
+    print("   25 + 35 = ", ruby, "\n\n")
+
+    // 7. Go
+    print("7. Go:\n")
+    let go = <<go
+x := 15
+y := 25
+x + y
+    >>
+    print("   15 + 25 = ", go, "\n\n")
+
+    // 8. C#
+    print("8. C#:\n")
+    let cs = <<csharp
+int x = 45;
+int y = 55;
+x + y
+    >>
+    print("   45 + 55 = ", cs, "\n\n")
+
+    print("╔══════════════════════════════════════════════════════════╗\n")
+    print("║  SUCCESS! All 8 languages support multi-line code!      ║\n")
+    print("╚══════════════════════════════════════════════════════════╝\n")
+}

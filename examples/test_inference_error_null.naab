@@ -1,0 +1,10 @@
+// Test type inference error: ambiguous null
+
+fn test() {
+    let x = null  // ERROR: Cannot infer type from null (ambiguous)
+}
+
+main {
+    print("Testing inference error: null is ambiguous")
+    test()
+}

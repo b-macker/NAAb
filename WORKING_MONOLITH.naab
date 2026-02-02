@@ -1,0 +1,332 @@
+# NAAb Working Monolith Demo
+# Demonstrates all working features with all 8 languages
+
+use array as arr
+use string as str
+use math as math
+
+main {
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║         NAAb Monolith Demo - All Features Showcase          ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+    print("")
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 1: NAAb Core Syntax
+    # ═══════════════════════════════════════════════════════════════
+
+    print(">>> SECTION 1: NAAb Core Syntax")
+    print("")
+
+    # Variables
+    let name = "NAAb"
+    let version = 2.0
+    let active = true
+    print("Variables: name=", name, " version=", version, " active=", active)
+
+    # Arrays and NEW array assignment feature
+    let numbers = [10, 20, 30, 40, 50]
+    print("Original array: ", numbers)
+    numbers[0] = 99
+    numbers[4] = 77
+    print("After assignment: ", numbers)
+
+    # Control flow
+    let score = 85
+    if score >= 90 {
+        print("Grade: A")
+    } else if score >= 80 {
+        print("Grade: B")
+    } else {
+        print("Grade: C")
+    }
+
+    # Loops
+    print("Counting:")
+    let i = 1
+    while i <= 3 {
+        print("  ", i)
+        i = i + 1
+    }
+
+    let fruits = ["apple", "banana", "cherry"]
+    print("Fruits:")
+    for fruit in fruits {
+        print("  - ", fruit)
+    }
+
+    print("")
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 2: Standard Library (Native C++)
+    # ═══════════════════════════════════════════════════════════════
+
+    print(">>> SECTION 2: Standard Library (Native C++ - FAST!)")
+    print("")
+
+    let data = [5, 2, 8, 1, 9, 3]
+    print("Data: ", data)
+
+    let sorted_data = arr.sort(data)
+    print("Sorted: ", sorted_data)
+
+    let doubled = arr.map(data, fn(x) { return x * 2 })
+    print("Doubled: ", doubled)
+
+    let evens = arr.filter(data, fn(x) { return x % 2 == 0 })
+    print("Evens: ", evens)
+
+    let sum = arr.reduce(data, fn(acc, x) { return acc + x }, 0)
+    print("Sum: ", sum)
+
+    # String operations
+    let text = "  hello world  "
+    print("Text: '", text, "'")
+    print("Trimmed: '", str.trim(text), "'")
+    print("Uppercase: '", str.upper(text), "'")
+
+    # Math
+    print("sqrt(16) = ", math.sqrt(16.0))
+    print("pow(2, 8) = ", math.pow(2.0, 8.0))
+    print("PI = ", math.PI)
+
+    print("")
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 3: Polyglot Programming - All 8 Languages!
+    # ═══════════════════════════════════════════════════════════════
+
+    print(">>> SECTION 3: ALL 8 POLYGLOT LANGUAGES")
+    print("")
+
+    # Language 1: Python
+    print("1. Python:")
+    let py_data = [1, 2, 3, 4, 5]
+    let py_result = <<python[py_data]
+    result = sum(py_data) * 2
+    print(f"   Sum doubled: {result}")
+    result
+    >>
+    print("   Returned: ", py_result)
+
+    # Language 2: JavaScript
+    print("\n2. JavaScript:")
+    let js_data = [10, 20, 30]
+    let js_result = <<javascript[js_data]
+    const sum = js_data.reduce((a, b) => a + b, 0);
+    console.log("   Sum: " + sum);
+    sum
+    >>
+    print("   Returned: ", js_result)
+
+    # Language 3: Bash
+    print("\n3. Bash/Shell:")
+    <<bash
+    echo "   Current dir: $PWD"
+    echo "   Bash version: $BASH_VERSION"
+    echo "NAAb test" > /tmp/naab_monolith.txt
+    cat /tmp/naab_monolith.txt
+    rm /tmp/naab_monolith.txt
+    echo "   File operations OK"
+    >>
+
+    # Language 4: C++
+    print("\n4. C++ (compiled at runtime):")
+    let cpp_nums = [100, 200, 300]
+    let cpp_result = <<cpp[cpp_nums]
+    int sum = 0;
+    for (const auto& num : cpp_nums) {
+        sum += std::stoi(num);
+    }
+    std::cout << "   C++ sum: " << sum << std::endl;
+    return sum;
+    >>
+    print("   Returned: ", cpp_result)
+
+    # Language 5: Ruby
+    print("\n5. Ruby:")
+    let rb_text = "naab polyglot"
+    <<ruby[rb_text]
+    puts "   Text: " + rb_text
+    puts "   Uppercase: " + rb_text.upcase
+    puts "   Word count: " + rb_text.split.length.to_s
+    >>
+
+    # Language 6: Go
+    print("\n6. Go:")
+    let go_val = 42
+    <<go[go_val]
+    package main
+    import "fmt"
+    func main() {
+        fmt.Println("   Value:", go_val)
+        fmt.Println("   Doubled:", go_val * 2)
+    }
+    >>
+
+    # Language 7: Rust
+    print("\n7. Rust:")
+    let rust_num = 10
+    <<rust[rust_num]
+    fn main() {
+        println!("   Number: {}", rust_num);
+        let squared = rust_num * rust_num;
+        println!("   Squared: {}", squared);
+    }
+    >>
+
+    # Language 8: C#
+    print("\n8. C#:")
+    let cs_count = 5
+    <<csharp[cs_count]
+    using System;
+    class Program {
+        static void Main() {
+            Console.WriteLine("   Count: " + cs_count);
+            int fact = 1;
+            for (int i = 1; i <= cs_count; i++) {
+                fact *= i;
+            }
+            Console.WriteLine("   Factorial: " + fact);
+        }
+    }
+    >>
+
+    print("")
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 4: Advanced Polyglot Features
+    # ═══════════════════════════════════════════════════════════════
+
+    print(">>> SECTION 4: Advanced - Variable Binding & Returns")
+    print("")
+
+    # Demonstrate variable binding and return values
+    let input_nums = [23, 45, 12, 67, 89, 34]
+    print("Input: ", input_nums)
+
+    # Python statistical analysis
+    let stats = <<python[input_nums]
+    import statistics
+    {
+        "count": len(input_nums),
+        "min": min(input_nums),
+        "max": max(input_nums),
+        "mean": round(statistics.mean(input_nums), 2),
+        "median": statistics.median(input_nums)
+    }
+    >>
+    print("Statistics: ", stats)
+
+    # JavaScript formatting
+    let formatted = <<javascript[input_nums]
+    input_nums.map(n => "num:" + n)
+    >>
+    print("Formatted: ", formatted)
+
+    print("")
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 5: Multi-Language Data Pipeline
+    # ═══════════════════════════════════════════════════════════════
+
+    print(">>> SECTION 5: Real-World Pipeline (4 Languages)")
+    print("")
+
+    # Step 1: Generate data (NAAb)
+    print("1. NAAb: Generate data")
+    let dataset = [10, 25, 30, 45, 50, 65, 70, 85, 90]
+    print("   Dataset: ", dataset)
+
+    # Step 2: Transform (Python)
+    print("2. Python: Normalize data")
+    let normalized = <<python[dataset]
+    min_val = min(dataset)
+    max_val = max(dataset)
+    range_val = max_val - min_val
+    result = [(x - min_val) / range_val for x in dataset]
+    print(f"   Normalized {len(result)} values")
+    result
+    >>
+
+    # Step 3: Analyze (JavaScript)
+    print("3. JavaScript: Calculate statistics")
+    let analysis = <<javascript[normalized]
+    const sum = normalized.reduce((a, b) => a + b, 0);
+    const avg = sum / normalized.length;
+    const result = {
+        count: normalized.length,
+        average: avg.toFixed(4)
+    };
+    console.log("   Average: " + result.average);
+    result
+    >>
+
+    # Step 4: Summary (NAAb)
+    print("4. NAAb: Pipeline complete!")
+    print("   Result: ", analysis)
+
+    print("")
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 6: Error Handling
+    # ═══════════════════════════════════════════════════════════════
+
+    print(">>> SECTION 6: Error Handling")
+    print("")
+
+    try {
+        print("Attempting risky operation...")
+        let risky = <<python
+        1 / 0
+        >>
+        print("Result: ", risky)
+    } catch error {
+        print("✓ Caught error gracefully!")
+    } finally {
+        print("✓ Cleanup completed")
+    }
+
+    print("")
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 7: Performance Comparison
+    # ═══════════════════════════════════════════════════════════════
+
+    print(">>> SECTION 7: Native vs Polyglot Performance")
+    print("")
+
+    let perf_data = [9, 7, 5, 3, 1, 2, 4, 6, 8, 10]
+
+    print("Native NAAb (C++ stdlib) - FAST:")
+    let native_result = arr.sort(perf_data)
+    print("  Result: ", native_result)
+
+    print("Polyglot Python - Slower but ecosystem access:")
+    let py_result2 = <<python[perf_data]
+    sorted(perf_data)
+    >>
+    print("  Result: ", py_result2)
+
+    print("")
+
+    # ═══════════════════════════════════════════════════════════════
+    # FINAL SUMMARY
+    # ═══════════════════════════════════════════════════════════════
+
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║                  DEMO COMPLETE! ✓                            ║")
+    print("║                                                              ║")
+    print("║  You just saw:                                               ║")
+    print("║  ✓ NAAb core syntax (variables, loops, functions)            ║")
+    print("║  ✓ Array element assignment (NEW 2026-01-20!)                ║")
+    print("║  ✓ Standard library (13 native C++ modules)                  ║")
+    print("║  ✓ ALL 8 polyglot languages working together                 ║")
+    print("║  ✓ Variable binding and return values                        ║")
+    print("║  ✓ Error handling (try/catch/finally)                        ║")
+    print("║  ✓ Real-world data processing pipeline                       ║")
+    print("║  ✓ Performance comparison                                    ║")
+    print("║                                                              ║")
+    print("║  NAAb is production-ready! 🚀                                ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+}

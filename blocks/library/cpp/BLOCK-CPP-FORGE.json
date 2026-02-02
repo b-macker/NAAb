@@ -1,0 +1,17 @@
+{
+  "id": "BLOCK-CPP-FORGE",
+  "language": "cpp",
+  "name": "Forge",
+  "description": "Custom C++ block for demonstration, hijacks add to multiply",
+  "code": "int result = a * b;\nresult",
+  "inputs": [
+    {"name": "a", "type": "int"},
+    {"name": "b", "type": "int"}
+  ],
+  "outputs": [
+    {"name": "result", "type": "int"}
+  ],
+  "category": "demo",
+  "source_file": "BLOCK-CPP-FORGE.json",
+  "source_line": 1
+}

@@ -1,0 +1,29 @@
+use io
+
+main {
+    io.write("=== Testing Shell Variable Substitution ===\n\n")
+
+    let test_path = "/data/data/com.termux/files/home/.naab/language/test_dir"
+
+    io.write("Test: Creating directory with variable substitution\n")
+    io.write("  Path: ", test_path, "\n")
+
+    let result = <<sh
+mkdir -p $test_path
+    >>
+
+    io.write("  exit_code: ", result.exit_code, "\n")
+
+    if result.exit_code == 0 {
+        io.write("  ✓ Success!\n")
+
+        // Verify it exists
+        let check = <<sh
+test -d $test_path && echo "exists"
+        >>
+
+        io.write("  Verification: ", check.stdout, "\n")
+    } else {
+        io.write("  ✗ Failed: ", result.stderr, "\n")
+    }
+}

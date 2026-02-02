@@ -1,0 +1,33 @@
+use io
+use json
+
+// Test 1: Dictionary syntax
+fn test_dict_syntax() {
+    // Quoted keys (should work)
+    let data = {"name": "Alice", "age": 30}
+    io.write("Dict access: ", data["name"], "\n")
+}
+
+// Test 2: Polyglot block in function
+fn test_polyglot_in_function() -> int {
+    let result = <<python
+x = 10
+y = 20
+x + y
+    >>
+    return result
+}
+
+// Test 3: Entry point is 'main {}'
+main {
+    io.write("=== Testing Gemini Issues ===\n\n")
+
+    io.write("Test 1: Dictionary syntax\n")
+    test_dict_syntax()
+
+    io.write("\nTest 2: Polyglot block in function\n")
+    let poly_result = test_polyglot_in_function()
+    io.write("Polyglot function returned: ", json.stringify(poly_result), "\n")
+
+    io.write("\n=== All tests complete ===\n")
+}

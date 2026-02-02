@@ -1,0 +1,104 @@
+// NAAb Standard Library: Result<T, E> Type// Result type for error handling without exceptions
+// Similar to Rust's Result<T, E>
+
+// Phase 3.1: Result<T, E> - represents either success (Ok) or failure (Err)
+struct Result<T, E> {
+    is_ok: bool
+    value: T | null
+    error: E | null
+}
+
+// Constructor for successful result
+function Ok<T, E>(value: T) -> Result<T, E> {
+    return Result<T, E> {
+        is_ok: true,
+        value: value,
+        error: null
+    }
+}
+
+// Constructor for error result
+function Err<T, E>(error: E) -> Result<T, E> {
+    return Result<T, E> {
+        is_ok: false,
+        value: null,
+        error: error
+    }
+}
+
+// Check if result is Ok
+function isOk<T, E>(result: Result<T, E>) -> bool {
+    return result.is_ok
+}
+
+// Check if result is Err
+function isErr<T, E>(result: Result<T, E>) -> bool {
+    return !result.is_ok
+}
+
+// Unwrap value or throw if error
+function unwrap<T, E>(result: Result<T, E>) -> T {
+    if (result.is_ok) {
+        return result.value
+    } else {
+        throw "Called unwrap on an Err value: " + result.error
+    }
+}
+
+// Unwrap value or return default
+function unwrapOr<T, E>(result: Result<T, E>, default_value: T) -> T {
+    if (result.is_ok) {
+        return result.value
+    } else {
+        return default_value
+    }
+}
+
+// Unwrap error or throw if ok
+function unwrapErr<T, E>(result: Result<T, E>) -> E {
+    if (!result.is_ok) {
+        return result.error
+    } else {
+        throw "Called unwrapErr on an Ok value"
+    }
+}
+
+// Map over Ok value
+function map<T, U, E>(result: Result<T, E>, fn: function(T) -> U) -> Result<U, E> {
+    if (result.is_ok) {
+        return Ok<U, E>(fn(result.value))
+    } else {
+        return Err<U, E>(result.error)
+    }
+}
+
+// Map over Err value
+function mapErr<T, E, F>(result: Result<T, E>, fn: function(E) -> F) -> Result<T, F> {
+    if (result.is_ok) {
+        return Ok<T, F>(result.value)
+    } else {
+        return Err<T, F>(fn(result.error))
+    }
+}
+
+// Chain results (flatMap)
+function andThen<T, U, E>(result: Result<T, E>, fn: function(T) -> Result<U, E>) -> Result<U, E> {
+    if (result.is_ok) {
+        return fn(result.value)
+    } else {
+        return Err<U, E>(result.error)
+    }
+}
+
+// Pattern matching on Result
+function match<T, E, R>(
+    result: Result<T, E>,
+    onOk: function(T) -> R,
+    onErr: function(E) -> R
+) -> R {
+    if (result.is_ok) {
+        return onOk(result.value)
+    } else {
+        return onErr(result.error)
+    }
+}

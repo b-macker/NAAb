@@ -1,0 +1,23 @@
+use io
+
+main {
+    io.write("=== Testing Shell Variable Binding ===\n\n")
+
+    let test_path = "/data/data/com.termux/files/home/.naab/language/test_dir"
+
+    io.write("Test 1: With variable binding [test_path]\n")
+    let result1 = <<sh[test_path]
+mkdir -p "$test_path"
+    >>
+
+    io.write("  exit_code: ", result1.exit_code, "\n")
+    io.write("  stdout: '", result1.stdout, "'\n")
+    io.write("  stderr: '", result1.stderr, "'\n\n")
+
+    io.write("Test 2: Verify directory exists\n")
+    let result2 = <<sh[test_path]
+test -d "$test_path" && echo "Directory exists" || echo "Directory not found"
+    >>
+
+    io.write("  Output: ", result2.stdout, "\n")
+}

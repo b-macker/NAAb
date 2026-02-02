@@ -1,0 +1,209 @@
+# NAAb Language - Dependency Lockfile
+# Week 3, Task 3.1: Dependency Pinning
+# This file locks all dependency versions for reproducible builds
+# DO NOT EDIT MANUALLY - Regenerate with: scripts/update-dependencies.sh
+
+version: 1
+generated: 2026-01-30T00:00:00Z
+naab_version: 0.1.0
+
+# ============================================================================
+# Vendored C++ Dependencies (in external/)
+# ============================================================================
+
+vendored_dependencies:
+  - name: abseil-cpp
+    version: "20230125.3"
+    source: https://github.com/abseil/abseil-cpp
+    commit: "273292d1cfc0a94a65082ee350509af1d113344d"
+    license: Apache-2.0
+    purpose: Core utilities, strings, hash maps
+
+  - name: fmt
+    version: "10.1.1"
+    source: https://github.com/fmtlib/fmt
+    commit: "e69e5f977d458f2650bb346dadf2ad30c5320281"
+    license: MIT
+    purpose: String formatting library
+
+  - name: spdlog
+    version: "1.12.0"
+    source: https://github.com/gabime/spdlog
+    commit: "76fb40d95455f249bd70824ecfcae7a8f0930fa3"
+    license: MIT
+    purpose: Logging library
+
+  - name: nlohmann-json
+    version: "3.11.2"
+    source: https://github.com/nlohmann/json
+    commit: "bc889afb4c5bf1c0d8ee29ef35eaaf4c8bef8a5d"
+    license: MIT
+    purpose: JSON parsing and serialization
+
+  - name: googletest
+    version: "1.14.0"
+    source: https://github.com/google/googletest
+    commit: "f8d7d77c06936315286eb55f8de22cd23c188571"
+    license: BSD-3-Clause
+    purpose: Unit testing framework
+
+  - name: cpp-httplib
+    version: "0.14.0"
+    source: https://github.com/yhirose/cpp-httplib
+    commit: "2e59c35fc1b8f68e0645b9e68c65c04059ed6063"
+    license: MIT
+    purpose: HTTP server/client library
+
+  - name: quickjs
+    version: "2021-03-27"
+    source: https://bellard.org/quickjs/
+    archive: quickjs-2021-03-27.tar.xz
+    sha256: "a45d90d59cbeb3a6ca7a7092d9db17ef7c9f37cb0ddfef30a1e4aa0c97c44d5b"
+    license: MIT
+    purpose: JavaScript engine for polyglot blocks
+
+  - name: linenoise
+    version: "1.0"
+    source: https://github.com/antirez/linenoise
+    commit: "c894b9e59f02203dbe4e2be657572cf88c4230c3"
+    license: BSD-2-Clause
+    purpose: Readline replacement for REPL
+
+# ============================================================================
+# System Dependencies (via package manager)
+# ============================================================================
+
+system_dependencies:
+  - name: SQLite3
+    min_version: "3.35.0"
+    package: libsqlite3-dev
+    purpose: Block registry database
+    required: true
+
+  - name: Python3
+    min_version: "3.8.0"
+    package: python3-dev
+    purpose: Python polyglot execution
+    required: false
+
+  - name: pybind11
+    min_version: "2.10.0"
+    package: python3-pybind11
+    purpose: C++/Python FFI binding
+    required: false
+    depends_on: Python3
+
+  - name: OpenSSL
+    min_version: "1.1.1"
+    package: libssl-dev
+    purpose: Cryptographic hash functions
+    required: false
+
+  - name: libffi
+    min_version: "3.3"
+    package: libffi-dev
+    purpose: Dynamic C++ function calling
+    required: false
+
+  - name: libcurl
+    min_version: "7.68.0"
+    package: libcurl4-openssl-dev
+    purpose: HTTP requests in stdlib
+    required: true
+
+  - name: pkg-config
+    min_version: "0.29"
+    package: pkg-config
+    purpose: Library detection
+    required: true
+
+# ============================================================================
+# Build Tools
+# ============================================================================
+
+build_tools:
+  - name: CMake
+    min_version: "3.15.0"
+    purpose: Build system
+    required: true
+
+  - name: GCC
+    min_version: "9.0.0"
+    purpose: C++ compiler
+    required: true
+    alternative: Clang
+
+  - name: Clang
+    min_version: "11.0.0"
+    purpose: C++ compiler (with sanitizers/fuzzing)
+    required: false
+    preferred_for: [sanitizers, fuzzing]
+
+  - name: Git
+    min_version: "2.25.0"
+    purpose: Version control
+    required: true
+
+# ============================================================================
+# Integrity Verification
+# ============================================================================
+
+checksums:
+  abseil-cpp:
+    sha256: "unknown"  # Vendored via git submodule
+
+  fmt:
+    sha256: "unknown"  # Vendored via git submodule
+
+  spdlog:
+    sha256: "unknown"  # Vendored via git submodule
+
+  quickjs-2021-03-27.tar.xz:
+    sha256: "a45d90d59cbeb3a6ca7a7092d9db17ef7c9f37cb0ddfef30a1e4aa0c97c44d5b"
+
+# ============================================================================
+# Security Notes
+# ============================================================================
+
+security:
+  vulnerability_scan_date: 2026-01-30
+  known_vulnerabilities: []
+  security_advisories: []
+
+  notes:
+    - All vendored dependencies are pinned to specific commits
+    - System dependencies have minimum version requirements
+    - Run 'scripts/check-dependencies.sh' to verify versions
+    - Run 'scripts/scan-vulnerabilities.sh' to check for CVEs
+
+# ============================================================================
+# Update Policy
+# ============================================================================
+
+update_policy:
+  review_frequency: monthly
+  security_updates: immediate
+  breaking_changes: major_version_only
+
+  procedure:
+    1. Review dependency updates monthly
+    2. Test with sanitizers and fuzzers
+    3. Update DEPENDENCIES.lock
+    4. Regenerate SBOM
+    5. Update security audit
+
+# ============================================================================
+# Reproducibility
+# ============================================================================
+
+reproducibility:
+  build_environment: |
+    To ensure reproducible builds:
+    1. Use exact dependency versions from this lockfile
+    2. Use same compiler version
+    3. Use same build flags
+    4. Verify checksums for all downloads
+
+  verification: |
+    To verify build reproducibility:
+    ./scripts/verify-build-reproducibility.sh

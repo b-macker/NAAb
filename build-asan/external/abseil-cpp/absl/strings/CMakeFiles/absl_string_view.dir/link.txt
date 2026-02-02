@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_string_view.a CMakeFiles/absl_string_view.dir/string_view.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_string_view.a

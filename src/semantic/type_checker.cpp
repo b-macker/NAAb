@@ -117,8 +117,15 @@ std::vector<TypeError> TypeChecker::check(std::shared_ptr<ast::Program> program)
 
 // Stub implementations - accept nodes but don't check yet
 void TypeChecker::visit(ast::Program& node) {
-    for (const auto& stmt : node.getStatements()) {
-        stmt->accept(*this);
+    // Visit all top-level declarations
+    for (const auto& func : node.getFunctions()) {
+        func->accept(*this);
+    }
+    for (const auto& exp : node.getExports()) {
+        exp->accept(*this);
+    }
+    if (node.getMainBlock()) {
+        node.getMainBlock()->accept(*this);
     }
     current_type_ = Type::makeVoid();
 }
@@ -206,8 +213,8 @@ void TypeChecker::visit(ast::ReturnStmt& node) {
 
     // Infer return value type
     std::shared_ptr<Type> return_type = Type::makeVoid();
-    if (node.getValue()) {
-        node.getValue()->accept(*this);
+    if (node.getExpr()) {
+        node.getExpr()->accept(*this);
         return_type = current_type_;
     }
 
@@ -245,19 +252,19 @@ void TypeChecker::visit(ast::IfStmt& node) {
 
 void TypeChecker::visit(ast::ForStmt& node) {
     auto loc = node.getLocation();
-    if (node.getIterable()) { node.getIterable()->accept(*this); }
+    if (node.getIter()) { node.getIter()->accept(*this); }
     pushScope();
     symbol_table_.push_scope();
-    env_->define(node.getVariable(), Type::makeAny());
+    env_->define(node.getVar(), Type::makeAny());
 
     // Add loop variable to symbol table
     semantic::Symbol loop_var_symbol(
-        node.getVariable(),
+        node.getVar(),
         semantic::SymbolKind::Variable,
         "any",  // TODO: Infer from iterable element type
         semantic::SourceLocation(current_filename_, loc.line, loc.column)
     );
-    symbol_table_.define(node.getVariable(), std::move(loop_var_symbol));
+    symbol_table_.define(node.getVar(), std::move(loop_var_symbol));
 
     if (node.getBody()) { node.getBody()->accept(*this); }
     symbol_table_.pop_scope();
@@ -328,7 +335,20 @@ void TypeChecker::visit(ast::VarDeclStmt& node) {
 void TypeChecker::visit(ast::ImportStmt&) { current_type_ = Type::makeVoid(); }
 
 void TypeChecker::visit(ast::ExportStmt& node) {
-    if (node.getDeclaration()) { node.getDeclaration()->accept(*this); }
+    // Visit the exported declaration based on kind
+    switch (node.getKind()) {
+        case ast::ExportStmt::ExportKind::Function:
+            if (node.getFunctionDecl()) node.getFunctionDecl()->accept(*this);
+            break;
+        case ast::ExportStmt::ExportKind::Variable:
+            if (node.getVarDecl()) node.getVarDecl()->accept(*this);
+            break;
+        case ast::ExportStmt::ExportKind::DefaultExpr:
+            if (node.getExpr()) node.getExpr()->accept(*this);
+            break;
+        default:
+            break;
+    }
     current_type_ = Type::makeVoid();
 }
 
@@ -338,31 +358,34 @@ void TypeChecker::visit(ast::TryStmt& node) {
     auto loc = node.getLocation();
     pushScope();
     symbol_table_.push_scope();
-    if (node.getTryBlock()) { node.getTryBlock()->accept(*this); }
+    if (node.getTryBody()) { node.getTryBody()->accept(*this); }
     symbol_table_.pop_scope();
     popScope();
-    for (const auto& cc : node.getCatchClauses()) {
+
+    // Handle catch clause (singular)
+    if (auto* cc = node.getCatchClause()) {
         pushScope();
         symbol_table_.push_scope();
-        env_->define(cc.variable, Type::makeAny());
+        env_->define(cc->error_name, Type::makeAny());
 
         // Add exception variable to symbol table
         semantic::Symbol exc_var_symbol(
-            cc.variable,
+            cc->error_name,
             semantic::SymbolKind::Variable,
             "any",  // TODO: Exception type
             semantic::SourceLocation(current_filename_, loc.line, loc.column)
         );
-        symbol_table_.define(cc.variable, std::move(exc_var_symbol));
+        symbol_table_.define(cc->error_name, std::move(exc_var_symbol));
 
-        if (cc.body) { cc.body->accept(*this); }
+        if (cc->body) { cc->body->accept(*this); }
         symbol_table_.pop_scope();
         popScope();
     }
-    if (node.getFinallyBlock()) {
+
+    if (node.getFinallyBody()) {
         pushScope();
         symbol_table_.push_scope();
-        node.getFinallyBlock()->accept(*this);
+        node.getFinallyBody()->accept(*this);
         symbol_table_.pop_scope();
         popScope();
     }
@@ -370,7 +393,7 @@ void TypeChecker::visit(ast::TryStmt& node) {
 }
 
 void TypeChecker::visit(ast::ThrowStmt& node) {
-    if (node.getExpression()) { node.getExpression()->accept(*this); }
+    if (node.getExpr()) { node.getExpr()->accept(*this); }
     current_type_ = Type::makeVoid();
 }
 void TypeChecker::visit(ast::BinaryExpr& node) {
@@ -431,7 +454,7 @@ void TypeChecker::visit(ast::UnaryExpr& node) {
     switch (node.getOp()) {
         case ast::UnaryOp::Neg: op_str = "-"; break;
         case ast::UnaryOp::Not: op_str = "!"; break;
-        case ast::UnaryOp::BitwiseNot: op_str = "~"; break;
+        case ast::UnaryOp::Pos: op_str = "+"; break;
     }
 
     auto loc = node.getLocation();
@@ -721,8 +744,8 @@ void TypeChecker::pushScope() {
 }
 
 void TypeChecker::popScope() {
-    if (env_ && env_->parent_) {
-        env_ = env_->parent_;
+    if (env_ && env_->getParent()) {
+        env_ = env_->getParent();
     }
 }
 

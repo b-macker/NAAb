@@ -1,0 +1,24 @@
+# Test formatter configuration
+# Different style options to test configuration loading
+
+[style]
+indent_width = 2  # Test with 2-space indentation
+max_line_length = 80  # Shorter line length
+semicolons = "never"
+trailing_commas = false  # Disable trailing commas
+
+[braces]
+function_brace_style = "next_line"  # Test Allman style
+control_flow_brace_style = "same_line"
+
+[spacing]
+blank_lines_between_declarations = 2
+blank_lines_between_sections = 3
+space_before_function_paren = true
+space_in_empty_parens = false
+
+[wrapping]
+wrap_function_params = "always"  # Always wrap parameters
+wrap_struct_fields = "always"
+wrap_array_elements = "auto"
+align_wrapped_params = false

@@ -1,0 +1,58 @@
+// Integration Test: Pipeline with array higher-order functions
+// Tests: |> with map_fn, filter_fn, reduce_fn
+
+import "stdlib" as std
+
+// Test 1: Pipeline with map
+function double(x) {
+    return x * 2
+}
+
+let numbers = [1, 2, 3, 4, 5]
+let result1 = numbers |> std.map_fn(function(x) { return x * 2 })
+
+let expected1 = [2, 4, 6, 8, 10]
+if (std.length(result1) != std.length(expected1)) {
+    throw "FAIL: map pipeline should return array of length 5"
+}
+print("PASS: pipeline with map_fn")
+
+// Test 2: Pipeline with filter
+let result2 = numbers |> std.filter_fn(function(x) { return x % 2 == 0 })
+
+if (std.length(result2) != 2) {
+    throw "FAIL: filter pipeline should return 2 elements, got " + std.length(result2)
+}
+print("PASS: pipeline with filter_fn")
+
+// Test 3: Chained map and filter
+let result3 = numbers
+    |> std.map_fn(function(x) { return x * 2 })
+    |> std.filter_fn(function(x) { return x > 5 })
+
+if (std.length(result3) != 3) {
+    throw "FAIL: chained map/filter should return 3 elements, got " + std.length(result3)
+}
+print("PASS: chained map and filter")
+
+// Test 4: Pipeline with reduce
+let result4 = numbers |> std.reduce_fn(function(acc, x) { return acc + x }, 0)
+
+if (result4 != 15) {
+    throw "FAIL: reduce pipeline should return 15, got " + result4
+}
+print("PASS: pipeline with reduce_fn")
+
+// Test 5: Complex pipeline: map -> filter -> reduce
+let result5 = numbers
+    |> std.map_fn(function(x) { return x * x })
+    |> std.filter_fn(function(x) { return x > 10 })
+    |> std.reduce_fn(function(acc, x) { return acc + x }, 0)
+
+// [1,4,9,16,25] -> [16,25] -> 41
+if (result5 != 41) {
+    throw "FAIL: complex pipeline should return 41, got " + result5
+}
+print("PASS: complex map->filter->reduce pipeline")
+
+print("✓ All array pipeline tests passed")

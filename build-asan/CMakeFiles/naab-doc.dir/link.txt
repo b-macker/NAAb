@@ -1,0 +1,1 @@
+/data/data/com.termux/files/usr/bin/c++  -Wall -Wextra -g -fsanitize=address -Xlinker --dependency-file=CMakeFiles/naab-doc.dir/link.d "CMakeFiles/naab-doc.dir/src/cli/doc_main.cpp.o" -o naab-doc  libnaab_doc_generator.a external/fmt/libfmtd.a

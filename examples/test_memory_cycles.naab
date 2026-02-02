@@ -1,0 +1,96 @@
+# Phase 3.2: Comprehensive Memory Cycle Tests
+# Demonstrates various cycle patterns that currently leak memory
+
+struct Node {
+    value: int
+    next: Node?
+}
+
+struct TreeNode {
+    data: int
+    left: TreeNode?
+    right: TreeNode?
+    parent: TreeNode?
+}
+
+main {
+    print("=== Memory Cycle Leak Demonstration ===")
+    print("")
+    print("WARNING: These tests create memory leaks!")
+    print("Run with memory profiler to observe leaks.")
+    print("")
+
+    # Test 1: Simple bidirectional cycle
+    print("Test 1: Simple bidirectional cycle")
+    let a = new Node { value: 1, next: null }
+    let b = new Node { value: 2, next: null }
+    a.next = b
+    b.next = a
+    print("  Created cycle: a <-> b")
+    print("  Both nodes have refcount=2, will not be freed")
+    print("")
+
+    # Test 2: Self-reference  
+    print("Test 2: Self-reference")
+    let node = new Node { value: 42, next: null }
+    node.next = node
+    print("  Created self-reference: node.next = node")
+    print("  Node has refcount=2, will not be freed")
+    print("")
+
+    # Test 3: Circular linked list
+    print("Test 3: Circular linked list (3 nodes)")
+    let n1 = new Node { value: 1, next: null }
+    let n2 = new Node { value: 2, next: null }
+    let n3 = new Node { value: 3, next: null }
+    
+    n1.next = n2
+    n2.next = n3
+    n3.next = n1
+    
+    print("  Created circular list: n1 -> n2 -> n3 -> n1")
+    print("  All nodes have refcount=2, will not be freed")
+    print("")
+
+    # Test 4: Tree with parent pointers (creates cycles)
+    print("Test 4: Binary tree with parent pointers")
+    let root = new TreeNode { data: 10, left: null, right: null, parent: null }
+    let left_child = new TreeNode { data: 5, left: null, right: null, parent: root }
+    let right_child = new TreeNode { data: 15, left: null, right: null, parent: root }
+    
+    root.left = left_child
+    root.right = right_child
+    
+    print("  Created tree with parent pointers")
+    print("  Cycles: root <-> left, root <-> right")
+    print("  All nodes have refcount >= 2, will not be freed")
+    print("")
+
+    # Test 5: No cycle (should NOT leak)
+    print("Test 5: Linear structure (no cycle - should be freed)")
+    let head = new Node { value: 1, next: null }
+    let mid = new Node { value: 2, next: null }
+    let tail = new Node { value: 3, next: null }
+    
+    head.next = mid
+    mid.next = tail
+    
+    print("  Created linear list: head -> mid -> tail")
+    print("  No cycles present")
+    print("  This should be freed normally (no leak expected)")
+    print("")
+
+    print("=== Summary ===")
+    print("Tests 1-4: Create memory leaks (cycles)")
+    print("Test 5: No leak (linear structure)")
+    print("")
+    print("Expected behavior WITHOUT GC:")
+    print("  - Tests 1-4: Memory leaked (cycles not collected)")
+    print("  - Test 5: Memory freed normally")
+    print("")
+    print("Expected behavior WITH GC:")
+    print("  - All tests: Memory freed (GC collects cycles)")
+    print("")
+    print("To verify leaks, run with:")
+    print("  valgrind --leak-check=full ./naab-lang run test_memory_cycles.naab")
+}

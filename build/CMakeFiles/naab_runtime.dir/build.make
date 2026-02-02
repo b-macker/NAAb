@@ -212,10 +212,52 @@ CMakeFiles/naab_runtime.dir/src/runtime/js_executor_adapter.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/js_executor_adapter.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/js_executor_adapter.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/js_executor_adapter.cpp.s
 
+CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/shell_executor.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/shell_executor.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/shell_executor.cpp > CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/shell_executor.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.s
+
+CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/generic_subprocess_executor.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/generic_subprocess_executor.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/generic_subprocess_executor.cpp > CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/generic_subprocess_executor.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.s
+
+CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/subprocess_helpers.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/subprocess_helpers.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/subprocess_helpers.cpp > CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/subprocess_helpers.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.s
+
 CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/cross_language_bridge.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/cross_language_bridge.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.i: cmake_force
@@ -229,7 +271,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.s: cmake_force
 CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/module_resolver.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/module_resolver.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.i: cmake_force
@@ -240,10 +282,24 @@ CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/module_resolver.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.s
 
+CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/module_system.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/module_system.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/module_system.cpp > CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/module_system.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.s
+
 CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/struct_registry.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/struct_registry.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.i: cmake_force
@@ -257,7 +313,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.s: cmake_force
 CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/cpp_block_interface.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/cpp_block_interface.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.i: cmake_force
@@ -271,7 +327,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.s: cmake_force
 CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/rust_ffi_bridge.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/rust_ffi_bridge.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.i: cmake_force
@@ -285,7 +341,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.s: cmake_force
 CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/rust_executor.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/rust_executor.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.i: cmake_force
@@ -296,10 +352,24 @@ CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/rust_executor.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.s
 
+CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/csharp_executor.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/csharp_executor.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/csharp_executor.cpp > CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/csharp_executor.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.s
+
 CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/stack_tracer.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/stack_tracer.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.i: cmake_force
@@ -313,7 +383,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.s: cmake_force
 CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/stack_formatter.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/stack_formatter.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.i: cmake_force
@@ -324,10 +394,52 @@ CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/stack_formatter.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.s
 
+CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/inline_code_cache.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/inline_code_cache.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/inline_code_cache.cpp > CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/inline_code_cache.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.s
+
+CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/polyglot_async_executor.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/polyglot_async_executor.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/polyglot_async_executor.cpp > CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/polyglot_async_executor.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.s
+
+CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
+CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/python_interpreter_manager.cpp
+CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_26) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/python_interpreter_manager.cpp
+
+CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/python_interpreter_manager.cpp > CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.i
+
+CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/python_interpreter_manager.cpp -o CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.s
+
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/python_executor.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_27) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/python_executor.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.i: cmake_force
@@ -341,7 +453,7 @@ CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.s: cmake_force
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o: CMakeFiles/naab_runtime.dir/flags.make
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/python_executor_adapter.cpp
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o: CMakeFiles/naab_runtime.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_28) "Building CXX object CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o -MF CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o.d -o CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/python_executor_adapter.cpp
 
 CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.i: cmake_force
@@ -364,14 +476,22 @@ naab_runtime_OBJECTS = \
 "CMakeFiles/naab_runtime.dir/src/runtime/language_registry.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/cpp_executor_adapter.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/js_executor_adapter.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o" \
+"CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o" \
 "CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o"
 
@@ -388,19 +508,27 @@ libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/js_executor.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/language_registry.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/cpp_executor_adapter.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/js_executor_adapter.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/shell_executor.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/generic_subprocess_executor.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/subprocess_helpers.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/cross_language_bridge.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/module_resolver.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/module_system.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/struct_registry.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/cpp_block_interface.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/rust_ffi_bridge.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/rust_executor.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/csharp_executor.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/stack_tracer.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/stack_formatter.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/inline_code_cache.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/polyglot_async_executor.cpp.o
+libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/python_interpreter_manager.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/python_executor.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/src/runtime/python_executor_adapter.cpp.o
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/build.make
 libnaab_runtime.a: CMakeFiles/naab_runtime.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Linking CXX static library libnaab_runtime.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_29) "Linking CXX static library libnaab_runtime.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/naab_runtime.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/naab_runtime.dir/link.txt --verbose=$(VERBOSE)
 

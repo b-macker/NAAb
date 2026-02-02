@@ -1,0 +1,25 @@
+{
+    "id": "BLOCK-RUBY-TEST-STDOUT",
+    "name": "Ruby Stdout Test",
+    "language": "ruby",
+    "description": "Test block to verify Ruby stdout works",
+    "version": "1.0.0",
+    "code": "def test_stdout\n  puts 'Hello from Ruby stdout!'\n  puts 'This should be visible if stdout fix works'\n  'Function returned successfully'\nend\n\ndef print_numbers\n  puts 'Counting: 1, 2, 3, 4, 5'\n  (1..5).each do |i|\n    puts \"Number: #{i}\"\n  end\n  'Done counting'\nend\n\ndef test_math\n  x = 42\n  y = 58\n  result = x + y\n  puts \"#{x} + #{y} = #{result}\"\n  result\nend",
+    "functions": [
+        {
+            "name": "test_stdout",
+            "description": "Tests basic puts output",
+            "returns": "string"
+        },
+        {
+            "name": "print_numbers",
+            "description": "Prints numbers 1-5",
+            "returns": "string"
+        },
+        {
+            "name": "test_math",
+            "description": "Tests math with output",
+            "returns": "int"
+        }
+    ]
+}

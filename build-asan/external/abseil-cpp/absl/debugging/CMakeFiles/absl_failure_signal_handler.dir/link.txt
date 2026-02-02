@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_failure_signal_handler.a CMakeFiles/absl_failure_signal_handler.dir/failure_signal_handler.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_failure_signal_handler.a

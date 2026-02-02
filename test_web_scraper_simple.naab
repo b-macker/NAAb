@@ -1,0 +1,33 @@
+// Test web scraper Python logic
+
+main {
+    print("Testing web scraper Python code\n")
+
+    let test_url = "https://example.com"
+    let test_rules_json = '{"item_container": "div"}'
+
+    let result: string? = <<python[test_url, test_rules_json]
+import requests
+import json
+
+web_url = test_url
+extraction_rules_dict = json.loads(test_rules_json)
+
+try:
+    response = requests.get(web_url, timeout=10)
+    result_data = {
+        "status": response.status_code,
+        "url": web_url
+    }
+except Exception as e:
+    result_data = {"error": str(e)}
+
+json.dumps(result_data)
+    >>
+
+    if result == null {
+        print("Error: Python returned null\n")
+    } else {
+        print("Result: ", result, "\n")
+    }
+}

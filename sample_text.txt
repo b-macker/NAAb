@@ -1,0 +1,4 @@
+This is a sample text file.
+It has some words, and also some punctuation.
+Let's count them!
+One two three four five.

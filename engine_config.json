@@ -1,0 +1,23 @@
+{
+  "harvesting": {
+    "target_url": "https://www.vibecodingtools.tech/agents?page=2",
+    "mode": "static",
+    "browser_type": null,
+    "extraction_rules": {
+      "agent_name": "h3",
+      "agent_description": "p.text-gray-600"
+    },
+    "output_format": "json",
+    "data_file_prefix": "agents_data_",
+    "headless": true
+  },
+  "analysis": {
+    "threshold_cpu": 80.0,
+    "threshold_memory": 90.0,
+    "sentiment_model": "textblob"
+  },
+  "report": {
+    "template_path": "templates/report.html",
+    "output_dir": "reports"
+  }
+}

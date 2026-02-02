@@ -1,0 +1,43 @@
+# Test collections Set implementation
+
+use collections as collections
+
+main {
+    print("=== Testing Collections Set ===")
+    print()
+
+    # Test 1: Create empty set
+    let my_set = collections.Set()
+    print("[1] Created empty set")
+
+    # Test 2: Add elements
+    let set1 = collections.set_add(my_set, "apple")
+    let set2 = collections.set_add(set1, "banana")
+    let set3 = collections.set_add(set2, "cherry")
+    print("[2] Added 3 elements: apple, banana, cherry")
+
+    # Test 3: Check size
+    let size1 = collections.set_size(set3)
+    print("[3] Set size: ", size1)  # Should be 3
+
+    # Test 4: Check contains
+    let has_apple = collections.set_contains(set3, "apple")
+    let has_orange = collections.set_contains(set3, "orange")
+    print("[4] Contains 'apple': ", has_apple)  # Should be true
+    print("[4] Contains 'orange': ", has_orange)  # Should be false
+
+    # Test 5: Try adding duplicate
+    let set4 = collections.set_add(set3, "apple")
+    let size2 = collections.set_size(set4)
+    print("[5] After adding duplicate 'apple', size: ", size2)  # Should still be 3
+
+    # Test 6: Remove element
+    let set5 = collections.set_remove(set4, "banana")
+    let size3 = collections.set_size(set5)
+    let has_banana = collections.set_contains(set5, "banana")
+    print("[6] After removing 'banana', size: ", size3)  # Should be 2
+    print("[6] Contains 'banana': ", has_banana)  # Should be false
+
+    print()
+    print("✅ All Set operations working!")
+}

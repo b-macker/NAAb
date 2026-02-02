@@ -10,9 +10,13 @@ set(CMAKE_DEPENDS_LANGUAGES
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/data/data/com.termux/files/home/.naab/language/src/runtime/audit_logger.cpp" "CMakeFiles/naab_security.dir/src/runtime/audit_logger.cpp.o" "gcc" "CMakeFiles/naab_security.dir/src/runtime/audit_logger.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/src/runtime/crypto_utils.cpp" "CMakeFiles/naab_security.dir/src/runtime/crypto_utils.cpp.o" "gcc" "CMakeFiles/naab_security.dir/src/runtime/crypto_utils.cpp.o.d"
+  "/data/data/com.termux/files/home/.naab/language/src/runtime/ffi_async_callback.cpp" "CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o" "gcc" "CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o.d"
+  "/data/data/com.termux/files/home/.naab/language/src/runtime/ffi_callback_validator.cpp" "CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o" "gcc" "CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/src/runtime/input_validator.cpp" "CMakeFiles/naab_security.dir/src/runtime/input_validator.cpp.o" "gcc" "CMakeFiles/naab_security.dir/src/runtime/input_validator.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/src/runtime/resource_limits.cpp" "CMakeFiles/naab_security.dir/src/runtime/resource_limits.cpp.o" "gcc" "CMakeFiles/naab_security.dir/src/runtime/resource_limits.cpp.o.d"
   "/data/data/com.termux/files/home/.naab/language/src/runtime/sandbox.cpp" "CMakeFiles/naab_security.dir/src/runtime/sandbox.cpp.o" "gcc" "CMakeFiles/naab_security.dir/src/runtime/sandbox.cpp.o.d"
+  "/data/data/com.termux/files/home/.naab/language/src/runtime/tamper_evident_logger.cpp" "CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o" "gcc" "CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o.d"
+  "/data/data/com.termux/files/home/.naab/language/src/safe_regex.cpp" "CMakeFiles/naab_security.dir/src/safe_regex.cpp.o" "gcc" "CMakeFiles/naab_security.dir/src/safe_regex.cpp.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

@@ -1,0 +1,58 @@
+# Phase 3.2: Test GC with values going out of scope
+# Creates cycles, lets them go out of scope, then triggers GC
+
+struct Node {
+    value: int
+    next: Node?
+}
+
+fn create_cycle() {
+    print("Creating cycle in function scope...")
+    let a = new Node { value: 1, next: null }
+    let b = new Node { value: 2, next: a }
+    a.next = b
+    print("Cycle created: a <-> b (both in function scope)")
+    # When function returns, a and b go out of scope
+    # They should be eligible for collection
+}
+
+fn create_many_cycles(count: int) {
+    print("Creating", count, "cycles...")
+    let i = 0
+    while i < count {
+        let a = new Node { value: i, next: null }
+        let b = new Node { value: i + 1, next: a }
+        a.next = b
+        # Cycle created and immediately goes out of scope
+        i = i + 1
+    }
+    print("Done creating", count, "cycles (all out of scope now)")
+}
+
+main {
+    print("=== GC Out-of-Scope Test ===")
+    print("")
+
+    print("Test 1: Single cycle that goes out of scope")
+    create_cycle()
+    print("Cycle is now out of scope")
+    print("")
+
+    print("Test 2: Manually trigger GC after cycle is out of scope")
+    gc_collect()
+    print("GC completed - cycle should have been collected")
+    print("")
+
+    print("Test 3: Create many cycles in a loop")
+    create_many_cycles(10)
+    print("")
+
+    print("Test 4: Trigger GC after many cycles")
+    gc_collect()
+    print("GC completed - all cycles should have been collected")
+    print("")
+
+    print("=== Test Complete ===")
+    print("✅ All cycles went out of scope before GC")
+    print("✅ GC should have collected unreachable cycles")
+}

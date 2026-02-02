@@ -1,0 +1,13 @@
+# Test list .length() method
+
+main {
+    print("Testing list.length()")
+
+    let sizes = [10, 20, 30]
+    print("List: ", sizes)
+
+    let len = sizes.length()
+    print("Length: ", len)
+
+    print("Complete")
+}

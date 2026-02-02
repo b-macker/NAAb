@@ -1,0 +1,12 @@
+# Test enhanced error messages with "Did you mean?" suggestions
+
+main {
+    # Test 1: Simple typo
+    let username = "Alice"
+    let usrname = usernam  # Typo: should be 'username'
+
+    # Test 2: Multiple similar variables
+    let count = 10
+    let counter = 20
+    let total = cout  # Typo: could be 'count' or 'counter'
+}

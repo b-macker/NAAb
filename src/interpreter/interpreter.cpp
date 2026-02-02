@@ -2,6 +2,7 @@
 // Core interpreter implementation
 
 #include "naab/interpreter.h"
+#include "naab/limits.h"  // Week 1, Task 1.3: Call depth limits
 #include "naab/error_helpers.h"
 #include "naab/language_registry.h"
 #include "naab/block_registry.h"
@@ -15,6 +16,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <filesystem>  // Phase 3.1: For module path resolution
+#include <unordered_set>  // For constant lookup in stdlib modules
 
 // Python embedding support
 #ifdef __has_include
@@ -304,18 +306,15 @@ std::vector<std::string> Environment::getAllNames() const {
 // Interpreter Implementation
 // ============================================================================
 
-// GEMINI FIX: Modified constructor to accept script arguments
-Interpreter::Interpreter(const std::vector<std::string>& script_args)
+Interpreter::Interpreter()
     : global_env_(std::make_shared<Environment>()),
       current_env_(global_env_),
       result_(std::make_shared<Value>()),
       returning_(false),
       breaking_(false),
       continuing_(false),
-      last_executed_block_id_(""),
-      current_function_(nullptr),
-      script_args_(script_args) // GEMINI FIX: Initialize script_args_
-{
+      last_executed_block_id_(""),  // Phase 4.4: Initialize block pair tracking
+      current_function_(nullptr) {  // Phase 2.4.2: Initialize function tracking
     // Phase 8: Skip BlockRegistry initialization for faster startup
     // It will be lazily initialized only when needed (in UseStatement)
     // This avoids loading 24,488 blocks unnecessarily for simple programs
@@ -340,8 +339,7 @@ Interpreter::Interpreter(const std::vector<std::string>& script_args)
     fmt::print("[INFO] C++ executor initialized\n");
 
     // Initialize standard library
-    // GEMINI FIX: Pass interpreter instance to StdLib constructor for module function access
-    stdlib_ = std::make_unique<stdlib::StdLib>(this);
+    stdlib_ = std::make_unique<stdlib::StdLib>();
     fmt::print("[INFO] Standard library initialized: {} modules available\n",
                stdlib_->listModules().size());
 
@@ -373,21 +371,30 @@ Interpreter::Interpreter(const std::vector<std::string>& script_args)
         fmt::print("[WARN] Array module not found for function evaluator setup\n");
     }
 
+    // ISS-028: Set up args provider callback for env.get_args()
+    auto env_module = stdlib_->getModule("env");
+    if (env_module) {
+        auto* env_mod = dynamic_cast<stdlib::EnvModule*>(env_module.get());
+        if (env_mod) {
+            // Create callback that returns this interpreter's script args
+            env_mod->setArgsProvider(
+                [this]() -> std::vector<std::string> {
+                    return this->script_args_;
+                }
+            );
+            fmt::print("[INFO] Env module configured with args provider\n");
+        } else {
+            fmt::print("[WARN] Failed to cast env module for args provider setup\n");
+        }
+    } else {
+        fmt::print("[WARN] Env module not found for args provider setup\n");
+    }
+
     // Phase 3.2: Initialize garbage collector
     cycle_detector_ = std::make_unique<CycleDetector>();
     fmt::print("[INFO] Garbage collector initialized (threshold: {} allocations)\n", gc_threshold_);
 
     defineBuiltins();
-}
-
-// GEMINI FIX: Implement setScriptArgs
-void Interpreter::setScriptArgs(const std::vector<std::string>& args) {
-    script_args_ = args;
-}
-
-// GEMINI FIX: Implement getScriptArgs
-const std::vector<std::string>& Interpreter::getScriptArgs() const {
-    return script_args_;
 }
 
 // Phase 3.2: Destructor must be defined in .cpp where CycleDetector is complete
@@ -414,6 +421,8 @@ void Interpreter::setDebugger(std::shared_ptr<debugger::Debugger> debugger) {
 // Phase 3.1: Set source code for enhanced error messages
 void Interpreter::setSourceCode(const std::string& source, const std::string& filename) {
     source_code_ = source;
+    // ISS-035 FIX: Convert to absolute path for proper module resolution
+    current_file_ = std::filesystem::absolute(filename).string();
     error_reporter_.setSource(source, filename);
 }
 
@@ -429,6 +438,22 @@ std::shared_ptr<Value> Interpreter::eval(ast::Expr& expr) {
 // Call a function value with arguments (for higher-order functions like map/filter/reduce)
 std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
                                                   const std::vector<std::shared_ptr<Value>>& args) {
+    // Week 1, Task 1.3: Check call depth to prevent stack overflow
+    if (++call_depth_ > limits::MAX_CALL_STACK_DEPTH) {
+        --call_depth_;
+        throw limits::RecursionLimitException(
+            "Call stack depth exceeded: " +
+            std::to_string(call_depth_) + " > " + std::to_string(limits::MAX_CALL_STACK_DEPTH)
+        );
+    }
+
+    // Ensure depth is decremented on return
+    struct CallDepthGuard {
+        size_t& depth;
+        explicit CallDepthGuard(size_t& d) : depth(d) {}
+        ~CallDepthGuard() { --depth; }
+    } guard(call_depth_);
+
     // Check if it's a function value
     auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&fn->data);
     if (!func_ptr) {
@@ -2856,6 +2881,17 @@ void Interpreter::visit(ast::MemberExpr& node) {
             }
 
             auto module = it->second;
+
+            // ISS-034 FIX: Check if this is a constant (zero-argument function like PI, E)
+            // If so, invoke it immediately instead of creating a marker
+            // This prevents constants from returning __stdlib_call__ markers
+            static const std::unordered_set<std::string> math_constants = {"PI", "E"};
+            if (module_alias == "math" && math_constants.count(member_name) > 0) {
+                // Invoke the constant immediately with no arguments
+                std::vector<std::shared_ptr<Value>> no_args;
+                result_ = module->call(member_name, no_args);
+                return;
+            }
 
             // Create a marker for the function call
             // Format: __stdlib_call__:module_alias:function_name

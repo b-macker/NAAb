@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_profile_builder.a CMakeFiles/absl_profile_builder.dir/internal/profile_builder.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_profile_builder.a

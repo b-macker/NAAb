@@ -1,0 +1,28 @@
+// Test: What's the correct struct instantiation syntax?
+
+struct Point {
+    x: int
+    y: int
+}
+
+struct Box<T> {
+    value: T
+}
+
+main {
+    print("=== Testing Struct Syntax ===\n")
+
+    // Test 1: Regular struct with 'new'
+    let p1 = new Point { x: 10, y: 20 }
+    print("Test 1 - Point: (", p1.x, ", ", p1.y, ")\n")
+
+    // Test 2: Generic struct without type parameter
+    let box1 = new Box { value: 42 }
+    print("Test 2 - Box (no type): ", box1.value, "\n")
+
+    // Test 3: Generic struct WITH type parameter
+    let box2 = new Box<int> { value: 99 }
+    print("Test 3 - Box<int>: ", box2.value, "\n")
+
+    print("=== Tests complete ===\n")
+}

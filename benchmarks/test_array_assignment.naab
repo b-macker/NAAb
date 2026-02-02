@@ -1,0 +1,14 @@
+# Test array element assignment
+
+main {
+    print("Testing array element assignment")
+
+    let my_list = [10, 20, 30]
+    print("Original: ", my_list)
+
+    # Try to modify element
+    my_list[0] = 99
+    print("After assignment: ", my_list)
+
+    print("Complete")
+}

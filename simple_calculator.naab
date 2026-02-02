@@ -1,0 +1,43 @@
+// simple_calculator.naab - Performs hardcoded arithmetic calculations.
+
+use io // For printing results
+
+main {
+    io.write("--- NAAb Simple Calculator ---\n")
+
+    let num1 = 10
+    let num2 = 5
+
+    // Addition
+    let sum = num1 + num2
+    io.write("Addition: ", num1, " + ", num2, " = ", sum, "\n")
+
+    // Subtraction
+    let difference = num1 - num2
+    io.write("Subtraction: ", num1, " - ", num2, " = ", difference, "\n")
+
+    // Multiplication
+    let product = num1 * num2
+    io.write("Multiplication: ", num1, " * ", num2, " = ", product, "\n")
+
+    // Division
+    let quotient = num1 / num2
+    io.write("Division: ", num1, " / ", num2, " = ", quotient, "\n")
+
+    // Mixed operations
+    let mixed_result = (num1 + num2) * num1 / num2
+    io.write("Mixed: (", num1, " + ", num2, ") * ", num1, " / ", num2, " = ", mixed_result, "\n")
+
+    io.write("\n--- Python Polyglot Comparison ---\n")
+    let py_num1 = 20
+    let py_num2 = 10
+
+    let python_sum = <<python[py_num1, py_num2]
+# Python calculation for addition
+result = py_num1 + py_num2
+result
+>>
+    io.write("Python Addition: ", py_num1, " + ", py_num2, " = ", python_sum, "\n")
+
+    io.write("\n--- End of NAAb calculations ---\n")
+}

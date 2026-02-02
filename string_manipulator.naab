@@ -1,0 +1,52 @@
+// string_manipulator.naab - Demonstrates basic string manipulation functions.
+
+use io     // For printing results
+use string // For string manipulation functions
+
+main {
+    io.write("--- NAAb String Manipulator ---
+")
+
+    let original_string = "Hello, NAAb Language!"
+    io.write("Original String: '", original_string, "'\n")
+
+    // to_upper
+    // Assuming string.to_upper(s: string) -> string exists
+    let upper_case_string = string.to_upper(original_string)
+    io.write("Upper Case:      '", upper_case_string, "'\n")
+
+    // to_lower
+    // Assuming string.to_lower(s: string) -> string exists
+    let lower_case_string = string.to_lower(original_string)
+    io.write("Lower Case:      '", lower_case_string, "'\n")
+
+    // concat
+    // Assuming string.concat(s1: string, s2: string) -> string exists
+    let part1 = "Concatenated"
+    let part2 = "String"
+    let concatenated_string = string.concat(part1, " ", part2, "!") // Test with multiple arguments if concat supports it
+    io.write("Concatenated:    '", concatenated_string, "'\n")
+
+    // substring
+    // Assuming string.substring(s: string, start: int, end: int) -> string exists
+    let sub_string = string.substring(original_string, 7, 10) // "NAA"
+    io.write("Substring (7,10):'", sub_string, "'\n")
+
+    // length
+    // Assuming string.length(s: string) -> int exists
+    let string_length = string.length(original_string)
+    io.write("Length:          ", string_length, "\n")
+
+    // starts_with
+    // Assuming string.starts_with(s: string, prefix: string) -> bool exists
+    let starts_with_hello = string.starts_with(original_string, "Hello")
+    io.write("Starts with 'Hello': ", starts_with_hello, "\n")
+
+    // ends_with
+    // Assuming string.ends_with(s: string, suffix: string) -> bool exists
+    let ends_with_lang = string.ends_with(original_string, "Language!")
+    io.write("Ends with 'Language!': ", ends_with_lang, "\n")
+
+    io.write("\n--- End of string manipulations ---
+")
+}

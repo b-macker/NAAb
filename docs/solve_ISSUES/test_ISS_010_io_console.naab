@@ -1,0 +1,24 @@
+# Test ISS-010: IO Module Console Functions
+# Status in ISSUES.md: ❌ Missing/Redundant
+# IO module only has file functions, missing console I/O (write, read_line, write_error)
+
+use io as io
+
+main {
+    print("=== Testing ISS-010: IO Module Console Functions ===")
+
+    # Test 1: io.write (if it exists)
+    print("Test 1: io.write")
+    io.write("Hello from io.write")
+
+    # Test 2: io.write_error (if it exists)
+    print("Test 2: io.write_error")
+    io.write_error("This is an error message")
+
+    # Test 3: io.read_line (if it exists - will block for input)
+    # print("Test 3: io.read_line")
+    # let input = io.read_line()
+    # print("  You entered:", input)
+
+    print("VERDICT: If functions work, console I/O exists")
+}

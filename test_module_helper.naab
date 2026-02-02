@@ -1,0 +1,18 @@
+// Helper module for testing imports
+
+export fn double(x: int) -> int {
+    return x * 2
+}
+
+export fn greet(name: string) -> string {
+    return "Hello, " + name
+}
+
+export fn polyglot_calc() -> int {
+    let result = <<python
+a = 5
+b = 7
+a * b
+    >>
+    return result
+}

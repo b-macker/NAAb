@@ -8,9 +8,9 @@ set(CMAKE_DEPENDS_GENERATOR "Unix Makefiles")
 set(CMAKE_MAKEFILE_DEPENDS
   "CMakeCache.txt"
   "/data/data/com.termux/files/home/.naab/language/CMakeLists.txt"
-  "CMakeFiles/4.2.1/CMakeCCompiler.cmake"
-  "CMakeFiles/4.2.1/CMakeCXXCompiler.cmake"
-  "CMakeFiles/4.2.1/CMakeSystem.cmake"
+  "CMakeFiles/4.2.2/CMakeCCompiler.cmake"
+  "CMakeFiles/4.2.2/CMakeCXXCompiler.cmake"
+  "CMakeFiles/4.2.2/CMakeSystem.cmake"
   "/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/CMake/AbseilDll.cmake"
   "/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/CMake/AbseilHelpers.cmake"
   "/data/data/com.termux/files/home/.naab/language/external/abseil-cpp/CMakeLists.txt"
@@ -46,6 +46,7 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/data/data/com.termux/files/home/.naab/language/external/spdlog/CMakeLists.txt"
   "/data/data/com.termux/files/home/.naab/language/external/spdlog/cmake/ide.cmake"
   "/data/data/com.termux/files/home/.naab/language/external/spdlog/cmake/utils.cmake"
+  "/data/data/com.termux/files/home/.naab/language/fuzz/CMakeLists.txt"
   "/data/data/com.termux/files/home/.naab/language/include/naab/config.h.in"
   "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCInformation.cmake"
   "/data/data/com.termux/files/usr/share/cmake-4.2/Modules/CMakeCXXInformation.cmake"
@@ -151,6 +152,7 @@ set(CMAKE_MAKEFILE_PRODUCTS
   "external/spdlog/CMakeFiles/CMakeDirectoryInformation.cmake"
   "external/googletest/CMakeFiles/CMakeDirectoryInformation.cmake"
   "external/googletest/googletest/CMakeFiles/CMakeDirectoryInformation.cmake"
+  "fuzz/CMakeFiles/CMakeDirectoryInformation.cmake"
   )
 
 # Dependency information for all targets:
@@ -158,6 +160,8 @@ set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/naab_lexer.dir/DependInfo.cmake"
   "CMakeFiles/naab_parser.dir/DependInfo.cmake"
   "CMakeFiles/naab_semantic.dir/DependInfo.cmake"
+  "CMakeFiles/naab_formatter.dir/DependInfo.cmake"
+  "CMakeFiles/naab_linter.dir/DependInfo.cmake"
   "CMakeFiles/naab_debugger.dir/DependInfo.cmake"
   "CMakeFiles/naab_security.dir/DependInfo.cmake"
   "CMakeFiles/naab_interpreter.dir/DependInfo.cmake"
@@ -173,6 +177,7 @@ set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/naab-repl-rl.dir/DependInfo.cmake"
   "CMakeFiles/naab_doc_generator.dir/DependInfo.cmake"
   "CMakeFiles/naab-doc.dir/DependInfo.cmake"
+  "CMakeFiles/naab-verify-audit.dir/DependInfo.cmake"
   "CMakeFiles/naab_block_enricher.dir/DependInfo.cmake"
   "CMakeFiles/enrich_tool.dir/DependInfo.cmake"
   "CMakeFiles/test_cpp_executor.dir/DependInfo.cmake"
@@ -322,4 +327,10 @@ set(CMAKE_DEPEND_INFO_FILES
   "external/spdlog/CMakeFiles/spdlog.dir/DependInfo.cmake"
   "external/googletest/googletest/CMakeFiles/gtest.dir/DependInfo.cmake"
   "external/googletest/googletest/CMakeFiles/gtest_main.dir/DependInfo.cmake"
+  "fuzz/CMakeFiles/fuzz_lexer.dir/DependInfo.cmake"
+  "fuzz/CMakeFiles/fuzz_parser.dir/DependInfo.cmake"
+  "fuzz/CMakeFiles/fuzz_interpreter.dir/DependInfo.cmake"
+  "fuzz/CMakeFiles/fuzz_python_executor.dir/DependInfo.cmake"
+  "fuzz/CMakeFiles/fuzz_value_conversion.dir/DependInfo.cmake"
+  "fuzz/CMakeFiles/fuzz_json_marshal.dir/DependInfo.cmake"
   )

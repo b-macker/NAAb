@@ -1,0 +1,250 @@
+# NAAB_SYSTEM_MONITOR.naab - A Comprehensive NAAb System Health Monitor & Report Generator
+# This script demonstrates NAAb's polyglot orchestration capabilities, native stdlib,
+# and core language features. It also serves as a comprehensive integration test
+# showcasing both working features and current limitations (FIXME comments).
+
+# ==============================================================================
+# 0. MODULE IMPORTS
+# ==============================================================================
+use file as fs
+use time as time
+use array as arr
+use string as str
+
+# ==============================================================================
+# 6. MAIN APPLICATION LOGIC
+# ==============================================================================
+main {
+    let LOG_FILE_PATH = "system_monitor.log"
+    let REPORT_FILE_PATH = "system_report.txt"
+    let CPU_THRESHOLD_PERCENT = 80.0 # Alert if CPU usage exceeds this
+    let MEM_THRESHOLD_PERCENT = 90.0 # Alert if Memory usage exceeds this
+    let DISK_THRESHOLD_PERCENT = 95.0 # Alert if Disk usage exceeds this
+    let MONITOR_INTERVAL_SECONDS = 2
+    let MONITOR_CYCLES = 3
+
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║          NAAb System Health Monitor & Report Generator       ║
+
+
+# Logs a message to a file with a timestamp
+fn log_event(message: string) {
+    let current_time_ts = time.now()
+    let formatted_time = time.format_timestamp(current_time_ts, "%Y-%m-%d %H:%M:%S")
+    let log_entry = formatted_time + " - " + message + "" # Removed \n
+    
+    # Using fs.append (ISS-011 Resolved - File Module Works)
+    fs.append(LOG_FILE_PATH, log_entry + "\n") # Append newline separately
+}
+
+# Executes a bash command and returns its stdout
+fn run_bash_command(command: string) -> string {
+    # Basic Bash execution works
+    let result = <<bash
+    $command
+    >>
+    return result
+}
+
+# ==============================================================================
+# 3. SYSTEM METRIC COLLECTION
+# ==============================================================================
+
+# Fetches current CPU utilization (example: Linux, first CPU core)
+fn get_cpu_usage() -> float {
+    # Bash command to get idle time for first CPU, then calculate usage
+    # This is a simple approximation and might need refinement for production
+    let idle_time_str = run_bash_command("grep '^cpu ' /proc/stat | awk '{print $5}'")
+    # For simplicity, we'll return a dummy value as parsing /proc/stat is complex in Bash
+    # and would require more elaborate parsing logic in NAAb.
+    # In a real scenario, Python would parse this.
+    # For this demonstration, we'll return a random-ish value.
+    let random_cpu = <<python
+import random
+random.uniform(10.0, 90.0)
+>>
+    return random_cpu
+}
+
+# Fetches current Memory utilization (example: Linux)
+fn get_memory_usage() -> float {
+    # Bash command to get used memory percentage
+    let mem_usage_str = run_bash_command("free | grep Mem | awk '{print $3/$2 * 100.0}'")
+    # Again, a simple random value for demo purposes.
+    let random_mem = <<python
+import random
+random.uniform(30.0, 95.0)
+>>
+    return random_mem
+}
+
+# Fetches current Disk utilization (example: Linux, root partition)
+fn get_disk_usage() -> float {
+    # Bash command to get used disk percentage for root fs (simplified)
+    let disk_usage_str = run_bash_command("df -h / | tail -n 1 | awk '{print $5}'")
+    # Random value for demo.
+    let random_disk = <<python
+import random
+random.uniform(10.0, 98.0)
+>>
+    return random_disk
+}
+
+# ==============================================================================
+# 4. METRIC ANALYSIS (Python Block)
+# ==============================================================================
+
+# Analyzes a list of metrics and returns an alert status and summary
+fn analyze_metrics_python(
+    cpu_history: list<float>,
+    mem_history: list<float>,
+    disk_history: list<float>
+) -> dict {
+    let alert_threshold_cpu = CPU_THRESHOLD_PERCENT
+    let alert_threshold_mem = MEM_THRESHOLD_PERCENT
+    let alert_threshold_disk = DISK_THRESHOLD_PERCENT
+
+    // Hardcoded dictionary to bypass Python block parsing issues for now
+    let analysis_result: dict = {
+        "overall_alert": false,
+        "cpu_alert": false,
+        "mem_alert": false,
+        "disk_alert": false,
+        "current_cpu": 50.0,
+        "current_mem": 60.0,
+        "current_disk": 70.0,
+        "summary": "Hardcoded analysis - Parser Debug."
+    }
+    return analysis_result
+}
+
+# ==============================================================================
+# 5. REPORT GENERATION (NAAb & JavaScript)
+# ==============================================================================
+
+# Generates a human-readable system health report
+fn generate_health_report(analysis: dict) -> string {
+    let timestamp = time.format_timestamp(time.now(), "%Y-%m-%d %H:%M:%S")
+    let report_str = "---" + " System Health Report (" + timestamp + ") ---" + ""
+    
+    report_str = report_str + "Overall Status: "
+    if analysis["overall_alert"] {
+        report_str = report_str + "ALERT! 🚨" + ""
+    } else {
+        report_str = report_str + "OK ✅" + ""
+    }
+    
+    report_str = report_str + "CPU Usage: " + str.from_float(analysis["current_cpu"]) + "%" + ""
+    report_str = report_str + "Memory Usage: " + str.from_float(analysis["current_mem"]) + "%" + ""
+    report_str = report_str + "Disk Usage: " + str.from_float(analysis["current_disk"]) + "%" + ""
+    report_str = report_str + "Summary: " + analysis["summary"] + "" + ""
+    
+    report_str = report_str + "" + "" + "--- Detailed Analysis (JS formatting) ---" + ""
+    
+    # Use JavaScript for more complex dynamic formatting
+    let js_formatted_details: string? = <<javascript[analysis]
+    // FIXME: ISS-005 - JS polyglot return value bug (string expected, null returned)
+    // This part is commented out due to known bug. In a working system, JS would format this.
+    // const cpuStatus = analysis.cpu_alert ? "ALERT" : "OK";
+    // const memStatus = analysis.mem_alert ? "ALERT" : "OK";
+    // const diskStatus = analysis.disk_disk ? "ALERT" : "OK";
+    // return `CPU: ${analysis.current_cpu.toFixed(2)}% (${cpuStatus})\n` +
+    //        `Mem: ${analysis.current_mem.toFixed(2)}% (${memStatus})\n` +
+    //        `Disk: ${analysis.current_disk.toFixed(2)}% (${diskStatus})`;
+    return "JS formatting currently unavailable due to known bug (ISS-005).";
+>>
+    if js_formatted_details != null {
+        report_str = report_str + js_formatted_details + "" + ""
+    } else {
+        report_str = report_str + "JS formatting failed (ISS-005)." + ""
+    }
+
+    return report_str
+}
+
+# ==============================================================================
+# 6. MAIN APPLICATION LOGIC
+# ==============================================================================
+main {
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║          NAAb System Health Monitor & Report Generator       ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+    log_event("Monitor starting...")
+
+    let cpu_metrics: list<float> = []
+    let mem_metrics: list<float> = []
+    let disk_metrics: list<float> = []
+    
+    # --- Demonstrate Array HOFs (ISS-007) ---
+    # print("Demonstrating Array HOFs (FIXME: ISS-007 - Naming Mismatch/Not Functional)...")
+    # let sample_numbers = [1, 2, 3]
+    # let doubled_sample = arr.map_fn(sample_numbers, fn(x) { return x * 2 })
+    # print("Sample numbers doubled:", doubled_sample)
+
+    # --- Demonstrate Collections (ISS-008) ---
+    # print("Demonstrating Collections (FIXME: ISS-008 - Buggy Internal State)...")
+    # let my_set = col.Set()
+    # my_set = col.set_add(my_set, "item1")
+    # print("Set size:", col.set_size(my_set))
+
+    # --- Demonstrate Regex (FIXME: ISS-009) ---
+    # print("Demonstrating Regex (FIXME: ISS-009 - Non-functional module)...")
+    # let matched = re.match("test123", "[0-9]+")
+    # print("Regex match:", matched)
+
+    # --- Demonstrate IO Module (FIXME: ISS-010) ---
+    # print("Demonstrating IO (FIXME: ISS-010 - Missing console functions)...")
+    # io.write("This would be a console write if io.write existed.")
+
+    # --- Demonstrate Env Module (FIXME: ISS-012 - but 'env.get' and 'set_var' are now resolved) ---
+    print("Demonstrating Env Module (Resolved: ISS-012 - env.get/set_var works)...")
+    env.set_var("MONITOR_MODE", "ACTIVE")
+    let current_mode = env.get("MONITOR_MODE")
+    print("Monitor Mode via Env Var:", current_mode)
+
+    print("\n--- Starting Monitoring Cycles ---")
+    let cycle_count = 0
+    while cycle_count < MONITOR_CYCLES {
+        log_event("Starting monitoring cycle " + str.from_int(cycle_count + 1))
+        
+        try {
+            let cpu_usage = get_cpu_usage()
+            let mem_usage = get_memory_usage()
+            let disk_usage = get_disk_usage()
+
+            arr.push(cpu_metrics, cpu_usage) # Using working array.push
+            arr.push(mem_metrics, mem_usage)
+            arr.push(disk_metrics, disk_usage)
+            
+            log_event("Metrics collected: CPU=" + str.from_float(cpu_usage) + 
+                      "%, MEM=" + str.from_float(mem_usage) + 
+                      "%, DISK=" + str.from_float(disk_usage) + "%")
+
+            time.sleep(MONITOR_INTERVAL_SECONDS) # Wait for next cycle
+
+        } catch (e) {
+            log_event("Error during monitoring cycle: " + e)
+            print("Monitoring Error: ", e)
+        }
+        cycle_count = cycle_count + 1
+    }
+    print("--- Monitoring Cycles Complete ---")
+
+    print("\n--- Analyzing Metrics ---")
+    let final_analysis = analyze_metrics_python(cpu_metrics, mem_metrics, disk_metrics)
+    log_event("Metrics analysis complete. Overall Alert: " + str.from_bool(final_analysis["overall_alert"]))
+    print("Analysis Summary:", final_analysis["summary"])
+
+    print("\n--- Generating Report ---")
+    let report_content = generate_health_report(final_analysis)
+    fs.write(REPORT_FILE_PATH, report_content)
+    log_event("System health report generated: " + REPORT_FILE_PATH)
+    print("Report generated and saved to: ", REPORT_FILE_PATH)
+    print("\n--- Displaying Report Content ---")
+    print(report_content)
+
+    log_event("Monitor finished.")
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║          NAAb System Monitor & Report Generator FINISHED     ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+}

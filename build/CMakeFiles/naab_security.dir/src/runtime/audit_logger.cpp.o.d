@@ -230,11 +230,14 @@ CMakeFiles/naab_security.dir/src/runtime/audit_logger.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/string.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/strcasecmp.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/strings.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/strings.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/string.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/aarch64-linux-android/asm/fcntl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/asm-generic/fcntl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/flock64.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/flock.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/seek_constants.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stdio.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/time.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/sys/time.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/linux/time.h \
@@ -383,6 +386,7 @@ CMakeFiles/naab_security.dir/src/runtime/audit_logger.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/wait.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/linux/wait.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/malloc.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stdlib.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/android/legacy_stdlib_inlines.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/exception \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__exception/exception_ptr.h \
@@ -715,15 +719,18 @@ CMakeFiles/naab_security.dir/src/runtime/audit_logger.cpp.o: \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/path_iterator.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/__filesystem/u8path.h \
+  /data/data/com.termux/files/home/.naab/language/include/naab/tamper_evident_logger.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/chrono \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/forward_list \
   /data/data/com.termux/files/usr/bin/../../usr/include/c++/v1/sstream \
   /data/data/com.termux/files/usr/bin/../../usr/include/sys/stat.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/linux/stat.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/stat.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/fcntl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/getentropy.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/getopt.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/ioctl.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/lockf.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/bits/sysconf.h \
+  /data/data/com.termux/files/usr/bin/../../usr/include/bits/fortify/unistd.h \
   /data/data/com.termux/files/usr/bin/../../usr/include/android/legacy_unistd_inlines.h

@@ -1,0 +1,26 @@
+// Test which stdlib modules work without importing
+
+main {
+    io.write("Testing stdlib modules:\n\n")
+
+    // Test io (no use statement)
+    io.write("✓ io works without import\n")
+
+    // Test json
+    let data = json.stringify(42)
+    io.write("✓ json works without import\n")
+
+    // Test time
+    let now = time.now()
+    io.write("✓ time works without import\n")
+
+    // Test math
+    let sqrt_val = math.sqrt(16)
+    io.write("✓ math works without import\n")
+
+    // Test env
+    let home = env.get("HOME")
+    io.write("✓ env works without import\n")
+
+    io.write("\nAll tested modules work without import!\n")
+}

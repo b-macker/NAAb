@@ -142,13 +142,73 @@ CMakeFiles/naab_security.dir/src/runtime/sandbox.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_security.dir/src/runtime/sandbox.cpp.s"
 	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/sandbox.cpp -o CMakeFiles/naab_security.dir/src/runtime/sandbox.cpp.s
 
+CMakeFiles/naab_security.dir/src/safe_regex.cpp.o: CMakeFiles/naab_security.dir/flags.make
+CMakeFiles/naab_security.dir/src/safe_regex.cpp.o: /data/data/com.termux/files/home/.naab/language/src/safe_regex.cpp
+CMakeFiles/naab_security.dir/src/safe_regex.cpp.o: CMakeFiles/naab_security.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/naab_security.dir/src/safe_regex.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_security.dir/src/safe_regex.cpp.o -MF CMakeFiles/naab_security.dir/src/safe_regex.cpp.o.d -o CMakeFiles/naab_security.dir/src/safe_regex.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/safe_regex.cpp
+
+CMakeFiles/naab_security.dir/src/safe_regex.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_security.dir/src/safe_regex.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/safe_regex.cpp > CMakeFiles/naab_security.dir/src/safe_regex.cpp.i
+
+CMakeFiles/naab_security.dir/src/safe_regex.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_security.dir/src/safe_regex.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/safe_regex.cpp -o CMakeFiles/naab_security.dir/src/safe_regex.cpp.s
+
+CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o: CMakeFiles/naab_security.dir/flags.make
+CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/tamper_evident_logger.cpp
+CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o: CMakeFiles/naab_security.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o -MF CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o.d -o CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/tamper_evident_logger.cpp
+
+CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/tamper_evident_logger.cpp > CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.i
+
+CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/tamper_evident_logger.cpp -o CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.s
+
+CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o: CMakeFiles/naab_security.dir/flags.make
+CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/ffi_callback_validator.cpp
+CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o: CMakeFiles/naab_security.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o -MF CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o.d -o CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/ffi_callback_validator.cpp
+
+CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/ffi_callback_validator.cpp > CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.i
+
+CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/ffi_callback_validator.cpp -o CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.s
+
+CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o: CMakeFiles/naab_security.dir/flags.make
+CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o: /data/data/com.termux/files/home/.naab/language/src/runtime/ffi_async_callback.cpp
+CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o: CMakeFiles/naab_security.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o -MF CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o.d -o CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o -c /data/data/com.termux/files/home/.naab/language/src/runtime/ffi_async_callback.cpp
+
+CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.i"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /data/data/com.termux/files/home/.naab/language/src/runtime/ffi_async_callback.cpp > CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.i
+
+CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.s"
+	/data/data/com.termux/files/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /data/data/com.termux/files/home/.naab/language/src/runtime/ffi_async_callback.cpp -o CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.s
+
 # Object files for target naab_security
 naab_security_OBJECTS = \
 "CMakeFiles/naab_security.dir/src/runtime/resource_limits.cpp.o" \
 "CMakeFiles/naab_security.dir/src/runtime/input_validator.cpp.o" \
 "CMakeFiles/naab_security.dir/src/runtime/crypto_utils.cpp.o" \
 "CMakeFiles/naab_security.dir/src/runtime/audit_logger.cpp.o" \
-"CMakeFiles/naab_security.dir/src/runtime/sandbox.cpp.o"
+"CMakeFiles/naab_security.dir/src/runtime/sandbox.cpp.o" \
+"CMakeFiles/naab_security.dir/src/safe_regex.cpp.o" \
+"CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o" \
+"CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o" \
+"CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o"
 
 # External object files for target naab_security
 naab_security_EXTERNAL_OBJECTS =
@@ -158,9 +218,13 @@ libnaab_security.a: CMakeFiles/naab_security.dir/src/runtime/input_validator.cpp
 libnaab_security.a: CMakeFiles/naab_security.dir/src/runtime/crypto_utils.cpp.o
 libnaab_security.a: CMakeFiles/naab_security.dir/src/runtime/audit_logger.cpp.o
 libnaab_security.a: CMakeFiles/naab_security.dir/src/runtime/sandbox.cpp.o
+libnaab_security.a: CMakeFiles/naab_security.dir/src/safe_regex.cpp.o
+libnaab_security.a: CMakeFiles/naab_security.dir/src/runtime/tamper_evident_logger.cpp.o
+libnaab_security.a: CMakeFiles/naab_security.dir/src/runtime/ffi_callback_validator.cpp.o
+libnaab_security.a: CMakeFiles/naab_security.dir/src/runtime/ffi_async_callback.cpp.o
 libnaab_security.a: CMakeFiles/naab_security.dir/build.make
 libnaab_security.a: CMakeFiles/naab_security.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Linking CXX static library libnaab_security.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/data/data/com.termux/files/home/.naab/language/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Linking CXX static library libnaab_security.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/naab_security.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/naab_security.dir/link.txt --verbose=$(VERBOSE)
 

@@ -1,0 +1,95 @@
+// Phase 2.4.1: Generic Types
+// Test file to verify generic struct and function declarations
+
+// Test 1: Generic struct with single type parameter
+struct Box<T> {
+    value: T
+}
+
+// Test 2: Generic struct with two type parameters
+struct Pair<T, U> {
+    first: T
+    second: U
+}
+
+// Test 3: Generic function with single type parameter
+function identity<T>(x: T) -> T {
+    return x
+}
+
+// Test 4: Generic function with two type parameters
+function makePair<T, U>(first: T, second: U) -> Pair<T, U> {
+    return Pair<T, U> {
+        first: first,
+        second: second
+    }
+}
+
+// Test 5: Generic function returning list
+function makeList<T>(item: T, count: int) -> list<T> {
+    let result = []
+    for i in 0..count {
+        result.append(item)
+    }
+    return result
+}
+
+// Test 6: Nested generics
+struct Container<T> {
+    items: list<T>
+}
+
+main {
+    print("=== Phase 2.4.1: Testing Generic Types ===\n")
+
+    // Test 1: Generic struct instantiation
+    print("\n[Test 1] Generic Box struct:")
+    let int_box = Box<int> { value: 42 }
+    print("Box<int> value: " + int_box.value)
+
+    let string_box = Box<string> { value: "hello" }
+    print("Box<string> value: " + string_box.value)
+
+    // Test 2: Pair struct
+    print("\n[Test 2] Generic Pair struct:")
+    let pair1 = Pair<int, string> {
+        first: 1,
+        second: "one"
+    }
+    print("Pair first: " + pair1.first + ", second: " + pair1.second)
+
+    // Test 3: Identity function
+    print("\n[Test 3] Generic identity function:")
+    let id_int = identity<int>(42)
+    print("identity<int>(42) = " + id_int)
+
+    let id_string = identity<string>("test")
+    print("identity<string>(\"test\") = " + id_string)
+
+    // Test 4: makePair function
+    print("\n[Test 4] Generic makePair function:")
+    let pair2 = makePair<int, string>(100, "hundred")
+    print("makePair result: " + pair2.first + ", " + pair2.second)
+
+    // Test 5: makeList function
+    print("\n[Test 5] Generic makeList function:")
+    let numbers = makeList<int>(7, 3)
+    print("makeList<int>(7, 3) length: " + numbers.length())
+
+    // Test 6: Nested generics
+    print("\n[Test 6] Nested generic Container:")
+    let container = Container<string> {
+        items: ["apple", "banana", "cherry"]
+    }
+    print("Container<string> items count: " + container.items.length())
+
+    // Test 7: Built-in generic types
+    print("\n[Test 7] Built-in generic types:")
+    let int_list = list<int> [1, 2, 3]
+    print("list<int> length: " + int_list.length())
+
+    let str_to_int_dict = dict<string, int> {"one": 1, "two": 2}
+    print("dict<string, int> size: " + str_to_int_dict.size())
+
+    print("\n\n=== Phase 2.4.1: All tests completed ===")
+}

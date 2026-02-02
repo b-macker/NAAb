@@ -1,0 +1,116 @@
+// Verification Test: Code quality hints
+// This file intentionally contains patterns that trigger quality hints
+// to demonstrate the linter's detection capabilities
+
+use io
+use array
+
+// PERFORMANCE HINT: Inefficient array concatenation in loop (O(n²))
+fn inefficientConcat(items: list<int>) -> list<int> {
+    let result = []
+    for item in items {
+        result = result + [item]  // ⚠️ Should use array.push()
+    }
+    return result
+}
+
+// BEST PRACTICE HINT: Function too long (>50 lines)
+fn veryLongFunction(data: list<int>) -> dict<string, any> {
+    let sum = 0
+    let count = 0
+    let min = 999999
+    let max = -999999
+
+    for item in data {
+        sum = sum + item
+        count = count + 1
+        if item < min {
+            min = item
+        }
+        if item > max {
+            max = item
+        }
+    }
+
+    let avg = sum / count
+    let result = {
+        "sum": sum,
+        "count": count,
+        "min": min,
+        "max": max,
+        "average": avg
+    }
+
+    // More lines to make it long...
+    let variance = 0
+    for item in data {
+        let diff = item - avg
+        variance = variance + (diff * diff)
+    }
+    variance = variance / count
+
+    result["variance"] = variance
+
+    return result
+}
+
+// BEST PRACTICE HINT: Too many parameters (>5)
+fn tooManyParams(a: int, b: int, c: int, d: int, e: int, f: int) -> int {
+    return a + b + c + d + e + f  // ⚠️ Consider using a struct
+}
+
+// BEST PRACTICE HINT: Empty catch block
+fn emptyErrorHandling() {
+    try {
+        riskyOperation()
+    } catch (error) {
+        // ⚠️ Empty catch block swallows errors
+    }
+}
+
+// MAINTAINABILITY HINT: Magic numbers without constants
+fn calculatePrice(quantity: int) -> int {
+    let base_price = quantity * 100  // ⚠️ What is 100?
+    let tax = base_price * 0.15      // ⚠️ What is 0.15?
+    let shipping = 50                // ⚠️ What is 50?
+    return base_price + tax + shipping
+}
+
+// MAINTAINABILITY HINT: Deep nesting (>4 levels)
+fn deeplyNested(x: int) -> bool {
+    if x > 0 {
+        if x < 100 {
+            if x % 2 == 0 {
+                if x % 5 == 0 {
+                    if x % 3 == 0 {  // ⚠️ Too deeply nested
+                        return true
+                    }
+                }
+            }
+        }
+    }
+    return false
+}
+
+// READABILITY HINT: Complex boolean condition
+fn complexCondition(a: int, b: int, c: int, d: int) -> bool {
+    return (a > 0 and b < 100 and c != 0 and d % 2 == 0 and a < b and c > d)  // ⚠️ Too complex
+}
+
+// Dummy function for testing
+fn riskyOperation() {
+    throw "Error"
+}
+
+main {
+    io.write("Quality Hints Test")
+    io.write("==================")
+
+    io.write("\nThis program demonstrates code quality hints:")
+    io.write("- Performance: Inefficient patterns")
+    io.write("- Best Practices: Long functions, many params, empty catch")
+    io.write("- Maintainability: Magic numbers, deep nesting")
+    io.write("- Readability: Complex conditions")
+
+    io.write("\nRun with linter to see hints!")
+}

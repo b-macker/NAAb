@@ -1,0 +1,2 @@
+/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_flags_commandlineflag_internal.a CMakeFiles/absl_flags_commandlineflag_internal.dir/internal/commandlineflag.cc.o
+/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_flags_commandlineflag_internal.a

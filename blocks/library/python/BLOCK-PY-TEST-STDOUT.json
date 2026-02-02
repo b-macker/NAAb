@@ -1,0 +1,25 @@
+{
+    "id": "BLOCK-PY-TEST-STDOUT",
+    "name": "Python Stdout Test",
+    "language": "python",
+    "description": "Test block to verify Python stdout/print works",
+    "version": "1.0.0",
+    "code": "def test_stdout():\n    print(\"Hello from Python stdout!\")\n    print(\"This should be visible if stdout fix works\")\n    return \"Function returned successfully\"\n\ndef print_numbers():\n    print(\"Counting: 1, 2, 3, 4, 5\")\n    for i in range(1, 6):\n        print(f\"Number: {i}\")\n    return \"Done counting\"\n\ndef test_math():\n    import sys\n    print(f\"Python version: {sys.version}\")\n    x = 42\n    y = 58\n    result = x + y\n    print(f\"{x} + {y} = {result}\")\n    return result",
+    "functions": [
+        {
+            "name": "test_stdout",
+            "description": "Tests basic print output",
+            "returns": "string"
+        },
+        {
+            "name": "print_numbers",
+            "description": "Prints numbers 1-5 to stdout",
+            "returns": "string"
+        },
+        {
+            "name": "test_math",
+            "description": "Tests math with output",
+            "returns": "int"
+        }
+    ]
+}

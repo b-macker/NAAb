@@ -348,6 +348,24 @@ CTEST_SUBMIT_RETRY_DELAY:STRING=5
 //Maximum time allowed before CTest will kill the test.
 DART_TESTING_TIMEOUT:STRING=1500
 
+//Enable AddressSanitizer
+ENABLE_ASAN:BOOL=OFF
+
+//Enable Control Flow Integrity
+ENABLE_CFI:BOOL=OFF
+
+//Enable additional hardening flags
+ENABLE_HARDENING:BOOL=ON
+
+//Enable MemorySanitizer
+ENABLE_MSAN:BOOL=OFF
+
+//Enable ThreadSanitizer
+ENABLE_TSAN:BOOL=OFF
+
+//Enable UndefinedBehaviorSanitizer
+ENABLE_UBSAN:BOOL=OFF
+
 //Path to a library.
 EXECINFO_LIBRARY:FILEPATH=/data/data/com.termux/files/usr/lib/libexecinfo.so
 
@@ -638,7 +656,7 @@ CMAKE_CACHE_MAJOR_VERSION:INTERNAL=4
 //Minor version of cmake used to create the current loaded cache
 CMAKE_CACHE_MINOR_VERSION:INTERNAL=2
 //Patch version of cmake used to create the current loaded cache
-CMAKE_CACHE_PATCH_VERSION:INTERNAL=1
+CMAKE_CACHE_PATCH_VERSION:INTERNAL=2
 //ADVANCED property for variable: CMAKE_COLOR_MAKEFILE
 CMAKE_COLOR_MAKEFILE-ADVANCED:INTERNAL=1
 //Path to CMake executable.
@@ -773,7 +791,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_NM
 CMAKE_NM-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=28
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=29
 //ADVANCED property for variable: CMAKE_OBJCOPY
 CMAKE_OBJCOPY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_OBJDUMP
@@ -866,7 +884,7 @@ FFI_libffi_VERSION:INTERNAL=
 //Details about finding Python3
 FIND_PACKAGE_MESSAGE_DETAILS_Python3:INTERNAL=[/data/data/com.termux/files/usr/bin/python3.12][found components: Interpreter ][v3.12.12()]
 //Details about finding SQLite3
-FIND_PACKAGE_MESSAGE_DETAILS_SQLite3:INTERNAL=[/data/data/com.termux/files/usr/lib/libsqlite3.so][/data/data/com.termux/files/usr/include][v3.51.1()]
+FIND_PACKAGE_MESSAGE_DETAILS_SQLite3:INTERNAL=[/data/data/com.termux/files/usr/lib/libsqlite3.so][/data/data/com.termux/files/usr/include][v3.51.2()]
 //Details about finding Threads
 FIND_PACKAGE_MESSAGE_DETAILS_Threads:INTERNAL=[TRUE][v()]
 //ADVANCED property for variable: GITCOMMAND
@@ -917,7 +935,7 @@ PC_SQLite3_STATIC_LIBS:INTERNAL=
 PC_SQLite3_STATIC_LIBS_L:INTERNAL=
 PC_SQLite3_STATIC_LIBS_OTHER:INTERNAL=
 PC_SQLite3_STATIC_LIBS_PATHS:INTERNAL=
-PC_SQLite3_VERSION:INTERNAL=3.51.1
+PC_SQLite3_VERSION:INTERNAL=3.51.2
 PC_SQLite3_sqlite3_INCLUDEDIR:INTERNAL=
 PC_SQLite3_sqlite3_LIBDIR:INTERNAL=
 PC_SQLite3_sqlite3_PREFIX:INTERNAL=

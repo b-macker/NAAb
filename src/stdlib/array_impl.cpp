@@ -328,29 +328,7 @@ static int getInt(const std::shared_ptr<interpreter::Value>& val) {
     }, val->data);
 }
 
-static double getDouble(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> double {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, double>) {
-            return arg;
-        } else if constexpr (std::is_same_v<T, int>) {
-            return static_cast<double>(arg);
-        } else {
-            throw std::runtime_error("Expected numeric value");
-        }
-    }, val->data);
-}
-
-static bool getBool(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> bool {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, bool>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected boolean value");
-        }
-    }, val->data);
-}
+// Note: getDouble() and getBool() helper functions removed (unused)
 
 static std::shared_ptr<interpreter::Value> makeInt(int i) {
     return std::make_shared<interpreter::Value>(i);

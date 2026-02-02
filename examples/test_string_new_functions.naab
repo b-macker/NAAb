@@ -1,0 +1,37 @@
+# Test new string functions: index_of and repeat
+
+use string as string
+
+main {
+    print("=== Testing new string functions ===")
+    print()
+
+    # Test 1: index_of - found
+    let idx1 = string.index_of("hello world", "world")
+    print("[1] index_of('hello world', 'world') -> ", idx1)  # Should be 6
+
+    # Test 2: index_of - not found
+    let idx2 = string.index_of("hello world", "xyz")
+    print("[2] index_of('hello world', 'xyz') -> ", idx2)  # Should be -1
+
+    # Test 3: index_of - at beginning
+    let idx3 = string.index_of("hello world", "hello")
+    print("[3] index_of('hello world', 'hello') -> ", idx3)  # Should be 0
+
+    print()
+
+    # Test 4: repeat - simple
+    let rep1 = string.repeat("abc", 3)
+    print("[4] repeat('abc', 3) -> '", rep1, "'")  # Should be 'abcabcabc'
+
+    # Test 5: repeat - single character
+    let rep2 = string.repeat("x", 5)
+    print("[5] repeat('x', 5) -> '", rep2, "'")  # Should be 'xxxxx'
+
+    # Test 6: repeat - zero times
+    let rep3 = string.repeat("test", 0)
+    print("[6] repeat('test', 0) -> '", rep3, "'")  # Should be ''
+
+    print()
+    print("✅ All new string functions working!")
+}

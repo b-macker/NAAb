@@ -1,0 +1,306 @@
+{"timestamp":"2026-02-02T03:01:45.652Z","event":"SECURITY_VIOLATION","details":"FFI callback validation failed: null pointer"}
+{"timestamp":"2026-02-02T03:01:45.652Z","event":"SECURITY_VIOLATION","details":"FFI callback argument count mismatch: expected 3, got 2"}
+{"timestamp":"2026-02-02T03:01:45.652Z","event":"SECURITY_VIOLATION","details":"FFI callback argument count mismatch: expected 4, got 5"}
+{"timestamp":"2026-02-02T03:01:45.652Z","event":"SECURITY_VIOLATION","details":"FFI callback argument count mismatch: expected 1, got 0"}
+{"timestamp":"2026-02-02T03:01:45.652Z","event":"SECURITY_VIOLATION","details":"FFI callback validation failed: null pointer"}
+{"timestamp":"2026-02-02T03:01:45.652Z","event":"BLOCK_EXECUTE","details":"[simple_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.652Z","event":"BLOCK_EXECUTE","details":"[simple_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:45.652Z","event":"BLOCK_EXECUTE","details":"[simple_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.653Z","event":"BLOCK_EXECUTE","details":"[simple_test] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:45.653Z","event":"BLOCK_EXECUTE","details":"[async_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.653Z","event":"BLOCK_EXECUTE","details":"[async_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.653Z","event":"BLOCK_EXECUTE","details":"[async_test] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:45.653Z","event":"BLOCK_EXECUTE","details":"[timed_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.653Z","event":"BLOCK_EXECUTE","details":"[timed_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:45.653Z","event":"BLOCK_EXECUTE","details":"[timed_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.704Z","event":"BLOCK_EXECUTE","details":"[timed_test] completed: Execution completed successfully in 50ms"}
+{"timestamp":"2026-02-02T03:01:45.704Z","event":"BLOCK_EXECUTE","details":"[exception_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.704Z","event":"BLOCK_EXECUTE","details":"[exception_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:45.704Z","event":"BLOCK_EXECUTE","details":"[exception_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.704Z","event":"BLOCK_EXECUTE","details":"[exception_test] error: Execution failed: Test error (after 0ms)"}
+{"timestamp":"2026-02-02T03:01:45.704Z","event":"SECURITY_VIOLATION","details":"async_callback_exception: Async callback 'exception_test' threw exception: Test error"}
+{"timestamp":"2026-02-02T03:01:45.705Z","event":"BLOCK_EXECUTE","details":"[runtime_error_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.705Z","event":"BLOCK_EXECUTE","details":"[runtime_error_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:45.705Z","event":"BLOCK_EXECUTE","details":"[runtime_error_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.705Z","event":"BLOCK_EXECUTE","details":"[runtime_error_test] error: Execution failed: runtime error (after 0ms)"}
+{"timestamp":"2026-02-02T03:01:45.705Z","event":"SECURITY_VIOLATION","details":"async_callback_exception: Async callback 'runtime_error_test' threw exception: runtime error"}
+{"timestamp":"2026-02-02T03:01:45.705Z","event":"BLOCK_EXECUTE","details":"[logic_error_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.705Z","event":"BLOCK_EXECUTE","details":"[logic_error_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:45.705Z","event":"BLOCK_EXECUTE","details":"[logic_error_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.706Z","event":"BLOCK_EXECUTE","details":"[logic_error_test] error: Execution failed: logic error (after 0ms)"}
+{"timestamp":"2026-02-02T03:01:45.706Z","event":"SECURITY_VIOLATION","details":"async_callback_exception: Async callback 'logic_error_test' threw exception: logic error"}
+{"timestamp":"2026-02-02T03:01:45.706Z","event":"BLOCK_EXECUTE","details":"[timeout_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.706Z","event":"BLOCK_EXECUTE","details":"[timeout_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:45.706Z","event":"BLOCK_EXECUTE","details":"[timeout_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.756Z","event":"BLOCK_EXECUTE","details":"[timeout_test] timeout: Execution timed out after 50ms (limit: 50ms)"}
+{"timestamp":"2026-02-02T03:01:45.756Z","event":"SECURITY_VIOLATION","details":"async_callback_timeout: Async callback 'timeout_test' timed out after 50ms"}
+{"timestamp":"2026-02-02T03:01:45.757Z","event":"BLOCK_EXECUTE","details":"[no_timeout_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.757Z","event":"BLOCK_EXECUTE","details":"[no_timeout_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:45.757Z","event":"BLOCK_EXECUTE","details":"[no_timeout_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.767Z","event":"BLOCK_EXECUTE","details":"[no_timeout_test] completed: Execution completed successfully in 10ms"}
+{"timestamp":"2026-02-02T03:01:45.768Z","event":"BLOCK_EXECUTE","details":"[unlimited_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.768Z","event":"BLOCK_EXECUTE","details":"[unlimited_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:45.768Z","event":"BLOCK_EXECUTE","details":"[unlimited_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.868Z","event":"BLOCK_EXECUTE","details":"[unlimited_test] completed: Execution completed successfully in 100ms"}
+{"timestamp":"2026-02-02T03:01:45.869Z","event":"BLOCK_EXECUTE","details":"[cancel_before_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.869Z","event":"BLOCK_EXECUTE","details":"[cancel_before_test] cancelled: Execution cancelled by user"}
+{"timestamp":"2026-02-02T03:01:45.869Z","event":"SECURITY_VIOLATION","details":"async_callback_cancelled: Async callback 'cancel_before_test' was cancelled"}
+{"timestamp":"2026-02-02T03:01:45.869Z","event":"BLOCK_EXECUTE","details":"[cancel_before_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:45.869Z","event":"BLOCK_EXECUTE","details":"[cancel_before_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.869Z","event":"BLOCK_EXECUTE","details":"[cancel_before_test] cancelled: Execution cancelled by user"}
+{"timestamp":"2026-02-02T03:01:45.869Z","event":"SECURITY_VIOLATION","details":"async_callback_cancelled: Async callback 'cancel_before_test' was cancelled"}
+{"timestamp":"2026-02-02T03:01:45.869Z","event":"BLOCK_EXECUTE","details":"[cancel_during_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:45.869Z","event":"BLOCK_EXECUTE","details":"[cancel_during_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:45.919Z","event":"BLOCK_EXECUTE","details":"[cancel_during_test] cancelled: Execution cancelled by user"}
+{"timestamp":"2026-02-02T03:01:45.919Z","event":"SECURITY_VIOLATION","details":"async_callback_cancelled: Async callback 'cancel_during_test' was cancelled"}
+{"timestamp":"2026-02-02T03:01:46.370Z","event":"BLOCK_EXECUTE","details":"[cancel_during_test] completed: Execution completed successfully in 500ms"}
+{"timestamp":"2026-02-02T03:01:46.371Z","event":"BLOCK_EXECUTE","details":"[guard_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.371Z","event":"BLOCK_EXECUTE","details":"[guard_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:46.371Z","event":"BLOCK_EXECUTE","details":"[guard_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.371Z","event":"BLOCK_EXECUTE","details":"[guard_test] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:46.372Z","event":"BLOCK_EXECUTE","details":"[guard_cancel_test] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.372Z","event":"BLOCK_EXECUTE","details":"[guard_cancel_test] cancelled: Execution cancelled by user"}
+{"timestamp":"2026-02-02T03:01:46.372Z","event":"SECURITY_VIOLATION","details":"async_callback_cancelled: Async callback 'guard_cancel_test' was cancelled"}
+{"timestamp":"2026-02-02T03:01:46.372Z","event":"BLOCK_EXECUTE","details":"[guard_cancel_test] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:46.372Z","event":"BLOCK_EXECUTE","details":"[guard_cancel_test] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.373Z","event":"BLOCK_EXECUTE","details":"[guard_cancel_test] cancelled: Execution cancelled by user"}
+{"timestamp":"2026-02-02T03:01:46.373Z","event":"SECURITY_VIOLATION","details":"async_callback_cancelled: Async callback 'guard_cancel_test' was cancelled"}
+{"timestamp":"2026-02-02T03:01:46.373Z","event":"BLOCK_EXECUTE","details":"AsyncCallbackPool created (max_concurrent=5)"}
+{"timestamp":"2026-02-02T03:01:46.373Z","event":"BLOCK_EXECUTE","details":"[pool_test_1] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.373Z","event":"BLOCK_EXECUTE","details":"[pool_test_1] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.373Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_test_1' to pool (active: 1)"}
+{"timestamp":"2026-02-02T03:01:46.374Z","event":"BLOCK_EXECUTE","details":"[pool_test_1] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:46.374Z","event":"BLOCK_EXECUTE","details":"Cancelled all callbacks in pool (count: 1)"}
+{"timestamp":"2026-02-02T03:01:46.374Z","event":"BLOCK_EXECUTE","details":"AsyncCallbackPool created (max_concurrent=10)"}
+{"timestamp":"2026-02-02T03:01:46.374Z","event":"BLOCK_EXECUTE","details":"[pool_multi_0] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.374Z","event":"BLOCK_EXECUTE","details":"[pool_multi_0] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.374Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_multi_0' to pool (active: 1)"}
+{"timestamp":"2026-02-02T03:01:46.374Z","event":"BLOCK_EXECUTE","details":"[pool_multi_1] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.374Z","event":"BLOCK_EXECUTE","details":"[pool_multi_1] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_multi_1' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_2] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_2] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_0] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_multi_2' to pool (active: 3)"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_3] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_3] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_multi_3' to pool (active: 3)"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_4] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_4] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_1] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_multi_4' to pool (active: 4)"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_2] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:46.375Z","event":"BLOCK_EXECUTE","details":"[pool_multi_4] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:46.376Z","event":"BLOCK_EXECUTE","details":"[pool_multi_3] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:46.376Z","event":"BLOCK_EXECUTE","details":"Cancelled all callbacks in pool (count: 4)"}
+{"timestamp":"2026-02-02T03:01:46.377Z","event":"BLOCK_EXECUTE","details":"AsyncCallbackPool created (max_concurrent=2)"}
+{"timestamp":"2026-02-02T03:01:46.377Z","event":"BLOCK_EXECUTE","details":"[pool_limit_0] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.377Z","event":"BLOCK_EXECUTE","details":"[pool_limit_0] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.377Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_limit_0' to pool (active: 1)"}
+{"timestamp":"2026-02-02T03:01:46.377Z","event":"BLOCK_EXECUTE","details":"[pool_limit_1] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.377Z","event":"BLOCK_EXECUTE","details":"[pool_limit_1] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.377Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_limit_1' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:46.429Z","event":"BLOCK_EXECUTE","details":"[pool_limit_0] completed: Execution completed successfully in 51ms"}
+{"timestamp":"2026-02-02T03:01:46.429Z","event":"BLOCK_EXECUTE","details":"[pool_limit_1] completed: Execution completed successfully in 51ms"}
+{"timestamp":"2026-02-02T03:01:46.430Z","event":"BLOCK_EXECUTE","details":"[pool_limit_2] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.430Z","event":"BLOCK_EXECUTE","details":"[pool_limit_2] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.430Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_limit_2' to pool (active: 1)"}
+{"timestamp":"2026-02-02T03:01:46.430Z","event":"BLOCK_EXECUTE","details":"[pool_limit_3] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.430Z","event":"BLOCK_EXECUTE","details":"[pool_limit_3] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.430Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_limit_3' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:46.481Z","event":"BLOCK_EXECUTE","details":"[pool_limit_2] completed: Execution completed successfully in 50ms"}
+{"timestamp":"2026-02-02T03:01:46.484Z","event":"BLOCK_EXECUTE","details":"[pool_limit_3] completed: Execution completed successfully in 53ms"}
+{"timestamp":"2026-02-02T03:01:46.484Z","event":"BLOCK_EXECUTE","details":"Cancelled all callbacks in pool (count: 2)"}
+{"timestamp":"2026-02-02T03:01:46.484Z","event":"BLOCK_EXECUTE","details":"AsyncCallbackPool created (max_concurrent=5)"}
+{"timestamp":"2026-02-02T03:01:46.484Z","event":"BLOCK_EXECUTE","details":"[pool_cancel_0] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.484Z","event":"BLOCK_EXECUTE","details":"[pool_cancel_0] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.484Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_cancel_0' to pool (active: 1)"}
+{"timestamp":"2026-02-02T03:01:46.986Z","event":"BLOCK_EXECUTE","details":"[pool_cancel_0] completed: Execution completed successfully in 501ms"}
+{"timestamp":"2026-02-02T03:01:46.986Z","event":"BLOCK_EXECUTE","details":"[pool_cancel_1] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:46.986Z","event":"BLOCK_EXECUTE","details":"[pool_cancel_1] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:46.986Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_cancel_1' to pool (active: 1)"}
+{"timestamp":"2026-02-02T03:01:47.489Z","event":"BLOCK_EXECUTE","details":"[pool_cancel_1] completed: Execution completed successfully in 502ms"}
+{"timestamp":"2026-02-02T03:01:47.490Z","event":"BLOCK_EXECUTE","details":"[pool_cancel_2] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:47.490Z","event":"BLOCK_EXECUTE","details":"[pool_cancel_2] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:47.490Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_cancel_2' to pool (active: 1)"}
+{"timestamp":"2026-02-02T03:01:47.991Z","event":"BLOCK_EXECUTE","details":"[pool_cancel_2] completed: Execution completed successfully in 500ms"}
+{"timestamp":"2026-02-02T03:01:47.991Z","event":"BLOCK_EXECUTE","details":"Cancelled all callbacks in pool (count: 1)"}
+{"timestamp":"2026-02-02T03:01:47.991Z","event":"BLOCK_EXECUTE","details":"Cancelled all callbacks in pool (count: 0)"}
+{"timestamp":"2026-02-02T03:01:47.991Z","event":"BLOCK_EXECUTE","details":"[retry_success] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:47.991Z","event":"BLOCK_EXECUTE","details":"[retry_success] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:47.991Z","event":"BLOCK_EXECUTE","details":"[retry_success] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:47.992Z","event":"BLOCK_EXECUTE","details":"[retry_success] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:47.992Z","event":"BLOCK_EXECUTE","details":"'retry_success' succeeded after 1 attempts"}
+{"timestamp":"2026-02-02T03:01:47.993Z","event":"BLOCK_EXECUTE","details":"[retry_failure] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:47.993Z","event":"BLOCK_EXECUTE","details":"[retry_failure] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:47.993Z","event":"BLOCK_EXECUTE","details":"[retry_failure] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:47.993Z","event":"BLOCK_EXECUTE","details":"[retry_failure] error: Execution failed: Always fails (after 0ms)"}
+{"timestamp":"2026-02-02T03:01:47.993Z","event":"SECURITY_VIOLATION","details":"async_callback_exception: Async callback 'retry_failure' threw exception: Always fails"}
+{"timestamp":"2026-02-02T03:01:47.993Z","event":"BLOCK_EXECUTE","details":"'retry_failure' failed (attempt 1/3), retrying in 10ms"}
+{"timestamp":"2026-02-02T03:01:48.003Z","event":"BLOCK_EXECUTE","details":"[retry_failure] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.004Z","event":"BLOCK_EXECUTE","details":"[retry_failure] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.004Z","event":"BLOCK_EXECUTE","details":"[retry_failure] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.004Z","event":"BLOCK_EXECUTE","details":"[retry_failure] error: Execution failed: Always fails (after 0ms)"}
+{"timestamp":"2026-02-02T03:01:48.004Z","event":"SECURITY_VIOLATION","details":"async_callback_exception: Async callback 'retry_failure' threw exception: Always fails"}
+{"timestamp":"2026-02-02T03:01:48.004Z","event":"BLOCK_EXECUTE","details":"'retry_failure' failed (attempt 2/3), retrying in 10ms"}
+{"timestamp":"2026-02-02T03:01:48.014Z","event":"BLOCK_EXECUTE","details":"[retry_failure] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.015Z","event":"BLOCK_EXECUTE","details":"[retry_failure] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.015Z","event":"BLOCK_EXECUTE","details":"[retry_failure] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.015Z","event":"BLOCK_EXECUTE","details":"[retry_failure] error: Execution failed: Always fails (after 0ms)"}
+{"timestamp":"2026-02-02T03:01:48.016Z","event":"SECURITY_VIOLATION","details":"async_callback_exception: Async callback 'retry_failure' threw exception: Always fails"}
+{"timestamp":"2026-02-02T03:01:48.016Z","event":"SECURITY_VIOLATION","details":"async_callback_retry_exhausted: 'retry_failure' failed after 3 attempts"}
+{"timestamp":"2026-02-02T03:01:48.016Z","event":"BLOCK_EXECUTE","details":"[parallel_test[0]] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.016Z","event":"BLOCK_EXECUTE","details":"[parallel_test[0]] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.017Z","event":"BLOCK_EXECUTE","details":"[parallel_test[1]] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.017Z","event":"BLOCK_EXECUTE","details":"[parallel_test[1]] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.018Z","event":"BLOCK_EXECUTE","details":"[parallel_test[2]] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.018Z","event":"BLOCK_EXECUTE","details":"[parallel_test[2]] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.019Z","event":"BLOCK_EXECUTE","details":"[parallel_test[0]] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.020Z","event":"BLOCK_EXECUTE","details":"[parallel_test[2]] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.020Z","event":"BLOCK_EXECUTE","details":"[parallel_test[1]] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.020Z","event":"BLOCK_EXECUTE","details":"Parallel group 'parallel_test' completed (3 callbacks)"}
+{"timestamp":"2026-02-02T03:01:48.020Z","event":"BLOCK_EXECUTE","details":"[race_test[0]] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.020Z","event":"BLOCK_EXECUTE","details":"[race_test[0]] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.020Z","event":"BLOCK_EXECUTE","details":"[race_test[1]] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.021Z","event":"BLOCK_EXECUTE","details":"[race_test[1]] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.021Z","event":"BLOCK_EXECUTE","details":"[race_test[2]] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.021Z","event":"BLOCK_EXECUTE","details":"[race_test[2]] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.032Z","event":"BLOCK_EXECUTE","details":"[race_test[0]] completed: Execution completed successfully in 10ms"}
+{"timestamp":"2026-02-02T03:01:48.041Z","event":"BLOCK_EXECUTE","details":"Race group 'race_test' won by callback 0"}
+{"timestamp":"2026-02-02T03:01:48.223Z","event":"BLOCK_EXECUTE","details":"[race_test[1]] completed: Execution completed successfully in 202ms"}
+{"timestamp":"2026-02-02T03:01:48.223Z","event":"BLOCK_EXECUTE","details":"[race_test[2]] completed: Execution completed successfully in 202ms"}
+{"timestamp":"2026-02-02T03:01:48.224Z","event":"BLOCK_EXECUTE","details":"[race_timeout_test[0]] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.224Z","event":"BLOCK_EXECUTE","details":"[race_timeout_test[0]] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.225Z","event":"BLOCK_EXECUTE","details":"[race_timeout_test[1]] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.225Z","event":"BLOCK_EXECUTE","details":"[race_timeout_test[1]] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.325Z","event":"BLOCK_EXECUTE","details":"[race_timeout_test[1]] timeout: Execution timed out after 100ms (limit: 100ms)"}
+{"timestamp":"2026-02-02T03:01:48.326Z","event":"SECURITY_VIOLATION","details":"async_callback_timeout: Async callback 'race_timeout_test[1]' timed out after 100ms"}
+{"timestamp":"2026-02-02T03:01:48.326Z","event":"BLOCK_EXECUTE","details":"[race_timeout_test[0]] timeout: Execution timed out after 101ms (limit: 100ms)"}
+{"timestamp":"2026-02-02T03:01:48.327Z","event":"SECURITY_VIOLATION","details":"async_callback_timeout: Async callback 'race_timeout_test[0]' timed out after 101ms"}
+{"timestamp":"2026-02-02T03:01:48.331Z","event":"SECURITY_VIOLATION","details":"async_race_timeout: Race group 'race_timeout_test' timed out after 105ms"}
+{"timestamp":"2026-02-02T03:01:48.332Z","event":"BLOCK_EXECUTE","details":"[thread_2] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_2] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_2] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_0] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_0] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_0] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_8] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_8] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_8] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_9] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_9] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.333Z","event":"BLOCK_EXECUTE","details":"[thread_9] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.334Z","event":"BLOCK_EXECUTE","details":"[thread_0] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.334Z","event":"BLOCK_EXECUTE","details":"[thread_6] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.334Z","event":"BLOCK_EXECUTE","details":"[thread_6] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.334Z","event":"BLOCK_EXECUTE","details":"[thread_6] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.334Z","event":"BLOCK_EXECUTE","details":"[thread_3] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.334Z","event":"BLOCK_EXECUTE","details":"[thread_4] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.334Z","event":"BLOCK_EXECUTE","details":"[thread_5] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_5] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_7] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_5] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_1] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_7] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_1] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_3] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_3] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_1] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_7] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.335Z","event":"BLOCK_EXECUTE","details":"[thread_4] execute_blocking: Starting blocking execution"}
+{"timestamp":"2026-02-02T03:01:48.336Z","event":"BLOCK_EXECUTE","details":"[thread_4] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.336Z","event":"BLOCK_EXECUTE","details":"[thread_2] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.337Z","event":"BLOCK_EXECUTE","details":"[thread_6] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.337Z","event":"BLOCK_EXECUTE","details":"[thread_9] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.338Z","event":"BLOCK_EXECUTE","details":"[thread_4] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.338Z","event":"BLOCK_EXECUTE","details":"[thread_3] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.338Z","event":"BLOCK_EXECUTE","details":"[thread_7] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.338Z","event":"BLOCK_EXECUTE","details":"[thread_5] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.339Z","event":"BLOCK_EXECUTE","details":"[thread_8] completed: Execution completed successfully in 3ms"}
+{"timestamp":"2026-02-02T03:01:48.340Z","event":"BLOCK_EXECUTE","details":"[thread_1] completed: Execution completed successfully in 3ms"}
+{"timestamp":"2026-02-02T03:01:48.340Z","event":"BLOCK_EXECUTE","details":"AsyncCallbackPool created (max_concurrent=5)"}
+{"timestamp":"2026-02-02T03:01:48.341Z","event":"BLOCK_EXECUTE","details":"[pool_thread_1] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.341Z","event":"BLOCK_EXECUTE","details":"[pool_thread_1] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.341Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_1' to pool (active: 1)"}
+{"timestamp":"2026-02-02T03:01:48.341Z","event":"BLOCK_EXECUTE","details":"[pool_thread_2] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.341Z","event":"BLOCK_EXECUTE","details":"[pool_thread_2] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.342Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_2' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.342Z","event":"BLOCK_EXECUTE","details":"[pool_thread_8] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.342Z","event":"BLOCK_EXECUTE","details":"[pool_thread_8] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.342Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_8' to pool (active: 3)"}
+{"timestamp":"2026-02-02T03:01:48.342Z","event":"BLOCK_EXECUTE","details":"[pool_thread_3] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.342Z","event":"BLOCK_EXECUTE","details":"[pool_thread_3] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.342Z","event":"BLOCK_EXECUTE","details":"[pool_thread_1] completed: Execution completed successfully in 1ms"}
+{"timestamp":"2026-02-02T03:01:48.343Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_3' to pool (active: 4)"}
+{"timestamp":"2026-02-02T03:01:48.343Z","event":"BLOCK_EXECUTE","details":"[pool_thread_6] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.343Z","event":"BLOCK_EXECUTE","details":"[pool_thread_6] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.343Z","event":"BLOCK_EXECUTE","details":"[pool_thread_8] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.348Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_6' to pool (active: 4)"}
+{"timestamp":"2026-02-02T03:01:48.348Z","event":"BLOCK_EXECUTE","details":"[pool_thread_9] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.348Z","event":"BLOCK_EXECUTE","details":"[pool_thread_9] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.352Z","event":"BLOCK_EXECUTE","details":"[pool_thread_3] completed: Execution completed successfully in 4ms"}
+{"timestamp":"2026-02-02T03:01:48.352Z","event":"BLOCK_EXECUTE","details":"[pool_thread_2] completed: Execution completed successfully in 4ms"}
+{"timestamp":"2026-02-02T03:01:48.353Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_9' to pool (active: 4)"}
+{"timestamp":"2026-02-02T03:01:48.353Z","event":"BLOCK_EXECUTE","details":"[pool_thread_6] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.353Z","event":"BLOCK_EXECUTE","details":"[pool_thread_4] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.353Z","event":"BLOCK_EXECUTE","details":"[pool_thread_4] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.353Z","event":"BLOCK_EXECUTE","details":"[pool_thread_9] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.353Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_4' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.353Z","event":"BLOCK_EXECUTE","details":"[pool_thread_10] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.353Z","event":"BLOCK_EXECUTE","details":"[pool_thread_10] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.353Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_10' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"[pool_thread_5] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"[pool_thread_5] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"[pool_thread_10] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_5' to pool (active: 3)"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"[pool_thread_4] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"[pool_thread_11] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"[pool_thread_11] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_11' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"[pool_thread_5] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.354Z","event":"BLOCK_EXECUTE","details":"[pool_thread_7] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_7] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_11] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_7' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_14] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_14] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_7] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_14' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_15] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_15] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_14] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_15' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_13] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.355Z","event":"BLOCK_EXECUTE","details":"[pool_thread_13] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"[pool_thread_15] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_13' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"[pool_thread_12] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"[pool_thread_12] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_12' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"[pool_thread_0] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"[pool_thread_0] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"[pool_thread_12] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_0' to pool (active: 3)"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"[pool_thread_16] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"[pool_thread_16] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.356Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_16' to pool (active: 3)"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"[pool_thread_17] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"[pool_thread_17] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_17' to pool (active: 3)"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"[pool_thread_0] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"[pool_thread_16] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"[pool_thread_13] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"[pool_thread_18] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"[pool_thread_18] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_18' to pool (active: 2)"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"[pool_thread_19] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.357Z","event":"BLOCK_EXECUTE","details":"[pool_thread_19] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.358Z","event":"BLOCK_EXECUTE","details":"Submitted 'pool_thread_19' to pool (active: 3)"}
+{"timestamp":"2026-02-02T03:01:48.358Z","event":"BLOCK_EXECUTE","details":"[pool_thread_17] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.358Z","event":"BLOCK_EXECUTE","details":"[pool_thread_18] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.359Z","event":"BLOCK_EXECUTE","details":"[pool_thread_19] completed: Execution completed successfully in 0ms"}
+{"timestamp":"2026-02-02T03:01:48.359Z","event":"BLOCK_EXECUTE","details":"Cancelled all callbacks in pool (count: 3)"}
+{"timestamp":"2026-02-02T03:01:48.359Z","event":"BLOCK_EXECUTE","details":"[shell_async] created: Async callback wrapper initialized"}
+{"timestamp":"2026-02-02T03:01:48.359Z","event":"BLOCK_EXECUTE","details":"[shell_async] execute_async: Starting async execution"}
+{"timestamp":"2026-02-02T03:01:48.359Z","event":"BLOCK_EXECUTE","details":"[shell_async] cancelled: Execution cancelled by user"}
+{"timestamp":"2026-02-02T03:01:48.360Z","event":"SECURITY_VIOLATION","details":"async_callback_cancelled: Async callback 'shell_async' was cancelled"}

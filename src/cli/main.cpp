@@ -1,5 +1,5 @@
 // NAAb CLI - Main entry point
-// Commands: run, parse, check, blocks, etc.
+// Commands: run, parse, check, fmt, blocks, etc.
 
 #include "naab/config.h"
 #include "naab/lexer.h"
@@ -7,6 +7,7 @@
 #include "naab/interpreter.h"
 #include "naab/type_checker.h"
 #include "naab/error_reporter.h"
+#include "../formatter/formatter.h"
 #include "naab/language_registry.h"
 #include "naab/block_search_index.h"
 #include "naab/block_loader.h"
@@ -97,6 +98,7 @@ void print_usage() {
     fmt::print("  naab-lang run <file.naab>           Execute program\n");
     fmt::print("  naab-lang parse <file.naab>         Show AST\n");
     fmt::print("  naab-lang check <file.naab>         Type check\n");
+    fmt::print("  naab-lang fmt <file.naab>           Format code\n");
     fmt::print("  naab-lang validate <block1,block2>  Validate block composition\n");
     fmt::print("  naab-lang stats                     Show usage statistics\n");
     fmt::print("  naab-lang blocks list               List block statistics\n");
@@ -111,6 +113,7 @@ void print_usage() {
     fmt::print("  --verbose, -v                       Enable verbose output\n");
     fmt::print("  --profile, -p                       Enable performance profiling\n");
     fmt::print("  --explain                           Explain execution step-by-step\n");
+    fmt::print("  --debug, -d                         Enable interactive debugger\n");
     fmt::print("  --no-color                          Disable colored error messages\n");
 }
 
@@ -132,13 +135,13 @@ int main(int argc, char** argv) {
         }
         std::string filename = argv[2];
 
-        // Parse flags and collect script arguments
+        // Parse flags and collect script arguments (ISS-028)
         bool verbose = false;
         bool profile = false;
         bool explain = false;
         bool no_color = false;
-        std::vector<std::string> script_args; // GEMINI FIX: Collect arguments for the NAAb script
-
+        bool debug = false;
+        std::vector<std::string> script_args;
         for (int i = 3; i < argc; ++i) {
             std::string arg(argv[i]);
             if (arg == "--verbose" || arg == "-v") {
@@ -149,9 +152,11 @@ int main(int argc, char** argv) {
                 explain = true;
             } else if (arg == "--no-color") {
                 no_color = true;
+            } else if (arg == "--debug" || arg == "-d") {
+                debug = true;
             } else {
-                // If it's not a recognized naab-lang flag, it's an argument for the NAAb script
-                script_args.push_back(arg); // GEMINI FIX: Store argument for NAAb script
+                // Non-flag argument - pass to script
+                script_args.push_back(arg);
             }
         }
 
@@ -167,11 +172,17 @@ int main(int argc, char** argv) {
             auto tokens = lexer.tokenize();
 
             // Interpret
-            // GEMINI FIX: Pass collected script arguments to interpreter
-            naab::interpreter::Interpreter interpreter(script_args);
+            naab::interpreter::Interpreter interpreter;
             interpreter.setVerboseMode(verbose);
             interpreter.setProfileMode(profile);
             interpreter.setExplainMode(explain);
+            interpreter.setScriptArgs(script_args);  // ISS-028: Pass script arguments
+
+            // Phase 4.2: Enable interactive debugger
+            if (debug) {
+                fmt::print("Debug mode enabled. Use 'b <file>:<line>' to set breakpoints.\n");
+                // Debugger integration would be enabled here in the interpreter
+            }
 
             // Parse
             interpreter.profileStart("Parsing");
@@ -258,6 +269,98 @@ int main(int argc, char** argv) {
                     fmt::print("  {}\n", error.toString());
                 }
                 return 1;
+            }
+
+        } catch (const std::exception& e) {
+            fmt::print("Error: {}\n", e.what());
+            return 1;
+        }
+
+    } else if (command == "fmt") {
+        // Phase 4.2: Auto-formatter command
+        if (argc < 3) {
+            fmt::print("Error: Missing file argument\n");
+            fmt::print("Usage: naab-lang fmt [--check] [--config=path] <file.naab>\n");
+            return 1;
+        }
+
+        // Parse flags
+        bool check_only = false;
+        bool show_diff = false;
+        std::string config_file;
+        std::string filename;
+
+        for (int i = 2; i < argc; ++i) {
+            std::string arg(argv[i]);
+            if (arg == "--check") {
+                check_only = true;
+            } else if (arg == "--diff") {
+                show_diff = true;
+            } else if (arg.substr(0, 9) == "--config=") {
+                config_file = arg.substr(9);
+            } else {
+                filename = arg;
+            }
+        }
+
+        if (filename.empty()) {
+            fmt::print("Error: No file specified\n");
+            return 1;
+        }
+
+        try {
+            // Read source file
+            std::string source = read_file(filename);
+
+            // Load formatter options
+            naab::formatter::FormatterOptions options;
+            if (!config_file.empty()) {
+                options = naab::formatter::FormatterOptions::fromFile(config_file);
+            } else {
+                // Try to load .naabfmt.toml from current directory or parent
+                std::ifstream config_check(".naabfmt.toml");
+                if (config_check.good()) {
+                    options = naab::formatter::FormatterOptions::fromFile(".naabfmt.toml");
+                } else {
+                    options = naab::formatter::FormatterOptions::defaults();
+                }
+            }
+
+            // Create formatter
+            naab::formatter::Formatter formatter(options);
+
+            // Format the source
+            std::string formatted = formatter.format(source, filename);
+
+            if (formatter.hasError()) {
+                fmt::print("Error: {}\n", formatter.getLastError());
+                return 1;
+            }
+
+            if (check_only) {
+                // Check mode: verify if file is already formatted
+                if (source == formatted) {
+                    fmt::print("✓ {} is already formatted\n", filename);
+                    return 0;
+                } else {
+                    fmt::print("✗ {} needs formatting\n", filename);
+                    if (show_diff) {
+                        fmt::print("\nFormatted output:\n{}\n", formatted);
+                    }
+                    return 1;
+                }
+            } else {
+                // Format in-place
+                std::ofstream out_file(filename);
+                if (!out_file.is_open()) {
+                    fmt::print("Error: Cannot write to file: {}\n", filename);
+                    return 1;
+                }
+                out_file << formatted;
+                out_file.close();
+
+                fmt::print("✓ Formatted: {}\n", filename);
+                return 0;
             }
 
         } catch (const std::exception& e) {

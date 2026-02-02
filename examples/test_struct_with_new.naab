@@ -1,0 +1,9 @@
+struct Box {
+    value: int
+}
+
+main {
+    print("Testing struct with new keyword")
+    let b = new Box { value: 42 }
+    print("Success!")
+}

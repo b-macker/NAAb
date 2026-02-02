@@ -1,0 +1,254 @@
+// web_scraper.naab - Module for fetching and extracting web data using polyglot techniques
+
+// Import standard library modules
+use io
+use json
+use string
+use array
+
+// Imports the HarvestingConfig struct from config.naab
+use app_config
+
+// Structure to hold scraped data
+struct ScrapedItem {
+    name: string,
+    description: string,
+    raw_html_snippet: string? // Optional: for debugging or more context
+}
+
+// Function to fetch and extract data from a static web page using Python (requests, BeautifulSoup)
+fn fetch_static_page(url: string, extraction_rules: dict<string, string>) -> list<ScrapedItem>? {
+    io.write("🌐 Fetching static page: ", url, "\n")
+    let extraction_rules_json = json.stringify(extraction_rules)
+    let result_json: string? = <<python[url, extraction_rules_json]
+import requests
+from bs4 import BeautifulSoup
+import json
+web_url = url
+extraction_rules_dict = json.loads(extraction_rules_json)
+
+scraped_items_list = []
+error_message = None
+
+try:
+    response = requests.get(web_url, timeout=10) # Add timeout
+    response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    item_container_selector = extraction_rules_dict.get("item_container", "")
+    
+    if item_container_selector:
+        containers = soup.select(item_container_selector)
+        for container_idx, container in enumerate(containers):
+            name_el = container.select_one(extraction_rules_dict.get("agent_name", ""))
+            desc_el = container.select_one(extraction_rules_dict.get("agent_description", ""))
+
+            name = name_el.get_text(strip=True) if name_el else "N/A"
+            description = desc_el.get_text(strip=True) if desc_el else "N/A"
+
+            scraped_items_list.append({
+                "name": name,
+                "description": description,
+                "raw_html_snippet": str(container) # Store a snippet for context
+            })
+    else:
+        # Fallback if no specific container is given, just try to get first match
+        # This part might need careful adjustment based on actual page structure
+        name_el = soup.select_one(extraction_rules_dict.get("agent_name", ""))
+        desc_el = soup.select_one(extraction_rules_dict.get("agent_description", ""))
+
+        name = name_el.get_text(strip=True) if name_el else "N/A"
+        description = desc_el.get_text(strip=True) if desc_el else "N/A"
+
+        scraped_items_list.append({
+            "name": name,
+            "description": description,
+            "raw_html_snippet": None
+        })
+        sys.stderr.write(f"DEBUG(Python): Fallback scraped {len(scraped_items_list)} items.\n")
+
+except requests.exceptions.RequestException as e:
+    error_message = f"Python Request Error: {e}"
+    sys.stderr.write(f"ERROR(Python): Request Error: {e}\n")
+except Exception as e:
+    error_message = f"Python Parsing/General Error: {e}\n"
+    sys.stderr.write(f"ERROR(Python): Parsing/General Error: {e}\n")
+if error_message:
+    result_data = {"error": error_message}
+else:
+    result_data = scraped_items_list
+
+json.dumps(result_data)
+    >>
+
+    if result_json == null {
+        io.write_error("❌ Python execution failed - returned null\n")
+        return null
+    }
+
+    let python_output_str = result_json // Python block result is always a string
+
+    // Check for error returned by Python block
+    let is_json_like = str.starts_with(python_output_str, "{")
+    let has_error_key = str.contains(python_output_str, "\"error\":")
+
+    if is_json_like && has_error_key {
+        let error_obj = json.parse(python_output_str)
+        if error_obj["error"] != null {
+            io.write_error("❌ Static scraping failed: ", error_obj["error"], "\n")
+            return null
+        }
+    }
+
+    let parsed_items = json.parse(python_output_str)
+    let items: list<ScrapedItem> = []
+
+    for item_data in parsed_items {
+        // Ensure the structure matches ScrapedItem and handle potential missing fields
+        let new_item = new ScrapedItem {
+            name: item_data["name"],
+            description: item_data["description"],
+            raw_html_snippet: item_data["raw_html_snippet"]
+        }
+        items = array.push(items, new_item)
+    }
+    return items
+}
+
+// Function to fetch and extract data from a dynamic web page using Python (Playwright)
+// This will require Playwright to be installed and its browser binaries (`playwright install`).
+fn scrape_dynamic_page(url: string, extraction_rules: dict<string, string>, browser_type: string, headless: bool) -> list<ScrapedItem>? {
+    io.write("🚀 Scraping dynamic page with Playwright: ", url, " (", browser_type, ", headless=", headless, ")\n")
+    let extraction_rules_json = json.stringify(extraction_rules)
+    let headless_str = json.stringify(headless)
+    let result_json = <<python[url, extraction_rules_json, browser_type, headless_str]
+from playwright.sync_api import Playwright, sync_playwright, expect
+import json
+import sys
+import io as pyio # Use 'pyio' to avoid conflict with NAAb 'io'
+
+# Redirect stdout/stderr to capture Playwright's potentially verbose output
+old_stdout = sys.stdout
+old_stderr = sys.stderr
+redirected_output = pyio.StringIO()
+sys.stdout = redirected_output
+sys.stderr = old_stderr
+
+web_url = url
+extraction_rules_dict = json.loads(extraction_rules_json)
+browser_type_str = browser_type
+headless_py = headless_str.lower() == 'true' # Convert NAAb bool string to Python bool
+
+scraped_items_list = []
+error_message = None
+
+try:
+    with sync_playwright() as p:
+        browser = None
+        if browser_type_str == "chromium":
+            browser = p.chromium.launch(headless=headless_py)
+        elif browser_type_str == "firefox":
+            browser = p.firefox.launch(headless=headless_py)
+        elif browser_type_str == "webkit":
+            browser = p.webkit.launch(headless=headless_py)
+        else:
+            raise ValueError(f"Unsupported browser type: {browser_type_str}")
+
+        page = browser.new_page()
+        page.goto(web_url)
+        page.wait_for_load_state('networkidle') # Wait until network activity is low
+
+        item_container_selector = extraction_rules_dict.get("item_container", "")
+        
+        if item_container_selector:
+            # Wait for the containers to appear
+            page.wait_for_selector(item_container_selector, timeout=30000) # Increased timeout
+            containers = page.query_selector_all(item_container_selector)
+            for container in containers:
+                name_el = container.query_selector(extraction_rules_dict.get("agent_name", ""))
+                desc_el = container.query_selector(extraction_rules_dict.get("agent_description", ""))
+                
+                name = name_el.text_content().strip() if name_el else "N/A"
+                description = desc_el.text_content().strip() if desc_el else "N/A"
+                
+                scraped_items_list.append({
+                    "name": name,
+                    "description": description,
+                    "raw_html_snippet": container.inner_html() # Get inner HTML for context
+                })
+        else:
+            # Fallback if no specific container is given
+            name_el = page.query_selector(extraction_rules_dict.get("agent_name", ""))
+            desc_el = page.query_selector(extraction_rules_dict.get("agent_description", ""))
+
+            name = name_el.text_content().strip() if name_el else "N/A"
+            description = desc_el.text_content().strip() if desc_el else "N/A"
+
+            scraped_items_list.append({
+                "name": name,
+                "description": description,
+                "raw_html_snippet": None
+            })
+        
+        browser.close()
+
+except Exception as e:
+    error_message = str(e)
+    # Also capture any Playwright specific error messages
+    redirected_output.seek(0)
+    playwright_log = redirected_output.read()
+    if playwright_log:
+        error_message += "\nPlaywright Log: " + playwright_log
+
+if error_message:
+    result_data = {"error": error_message}
+else:
+    result_data = scraped_items_list
+
+json.dumps(result_data)
+    >>
+
+    let python_output_str = result_json
+
+    // Check for error returned by Python block
+    let is_json_like = str.starts_with(python_output_str, "{")
+    let has_error_key = str.contains(python_output_str, "\"error\":")
+
+    if is_json_like && has_error_key {
+        let error_obj = json.parse(python_output_str)
+        if error_obj["error"] != null {
+            io.write_error("❌ Dynamic scraping failed with Python error.\n")
+        }
+    }
+
+    let parsed_items = json.parse(python_output_str)
+    let items: list<ScrapedItem> = []
+
+    for item_data in parsed_items {
+        let new_item = new ScrapedItem {
+            name: item_data["name"],
+            description: item_data["description"],
+            raw_html_snippet: item_data["raw_html_snippet"]
+        }
+        items = array.push(items, new_item)
+    }
+    return items
+}
+
+// Main scraping function, dispatches based on mode from cfg
+fn scrape_data(cfg: app_config.HarvestingConfig) -> list<ScrapedItem>? {
+    let updated_rules = cfg.extraction_rules
+
+    if cfg.mode == "static" {
+        return fetch_static_page(cfg.target_url, updated_rules)
+    } else if cfg.mode == "dynamic" {
+        if cfg.browser_type == null {
+            io.write_error("❌ Error: 'browser_type' must be specified for dynamic scraping.\n")
+            return null
+        }
+        return scrape_dynamic_page(cfg.target_url, updated_rules, cfg.browser_type, cfg.headless)
+    } else {
+        io.write_error("❌ Error: Invalid harvesting mode specified: ", cfg.mode, "\n")
+        return null
+    }
+}

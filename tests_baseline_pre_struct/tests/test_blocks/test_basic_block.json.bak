@@ -1,0 +1,13 @@
+{
+  "id": "TEST-BASIC-BLOCK",
+  "name": "BasicParseFunction",
+  "version": "1.0.0",
+  "language": "javascript",
+  "category": "parsing",
+  "subcategory": "json",
+  "code": "function parseJSON(data) {\n  // Parse JSON string and return object\n  try {\n    return JSON.parse(data);\n  } catch (e) {\n    return null;\n  }\n}",
+  "code_hash": "xyz789",
+  "token_count": 25,
+  "times_used": 50,
+  "is_active": true
+}

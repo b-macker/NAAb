@@ -1,0 +1,10 @@
+// Test type inference error: no initializer
+
+fn test() {
+    let x  // ERROR: Cannot infer type without initializer
+}
+
+main {
+    print("Testing inference error: no initializer")
+    test()
+}
