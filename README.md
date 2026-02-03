@@ -48,8 +48,8 @@ A production-ready polyglot programming language that seamlessly integrates Pyth
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/naab
-cd naab
+git clone https://github.com/b-macker/NAAb.git
+cd NAAb
 
 # Build
 mkdir build && cd build
@@ -220,7 +220,8 @@ Copyright © 2026 Brandon Mackert
 
 **Brandon Mackert**
 
-- GitHub: [@yourusername](https://github.com/yourusername)
+- GitHub: [@b-macker](https://github.com/b-macker)
+- Repository: [NAAb](https://github.com/b-macker/NAAb)
 - Created: 2026
 
 ---
