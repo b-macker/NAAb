@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_random_internal_seed_material.a CMakeFiles/absl_random_internal_seed_material.dir/internal/seed_material.cc.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_random_internal_seed_material.a

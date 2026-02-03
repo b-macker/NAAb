@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_periodic_sampler.a CMakeFiles/absl_periodic_sampler.dir/internal/periodic_sampler.cc.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_periodic_sampler.a

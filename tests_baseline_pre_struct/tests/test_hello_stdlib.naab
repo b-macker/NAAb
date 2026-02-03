@@ -1,5 +1,0 @@
-use stdlib as stdlib;
-
-main {
-    print("Hello from stdlib test!");
-}

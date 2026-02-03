@@ -1,1 +1,6 @@
-print("Basic test works")
+// Basic test to verify interpreter works
+main {
+    print("Hello, NAAb!")
+    let x = 42
+    print("x = ", x)
+}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15960_execute() {\n    {\n  return static_cast<LangAS>((TargetAS) +\n                             (unsigned)LangAS::FirstTargetAddressSpace);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15960",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AddressSpaces.h",
-  "source_line": 86,
-  "validation_status": "validated"
-}

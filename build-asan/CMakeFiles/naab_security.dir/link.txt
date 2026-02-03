@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_security.a CMakeFiles/naab_security.dir/src/runtime/resource_limits.cpp.o CMakeFiles/naab_security.dir/src/runtime/input_validator.cpp.o CMakeFiles/naab_security.dir/src/runtime/crypto_utils.cpp.o CMakeFiles/naab_security.dir/src/runtime/audit_logger.cpp.o CMakeFiles/naab_security.dir/src/runtime/sandbox.cpp.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_security.a

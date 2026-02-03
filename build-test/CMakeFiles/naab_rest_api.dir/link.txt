@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_rest_api.a CMakeFiles/naab_rest_api.dir/src/api/rest_api.cpp.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_rest_api.a

@@ -1,1 +1,0 @@
-/data/data/com.termux/files/usr/bin/c++  -Wall -Wextra -O2 -g -DNDEBUG -pie -Xlinker --dependency-file=CMakeFiles/test_library_detection.dir/link.d CMakeFiles/test_library_detection.dir/tests/unit/test_library_detection.cpp.o -o test_library_detection  libnaab_block_enricher.a external/fmt/libfmt.a

@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_debugger.a CMakeFiles/naab_debugger.dir/src/debugger/debugger.cpp.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_debugger.a

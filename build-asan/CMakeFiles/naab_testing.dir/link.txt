@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_testing.a CMakeFiles/naab_testing.dir/src/testing/block_tester.cpp.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_testing.a

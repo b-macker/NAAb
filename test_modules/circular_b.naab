@@ -1,9 +1,0 @@
-// circular_b.naab - Circular dependency test (Module B)
-// Phase 4: This should FAIL with circular dependency error
-
-use circular_a  // ERROR: circular_a imports circular_b!
-
-export fn func_b() -> int {
-    // This would call circular_a.func_a(), which calls back to func_b()
-    return circular_a.func_a()
-}

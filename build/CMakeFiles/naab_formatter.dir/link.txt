@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_formatter.a CMakeFiles/naab_formatter.dir/src/formatter/formatter.cpp.o CMakeFiles/naab_formatter.dir/src/formatter/style_config.cpp.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_formatter.a

@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_die_if_null.a CMakeFiles/absl_die_if_null.dir/die_if_null.cc.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_die_if_null.a

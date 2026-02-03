@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_cordz_handle.a CMakeFiles/absl_cordz_handle.dir/internal/cordz_handle.cc.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_cordz_handle.a

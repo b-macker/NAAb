@@ -1,0 +1,14 @@
+fn greet(name: string) -> string {
+    return "Hello"
+}
+
+struct Point {
+    x: int
+    y: int
+}
+
+enum Color {
+    Red
+    Green
+    Blue
+}

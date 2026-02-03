@@ -1,0 +1,63 @@
+{
+  "name": "naab",
+  "displayName": "NAAb Language Support",
+  "description": "Language support for NAAb (NAAb Assembles Anything in Blocks)",
+  "version": "0.1.0",
+  "publisher": "naab",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:naab"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "naab",
+        "aliases": ["NAAb", "naab"],
+        "extensions": [".naab"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "naab",
+        "scopeName": "source.naab",
+        "path": "./syntaxes/naab.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "NAAb",
+      "properties": {
+        "naab.lsp.serverPath": {
+          "type": "string",
+          "default": "naab-lsp",
+          "description": "Path to naab-lsp executable"
+        },
+        "naab.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^14.0.0",
+    "@types/vscode": "^1.60.0",
+    "typescript": "^4.5.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^7.0.0"
+  }
+}

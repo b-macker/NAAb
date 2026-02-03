@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_cordz_functions.a CMakeFiles/absl_cordz_functions.dir/internal/cordz_functions.cc.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_cordz_functions.a

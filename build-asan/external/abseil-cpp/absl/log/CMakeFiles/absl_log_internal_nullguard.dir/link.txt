@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_log_internal_nullguard.a CMakeFiles/absl_log_internal_nullguard.dir/internal/nullguard.cc.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_log_internal_nullguard.a

@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libabsl_city.a CMakeFiles/absl_city.dir/internal/city.cc.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libabsl_city.a

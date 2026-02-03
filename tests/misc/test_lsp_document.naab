@@ -1,0 +1,11 @@
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+let x: int = 42
+let y: string = x  // Type error: cannot assign int to string
+
+main {
+    let result = add(10, 20)
+    io.write("Result: ", result, "\n")
+}

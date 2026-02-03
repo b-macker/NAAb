@@ -1,1 +1,0 @@
-/data/data/com.termux/files/usr/bin/c++  -Wall -Wextra -O2 -g -DNDEBUG -pie -Xlinker --dependency-file=CMakeFiles/naab-verify-audit.dir/link.d "CMakeFiles/naab-verify-audit.dir/src/cli/verify_audit.cpp.o" -o naab-verify-audit  libnaab_security.a external/fmt/libfmt.a /data/data/com.termux/files/usr/lib/libssl.so /data/data/com.termux/files/usr/lib/libcrypto.so

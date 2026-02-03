@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/details/file_helper.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/sinks/base_sink.h>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00373_execute() {\n    {\n    return Factory::template create<sinks::basic_file_sink_st>(logger_name, filename, truncate,\n                                                               event_handlers);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00373",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/basic_file_sink.h",
-  "source_line": 52,
-  "validation_status": "validated"
-}

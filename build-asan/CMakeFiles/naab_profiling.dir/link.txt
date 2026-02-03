@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_profiling.a CMakeFiles/naab_profiling.dir/src/profiling/profiler.cpp.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_profiling.a

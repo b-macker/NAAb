@@ -1,6 +1,0 @@
-// Test without modules to verify basic functionality
-main {
-    print("Hello from NAAb!")
-    let x = 5 + 10
-    print("5 + 10 = ", x)
-}

@@ -619,6 +619,33 @@ if(OPENSSL_FOUND)
 endif()
 message(STATUS "  ✓ Tamper-evident log verification tool (naab-verify-audit)")
 
+# Phase 4.1: LSP Server
+add_executable(naab-lsp
+    tools/naab-lsp/main.cpp
+    tools/naab-lsp/lsp_server.cpp
+    tools/naab-lsp/json_rpc.cpp
+    tools/naab-lsp/document_manager.cpp
+    tools/naab-lsp/symbol_provider.cpp
+    tools/naab-lsp/hover_provider.cpp
+    tools/naab-lsp/completion_provider.cpp
+    tools/naab-lsp/definition_provider.cpp
+)
+
+target_include_directories(naab-lsp PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/external/json/single_include
+)
+
+target_link_libraries(naab-lsp PRIVATE
+    naab_parser
+    naab_semantic
+    naab_interpreter
+    fmt::fmt
+)
+
+install(TARGETS naab-lsp DESTINATION bin)
+message(STATUS "  ✓ LSP Server (naab-lsp)")
+
 # Block Enricher library
 add_library(naab_block_enricher
     tools/block_enricher.cpp
@@ -817,6 +844,31 @@ target_link_libraries(test_string_methods
     spdlog::spdlog
 )
 message(STATUS "  ✓ String methods test (Phase 2.1)")
+
+# LSP Integration Test (Phase 4.1 - Week 1)
+add_executable(lsp_integration_test
+    tests/lsp/lsp_integration_test.cpp
+    tools/naab-lsp/json_rpc.cpp
+    tools/naab-lsp/document_manager.cpp
+    tools/naab-lsp/symbol_provider.cpp
+    tools/naab-lsp/hover_provider.cpp
+    tools/naab-lsp/completion_provider.cpp
+    tools/naab-lsp/definition_provider.cpp
+)
+target_include_directories(lsp_integration_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/tools/naab-lsp
+    ${CMAKE_SOURCE_DIR}/external/json/single_include
+)
+target_link_libraries(lsp_integration_test PRIVATE
+    gtest
+    gtest_main
+    naab_parser
+    naab_semantic
+    fmt::fmt
+)
+add_test(NAME LSPIntegrationTest COMMAND lsp_integration_test)
+message(STATUS "  ✓ LSP integration test (Phase 4.1)")
 
 # Composition Validator Test (Phase 2.4 - Comprehensive)
 # DISABLED: Test file requires refactoring - BlockLoader/BlockRegistry are not mockable

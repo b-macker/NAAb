@@ -1,8 +1,0 @@
-# Test string module to verify it's working
-import string
-
-main {
-    print("Testing string module...")
-    let result = string.upper("hello")
-    print(result)
-}

@@ -1,2 +1,0 @@
-/data/data/com.termux/files/usr/bin/llvm-ar qc libnaab_block_enricher.a CMakeFiles/naab_block_enricher.dir/tools/block_enricher.cpp.o
-/data/data/com.termux/files/usr/bin/llvm-ranlib libnaab_block_enricher.a
