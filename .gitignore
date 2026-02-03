@@ -1,0 +1,114 @@
+# Build directories
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Compiled object files
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+
+# Compiled static libraries
+*.lai
+*.la
+*.lo
+
+# Generated files
+*.d
+*.cmake
+*_autogen/
+
+# Testing
+Testing/
+CTestTestfile.cmake
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.code-workspace
+
+# Dependency directories
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+*.db
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swn
+
+# Package files
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Coverage reports
+*.gcov
+*.gcda
+*.gcno
+coverage/
+htmlcov/
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Environment
+.env
+.venv
+venv/
+ENV/
+env/
+
+# VS Code extension
+vscode-naab/node_modules/
+vscode-naab/out/
+vscode-naab/*.vsix
+
+# Custom
+monitoring_data.jsonl
+baseline_test_results.txt
