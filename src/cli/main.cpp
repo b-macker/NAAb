@@ -15,11 +15,14 @@
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
 #include "naab/python_executor_adapter.h"
+#include "naab/python_interpreter_manager.h"
 #include "naab/rust_executor.h"
 #include "naab/csharp_executor.h"
 #include "naab/shell_executor.h"
 #include "naab/generic_subprocess_executor.h"
 #include "naab/rest_api.h"
+#include "naab/manifest.h"
+#include "naab/logger.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -41,24 +44,26 @@ void initialize_executors() {
 
     // Register Python executor
     #ifdef HAVE_PYBIND11
-    fmt::print("[INIT] HAVE_PYBIND11 is defined, registering Python executor\n");
+    LOG_DEBUG("[INIT] HAVE_PYBIND11 is defined, registering Python executor\n");
+    // Initialize Python interpreter before creating executor
+    naab::runtime::PythonInterpreterManager::initialize();
     registry.registerExecutor("python",
         std::make_unique<naab::runtime::PyExecutorAdapter>());
     #else
-    fmt::print("[INIT] HAVE_PYBIND11 is NOT defined, Python executor disabled\n");
+    LOG_DEBUG("[INIT] HAVE_PYBIND11 is NOT defined, Python executor disabled\n");
     #endif
 
     // Register Rust executor (Phase 3.1-3.3)
     #ifdef HAVE_RUST
-    fmt::print("[INIT] HAVE_RUST is defined, registering Rust executor\n");
+    LOG_DEBUG("[INIT] HAVE_RUST is defined, registering Rust executor\n");
     registry.registerExecutor("rust",
         std::make_unique<naab::runtime::RustExecutor>());
     #else
-    fmt::print("[INIT] HAVE_RUST is NOT defined, Rust executor disabled\n");
+    LOG_DEBUG("[INIT] HAVE_RUST is NOT defined, Rust executor disabled\n");
     #endif
 
     // Polyglot Phase 7: Register shell executor
-    fmt::print("[INIT] Registering Shell executor\n");
+    LOG_DEBUG("[INIT] Registering Shell executor\n");
     registry.registerExecutor("shell",
         std::make_unique<naab::runtime::ShellExecutor>());
     registry.registerExecutor("sh",
@@ -67,17 +72,17 @@ void initialize_executors() {
         std::make_unique<naab::runtime::ShellExecutor>());
 
     // Polyglot Phase 7: Register Ruby executor (via GenericSubprocessExecutor)
-    fmt::print("[INIT] Registering Ruby executor\n");
+    LOG_DEBUG("[INIT] Registering Ruby executor\n");
     registry.registerExecutor("ruby",
         std::make_unique<naab::runtime::GenericSubprocessExecutor>("ruby", "ruby {}", ".rb"));
 
     // Polyglot Phase 7: Register Go executor (via GenericSubprocessExecutor)
-    fmt::print("[INIT] Registering Go executor\n");
+    LOG_DEBUG("[INIT] Registering Go executor\n");
     registry.registerExecutor("go",
         std::make_unique<naab::runtime::GenericSubprocessExecutor>("go", "go run {}", ".go"));
 
     // Polyglot Phase 11: Register C# executor
-    fmt::print("[INIT] Registering C# executor\n");
+    LOG_DEBUG("[INIT] Registering C# executor\n");
     registry.registerExecutor("csharp", std::make_unique<naab::runtime::CSharpExecutor>());
     registry.registerExecutor("cs", std::make_unique<naab::runtime::CSharpExecutor>());
 }
@@ -106,6 +111,8 @@ void print_usage() {
     fmt::print("  naab-lang blocks info <block-id>    Show block details\n");
     fmt::print("  naab-lang blocks index [path]       Build search index\n");
     fmt::print("  naab-lang api [port]                Start REST API server\n");
+    fmt::print("  naab-lang init                      Create naab.toml manifest\n");
+    fmt::print("  naab-lang manifest check            Validate naab.toml\n");
     fmt::print("  naab-lang version                   Show version\n");
     fmt::print("  naab-lang help                      Show this help\n");
     fmt::print("\n");
@@ -160,8 +167,26 @@ int main(int argc, char** argv) {
             }
         }
 
+        // Configure logger based on verbosity
+        naab::logging::Logger::instance().setVerbose(verbose);
+
         // Set global color preference for diagnostics (Phase 4.1.32)
         naab::error::Diagnostic::setGlobalColorEnabled(!no_color);
+
+        // Load manifest if available
+        auto manifest = naab::manifest::ManifestLoader::findAndLoad(".");
+        if (manifest.has_value()) {
+            // Manifest loaded - configuration will be applied by interpreter
+            if (verbose) {
+                fmt::print("[Manifest] Using project: {} v{}\n",
+                           manifest->package.name, manifest->package.version);
+            }
+        } else {
+            // No manifest - use defaults
+            if (verbose) {
+                fmt::print("[Manifest] No naab.toml found, using defaults\n");
+            }
+        }
 
         try {
             // Read source file
@@ -301,6 +326,11 @@ int main(int argc, char** argv) {
             } else {
                 filename = arg;
             }
+        }
+
+        // --diff implies --check (show diff without modifying file)
+        if (show_diff) {
+            check_only = true;
         }
 
         if (filename.empty()) {
@@ -794,6 +824,45 @@ int main(int argc, char** argv) {
             fmt::print("{}", languages[i]);
         }
         fmt::print("\n");
+
+    } else if (command == "init") {
+        // Create default naab.toml
+        if (naab::manifest::createDefaultManifest("naab.toml")) {
+            fmt::print("✓ Created naab.toml\n");
+            return 0;
+        } else {
+            fmt::print("✗ Failed to create naab.toml\n");
+            return 1;
+        }
+
+    } else if (command == "manifest") {
+        // Handle manifest subcommands
+        if (argc < 3) {
+            fmt::print("Error: Missing manifest subcommand\n");
+            fmt::print("Usage: naab-lang manifest check\n");
+            return 1;
+        }
+
+        std::string subcommand = argv[2];
+        if (subcommand == "check") {
+            auto manifest = naab::manifest::ManifestLoader::load("naab.toml");
+            if (manifest.has_value()) {
+                fmt::print("✓ naab.toml is valid\n");
+                fmt::print("  Package: {} v{}\n", manifest->package.name, manifest->package.version);
+                if (!manifest->package.description.empty()) {
+                    fmt::print("  Description: {}\n", manifest->package.description);
+                }
+                fmt::print("  Build target: {}\n", manifest->build.target);
+                fmt::print("  Optimize: {}\n", manifest->build.optimize ? "true" : "false");
+                return 0;
+            } else {
+                fmt::print("✗ Error: {}\n", naab::manifest::ManifestLoader::getLastError());
+                return 1;
+            }
+        } else {
+            fmt::print("Unknown manifest subcommand: {}\n", subcommand);
+            return 1;
+        }
 
     } else if (command == "help") {
         print_usage();

@@ -7,6 +7,7 @@
 #include "naab/lexer.h"
 #include <fmt/core.h>
 #include <algorithm>
+#include <toml++/toml.h>
 
 namespace naab {
 namespace formatter {
@@ -58,10 +59,94 @@ FormatterOptions FormatterOptions::defaults() {
 }
 
 FormatterOptions FormatterOptions::fromFile(const std::string& path) {
-    (void)path;  // Unused - TOML loading not yet implemented
-    // TODO: Implement TOML config loading in Phase 1.3
-    // For now, return defaults
-    return defaults();
+    FormatterOptions opts = defaults();  // Start with defaults
+
+    try {
+        auto config = toml::parse_file(path);
+
+        // [style] section
+        if (config.contains("style")) {
+            auto& style = *config["style"].as_table();
+            if (style["indent_width"]) {
+                opts.indent_width = style["indent_width"].value_or(4);
+            }
+            if (style["max_line_length"]) {
+                opts.max_line_length = style["max_line_length"].value_or(100);
+            }
+            if (style["semicolons"]) {
+                std::string semicolon_str = style["semicolons"].value_or("never");
+                if (semicolon_str == "always") opts.semicolons = SemicolonStyle::Always;
+                else if (semicolon_str == "as-needed") opts.semicolons = SemicolonStyle::AsNeeded;
+                else opts.semicolons = SemicolonStyle::Never;
+            }
+            if (style["trailing_commas"]) {
+                opts.trailing_commas = style["trailing_commas"].value_or(true);
+            }
+        }
+
+        // [braces] section
+        if (config.contains("braces")) {
+            auto& braces = *config["braces"].as_table();
+            if (braces["function_brace_style"]) {
+                std::string style = braces["function_brace_style"].value_or("same_line");
+                opts.function_brace_style = (style == "next_line") ? BraceStyle::NextLine : BraceStyle::SameLine;
+            }
+            if (braces["control_flow_brace_style"]) {
+                std::string style = braces["control_flow_brace_style"].value_or("same_line");
+                opts.control_flow_brace_style = (style == "next_line") ? BraceStyle::NextLine : BraceStyle::SameLine;
+            }
+        }
+
+        // [spacing] section
+        if (config.contains("spacing")) {
+            auto& spacing = *config["spacing"].as_table();
+            if (spacing["blank_lines_between_declarations"]) {
+                opts.blank_lines_between_declarations = spacing["blank_lines_between_declarations"].value_or(1);
+            }
+            if (spacing["blank_lines_between_sections"]) {
+                opts.blank_lines_between_sections = spacing["blank_lines_between_sections"].value_or(2);
+            }
+            if (spacing["space_before_function_paren"]) {
+                opts.space_before_function_paren = spacing["space_before_function_paren"].value_or(false);
+            }
+            if (spacing["space_in_empty_parens"]) {
+                opts.space_in_empty_parens = spacing["space_in_empty_parens"].value_or(false);
+            }
+        }
+
+        // [wrapping] section
+        if (config.contains("wrapping")) {
+            auto& wrapping = *config["wrapping"].as_table();
+            if (wrapping["wrap_function_params"]) {
+                std::string style = wrapping["wrap_function_params"].value_or("auto");
+                if (style == "always") opts.wrap_function_params = WrappingStyle::Always;
+                else if (style == "never") opts.wrap_function_params = WrappingStyle::Never;
+                else opts.wrap_function_params = WrappingStyle::Auto;
+            }
+            if (wrapping["wrap_struct_fields"]) {
+                std::string style = wrapping["wrap_struct_fields"].value_or("auto");
+                if (style == "always") opts.wrap_struct_fields = WrappingStyle::Always;
+                else if (style == "never") opts.wrap_struct_fields = WrappingStyle::Never;
+                else opts.wrap_struct_fields = WrappingStyle::Auto;
+            }
+            if (wrapping["wrap_array_elements"]) {
+                std::string style = wrapping["wrap_array_elements"].value_or("auto");
+                if (style == "always") opts.wrap_array_elements = WrappingStyle::Always;
+                else if (style == "never") opts.wrap_array_elements = WrappingStyle::Never;
+                else opts.wrap_array_elements = WrappingStyle::Auto;
+            }
+            if (wrapping["align_wrapped_params"]) {
+                opts.align_wrapped_params = wrapping["align_wrapped_params"].value_or(true);
+            }
+        }
+
+    } catch (const toml::parse_error& err) {
+        // If config file is invalid, fall back to defaults
+        fmt::print(stderr, "Warning: Failed to parse {}: {}\n", path, err.what());
+        fmt::print(stderr, "Using default formatting options.\n");
+    }
+
+    return opts;
 }
 
 // ============================================================================

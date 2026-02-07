@@ -1,9 +1,42 @@
 #include "lsp_server.h"
 #include <iostream>
 #include <chrono>
+#include <cstdlib>
+#include <algorithm>
 
 namespace naab {
 namespace lsp {
+
+// ============================================================================
+// Log Level Configuration
+// ============================================================================
+
+static LogLevel g_log_level = LogLevel::INFO;  // Default log level
+
+LogLevel getLogLevelFromEnv() {
+    const char* env_level = std::getenv("NAAB_LSP_LOG_LEVEL");
+    if (!env_level) {
+        return LogLevel::INFO;  // Default
+    }
+
+    std::string level_str = env_level;
+    // Convert to uppercase for case-insensitive comparison
+    std::transform(level_str.begin(), level_str.end(), level_str.begin(), ::toupper);
+
+    if (level_str == "DEBUG") return LogLevel::DEBUG;
+    if (level_str == "INFO") return LogLevel::INFO;
+    if (level_str == "WARN") return LogLevel::WARN;
+    if (level_str == "ERROR") return LogLevel::ERROR;
+    if (level_str == "NONE") return LogLevel::NONE;
+
+    // Invalid value, default to INFO
+    return LogLevel::INFO;
+}
+
+bool shouldLog(LogLevel level) {
+    return static_cast<int>(level) >= static_cast<int>(g_log_level);
+}
+
 
 // ============================================================================
 // ServerCapabilities
@@ -31,6 +64,9 @@ json ServerCapabilities::toJson() const {
 
 LSPServer::LSPServer()
     : state_(ServerState::Uninitialized) {
+    // Initialize log level from environment
+    g_log_level = getLogLevelFromEnv();
+
     // Start debounce thread
     debounce_thread_ = std::thread(&LSPServer::debounceThread, this);
 }
@@ -45,13 +81,19 @@ LSPServer::~LSPServer() {
 }
 
 void LSPServer::run() {
-    std::cerr << "NAAb LSP Server starting...\n";
+    LSP_LOG(LogLevel::INFO, "NAAb LSP Server starting...");
 
     while (state_ != ServerState::Shutdown) {
         // Read message from client
         auto message_str = transport_.readMessage();
         if (!message_str) {
-            break;  // EOF or error
+            // EOF or error - but check if we're initialized first
+            // If we're uninitialized, we never got a message, so just exit
+            // If we're initialized, this is a clean shutdown
+            if (state_ == ServerState::Uninitialized) {
+                LSP_LOG(LogLevel::WARN, "Server received EOF before initialization");
+            }
+            break;
         }
 
         // Parse JSON
@@ -59,7 +101,7 @@ void LSPServer::run() {
         try {
             j = json::parse(*message_str);
         } catch (const json::parse_error& e) {
-            std::cerr << "JSON parse error: " << e.what() << "\n";
+            LSP_LOG(LogLevel::ERROR, "JSON parse error: " << e.what());
             continue;
         }
 
@@ -77,13 +119,22 @@ void LSPServer::run() {
                 dispatchNotification(*notif);
             }
         }
+
+        // IMPORTANT: Flush stdout after each response to ensure it's sent
+        // This is critical for manual testing with pipes
+        std::cout.flush();
+
+        // For manual testing: if we processed an initialize request and stdin is closed,
+        // give the client a chance to receive the response before we check for more input
+        // This allows: echo '{"jsonrpc":"2.0","id":1,"method":"initialize",...}' | naab-lsp
+        // to work correctly
     }
 
-    std::cerr << "NAAb LSP Server exiting.\n";
+    LSP_LOG(LogLevel::INFO, "NAAb LSP Server exiting.");
 }
 
 void LSPServer::dispatchRequest(const RequestMessage& request) {
-    std::cerr << "Request: " << request.method << " (id=" << request.id << ")\n";
+    LSP_LOG(LogLevel::DEBUG, "Request: " << request.method << " (id=" << request.id << ")");
 
     if (request.method == "initialize") {
         handleInitialize(request);
@@ -103,7 +154,7 @@ void LSPServer::dispatchRequest(const RequestMessage& request) {
 }
 
 void LSPServer::dispatchNotification(const NotificationMessage& notification) {
-    std::cerr << "Notification: " << notification.method << "\n";
+    LSP_LOG(LogLevel::DEBUG, "Notification: " << notification.method);
 
     if (notification.method == "initialized") {
         handleInitialized(notification);
@@ -139,7 +190,7 @@ void LSPServer::handleInitialize(const RequestMessage& request) {
 
 void LSPServer::handleInitialized(const NotificationMessage& notification) {
     state_ = ServerState::Initialized;
-    std::cerr << "Server initialized.\n";
+    LSP_LOG(LogLevel::INFO, "Server initialized.");
 }
 
 void LSPServer::handleShutdown(const RequestMessage& request) {
@@ -330,7 +381,7 @@ void LSPServer::sendNotification(const std::string& method, const json& params) 
 // ============================================================================
 
 void LSPServer::debounceThread() {
-    std::cerr << "[Debounce] Thread started\n";
+    LSP_LOG(LogLevel::DEBUG, "[Debounce] Thread started");
 
     while (!should_stop_debounce_) {
         std::unique_lock<std::mutex> lock(debounce_mutex_);
@@ -346,12 +397,12 @@ void LSPServer::debounceThread() {
         lock.unlock();
 
         for (const auto& [uri, version] : updates) {
-            std::cerr << "[Debounce] Publishing diagnostics for: " << uri << " (v" << version << ")\n";
+            LSP_LOG(LogLevel::DEBUG, "[Debounce] Publishing diagnostics for: " << uri << " (v" << version << ")");
             publishDiagnostics(uri, version);
         }
     }
 
-    std::cerr << "[Debounce] Thread stopped\n";
+    LSP_LOG(LogLevel::DEBUG, "[Debounce] Thread stopped");
 }
 
 void LSPServer::scheduleUpdate(const std::string& uri, int version) {

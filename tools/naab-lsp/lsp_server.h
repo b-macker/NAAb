@@ -16,6 +16,27 @@
 namespace naab {
 namespace lsp {
 
+// Log levels for LSP server
+enum class LogLevel {
+    DEBUG,
+    INFO,
+    WARN,
+    ERROR,
+    NONE
+};
+
+// Get log level from environment variable NAAB_LSP_LOG_LEVEL
+LogLevel getLogLevelFromEnv();
+
+// Check if a message should be logged at the given level
+bool shouldLog(LogLevel level);
+
+// Log helper macros
+#define LSP_LOG(level, msg) \
+    if (naab::lsp::shouldLog(level)) { \
+        std::cerr << msg << "\n"; \
+    }
+
 // LSP Server Capabilities (what features we support)
 struct ServerCapabilities {
     bool textDocumentSync = true;
