@@ -2,6 +2,9 @@
 #include <iostream>
 
 int main(int argc, char** argv) {
+    (void)argc;  // Reserved for future command-line argument parsing
+    (void)argv;  // Reserved for future command-line argument parsing
+
     try {
         naab::lsp::LSPServer server;
         server.run();
