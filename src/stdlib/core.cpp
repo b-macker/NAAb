@@ -19,6 +19,7 @@ int naab_len(const std::string& str) {
 
 // type(value)
 std::string naab_type(const std::string& value) {
+    (void)value;  // Stub: always returns "string" for now
     return "string";  // Stub
 }
 

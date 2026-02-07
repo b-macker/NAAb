@@ -5,12 +5,15 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
+#include "naab/utils/error_formatter.h"
 #include <vector>
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
 #include <unordered_set>
 #include <memory>
+#include <sstream>
 
 namespace naab {
 namespace stdlib {
@@ -18,8 +21,7 @@ namespace stdlib {
 // Forward declarations
 static std::vector<std::shared_ptr<interpreter::Value>> getArray(const std::shared_ptr<interpreter::Value>& val);
 static int getInt(const std::shared_ptr<interpreter::Value>& val);
-static double getDouble(const std::shared_ptr<interpreter::Value>& val);
-static bool getBool(const std::shared_ptr<interpreter::Value>& val);
+// Note: getDouble and getBool removed - unused
 static std::shared_ptr<interpreter::Value> makeInt(int i);
 static std::shared_ptr<interpreter::Value> makeBool(bool b);
 static std::shared_ptr<interpreter::Value> makeArray(const std::vector<std::shared_ptr<interpreter::Value>>& arr);
@@ -42,7 +44,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 1: length
     if (function_name == "length") {
         if (args.size() != 1) {
-            throw std::runtime_error("length() takes exactly 1 argument");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.length",
+                    {"array"},
+                    1,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         return makeInt(static_cast<int>(arr.size()));
@@ -51,7 +60,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 2: push (mutates array)
     if (function_name == "push") {
         if (args.size() != 2) {
-            throw std::runtime_error("push() takes exactly 2 arguments");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.push",
+                    {"array", "element"},
+                    2,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         arr.push_back(args[1]);
@@ -61,11 +77,24 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 3: pop (returns last element and mutates)
     if (function_name == "pop") {
         if (args.size() != 1) {
-            throw std::runtime_error("pop() takes exactly 1 argument");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.pop",
+                    {"array"},
+                    1,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         if (arr.empty()) {
-            throw std::runtime_error("Cannot pop from empty array");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatEmptyCollectionError(
+                    "array.pop",
+                    "array",
+                    "array.length"
+                )
+            );
         }
         auto last = arr.back();
         return last;
@@ -74,11 +103,24 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 4: shift (remove from start)
     if (function_name == "shift") {
         if (args.size() != 1) {
-            throw std::runtime_error("shift() takes exactly 1 argument");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.shift",
+                    {"array"},
+                    1,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         if (arr.empty()) {
-            throw std::runtime_error("Cannot shift from empty array");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatEmptyCollectionError(
+                    "array.shift",
+                    "array",
+                    "array.length"
+                )
+            );
         }
         auto first = arr.front();
         return first;
@@ -87,7 +129,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 5: unshift (add to start)
     if (function_name == "unshift") {
         if (args.size() != 2) {
-            throw std::runtime_error("unshift() takes exactly 2 arguments");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.unshift",
+                    {"array", "element"},
+                    2,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         arr.insert(arr.begin(), args[1]);
@@ -97,7 +146,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 6: first (get first element)
     if (function_name == "first") {
         if (args.size() != 1) {
-            throw std::runtime_error("first() takes exactly 1 argument");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.first",
+                    {"array"},
+                    1,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         if (arr.empty()) {
@@ -109,7 +165,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 7: last (get last element)
     if (function_name == "last") {
         if (args.size() != 1) {
-            throw std::runtime_error("last() takes exactly 1 argument");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.last",
+                    {"array"},
+                    1,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         if (arr.empty()) {
@@ -121,7 +184,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 8: join (join array to string)
     if (function_name == "join") {
         if (args.size() != 2) {
-            throw std::runtime_error("join() takes exactly 2 arguments");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.join",
+                    {"array", "delimiter"},
+                    2,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         std::string delimiter = std::visit([](auto&& arg) -> std::string {
@@ -129,7 +199,15 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
             if constexpr (std::is_same_v<T, std::string>) {
                 return arg;
             } else {
-                throw std::runtime_error("Expected string delimiter");
+                throw std::runtime_error(
+                    "Type error: array.join delimiter must be a string\n\n"
+                    "  Help:\n"
+                    "  - Second argument should be a string delimiter\n"
+                    "  - Common delimiters: \", \", \" \", \"-\", etc.\n\n"
+                    "  Example:\n"
+                    "    ✗ Wrong: array.join([1, 2, 3], 123)\n"
+                    "    ✓ Right: array.join([1, 2, 3], \", \")\n"
+                );
             }
         }, args[1]->data);
 
@@ -147,10 +225,21 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 9: map_fn (higher-order function)
     if (function_name == "map_fn") {
         if (args.size() != 2) {
-            throw std::runtime_error("map_fn() takes exactly 2 arguments (array, function)");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.map_fn",
+                    {"array", "function"},
+                    2,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         if (!evaluator_) {
-            throw std::runtime_error("map_fn() requires function evaluator to be set");
+            throw std::runtime_error(
+                "Internal error: array.map_fn requires function evaluator\n\n"
+                "  This is likely a bug in the NAAb interpreter.\n"
+                "  Please report this issue.\n"
+            );
         }
 
         auto arr = getArray(args[0]);
@@ -171,10 +260,21 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 5: filter_fn (higher-order function)
     if (function_name == "filter_fn") {
         if (args.size() != 2) {
-            throw std::runtime_error("filter_fn() takes exactly 2 arguments (array, predicate)");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.filter_fn",
+                    {"array", "predicate"},
+                    2,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         if (!evaluator_) {
-            throw std::runtime_error("filter_fn() requires function evaluator to be set");
+            throw std::runtime_error(
+                "Internal error: array.filter_fn requires function evaluator\n\n"
+                "  This is likely a bug in the NAAb interpreter.\n"
+                "  Please report this issue.\n"
+            );
         }
 
         auto arr = getArray(args[0]);
@@ -197,10 +297,21 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 6: reduce_fn (higher-order function)
     if (function_name == "reduce_fn") {
         if (args.size() != 3) {
-            throw std::runtime_error("reduce_fn() takes exactly 3 arguments (array, function, initial)");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.reduce_fn",
+                    {"array", "function", "initial"},
+                    3,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         if (!evaluator_) {
-            throw std::runtime_error("reduce_fn() requires function evaluator to be set");
+            throw std::runtime_error(
+                "Internal error: array.reduce_fn requires function evaluator\n\n"
+                "  This is likely a bug in the NAAb interpreter.\n"
+                "  Please report this issue.\n"
+            );
         }
 
         auto arr = getArray(args[0]);
@@ -218,10 +329,21 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 7: find (higher-order function)
     if (function_name == "find") {
         if (args.size() != 2) {
-            throw std::runtime_error("find() takes exactly 2 arguments (array, predicate)");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.find",
+                    {"array", "predicate"},
+                    2,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         if (!evaluator_) {
-            throw std::runtime_error("find() requires function evaluator to be set");
+            throw std::runtime_error(
+                "Internal error: array.find requires function evaluator\n\n"
+                "  This is likely a bug in the NAAb interpreter.\n"
+                "  Please report this issue.\n"
+            );
         }
 
         auto arr = getArray(args[0]);
@@ -243,7 +365,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 8: slice_arr
     if (function_name == "slice_arr") {
         if (args.size() != 3) {
-            throw std::runtime_error("slice_arr() takes exactly 3 arguments");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.slice_arr",
+                    {"array", "start", "end"},
+                    3,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         int start = getInt(args[1]);
@@ -251,7 +380,7 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
 
         // Bounds checking
         if (start < 0) start = 0;
-        if (end > static_cast<int>(arr.size())) end = arr.size();
+        if (end > static_cast<int>(arr.size())) end = static_cast<int>(arr.size());
         if (start >= end) return makeArray({});
 
         std::vector<std::shared_ptr<interpreter::Value>> result(
@@ -262,7 +391,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 9: reverse
     if (function_name == "reverse") {
         if (args.size() != 1) {
-            throw std::runtime_error("reverse() takes exactly 1 argument");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.reverse",
+                    {"array"},
+                    1,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         std::reverse(arr.begin(), arr.end());
@@ -272,7 +408,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 10: sort
     if (function_name == "sort") {
         if (args.size() != 1) {
-            throw std::runtime_error("sort() takes exactly 1 argument");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.sort",
+                    {"array"},
+                    1,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
 
@@ -287,7 +430,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Function 11: contains
     if (function_name == "contains") {
         if (args.size() != 2) {
-            throw std::runtime_error("contains() takes exactly 2 arguments");
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.contains",
+                    {"array", "element"},
+                    2,
+                    static_cast<int>(args.size())
+                )
+            );
         }
         auto arr = getArray(args[0]);
         auto target = args[1];
@@ -300,30 +450,87 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         return makeBool(false);
     }
 
-    throw std::runtime_error("Unknown function: " + function_name);
+    // Unknown function - provide helpful error with suggestions
+    static const std::vector<std::string> FUNCTIONS = {
+        "length", "push", "pop", "shift", "unshift", "first", "last",
+        "map_fn", "filter_fn", "reduce_fn", "find", "slice_arr",
+        "reverse", "sort", "contains", "join"
+    };
+
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown array function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+
+    throw std::runtime_error(oss.str());
 }
 
 // Helper functions
 static std::vector<std::shared_ptr<interpreter::Value>> getArray(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::vector<std::shared_ptr<interpreter::Value>> {
+    return std::visit([&val](auto&& arg) -> std::vector<std::shared_ptr<interpreter::Value>> {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
             return arg;
         } else {
-            throw std::runtime_error("Expected array value");
+            // Get type name for error message
+            std::string actual_type = std::visit([](auto&& v) -> std::string {
+                using VT = std::decay_t<decltype(v)>;
+                if constexpr (std::is_same_v<VT, std::monostate>) return "null";
+                else if constexpr (std::is_same_v<VT, int>) return "int";
+                else if constexpr (std::is_same_v<VT, double>) return "float";
+                else if constexpr (std::is_same_v<VT, bool>) return "bool";
+                else if constexpr (std::is_same_v<VT, std::string>) return "string";
+                else return "unknown";
+            }, val->data);
+
+            throw std::runtime_error(
+                "Type error: Expected array, got " + actual_type + "\n\n"
+                "  Help:\n"
+                "  - Array module functions require array arguments\n"
+                "  - Create an array with: [1, 2, 3]\n"
+                "  - Check the type with: typeof(value)\n\n"
+                "  Example:\n"
+                "    ✗ Wrong: array.length(\"hello\")  // string\n"
+                "    ✓ Right: array.length([1, 2, 3])  // array\n"
+            );
         }
     }, val->data);
 }
 
 static int getInt(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> int {
+    return std::visit([&val](auto&& arg) -> int {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, int>) {
             return arg;
         } else if constexpr (std::is_same_v<T, double>) {
             return static_cast<int>(arg);
         } else {
-            throw std::runtime_error("Expected integer value");
+            // Get type name for error message
+            std::string actual_type = std::visit([](auto&& v) -> std::string {
+                using VT = std::decay_t<decltype(v)>;
+                if constexpr (std::is_same_v<VT, std::monostate>) return "null";
+                else if constexpr (std::is_same_v<VT, bool>) return "bool";
+                else if constexpr (std::is_same_v<VT, std::string>) return "string";
+                else if constexpr (std::is_same_v<VT, std::vector<std::shared_ptr<interpreter::Value>>>) return "array";
+                else return "unknown";
+            }, val->data);
+
+            throw std::runtime_error(
+                "Type error: Expected integer, got " + actual_type + "\n\n"
+                "  Help:\n"
+                "  - Array indices must be integers\n"
+                "  - Numeric parameters require int or float\n"
+                "  - Convert with: int(value)\n\n"
+                "  Example:\n"
+                "    ✗ Wrong: array.slice_arr(arr, \"0\", \"5\")  // string\n"
+                "    ✓ Right: array.slice_arr(arr, 0, 5)  // int\n"
+            );
         }
     }, val->data);
 }

@@ -316,16 +316,19 @@ bool Sandbox::canExecuteCommand(const std::string& command) const {
 }
 
 bool Sandbox::canAccessEnv(const std::string& var_name) const {
+    (void)var_name;  // Reserved for future per-variable access control
     // Check SYS_ENV capability
     return config_.hasCapability(Capability::SYS_ENV);
 }
 
 bool Sandbox::canLoadBlock(const std::string& block_id) const {
+    (void)block_id;  // Reserved for future per-block access control
     // Check BLOCK_LOAD capability
     return config_.hasCapability(Capability::BLOCK_LOAD);
 }
 
 bool Sandbox::canCallBlock(const std::string& block_id) const {
+    (void)block_id;  // Reserved for future per-block access control
     // Check BLOCK_CALL capability
     return config_.hasCapability(Capability::BLOCK_CALL);
 }

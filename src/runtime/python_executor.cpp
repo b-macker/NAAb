@@ -1,4 +1,5 @@
 // NAAb Python Block Executor Implementation
+#include "naab/logger.h"
 // Embeds CPython interpreter using pybind11
 
 #include "naab/python_executor.h"
@@ -9,6 +10,7 @@
 #include "naab/stack_tracer.h"  // Phase 4.2.2: Cross-language stack traces
 #include "naab/limits.h"  // Week 1, Task 1.2: Input size caps
 #include "naab/ffi_callback_validator.h"  // Phase 1 Item 9: FFI callback safety
+#include "naab/cross_language_bridge.h"  // For struct serialization
 #include <fmt/core.h>
 #include <stdexcept>
 #include <unordered_map>
@@ -24,32 +26,32 @@ PYBIND11_EMBEDDED_MODULE(naab_internal, m) {
 namespace naab {
 namespace runtime {
 
-PythonExecutor::PythonExecutor(bool redirect_output) {
+PythonExecutor::PythonExecutor(bool redirect_output) : timeout_seconds_(30) {
     // NOTE: Caller must hold GIL before creating PythonExecutor
     // In async contexts, the callback already acquired GIL
     // In sync contexts, acquire GIL before calling this constructor
 
-    fmt::print("[DEBUG] PythonExecutor constructor started (redirect_output={})\n", redirect_output);
+    LOG_DEBUG("[DEBUG] PythonExecutor constructor started (redirect_output={})\n", redirect_output);
 
     // Note: We don't store py::globals() as a member to avoid cleanup issues
     // Instead, we call py::globals() each time we need it
-    fmt::print("[DEBUG] Verifying access to py::globals()...\n");
+    LOG_DEBUG("[DEBUG] Verifying access to py::globals()...\n");
     auto globals = py::globals();  // Test access
     (void)globals;  // Unused
-    fmt::print("[DEBUG] Global namespace accessible\n");
+    LOG_DEBUG("[DEBUG] Global namespace accessible\n");
 
-    fmt::print("[Python] PythonExecutor initialized (using global interpreter)\n");
+    LOG_DEBUG("[Python] PythonExecutor initialized (using global interpreter)\n");
 
     // Import commonly used modules
     try {
-        fmt::print("[DEBUG] Importing sys module...\n");
+        LOG_DEBUG("[DEBUG] Importing sys module...\n");
         py::module_::import("sys");
-        fmt::print("[DEBUG] Importing os module...\n");
+        LOG_DEBUG("[DEBUG] Importing os module...\n");
         py::module_::import("os");
         // Ensure our internal module is loaded so OutputRedirector type is registered
-        fmt::print("[DEBUG] Importing naab_internal module...\n");
+        LOG_DEBUG("[DEBUG] Importing naab_internal module...\n");
         py::module_::import("naab_internal");
-        fmt::print("[Python] Imported standard modules (sys, os) and naab_internal\n");
+        LOG_DEBUG("[Python] Imported standard modules (sys, os) and naab_internal\n");
     } catch (const py::error_already_set& e) {
         fmt::print("[WARN] Failed to import standard modules: {}\n", e.what());
     }
@@ -72,12 +74,12 @@ PythonExecutor::PythonExecutor(bool redirect_output) {
             fmt::print("[WARN] Failed to set sys.stderr via PySys_SetObject\n");
         }
 
-        fmt::print("[Python] Redirected stdout/stderr to internal buffers\n");
+        LOG_DEBUG("[Python] Redirected stdout/stderr to internal buffers\n");
     } else {
         // Don't create redirector objects at all in async mode
         stdout_redirector_ = nullptr;
         stderr_redirector_ = nullptr;
-        fmt::print("[Python] Skipped stdout/stderr redirection (async mode)\n");
+        LOG_DEBUG("[Python] Skipped stdout/stderr redirection (async mode)\n");
     }
 }
 
@@ -86,18 +88,18 @@ PythonExecutor::~PythonExecutor() {
     if (stdout_redirector_ || stderr_redirector_) {
         py::gil_scoped_acquire gil;
 
-        fmt::print("[Python] Cleaning up PythonExecutor with redirectors (GIL held)\n");
+        LOG_DEBUG("[Python] Cleaning up PythonExecutor with redirectors (GIL held)\n");
 
         // CRITICAL: Explicitly destroy Python objects WHILE holding GIL
         // unique_ptr::reset() destroys the object it points to
         stdout_redirector_.reset();  // Destroys py::object if it exists
         stderr_redirector_.reset();  // Destroys py::object if it exists
 
-        fmt::print("[Python] Python redirector objects cleaned up successfully\n");
+        LOG_DEBUG("[Python] Python redirector objects cleaned up successfully\n");
 
         // GIL is automatically released when gil goes out of scope
     } else {
-        fmt::print("[Python] Cleaning up PythonExecutor (no redirectors, no GIL needed)\n");
+        LOG_DEBUG("[Python] Cleaning up PythonExecutor (no redirectors, no GIL needed)\n");
     }
 }
 
@@ -110,7 +112,17 @@ void PythonExecutor::execute(const std::string& code) {
     if (sandbox && !sandbox->getConfig().hasCapability(security::Capability::BLOCK_CALL)) {
         fmt::print("[ERROR] Sandbox violation: Python execution denied\n");
         sandbox->logViolation("executePython", "<code>", "BLOCK_CALL capability required");
-        throw std::runtime_error("Python execution denied by sandbox");
+        std::ostringstream oss;
+        oss << "Security error: Python execution denied by sandbox\n\n";
+        oss << "  Required capability: BLOCK_CALL\n\n";
+        oss << "  Help:\n";
+        oss << "  - Sandbox restricts Python code execution for security\n";
+        oss << "  - Grant BLOCK_CALL capability if needed\n";
+        oss << "  - Or disable sandbox mode (unsafe)\n\n";
+        oss << "  Example:\n";
+        oss << "    // In sandbox config:\n";
+        oss << "    capabilities: [\"BLOCK_CALL\"]\n";
+        throw std::runtime_error(oss.str());
     }
 
     // Restore sys.stdout/stderr if missing (using robust C-API)
@@ -128,16 +140,49 @@ void PythonExecutor::execute(const std::string& code) {
     }
 
     try {
-        // Execute with 30-second timeout
-        security::ScopedTimeout timeout(30);
+        // Execute with configurable timeout (default 30 seconds)
+        security::ScopedTimeout timeout(static_cast<unsigned int>(timeout_seconds_));
         py::exec(code, py::globals());
-        fmt::print("[Python] Executed code successfully\n");
+        LOG_DEBUG("[Python] Executed code successfully\n");
     } catch (const security::ResourceLimitException& e) {
         fmt::print("[ERROR] Python execution timeout: {}\n", e.what());
-        security::AuditLogger::logTimeout("Python exec()", 30);
-        throw std::runtime_error("Python execution timed out");
+        security::AuditLogger::logTimeout("Python exec()", static_cast<unsigned int>(timeout_seconds_));
+        std::ostringstream oss;
+        oss << "Python execution error: Code execution timed out\n\n";
+        oss << "  Timeout limit: " << timeout_seconds_ << " seconds\n\n";
+        oss << "  Help:\n";
+        oss << "  - Python code took too long to execute\n";
+        oss << "  - Check for infinite loops or blocking operations\n";
+        oss << "  - Optimize algorithm complexity\n";
+        oss << "  - Consider async execution for long operations\n\n";
+        oss << "  Common causes:\n";
+        oss << "  - Infinite while loop\n";
+        oss << "  - Blocking I/O without timeout\n";
+        oss << "  - CPU-intensive computation\n";
+        throw std::runtime_error(oss.str());
     } catch (const py::error_already_set& e) {
-        throw std::runtime_error(fmt::format("Python execution error: {}", e.what()));
+        // Enhanced error with code preview
+        std::ostringstream oss;
+        oss << "Error in Python polyglot block:\n"
+            << "  Python error: " << e.what() << "\n";
+
+        // Add code preview (first 200 chars)
+        if (!code.empty()) {
+            std::string preview = code.substr(0, std::min(code.size(), size_t(200)));
+            oss << "  Block preview:\n";
+            std::istringstream code_stream(preview);
+            std::string line;
+            while (std::getline(code_stream, line)) {
+                oss << "    " << line << "\n";
+            }
+            if (code.size() > 200) {
+                oss << "    ...\n";
+            }
+        }
+
+        oss << "\n  Hint: Check Python syntax and indentation";
+
+        throw std::runtime_error(oss.str());
     }
 }
 
@@ -146,6 +191,60 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
     limits::checkPolyglotBlockSize(code.size(), "Python");
 
     try {
+        // Issue #3/#5/#7 Fix: Wrap code in function if it contains 'return' statement
+        // This allows return statements, multi-line dicts, and with open(...) with return to work
+        if (code.find("return ") != std::string::npos || code.find("return\n") != std::string::npos) {
+            LOG_DEBUG("[Python] Code contains 'return', wrapping in function\n");
+
+            // Wrap code in a function and immediately call it
+            std::string wrapped = "def __naab_wrapper():\n";
+
+            // Indent all lines of the original code
+            std::istringstream stream(code);
+            std::string line;
+            while (std::getline(stream, line)) {
+                wrapped += "    " + line + "\n";
+            }
+
+            // Call the function and store result
+            wrapped += "_ = __naab_wrapper()\n";
+
+            try {
+                py::exec(wrapped, py::globals());
+
+                // Get the result from _ variable
+                auto globals = py::globals();
+                if (globals.contains("_")) {
+                    py::object result = globals["_"];
+                    if (!result.is_none()) {
+                        return pythonToValue(result);
+                    }
+                }
+                // Return empty dict if function returned None
+                return std::make_shared<interpreter::Value>();
+            } catch (const py::error_already_set& wrap_error) {
+                // If wrapping failed, provide helpful error message
+                PyErr_Clear();
+                LOG_DEBUG("[Python] Function wrapping failed, trying original method\n");
+
+                std::string wrap_err = wrap_error.what();
+                if (wrap_err.find("IndentationError") != std::string::npos) {
+                    throw std::runtime_error(
+                        "Python code with 'return' has indentation issues\n\n"
+                        "When using 'return', ensure all code is properly indented:\n"
+                        "  ✓ Correct:\n"
+                        "    if condition:\n"
+                        "        return value\n\n"
+                        "  ✗ Wrong:\n"
+                        "    if condition:\n"
+                        "    return value  # Indentation error\n\n"
+                        "Original error: " + wrap_err
+                    );
+                }
+                // Fall through to original logic for other errors
+            }
+        }
+
         // Note: Timeout is now handled by AsyncCallbackWrapper for async execution
         // For blocking execution, the wrapper also provides timeout control
 
@@ -158,7 +257,7 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
             std::string error_msg = e.what();
             if (error_msg.find("SyntaxError") != std::string::npos) {
                 // Fall back to exec() for multi-line statements
-                fmt::print("[Python] eval() failed, trying exec() for multi-line code\n");
+                LOG_DEBUG("[Python] eval() failed, trying exec() for multi-line code\n");
 
                 // Clear the error state before trying exec
                 PyErr_Clear();
@@ -175,8 +274,8 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
 
                 // Find the last non-empty, non-comment, non-indented line (top-level statement)
                 int last_line_idx = -1;
-                for (int i = lines.size() - 1; i >= 0; i--) {
-                    std::string trimmed = lines[i];
+                for (int i = static_cast<int>(lines.size()) - 1; i >= 0; i--) {
+                    std::string trimmed = lines[static_cast<size_t>(i)];
                     // Check if line starts without indentation (top-level)
                     if (!trimmed.empty() && trimmed[0] != ' ' && trimmed[0] != '\t') {
                         // Skip comment lines
@@ -237,24 +336,31 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
                             fmt::print("[WARN] Python block returned None\n");
                             throw std::runtime_error(
                                 "Python block returned None/null\n\n"
-                                "Help: Python blocks return the LAST EXPRESSION at the top level.\n\n"
-                                "  ✗ Wrong - expressions inside if/else blocks:\n"
-                                "    if error:\n"
-                                "        json.dumps({\"error\": error})\n"
-                                "    else:\n"
-                                "        json.dumps(data)\n\n"
-                                "  ✓ Correct - assign in if/else, return at top level:\n"
-                                "    if error:\n"
-                                "        result_data = {\"error\": error}\n"
-                                "    else:\n"
-                                "        result_data = data\n"
-                                "    \n"
-                                "    json.dumps(result_data)  # ← This is returned\n\n"
+                                "Help: NAAb polyglot blocks must return a value (cannot be None/null).\n"
+                                "Even standalone blocks executed for side-effects need a return value.\n\n"
+                                "  ✗ Wrong - returns None:\n"
+                                "    <<python\n"
+                                "    print(\"Hello\")\n"
+                                "    for i in range(3):\n"
+                                "        print(f\"Count: {i}\")\n"
+                                "    None  # ← Cannot return None!\n"
+                                "    >>\n\n"
+                                "  ✓ Correct - return a simple value:\n"
+                                "    <<python\n"
+                                "    print(\"Hello\")\n"
+                                "    for i in range(3):\n"
+                                "        print(f\"Count: {i}\")\n"
+                                "    True  # ← or \"ok\", 1, etc.\n"
+                                "    >>\n\n"
+                                "  ✓ Or capture and return data:\n"
+                                "    let count = <<python\n"
+                                "    sum([1, 2, 3, 4, 5])  # ← Returns 15\n"
+                                "    >>\n\n"
                                 "  Common issues:\n"
+                                "  - Last line is None (use True, \"ok\", 1, etc. instead)\n"
                                 "  - Last line is inside an if/else/for/while block\n"
                                 "  - Last line is an assignment (use variable name on next line)\n"
                                 "  - Function returns None instead of a value\n"
-                                "  - Variable binding names don't match (check binding list)\n"
                             );
                         }
                     } else {
@@ -262,19 +368,31 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
                         fmt::print("[WARN] Python block has no return value (no '_' variable)\n");
                         throw std::runtime_error(
                             "Python block has no return value\n\n"
-                            "Help: The last line of your Python block must be an expression.\n\n"
+                            "Help: The last line of your Python block must be an EXPRESSION (not a statement).\n"
+                            "NAAb captures the last expression's value and returns it.\n\n"
                             "  ✗ Wrong - last line is a statement:\n"
+                            "    <<python\n"
+                            "    import json\n"
+                            "    data = {\"key\": \"value\"}  # ← Assignment (statement)\n"
+                            "    # No return value!\n"
+                            "    >>\n\n"
+                            "  ✓ Correct - add expression on last line:\n"
+                            "    <<python\n"
                             "    import json\n"
                             "    data = {\"key\": \"value\"}\n"
-                            "    # No return value!\n\n"
-                            "  ✓ Correct - expression on last line:\n"
-                            "    import json\n"
-                            "    data = {\"key\": \"value\"}\n"
-                            "    json.dumps(data)  # ← This is returned\n\n"
-                            "  Or use the variable name directly:\n"
+                            "    json.dumps(data)  # ← Expression (returns value)\n"
+                            "    >>\n\n"
+                            "  ✓ Or use the variable name directly:\n"
+                            "    <<python\n"
                             "    import json\n"
                             "    result = json.dumps({\"key\": \"value\"})\n"
-                            "    result  # ← This is returned\n"
+                            "    result  # ← Variable name is an expression\n"
+                            "    >>\n\n"
+                            "  For standalone blocks (side-effects only):\n"
+                            "    <<python\n"
+                            "    print(\"Hello, world!\")\n"
+                            "    True  # ← Simple return value\n"
+                            "    >>\n"
                         );
                     }
                 } catch (const std::runtime_error& e) {
@@ -291,7 +409,28 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
             }
         }
     } catch (const py::error_already_set& e) {
-        throw std::runtime_error(fmt::format("Python execution error: {}", e.what()));
+        // Enhanced error with code preview
+        std::ostringstream oss;
+        oss << "Error in Python polyglot block:\n"
+            << "  Python error: " << e.what() << "\n";
+
+        // Add code preview (first 200 chars)
+        if (!code.empty()) {
+            std::string preview = code.substr(0, std::min(code.size(), size_t(200)));
+            oss << "  Block preview:\n";
+            std::istringstream code_stream(preview);
+            std::string line;
+            while (std::getline(code_stream, line)) {
+                oss << "    " << line << "\n";
+            }
+            if (code.size() > 200) {
+                oss << "    ...\n";
+            }
+        }
+
+        oss << "\n  Hint: Check Python syntax and indentation";
+
+        throw std::runtime_error(oss.str());
     }
 }
 
@@ -299,7 +438,7 @@ std::shared_ptr<interpreter::Value> PythonExecutor::callFunction(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
 
-    fmt::print("[Python] Calling function: {}\n", function_name);
+    LOG_DEBUG("[Python] Calling function: {}\n", function_name);
 
     // Phase 4.2.2: Push stack frame for cross-language tracing
     error::ScopedStackFrame stack_frame("python", function_name, "<python>", 0);
@@ -307,7 +446,22 @@ std::shared_ptr<interpreter::Value> PythonExecutor::callFunction(
     // Check if function exists
     auto globals = py::globals();
     if (!globals.contains(function_name.c_str())) {
-        throw std::runtime_error(fmt::format("Python function not found: {}", function_name));
+        std::ostringstream oss;
+        oss << "Python execution error: Function not found\n\n";
+        oss << "  Function: " << function_name << "\n\n";
+        oss << "  Help:\n";
+        oss << "  - The function must be defined in the Python block\n";
+        oss << "  - Check function name spelling (case-sensitive)\n";
+        oss << "  - Ensure function is at module level (not nested)\n";
+        oss << "  - Verify the block executed successfully\n\n";
+        oss << "  Example:\n";
+        oss << "    ✗ Wrong: def myFunc(): ...  // called as myFunction\n";
+        oss << "    ✓ Right: def myFunction(): ...  // exact match\n\n";
+        oss << "  Common causes:\n";
+        oss << "  - Typo in function name\n";
+        oss << "  - Function defined inside another function\n";
+        oss << "  - Python block failed to execute\n";
+        throw std::runtime_error(oss.str());
     }
 
     // Phase 1 Item 9: FFI callback safety - wrap with exception boundary
@@ -337,7 +491,25 @@ std::shared_ptr<interpreter::Value> PythonExecutor::callFunction(
             } catch (const security::ResourceLimitException& e) {
                 fmt::print("[ERROR] Python function timeout: {}\n", e.what());
                 security::AuditLogger::logTimeout("Python function: " + function_name, 30);
-                throw std::runtime_error("Python function call timed out");
+
+                std::ostringstream oss;
+                oss << "Python execution error: Function call timed out\n\n";
+                oss << "  Function: " << function_name << "\n";
+                oss << "  Timeout limit: 30 seconds\n\n";
+                oss << "  Help:\n";
+                oss << "  - Python function took too long to execute\n";
+                oss << "  - Check for infinite loops or blocking operations\n";
+                oss << "  - Optimize algorithm complexity\n";
+                oss << "  - Consider async execution for long operations\n\n";
+                oss << "  Common causes:\n";
+                oss << "  - Infinite while loop\n";
+                oss << "  - Blocking I/O without timeout\n";
+                oss << "  - CPU-intensive computation\n";
+                oss << "  - Network request without timeout\n\n";
+                oss << "  Example fixes:\n";
+                oss << "    ✗ Wrong: while True: compute()  // never exits\n";
+                oss << "    ✓ Right: for i in range(1000): compute()  // bounded\n";
+                throw std::runtime_error(oss.str());
             }
 
             // Convert result back to NAAb Value
@@ -362,12 +534,12 @@ std::shared_ptr<interpreter::Value> PythonExecutor::callFunction(
 }
 
 bool PythonExecutor::loadModule(const std::string& module_name, const std::string& code) {
-    fmt::print("[Python] Loading module: {}\n", module_name);
+    LOG_DEBUG("[Python] Loading module: {}\n", module_name);
 
     try {
         // Execute the module code in the global namespace
         py::exec(code, py::globals());
-        fmt::print("[Python] Module {} loaded successfully\n", module_name);
+        LOG_DEBUG("[Python] Module {} loaded successfully\n", module_name);
         return true;
     } catch (const py::error_already_set& e) {
         fmt::print("[ERROR] Failed to load module {}: {}\n", module_name, e.what());
@@ -454,6 +626,11 @@ py::object PythonExecutor::valueToPython(const std::shared_ptr<interpreter::Valu
                 }, value->data);
             }
             return result;
+        }
+        else if constexpr (std::is_same_v<T, std::shared_ptr<interpreter::StructValue>>) {
+            // Struct → Python object (use CrossLanguageBridge)
+            CrossLanguageBridge bridge;
+            return bridge.structToPython(arg);
         }
         else {
             return py::str("<unknown>");

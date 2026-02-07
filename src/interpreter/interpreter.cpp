@@ -6,17 +6,26 @@
 #include "naab/error_helpers.h"
 #include "naab/language_registry.h"
 #include "naab/block_registry.h"
+#include "naab/logger.h"  // Logging system
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
+#include "naab/python_executor_adapter.h"
+#include "naab/shell_executor.h"  // Polyglot: Issue #2 - Shell environment variables
 #include "naab/stdlib_new_modules.h"  // For ArrayModule type
 #include "naab/struct_registry.h"
 #include "cycle_detector.h"  // Phase 3.2: Garbage collection
+#include "naab/polyglot_dependency_analyzer.h"  // Parallel polyglot execution
+#include "naab/polyglot_async_executor.h"  // Parallel polyglot execution
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <type_traits>
 #include <stdexcept>
+#include <climits>  // For INT_MAX, INT_MIN overflow detection
 #include <filesystem>  // Phase 3.1: For module path resolution
 #include <unordered_set>  // For constant lookup in stdlib modules
+#include <map>  // Polyglot: Issue #2 - Shell environment variables
 
 // Python embedding support
 #ifdef __has_include
@@ -28,6 +37,77 @@
 
 namespace naab {
 namespace interpreter {
+
+// Issue #3: Global access to current interpreter (for stdlib path resolution)
+thread_local Interpreter* g_current_interpreter = nullptr;
+
+// Helper function to get type name as string for error messages
+static std::string getTypeName(const std::shared_ptr<Value>& val) {
+    return std::visit([](auto&& arg) -> std::string {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, int>) {
+            return "int";
+        } else if constexpr (std::is_same_v<T, double>) {
+            return "float";
+        } else if constexpr (std::is_same_v<T, bool>) {
+            return "bool";
+        } else if constexpr (std::is_same_v<T, std::string>) {
+            return "string";
+        } else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) {
+            return "array";
+        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) {
+            return "dict";
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) {
+            return "function";
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
+            return "struct";
+        }
+        return "unknown";
+    }, val->data);
+}
+
+// Helper function to deep copy a Value (handles nested arrays/dicts)
+// This prevents silent mutations through variable aliasing
+static std::shared_ptr<Value> copyValue(const std::shared_ptr<Value>& val) {
+    if (!val) return nullptr;
+
+    return std::visit([](auto&& arg) -> std::shared_ptr<Value> {
+        using T = std::decay_t<decltype(arg)>;
+
+        // Monostate (null/undefined): use default constructor
+        if constexpr (std::is_same_v<T, std::monostate>) {
+            return std::make_shared<Value>();
+        }
+        // Primitives: copy directly (immutable in practice)
+        else if constexpr (std::is_same_v<T, int> ||
+                          std::is_same_v<T, double> ||
+                          std::is_same_v<T, bool> ||
+                          std::is_same_v<T, std::string>) {
+            return std::make_shared<Value>(arg);
+        }
+        // Arrays: deep copy each element recursively
+        else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) {
+            std::vector<std::shared_ptr<Value>> new_vec;
+            new_vec.reserve(arg.size());
+            for (const auto& elem : arg) {
+                new_vec.push_back(copyValue(elem));  // Recursive deep copy
+            }
+            return std::make_shared<Value>(new_vec);
+        }
+        // Dicts: deep copy each value recursively
+        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) {
+            std::unordered_map<std::string, std::shared_ptr<Value>> new_dict;
+            for (const auto& [key, val] : arg) {
+                new_dict[key] = copyValue(val);  // Recursive deep copy
+            }
+            return std::make_shared<Value>(new_dict);
+        }
+        // Functions, blocks, structs, python objects: share (immutable or intentionally shared)
+        else {
+            return std::make_shared<Value>(arg);
+        }
+    }, val->data);
+}
 
 // ============================================================================
 // Phase 4.1: Exception Handling
@@ -313,6 +393,7 @@ Interpreter::Interpreter()
       returning_(false),
       breaking_(false),
       continuing_(false),
+      loop_depth_(0),  // Initialize loop depth counter for break/continue validation
       last_executed_block_id_(""),  // Phase 4.4: Initialize block pair tracking
       current_function_(nullptr) {  // Phase 2.4.2: Initialize function tracking
     // Phase 8: Skip BlockRegistry initialization for faster startup
@@ -322,13 +403,13 @@ Interpreter::Interpreter()
     // Skip BlockLoader for now - using lazy BlockRegistry instead
     // This avoids loading 24,482 database blocks upfront
     block_loader_ = nullptr;
-    fmt::print("[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)\n");
+    LOG_DEBUG("[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)\n");
 
     // Initialize Python interpreter
 #ifdef NAAB_HAS_PYTHON
     if (!Py_IsInitialized()) {
         Py_Initialize();
-        fmt::print("[INFO] Python interpreter initialized\n");
+        LOG_DEBUG("[INFO] Python interpreter initialized\n");
     }
 #else
     fmt::print("[WARN] Python support not available (Python blocks disabled)\n");
@@ -336,20 +417,36 @@ Interpreter::Interpreter()
 
     // Initialize C++ executor
     cpp_executor_ = std::make_unique<runtime::CppExecutor>();
-    fmt::print("[INFO] C++ executor initialized\n");
+    LOG_DEBUG("[INFO] C++ executor initialized\n");
 
     // Initialize standard library
     stdlib_ = std::make_unique<stdlib::StdLib>();
-    fmt::print("[INFO] Standard library initialized: {} modules available\n",
+    LOG_DEBUG("[INFO] Standard library initialized: {} modules available\n",
                stdlib_->listModules().size());
+
+    // Auto-import stdlib prelude (core modules available without 'use')
+    std::vector<std::string> prelude_modules = {"array", "string", "io", "file", "debug"};
+    for (const auto& mod_name : prelude_modules) {
+        if (stdlib_->hasModule(mod_name)) {
+            auto module = stdlib_->getModule(mod_name);
+            imported_modules_[mod_name] = module;
+
+            // Store module marker in global environment
+            auto module_marker = std::make_shared<Value>(
+                std::string("__stdlib_module__:" + mod_name)
+            );
+            global_env_->define(mod_name, module_marker);
+        }
+    }
+    LOG_DEBUG("[INFO] Stdlib prelude auto-imported: array, string, io, file, debug\n");
 
     // Phase 3.1: Initialize module resolver
     module_resolver_ = std::make_unique<modules::ModuleResolver>();
-    fmt::print("[INFO] Module resolver initialized\n");
+    LOG_DEBUG("[INFO] Module resolver initialized\n");
 
     // Phase 4.0: Initialize module registry
     module_registry_ = std::make_unique<modules::ModuleRegistry>();
-    fmt::print("[INFO] Module registry initialized (Phase 4.0)\n");
+    LOG_DEBUG("[INFO] Module registry initialized (Phase 4.0)\n");
 
     // Set up function evaluator callback for array higher-order functions
     // Note: Do this AFTER all other initialization to avoid potential issues
@@ -363,7 +460,7 @@ Interpreter::Interpreter()
                     return this->callFunction(fn, args);
                 }
             );
-            fmt::print("[INFO] Array module configured with function evaluator\n");
+            LOG_DEBUG("[INFO] Array module configured with function evaluator\n");
         } else {
             fmt::print("[WARN] Failed to cast array module for function evaluator setup\n");
         }
@@ -382,7 +479,7 @@ Interpreter::Interpreter()
                     return this->script_args_;
                 }
             );
-            fmt::print("[INFO] Env module configured with args provider\n");
+            LOG_DEBUG("[INFO] Env module configured with args provider\n");
         } else {
             fmt::print("[WARN] Failed to cast env module for args provider setup\n");
         }
@@ -392,7 +489,10 @@ Interpreter::Interpreter()
 
     // Phase 3.2: Initialize garbage collector
     cycle_detector_ = std::make_unique<CycleDetector>();
-    fmt::print("[INFO] Garbage collector initialized (threshold: {} allocations)\n", gc_threshold_);
+    LOG_DEBUG("[INFO] Garbage collector initialized (threshold: {} allocations)\n", gc_threshold_);
+
+    // Issue #3: Set global interpreter pointer for stdlib path resolution
+    g_current_interpreter = this;
 
     defineBuiltins();
 }
@@ -424,6 +524,11 @@ void Interpreter::setSourceCode(const std::string& source, const std::string& fi
     // ISS-035 FIX: Convert to absolute path for proper module resolution
     current_file_ = std::filesystem::absolute(filename).string();
     error_reporter_.setSource(source, filename);
+
+    // Issue #3: Initialize file context stack with main script
+    if (!filename.empty() && file_context_stack_.empty()) {
+        pushFileContext(filename);
+    }
 }
 
 void Interpreter::execute(ast::Program& program) {
@@ -457,7 +562,18 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     // Check if it's a function value
     auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&fn->data);
     if (!func_ptr) {
-        throw std::runtime_error("callFunction requires a function value");
+        std::ostringstream oss;
+        oss << "Type error: Cannot call non-function value\n\n";
+        oss << "  Attempted to call: " << getTypeName(fn) << "\n";
+        oss << "  Expected: function\n\n";
+        oss << "  Help:\n";
+        oss << "  - Only functions can be called with ()\n";
+        oss << "  - Check if the variable holds a function\n";
+        oss << "  - Use typeof() or debug.type() to inspect the type\n\n";
+        oss << "  Example:\n";
+        oss << "    ✗ Wrong: let x = 42; x()  // calling an int\n";
+        oss << "    ✓ Right: let f = function() { ... }; f()\n";
+        throw std::runtime_error(oss.str());
     }
     auto& func = *func_ptr;
 
@@ -470,9 +586,29 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     }
 
     if (args.size() < min_args || args.size() > func->params.size()) {
-        throw std::runtime_error(fmt::format(
-            "Function {} expects {}-{} args, got {}",
-            func->name, min_args, func->params.size(), args.size()));
+        // Build parameter list for error message
+        std::ostringstream oss;
+        oss << "Function " << func->name << " expects " << min_args << "-"
+            << func->params.size() << " arguments, got " << args.size() << "\n"
+            << "  Function: " << func->name << "(";
+
+        // Show parameters
+        for (size_t i = 0; i < func->params.size(); ++i) {
+            if (i > 0) oss << ", ";
+            oss << func->params[i];
+        }
+        oss << ")\n";
+
+        // Show what was provided
+        oss << "  Provided: " << args.size() << " argument(s)";
+
+        // Helpful hint if this might be a pipeline issue
+        if (args.size() == 1 && func->params.size() > 1) {
+            oss << "\n\n  Hint: If using pipeline operator (|>), it only passes the left side as the FIRST argument.\n"
+                << "        For multi-arg functions: 100 |> subtract(50) becomes subtract(100, 50)";
+        }
+
+        throw std::runtime_error(oss.str());
     }
 
     // Create new environment for function execution
@@ -503,12 +639,21 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     returning_ = false;
     current_file_ = func->source_file;  // Phase 3.1: Set file to function's source file
 
+    // Issue #3: Push file context for function's source file
+    if (!func->source_file.empty()) {
+        pushFileContext(func->source_file);
+    }
+
     pushStackFrame(func->name, func->source_line);  // Phase 3.1: Use actual line number
 
     try {
         executeStmt(*func->body);
     } catch (...) {
         popStackFrame();
+        // Issue #3: Pop file context on error
+        if (!func->source_file.empty()) {
+            popFileContext();
+        }
         current_env_ = saved_env;
         returning_ = saved_returning;
         current_file_ = saved_file;  // Phase 3.1: Restore file
@@ -517,6 +662,11 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
 
     popStackFrame();
 
+    // Issue #3: Pop file context on success
+    if (!func->source_file.empty()) {
+        popFileContext();
+    }
+
     // Restore environment
     current_env_ = saved_env;
     current_file_ = saved_file;  // Phase 3.1: Restore file
@@ -524,6 +674,18 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     returning_ = saved_returning;
 
     return return_value;
+}
+
+// Get variable from environment (for testing)
+std::shared_ptr<Value> Interpreter::getVariable(const std::string& name) const {
+    // Try current environment first, then global
+    if (current_env_ && current_env_->has(name)) {
+        return current_env_->get(name);
+    }
+    if (global_env_ && global_env_->has(name)) {
+        return global_env_->get(name);
+    }
+    return nullptr;
 }
 
 // Phase 11.1: Helper to flush captured output from polyglot executors
@@ -596,13 +758,13 @@ void Interpreter::visit(ast::Program& node) {
     }
 
     // Store function definitions
-    fmt::print("[DEBUG] Processing {} standalone functions\n", node.getFunctions().size());
+    LOG_DEBUG("Processing {} standalone functions\n", node.getFunctions().size());
     for (auto& func : node.getFunctions()) {
         func->accept(*this);
     }
 
     // Phase 3.1: Process exports
-    fmt::print("[DEBUG] Processing {} export statements\n", node.getExports().size());
+    LOG_DEBUG("Processing {} export statements\n", node.getExports().size());
     for (auto& export_stmt : node.getExports()) {
         export_stmt->accept(*this);
     }
@@ -622,7 +784,7 @@ void Interpreter::visit(ast::UseStatement& node) {
         auto module = stdlib_->getModule(module_name);
         imported_modules_[alias] = module;
 
-        fmt::print("[INFO] Imported stdlib module: {} as {}\n", module_name, alias);
+        LOG_DEBUG("[INFO] Imported stdlib module: {} as {}\n", module_name, alias);
 
         // Store module reference in environment (we'll handle calls specially)
         // For now, create a special marker value
@@ -641,7 +803,7 @@ void Interpreter::visit(ast::UseStatement& node) {
     if (!block_registry.isInitialized()) {
         std::string home_dir = std::getenv("HOME") ? std::getenv("HOME") : ".";
         std::string blocks_path = home_dir + "/.naab/language/blocks/library/";
-        fmt::print("[INFO] Lazy-loading BlockRegistry from: {}\n", blocks_path);
+        LOG_DEBUG("[INFO] Lazy-loading BlockRegistry from: {}\n", blocks_path);
         block_registry.initialize(blocks_path);
     }
 
@@ -655,7 +817,7 @@ void Interpreter::visit(ast::UseStatement& node) {
         metadata = *metadata_opt;
         code = block_registry.getBlockSource(node.getBlockId());
 
-        fmt::print("[INFO] Loaded block {} from filesystem as {} ({})\n",
+        LOG_DEBUG("[INFO] Loaded block {} from filesystem as {} ({})\n",
                    node.getBlockId(), alias, metadata.language);
         fmt::print("       Source: {}\n", metadata.file_path);
         fmt::print("       Code size: {} bytes\n", code.size());
@@ -666,7 +828,7 @@ void Interpreter::visit(ast::UseStatement& node) {
             metadata = block_loader_->getBlock(node.getBlockId());
             code = block_loader_->loadBlockCode(node.getBlockId());
 
-            fmt::print("[INFO] Loaded block {} from database as {} ({}, {} tokens)\n",
+            LOG_DEBUG("[INFO] Loaded block {} from database as {} ({}, {} tokens)\n",
                        node.getBlockId(), alias, metadata.language, metadata.token_count);
             fmt::print("       Source: {}\n", metadata.file_path);
             fmt::print("       Code size: {} bytes\n", code.size());
@@ -691,7 +853,7 @@ void Interpreter::visit(ast::UseStatement& node) {
         if (metadata.language == "cpp" || metadata.language == "c++") {
             // C++ blocks: Create dedicated executor instance per block
             // Each C++ block compiles to a separate .so file
-            fmt::print("[INFO] Creating dedicated C++ executor for block...\n");
+            LOG_DEBUG("[INFO] Creating dedicated C++ executor for block...\n");
             auto cpp_exec = std::make_unique<runtime::CppExecutorAdapter>();
 
             if (!cpp_exec->execute(code)) {
@@ -719,7 +881,7 @@ void Interpreter::visit(ast::UseStatement& node) {
                 return;
             }
 
-            fmt::print("[INFO] Executing block with shared {} executor...\n", metadata.language);
+            LOG_DEBUG("[INFO] Executing block with shared {} executor...\n", metadata.language);
             if (!executor->execute(code)) {
                 fmt::print("[ERROR] Failed to execute block code\n");
                 return;
@@ -732,7 +894,7 @@ void Interpreter::visit(ast::UseStatement& node) {
         auto value = std::make_shared<Value>(block_value);
         current_env_->define(alias, value);
 
-        fmt::print("[SUCCESS] Block {} loaded and ready as '{}'\n",
+        LOG_DEBUG("[SUCCESS] Block {} loaded and ready as '{}'\n",
                    node.getBlockId(), alias);
 
         // Record usage statistics (only if using database loader)
@@ -751,7 +913,7 @@ void Interpreter::visit(ast::UseStatement& node) {
 void Interpreter::visit(ast::ModuleUseStmt& node) {
     const std::string& module_path = node.getModulePath();
 
-    fmt::print("[MODULE] Processing: use {}\n", module_path);
+    LOG_DEBUG("[MODULE] Processing: use {}\n", module_path);
 
     // BUGFIX: Check if it's a stdlib module first (like UseStatement does)
     if (stdlib_->hasModule(module_path)) {
@@ -763,7 +925,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
         // Store in imported_modules_ for function calls
         imported_modules_[alias] = module;
 
-        fmt::print("[MODULE] Loaded stdlib module: {} as {}\n", module_path, alias);
+        LOG_DEBUG("[MODULE] Loaded stdlib module: {} as {}\n", module_path, alias);
 
         // Store module marker in environment for member access
         auto module_marker = std::make_shared<Value>(
@@ -792,7 +954,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
 
     // Check if module has already been executed
     if (module->isExecuted()) {
-        fmt::print("[MODULE] Module '{}' already executed, reusing\n", module_path);
+        LOG_DEBUG("[MODULE] Module '{}' already executed, reusing\n", module_path);
 
         // Import module into current namespace
         // Use alias if provided, otherwise use the last part of the module path
@@ -834,7 +996,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
             continue;  // Skip already executed modules
         }
 
-        fmt::print("[MODULE] Executing: {}\n", dep_module->getName());
+        LOG_DEBUG("[MODULE] Executing: {}\n", dep_module->getName());
 
         // Create module environment (child of global)
         auto module_env = std::make_shared<Environment>(global_env_);
@@ -881,7 +1043,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
             }
 
             dep_module->markExecuted();
-            fmt::print("[MODULE] Execution complete: {}\n", dep_module->getName());
+            LOG_DEBUG("[MODULE] Execution complete: {}\n", dep_module->getName());
 
             // ISS-024 Fix: Store module environment for struct resolution
             loaded_modules_[dep_module->getName()] = module_env;
@@ -929,7 +1091,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
         loaded_modules_[module_name] = loaded_modules_[module_path];
     }
 
-    fmt::print("[MODULE] Successfully imported: {} (use as '{}')\n",
+    LOG_DEBUG("[MODULE] Successfully imported: {} (use as '{}')\n",
                module_path, module_name);
 }
 
@@ -939,9 +1101,9 @@ void Interpreter::visit(ast::ImportStmt& node) {
         fmt::print("[VERBOSE] Loading module: {}\n", node.getModulePath());
     }
 
-    // Get current file directory (for relative imports)
-    // For now, we'll use the current working directory
-    std::filesystem::path current_dir = std::filesystem::current_path();
+    // Issue #3: Get current file directory for relative imports
+    // Resolve relative to the file being executed, not the working directory
+    std::filesystem::path current_dir = getCurrentFileDirectory();
 
     // Resolve module path
     auto resolved_path = module_resolver_->resolve(node.getModulePath(), current_dir);
@@ -958,7 +1120,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
 
     std::string canonical_path = modules::ModuleResolver::canonicalizePath(*resolved_path);
 
-    fmt::print("[INFO] Importing module: {} ({})\n", node.getModulePath(), canonical_path);
+    LOG_DEBUG("[INFO] Importing module: {} ({})\n", node.getModulePath(), canonical_path);
 
     // Load and execute module (or get from cache)
     auto module_env = loadAndExecuteModule(canonical_path);
@@ -978,7 +1140,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
         auto dict_value = std::make_shared<Value>(module_dict);
         current_env_->define(alias, dict_value);
 
-        fmt::print("[SUCCESS] Imported all from {} as '{}'\n", node.getModulePath(), alias);
+        LOG_DEBUG("[SUCCESS] Imported all from {} as '{}'\n", node.getModulePath(), alias);
         return;
     }
 
@@ -992,7 +1154,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
             auto value = module_env->get(import_name);
             current_env_->define(local_name, value);
 
-            fmt::print("[SUCCESS] Imported {} as '{}' from {}\n",
+            LOG_DEBUG("[SUCCESS] Imported {} as '{}' from {}\n",
                       import_name, local_name, node.getModulePath());
         } catch (const std::exception& e) {
             throw std::runtime_error(
@@ -1005,7 +1167,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
     // Import exported structs (Week 7)
     for (const auto& [name, struct_def] : module_env->exported_structs_) {
         runtime::StructRegistry::instance().registerStruct(struct_def);
-        fmt::print("[SUCCESS] Imported struct: {}\n", name);
+        LOG_DEBUG("[SUCCESS] Imported struct: {}\n", name);
     }
 
     // Import exported enums (Phase 4.1: Module System)
@@ -1015,7 +1177,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
             std::string full_name = enum_def->name + "." + variant_name;
             global_env_->define(full_name, std::make_shared<Value>(value));
         }
-        fmt::print("[SUCCESS] Imported enum: {}\n", name);
+        LOG_DEBUG("[SUCCESS] Imported enum: {}\n", name);
     }
 }
 
@@ -1034,7 +1196,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 // Store in module exports
                 module_exports_[func_decl->getName()] = func_value;
 
-                fmt::print("[INFO] Exported function: {}\n", func_decl->getName());
+                LOG_DEBUG("[INFO] Exported function: {}\n", func_decl->getName());
             }
             break;
         }
@@ -1051,7 +1213,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 // Store in module exports
                 module_exports_[var_decl->getName()] = var_value;
 
-                fmt::print("[INFO] Exported variable: {}\n", var_decl->getName());
+                LOG_DEBUG("[INFO] Exported variable: {}\n", var_decl->getName());
             }
             break;
         }
@@ -1066,7 +1228,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 module_exports_["default"] = value;
                 current_env_->define("default", value);
 
-                fmt::print("[INFO] Exported default expression\n");
+                LOG_DEBUG("[INFO] Exported default expression\n");
             }
             break;
         }
@@ -1086,7 +1248,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                     // Store in module's exported structs
                     current_env_->exported_structs_[struct_decl->getName()] = struct_def;
 
-                    fmt::print("[SUCCESS] Exported struct: {}\n", struct_decl->getName());
+                    LOG_DEBUG("[SUCCESS] Exported struct: {}\n", struct_decl->getName());
                 } else {
                     fmt::print("[ERROR] Failed to export struct: {}\n", struct_decl->getName());
                 }
@@ -1116,7 +1278,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 // Store in module's exported enums
                 current_env_->exported_enums_[enum_decl->getName()] = enum_def;
 
-                fmt::print("[SUCCESS] Exported enum: {}\n", enum_decl->getName());
+                LOG_DEBUG("[SUCCESS] Exported enum: {}\n", enum_decl->getName());
             }
             break;
         }
@@ -1128,11 +1290,11 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
     // Check if module is already loaded
     auto it = loaded_modules_.find(module_path);
     if (it != loaded_modules_.end()) {
-        fmt::print("[INFO] Module already loaded (using cache): {}\n", module_path);
+        LOG_DEBUG("[INFO] Module already loaded (using cache): {}\n", module_path);
         return it->second;
     }
 
-    fmt::print("[INFO] Loading module from: {}\n", module_path);
+    LOG_DEBUG("[INFO] Loading module from: {}\n", module_path);
 
     // Load module using ModuleResolver
     auto module = module_resolver_->loadModule(std::filesystem::path(module_path));
@@ -1142,6 +1304,9 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
             fmt::format("Failed to load module: {}", module_path)
         );
     }
+
+    // Issue #3: Push file context for this module
+    pushFileContext(module_path);
 
     // Create a new environment for the module
     auto module_env = std::make_shared<Environment>(global_env_);
@@ -1166,10 +1331,13 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
         // Cache the module environment
         loaded_modules_[module_path] = module_env;
 
-        fmt::print("[SUCCESS] Module loaded successfully: {}\n", module_path);
-        fmt::print("          Exported {} symbols\n", module_exports_.size());
+        LOG_DEBUG("[SUCCESS] Module loaded successfully: {}\n", module_path);
+        LOG_DEBUG("          Exported {} symbols\n", module_exports_.size());
 
     } catch (const std::exception& e) {
+        // Issue #3: Pop file context on error
+        popFileContext();
+
         // Restore environment on error
         current_env_ = saved_env;
         module_exports_ = saved_exports;
@@ -1177,6 +1345,9 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
             fmt::format("Error executing module {}: {}", module_path, e.what())
         );
     }
+
+    // Issue #3: Pop file context on success
+    popFileContext();
 
     // Restore previous environment
     current_env_ = saved_env;
@@ -1215,7 +1386,7 @@ void Interpreter::visit(ast::FunctionDecl& node) {
     if (return_type.kind == ast::TypeKind::Any) {
         // Return type was not specified - infer it from function body
         return_type = inferReturnType(body);
-        fmt::print("[INFO] Inferred return type for function '{}': {}\n",
+        LOG_DEBUG("[INFO] Inferred return type for function '{}': {}\n",
                    node.getName(), formatTypeName(return_type));
     }
 
@@ -1240,7 +1411,7 @@ void Interpreter::visit(ast::FunctionDecl& node) {
     auto value = std::make_shared<Value>(func_value);
     current_env_->define(node.getName(), value);
 
-    fmt::print("[INFO] Defined function: {}({} params)",
+    LOG_DEBUG("[INFO] Defined function: {}({} params)",
                node.getName(), param_names.size());
     if (!node.getTypeParams().empty()) {
         fmt::print(" <");
@@ -1278,7 +1449,7 @@ void Interpreter::visit(ast::StructDecl& node) {
     // Register
     runtime::StructRegistry::instance().registerStruct(struct_def);
 
-    fmt::print("[INFO] Defined struct: {}\n", node.getName());
+    LOG_DEBUG("[INFO] Defined struct: {}\n", node.getName());
 
     if (isVerboseMode()) {
         fmt::print("[VERBOSE] Registered struct '{}' with {} fields",
@@ -1316,7 +1487,7 @@ void Interpreter::visit(ast::EnumDecl& node) {
         next_value = variant_value + 1;
     }
 
-    fmt::print("[INFO] Defined enum: {} with {} variants\n",
+    LOG_DEBUG("[INFO] Defined enum: {} with {} variants\n",
                node.getName(), node.getVariants().size());
 
     // Enum declarations don't produce values
@@ -1332,9 +1503,73 @@ void Interpreter::visit(ast::CompoundStmt& node) {
     auto prev_env = current_env_;
     current_env_ = std::make_shared<Environment>(current_env_);
 
-    for (auto& stmt : node.getStatements()) {
-        stmt->accept(*this);
-        if (returning_ || breaking_ || continuing_) break;
+    auto& statements = node.getStatements();
+
+    // Parallel polyglot execution: Analyze dependencies
+    PolyglotDependencyAnalyzer analyzer;
+
+    // Convert unique_ptr vector to raw pointer vector for analysis
+    std::vector<ast::Stmt*> stmt_ptrs;
+    stmt_ptrs.reserve(statements.size());
+    for (const auto& stmt : statements) {
+        stmt_ptrs.push_back(stmt.get());
+    }
+
+    auto groups = analyzer.analyze(stmt_ptrs);
+
+    // Debug: Print group information
+    if (!groups.empty() && verbose_mode_) {
+        fmt::print("[PARALLEL] Found {} polyglot group(s)\n", groups.size());
+        for (size_t g = 0; g < groups.size(); ++g) {
+            fmt::print("[PARALLEL] Group {}: {} block(s)\n", g, groups[g].parallel_blocks.size());
+        }
+    }
+
+    if (groups.empty()) {
+        // No polyglot blocks - execute statements normally (sequential)
+        for (auto& stmt : statements) {
+            stmt->accept(*this);
+            if (returning_ || breaking_ || continuing_) break;
+        }
+    } else {
+        // Polyglot blocks detected - execute in groups
+        // Build a map from statement index to group index
+        std::unordered_map<size_t, size_t> stmt_to_group;
+        std::unordered_set<size_t> polyglot_indices;
+
+        for (size_t g = 0; g < groups.size(); ++g) {
+            for (const auto& block : groups[g].parallel_blocks) {
+                stmt_to_group[block.statement_index] = g;
+                polyglot_indices.insert(block.statement_index);
+            }
+        }
+
+        // Execute statements in order, parallelizing groups
+        std::unordered_set<size_t> executed_groups;
+
+        for (size_t i = 0; i < statements.size(); ++i) {
+            // Check if this statement is part of a polyglot group
+            auto it = stmt_to_group.find(i);
+
+            if (it != stmt_to_group.end()) {
+                size_t group_idx = it->second;
+
+                // Execute this group (if not already executed)
+                if (executed_groups.find(group_idx) == executed_groups.end()) {
+                    executePolyglotGroupParallel(groups[group_idx]);
+                    executed_groups.insert(group_idx);
+
+                    if (returning_ || breaking_ || continuing_) break;
+                }
+                // Skip this statement (already executed as part of group)
+                continue;
+            }
+
+            // Regular statement - execute normally
+            statements[i]->accept(*this);
+
+            if (returning_ || breaking_ || continuing_) break;
+        }
     }
 
     // Restore scope
@@ -1397,6 +1632,30 @@ void Interpreter::visit(ast::ReturnStmt& node) {
 }
 
 void Interpreter::visit(ast::IfStmt& node) {
+    // Check for assignment in condition (common mistake: = instead of ==)
+    auto* condition_expr = node.getCondition();
+    if (auto* binary = dynamic_cast<ast::BinaryExpr*>(condition_expr)) {
+        if (binary->getOp() == ast::BinaryOp::Assign) {
+            // Check if it's wrapped in parentheses (intentional)
+            // For now, always warn since we can't detect extra parentheses in AST
+            throw std::runtime_error(
+                "Suspicious: Assignment in if condition\n\n"
+                "  This is a common mistake - did you mean '==' instead of '='?\n\n"
+                "  Current code uses assignment (=):\n"
+                "    if x = 20  // assigns 20 to x, then checks if 20 is truthy\n\n"
+                "  If you meant comparison, use:\n"
+                "    if x == 20  // checks if x equals 20\n\n"
+                "  If assignment is intentional, split into two statements:\n"
+                "    x = 20\n"
+                "    if x { ... }\n\n"
+                "  Help:\n"
+                "  - Assignment (=) sets a value\n"
+                "  - Comparison (==) tests equality\n"
+                "  - This error prevents a very common bug"
+            );
+        }
+    }
+
     auto condition = eval(*node.getCondition());
     if (condition->toBool()) {
         node.getThenBranch()->accept(*this);
@@ -1406,6 +1665,9 @@ void Interpreter::visit(ast::IfStmt& node) {
 }
 
 void Interpreter::visit(ast::ForStmt& node) {
+    // Increment loop depth for break/continue validation
+    ++loop_depth_;
+
     auto iterable = eval(*node.getIter());
 
     // Check if it's a range (dict with __is_range marker)
@@ -1473,9 +1735,40 @@ void Interpreter::visit(ast::ForStmt& node) {
             }
         }
     }
+
+    // Decrement loop depth after loop completes
+    --loop_depth_;
 }
 
 void Interpreter::visit(ast::WhileStmt& node) {
+    // Check for assignment in condition (common mistake: = instead of ==)
+    auto* condition_expr = node.getCondition();
+    if (auto* binary = dynamic_cast<ast::BinaryExpr*>(condition_expr)) {
+        if (binary->getOp() == ast::BinaryOp::Assign) {
+            throw std::runtime_error(
+                "Suspicious: Assignment in while condition\n\n"
+                "  This is a common mistake - did you mean '==' instead of '='?\n\n"
+                "  Current code uses assignment (=):\n"
+                "    while x = getNext()  // assigns to x, then checks if truthy\n\n"
+                "  If you meant comparison, use:\n"
+                "    while x == value  // checks if x equals value\n\n"
+                "  If assignment is intentional, use a loop with break:\n"
+                "    while true {\n"
+                "      x = getNext()\n"
+                "      if !x { break }\n"
+                "      // use x\n"
+                "    }\n\n"
+                "  Help:\n"
+                "  - Assignment (=) sets a value\n"
+                "  - Comparison (==) tests equality\n"
+                "  - This error prevents a very common bug"
+            );
+        }
+    }
+
+    // Increment loop depth for break/continue validation
+    ++loop_depth_;
+
     while (true) {
         auto condition = eval(*node.getCondition());
         if (!condition->toBool()) break;
@@ -1491,15 +1784,52 @@ void Interpreter::visit(ast::WhileStmt& node) {
             continue;
         }
     }
+
+    // Decrement loop depth after loop completes
+    --loop_depth_;
 }
 
 void Interpreter::visit(ast::BreakStmt& node) {
-    (void)node; // Node info not needed for break control flow
+    (void)node;
+
+    // Validate that break is used inside a loop
+    if (loop_depth_ == 0) {
+        throw std::runtime_error(
+            "Control flow error: 'break' can only be used inside a loop\n\n"
+            "  Help:\n"
+            "  - break terminates the nearest enclosing loop\n"
+            "  - It cannot be used in top-level code or functions\n"
+            "  - Use 'return' to exit from functions early\n\n"
+            "  Example:\n"
+            "    ✗ Wrong: break outside loop\n"
+            "    ✓ Right: for i in 0..10 {\n"
+            "               if i == 5 { break }\n"
+            "             }"
+        );
+    }
+
     breaking_ = true;
 }
 
 void Interpreter::visit(ast::ContinueStmt& node) {
-    (void)node; // Node info not needed for continue control flow
+    (void)node;
+
+    // Validate that continue is used inside a loop
+    if (loop_depth_ == 0) {
+        throw std::runtime_error(
+            "Control flow error: 'continue' can only be used inside a loop\n\n"
+            "  Help:\n"
+            "  - continue skips to the next iteration of the loop\n"
+            "  - It cannot be used in top-level code or functions\n"
+            "  - Use 'return' to exit from functions early\n\n"
+            "  Example:\n"
+            "    ✗ Wrong: continue outside loop\n"
+            "    ✓ Right: for i in 0..10 {\n"
+            "               if i % 2 == 0 { continue }\n"
+            "             }"
+        );
+    }
+
     continuing_ = true;
 }
 
@@ -1577,6 +1907,13 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
     }
     // If type was inferred, it already matches the value by construction
 
+    // Deep copy arrays and dicts to prevent silent mutations
+    // When you do "let arr2 = arr1", both should be independent copies
+    if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data) ||
+        std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
+        value = copyValue(value);
+    }
+
     current_env_->define(node.getName(), value);
 }
 
@@ -1595,7 +1932,17 @@ void Interpreter::visit(ast::TryStmt& node) {
 
         // Bind the error value to the catch variable
         auto* catch_clause = node.getCatchClause();
-        current_env_->define(catch_clause->error_name, e.getValue());
+
+        // Issue #6 Fix: Ensure error object has structured properties
+        auto error_val = e.getValue();
+        if (!error_val) {
+            // Create structured error object if getValue() returned null
+            std::unordered_map<std::string, std::shared_ptr<Value>> error_dict;
+            error_dict["message"] = std::make_shared<Value>(e.getMessage());
+            error_dict["type"] = std::make_shared<Value>(NaabError::errorTypeToString(e.getType()));
+            error_val = std::make_shared<Value>(error_dict);
+        }
+        current_env_->define(catch_clause->error_name, error_val);
 
         try {
             // Execute catch body - successfully handled if no exception
@@ -1612,8 +1959,38 @@ void Interpreter::visit(ast::TryStmt& node) {
 
         current_env_ = prev_env;
     } catch (const std::exception& std_error) {
-        // Convert any other std::exception to NaabError
-        throw createError(std_error.what(), ErrorType::RUNTIME_ERROR);
+        // Convert std::exception to NaabError and execute catch block
+        // This handles polyglot exceptions (Python, JavaScript, etc.)
+
+        auto catch_env = std::make_shared<Environment>(current_env_);
+        auto prev_env = current_env_;
+        current_env_ = catch_env;
+
+        // Create structured error object from std::exception
+        // Issue #6 Fix: Create dict with "message" property for polyglot exceptions
+        std::unordered_map<std::string, std::shared_ptr<Value>> error_dict;
+        error_dict["message"] = std::make_shared<Value>(std::string(std_error.what()));
+        error_dict["type"] = std::make_shared<Value>(std::string("PolyglotError"));
+        auto error_value = std::make_shared<Value>(error_dict);
+
+        // Bind the error value to the catch variable
+        auto* catch_clause = node.getCatchClause();
+        current_env_->define(catch_clause->error_name, error_value);
+
+        try {
+            // Execute catch body
+            catch_clause->body->accept(*this);
+        } catch (NaabError&) {
+            // Exception thrown from catch block - propagate it
+            current_env_ = prev_env;
+            throw;
+        } catch (const std::exception& nested_error) {
+            // Another std::exception from catch block - convert and propagate
+            current_env_ = prev_env;
+            throw createError(nested_error.what(), ErrorType::RUNTIME_ERROR);
+        }
+
+        current_env_ = prev_env;
     }
 
     // Execute finally block if present (always runs)
@@ -1669,8 +2046,14 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
         if (auto* id = dynamic_cast<ast::IdentifierExpr*>(node.getLeft())) {
             // Simple variable assignment: x = value
-            current_env_->set(id->getName(), right);
-            result_ = right;
+            // Deep copy arrays and dicts to prevent silent mutations (same as VarDeclStmt)
+            auto value_to_assign = right;
+            if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(right->data) ||
+                std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(right->data)) {
+                value_to_assign = copyValue(right);
+            }
+            current_env_->set(id->getName(), value_to_assign);
+            result_ = value_to_assign;
         } else if (auto* member = dynamic_cast<ast::MemberExpr*>(node.getLeft())) {
             // Struct field assignment: obj.field = value
             auto obj = eval(*member->getObject());
@@ -1680,7 +2063,19 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 struct_val->setField(member->getMember(), right);
                 result_ = right;
             } else {
-                throw std::runtime_error("Cannot assign to property of non-struct value");
+                std::ostringstream oss;
+                oss << "Type error: Cannot assign to property of non-struct value\n\n";
+                oss << "  Tried to assign to: " << getTypeName(obj) << "." << member->getMember() << "\n";
+                oss << "  Expected: struct\n\n";
+                oss << "  Help:\n";
+                oss << "  - Only structs support property assignment with dot notation\n";
+                oss << "  - For dictionaries, use subscript: dict[\"field\"] = value\n";
+                oss << "  - Define a struct type if you need named fields\n\n";
+                oss << "  Example:\n";
+                oss << "    ✗ Wrong: let x = 42; x.field = 10\n";
+                oss << "    ✓ Right: struct Point { x: int, y: int }\n";
+                oss << "             let p = Point{x: 0, y: 0}; p.x = 10\n";
+                throw std::runtime_error(oss.str());
             }
         } else if (auto* subscript = dynamic_cast<ast::BinaryExpr*>(node.getLeft())) {
             // Array/dict element assignment: arr[index] = value, dict[key] = value
@@ -1696,11 +2091,24 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     int index = index_or_key->toInt();
 
                     if (index < 0 || index >= static_cast<int>(list.size())) {
-                        throw std::runtime_error("List index out of bounds: " + std::to_string(index));
+                        std::ostringstream oss;
+                        oss << "Index error: Array index out of bounds\n\n";
+                        oss << "  Index: " << index << "\n";
+                        oss << "  Array size: " << list.size() << "\n";
+                        oss << "  Valid range: 0 to " << (list.size() > 0 ? list.size() - 1 : 0) << "\n\n";
+                        oss << "  Help:\n";
+                        oss << "  - Array indices start at 0\n";
+                        oss << "  - Check array size before accessing\n";
+                        oss << "  - Use array.length(arr) to get size\n\n";
+                        oss << "  Example:\n";
+                        oss << "    let arr = [10, 20, 30]  // size = 3\n";
+                        oss << "    ✗ Wrong: arr[3]  // out of bounds\n";
+                        oss << "    ✓ Right: arr[2]  // last element\n";
+                        throw std::runtime_error(oss.str());
                     }
 
-                    // Modify list in place
-                    list[index] = right;
+                    // Modify list in place (safe cast after bounds check)
+                    list[static_cast<size_t>(index)] = right;
                     result_ = right;
                 }
                 // Check if container is a dictionary
@@ -1712,20 +2120,64 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     dict[key] = right;
                     result_ = right;
                 } else {
-                    throw std::runtime_error("Subscript assignment requires list or dictionary");
+                    std::ostringstream oss;
+                    oss << "Type error: Subscript assignment not supported\n\n";
+                    oss << "  Tried to assign to: " << getTypeName(container) << "[...]\n";
+                    oss << "  Supported types: array, dict\n\n";
+                    oss << "  Help:\n";
+                    oss << "  - Only arrays and dicts support subscript assignment\n";
+                    oss << "  - Arrays use integer indices: arr[0] = value\n";
+                    oss << "  - Dicts use string keys: dict[\"key\"] = value\n\n";
+                    oss << "  Example:\n";
+                    oss << "    ✗ Wrong: let x = 42; x[0] = 10\n";
+                    oss << "    ✓ Right: let arr = [1, 2]; arr[0] = 10\n";
+                    oss << "    ✓ Right: let dict = {}; dict[\"x\"] = 10\n";
+                    throw std::runtime_error(oss.str());
                 }
             } else {
-                throw std::runtime_error("Invalid assignment target");
+                throw std::runtime_error(
+                    "Syntax error: Invalid assignment target\n\n"
+                    "  Assignment target must be:\n"
+                    "  - Variable: name = value\n"
+                    "  - Struct field: obj.field = value\n"
+                    "  - Array element: arr[index] = value\n"
+                    "  - Dict entry: dict[\"key\"] = value\n\n"
+                    "  Example:\n"
+                    "    ✗ Wrong: 42 = x  // can't assign to literal\n"
+                    "    ✓ Right: x = 42\n"
+                );
             }
         } else {
-            throw std::runtime_error("Invalid assignment target");
+            throw std::runtime_error(
+                "Syntax error: Invalid assignment target\n\n"
+                "  Assignment target must be:\n"
+                "  - Variable: name = value\n"
+                "  - Struct field: obj.field = value\n"
+                "  - Array element: arr[index] = value\n"
+                "  - Dict entry: dict[\"key\"] = value\n\n"
+                "  Help:\n"
+                "  - Cannot assign to expressions or literals\n"
+                "  - Use let to declare new variables\n\n"
+                "  Example:\n"
+                "    ✗ Wrong: getValue() = 10  // can't assign to function result\n"
+                "    ✓ Right: let result = getValue(); result = 10\n"
+            );
         }
         return;
     }
 
-    // For all other operators, evaluate both sides
-    auto left = eval(*node.getLeft());
-    auto right = eval(*node.getRight());
+    // Handle Pipeline operator specially (like short-circuit operators)
+    // Don't evaluate right side yet - it needs special handling
+    std::shared_ptr<Value> left, right;
+    if (node.getOp() == ast::BinaryOp::Pipeline) {
+        left = eval(*node.getLeft());
+        // Right side handling is in the switch case below - don't eval here!
+        // This prevents the CallExpr from being evaluated with wrong arg count
+    } else {
+        // For all other operators, evaluate both sides
+        left = eval(*node.getLeft());
+        right = eval(*node.getRight());
+    }
 
     switch (node.getOp()) {
         case ast::BinaryOp::Add:
@@ -1750,43 +2202,368 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                        std::holds_alternative<double>(right->data)) {
                 result_ = std::make_shared<Value>(left->toFloat() + right->toFloat());
             } else {
-                result_ = std::make_shared<Value>(left->toInt() + right->toInt());
+                // Integer addition with overflow detection
+                int a = left->toInt();
+                int b = right->toInt();
+
+                // Check for overflow before addition
+                if ((b > 0 && a > INT_MAX - b) || (b < 0 && a < INT_MIN - b)) {
+                    std::ostringstream oss;
+                    oss << "Math error: Integer overflow in addition\n\n";
+                    oss << "  Expression: " << a << " + " << b << "\n";
+                    oss << "  INT_MAX: " << INT_MAX << "\n";
+                    oss << "  INT_MIN: " << INT_MIN << "\n";
+                    oss << "\n  Help:\n";
+                    oss << "  - Integer overflow occurs when result exceeds 32-bit int range\n";
+                    oss << "  - Use float for larger numbers: " << a << ".0 + " << b << ".0\n";
+                    oss << "  - Or check values before adding:\n";
+                    oss << "\n  Example:\n";
+                    oss << "    ✗ Wrong: let result = " << INT_MAX << " + 1  (overflow!)\n";
+                    oss << "    ✓ Right: let result = " << INT_MAX << ".0 + 1.0  (use float)\n";
+                    throw std::runtime_error(oss.str());
+                }
+
+                result_ = std::make_shared<Value>(a + b);
             }
             break;
 
-        case ast::BinaryOp::Sub:
+        case ast::BinaryOp::Sub: {
+            // Type check: Subtraction requires numeric types
+            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
+                                  std::holds_alternative<double>(left->data) ||
+                                  std::holds_alternative<bool>(left->data);
+            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
+                                   std::holds_alternative<double>(right->data) ||
+                                   std::holds_alternative<bool>(right->data);
+
+            if (!left_is_numeric || !right_is_numeric) {
+                std::ostringstream oss;
+                oss << "Type error: Subtraction (-) requires numeric types\n\n";
+
+                if (!left_is_numeric && !right_is_numeric) {
+                    oss << "  Both operands are non-numeric:\n";
+                    oss << "    Left: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Right: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                } else if (!left_is_numeric) {
+                    oss << "  Left operand is non-numeric:\n";
+                    oss << "    Got: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Expected: int, float, or bool\n";
+                } else {
+                    oss << "  Right operand is non-numeric:\n";
+                    oss << "    Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Expected: int, float, or bool\n";
+                }
+
+                oss << "\n  Help:\n";
+                oss << "  - For numbers: Use int or float values\n";
+                oss << "  - For strings: Parse to numeric first\n";
+                oss << "  - String concatenation uses +, not -\n";
+                oss << "\n  Example:\n";
+                oss << "    ✗ Wrong: \"10\" - 5    (string - int)\n";
+                oss << "    ✓ Right: 10 - 5       (int - int)\n";
+
+                throw std::runtime_error(oss.str());
+            }
+
             if (std::holds_alternative<double>(left->data) ||
                 std::holds_alternative<double>(right->data)) {
                 result_ = std::make_shared<Value>(left->toFloat() - right->toFloat());
             } else {
-                result_ = std::make_shared<Value>(left->toInt() - right->toInt());
+                // Integer subtraction with overflow detection
+                int a = left->toInt();
+                int b = right->toInt();
+
+                // Check for overflow before subtraction
+                if ((b < 0 && a > INT_MAX + b) || (b > 0 && a < INT_MIN + b)) {
+                    std::ostringstream oss;
+                    oss << "Math error: Integer overflow in subtraction\n\n";
+                    oss << "  Expression: " << a << " - " << b << "\n";
+                    oss << "  INT_MAX: " << INT_MAX << "\n";
+                    oss << "  INT_MIN: " << INT_MIN << "\n";
+                    oss << "\n  Help:\n";
+                    oss << "  - Integer overflow occurs when result exceeds 32-bit int range\n";
+                    oss << "  - Use float for larger numbers: " << a << ".0 - " << b << ".0\n";
+                    oss << "  - Or check values before subtracting:\n";
+                    oss << "\n  Example:\n";
+                    oss << "    ✗ Wrong: let result = " << INT_MIN << " - 1  (underflow!)\n";
+                    oss << "    ✓ Right: let result = " << INT_MIN << ".0 - 1.0  (use float)\n";
+                    throw std::runtime_error(oss.str());
+                }
+
+                result_ = std::make_shared<Value>(a - b);
             }
             break;
+        }
 
-        case ast::BinaryOp::Mul:
+        case ast::BinaryOp::Mul: {
+            // Type check: Multiplication requires numeric types
+            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
+                                  std::holds_alternative<double>(left->data) ||
+                                  std::holds_alternative<bool>(left->data);
+            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
+                                   std::holds_alternative<double>(right->data) ||
+                                   std::holds_alternative<bool>(right->data);
+
+            if (!left_is_numeric || !right_is_numeric) {
+                std::ostringstream oss;
+                oss << "Type error: Multiplication (*) requires numeric types\n\n";
+
+                if (!left_is_numeric && !right_is_numeric) {
+                    oss << "  Both operands are non-numeric:\n";
+                    oss << "    Left: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Right: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                } else if (!left_is_numeric) {
+                    oss << "  Left operand is non-numeric:\n";
+                    oss << "    Got: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Expected: int, float, or bool\n";
+                } else {
+                    oss << "  Right operand is non-numeric:\n";
+                    oss << "    Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Expected: int, float, or bool\n";
+                }
+
+                oss << "\n  Help:\n";
+                oss << "  - For numbers: Use int or float values\n";
+                oss << "  - For string repetition: Some languages support \"ab\" * 3, but NAAb doesn't\n";
+                oss << "  - For concatenation: Use + operator\n";
+                oss << "\n  Example:\n";
+                oss << "    ✗ Wrong: 5 * \"3\"      (int * string)\n";
+                oss << "    ✓ Right: 5 * 3         (int * int)\n";
+
+                throw std::runtime_error(oss.str());
+            }
+
             if (std::holds_alternative<double>(left->data) ||
                 std::holds_alternative<double>(right->data)) {
                 result_ = std::make_shared<Value>(left->toFloat() * right->toFloat());
             } else {
-                result_ = std::make_shared<Value>(left->toInt() * right->toInt());
+                // Integer multiplication with overflow detection
+                int a = left->toInt();
+                int b = right->toInt();
+
+                // Check for overflow before multiplication
+                // Handle special cases first
+                if (a == 0 || b == 0) {
+                    result_ = std::make_shared<Value>(0);
+                } else if (a == INT_MIN || b == INT_MIN) {
+                    // INT_MIN * anything (except 0, 1) will overflow
+                    if ((a == INT_MIN && (b != 1 && b != 0)) || (b == INT_MIN && (a != 1 && a != 0))) {
+                        std::ostringstream oss;
+                        oss << "Math error: Integer overflow in multiplication\n\n";
+                        oss << "  Expression: " << a << " * " << b << "\n";
+                        oss << "  INT_MAX: " << INT_MAX << "\n";
+                        oss << "  INT_MIN: " << INT_MIN << "\n";
+                        oss << "\n  Help:\n";
+                        oss << "  - Integer overflow occurs when result exceeds 32-bit int range\n";
+                        oss << "  - Use float for larger numbers: " << a << ".0 * " << b << ".0\n";
+                        oss << "\n  Example:\n";
+                        oss << "    ✗ Wrong: let result = 1000000 * 10000  (overflow!)\n";
+                        oss << "    ✓ Right: let result = 1000000.0 * 10000.0  (use float)\n";
+                        throw std::runtime_error(oss.str());
+                    }
+                    result_ = std::make_shared<Value>(a * b);
+                } else if ((a > 0 && b > 0 && a > INT_MAX / b) ||
+                           (a < 0 && b < 0 && a < INT_MAX / b) ||
+                           (a > 0 && b < 0 && b < INT_MIN / a) ||
+                           (a < 0 && b > 0 && a < INT_MIN / b)) {
+                    std::ostringstream oss;
+                    oss << "Math error: Integer overflow in multiplication\n\n";
+                    oss << "  Expression: " << a << " * " << b << "\n";
+                    oss << "  INT_MAX: " << INT_MAX << "\n";
+                    oss << "  INT_MIN: " << INT_MIN << "\n";
+                    oss << "\n  Help:\n";
+                    oss << "  - Integer overflow occurs when result exceeds 32-bit int range\n";
+                    oss << "  - Use float for larger numbers: " << a << ".0 * " << b << ".0\n";
+                    oss << "\n  Example:\n";
+                    oss << "    ✗ Wrong: let result = 1000000 * 10000  (overflow!)\n";
+                    oss << "    ✓ Right: let result = 1000000.0 * 10000.0  (use float)\n";
+                    throw std::runtime_error(oss.str());
+                } else {
+                    result_ = std::make_shared<Value>(a * b);
+                }
             }
             break;
+        }
 
-        case ast::BinaryOp::Div:
-            result_ = std::make_shared<Value>(left->toFloat() / right->toFloat());
-            break;
+        case ast::BinaryOp::Div: {
+            // Type check: Division requires numeric types
+            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
+                                  std::holds_alternative<double>(left->data) ||
+                                  std::holds_alternative<bool>(left->data);
+            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
+                                   std::holds_alternative<double>(right->data) ||
+                                   std::holds_alternative<bool>(right->data);
 
-        case ast::BinaryOp::Mod:
-            result_ = std::make_shared<Value>(left->toInt() % right->toInt());
-            break;
+            if (!left_is_numeric || !right_is_numeric) {
+                std::ostringstream oss;
+                oss << "Type error: Division (/) requires numeric types\n\n";
 
-        case ast::BinaryOp::Eq:
-            result_ = std::make_shared<Value>(left->toString() == right->toString());
-            break;
+                if (!left_is_numeric && !right_is_numeric) {
+                    oss << "  Both operands are non-numeric:\n";
+                    oss << "    Left: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Right: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                } else if (!left_is_numeric) {
+                    oss << "  Left operand is non-numeric:\n";
+                    oss << "    Got: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Expected: int, float, or bool\n";
+                } else {
+                    oss << "  Right operand is non-numeric:\n";
+                    oss << "    Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Expected: int, float, or bool\n";
+                }
 
-        case ast::BinaryOp::Ne:
-            result_ = std::make_shared<Value>(left->toString() != right->toString());
+                oss << "\n  Help:\n";
+                oss << "  - For numbers: Use int or float values\n";
+                oss << "  - For string splitting: Use string.split() instead\n";
+                oss << "\n  Example:\n";
+                oss << "    ✗ Wrong: \"10\" / 2     (string / int)\n";
+                oss << "    ✓ Right: 10 / 2        (int / int)\n";
+
+                throw std::runtime_error(oss.str());
+            }
+
+            // Check for division by zero
+            double divisor = right->toFloat();
+            if (divisor == 0.0) {
+                std::ostringstream oss;
+                oss << "Math error: Division by zero\n\n";
+                oss << "  Expression: " << left->toString() << " / 0\n";
+                oss << "\n  Help:\n";
+                oss << "  - Division by zero is undefined in mathematics\n";
+                oss << "  - Check if divisor is zero before dividing\n";
+                oss << "  - Use conditional to handle zero case:\n";
+                oss << "\n  Example:\n";
+                oss << "    ✗ Wrong: let result = x / 0\n";
+                oss << "    ✓ Right: let result = if (y != 0) { x / y } else { 0 }\n";
+                oss << "\n  Common causes:\n";
+                oss << "  - User input not validated\n";
+                oss << "  - Variable initialized to 0\n";
+                oss << "  - Logic error in calculation\n";
+                throw std::runtime_error(oss.str());
+            }
+
+            result_ = std::make_shared<Value>(left->toFloat() / divisor);
             break;
+        }
+
+        case ast::BinaryOp::Mod: {
+            // Type check: Modulo requires integer types
+            bool left_is_int = std::holds_alternative<int>(left->data) ||
+                              std::holds_alternative<bool>(left->data);
+            bool right_is_int = std::holds_alternative<int>(right->data) ||
+                               std::holds_alternative<bool>(right->data);
+
+            if (!left_is_int || !right_is_int) {
+                std::ostringstream oss;
+                oss << "Type error: Modulo (%) requires integer types\n\n";
+
+                if (!left_is_int && !right_is_int) {
+                    oss << "  Both operands are non-integer:\n";
+                    oss << "    Left: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Right: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                } else if (!left_is_int) {
+                    oss << "  Left operand is non-integer:\n";
+                    oss << "    Got: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Expected: int or bool\n";
+                } else {
+                    oss << "  Right operand is non-integer:\n";
+                    oss << "    Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Expected: int or bool\n";
+                }
+
+                oss << "\n  Help:\n";
+                oss << "  - Modulo requires integers (int or bool)\n";
+                oss << "  - For floats: Use fmod() or convert to int first\n";
+                oss << "  - For string formatting: Use string interpolation\n";
+                oss << "\n  Example:\n";
+                oss << "    ✗ Wrong: \"10\" % 3     (string % int)\n";
+                oss << "    ✗ Wrong: 10.5 % 3     (float % int)\n";
+                oss << "    ✓ Right: 10 % 3       (int % int)\n";
+
+                throw std::runtime_error(oss.str());
+            }
+
+            // Check for modulo by zero
+            int divisor = right->toInt();
+            if (divisor == 0) {
+                std::ostringstream oss;
+                oss << "Math error: Modulo by zero\n\n";
+                oss << "  Expression: " << left->toString() << " % 0\n";
+                oss << "\n  Help:\n";
+                oss << "  - Modulo by zero is undefined in mathematics\n";
+                oss << "  - Check if divisor is zero before using modulo\n";
+                oss << "  - Use conditional to handle zero case:\n";
+                oss << "\n  Example:\n";
+                oss << "    ✗ Wrong: let remainder = x % 0\n";
+                oss << "    ✓ Right: let remainder = if (y != 0) { x % y } else { 0 }\n";
+                oss << "\n  Common causes:\n";
+                oss << "  - User input not validated\n";
+                oss << "  - Variable initialized to 0\n";
+                oss << "  - Logic error in calculation\n";
+                throw std::runtime_error(oss.str());
+            }
+
+            result_ = std::make_shared<Value>(left->toInt() % divisor);
+            break;
+        }
+
+        case ast::BinaryOp::Eq: {
+            // Type-aware equality comparison
+            // For numeric types: compare numerically (10 == 10.0 is true)
+            // For strings: compare as strings
+            // For different types: false (no implicit coercion)
+
+            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
+                                  std::holds_alternative<double>(left->data) ||
+                                  std::holds_alternative<bool>(left->data);
+            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
+                                   std::holds_alternative<double>(right->data) ||
+                                   std::holds_alternative<bool>(right->data);
+
+            if (left_is_numeric && right_is_numeric) {
+                // Both numeric: compare as numbers
+                result_ = std::make_shared<Value>(left->toFloat() == right->toFloat());
+            } else if (std::holds_alternative<std::string>(left->data) &&
+                       std::holds_alternative<std::string>(right->data)) {
+                // Both strings: compare as strings
+                result_ = std::make_shared<Value>(left->toString() == right->toString());
+            } else if (std::holds_alternative<bool>(left->data) &&
+                       std::holds_alternative<bool>(right->data)) {
+                // Both bools: compare as bools
+                result_ = std::make_shared<Value>(left->toBool() == right->toBool());
+            } else {
+                // Different types: not equal
+                result_ = std::make_shared<Value>(false);
+            }
+            break;
+        }
+
+        case ast::BinaryOp::Ne: {
+            // Type-aware inequality comparison (inverse of Eq)
+            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
+                                  std::holds_alternative<double>(left->data) ||
+                                  std::holds_alternative<bool>(left->data);
+            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
+                                   std::holds_alternative<double>(right->data) ||
+                                   std::holds_alternative<bool>(right->data);
+
+            if (left_is_numeric && right_is_numeric) {
+                // Both numeric: compare as numbers
+                result_ = std::make_shared<Value>(left->toFloat() != right->toFloat());
+            } else if (std::holds_alternative<std::string>(left->data) &&
+                       std::holds_alternative<std::string>(right->data)) {
+                // Both strings: compare as strings
+                result_ = std::make_shared<Value>(left->toString() != right->toString());
+            } else if (std::holds_alternative<bool>(left->data) &&
+                       std::holds_alternative<bool>(right->data)) {
+                // Both bools: compare as bools
+                result_ = std::make_shared<Value>(left->toBool() != right->toBool());
+            } else {
+                // Different types: not equal
+                result_ = std::make_shared<Value>(true);
+            }
+            break;
+        }
 
         case ast::BinaryOp::Lt:
             result_ = std::make_shared<Value>(left->toFloat() < right->toFloat());
@@ -1810,8 +2587,13 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // Example: data |> func means func(data)
             //         data |> func(x) means func(data, x)
 
+            LOG_DEBUG("[Pipeline] Starting pipeline operation\n");
+            LOG_DEBUG("[Pipeline] Left value: {}\n", left->toString());
+
             // Right side must be a function call or identifier
             if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
+                LOG_DEBUG("[Pipeline] Right side is CallExpr with {} args\n", call->getArgs().size());
+
                 // If right is a call: func(args...), insert left as first arg
                 // Create a new argument list with left prepended
                 std::vector<std::shared_ptr<Value>> args;
@@ -1819,11 +2601,16 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
                 // Add existing arguments
                 for (const auto& arg_expr : call->getArgs()) {
-                    args.push_back(eval(*arg_expr));
+                    auto arg_val = eval(*arg_expr);
+                    LOG_DEBUG("[Pipeline] Adding arg: {}\n", arg_val->toString());
+                    args.push_back(arg_val);
                 }
+
+                LOG_DEBUG("[Pipeline] Total args after prepending: {}\n", args.size());
 
                 // Evaluate the callee
                 auto callee = eval(*call->getCallee());
+                LOG_DEBUG("[Pipeline] Callee evaluated\n");
 
                 // Call the function with the modified arguments
                 if (auto* block = std::get_if<std::shared_ptr<BlockValue>>(&callee->data)) {
@@ -1849,24 +2636,23 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                         last_executed_block_id_ = (*block)->metadata.block_id;
                     }
                 } else if (auto* func = std::get_if<std::shared_ptr<FunctionValue>>(&callee->data)) {
-                    // User-defined function execution
-                    auto saved_env = current_env_;
-                    auto saved_returning = returning_;  // ISS-003: Save returning_ flag
-                    current_env_ = std::make_shared<Environment>(global_env_);
-
-                    // Bind parameters
-                    for (size_t i = 0; i < (*func)->params.size(); ++i) {
-                        if (i < args.size()) {
-                            current_env_->define((*func)->params[i], args[i]);
-                        }
-                    }
-
-                    // Execute body
-                    (*func)->body->accept(*this);
-                    current_env_ = saved_env;
-                    returning_ = saved_returning;  // ISS-003: Restore returning_ flag
+                    // User-defined function execution - use callFunction for proper validation
+                    // This ensures argument count validation and default parameter handling
+                    LOG_DEBUG("[Pipeline] Calling function {} with {} args\n", (*func)->name, args.size());
+                    result_ = callFunction(callee, args);
                 } else {
-                    throw std::runtime_error("Pipeline right side must be a callable");
+                    std::ostringstream oss;
+                    oss << "Type error: Pipeline requires callable function\n\n";
+                    oss << "  Right side type: " << getTypeName(callee) << "\n";
+                    oss << "  Expected: function or block\n\n";
+                    oss << "  Help:\n";
+                    oss << "  - Pipeline operator |> passes left value to a function\n";
+                    oss << "  - Right side must be a function call or identifier\n\n";
+                    oss << "  Example:\n";
+                    oss << "    ✗ Wrong: value |> 42\n";
+                    oss << "    ✓ Right: value |> processFunc()\n";
+                    oss << "    ✓ Right: value |> transform\n";
+                    throw std::runtime_error(oss.str());
                 }
 
             } else if (auto* id = dynamic_cast<ast::IdentifierExpr*>(node.getRight())) {
@@ -1896,22 +2682,39 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                         last_executed_block_id_ = (*block)->metadata.block_id;
                     }
                 } else if (auto* func = std::get_if<std::shared_ptr<FunctionValue>>(&callee->data)) {
-                    auto saved_env = current_env_;
-                    auto saved_returning = returning_;  // ISS-003: Save returning_ flag
-                    current_env_ = std::make_shared<Environment>(global_env_);
-
-                    if (!(*func)->params.empty()) {
-                        current_env_->define((*func)->params[0], left);
-                    }
-
-                    (*func)->body->accept(*this);
-                    current_env_ = saved_env;
-                    returning_ = saved_returning;  // ISS-003: Restore returning_ flag
+                    (void)func;  // Type check only, value not needed
+                    // Use callFunction for proper validation
+                    std::vector<std::shared_ptr<Value>> args = {left};
+                    result_ = callFunction(callee, args);
                 } else {
-                    throw std::runtime_error("Pipeline right side must be a callable");
+                    std::ostringstream oss;
+                    oss << "Type error: Pipeline requires callable function\n\n";
+                    oss << "  Identifier type: " << getTypeName(callee) << "\n";
+                    oss << "  Expected: function or block\n\n";
+                    oss << "  Help:\n";
+                    oss << "  - Pipeline operator |> passes left value to a function\n";
+                    oss << "  - The identifier must refer to a function\n\n";
+                    oss << "  Example:\n";
+                    oss << "    let transform = function(x) { return x * 2 }\n";
+                    oss << "    ✗ Wrong: let x = 42; value |> x  // x is not a function\n";
+                    oss << "    ✓ Right: value |> transform\n";
+                    throw std::runtime_error(oss.str());
                 }
             } else {
-                throw std::runtime_error("Pipeline right side must be a function call or identifier");
+                std::ostringstream oss;
+                oss << "Syntax error: Invalid pipeline expression\n\n";
+                oss << "  Pipeline operator |> requires:\n";
+                oss << "  - Left side: any value\n";
+                oss << "  - Right side: function call or identifier\n\n";
+                oss << "  Help:\n";
+                oss << "  - Use function call: value |> func(arg1, arg2)\n";
+                oss << "  - Use identifier: value |> transform\n";
+                oss << "  - The left value becomes the first argument\n\n";
+                oss << "  Example:\n";
+                oss << "    ✗ Wrong: 100 |> 50 - _  // invalid expression\n";
+                oss << "    ✓ Right: 100 |> subtract(50)\n";
+                oss << "    ✓ Right: 100 |> double  // where double is a function\n";
+                throw std::runtime_error(oss.str());
             }
             break;
         }
@@ -1926,7 +2729,35 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
                 auto it = dict.find(key);
                 if (it == dict.end()) {
-                    throw std::runtime_error("Dictionary key not found: " + key);
+                    std::ostringstream oss;
+                    oss << "Key error: Dictionary key not found\n\n";
+                    oss << "  Key: \"" << key << "\"\n";
+
+                    if (dict.empty()) {
+                        oss << "  Dictionary is empty\n";
+                    } else {
+                        oss << "  Available keys: ";
+                        size_t count = 0;
+                        for (const auto& pair : dict) {
+                            if (count > 0) oss << ", ";
+                            oss << "\"" << pair.first << "\"";
+                            if (++count >= 10) {
+                                oss << "...";
+                                break;
+                            }
+                        }
+                        oss << "\n";
+                    }
+
+                    oss << "\n  Help:\n";
+                    oss << "  - Check if the key exists before accessing\n";
+                    oss << "  - Keys are case-sensitive\n";
+                    oss << "  - Use dict.has_key() to check existence (if available)\n\n";
+                    oss << "  Example:\n";
+                    oss << "    let d = {\"name\": \"Alice\", \"age\": 30}\n";
+                    oss << "    ✗ Wrong: d[\"Name\"]  // case mismatch\n";
+                    oss << "    ✓ Right: d[\"name\"]\n";
+                    throw std::runtime_error(oss.str());
                 }
 
                 result_ = it->second;
@@ -1936,17 +2767,61 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // Check if left is a list
             if (auto* list_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&left->data)) {
                 auto& list = *list_ptr;
+
+                // Type check: Array indices must be integers, not strings
+                if (!std::holds_alternative<int>(right->data) &&
+                    !std::holds_alternative<bool>(right->data)) {
+                    std::ostringstream oss;
+                    oss << "Type error: Array index must be an integer\n\n";
+                    oss << "  Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "  Expected: int\n";
+                    oss << "\n  Help:\n";
+                    oss << "  - Array indices must be integers (int or bool)\n";
+                    oss << "  - Strings are not automatically converted to numbers\n";
+                    oss << "  - For string keys, use a dictionary instead\n";
+                    oss << "\n  Example:\n";
+                    oss << "    ✗ Wrong: arr[\"0\"]      (string index)\n";
+                    oss << "    ✓ Right: arr[0]         (int index)\n";
+                    oss << "    ✓ Right: dict[\"key\"]   (use dict for string keys)\n";
+                    throw std::runtime_error(oss.str());
+                }
+
                 int index = right->toInt();
 
                 if (index < 0 || index >= static_cast<int>(list.size())) {
-                    throw std::runtime_error("List index out of bounds: " + std::to_string(index));
+                    std::ostringstream oss;
+                    oss << "Index error: Array index out of bounds\n\n";
+                    oss << "  Index: " << index << "\n";
+                    oss << "  Array size: " << list.size() << "\n";
+                    oss << "  Valid range: 0 to " << (list.size() > 0 ? list.size() - 1 : 0) << "\n\n";
+                    oss << "  Help:\n";
+                    oss << "  - Array indices start at 0\n";
+                    oss << "  - Check array size before accessing\n";
+                    oss << "  - Use array.length(arr) to get size\n\n";
+                    oss << "  Example:\n";
+                    oss << "    let arr = [10, 20, 30]  // size = 3\n";
+                    oss << "    ✗ Wrong: arr[3]  // out of bounds\n";
+                    oss << "    ✓ Right: arr[2]  // last element\n";
+                    throw std::runtime_error(oss.str());
                 }
 
-                result_ = list[index];
+                result_ = list[static_cast<size_t>(index)];
                 break;
             }
 
-            throw std::runtime_error("Subscript operation requires dictionary or list");
+            std::ostringstream oss;
+            oss << "Type error: Subscript operation not supported\n\n";
+            oss << "  Tried to subscript: " << getTypeName(left) << "\n";
+            oss << "  Supported types: array, dict\n\n";
+            oss << "  Help:\n";
+            oss << "  - Only arrays and dictionaries support subscript access []\n";
+            oss << "  - For arrays: use integer indices (arr[0], arr[1])\n";
+            oss << "  - For dicts: use string keys (dict[\"key\"])\n\n";
+            oss << "  Example:\n";
+            oss << "    ✗ Wrong: let x = 42; x[0]  // int doesn't support subscript\n";
+            oss << "    ✓ Right: let arr = [1, 2, 3]; arr[0]\n";
+            oss << "    ✓ Right: let dict = {\"a\": 1}; dict[\"a\"]\n";
+            throw std::runtime_error(oss.str());
         }
 
         default:
@@ -1999,10 +2874,10 @@ void Interpreter::visit(ast::CallExpr& node) {
             auto& py_callable = *py_obj_ptr;
 
 #ifdef NAAB_HAS_PYTHON
-            fmt::print("[CALL] Invoking Python method with {} args\n", args.size());
+            LOG_TRACE("[CALL] Invoking Python method with {} args\n", args.size());
 
             // Build argument tuple for Python
-            PyObject* py_args = PyTuple_New(args.size());
+            PyObject* py_args = PyTuple_New(static_cast<Py_ssize_t>(args.size()));
             for (size_t i = 0; i < args.size(); i++) {
                 PyObject* py_arg = nullptr;
 
@@ -2021,7 +2896,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     Py_INCREF(py_arg);
                 }
 
-                PyTuple_SetItem(py_args, i, py_arg);  // Steals reference
+                PyTuple_SetItem(py_args, static_cast<Py_ssize_t>(i), py_arg);  // Steals reference
             }
 
             // Call the Python callable
@@ -2033,32 +2908,32 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (PyLong_Check(py_result)) {
                     long val = PyLong_AsLong(py_result);
                     result_ = std::make_shared<Value>(static_cast<int>(val));
-                    fmt::print("[SUCCESS] Method returned int: {}\n", val);
+                    LOG_DEBUG("[SUCCESS] Method returned int: {}\n", val);
                     Py_DECREF(py_result);
                 } else if (PyFloat_Check(py_result)) {
                     double val = PyFloat_AsDouble(py_result);
                     result_ = std::make_shared<Value>(val);
-                    fmt::print("[SUCCESS] Method returned float: {}\n", val);
+                    LOG_DEBUG("[SUCCESS] Method returned float: {}\n", val);
                     Py_DECREF(py_result);
                 } else if (PyUnicode_Check(py_result)) {
                     const char* val = PyUnicode_AsUTF8(py_result);
                     result_ = std::make_shared<Value>(std::string(val));
-                    fmt::print("[SUCCESS] Method returned string: {}\n", val);
+                    LOG_DEBUG("[SUCCESS] Method returned string: {}\n", val);
                     Py_DECREF(py_result);
                 } else if (PyBool_Check(py_result)) {
                     bool val = py_result == Py_True;
                     result_ = std::make_shared<Value>(val);
-                    fmt::print("[SUCCESS] Method returned bool: {}\n", val);
+                    LOG_DEBUG("[SUCCESS] Method returned bool: {}\n", val);
                     Py_DECREF(py_result);
                 } else if (py_result == Py_None) {
                     result_ = std::make_shared<Value>();
-                    fmt::print("[SUCCESS] Method returned None\n");
+                    LOG_DEBUG("[SUCCESS] Method returned None\n");
                     Py_DECREF(py_result);
                 } else {
                     // Complex object - wrap for further chaining
                     auto py_obj = std::make_shared<PythonObjectValue>(py_result);
                     result_ = std::make_shared<Value>(py_obj);
-                    fmt::print("[SUCCESS] Method returned Python object: {}\n", py_obj->repr);
+                    LOG_DEBUG("[SUCCESS] Method returned Python object: {}\n", py_obj->repr);
                     Py_DECREF(py_result);
                 }
             } else {
@@ -2076,7 +2951,7 @@ void Interpreter::visit(ast::CallExpr& node) {
         if (auto* block_ptr = std::get_if<std::shared_ptr<BlockValue>>(&callable->data)) {
             auto& block = *block_ptr;
 
-            fmt::print("[CALL] Invoking block method {}.{} with {} args\n",
+            LOG_TRACE("[CALL] Invoking block method {}.{} with {} args\n",
                       block->metadata.block_id, block->member_path, args.size());
 
             // Get executor
@@ -2099,7 +2974,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
                 }
-                fmt::print("[SUCCESS] JavaScript function returned\n");
+                LOG_DEBUG("[SUCCESS] JavaScript function returned\n");
 
                 // Phase 4.4: Record block usage
                 if (block_loader_) {
@@ -2129,7 +3004,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
                 }
-                fmt::print("[SUCCESS] C++ function returned\n");
+                LOG_DEBUG("[SUCCESS] C++ function returned\n");
 
                 // Phase 4.4: Record block usage
                 if (block_loader_) {
@@ -2159,7 +3034,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (isVerboseMode()) {
                     fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
                 }
-                fmt::print("[SUCCESS] Python function returned\n");
+                LOG_DEBUG("[SUCCESS] Python function returned\n");
 
                 // Phase 4.4: Record block usage
                 if (block_loader_) {
@@ -2200,12 +3075,12 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                     auto module = it->second;
 
-                    fmt::print("[STDLIB] Calling {}.{}() with {} args\n",
+                    LOG_TRACE("[STDLIB] Calling {}.{}() with {} args\n",
                               module_alias, func_name, args.size());
 
                     // Call the stdlib function
                     result_ = module->call(func_name, args);
-                    fmt::print("[SUCCESS] Stdlib function returned\n");
+                    LOG_TRACE("[SUCCESS] Stdlib function returned\n");
                     return;
                 }
             }
@@ -2255,13 +3130,51 @@ void Interpreter::visit(ast::CallExpr& node) {
             return;
         }
 
-        throw std::runtime_error("Member access did not return a callable function");
+        std::ostringstream oss;
+        oss << "Type error: Member is not callable\n\n";
+        oss << "  Member type: " << getTypeName(func_value) << "\n";
+        oss << "  Expected: function\n\n";
+        oss << "  Help:\n";
+        oss << "  - Only functions can be called with ()\n";
+        oss << "  - Check if the member is a function\n";
+        oss << "  - If accessing a property, don't use ()\n\n";
+        oss << "  Example:\n";
+        oss << "    struct Point { x: int, getX: function }\n";
+        oss << "    let p = Point{x: 10, getX: ...}\n";
+        oss << "    ✗ Wrong: p.x()  // x is not a function\n";
+        oss << "    ✓ Right: p.getX()  // getX is a function\n";
+        throw std::runtime_error(oss.str());
     }
 
-    // Get function name (for built-ins and named functions)
+    // Try to get function name (for built-ins and named functions)
     auto* id_expr = dynamic_cast<ast::IdentifierExpr*>(node.getCallee());
+
+    // If callee is not an identifier (e.g., array[0], higher-order function result),
+    // evaluate it and check if it's a callable function
     if (!id_expr) {
-        throw std::runtime_error("Unsupported call expression type");
+        node.getCallee()->accept(*this);
+        auto callee_value = result_;
+
+        // Check if the result is a function
+        if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&callee_value->data)) {
+            (void)func_ptr;  // Type check only, value not needed
+            // Call the function using the general callFunction helper
+            result_ = callFunction(callee_value, args);
+            return;
+        }
+
+        std::ostringstream oss;
+        oss << "Type error: Expression is not callable\n\n";
+        oss << "  Tried to call: " << getTypeName(callee_value) << "\n";
+        oss << "  Expected: function\n\n";
+        oss << "  Help:\n";
+        oss << "  - Only functions can be called with ()\n";
+        oss << "  - If you're calling arr[i], make sure arr contains functions\n";
+        oss << "  - If you're using higher-order functions, verify they return functions\n\n";
+        oss << "  Example:\n";
+        oss << "    ✗ Wrong: let arr = [1, 2, 3]; arr[0]()  // int isn't callable\n";
+        oss << "    ✓ Right: let fns = [function() { ... }]; fns[0]()\n";
+        throw std::runtime_error(oss.str());
     }
 
     std::string func_name = id_expr->getName();
@@ -2283,15 +3196,29 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             if (args.size() < min_args || args.size() > func->params.size()) {
-                throw std::runtime_error(fmt::format(
-                    "Function {} expects {}-{} args, got {}",
-                    func->name, min_args, func->params.size(), args.size()));
+                // Build parameter list for error message
+                std::ostringstream oss;
+                oss << "Function " << func->name << " expects " << min_args << "-"
+                    << func->params.size() << " arguments, got " << args.size() << "\n"
+                    << "  Function: " << func->name << "(";
+
+                // Show parameters
+                for (size_t i = 0; i < func->params.size(); ++i) {
+                    if (i > 0) oss << ", ";
+                    oss << func->params[i];
+                }
+                oss << ")\n";
+
+                // Show what was provided
+                oss << "  Provided: " << args.size() << " argument(s)";
+
+                throw std::runtime_error(oss.str());
             }
 
             // Phase 2.4.4 Phase 3: Handle generic type arguments (explicit or inferred)
             std::map<std::string, ast::Type> type_substitutions;
             if (!func->type_parameters.empty()) {
-                fmt::print("[INFO] Function {} is generic with type parameters: ", func->name);
+                LOG_DEBUG("[INFO] Function {} is generic with type parameters: ", func->name);
                 for (const auto& tp : func->type_parameters) {
                     fmt::print("{} ", tp);
                 }
@@ -2301,7 +3228,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 const auto& explicit_type_args = node.getTypeArguments();
                 if (!explicit_type_args.empty()) {
                     // Use explicit type arguments
-                    fmt::print("[INFO] Using {} explicit type argument(s)\n", explicit_type_args.size());
+                    LOG_DEBUG("[INFO] Using {} explicit type argument(s)\n", explicit_type_args.size());
 
                     if (explicit_type_args.size() != func->type_parameters.size()) {
                         throw std::runtime_error(fmt::format(
@@ -2311,7 +3238,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                     for (size_t i = 0; i < func->type_parameters.size(); i++) {
                         type_substitutions.insert({func->type_parameters[i], explicit_type_args[i]});
-                        fmt::print("[INFO] Type parameter {} = {}\n",
+                        LOG_DEBUG("[INFO] Type parameter {} = {}\n",
                                   func->type_parameters[i],
                                   formatTypeName(explicit_type_args[i]));
                     }
@@ -2420,6 +3347,11 @@ void Interpreter::visit(ast::CallExpr& node) {
             current_type_substitutions_ = type_substitutions;  // Phase 2.4.4: Set type substitutions for generics
             current_file_ = func->source_file;  // Phase 3.1: Set file to function's source file
 
+            // Issue #3: Push file context for function's source file
+            if (!func->source_file.empty()) {
+                pushFileContext(func->source_file);
+            }
+
             // Phase 4.1: Push stack frame for error reporting
             pushStackFrame(func->name, func->source_line);  // Phase 3.1: Use actual line number
 
@@ -2448,6 +3380,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                     debugger_->popFrame();
                 }
                 popStackFrame();
+                // Issue #3: Pop file context on error
+                if (!func->source_file.empty()) {
+                    popFileContext();
+                }
                 current_env_ = saved_env;
                 returning_ = saved_returning;
                 current_function_ = saved_function;  // Phase 2.4.2: Restore
@@ -2464,6 +3400,11 @@ void Interpreter::visit(ast::CallExpr& node) {
             // Phase 4.1: Pop stack frame
             popStackFrame();
 
+            // Issue #3: Pop file context on success
+            if (!func->source_file.empty()) {
+                popFileContext();
+            }
+
             // Restore environment and function
             current_env_ = saved_env;
             returning_ = saved_returning;
@@ -2471,7 +3412,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             current_type_substitutions_ = saved_type_subst;  // Phase 2.4.4: Restore
             current_file_ = saved_file;  // Phase 3.1: Restore file
 
-            fmt::print("[CALL] Function {} executed\n", func->name);
+            LOG_TRACE("[CALL] Function {} executed\n", func->name);
             return;
         }
 
@@ -2479,13 +3420,13 @@ void Interpreter::visit(ast::CallExpr& node) {
         if (auto* block_ptr = std::get_if<std::shared_ptr<BlockValue>>(&value->data)) {
             auto& block = *block_ptr;
 
-            fmt::print("[CALL] Invoking block {} ({}) with {} args\n",
+            LOG_TRACE("[CALL] Invoking block {} ({}) with {} args\n",
                       block->metadata.name, block->metadata.language, args.size());
 
             // Phase 7: Try executor-based calling first
             auto* executor = block->getExecutor();
             if (executor) {
-                fmt::print("[INFO] Calling block via executor ({})...\n", block->metadata.language);
+                LOG_DEBUG("[INFO] Calling block via executor ({})...\n", block->metadata.language);
 
                 // Determine function name to call:
                 // - If member_path is set, this is a member accessor (e.g., block.method)
@@ -2494,12 +3435,12 @@ void Interpreter::visit(ast::CallExpr& node) {
                     ? func_name
                     : block->member_path;
 
-                fmt::print("[INFO] Calling function: {}\n", function_to_call);
+                LOG_DEBUG("[INFO] Calling function: {}\n", function_to_call);
                 result_ = executor->callFunction(function_to_call, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
 
                 if (result_) {
-                    fmt::print("[SUCCESS] Block call completed\n");
+                    LOG_DEBUG("[SUCCESS] Block call completed\n");
 
                     // Phase 4.4: Record block usage for analytics
                     if (block_loader_) {
@@ -2526,7 +3467,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (block->metadata.language == "python") {
                 // Python blocks: Execute using embedded Python interpreter
 #ifdef NAAB_HAS_PYTHON
-                fmt::print("[INFO] Executing Python block: {}\n", block->metadata.name);
+                LOG_DEBUG("[INFO] Executing Python block: {}\n", block->metadata.name);
 
                 // Add common imports automatically
                 PyRun_SimpleString("from typing import Dict, List, Optional, Any, Union\n"
@@ -2539,7 +3480,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                 // Handle member access calls
                 if (!block->member_path.empty()) {
-                    fmt::print("[INFO] Calling member: {}\n", block->member_path);
+                    LOG_DEBUG("[INFO] Calling member: {}\n", block->member_path);
 
                     // Build argument list for Python
                     std::string args_str = "(";
@@ -2579,28 +3520,28 @@ void Interpreter::visit(ast::CallExpr& node) {
                         if (PyLong_Check(py_result)) {
                             long val = PyLong_AsLong(py_result);
                             result_ = std::make_shared<Value>(static_cast<int>(val));
-                            fmt::print("[SUCCESS] Returned int: {}\n", val);
+                            LOG_DEBUG("[SUCCESS] Returned int: {}\n", val);
                         } else if (PyFloat_Check(py_result)) {
                             double val = PyFloat_AsDouble(py_result);
                             result_ = std::make_shared<Value>(val);
-                            fmt::print("[SUCCESS] Returned float: {}\n", val);
+                            LOG_DEBUG("[SUCCESS] Returned float: {}\n", val);
                         } else if (PyUnicode_Check(py_result)) {
                             const char* val = PyUnicode_AsUTF8(py_result);
                             result_ = std::make_shared<Value>(std::string(val));
-                            fmt::print("[SUCCESS] Returned string: {}\n", val);
+                            LOG_DEBUG("[SUCCESS] Returned string: {}\n", val);
                         } else if (PyBool_Check(py_result)) {
                             bool val = py_result == Py_True;
                             result_ = std::make_shared<Value>(val);
-                            fmt::print("[SUCCESS] Returned bool: {}\n", val);
+                            LOG_DEBUG("[SUCCESS] Returned bool: {}\n", val);
                         } else if (py_result == Py_None) {
                             result_ = std::make_shared<Value>();
-                            fmt::print("[SUCCESS] Returned None\n");
+                            LOG_DEBUG("[SUCCESS] Returned None\n");
                             Py_DECREF(py_result);
                         } else {
                             // Complex object - wrap in PythonObjectValue for method chaining
                             auto py_obj = std::make_shared<PythonObjectValue>(py_result);
                             result_ = std::make_shared<Value>(py_obj);
-                            fmt::print("[SUCCESS] Returned Python object: {}\n", py_obj->repr);
+                            LOG_DEBUG("[SUCCESS] Returned Python object: {}\n", py_obj->repr);
                             Py_DECREF(py_result);  // PythonObjectValue has its own reference
                         }
                     } else {
@@ -2636,19 +3577,20 @@ void Interpreter::visit(ast::CallExpr& node) {
                     args_setup += "]\n";
 
                     PyRun_SimpleString(args_setup.c_str());
-                    fmt::print("[INFO] Injected {} args into Python context\n", args.size());
+                    LOG_DEBUG("[INFO] Injected {} args into Python context\n", args.size());
                 }
 
                 // Execute Python code - for blocks that are classes/functions
                 // Try to evaluate as expression first (for simple cases)
                 PyObject* main_module = PyImport_AddModule("__main__");
                 PyObject* global_dict = PyModule_GetDict(main_module);
+                (void)global_dict;  // Reserved for future expression evaluation
 
                 // For blocks that define classes, just execute and return success
                 int result = PyRun_SimpleString(block->code.c_str());
 
                 if (result == 0) {
-                    fmt::print("[SUCCESS] Python block executed successfully\n");
+                    LOG_DEBUG("[SUCCESS] Python block executed successfully\n");
                     result_ = std::make_shared<Value>();  // Return null for definition blocks
                 } else {
                     fmt::print("[ERROR] Python block execution failed\n");
@@ -2695,7 +3637,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 else if constexpr (std::is_same_v<T, double>) return "float";
                 else if constexpr (std::is_same_v<T, bool>) return "bool";
                 else if constexpr (std::is_same_v<T, std::string>) return "string";
-                else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) return "list";
+                else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) return "array";
                 else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) return "dict";
                 else if constexpr (std::is_same_v<T, std::shared_ptr<BlockValue>>) return "block";
                 else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) return "function";
@@ -2723,7 +3665,19 @@ void Interpreter::visit(ast::CallExpr& node) {
     }
     else {
         // Function not found
-        throw std::runtime_error("Undefined function: " + func_name);
+        std::ostringstream oss;
+        oss << "Name error: Undefined function\n\n";
+        oss << "  Function: " << func_name << "\n\n";
+        oss << "  Help:\n";
+        oss << "  - Check for typos in the function name\n";
+        oss << "  - Make sure the function is defined before calling\n";
+        oss << "  - For stdlib functions, use module.function() (e.g., array.push())\n\n";
+        oss << "  Common builtins: print, len, type, typeof, int, float, string, bool\n\n";
+        oss << "  Example:\n";
+        oss << "    ✗ Wrong: printt(\"hello\")  // typo\n";
+        oss << "    ✓ Right: print(\"hello\")\n";
+        oss << "    ✓ Right: array.length([1,2,3])  // stdlib module function\n";
+        throw std::runtime_error(oss.str());
     }
 
     // Phase 3.2: Track allocation for automatic GC
@@ -2793,7 +3747,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
             member_block->member_path = full_member_path;
 
             result_ = std::make_shared<Value>(member_block);
-            fmt::print("[INFO] Created member accessor: {} ({})\n",
+            LOG_DEBUG("[INFO] Created member accessor: {} ({})\n",
                       full_member_path, block->metadata.language);
             return;
         }
@@ -2819,7 +3773,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
             );
 
             result_ = std::make_shared<Value>(member_block);
-            fmt::print("[INFO] Created member accessor (legacy Python): {}\n", full_member_path);
+            LOG_DEBUG("[INFO] Created member accessor (legacy Python): {}\n", full_member_path);
 #else
             throw std::runtime_error("Python support required for member access");
 #endif
@@ -2845,7 +3799,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
             auto member_obj = std::make_shared<PythonObjectValue>(py_member);
             result_ = std::make_shared<Value>(member_obj);
             Py_DECREF(py_member);  // PythonObjectValue has its own reference
-            fmt::print("[INFO] Accessed Python object member: {}\n", member_name);
+            LOG_DEBUG("[INFO] Accessed Python object member: {}\n", member_name);
         } else {
             PyErr_Print();
             throw std::runtime_error("Python object has no attribute: " + member_name);
@@ -2863,7 +3817,36 @@ void Interpreter::visit(ast::MemberExpr& node) {
             result_ = it->second;
             return;
         }
-        throw std::runtime_error("Member '" + member_name + "' not found in module");
+
+        std::ostringstream oss;
+        oss << "Name error: Member not found in module\n\n";
+        oss << "  Member: " << member_name << "\n";
+
+        if (dict_ptr->empty()) {
+            oss << "  Module has no exported members\n";
+        } else {
+            oss << "  Available members: ";
+            size_t count = 0;
+            for (const auto& pair : *dict_ptr) {
+                if (count > 0) oss << ", ";
+                oss << pair.first;
+                if (++count >= 10) {
+                    oss << "...";
+                    break;
+                }
+            }
+            oss << "\n";
+        }
+
+        oss << "\n  Help:\n";
+        oss << "  - Check spelling of member name\n";
+        oss << "  - Verify the member is exported\n";
+        oss << "  - Member names are case-sensitive\n\n";
+        oss << "  Example:\n";
+        oss << "    import mymodule\n";
+        oss << "    ✗ Wrong: mymodule.MyFunc()  // case mismatch\n";
+        oss << "    ✓ Right: mymodule.myFunc()\n";
+        throw std::runtime_error(oss.str());
     }
 
     // Check if object is a stdlib module marker
@@ -2877,7 +3860,18 @@ void Interpreter::visit(ast::MemberExpr& node) {
             // Look up the module
             auto it = imported_modules_.find(module_alias);
             if (it == imported_modules_.end()) {
-                throw std::runtime_error("Module not found: " + module_alias);
+                std::ostringstream oss;
+                oss << "Import error: Module not found\n\n";
+                oss << "  Module: " << module_alias << "\n\n";
+                oss << "  Help:\n";
+                oss << "  - Check if module is imported at top of file\n";
+                oss << "  - Verify import statement: import " << module_alias << "\n";
+                oss << "  - For stdlib: array, string, math, file, env, time, etc.\n\n";
+                oss << "  Example:\n";
+                oss << "    import array  // add at top of file\n";
+                oss << "    let arr = [1, 2, 3]\n";
+                oss << "    array.push(arr, 4)\n";
+                throw std::runtime_error(oss.str());
             }
 
             auto module = it->second;
@@ -2931,7 +3925,19 @@ void Interpreter::visit(ast::MemberExpr& node) {
     }
 
     // Member access on other types (TODO)
-    throw std::runtime_error("Member access not supported on this type");
+    std::ostringstream oss;
+    oss << "Type error: Member access not supported\n\n";
+    oss << "  Tried to access: " << getTypeName(obj) << "." << member_name << "\n";
+    oss << "  Supported types: struct, dict (for modules), block\n\n";
+    oss << "  Help:\n";
+    oss << "  - Structs support dot notation: obj.field\n";
+    oss << "  - Dictionaries don't support dot notation, use subscript: dict[\"key\"]\n";
+    oss << "  - Modules support member access: module.function\n\n";
+    oss << "  Example:\n";
+    oss << "    ✗ Wrong: let x = 42; x.field\n";
+    oss << "    ✓ Right: struct Point { x: int }; let p = Point{x: 0}; p.x\n";
+    oss << "    ✓ Right: import mymodule; mymodule.function()\n";
+    throw std::runtime_error(oss.str());
 }
 
 void Interpreter::visit(ast::IdentifierExpr& node) {
@@ -2951,7 +3957,7 @@ void Interpreter::visit(ast::IdentifierExpr& node) {
             // Generate suggestion from current scope (not from parent where error was thrown)
             auto suggestion = error::suggestForUndefinedVariable(node.getName(), all_names);
 
-            error_reporter_.error(main_msg, loc.line, loc.column);
+            error_reporter_.error(main_msg, static_cast<size_t>(loc.line), static_cast<size_t>(loc.column));
             if (!suggestion.empty()) {
                 error_reporter_.addSuggestion(suggestion);
             }
@@ -3167,8 +4173,17 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     std::string raw_code = node.getCode();
     const auto& bound_vars = node.getBoundVariables();  // Phase 2.2
 
-    // Phase 2.2: Generate variable declarations for bound variables
+    // Get the executor early (needed for object-based variable passing)
+    auto& registry = runtime::LanguageRegistry::instance();
+    auto* executor = registry.getExecutor(language);
+    if (!executor) {
+        throw std::runtime_error("No executor found for language: " + language);
+    }
+
+    // Phase 2.2: Bind variables - use object passing for Python, env vars for shell, string serialization for others
     std::string var_declarations;
+    std::map<std::string, std::string> shell_env_vars;  // Polyglot: Issue #2 - Shell environment variables
+
     for (const auto& var_name : bound_vars) {
         // Look up variable in current environment
         if (!current_env_->has(var_name)) {
@@ -3176,25 +4191,55 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         auto value = current_env_->get(var_name);
-        std::string serialized = serializeValueForLanguage(value, language);
 
-        // Generate declaration based on language
+        // For Python: use object-based variable passing (struct auto-serialization!)
         if (language == "python") {
-            var_declarations += var_name + " = " + serialized + "\n";
-        } else if (language == "javascript" || language == "js") {
-            var_declarations += "const " + var_name + " = " + serialized + ";\n";
+            // Cast executor to PyExecutorAdapter and inject variable as Python object
+            auto* py_executor = dynamic_cast<runtime::PyExecutorAdapter*>(executor);
+            if (py_executor) {
+                py_executor->setGlobalVariable(var_name, value);
+                // No var_declarations needed - object is already in Python namespace!
+            } else {
+                // Fallback to string serialization if cast fails
+                std::string serialized = serializeValueForLanguage(value, language);
+                var_declarations += var_name + " = " + serialized + "\n";
+            }
         } else if (language == "shell" || language == "sh" || language == "bash") {
-            var_declarations += var_name + "=" + serialized + "\n";
-        } else if (language == "go") {
-            var_declarations += "const " + var_name + " = " + serialized + "\n";
-        } else if (language == "rust") {
-            var_declarations += "let " + var_name + " = " + serialized + ";\n";
-        } else if (language == "cpp" || language == "c++") {
-            var_declarations += "const auto " + var_name + " = " + serialized + ";\n";
-        } else if (language == "ruby") {
-            var_declarations += var_name + " = " + serialized + "\n";
-        } else if (language == "csharp" || language == "cs") {
-            var_declarations += "var " + var_name + " = " + serialized + ";\n";
+            // Polyglot: Issue #2 - Use environment variables for shell (avoids quoting/escaping issues)
+            // Convert value to plain string without shell escaping (env vars handle special chars)
+            std::string env_value;
+            if (std::holds_alternative<std::string>(value->data)) {
+                env_value = std::get<std::string>(value->data);
+            } else if (std::holds_alternative<int>(value->data)) {
+                env_value = std::to_string(std::get<int>(value->data));
+            } else if (std::holds_alternative<double>(value->data)) {
+                env_value = std::to_string(std::get<double>(value->data));
+            } else if (std::holds_alternative<bool>(value->data)) {
+                env_value = std::get<bool>(value->data) ? "true" : "false";
+            } else {
+                // For complex types, use serialization
+                env_value = serializeValueForLanguage(value, language);
+            }
+            shell_env_vars[var_name] = env_value;
+        } else {
+            // For all other languages: use string serialization
+            std::string serialized = serializeValueForLanguage(value, language);
+
+            if (language == "javascript" || language == "js") {
+                var_declarations += "const " + var_name + " = " + serialized + ";\n";
+            } else if (language == "shell" || language == "sh" || language == "bash") {
+                var_declarations += var_name + "=" + serialized + "\n";
+            } else if (language == "go") {
+                var_declarations += "const " + var_name + " = " + serialized + "\n";
+            } else if (language == "rust") {
+                var_declarations += "let " + var_name + " = " + serialized + ";\n";
+            } else if (language == "cpp" || language == "c++") {
+                var_declarations += "const auto " + var_name + " = " + serialized + ";\n";
+            } else if (language == "ruby") {
+                var_declarations += var_name + " = " + serialized + "\n";
+            } else if (language == "csharp" || language == "cs") {
+                var_declarations += "var " + var_name + " = " + serialized + ";\n";
+            }
         }
     }
 
@@ -3206,26 +4251,26 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         lines.push_back(line);
     }
 
-    // Find minimum indentation (ignoring empty lines and first line)
+    // Find minimum indentation (ignoring empty lines)
+    // ISS-028 Fix: Include first line in indentation calculation
     size_t min_indent = std::string::npos;
-    for (size_t i = 1; i < lines.size(); ++i) {  // Skip first line (i=0)
+    for (size_t i = 0; i < lines.size(); ++i) {  // Include all lines
         const auto& l = lines[i];
         if (l.empty() || l.find_first_not_of(" \t") == std::string::npos) continue;
         size_t indent = l.find_first_not_of(" \t");
         if (indent < min_indent) min_indent = indent;
     }
 
-    // Strip the common indentation from all lines (except first)
+    // Strip the common indentation from ALL lines
     std::string code;
     for (size_t i = 0; i < lines.size(); ++i) {
         const auto& l = lines[i];
 
-        if (i == 0) {
-            // Keep first line as-is
-            code += l + "\n";
-        } else if (l.empty() || l.find_first_not_of(" \t") == std::string::npos) {
+        if (l.empty() || l.find_first_not_of(" \t") == std::string::npos) {
+            // Empty or whitespace-only line
             code += "\n";
         } else {
+            // Strip common indentation from all non-empty lines
             if (min_indent != std::string::npos && l.length() > min_indent) {
                 code += l.substr(min_indent) + "\n";
             } else {
@@ -3234,22 +4279,31 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
     }
 
-    // Phase 2.2: Prepend variable declarations
+    // Phase 2.2: Prepend variable declarations (for non-Python, non-shell languages)
     std::string final_code = var_declarations + code;
 
     explain("Executing inline " + language + " code" +
             (bound_vars.empty() ? "" : " with " + std::to_string(bound_vars.size()) + " bound variables"));
 
-    // Get the executor for this language
-    auto& registry = runtime::LanguageRegistry::instance();
-    auto* executor = registry.getExecutor(language);
-    if (!executor) {
-        throw std::runtime_error("No executor found for language: " + language);
-    }
+    // Set source location for better error messages
+    auto location = node.getLocation();
+    executor->setSourceLocation(current_file_, location.line, location.column);
 
     // Phase 2.3: Execute the code and capture return value
     try {
-        result_ = executor->executeWithReturn(final_code);
+        // Polyglot: Issue #2 - Use environment variables for shell
+        if ((language == "shell" || language == "sh" || language == "bash") && !shell_env_vars.empty()) {
+            auto* shell_executor = dynamic_cast<runtime::ShellExecutor*>(executor);
+            if (shell_executor) {
+                // Use environment variables instead of code injection
+                result_ = shell_executor->executeWithReturn(code, shell_env_vars);
+            } else {
+                // Fallback if cast fails
+                result_ = executor->executeWithReturn(final_code);
+            }
+        } else {
+            result_ = executor->executeWithReturn(final_code);
+        }
 
         // Flush stdout from executor
         flushExecutorOutput(executor);
@@ -3260,11 +4314,65 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 }
 
 // ============================================================================
+// Lambda Expression Handler
+// ============================================================================
+
+void Interpreter::visit(ast::LambdaExpr& node) {
+    // Extract parameter names, types, and default values
+    std::vector<std::string> param_names;
+    std::vector<ast::Type> param_types;
+    std::vector<ast::Expr*> param_defaults;
+
+    for (const auto& param : node.getParams()) {
+        param_names.push_back(param.name);
+        param_types.push_back(param.type);
+
+        // Store raw pointer to default value expression if present
+        if (param.default_value) {
+            param_defaults.push_back(param.default_value->get());
+        } else {
+            param_defaults.push_back(nullptr);
+        }
+    }
+
+    // Get lambda body as CompoundStmt
+    auto* body = dynamic_cast<ast::CompoundStmt*>(node.getBody());
+    if (!body) {
+        throw std::runtime_error("Lambda body must be a compound statement");
+    }
+
+    // Infer return type if not explicitly provided
+    ast::Type return_type = node.getReturnType();
+    if (return_type.kind == ast::TypeKind::Any) {
+        return_type = inferReturnType(body);
+    }
+
+    // Create FunctionValue for the lambda (anonymous function)
+    // Use "<lambda>" as the function name for debugging
+    auto func_value = std::make_shared<FunctionValue>(
+        "<lambda>",  // Anonymous function name
+        param_names,
+        std::move(param_types),
+        std::move(param_defaults),
+        std::shared_ptr<ast::CompoundStmt>(body, [](ast::CompoundStmt*){}),  // Non-owning shared_ptr
+        std::vector<std::string>{},  // No type parameters for lambdas
+        return_type,
+        current_file_,  // Source file for stack traces
+        node.getLocation().line,  // Line number for stack traces
+        current_env_  // Capture closure environment
+    );
+
+    // Return the lambda as a Value (don't store in environment)
+    result_ = std::make_shared<Value>(func_value);
+}
+
+// ============================================================================
 // StructValue Methods
 // ============================================================================
 
 // Profile mode methods
 void Interpreter::profileStart(const std::string& name) {
+    (void)name;  // Reserved for future use with named profiling sections
     if (!profile_mode_) return;
     profile_start_ = std::chrono::high_resolution_clock::now();
 }
@@ -3286,7 +4394,7 @@ void Interpreter::printProfile() const {
     }
 
     fmt::print("\n=== Execution Profile ===\n");
-    fmt::print("Total time: {:.2f}ms\n\n", total / 1000.0);
+    fmt::print("Total time: {:.2f}ms\n\n", static_cast<double>(total) / 1000.0);
 
     // Sort by time descending
     std::vector<std::pair<std::string, long long>> sorted(
@@ -3295,8 +4403,8 @@ void Interpreter::printProfile() const {
         [](const auto& a, const auto& b) { return a.second > b.second; });
 
     for (const auto& [name, time] : sorted) {
-        double ms = time / 1000.0;
-        double pct = (total > 0) ? (100.0 * time / total) : 0.0;
+        double ms = static_cast<double>(time) / 1000.0;
+        double pct = (total > 0) ? (100.0 * static_cast<double>(time) / static_cast<double>(total)) : 0.0;
         fmt::print("  {}: {:.2f}ms ({:.1f}%)\n", name, ms, pct);
     }
     fmt::print("=========================\n");
@@ -3363,6 +4471,165 @@ std::shared_ptr<Value> Interpreter::copyValue(const std::shared_ptr<Value>& valu
 
     // Default: return original (shouldn't reach here)
     return value;
+}
+
+// Parallel polyglot execution: Capture variables for thread-safe parallel execution
+void Interpreter::VariableSnapshot::capture(
+    Environment* env,
+    const std::vector<std::string>& var_names,
+    Interpreter* interp
+) {
+    for (const auto& name : var_names) {
+        if (env->has(name)) {
+            // Deep copy the value to avoid shared mutable state
+            auto original_value = env->get(name);
+            auto copied_value = interp->copyValue(original_value);
+            variables[name] = copied_value;
+        }
+    }
+}
+
+// Parallel polyglot execution: Execute a group of polyglot blocks in parallel
+void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
+    if (group.parallel_blocks.empty()) {
+        return;  // Nothing to execute
+    }
+
+    // Single block - execute normally (no parallelization needed)
+    if (group.parallel_blocks.size() == 1) {
+        const auto& block = group.parallel_blocks[0];
+        // Execute the full statement (VarDeclStmt or ExprStmt) to create variable bindings
+        block.statement->accept(*this);
+        return;
+    }
+
+    // Multiple blocks - execute in parallel
+    // Step 1: Capture variable snapshots for each block (thread-safe deep copy)
+    std::vector<VariableSnapshot> snapshots;
+    for (const auto& block : group.parallel_blocks) {
+        VariableSnapshot snapshot;
+        snapshot.capture(current_env_.get(), block.read_vars, this);
+        snapshots.push_back(std::move(snapshot));
+    }
+
+    // Step 2: Prepare code for each block with variable bindings
+    std::vector<std::tuple<
+        polyglot::PolyglotAsyncExecutor::Language,
+        std::string,
+        std::vector<interpreter::Value>
+    >> tasks;
+
+    for (size_t i = 0; i < group.parallel_blocks.size(); ++i) {
+        const auto& block = group.parallel_blocks[i];
+        const auto& snapshot = snapshots[i];
+        auto* inline_code = block.node;
+
+        // Convert language string to enum
+        std::string lang_str = inline_code->getLanguage();
+        polyglot::PolyglotAsyncExecutor::Language lang;
+        if (lang_str == "python") {
+            lang = polyglot::PolyglotAsyncExecutor::Language::Python;
+        } else if (lang_str == "javascript" || lang_str == "js") {
+            lang = polyglot::PolyglotAsyncExecutor::Language::JavaScript;
+        } else if (lang_str == "cpp" || lang_str == "c++") {
+            lang = polyglot::PolyglotAsyncExecutor::Language::Cpp;
+        } else if (lang_str == "rust") {
+            lang = polyglot::PolyglotAsyncExecutor::Language::Rust;
+        } else if (lang_str == "csharp" || lang_str == "cs") {
+            lang = polyglot::PolyglotAsyncExecutor::Language::CSharp;
+        } else if (lang_str == "shell" || lang_str == "bash") {
+            lang = polyglot::PolyglotAsyncExecutor::Language::Shell;
+        } else {
+            lang = polyglot::PolyglotAsyncExecutor::Language::GenericSubprocess;
+        }
+
+        // Prepare variable declarations by serializing snapshot values
+        std::string var_declarations;
+        for (const auto& [var_name, value] : snapshot.variables) {
+            std::string serialized = serializeValueForLanguage(value, lang_str);
+
+            // Language-specific variable declaration syntax
+            if (lang_str == "python") {
+                var_declarations += var_name + " = " + serialized + "\n";
+            } else if (lang_str == "javascript" || lang_str == "js") {
+                var_declarations += "const " + var_name + " = " + serialized + ";\n";
+            } else if (lang_str == "rust") {
+                var_declarations += "let " + var_name + " = " + serialized + ";\n";
+            } else if (lang_str == "cpp" || lang_str == "c++") {
+                var_declarations += "const auto " + var_name + " = " + serialized + ";\n";
+            } else if (lang_str == "csharp" || lang_str == "cs") {
+                var_declarations += "var " + var_name + " = " + serialized + ";\n";
+            } else if (lang_str == "shell" || lang_str == "bash") {
+                var_declarations += var_name + "=" + serialized + "\n";
+            } else {
+                // Generic: assume C-like syntax
+                var_declarations += var_name + " = " + serialized + ";\n";
+            }
+        }
+
+        // Get raw code and strip common indentation
+        std::string raw_code = inline_code->getCode();
+        std::vector<std::string> lines;
+        std::istringstream stream(raw_code);
+        std::string line;
+        while (std::getline(stream, line)) {
+            lines.push_back(line);
+        }
+
+        // Find minimum indentation (ignoring empty lines)
+        size_t min_indent = std::string::npos;
+        for (const auto& l : lines) {
+            if (l.empty() || l.find_first_not_of(" \t") == std::string::npos) continue;
+            size_t indent = l.find_first_not_of(" \t");
+            if (indent < min_indent) min_indent = indent;
+        }
+
+        // Strip the common indentation from all lines
+        std::string code;
+        for (const auto& l : lines) {
+            if (l.empty() || l.find_first_not_of(" \t") == std::string::npos) {
+                code += "\n";
+            } else {
+                if (min_indent != std::string::npos && l.length() > min_indent) {
+                    code += l.substr(min_indent) + "\n";
+                } else {
+                    code += l + "\n";
+                }
+            }
+        }
+
+        // Prepend variable declarations
+        std::string final_code = var_declarations + code;
+
+        // Create task with empty args (variables are injected into code)
+        std::vector<interpreter::Value> args;
+        tasks.emplace_back(lang, final_code, args);
+    }
+
+    // Step 3: Execute in parallel using PolyglotAsyncExecutor
+    polyglot::PolyglotAsyncExecutor executor;
+    auto results = executor.executeParallel(tasks, std::chrono::milliseconds(30000));
+
+    // Step 4: Store results back to environment (sequential, thread-safe)
+    for (size_t i = 0; i < results.size(); ++i) {
+        const auto& block = group.parallel_blocks[i];
+        const auto& result = results[i];
+
+        if (result.success) {
+            // Store result value
+            if (!block.assigned_var.empty()) {
+                // Result already contains interpreter::Value
+                auto value = std::make_shared<Value>(result.value);
+                current_env_->define(block.assigned_var, value);
+            }
+        } else {
+            // Handle error
+            throw std::runtime_error(fmt::format(
+                "Parallel polyglot execution failed in block {}: {}",
+                i, result.error_message
+            ));
+        }
+    }
 }
 
 // Phase 2.2: Serialize a value for injection into target language
@@ -3509,6 +4776,7 @@ std::map<std::string, ast::Type> Interpreter::inferTypeBindings(
     const std::vector<ast::StructField>& fields,
     const std::vector<std::pair<std::string, std::unique_ptr<ast::Expr>>>& field_inits
 ) {
+    (void)type_params;  // Reserved for future generic type inference
     std::map<std::string, ast::Type> bindings;
 
     // For each field initializer, match it against the field definition
@@ -3734,7 +5002,7 @@ std::string Interpreter::getValueTypeName(const std::shared_ptr<Value>& value) {
     } else if (std::holds_alternative<std::monostate>(value->data)) {
         return "null";
     } else if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data)) {
-        return "list";
+        return "array";
     } else if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
         return "dict";
     } else if (auto* struct_val = std::get_if<std::shared_ptr<StructValue>>(&value->data)) {
@@ -3756,7 +5024,7 @@ std::string Interpreter::formatTypeName(const ast::Type& type) {
     else if (type.kind == ast::TypeKind::String) base_name = "string";
     else if (type.kind == ast::TypeKind::Bool) base_name = "bool";
     else if (type.kind == ast::TypeKind::Void) base_name = "null";
-    else if (type.kind == ast::TypeKind::List) base_name = "list";
+    else if (type.kind == ast::TypeKind::List) base_name = "array";
     else if (type.kind == ast::TypeKind::Dict) base_name = "dict";
     else if (type.kind == ast::TypeKind::Any) base_name = "any";
     else if (type.kind == ast::TypeKind::Function) base_name = "function";  // ISS-002
@@ -4069,7 +5337,7 @@ std::vector<ast::Type> Interpreter::inferGenericArgs(
         auto it = constraints.find(type_param);
         if (it != constraints.end()) {
             type_args.push_back(it->second);
-            fmt::print("[INFO] Inferred type argument {}: {}\n",
+            LOG_DEBUG("[INFO] Inferred type argument {}: {}\n",
                        type_param, formatTypeName(it->second));
         } else {
             // Could not infer this type parameter
@@ -4146,6 +5414,78 @@ size_t Interpreter::getGCCollectionCount() const {
         return 0;
     }
     return cycle_detector_->getTotalCollected();
+}
+
+// ============================================================================
+// Issue #3: File Context Management for Path Resolution
+// ============================================================================
+
+void Interpreter::pushFileContext(const std::filesystem::path& file_path) {
+    std::filesystem::path absolute_path = std::filesystem::absolute(file_path);
+    file_context_stack_.push_back(absolute_path);
+
+    if (verbose_mode_) {
+        fmt::print("[FileContext] Pushed: {} (depth: {})\n",
+                   absolute_path.string(), file_context_stack_.size());
+    }
+
+    // Update current_file_ for error reporting
+    current_file_ = absolute_path.string();
+}
+
+void Interpreter::popFileContext() {
+    if (file_context_stack_.empty()) {
+        throw std::runtime_error("File context stack underflow");
+    }
+
+    if (verbose_mode_) {
+        fmt::print("[FileContext] Popped: {} (depth: {})\n",
+                   file_context_stack_.back().string(), file_context_stack_.size());
+    }
+
+    file_context_stack_.pop_back();
+
+    // Update current_file_ to parent context (or empty)
+    if (!file_context_stack_.empty()) {
+        current_file_ = file_context_stack_.back().string();
+    } else {
+        current_file_ = "";
+    }
+}
+
+std::filesystem::path Interpreter::getCurrentFileDirectory() const {
+    if (file_context_stack_.empty()) {
+        // No file context - use current working directory
+        return std::filesystem::current_path();
+    }
+
+    // Return directory of current file
+    return file_context_stack_.back().parent_path();
+}
+
+std::filesystem::path Interpreter::resolveRelativePath(const std::string& path) const {
+    std::filesystem::path path_obj(path);
+
+    // If already absolute, return as-is
+    if (path_obj.is_absolute()) {
+        return path_obj;
+    }
+
+    // Resolve relative to current file's directory
+    std::filesystem::path base_dir = getCurrentFileDirectory();
+    std::filesystem::path resolved = base_dir / path_obj;
+
+    // Canonicalize to remove .. and . components
+    if (std::filesystem::exists(resolved)) {
+        resolved = std::filesystem::canonical(resolved);
+    }
+
+    if (verbose_mode_) {
+        fmt::print("[PathResolve] '{}' -> '{}' (base: '{}')\n",
+                   path, resolved.string(), base_dir.string());
+    }
+
+    return resolved;
 }
 
 } // namespace interpreter

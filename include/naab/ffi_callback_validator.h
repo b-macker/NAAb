@@ -81,14 +81,16 @@ public:
             try {
                 auto result = callback();
                 return ExceptionBoundaryResult::makeSuccess(result);
-            } catch (const std::exception& e) {
-                return ExceptionBoundaryResult::makeError(
-                    "std::exception",
-                    std::string(e.what())
-                );
             } catch (const CallbackValidationException& e) {
+                // Catch derived exception first
                 return ExceptionBoundaryResult::makeError(
                     "CallbackValidationException",
+                    std::string(e.what())
+                );
+            } catch (const std::exception& e) {
+                // Catch base exception second
+                return ExceptionBoundaryResult::makeError(
+                    "std::exception",
                     std::string(e.what())
                 );
             } catch (...) {
@@ -111,14 +113,16 @@ public:
             try {
                 auto result = callback(std::forward<Args>(args)...);
                 return ExceptionBoundaryResult::makeSuccess(result);
-            } catch (const std::exception& e) {
-                return ExceptionBoundaryResult::makeError(
-                    "std::exception",
-                    std::string(e.what())
-                );
             } catch (const CallbackValidationException& e) {
+                // Catch derived exception first
                 return ExceptionBoundaryResult::makeError(
                     "CallbackValidationException",
+                    std::string(e.what())
+                );
+            } catch (const std::exception& e) {
+                // Catch base exception second
+                return ExceptionBoundaryResult::makeError(
+                    "std::exception",
                     std::string(e.what())
                 );
             } catch (...) {
