@@ -16,6 +16,7 @@
 #include "naab/suggestion_system.h" // Phase 3.1: "Did you mean?" suggestions
 #include <Python.h>
 #include <chrono>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -26,6 +27,7 @@
 namespace naab {
 namespace interpreter {
 class CycleDetector;
+struct DependencyGroup;  // From polyglot_dependency_analyzer.h
 }
 }
 
@@ -542,6 +544,23 @@ private:
     // Command-line arguments (ISS-028)
     std::vector<std::string> script_args_;
 
+    // Loop depth tracking for break/continue validation
+    int loop_depth_;
+
+    // File context tracking for relative imports
+    std::vector<std::filesystem::path> file_context_stack_;
+
+    // Nested types for parallel execution
+    struct VariableSnapshot {
+        std::unordered_map<std::string, std::shared_ptr<Value>> variables;
+
+        void capture(
+            Environment* env,
+            const std::vector<std::string>& var_names,
+            Interpreter* interp
+        );
+    };
+
     // Helpers
     std::shared_ptr<Value> eval(ast::Expr& expr);
     void executeStmt(ast::Stmt& stmt);
@@ -549,6 +568,20 @@ private:
     std::shared_ptr<Environment> loadAndExecuteModule(const std::string& module_path);  // Phase 3.1
     std::shared_ptr<Value> copyValue(const std::shared_ptr<Value>& value);  // Phase 2.1: Deep copy for value parameters
     std::string serializeValueForLanguage(const std::shared_ptr<Value>& value, const std::string& language);  // Phase 2.2: Serialize value for target language
+
+    // File context management for relative imports
+    void pushFileContext(const std::filesystem::path& file_path);
+    void popFileContext();
+    std::filesystem::path getCurrentFileDirectory() const;
+
+    // Parallel polyglot execution
+    void executePolyglotGroupParallel(const DependencyGroup& group);
+
+    // Variable access helper
+    std::shared_ptr<Value> getVariable(const std::string& name) const;
+
+    // Path resolution helper
+    std::filesystem::path resolveRelativePath(const std::string& path) const;
 
     // Phase 4.1: Stack trace helpers
     void pushStackFrame(const std::string& function_name, int line = 0);

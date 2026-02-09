@@ -153,6 +153,10 @@ message(STATUS "  ✓ fmt formatting library")
 add_subdirectory(external/spdlog EXCLUDE_FROM_ALL)
 message(STATUS "  ✓ spdlog logging library")
 
+# toml++ (for formatter configuration)
+add_subdirectory(external/tomlplusplus EXCLUDE_FROM_ALL)
+message(STATUS "  ✓ toml++ TOML parser")
+
 # SQLite3 for block registry
 find_package(SQLite3 REQUIRED)
 if(SQLite3_FOUND)
@@ -291,6 +295,7 @@ target_link_libraries(naab_formatter
     naab_parser
     naab_lexer
     fmt::fmt
+    tomlplusplus::tomlplusplus
 )
 message(STATUS "  ✓ Formatter library (auto-formatter)")
 
@@ -344,6 +349,7 @@ add_library(naab_interpreter
     src/interpreter/cycle_detector.cpp  # Phase 3.2: Garbage collection
     src/interpreter/error_context.cpp   # Phase 4.2: Enhanced error reporting
     src/interpreter/debugger.cpp        # Phase 4.2: Interactive debugger
+    src/interpreter/polyglot_dependency_analyzer.cpp  # Parallel polyglot execution
 )
 target_link_libraries(naab_interpreter
     naab_parser
@@ -396,6 +402,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/stack_formatter.cpp  # Phase 4.2.6: Enhanced stack trace formatting
     src/runtime/inline_code_cache.cpp  # Phase 3.3.1: Inline code caching
     src/runtime/polyglot_async_executor.cpp  # Phase 1 Item 10 Day 5: Polyglot async execution
+    src/runtime/logger.cpp  # Logging infrastructure
 )
 
 # Add Python executor if pybind11 is available
@@ -442,6 +449,16 @@ target_include_directories(naab_runtime PRIVATE
 )
 message(STATUS "  ✓ Runtime & block loader (SQLite3)")
 
+# Manifest system
+add_library(naab_manifest
+    src/manifest/manifest_loader.cpp
+)
+target_link_libraries(naab_manifest
+    fmt::fmt
+    tomlplusplus::tomlplusplus
+)
+message(STATUS "  ✓ Manifest system")
+
 # Standard library
 add_library(naab_stdlib
     src/stdlib/core.cpp
@@ -460,6 +477,9 @@ add_library(naab_stdlib
     src/stdlib/regex_impl.cpp
     src/stdlib/crypto_impl.cpp
     src/stdlib/file_impl.cpp
+    # Utility modules
+    src/utils/error_formatter.cpp
+    src/utils/string_utils.cpp
 )
 target_include_directories(naab_stdlib PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/include
@@ -527,6 +547,7 @@ target_link_libraries(naab-lang
     naab_runtime
     naab_stdlib
     naab_rest_api
+    naab_manifest
     fmt::fmt
     spdlog::spdlog
 )
@@ -1140,6 +1161,7 @@ target_link_libraries(naab_unit_tests
     naab_stdlib
     naab_semantic
     naab_security  # For SafeRegex tests
+    naab_manifest  # For manifest loader
     fmt::fmt
     spdlog::spdlog
 )
@@ -1155,5 +1177,5 @@ message(STATUS "  Run tests with: ./build/naab_unit_tests")
 # ============================================================================
 # Fuzzing Infrastructure (Week 2: Security Hardening Sprint)
 # ============================================================================
-add_subdirectory(fuzz)
+# add_subdirectory(fuzz)  # Commented out - fuzz directory removed during cleanup
 
