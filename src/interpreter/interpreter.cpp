@@ -856,7 +856,8 @@ void Interpreter::visit(ast::UseStatement& node) {
             LOG_DEBUG("[INFO] Creating dedicated C++ executor for block...\n");
             auto cpp_exec = std::make_unique<runtime::CppExecutorAdapter>();
 
-            if (!cpp_exec->execute(code)) {
+            // Use BLOCK_LIBRARY mode to compile to shared library (no wrapping)
+            if (!cpp_exec->execute(code, runtime::CppExecutionMode::BLOCK_LIBRARY)) {
                 fmt::print("[ERROR] Failed to compile/execute C++ block code\n");
                 return;
             }
@@ -894,6 +895,19 @@ void Interpreter::visit(ast::UseStatement& node) {
                     }
                 } else {
                     fmt::print("[ERROR] Executor is not a JsExecutorAdapter\n");
+                    return;
+                }
+            } else if (metadata.language == "cpp" || metadata.language == "c++") {
+                // For C++ blocks, use BLOCK_LIBRARY mode (compile to shared library)
+                // This allows extern "C" functions to be compiled correctly and callable via FFI
+                auto* cpp_exec = dynamic_cast<runtime::CppExecutorAdapter*>(executor);
+                if (cpp_exec) {
+                    if (!cpp_exec->execute(code, runtime::CppExecutionMode::BLOCK_LIBRARY)) {
+                        fmt::print("[ERROR] Failed to compile/execute C++ block code\n");
+                        return;
+                    }
+                } else {
+                    fmt::print("[ERROR] Executor is not a CppExecutorAdapter\n");
                     return;
                 }
             } else {
@@ -3032,7 +3046,6 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
                 profileStart("BLOCK-JS calls");
-                fmt::print("[JS CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-JS calls");
@@ -3062,7 +3075,6 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
                 profileStart("BLOCK-CPP calls");
-                fmt::print("[CPP CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-CPP calls");
@@ -3092,7 +3104,6 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
                 profileStart("BLOCK-PY calls");
-                fmt::print("[PY CALL] Calling function: {}\n", block->member_path);
                 result_ = executor->callFunction(block->member_path, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-PY calls");
@@ -3800,9 +3811,6 @@ void Interpreter::visit(ast::MemberExpr& node) {
     // Check if object is a block
     if (auto* block_ptr = std::get_if<std::shared_ptr<BlockValue>>(&obj->data)) {
         auto& block = *block_ptr;
-
-        fmt::print("[MEMBER] Accessing {}.{} on {} block\n",
-                   block->metadata.block_id, member_name, block->metadata.language);
 
         // Phase 7: Executor-based member access
         auto* executor = block->getExecutor();

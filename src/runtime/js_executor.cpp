@@ -91,8 +91,6 @@ bool JsExecutor::execute(const std::string& code, JsExecutionMode mode) {
         return false;
     }
 
-    fmt::print("[JS] Executing JavaScript code ({} bytes)\n", code.size());
-
     // Choose wrapping strategy based on execution mode
     std::string code_to_execute;
 
@@ -146,8 +144,6 @@ std::shared_ptr<interpreter::Value> JsExecutor::callFunction(
     if (!isInitialized()) {
         throw std::runtime_error("JavaScript runtime not initialized");
     }
-
-    fmt::print("[CALL] Calling JavaScript function: {}\n", function_name);
 
     // Phase 4.2.3: Push stack frame for cross-language tracing
     error::ScopedStackFrame stack_frame("javascript", function_name, "<javascript>", 0);
@@ -218,9 +214,6 @@ std::shared_ptr<interpreter::Value> JsExecutor::callFunction(
     JS_FreeValue(ctx_, result);
     JS_FreeValue(ctx_, func);
     JS_FreeValue(ctx_, global);
-
-    fmt::print("[RESULT] {} returned: {}\n",
-               function_name, naab_result->toString());
 
     return naab_result;
 }

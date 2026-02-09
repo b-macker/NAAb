@@ -23,6 +23,29 @@ CppExecutorAdapter::CppExecutorAdapter()
 }
 
 bool CppExecutorAdapter::execute(const std::string& code) {
+    // Default to INLINE_CODE for backwards compatibility
+    return execute(code, CppExecutionMode::INLINE_CODE);
+}
+
+bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode) {
+    // For BLOCK_LIBRARY mode, compile to shared library
+    if (mode == CppExecutionMode::BLOCK_LIBRARY) {
+        // Generate unique block ID for this library
+        std::string block_id = "BLOCK_LIB_" + std::to_string(block_counter_++);
+        current_block_id_ = block_id;
+
+        // Compile to shared library (no wrapping)
+        bool compiled = executor_.compileBlock(block_id, code);
+        if (!compiled) {
+            fmt::print("[ERROR] Failed to compile C++ block library\n");
+            return false;
+        }
+
+        // Block compiled successfully
+        return true;
+    }
+
+    // INLINE_CODE mode: use wrapping logic below
     // Check if code has main() function - if so, compile and execute as program
     if (code.find("int main(") != std::string::npos ||
         code.find("int main (") != std::string::npos) {

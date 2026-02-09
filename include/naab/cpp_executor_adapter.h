@@ -14,6 +14,12 @@
 namespace naab {
 namespace runtime {
 
+// Execution mode for C++ code
+enum class CppExecutionMode {
+    INLINE_CODE,      // User-written inline code - wrap in main()
+    BLOCK_LIBRARY     // Pre-compiled block library - compile to shared library
+};
+
 // Adapter class that wraps CppExecutor for the language registry
 class CppExecutorAdapter : public Executor {
 public:
@@ -22,6 +28,7 @@ public:
 
     // Execute code and store in runtime context
     bool execute(const std::string& code) override;
+    bool execute(const std::string& code, CppExecutionMode mode);
 
     // Phase 2.3: Execute code and return the result value
     std::shared_ptr<interpreter::Value> executeWithReturn(

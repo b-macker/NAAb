@@ -76,8 +76,11 @@ std::string CppExecutor::wrapFragmentIfNeeded(const std::string& code) {
     bool has_main = code.find("int main") != std::string::npos ||
                    code.find("void main") != std::string::npos;
 
-    // If it has main, assume it's complete
-    if (has_main) {
+    // Check if code has extern "C" block (block library with FFI functions)
+    bool has_extern_c = code.find("extern \"C\"") != std::string::npos;
+
+    // If it has main or extern "C", assume it's complete
+    if (has_main || has_extern_c) {
         return code;
     }
 
@@ -439,8 +442,6 @@ std::shared_ptr<interpreter::Value> CppExecutor::callFunction(
             function_name, block_id, dlsym_error));
     }
 
-    fmt::print("[CALL] Calling C++ function: {}::{}\n", block_id, function_name);
-
     // Phase 4.2.5: Push stack frame for cross-language tracing
     error::ScopedStackFrame stack_frame("cpp", function_name, "<cpp>", 0);
 
@@ -453,15 +454,9 @@ std::shared_ptr<interpreter::Value> CppExecutor::callFunction(
 #ifdef HAVE_LIBFFI
     if (sig_it != block->function_signatures.end()) {
         // Use libffi for dynamic calling with registered signature
-        fmt::print("[FFI] Calling {} with dynamic signature\n", function_name);
         auto result = callWithFFI(func_ptr, sig_it->second, args);
-        fmt::print("[RESULT] {} returned successfully\n", function_name);
         return result;
-    } else {
-        fmt::print("[WARN] No signature registered for {}, trying hardcoded signatures\n", function_name);
     }
-#else
-    fmt::print("[WARN] libffi not available, using hardcoded signatures only\n");
 #endif
 
     // Fallback: hardcoded function signatures (legacy support)
@@ -486,13 +481,11 @@ std::shared_ptr<interpreter::Value> CppExecutor::callFunction(
             typedef int (*FuncIntInt)(int, int);
             FuncIntInt func = reinterpret_cast<FuncIntInt>(func_ptr);
             int result = func(static_cast<int>(arg1.i), static_cast<int>(arg2.i));
-            fmt::print("[RESULT] {} returned: {}\n", function_name, result);
             return marshaller_.fromInt(result);
         } else if (arg1.type == CppType::DOUBLE && arg2.type == CppType::DOUBLE) {
             typedef double (*FuncDblDbl)(double, double);
             FuncDblDbl func = reinterpret_cast<FuncDblDbl>(func_ptr);
             double result = func(arg1.d, arg2.d);
-            fmt::print("[RESULT] {} returned: {}\n", function_name, result);
             return marshaller_.fromDouble(result);
         } else {
             throw std::runtime_error(fmt::format(

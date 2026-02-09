@@ -961,69 +961,69 @@ target_include_directories(test_cross_language_performance PRIVATE
 )
 message(STATUS "  ✓ Cross-language performance benchmarks")
 
-# End-to-End Example 1: Web Scraper
-add_executable(example_web_scraper
-    tests/example_web_scraper.cpp
-)
-target_link_libraries(example_web_scraper
-    naab_runtime
-    naab_interpreter
-    fmt::fmt
-)
-if(HAVE_PYBIND11)
-    target_link_libraries(example_web_scraper ${Python3_LIBRARIES})
-    target_include_directories(example_web_scraper PRIVATE ${Python3_INCLUDE_DIRS})
-    target_compile_definitions(example_web_scraper PRIVATE HAVE_PYBIND11=1)
-endif()
-message(STATUS "  ✓ Example 1: Web Scraper (Python → C++ → JS)")
+# End-to-End Example 1: Web Scraper (Disabled - file missing)
+# add_executable(example_web_scraper
+#     tests/example_web_scraper.cpp
+# )
+# target_link_libraries(example_web_scraper
+#     naab_runtime
+#     naab_interpreter
+#     fmt::fmt
+# )
+# if(HAVE_PYBIND11)
+#     target_link_libraries(example_web_scraper ${Python3_LIBRARIES})
+#     target_include_directories(example_web_scraper PRIVATE ${Python3_INCLUDE_DIRS})
+#     target_compile_definitions(example_web_scraper PRIVATE HAVE_PYBIND11=1)
+# endif()
+# message(STATUS "  ✓ Example 1: Web Scraper (Python → C++ → JS)")
 
-# End-to-End Example 2: Data Pipeline
-add_executable(example_data_pipeline
-    tests/example_data_pipeline.cpp
-)
-target_link_libraries(example_data_pipeline
-    naab_runtime
-    naab_interpreter
-    fmt::fmt
-)
-if(HAVE_PYBIND11)
-    target_link_libraries(example_data_pipeline ${Python3_LIBRARIES})
-    target_include_directories(example_data_pipeline PRIVATE ${Python3_INCLUDE_DIRS})
-    target_compile_definitions(example_data_pipeline PRIVATE HAVE_PYBIND11=1)
-endif()
-message(STATUS "  ✓ Example 2: Data Pipeline (Python → C++ → JS)")
+# End-to-End Example 2: Data Pipeline (Disabled - file missing)
+# add_executable(example_data_pipeline
+#     tests/example_data_pipeline.cpp
+# )
+# target_link_libraries(example_data_pipeline
+#     naab_runtime
+#     naab_interpreter
+#     fmt::fmt
+# )
+# if(HAVE_PYBIND11)
+#     target_link_libraries(example_data_pipeline ${Python3_LIBRARIES})
+#     target_include_directories(example_data_pipeline PRIVATE ${Python3_INCLUDE_DIRS})
+#     target_compile_definitions(example_data_pipeline PRIVATE HAVE_PYBIND11=1)
+# endif()
+# message(STATUS "  ✓ Example 2: Data Pipeline (Python → C++ → JS)")
 
-# End-to-End Example 3: API Server
-add_executable(example_api_server
-    tests/example_api_server.cpp
-)
-target_link_libraries(example_api_server
-    naab_runtime
-    naab_interpreter
-    fmt::fmt
-)
-if(HAVE_PYBIND11)
-    target_link_libraries(example_api_server ${Python3_LIBRARIES})
-    target_include_directories(example_api_server PRIVATE ${Python3_INCLUDE_DIRS})
-    target_compile_definitions(example_api_server PRIVATE HAVE_PYBIND11=1)
-endif()
-message(STATUS "  ✓ Example 3: API Server (Python → C++ → JS)")
+# End-to-End Example 3: API Server (Disabled - file missing)
+# add_executable(example_api_server
+#     tests/example_api_server.cpp
+# )
+# target_link_libraries(example_api_server
+#     naab_runtime
+#     naab_interpreter
+#     fmt::fmt
+# )
+# if(HAVE_PYBIND11)
+#     target_link_libraries(example_api_server ${Python3_LIBRARIES})
+#     target_include_directories(example_api_server PRIVATE ${Python3_INCLUDE_DIRS})
+#     target_compile_definitions(example_api_server PRIVATE HAVE_PYBIND11=1)
+# endif()
+# message(STATUS "  ✓ Example 3: API Server (Python → C++ → JS)")
 
-# Simple Working Pipeline Example
-add_executable(example_simple_pipeline
-    tests/example_simple_pipeline.cpp
-)
-target_link_libraries(example_simple_pipeline
-    naab_runtime
-    naab_interpreter
-    fmt::fmt
-)
-if(HAVE_PYBIND11)
-    target_link_libraries(example_simple_pipeline ${Python3_LIBRARIES})
-    target_include_directories(example_simple_pipeline PRIVATE ${Python3_INCLUDE_DIRS})
-    target_compile_definitions(example_simple_pipeline PRIVATE HAVE_PYBIND11=1)
-endif()
-message(STATUS "  ✓ Simple Pipeline Example (Working)")
+# Simple Working Pipeline Example (Disabled - file missing)
+# add_executable(example_simple_pipeline
+#     tests/example_simple_pipeline.cpp
+# )
+# target_link_libraries(example_simple_pipeline
+#     naab_runtime
+#     naab_interpreter
+#     fmt::fmt
+# )
+# if(HAVE_PYBIND11)
+#     target_link_libraries(example_simple_pipeline ${Python3_LIBRARIES})
+#     target_include_directories(example_simple_pipeline PRIVATE ${Python3_INCLUDE_DIRS})
+#     target_compile_definitions(example_simple_pipeline PRIVATE HAVE_PYBIND11=1)
+# endif()
+# message(STATUS "  ✓ Simple Pipeline Example (Working)")
 
 # Cross-Language Integration Test (Original - all executors)
 add_executable(test_cross_language
