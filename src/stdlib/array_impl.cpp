@@ -37,6 +37,13 @@ bool ArrayModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
+bool ArrayModule::isMutatingFunction(const std::string& name) const {
+    static const std::unordered_set<std::string> mutating_funcs = {
+        "push", "pop", "shift", "unshift", "reverse", "sort"
+    };
+    return mutating_funcs.count(name) > 0;
+}
+
 std::shared_ptr<interpreter::Value> ArrayModule::call(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
@@ -97,7 +104,13 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
             );
         }
         auto last = arr.back();
-        return last;
+        arr.pop_back();  // Remove the last element
+
+        // Store the modified array back in args[0] so auto-mutation can use it
+        // Create a special marker by modifying the first argument
+        args[0]->data = arr;
+
+        return last;  // Return the popped element
     }
 
     // Function 4: shift (remove from start)
@@ -123,7 +136,12 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
             );
         }
         auto first = arr.front();
-        return first;
+        arr.erase(arr.begin());  // Remove the first element
+
+        // Store the modified array back in args[0] so auto-mutation can use it
+        args[0]->data = arr;
+
+        return first;  // Return the shifted element
     }
 
     // Function 5: unshift (add to start)

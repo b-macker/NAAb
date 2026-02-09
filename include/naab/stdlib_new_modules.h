@@ -67,6 +67,7 @@ public:
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
         const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+    bool isMutatingFunction(const std::string& function_name) const override;
 
     // Set function evaluator (for higher-order functions like map/filter/reduce)
     void setFunctionEvaluator(FunctionEvaluator evaluator) { evaluator_ = std::move(evaluator); }

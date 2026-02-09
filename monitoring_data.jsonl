@@ -57,3 +57,5 @@
 {"hostname":"db-primary-01","cpu_percent":38.23207,"memory_percent":72.5,"disk_percent":75.5,"network_bytes":1048576,"timestamp":1769841850,"status":"status_value"}
 {"hostname":"cache-redis-01","cpu_percent":92.93271,"memory_percent":72.5,"disk_percent":75.5,"network_bytes":1048576,"timestamp":1769841850,"status":"status_value"}
 {"hostname":"api-gateway-01","cpu_percent":37.839551,"memory_percent":72.5,"disk_percent":75.5,"network_bytes":1048576,"timestamp":1769841850,"status":"status_value"}
+{"hostname":"web-prod-01","cpu_percent":94.620026,"memory_percent":72.5,"disk_percent":75.5,"network_bytes":1048576,"timestamp":1770609881,"status":"status_value"}
+{"hostname":"web-prod-01","cpu_percent":91.828575,"memory_percent":72.5,"disk_percent":75.5,"network_bytes":1048576,"timestamp":1770609976,"status":"status_value"}

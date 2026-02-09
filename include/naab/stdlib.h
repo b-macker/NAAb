@@ -26,6 +26,12 @@ public:
         const std::string& function_name,
         const std::vector<std::shared_ptr<interpreter::Value>>& args) = 0;
     virtual bool hasFunction(const std::string& name) const = 0;
+
+    // Returns true if the function mutates its first argument
+    // Used for automatic mutation handling (array.push, etc.)
+    virtual bool isMutatingFunction(const std::string& function_name) const {
+        return false;  // Default: not mutating
+    }
 };
 
 // IO Module - File operations

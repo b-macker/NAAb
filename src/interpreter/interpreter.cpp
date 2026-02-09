@@ -3129,6 +3129,31 @@ void Interpreter::visit(ast::CallExpr& node) {
                     // Call the stdlib function
                     result_ = module->call(func_name, args);
                     LOG_TRACE("[SUCCESS] Stdlib function returned\n");
+
+                    // Auto-mutation: If this is a mutating function, update the original variable
+                    if (module->isMutatingFunction(func_name) && !args.empty()) {
+                        // Get the first argument expression (the variable being mutated)
+                        auto& first_arg_expr = node.getArgs()[0];
+
+                        // Only auto-mutate simple identifiers (not complex expressions)
+                        if (auto* id_expr = dynamic_cast<ast::IdentifierExpr*>(first_arg_expr.get())) {
+                            std::string var_name = id_expr->getName();
+
+                            // Update the variable
+                            if (current_env_->has(var_name)) {
+                                // For pop/shift, the modified array is in args[0], not result
+                                if (func_name == "pop" || func_name == "shift") {
+                                    current_env_->set(var_name, args[0]);
+                                } else {
+                                    // For push/unshift/reverse/sort, use the result
+                                    current_env_->set(var_name, result_);
+                                }
+                                LOG_TRACE("[MUTATION] Auto-updated {} after {}.{}()\n",
+                                         var_name, module_alias, func_name);
+                            }
+                        }
+                    }
+
                     return;
                 }
             }
