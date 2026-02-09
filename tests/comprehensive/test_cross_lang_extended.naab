@@ -1,0 +1,83 @@
+use "BLOCK-CPP-MATH" as math
+
+main {
+    print("Testing all 7 languages in sequence...")
+    print()
+
+    print("Test 1: C++")
+    let x_cpp = math.power(2, 10)
+    print("  ✓ C++ assigned: ", x_cpp)
+
+    print("Test 2: JS")
+    let x_js = <<javascript
+Math.pow(2, 10)
+    >>
+    print("  ✓ JS assigned: ", x_js)
+
+    print("Test 3: Python")
+    let x_py = <<python
+2 ** 10
+    >>
+    print("  ✓ Python assigned: ", x_py)
+
+    print("Test 4: Rust")
+    let x_rust = <<rust
+fn calc() -> i32 { 2_i32.pow(10) }
+calc()
+    >>
+    print("  ✓ Rust assigned: ", x_rust)
+
+    print("Test 5: Go")
+    let x_go = <<go
+package main
+import ("fmt"; "math")
+func main() {
+    fmt.Print(int(math.Pow(2, 10)))
+}
+    >>
+    print("  ✓ Go assigned: ", x_go)
+
+    print("Test 6: C#")
+    let x_cs = <<csharp
+using System;
+class Program {
+    static void Main() {
+        Console.Write((int)Math.Pow(2, 10));
+    }
+}
+    >>
+    print("  ✓ C# assigned: ", x_cs)
+
+    print("Test 7: Shell")
+    let x_shell = <<shell
+result=1
+i=0
+while [ $i -lt 10 ]; do
+    result=$((result * 2))
+    i=$((i + 1))
+done
+echo $result
+    >>
+    print("  ✓ Shell assigned: ", x_shell)
+
+    print()
+    print("All 7 variables assigned successfully!")
+    print()
+
+    print("Verifying values:")
+    print("  x_cpp = ", x_cpp)
+    print("  x_js = ", x_js)
+    print("  x_py = ", x_py)
+    print("  x_rust = ", x_rust)
+    print("  x_go = ", x_go)
+    print("  x_cs = ", x_cs)
+    print("  x_shell = ", x_shell)
+    print()
+
+    print("Checking if condition...")
+    if x_cpp == 1024.0 && x_js == 1024 && x_py == 1024 && x_rust == 1024 && x_go == 1024 && x_cs == 1024 && x_shell == 1024 {
+        print("✅ All 7 languages match 1024")
+    } else {
+        print("❌ Values don't match")
+    }
+}

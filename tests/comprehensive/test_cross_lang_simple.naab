@@ -1,0 +1,47 @@
+use "BLOCK-CPP-MATH" as math
+
+main {
+    print("Test 1: C++ block")
+    let x_cpp = math.power(2, 10)
+    print("  C++: ", x_cpp)
+    print()
+
+    print("Test 2: JS inline")
+    let x_js = <<javascript
+Math.pow(2, 10)
+    >>
+    print("  JS: ", x_js)
+    print()
+
+    print("Test 3: Python inline")
+    let x_py = <<python
+2 ** 10
+    >>
+    print("  Python: ", x_py)
+    print()
+
+    print("Test 4: Shell inline")
+    let x_shell = <<shell
+result=1
+i=0
+while [ $i -lt 10 ]; do
+    result=$((result * 2))
+    i=$((i + 1))
+done
+echo $result
+    >>
+    print("  Shell: ", x_shell)
+    print()
+
+    print("All variables assigned successfully!")
+    print("Checking if condition...")
+    if x_cpp == 1024.0 && x_js == 1024 && x_py == 1024 && x_shell == 1024 {
+        print("✅ All match 1024")
+    } else {
+        print("❌ Values don't match")
+        print("  x_cpp = ", x_cpp)
+        print("  x_js = ", x_js)
+        print("  x_py = ", x_py)
+        print("  x_shell = ", x_shell)
+    }
+}
