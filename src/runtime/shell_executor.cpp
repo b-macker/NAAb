@@ -96,7 +96,29 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
     trim_trailing_newline(stdout_output);
     trim_trailing_newline(stderr_output);
 
-    // Create ShellResult struct definition
+    // For simple successful cases (exit_code == 0 and no stderr), return just stdout
+    // This makes shell execution more intuitive for common cases
+    if (exit_code == 0 && stderr_output.empty()) {
+        // Try to parse stdout as a number for better interop
+        // If it's a valid integer, return as int; otherwise return as string
+        if (!stdout_output.empty()) {
+            try {
+                // Try parsing as integer
+                size_t pos;
+                int int_val = std::stoi(stdout_output, &pos);
+                // Check if entire string was consumed (it's a pure integer)
+                if (pos == stdout_output.length()) {
+                    return std::make_shared<interpreter::Value>(int_val);
+                }
+            } catch (...) {
+                // Not an integer, fall through to return as string
+            }
+        }
+        // Return stdout as string
+        return std::make_shared<interpreter::Value>(stdout_output);
+    }
+
+    // For error cases or when stderr is present, return full ShellResult struct
     // struct ShellResult { exit_code: int, stdout: string, stderr: string }
     std::vector<ast::StructField> fields;
     fields.push_back(ast::StructField{"exit_code", ast::Type::makeInt(), std::nullopt});
