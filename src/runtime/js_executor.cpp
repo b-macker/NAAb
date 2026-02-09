@@ -65,6 +65,11 @@ JsExecutor::~JsExecutor() {
 }
 
 bool JsExecutor::execute(const std::string& code) {
+    // Default to INLINE_CODE for backwards compatibility
+    return execute(code, JsExecutionMode::INLINE_CODE);
+}
+
+bool JsExecutor::execute(const std::string& code, JsExecutionMode mode) {
     // Week 1, Task 1.2: Check polyglot block size
     try {
         limits::checkPolyglotBlockSize(code.size(), "JavaScript");
@@ -88,9 +93,18 @@ bool JsExecutor::execute(const std::string& code) {
 
     fmt::print("[JS] Executing JavaScript code ({} bytes)\n", code.size());
 
-    // Wrap code in IIFE to isolate variable scope between blocks
-    // This prevents variable redeclaration errors when using const/let
-    std::string wrapped_code = "(function() {\n" + code + "\n})();";
+    // Choose wrapping strategy based on execution mode
+    std::string code_to_execute;
+
+    if (mode == JsExecutionMode::INLINE_CODE) {
+        // Wrap code in IIFE to isolate variable scope between inline blocks
+        // This prevents variable redeclaration errors when using const/let
+        code_to_execute = "(function() {\n" + code + "\n})();";
+    } else {
+        // BLOCK_LIBRARY mode: Execute directly in global scope
+        // Functions will be defined globally and accessible via callFunction()
+        code_to_execute = code;
+    }
 
     // Set up timeout mechanism (30 seconds)
     timeout_triggered_ = false;
@@ -100,8 +114,8 @@ bool JsExecutor::execute(const std::string& code) {
     });
     timeout_thread.detach();
 
-    // Evaluate wrapped code in global context (IIFE creates local scope)
-    JSValue result = JS_Eval(ctx_, wrapped_code.c_str(), wrapped_code.length(),
+    // Evaluate code
+    JSValue result = JS_Eval(ctx_, code_to_execute.c_str(), code_to_execute.length(),
                               "<naab-block>", JS_EVAL_TYPE_GLOBAL);
 
     // Clear timeout flag

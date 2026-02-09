@@ -882,9 +882,26 @@ void Interpreter::visit(ast::UseStatement& node) {
             }
 
             LOG_DEBUG("[INFO] Executing block with shared {} executor...\n", metadata.language);
-            if (!executor->execute(code)) {
-                fmt::print("[ERROR] Failed to execute block code\n");
-                return;
+
+            // For JavaScript blocks, use BLOCK_LIBRARY mode (no IIFE wrapping)
+            // This allows block functions to be defined in global scope and callable via callFunction()
+            if (metadata.language == "javascript") {
+                auto* js_exec = dynamic_cast<runtime::JsExecutor*>(executor);
+                if (js_exec) {
+                    if (!js_exec->execute(code, runtime::JsExecutionMode::BLOCK_LIBRARY)) {
+                        fmt::print("[ERROR] Failed to execute JavaScript block code\n");
+                        return;
+                    }
+                } else {
+                    fmt::print("[ERROR] Executor is not a JsExecutor\n");
+                    return;
+                }
+            } else {
+                // Other languages use default execute()
+                if (!executor->execute(code)) {
+                    fmt::print("[ERROR] Failed to execute block code\n");
+                    return;
+                }
             }
 
             block_value = std::make_shared<BlockValue>(metadata, code, executor);

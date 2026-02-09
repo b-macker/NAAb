@@ -20,6 +20,12 @@ namespace interpreter {
 
 namespace runtime {
 
+// Execution mode for JavaScript code
+enum class JsExecutionMode {
+    INLINE_CODE,      // User-written inline code - wrap in IIFE for isolation
+    BLOCK_LIBRARY     // Pre-compiled block library - no wrapping, define in global scope
+};
+
 // JavaScript Block Executor - executes JavaScript blocks using QuickJS
 class JsExecutor {
 public:
@@ -28,6 +34,9 @@ public:
 
     // Execute JavaScript code and store in runtime context
     bool execute(const std::string& code);
+
+    // Execute JavaScript code with specified execution mode
+    bool execute(const std::string& code, JsExecutionMode mode);
 
     // Call a JavaScript function
     std::shared_ptr<interpreter::Value> callFunction(
