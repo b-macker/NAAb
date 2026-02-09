@@ -21,6 +21,9 @@ public:
     // Execute code and store in runtime context
     bool execute(const std::string& code) override;
 
+    // Execute code with specified execution mode (for block library support)
+    bool execute(const std::string& code, JsExecutionMode mode);
+
     // Phase 2.3: Execute code and return the result value
     std::shared_ptr<interpreter::Value> executeWithReturn(
         const std::string& code) override;

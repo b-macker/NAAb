@@ -17,6 +17,11 @@ bool JsExecutorAdapter::execute(const std::string& code) {
     return executor_.execute(code);
 }
 
+bool JsExecutorAdapter::execute(const std::string& code, JsExecutionMode mode) {
+    // Executing JavaScript code with mode (silent)
+    return executor_.execute(code, mode);
+}
+
 // Phase 2.3: Execute code and return result value
 std::shared_ptr<interpreter::Value> JsExecutorAdapter::executeWithReturn(
     const std::string& code) {
