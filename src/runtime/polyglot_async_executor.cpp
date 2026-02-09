@@ -5,7 +5,7 @@
 #include "naab/python_executor.h"
 #include "naab/python_interpreter_manager.h"  // Global Python interpreter manager
 #include "naab/js_executor.h"
-#include "naab/cpp_executor.h"
+#include "naab/cpp_executor_adapter.h"  // Expression-oriented inline C++ executor
 #include "naab/rust_executor.h"
 #include "naab/csharp_executor.h"
 #include "naab/shell_executor.h"
@@ -80,7 +80,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc PythonAsyncExecutor::makePythonCallback(
 ) {
     // Capture code and args by value for thread safety
     return [code, args]() -> interpreter::Value {
-        fmt::print("[DEBUG] Python callback invoked, code: '{}'\n", code);
+        // Python callback invoked (silent)
 
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
@@ -88,7 +88,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc PythonAsyncExecutor::makePythonCallback(
         );
 
         try {
-            fmt::print("[DEBUG] About to acquire GIL...\n");
+            // About to acquire GIL (silent)
 
             interpreter::Value result_value;
 
@@ -96,49 +96,49 @@ ffi::AsyncCallbackWrapper::CallbackFunc PythonAsyncExecutor::makePythonCallback(
                 // Acquire GIL for this thread (required for multi-threaded Python access)
                 py::gil_scoped_acquire gil;
 
-                fmt::print("[DEBUG] GIL acquired successfully\n");
+                // GIL acquired successfully (silent)
 
                 // Create a fresh Python executor for this thread
                 // Global interpreter is already initialized, executor just accesses globals
                 // Skip stdout/stderr redirection for async execution to avoid conflicts
-                fmt::print("[DEBUG] Creating PythonExecutor (no output redirection)...\n");
+                // Creating PythonExecutor (silent)
                 runtime::PythonExecutor executor(false);
 
-                fmt::print("[DEBUG] PythonExecutor created, calling executeWithResult...\n");
+                // PythonExecutor created (silent)
 
                 // Execute Python code (GIL already acquired)
                 auto result_ptr = executor.executeWithResult(code);
 
-                fmt::print("[DEBUG] executeWithResult returned\n");
+                // executeWithResult returned (silent)
 
                 if (!result_ptr) {
                     throw std::runtime_error("Python execution returned null result");
                 }
 
                 // Dereference shared_ptr to get Value
-                fmt::print("[DEBUG] Dereferencing result_ptr...\n");
+                // Dereferencing result_ptr (silent)
                 result_value = *result_ptr;
 
                 // Explicitly release the shared_ptr while GIL is still held
-                fmt::print("[DEBUG] Releasing result_ptr...\n");
+                // Releasing result_ptr (silent)
                 result_ptr.reset();
 
-                fmt::print("[DEBUG] About to exit GIL scope (executor will be destroyed)...\n");
+                // About to exit GIL scope (silent)
                 // executor and gil are destroyed here
             }
 
-            fmt::print("[DEBUG] GIL released, returning result value from lambda...\n");
+            // GIL released (silent)
             return result_value;
 
         } catch (const std::exception& e) {
-            fmt::print("[DEBUG] Exception caught: {}\n", e.what());
+            // Exception caught (silent - will be logged by audit logger)
             security::AuditLogger::logSecurityViolation(
                 fmt::format("python_async_exception: {}", e.what())
             );
             throw;  // Re-throw for async callback handler
         }
 
-        fmt::print("[DEBUG] Lambda about to exit (end of try block)\n");
+        // Lambda about to exit (silent)
     };
 }
 
@@ -268,41 +268,26 @@ ffi::AsyncCallbackWrapper::CallbackFunc CppAsyncExecutor::makeCppCallback(
     const std::string& code,
     const std::vector<interpreter::Value>& args
 ) {
-    // Initialize executor if needed
-    if (!executor_) {
-        executor_ = std::make_unique<runtime::CppExecutor>();
-    }
-
-    // Generate unique block ID
-    static std::atomic<uint64_t> block_counter{0};
-    std::string block_id = fmt::format("async_cpp_block_{}", block_counter.fetch_add(1));
-
-    // Compile the block (this happens in the calling thread, before async execution)
-    if (!executor_->compileBlock(block_id, code, "execute")) {
-        throw std::runtime_error("Failed to compile C++ block");
-    }
-
-    // Capture block_id by value, executor_ by pointer (it's a member)
-    return [this, block_id, args]() -> interpreter::Value {
+    // Capture code by value for thread safety (like Python and JavaScript)
+    return [code, args]() -> interpreter::Value {
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
-            fmt::format("Executing C++ block '{}' asynchronously", block_id)
+            fmt::format("Executing C++ code asynchronously ({} bytes)", code.size())
         );
 
         try {
-            // Convert args to shared_ptr vector for C++ executor
-            std::vector<std::shared_ptr<interpreter::Value>> shared_args;
-            for (const auto& arg : args) {
-                shared_args.push_back(std::make_shared<interpreter::Value>(arg));
-            }
+            // Create a fresh C++ executor adapter for this thread
+            // (expression-oriented inline code execution with variable binding support)
+            runtime::CppExecutorAdapter executor;
 
-            // Execute compiled block
-            auto result_ptr = executor_->executeBlock(block_id, shared_args);
+            // Execute C++ code with return value
+            auto result_ptr = executor.executeWithReturn(code);
 
             if (!result_ptr) {
-                throw std::runtime_error("C++ block execution returned null result");
+                throw std::runtime_error("C++ execution returned null result");
             }
 
+            // Dereference shared_ptr to get Value
             return *result_ptr;
 
         } catch (const std::exception& e) {
@@ -322,11 +307,11 @@ RustAsyncExecutor::RustAsyncExecutor() = default;
 RustAsyncExecutor::~RustAsyncExecutor() = default;
 
 std::future<ffi::AsyncCallbackResult> RustAsyncExecutor::executeAsync(
-    const std::string& uri,
+    const std::string& code,
     const std::vector<interpreter::Value>& args,
     std::chrono::milliseconds timeout
 ) {
-    auto callback = makeRustCallback(uri, args);
+    auto callback = makeRustCallback(code, args);
 
     // Keep wrapper alive on heap
     auto wrapper = std::make_shared<ffi::AsyncCallbackWrapper>(
@@ -344,11 +329,11 @@ std::future<ffi::AsyncCallbackResult> RustAsyncExecutor::executeAsync(
 }
 
 ffi::AsyncCallbackResult RustAsyncExecutor::executeBlocking(
-    const std::string& uri,
+    const std::string& code,
     const std::vector<interpreter::Value>& args,
     std::chrono::milliseconds timeout
 ) {
-    auto callback = makeRustCallback(uri, args);
+    auto callback = makeRustCallback(code, args);
 
     ffi::AsyncCallbackWrapper wrapper(
         std::move(callback),
@@ -360,33 +345,25 @@ ffi::AsyncCallbackResult RustAsyncExecutor::executeBlocking(
 }
 
 ffi::AsyncCallbackWrapper::CallbackFunc RustAsyncExecutor::makeRustCallback(
-    const std::string& uri,
+    const std::string& code,
     const std::vector<interpreter::Value>& args
 ) {
-    // Initialize executor if needed
-    if (!executor_) {
-        executor_ = std::make_unique<runtime::RustExecutor>();
-    }
-
-    // Capture uri and args by value
-    return [this, uri, args]() -> interpreter::Value {
+    // Capture code and args by value (no 'this' to avoid dangling pointer)
+    return [code, args]() -> interpreter::Value {
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
-            fmt::format("Executing Rust block '{}' asynchronously", uri)
+            fmt::format("Executing Rust code asynchronously ({} bytes)", code.size())
         );
 
         try {
-            // Convert args to shared_ptr vector for Rust executor
-            std::vector<std::shared_ptr<interpreter::Value>> shared_args;
-            for (const auto& arg : args) {
-                shared_args.push_back(std::make_shared<interpreter::Value>(arg));
-            }
+            // Create fresh executor (subprocess-based, no state to preserve)
+            auto executor = std::make_unique<runtime::RustExecutor>();
 
-            // Execute Rust block
-            auto result_ptr = executor_->executeBlock(uri, shared_args);
+            // CRITICAL FIX: Use executeWithReturn for inline code (not executeBlock for FFI)
+            auto result_ptr = executor->executeWithReturn(code);
 
             if (!result_ptr) {
-                throw std::runtime_error("Rust block execution returned null result");
+                throw std::runtime_error("Rust execution returned null result");
             }
 
             return *result_ptr;

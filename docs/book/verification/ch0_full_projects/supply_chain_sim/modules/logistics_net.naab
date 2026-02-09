@@ -3,11 +3,11 @@ use io
 
 export fn schedule_shipment(route_desc: string) -> string {
     io.write("🐹 [Go] Scheduling shipment on ", route_desc, "...\n")
-    
-    // Go block
+
+    // Generate tracking ID using Go
     let tracking_id = <<go
-    "TRK-998877"
+"TRK-998877"
     >>
-    
+
     return tracking_id
 }

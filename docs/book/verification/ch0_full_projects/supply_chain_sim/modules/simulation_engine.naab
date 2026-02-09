@@ -3,12 +3,11 @@ use io
 
 export fn run_simulation(days: int) -> bool {
     io.write("🦀 [Rust] Running simulation for ", days, " days...\n")
-    
-    // Rust block
+
+    // Simulation logic using Rust for performance
     let success = <<rust
-    // Logic to run simulation
-    true
+true
     >>
-    
+
     return success
 }

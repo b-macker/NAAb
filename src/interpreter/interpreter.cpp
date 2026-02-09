@@ -393,9 +393,9 @@ Interpreter::Interpreter()
       returning_(false),
       breaking_(false),
       continuing_(false),
-      loop_depth_(0),  // Initialize loop depth counter for break/continue validation
       last_executed_block_id_(""),  // Phase 4.4: Initialize block pair tracking
-      current_function_(nullptr) {  // Phase 2.4.2: Initialize function tracking
+      current_function_(nullptr),  // Phase 2.4.2: Initialize function tracking
+      loop_depth_(0) {  // Initialize loop depth counter for break/continue validation
     // Phase 8: Skip BlockRegistry initialization for faster startup
     // It will be lazily initialized only when needed (in UseStatement)
     // This avoids loading 24,488 blocks unnecessarily for simple programs
@@ -1545,7 +1545,10 @@ void Interpreter::visit(ast::CompoundStmt& node) {
         }
 
         // Execute statements in order, parallelizing groups
+        // IMPORTANT: Execute non-polyglot statements BEFORE polyglot groups
+        // so that variable declarations are available when capturing snapshots
         std::unordered_set<size_t> executed_groups;
+        size_t last_executed = 0;  // Track last executed non-polyglot statement
 
         for (size_t i = 0; i < statements.size(); ++i) {
             // Check if this statement is part of a polyglot group
@@ -1556,8 +1559,25 @@ void Interpreter::visit(ast::CompoundStmt& node) {
 
                 // Execute this group (if not already executed)
                 if (executed_groups.find(group_idx) == executed_groups.end()) {
+                    // FIRST: Execute all non-polyglot statements between last_executed and i
+                    // This ensures variable declarations run before polyglot blocks that use them
+                    for (size_t j = last_executed; j < i; ++j) {
+                        if (polyglot_indices.find(j) == polyglot_indices.end()) {
+                            statements[j]->accept(*this);
+                            if (returning_ || breaking_ || continuing_) break;
+                        }
+                    }
+
+                    // THEN: Execute the polyglot group
                     executePolyglotGroupParallel(groups[group_idx]);
                     executed_groups.insert(group_idx);
+
+                    // Update last_executed to skip all blocks in this group
+                    for (const auto& block : groups[group_idx].parallel_blocks) {
+                        if (block.statement_index >= last_executed) {
+                            last_executed = block.statement_index + 1;
+                        }
+                    }
 
                     if (returning_ || breaking_ || continuing_) break;
                 }
@@ -1565,10 +1585,21 @@ void Interpreter::visit(ast::CompoundStmt& node) {
                 continue;
             }
 
-            // Regular statement - execute normally
-            statements[i]->accept(*this);
+            // Regular statement after last polyglot group - execute normally
+            if (i >= last_executed) {
+                statements[i]->accept(*this);
+                last_executed = i + 1;
 
-            if (returning_ || breaking_ || continuing_) break;
+                if (returning_ || breaking_ || continuing_) break;
+            }
+        }
+
+        // Execute any remaining non-polyglot statements after the last group
+        for (size_t i = last_executed; i < statements.size(); ++i) {
+            if (polyglot_indices.find(i) == polyglot_indices.end()) {
+                statements[i]->accept(*this);
+                if (returning_ || breaking_ || continuing_) break;
+            }
         }
     }
 
@@ -1993,14 +2024,31 @@ void Interpreter::visit(ast::TryStmt& node) {
         current_env_ = prev_env;
     }
 
+    // CRITICAL FIX: Save return state BEFORE finally block
+    // Bug: Finally blocks were overriding return values from try/catch
+    // The finally block should execute but not affect return semantics
+    bool try_catch_returned = returning_;
+    auto try_catch_result = result_;
+
     // Execute finally block if present (always runs)
     if (node.hasFinally()) {
+        // Reset return flags so finally can't override try/catch return
+        returning_ = false;
+        result_ = nullptr;
+
         try {
             node.getFinallyBody()->accept(*this);
         } catch (...) {
             // Finally block threw - propagate that exception instead
             throw;
         }
+    }
+
+    // CRITICAL FIX: Restore return state AFTER finally block
+    // This ensures finally executes but doesn't break function returns
+    if (try_catch_returned) {
+        returning_ = true;
+        result_ = try_catch_result;
     }
 
     // If break/continue/return was triggered, they are handled by the flags
@@ -4180,9 +4228,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         throw std::runtime_error("No executor found for language: " + language);
     }
 
-    // Phase 2.2: Bind variables - use object passing for Python, env vars for shell, string serialization for others
+    // Phase 2.2: Bind variables using string serialization
     std::string var_declarations;
-    std::map<std::string, std::string> shell_env_vars;  // Polyglot: Issue #2 - Shell environment variables
 
     for (const auto& var_name : bound_vars) {
         // Look up variable in current environment
@@ -4192,43 +4239,17 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 
         auto value = current_env_->get(var_name);
 
-        // For Python: use object-based variable passing (struct auto-serialization!)
-        if (language == "python") {
-            // Cast executor to PyExecutorAdapter and inject variable as Python object
-            auto* py_executor = dynamic_cast<runtime::PyExecutorAdapter*>(executor);
-            if (py_executor) {
-                py_executor->setGlobalVariable(var_name, value);
-                // No var_declarations needed - object is already in Python namespace!
-            } else {
-                // Fallback to string serialization if cast fails
-                std::string serialized = serializeValueForLanguage(value, language);
-                var_declarations += var_name + " = " + serialized + "\n";
-            }
-        } else if (language == "shell" || language == "sh" || language == "bash") {
-            // Polyglot: Issue #2 - Use environment variables for shell (avoids quoting/escaping issues)
-            // Convert value to plain string without shell escaping (env vars handle special chars)
-            std::string env_value;
-            if (std::holds_alternative<std::string>(value->data)) {
-                env_value = std::get<std::string>(value->data);
-            } else if (std::holds_alternative<int>(value->data)) {
-                env_value = std::to_string(std::get<int>(value->data));
-            } else if (std::holds_alternative<double>(value->data)) {
-                env_value = std::to_string(std::get<double>(value->data));
-            } else if (std::holds_alternative<bool>(value->data)) {
-                env_value = std::get<bool>(value->data) ? "true" : "false";
-            } else {
-                // For complex types, use serialization
-                env_value = serializeValueForLanguage(value, language);
-            }
-            shell_env_vars[var_name] = env_value;
-        } else {
-            // For all other languages: use string serialization
-            std::string serialized = serializeValueForLanguage(value, language);
+        // For all languages: use string serialization
+        std::string serialized = serializeValueForLanguage(value, language);
 
+        if (language == "python") {
+            var_declarations += var_name + " = " + serialized + "\n";
+        } else if (language == "shell" || language == "sh" || language == "bash") {
+            // Use export for shell variables
+            var_declarations += "export " + var_name + "=" + serialized + "\n";
+        } else {
             if (language == "javascript" || language == "js") {
                 var_declarations += "const " + var_name + " = " + serialized + ";\n";
-            } else if (language == "shell" || language == "sh" || language == "bash") {
-                var_declarations += var_name + "=" + serialized + "\n";
             } else if (language == "go") {
                 var_declarations += "const " + var_name + " = " + serialized + "\n";
             } else if (language == "rust") {
@@ -4285,25 +4306,9 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     explain("Executing inline " + language + " code" +
             (bound_vars.empty() ? "" : " with " + std::to_string(bound_vars.size()) + " bound variables"));
 
-    // Set source location for better error messages
-    auto location = node.getLocation();
-    executor->setSourceLocation(current_file_, location.line, location.column);
-
     // Phase 2.3: Execute the code and capture return value
     try {
-        // Polyglot: Issue #2 - Use environment variables for shell
-        if ((language == "shell" || language == "sh" || language == "bash") && !shell_env_vars.empty()) {
-            auto* shell_executor = dynamic_cast<runtime::ShellExecutor*>(executor);
-            if (shell_executor) {
-                // Use environment variables instead of code injection
-                result_ = shell_executor->executeWithReturn(code, shell_env_vars);
-            } else {
-                // Fallback if cast fails
-                result_ = executor->executeWithReturn(final_code);
-            }
-        } else {
-            result_ = executor->executeWithReturn(final_code);
-        }
+        result_ = executor->executeWithReturn(final_code);
 
         // Flush stdout from executor
         flushExecutorOutput(executor);
@@ -4311,59 +4316,6 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     } catch (const std::exception& e) {
         throw std::runtime_error("Inline " + language + " execution failed: " + e.what());
     }
-}
-
-// ============================================================================
-// Lambda Expression Handler
-// ============================================================================
-
-void Interpreter::visit(ast::LambdaExpr& node) {
-    // Extract parameter names, types, and default values
-    std::vector<std::string> param_names;
-    std::vector<ast::Type> param_types;
-    std::vector<ast::Expr*> param_defaults;
-
-    for (const auto& param : node.getParams()) {
-        param_names.push_back(param.name);
-        param_types.push_back(param.type);
-
-        // Store raw pointer to default value expression if present
-        if (param.default_value) {
-            param_defaults.push_back(param.default_value->get());
-        } else {
-            param_defaults.push_back(nullptr);
-        }
-    }
-
-    // Get lambda body as CompoundStmt
-    auto* body = dynamic_cast<ast::CompoundStmt*>(node.getBody());
-    if (!body) {
-        throw std::runtime_error("Lambda body must be a compound statement");
-    }
-
-    // Infer return type if not explicitly provided
-    ast::Type return_type = node.getReturnType();
-    if (return_type.kind == ast::TypeKind::Any) {
-        return_type = inferReturnType(body);
-    }
-
-    // Create FunctionValue for the lambda (anonymous function)
-    // Use "<lambda>" as the function name for debugging
-    auto func_value = std::make_shared<FunctionValue>(
-        "<lambda>",  // Anonymous function name
-        param_names,
-        std::move(param_types),
-        std::move(param_defaults),
-        std::shared_ptr<ast::CompoundStmt>(body, [](ast::CompoundStmt*){}),  // Non-owning shared_ptr
-        std::vector<std::string>{},  // No type parameters for lambdas
-        return_type,
-        current_file_,  // Source file for stack traces
-        node.getLocation().line,  // Line number for stack traces
-        current_env_  // Capture closure environment
-    );
-
-    // Return the lambda as a Value (don't store in environment)
-    result_ = std::make_shared<Value>(func_value);
 }
 
 // ============================================================================
@@ -4495,18 +4447,13 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         return;  // Nothing to execute
     }
 
-    // Single block - execute normally (no parallelization needed)
-    if (group.parallel_blocks.size() == 1) {
-        const auto& block = group.parallel_blocks[0];
-        // Execute the full statement (VarDeclStmt or ExprStmt) to create variable bindings
-        block.statement->accept(*this);
-        return;
-    }
-
-    // Multiple blocks - execute in parallel
+    // Always use parallel execution, even for single blocks
+    // This avoids Python segfault in sequential path and ensures consistency
     // Step 1: Capture variable snapshots for each block (thread-safe deep copy)
     std::vector<VariableSnapshot> snapshots;
-    for (const auto& block : group.parallel_blocks) {
+    for (size_t block_idx = 0; block_idx < group.parallel_blocks.size(); ++block_idx) {
+        const auto& block = group.parallel_blocks[block_idx];
+
         VariableSnapshot snapshot;
         snapshot.capture(current_env_.get(), block.read_vars, this);
         snapshots.push_back(std::move(snapshot));
@@ -4527,6 +4474,10 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         // Convert language string to enum
         std::string lang_str = inline_code->getLanguage();
         polyglot::PolyglotAsyncExecutor::Language lang;
+
+        // Check if language is supported by PolyglotAsyncExecutor
+        bool lang_supported = true;
+
         if (lang_str == "python") {
             lang = polyglot::PolyglotAsyncExecutor::Language::Python;
         } else if (lang_str == "javascript" || lang_str == "js") {
@@ -4537,10 +4488,24 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             lang = polyglot::PolyglotAsyncExecutor::Language::Rust;
         } else if (lang_str == "csharp" || lang_str == "cs") {
             lang = polyglot::PolyglotAsyncExecutor::Language::CSharp;
-        } else if (lang_str == "shell" || lang_str == "bash") {
+        } else if (lang_str == "shell" || lang_str == "bash" || lang_str == "sh") {
             lang = polyglot::PolyglotAsyncExecutor::Language::Shell;
         } else {
-            lang = polyglot::PolyglotAsyncExecutor::Language::GenericSubprocess;
+            // Unsupported language for parallel execution (e.g., go, ruby, perl)
+            // Fall back to sequential execution using LanguageRegistry
+            lang_supported = false;
+            lang = polyglot::PolyglotAsyncExecutor::Language::GenericSubprocess;  // Placeholder
+        }
+
+        // If language not supported for parallel execution, execute sequentially
+        if (!lang_supported) {
+            // Execute the full statement sequentially (e.g., VarDeclStmt)
+            // This ensures the variable gets properly assigned
+            auto* stmt = block.statement;
+            stmt->accept(*this);
+
+            // Skip adding to parallel tasks
+            continue;
         }
 
         // Prepare variable declarations by serializing snapshot values

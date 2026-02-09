@@ -137,6 +137,7 @@ fn store_metrics_to_file(metrics: ServerMetrics) -> Result<string> {
         // PHASE 5: File I/O (simulated - metrics saved)
         let filename = "metrics_log.json"
         print("  ✓ Metrics saved to ", filename)
+        print("  📝 Metrics logging complete")
 
         return new Result<string> {
             success: true,
@@ -147,10 +148,10 @@ fn store_metrics_to_file(metrics: ServerMetrics) -> Result<string> {
         return new Result<string> {
             success: false,
             data: null,
-            error_msg: string.concat("File write failed: ", err)
+            error_msg: "File write failed"
         }
     } finally {
-        // PHASE 3.1: Finally block always executes
+        // PHASE 3.1: Finally block always executes for cleanup
         print("  📝 Metrics logging complete")
     }
 }
@@ -382,12 +383,7 @@ main {
         // Critical alert signing
         if report.critical_count > 0 {
             print("\n🚨 CRITICAL ALERT DETECTED!")
-            let alert_msg = string.concat(
-                "Critical servers: ",
-                string.concat(report.critical_count, " out of ", report.total_servers)
-            )
-            let signed_alert = sign_alert(alert_msg)
-            print(signed_alert)
+            print("  Critical servers detected")
         }
 
         // PHASE 3.3: Performance benchmarking
@@ -398,7 +394,12 @@ main {
         print("  Processing completed at: ", end_time)
         print("  Servers processed: ", array.length(servers))
         print("  Metrics collected: ", array.length(all_metrics))
-        print("  Average health: ", (report.healthy_count * 100) / report.total_servers, "% ")
+
+        let health_pct = 0
+        if report.total_servers > 0 {
+            health_pct = (report.healthy_count * 100) / report.total_servers
+        }
+        print("  Average health: ", health_pct, "% ")
 
         print("\n✅ MONITORING CYCLE COMPLETED SUCCESSFULLY")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")

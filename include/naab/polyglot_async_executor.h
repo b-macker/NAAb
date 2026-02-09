@@ -162,8 +162,8 @@ public:
     );
 
 private:
-    // C++ executor instance
-    std::unique_ptr<runtime::CppExecutor> executor_;
+    // Note: C++ executor adapter is created fresh per thread for thread-safety
+    // (like Python and JavaScript executors)
 
     // Helper: Create callback that executes C++ code
     ffi::AsyncCallbackWrapper::CallbackFunc makeCppCallback(
@@ -190,13 +190,13 @@ public:
     /**
      * @brief Execute Rust code asynchronously.
      *
-     * @param uri Rust block URI (e.g., "rust://./lib.so::process")
-     * @param args Arguments to pass to Rust function
+     * @param code Rust inline code to compile and execute
+     * @param args Arguments to pass to Rust code (currently unused for inline)
      * @param timeout Maximum execution time (default: 30s)
      * @return Future that resolves to the execution result
      */
     std::future<ffi::AsyncCallbackResult> executeAsync(
-        const std::string& uri,
+        const std::string& code,
         const std::vector<interpreter::Value>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
@@ -205,18 +205,15 @@ public:
      * @brief Execute Rust code synchronously (blocking).
      */
     ffi::AsyncCallbackResult executeBlocking(
-        const std::string& uri,
+        const std::string& code,
         const std::vector<interpreter::Value>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
 private:
-    // Rust executor instance
-    std::unique_ptr<runtime::RustExecutor> executor_;
-
     // Helper: Create callback that executes Rust code
     ffi::AsyncCallbackWrapper::CallbackFunc makeRustCallback(
-        const std::string& uri,
+        const std::string& code,
         const std::vector<interpreter::Value>& args
     );
 };
