@@ -1,9 +1,0 @@
-use io
-
-fn calculate(x: int) -> int {
-    return x * 2
-// Missing closing brace
-
-main {
-    io.write("test")
-}

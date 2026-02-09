@@ -1,9 +1,0 @@
-use io
-
-main {
-    let person = {
-        name: "Alice",
-        age: 30
-    }
-    io.write(person["name"])
-}

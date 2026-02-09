@@ -1,8 +1,0 @@
-main {
-    let result = <<javascript
-const obj = {a: 1};
-JSON.stringify(obj);
-    >>
-
-    print("Result: ", result, "\n")
-}

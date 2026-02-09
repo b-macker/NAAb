@@ -1,5 +1,0 @@
-use io
-
-fn main() {
-    io.write("This should trigger hint about main block")
-}

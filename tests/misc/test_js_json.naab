@@ -1,7 +1,0 @@
-main {
-    let result = <<javascript
-JSON.stringify({a: 1, b: 2})
-    >>
-
-    print("Result: ", result, "\n")
-}

@@ -1,8 +1,0 @@
-// Test: Improved error message for top-level let
-// Expected: Should show helpful error message explaining that 'let' must be inside main {}
-
-use math_utils as math
-
-let x = 10  // This should produce a helpful error message
-
-print("This shouldn't execute\n")

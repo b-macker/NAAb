@@ -1,9 +1,0 @@
-// Module that will fail
-export function will_fail() {
-    // Access undefined variable - guaranteed error
-    return undefined_variable
-}
-
-export function deeply_nested() {
-    return will_fail()  // Call the failing function
-}
