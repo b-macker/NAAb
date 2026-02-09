@@ -200,10 +200,50 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
             std::string wrapped = "def __naab_wrapper():\n";
 
             // Indent all lines of the original code
+            std::vector<std::string> code_lines;
             std::istringstream stream(code);
             std::string line;
             while (std::getline(stream, line)) {
-                wrapped += "    " + line + "\n";
+                code_lines.push_back(line);
+            }
+
+            // Find the last non-empty, non-comment line to add 'return' if it's an expression
+            int last_expr_idx = -1;
+            for (int i = static_cast<int>(code_lines.size()) - 1; i >= 0; i--) {
+                std::string trimmed = code_lines[static_cast<size_t>(i)];
+                // Remove leading/trailing whitespace
+                size_t start = trimmed.find_first_not_of(" \t");
+                if (start == std::string::npos) continue;  // Empty line
+                trimmed = trimmed.substr(start);
+
+                // Skip comments
+                if (trimmed[0] == '#') continue;
+
+                // Check if it's a statement (not an expression)
+                if (trimmed.find("return ") == 0 || trimmed.find("if ") == 0 ||
+                    trimmed.find("for ") == 0 || trimmed.find("while ") == 0 ||
+                    trimmed.find("def ") == 0 || trimmed.find("class ") == 0 ||
+                    trimmed.find("import ") == 0 || trimmed.find("from ") == 0 ||
+                    trimmed.find("break") == 0 || trimmed.find("continue") == 0 ||
+                    trimmed.find("pass") == 0) {
+                    // It's a statement, don't add return
+                    last_expr_idx = -2;  // Signal: don't add return
+                    break;
+                }
+
+                // Found a potential expression line
+                last_expr_idx = i;
+                break;
+            }
+
+            // Add all lines with proper indentation
+            for (size_t i = 0; i < code_lines.size(); i++) {
+                if (static_cast<int>(i) == last_expr_idx && last_expr_idx >= 0) {
+                    // Add 'return' before the last expression
+                    wrapped += "    return " + code_lines[i] + "\n";
+                } else {
+                    wrapped += "    " + code_lines[i] + "\n";
+                }
             }
 
             // Call the function and store result

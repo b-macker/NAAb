@@ -472,20 +472,71 @@ std::shared_ptr<interpreter::Value> CppExecutor::callFunction(
         FuncNoArgs func = reinterpret_cast<FuncNoArgs>(func_ptr);
         int result = func();
         return marshaller_.fromInt(result);
+    } else if (args.size() == 1) {
+        auto arg = marshaller_.toCpp(args[0]);
+
+        // Function name hints for double functions (until proper signature registration)
+        bool prefer_double = (function_name.find("sqrt") != std::string::npos ||
+                             function_name.find("log") != std::string::npos ||
+                             function_name.find("exp") != std::string::npos ||
+                             function_name.find("sin") != std::string::npos ||
+                             function_name.find("cos") != std::string::npos ||
+                             function_name.find("tan") != std::string::npos ||
+                             function_name.find("ceil") != std::string::npos ||
+                             function_name.find("floor") != std::string::npos);
+
+        // Try int f(int) if INT and function doesn't prefer double
+        if (!prefer_double && arg.type == CppType::INT) {
+            typedef int (*FuncInt)(int);
+            FuncInt func = reinterpret_cast<FuncInt>(func_ptr);
+            int result = func(static_cast<int>(arg.i));
+            return marshaller_.fromInt(result);
+        }
+        // Try double f(double) with automatic int→double promotion
+        else if (arg.type == CppType::INT || arg.type == CppType::DOUBLE) {
+            double d = (arg.type == CppType::INT) ? static_cast<double>(arg.i) : arg.d;
+            typedef double (*FuncDbl)(double);
+            FuncDbl func = reinterpret_cast<FuncDbl>(func_ptr);
+            double result = func(d);
+            return marshaller_.fromDouble(result);
+        } else {
+            throw std::runtime_error(fmt::format(
+                "Unsupported argument type for {}: {}",
+                function_name,
+                marshaller_.typeName(arg.type)));
+        }
     } else if (args.size() == 2) {
-        // Try int f(int, int) first
         auto arg1 = marshaller_.toCpp(args[0]);
         auto arg2 = marshaller_.toCpp(args[1]);
 
-        if (arg1.type == CppType::INT && arg2.type == CppType::INT) {
+        // Function name hints for double functions (until proper signature registration)
+        // Common math functions that work with floating point
+        bool prefer_double = (function_name == "power" ||
+                             function_name == "pow" ||
+                             function_name.find("sqrt") != std::string::npos ||
+                             function_name.find("log") != std::string::npos ||
+                             function_name.find("exp") != std::string::npos ||
+                             function_name.find("sin") != std::string::npos ||
+                             function_name.find("cos") != std::string::npos ||
+                             function_name.find("tan") != std::string::npos);
+
+        // Try int f(int, int) if both are INT and function doesn't prefer double
+        if (!prefer_double && arg1.type == CppType::INT && arg2.type == CppType::INT) {
             typedef int (*FuncIntInt)(int, int);
             FuncIntInt func = reinterpret_cast<FuncIntInt>(func_ptr);
             int result = func(static_cast<int>(arg1.i), static_cast<int>(arg2.i));
             return marshaller_.fromInt(result);
-        } else if (arg1.type == CppType::DOUBLE && arg2.type == CppType::DOUBLE) {
+        }
+        // Try double f(double, double) with automatic int→double promotion
+        else if ((arg1.type == CppType::INT || arg1.type == CppType::DOUBLE) &&
+                 (arg2.type == CppType::INT || arg2.type == CppType::DOUBLE)) {
+            // Convert both to double
+            double d1 = (arg1.type == CppType::INT) ? static_cast<double>(arg1.i) : arg1.d;
+            double d2 = (arg2.type == CppType::INT) ? static_cast<double>(arg2.i) : arg2.d;
+
             typedef double (*FuncDblDbl)(double, double);
             FuncDblDbl func = reinterpret_cast<FuncDblDbl>(func_ptr);
-            double result = func(arg1.d, arg2.d);
+            double result = func(d1, d2);
             return marshaller_.fromDouble(result);
         } else {
             throw std::runtime_error(fmt::format(
