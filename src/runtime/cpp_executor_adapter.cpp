@@ -401,18 +401,55 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
             }
         }
 
+        // Extract #include and using directives to top-level
+        std::vector<std::string> includes;
+        std::vector<std::string> code_lines;
+
+        for (const auto& line : lines) {
+            std::string trimmed = line;
+            size_t trim_start = trimmed.find_first_not_of(" \t\r");
+            if (trim_start != std::string::npos) {
+                trimmed = trimmed.substr(trim_start);
+            }
+
+            // Check if line is #include or using directive
+            if (trimmed.find("#include") == 0 || trimmed.find("using namespace") == 0) {
+                includes.push_back(line);
+            } else {
+                code_lines.push_back(line);
+            }
+        }
+
+        // Start with default includes + extracted includes
         wrapped_code =
             "#include <iostream>\n"
             "#include <string>\n"
             "#include <vector>\n"
-            "#include <map>\n"
-            "int main() {\n";
+            "#include <map>\n";
 
-        // Add all lines
-        for (size_t i = 0; i < lines.size(); i++) {
-            if (static_cast<int>(i) == last_line_idx) {
+        // Add user's extracted includes
+        for (const auto& inc : includes) {
+            wrapped_code += inc + "\n";
+        }
+
+        wrapped_code += "int main() {\n";
+
+        // Find last non-empty code line
+        int last_code_idx = -1;
+        for (int i = code_lines.size() - 1; i >= 0; i--) {
+            std::string trimmed = code_lines[i];
+            size_t s = trimmed.find_first_not_of(" \t\r");
+            if (s != std::string::npos) {
+                last_code_idx = i;
+                break;
+            }
+        }
+
+        // Add all code lines
+        for (size_t i = 0; i < code_lines.size(); i++) {
+            if (static_cast<int>(i) == last_code_idx) {
                 // Check if last line is a statement (has semicolon) or expression
-                std::string trimmed_last = lines[i];
+                std::string trimmed_last = code_lines[i];
                 size_t trim_start = trimmed_last.find_first_not_of(" \t\r");
                 if (trim_start != std::string::npos) {
                     trimmed_last = trimmed_last.substr(trim_start);
@@ -430,13 +467,13 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
 
                 if (is_statement) {
                     // Last line is a statement - just add it
-                    wrapped_code += "    " + lines[i] + "\n";
+                    wrapped_code += "    " + code_lines[i] + "\n";
                 } else {
                     // Last line is an expression - print it
-                    wrapped_code += "    std::cout << (" + lines[i] + ");\n";
+                    wrapped_code += "    std::cout << (" + code_lines[i] + ");\n";
                 }
             } else {
-                wrapped_code += "    " + lines[i] + "\n";
+                wrapped_code += "    " + code_lines[i] + "\n";
             }
         }
 
