@@ -13,16 +13,20 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <thread>
 
 namespace naab {
 namespace runtime {
+
+// Initialize static temp file counter for thread-safe unique file names
+std::atomic<int> RustExecutor::temp_file_counter_(0);
 
 // Forward declarations for FFI conversion helpers
 std::shared_ptr<interpreter::Value> ffiToValue(NaabRustValue* ffi_val);
 NaabRustValue* valueToFfi(const std::shared_ptr<interpreter::Value>& val);
 
 RustExecutor::RustExecutor() {
-    fmt::print("[INFO] RustExecutor initialized\n");
+    // RustExecutor initialized (silent)
 }
 
 RustExecutor::~RustExecutor() {
@@ -30,7 +34,7 @@ RustExecutor::~RustExecutor() {
     for (const auto& [path, handle] : library_cache_) {
         if (handle) {
             dlclose(handle);
-            fmt::print("[INFO] Unloaded Rust library: {}\n", path);
+            // Unloaded Rust library (silent)
         }
     }
 }
@@ -39,10 +43,15 @@ RustExecutor::~RustExecutor() {
 bool RustExecutor::execute(const std::string& code) {
     // For inline Rust code, compile and execute immediately
 
-    // Create temp source file
+    // Create unique temp files for thread-safe parallel execution
     std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    std::filesystem::path temp_rs = temp_dir / "naab_temp_rust.rs";
-    std::filesystem::path temp_bin = temp_dir / "naab_temp_rust";
+    auto thread_id = std::this_thread::get_id();
+    int counter = temp_file_counter_.fetch_add(1);
+    std::ostringstream filename_base;
+    filename_base << "naab_rust_" << thread_id << "_" << counter;
+
+    std::filesystem::path temp_rs = temp_dir / (filename_base.str() + "_src.rs");
+    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_bin");
 
     // Write code to temp file
     std::ofstream ofs(temp_rs);
@@ -94,7 +103,7 @@ bool RustExecutor::execute(const std::string& code) {
 
     bool success = (exec_exit == 0);
     if (success) {
-        fmt::print("[SUCCESS] Rust program executed (exit code {})\n", exec_exit);
+        // Rust program executed (silent)
     } else {
         fmt::print("[ERROR] Rust program failed with code {}\n", exec_exit);
     }
@@ -106,9 +115,15 @@ bool RustExecutor::execute(const std::string& code) {
 std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
     const std::string& code) {
 
+    // Create unique temp files for thread-safe parallel execution
     std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    std::filesystem::path temp_rs = temp_dir / "naab_temp_rust_ret.rs";
-    std::filesystem::path temp_bin = temp_dir / "naab_temp_rust_ret";
+    auto thread_id = std::this_thread::get_id();
+    int counter = temp_file_counter_.fetch_add(1);
+    std::ostringstream filename_base;
+    filename_base << "naab_rust_" << thread_id << "_" << counter;
+
+    std::filesystem::path temp_rs = temp_dir / (filename_base.str() + "_ret_src.rs");
+    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_ret_bin");
 
     // Phase 2.3: Multi-line support - check if code needs wrapping
     std::string rust_code = code;

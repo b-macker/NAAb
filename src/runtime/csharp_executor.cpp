@@ -4,20 +4,29 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <thread>
 #include <fmt/core.h>
 
 namespace naab {
 namespace runtime {
 
+// Initialize static temp file counter for thread-safe unique file names
+std::atomic<int> CSharpExecutor::temp_file_counter_(0);
+
 CSharpExecutor::CSharpExecutor() {
-    fmt::print("[INFO] CSharpExecutor initialized\n");
+    // CSharpExecutor initialized (silent)
 }
 
 bool CSharpExecutor::execute(const std::string& code) {
-    // Create temp directory
+    // Create unique temp files for thread-safe parallel execution
     std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    std::filesystem::path temp_cs = temp_dir / "naab_temp_csharp.cs";
-    std::filesystem::path temp_exe = temp_dir / "naab_temp_csharp.exe";
+    auto thread_id = std::this_thread::get_id();
+    int counter = temp_file_counter_.fetch_add(1);
+    std::ostringstream filename_base;
+    filename_base << "naab_cs_" << thread_id << "_" << counter;
+
+    std::filesystem::path temp_cs = temp_dir / (filename_base.str() + "_src.cs");
+    std::filesystem::path temp_exe = temp_dir / (filename_base.str() + "_bin.exe");
 
     try {
         // Write code to temp file
@@ -67,7 +76,7 @@ bool CSharpExecutor::execute(const std::string& code) {
         std::filesystem::remove(temp_exe);
 
         if (exec_exit == 0) {
-            fmt::print("[SUCCESS] C# program executed (exit code 0)\n");
+            // C# program executed (silent)
         } else {
             fmt::print("[ERROR] C# program failed (exit code {})\n", exec_exit);
         }
@@ -87,9 +96,15 @@ bool CSharpExecutor::execute(const std::string& code) {
 std::shared_ptr<interpreter::Value> CSharpExecutor::executeWithReturn(
     const std::string& code) {
 
+    // Create unique temp files for thread-safe parallel execution
     std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    std::filesystem::path temp_cs = temp_dir / "naab_temp_cs_ret.cs";
-    std::filesystem::path temp_exe = temp_dir / "naab_temp_cs_ret.exe";
+    auto thread_id = std::this_thread::get_id();
+    int counter = temp_file_counter_.fetch_add(1);
+    std::ostringstream filename_base;
+    filename_base << "naab_cs_" << thread_id << "_" << counter;
+
+    std::filesystem::path temp_cs = temp_dir / (filename_base.str() + "_ret_src.cs");
+    std::filesystem::path temp_exe = temp_dir / (filename_base.str() + "_ret_bin.exe");
 
     try {
         // Phase 2.3: Multi-line support - wrap code if needed

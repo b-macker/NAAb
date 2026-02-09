@@ -9,13 +9,17 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <thread>
 
 namespace naab {
 namespace runtime {
 
+// Initialize static temp file counter for thread-safe unique file names
+std::atomic<int> CppExecutorAdapter::temp_file_counter_(0);
+
 CppExecutorAdapter::CppExecutorAdapter()
     : block_counter_(0) {
-    fmt::print("[CPP ADAPTER] C++ executor adapter initialized\n");
+    // C++ executor adapter initialized (silent)
 }
 
 bool CppExecutorAdapter::execute(const std::string& code) {
@@ -23,12 +27,17 @@ bool CppExecutorAdapter::execute(const std::string& code) {
     if (code.find("int main(") != std::string::npos ||
         code.find("int main (") != std::string::npos) {
 
-        fmt::print("[CPP ADAPTER] Detected main() - compiling as executable\n");
+        // Detected main() - compiling as executable (silent)
 
-        // Create temp source and binary files
+        // Create unique temp files for thread-safe parallel execution
         std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-        std::filesystem::path temp_cpp = temp_dir / "naab_temp_cpp.cpp";
-        std::filesystem::path temp_bin = temp_dir / "naab_temp_cpp";
+        auto thread_id = std::this_thread::get_id();
+        int counter = temp_file_counter_.fetch_add(1);
+        std::ostringstream filename_base;
+        filename_base << "naab_cpp_" << thread_id << "_" << counter;
+
+        std::filesystem::path temp_cpp = temp_dir / (filename_base.str() + "_src.cpp");
+        std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_bin");
 
         // Write code to temp file
         std::ofstream ofs(temp_cpp);
@@ -77,7 +86,7 @@ bool CppExecutorAdapter::execute(const std::string& code) {
 
         bool success = (exec_exit == 0);
         if (success) {
-            fmt::print("[SUCCESS] C++ program executed (exit code {})\n", exec_exit);
+            // C++ program executed (silent)
         } else {
             fmt::print("[ERROR] C++ program failed with code {}\n", exec_exit);
         }
@@ -86,7 +95,7 @@ bool CppExecutorAdapter::execute(const std::string& code) {
     }
 
     // Otherwise, wrap in main() with headers and execute
-    fmt::print("[CPP ADAPTER] Wrapping C++ code for execution\n");
+    // Wrapping C++ code for execution (silent)
 
     // Phase 2.3: Ensure statements have semicolons
     std::string processed_code = code;
@@ -130,10 +139,15 @@ bool CppExecutorAdapter::execute(const std::string& code) {
         "    return 0;\n"
         "}\n";
 
-    // Create temp source and binary files
+    // Create unique temp files for thread-safe parallel execution
     std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-    std::filesystem::path temp_cpp = temp_dir / "naab_temp_cpp_exec.cpp";
-    std::filesystem::path temp_bin = temp_dir / "naab_temp_cpp_exec";
+    auto thread_id = std::this_thread::get_id();
+    int counter = temp_file_counter_.fetch_add(1);
+    std::ostringstream filename_base;
+    filename_base << "naab_cpp_" << thread_id << "_" << counter;
+
+    std::filesystem::path temp_cpp = temp_dir / (filename_base.str() + "_exec_src.cpp");
+    std::filesystem::path temp_bin = temp_dir / (filename_base.str() + "_exec_bin");
 
     // Write wrapped code to temp file
     std::ofstream ofs(temp_cpp);
@@ -186,7 +200,7 @@ bool CppExecutorAdapter::execute(const std::string& code) {
 
     bool success = (exec_exit == 0);
     if (success) {
-        fmt::print("[CPP ADAPTER] C++ code executed successfully\n");
+        // C++ code executed successfully (silent)
     } else {
         fmt::print("[ERROR] C++ execution failed with code {}\n", exec_exit);
     }
@@ -202,7 +216,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
     if (code.find("int main(") != std::string::npos ||
         code.find("int main (") != std::string::npos) {
 
-        fmt::print("[CPP ADAPTER] Compiling C++ with return value capture\n");
+        // Compiling C++ with return value capture (silent)
 
         // Phase 3.3.1: Check cache
         std::string cached_binary_main = cache_.getCachedBinary("cpp", code);
@@ -210,15 +224,20 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
 
         if (!cached_binary_main.empty()) {
             // Cache hit
-            fmt::print("[CPP ADAPTER] Using cached binary\n");
+            // Using cached binary (silent)
             temp_bin_main = cached_binary_main;
         } else {
             // Cache miss - compile
-            fmt::print("[CPP ADAPTER] Compiling (cache miss)\n");
+            // Compiling (cache miss) (silent)
 
             std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-            std::filesystem::path temp_cpp = temp_dir / "naab_temp_cpp_ret.cpp";
-            temp_bin_main = temp_dir / "naab_temp_cpp_ret";
+            auto thread_id = std::this_thread::get_id();
+            int counter = temp_file_counter_.fetch_add(1);
+            std::ostringstream filename_base;
+            filename_base << "naab_cpp_" << thread_id << "_" << counter;
+
+            std::filesystem::path temp_cpp = temp_dir / (filename_base.str() + "_ret_src.cpp");
+            temp_bin_main = temp_dir / (filename_base.str() + "_ret_bin");
 
             std::ofstream ofs(temp_cpp);
             if (!ofs.is_open()) {
@@ -328,12 +347,12 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
 
     // If it's a statement, execute it without trying to capture return value
     if (is_statement && check_for_statement.find("return") != 0) {
-        fmt::print("[CPP ADAPTER] Detected statement (not expression), executing without return\n");
+        // Detected statement (not expression), executing without return (silent)
         execute(code);
         return std::make_shared<interpreter::Value>();  // Return null/void
     }
 
-    fmt::print("[CPP ADAPTER] Wrapping C++ expression for return value\n");
+    // Wrapping C++ expression for return value (silent)
 
     // Strip leading/trailing whitespace and "return" keyword if present
     std::string expr = code;
@@ -389,11 +408,33 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
             "#include <map>\n"
             "int main() {\n";
 
-        // Add all lines except the last
+        // Add all lines
         for (size_t i = 0; i < lines.size(); i++) {
             if (static_cast<int>(i) == last_line_idx) {
-                // Print the last expression
-                wrapped_code += "    std::cout << (" + lines[i] + ");\n";
+                // Check if last line is a statement (has semicolon) or expression
+                std::string trimmed_last = lines[i];
+                size_t trim_start = trimmed_last.find_first_not_of(" \t\r");
+                if (trim_start != std::string::npos) {
+                    trimmed_last = trimmed_last.substr(trim_start);
+                }
+
+                // If last line has semicolon or starts with statement keyword, treat as statement
+                bool is_statement = (trimmed_last.find(';') != std::string::npos) ||
+                                   (trimmed_last.find("std::cout") == 0) ||
+                                   (trimmed_last.find("std::cerr") == 0) ||
+                                   (trimmed_last.find("printf") == 0) ||
+                                   (trimmed_last.find("return") == 0) ||
+                                   (trimmed_last.find("if") == 0) ||
+                                   (trimmed_last.find("for") == 0) ||
+                                   (trimmed_last.find("while") == 0);
+
+                if (is_statement) {
+                    // Last line is a statement - just add it
+                    wrapped_code += "    " + lines[i] + "\n";
+                } else {
+                    // Last line is an expression - print it
+                    wrapped_code += "    std::cout << (" + lines[i] + ");\n";
+                }
             } else {
                 wrapped_code += "    " + lines[i] + "\n";
             }
@@ -426,11 +467,16 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
         temp_bin = cached_binary;
     } else {
         // Cache miss - compile and cache
-        fmt::print("[CPP ADAPTER] Compiling C++ code (cache miss)\n");
+        // Compiling C++ code (cache miss) (silent)
 
         std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-        std::filesystem::path temp_cpp = temp_dir / "naab_temp_cpp_expr.cpp";
-        temp_bin = temp_dir / "naab_temp_cpp_expr";
+        auto thread_id = std::this_thread::get_id();
+        int counter = temp_file_counter_.fetch_add(1);
+        std::ostringstream filename_base;
+        filename_base << "naab_cpp_" << thread_id << "_" << counter;
+
+        std::filesystem::path temp_cpp = temp_dir / (filename_base.str() + "_expr_src.cpp");
+        temp_bin = temp_dir / (filename_base.str() + "_expr_bin");
 
         std::ofstream ofs(temp_cpp);
         if (!ofs.is_open()) {
@@ -505,7 +551,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::callFunction(
         throw std::runtime_error("No C++ block loaded. Call execute() first.");
     }
 
-    fmt::print("[CPP ADAPTER] Calling function: {}\n", function_name);
+    // Calling function (silent)
 
     // Call function in the current block
     return executor_.callFunction(current_block_id_, function_name, args);

@@ -7,6 +7,7 @@
 #include "naab/language_registry.h"
 #include "naab/cpp_executor.h"
 #include "naab/inline_code_cache.h"  // Phase 3.3.1
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -47,6 +48,9 @@ private:
     int block_counter_;
     std::string captured_output_;  // For inline main() execution
     InlineCodeCache cache_;  // Phase 3.3.1: Content-based caching
+
+    // Thread-safe temp file counter for parallel execution
+    static std::atomic<int> temp_file_counter_;
 };
 
 } // namespace runtime

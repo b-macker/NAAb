@@ -8,6 +8,7 @@
 #include <string>
 #include <filesystem>
 #include <chrono>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -71,6 +72,9 @@ public:
 private:
     std::filesystem::path cache_root_;
     std::unordered_map<std::string, CacheEntry> entries_; // hash -> entry
+
+    // Thread-safe access to cache (mutable allows locking in const methods)
+    mutable std::mutex cache_mutex_;
 
     // LRU cleanup helpers
     std::vector<CacheEntry> sortByLRU() const;

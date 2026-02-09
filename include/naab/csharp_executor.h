@@ -3,6 +3,7 @@
 
 #include "naab/language_registry.h"
 #include "naab/output_buffer.h"
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -33,6 +34,9 @@ public:
 private:
     OutputBuffer stdout_buffer_;
     OutputBuffer stderr_buffer_;
+
+    // Thread-safe temp file counter for parallel execution
+    static std::atomic<int> temp_file_counter_;
 };
 
 } // namespace runtime

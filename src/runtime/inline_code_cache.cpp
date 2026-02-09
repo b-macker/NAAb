@@ -31,14 +31,14 @@ InlineCodeCache::InlineCodeCache() {
     try {
         if (!fs::exists(cache_root_)) {
             fs::create_directories(cache_root_);
-            fmt::print("[CACHE] Created inline code cache: {}\n", cache_root_.string());
+            // Created inline code cache (silent)
         }
 
         // Load existing metadata
         loadMetadata();
 
     } catch (const std::exception& e) {
-        fmt::print("[ERROR] Failed to create cache directory: {}\n", e.what());
+        // Failed to create cache directory (silent - will use temp files as fallback)
     }
 }
 
@@ -72,6 +72,8 @@ std::string InlineCodeCache::hashCode(const std::string& code) const {
 }
 
 bool InlineCodeCache::isCached(const std::string& language, const std::string& code) const {
+    std::lock_guard<std::mutex> lock(cache_mutex_);
+
     std::string hash = hashCode(code);
     std::string cache_key = language + ":" + hash;
 
@@ -85,6 +87,8 @@ bool InlineCodeCache::isCached(const std::string& language, const std::string& c
 }
 
 std::string InlineCodeCache::getCachedBinary(const std::string& language, const std::string& code) {
+    std::lock_guard<std::mutex> lock(cache_mutex_);
+
     std::string hash = hashCode(code);
     std::string cache_key = language + ":" + hash;
 
@@ -99,13 +103,12 @@ std::string InlineCodeCache::getCachedBinary(const std::string& language, const 
 
     // Verify binary exists
     if (!fs::exists(it->second.binary_path)) {
-        fmt::print("[CACHE] Warning: cached binary missing for hash {}\n", hash);
+        // Warning: cached binary missing (silent)
         entries_.erase(it);
         return "";
     }
 
-    fmt::print("[CACHE] Hit for {} code (hash: {}, accessed {} times)\n",
-               language, hash.substr(0, 8), it->second.access_count);
+    // Cache hit (silent)
 
     return it->second.binary_path.string();
 }
@@ -115,6 +118,8 @@ void InlineCodeCache::storeBinary(
     const std::string& code,
     const std::string& binary_path,
     const std::string& source_path) {
+
+    std::lock_guard<std::mutex> lock(cache_mutex_);
 
     std::string hash = hashCode(code);
     std::string cache_key = language + ":" + hash;
@@ -150,8 +155,7 @@ void InlineCodeCache::storeBinary(
 
         entries_[cache_key] = entry;
 
-        fmt::print("[CACHE] Stored {} binary (hash: {}, size: {} bytes)\n",
-                   language, hash.substr(0, 8), code.length());
+        // Stored binary in cache (silent)
 
     } catch (const std::exception& e) {
         fmt::print("[ERROR] Failed to cache binary: {}\n", e.what());
@@ -197,6 +201,8 @@ std::string InlineCodeCache::getSourcePath(const std::string& language, const st
 }
 
 void InlineCodeCache::cleanCache(size_t max_size_mb) {
+    std::lock_guard<std::mutex> lock(cache_mutex_);
+
     size_t current_size = getCacheSize();
     size_t max_size_bytes = max_size_mb * 1024 * 1024;
 
@@ -204,8 +210,7 @@ void InlineCodeCache::cleanCache(size_t max_size_mb) {
         return; // Cache is within limits
     }
 
-    fmt::print("[CACHE] Cleaning cache (current: {:.2f} MB, max: {} MB)\n",
-               current_size / (1024.0 * 1024.0), max_size_mb);
+    // Cleaning cache (silent)
 
     // Sort entries by LRU (least recently used first)
     auto lru_entries = sortByLRU();
@@ -238,8 +243,7 @@ void InlineCodeCache::cleanCache(size_t max_size_mb) {
         removed_count++;
     }
 
-    fmt::print("[CACHE] Removed {} entries ({:.2f} MB freed)\n",
-               removed_count, removed_bytes / (1024.0 * 1024.0));
+    // Removed entries from cache (silent)
 }
 
 std::vector<CacheEntry> InlineCodeCache::sortByLRU() const {
@@ -370,7 +374,7 @@ void InlineCodeCache::loadMetadata() {
             }
         }
 
-        fmt::print("[CACHE] Loaded {} cached entries\n", entries_.size());
+        // Loaded cached entries (silent)
 
     } catch (const std::exception& e) {
         fmt::print("[ERROR] Failed to load cache metadata: {}\n", e.what());
@@ -396,7 +400,7 @@ void InlineCodeCache::saveMetadata() {
                  << last_access_epoch << "\n";
         }
 
-        fmt::print("[CACHE] Saved metadata for {} entries\n", entries_.size());
+        // Saved metadata (silent)
 
     } catch (const std::exception& e) {
         fmt::print("[ERROR] Failed to save cache metadata: {}\n", e.what());

@@ -4,6 +4,7 @@
 #include "naab/language_registry.h"
 #include "naab/rust_ffi.h"
 #include "naab/output_buffer.h"
+#include <atomic>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -100,6 +101,9 @@ private:
 
     // Phase 4.2.4: Rust error extraction
     void extractRustError();
+
+    // Thread-safe temp file counter for parallel execution
+    static std::atomic<int> temp_file_counter_;
 };
 
 } // namespace runtime
