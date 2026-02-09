@@ -147,7 +147,7 @@ public:
     }
 
     int buildIndex(const std::string& blocks_path) {
-        fmt::print("[INFO] Building search index from: {}\n", blocks_path);
+        // Building search index (silent)
 
         // Begin transaction for faster inserts
         sqlite3_exec(db_, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
@@ -178,7 +178,7 @@ public:
         // Commit transaction
         sqlite3_exec(db_, "COMMIT;", nullptr, nullptr, nullptr);
 
-        fmt::print("[INFO] Indexed {} blocks successfully\n", indexed_count);
+        // Indexed blocks (silent)
         return indexed_count;
     }
 

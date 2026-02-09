@@ -19,12 +19,11 @@ namespace runtime {
 
 CrossLanguageBridge::CrossLanguageBridge()
     : conversions_count_(0), failed_conversions_(0) {
-    fmt::print("[Bridge] Cross-language bridge initialized\n");
+    // Cross-language bridge initialized (silent)
 }
 
 CrossLanguageBridge::~CrossLanguageBridge() {
-    fmt::print("[Bridge] Conversions: {} total, {} failed\n",
-               conversions_count_, failed_conversions_);
+    // Conversions statistics (silent)
 }
 
 // ============================================================================

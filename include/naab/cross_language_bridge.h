@@ -91,6 +91,13 @@ public:
     // Check if value can be marshalled between languages
     bool isMarshallable(const std::shared_ptr<interpreter::Value>& val);
 
+#ifdef HAVE_PYBIND11
+    // Convert structs (Week 5 - Python marshalling) - PUBLIC for PythonExecutor
+    py::object structToPython(const std::shared_ptr<interpreter::StructValue>& s);
+    std::shared_ptr<interpreter::Value> pythonToStruct(
+        py::object obj, const std::string& expected_type_name);
+#endif
+
 private:
     // Internal helpers for complex types
 
@@ -106,11 +113,6 @@ private:
         const std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>& dict);
     std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> pythonToDict(
         const py::dict& obj);
-
-    // Convert structs (Week 5 - Python marshalling)
-    py::object structToPython(const std::shared_ptr<interpreter::StructValue>& s);
-    std::shared_ptr<interpreter::Value> pythonToStruct(
-        py::object obj, const std::string& expected_type_name);
 #endif
 
     // Statistics for debugging

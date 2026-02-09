@@ -1,5 +1,0 @@
-# Simple error test
-main {
-    let count = 10
-    print(cout)  # Typo: should be 'count'
-}

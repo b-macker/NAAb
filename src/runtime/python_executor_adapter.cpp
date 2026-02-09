@@ -3,18 +3,24 @@
 
 #include "naab/interpreter.h"  // Phase 2.3: MUST be first for Value definition
 #include "naab/python_executor_adapter.h"
+#include <pybind11/pybind11.h>
 #include <fmt/core.h>
+
+namespace py = pybind11;
 
 namespace naab {
 namespace runtime {
 
 PyExecutorAdapter::PyExecutorAdapter() {
-    fmt::print("[PY ADAPTER] Python executor adapter initialized\n");
+    // CRITICAL: Acquire GIL before creating PythonExecutor
+    // The global Python interpreter releases GIL for multi-threading,
+    // but PythonExecutor constructor requires the caller to hold the GIL
+    py::gil_scoped_acquire gil;
     executor_ = std::make_unique<PythonExecutor>();
 }
 
 bool PyExecutorAdapter::execute(const std::string& code) {
-    fmt::print("[PY ADAPTER] Executing Python code\n");
+    // Executing Python code (silent)
     try {
         executor_->execute(code);
         return true;
@@ -27,7 +33,7 @@ bool PyExecutorAdapter::execute(const std::string& code) {
 // Phase 2.3: Execute code and return result value
 std::shared_ptr<interpreter::Value> PyExecutorAdapter::executeWithReturn(
     const std::string& code) {
-    fmt::print("[PY ADAPTER] Executing Python code with return\n");
+    // Executing Python code with return (silent)
     try {
         return executor_->executeWithResult(code);
     } catch (const std::exception& e) {
@@ -40,7 +46,7 @@ std::shared_ptr<interpreter::Value> PyExecutorAdapter::callFunction(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
 
-    fmt::print("[PY ADAPTER] Calling function: {}\n", function_name);
+    // Calling function (silent)
     return executor_->callFunction(function_name, args);
 }
 

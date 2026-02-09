@@ -1,5 +1,0 @@
-# Test: Simple typo error
-main {
-    let username = "Alice"
-    print(usernam)  # Typo: should be 'username'
-}

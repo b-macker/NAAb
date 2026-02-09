@@ -47,7 +47,7 @@ CppExecutor::CppExecutor() {
     try {
         if (!fs::exists(cache_dir_)) {
             fs::create_directories(cache_dir_);
-            fmt::print("[INFO] Created C++ compilation cache: {}\n", cache_dir_);
+            // Created C++ compilation cache (silent)
         }
     } catch (const std::exception& e) {
         fmt::print("[ERROR] Failed to create cache directory: {}\n", e.what());
@@ -73,7 +73,6 @@ std::string CppExecutor::getLibraryPath(const std::string& block_id) const {
 // Helper to wrap code fragments in main() if needed
 std::string CppExecutor::wrapFragmentIfNeeded(const std::string& code) {
     // Heuristic: Check if code looks like a complete program
-    bool has_includes = code.find("#include") != std::string::npos;
     bool has_main = code.find("int main") != std::string::npos ||
                    code.find("void main") != std::string::npos;
 
@@ -83,12 +82,45 @@ std::string CppExecutor::wrapFragmentIfNeeded(const std::string& code) {
     }
 
     // Otherwise, wrap it in a main function
+    // But first, extract any #include directives to place at top level
+    std::ostringstream includes;
+    std::ostringstream code_without_includes;
+
+    std::istringstream code_stream(code);
+    std::string line;
+    while (std::getline(code_stream, line)) {
+        // Check if line contains #include directive
+        size_t include_pos = line.find("#include");
+        if (include_pos != std::string::npos) {
+            // This is an include directive - place at top level
+            includes << line << "\n";
+        } else if (!line.empty() || code_stream.peek() != EOF) {
+            // This is regular code - will go inside main
+            code_without_includes << line << "\n";
+        }
+    }
+
+    // Build final code with includes at top, code in main
     std::ostringstream wrapped;
 
-    // If no includes, the headers are already added by compileBlock
-    // Just wrap the code in main
+    // Add extracted includes first (at top level)
+    if (!includes.str().empty()) {
+        wrapped << includes.str();
+    }
+
+    // Wrap the non-include code in main
     wrapped << "int main() {\n";
-    wrapped << "    " << code << "\n";
+    std::string code_content = code_without_includes.str();
+    if (!code_content.empty()) {
+        // Add each line with proper indentation
+        std::istringstream content_stream(code_content);
+        std::string content_line;
+        while (std::getline(content_stream, content_line)) {
+            if (!content_line.empty()) {
+                wrapped << "    " << content_line << "\n";
+            }
+        }
+    }
     wrapped << "    return 0;\n";
     wrapped << "}\n";
 
@@ -101,10 +133,10 @@ bool CppExecutor::compileBlock(
     const std::string& entry_point,
     const std::vector<std::string>& dependencies) {
 
-    fmt::print("[C++] Compiling block: {}\n", block_id);
+    // Compiling block (silent)
 
     if (!dependencies.empty()) {
-        fmt::print("[INFO] Dependencies: ");
+        // Dependencies (silent)
         for (const auto& dep : dependencies) {
             fmt::print("{} ", dep);
         }
@@ -114,7 +146,7 @@ bool CppExecutor::compileBlock(
     // Check if already compiled and cached
     std::string so_path = getLibraryPath(block_id);
     if (fs::exists(so_path)) {
-        fmt::print("[INFO] Using cached compilation: {}\n", so_path);
+        // Using cached compilation (silent)
         return loadCompiledBlock(block_id);
     }
 
@@ -153,7 +185,7 @@ bool CppExecutor::compileBlock(
 
     source_file.close();
 
-    fmt::print("[INFO] Source written to: {}\n", source_path);
+    // Source written (silent)
 
     // Compile to shared library
     bool compiled = compileToSharedLibrary(source_path, so_path, dependencies);
@@ -170,7 +202,7 @@ bool CppExecutor::compileToSharedLibrary(
     const std::string& so_path,
     const std::vector<std::string>& dependencies) {
 
-    fmt::print("[C++] Compiling: {} -> {}\n", source_path, so_path);
+    // Compiling (silent)
 
     // Build compilation command
     // Use clang++ on Android/Termux, g++ elsewhere
@@ -203,7 +235,7 @@ bool CppExecutor::compileToSharedLibrary(
     cmd << "2>&1";  // Capture stderr
 
     std::string command = cmd.str();
-    fmt::print("[CMD] {}\n", command);
+    // Command (silent)
 
     // Check sandbox permissions for command execution
     auto* sandbox = security::ScopedSandbox::getCurrent();
@@ -255,7 +287,7 @@ bool CppExecutor::compileToSharedLibrary(
         return false;
     }
 
-    fmt::print("[SUCCESS] Compiled successfully: {}\n", so_path);
+    // Compiled successfully (silent)
 
     // Verify .so file exists
     if (!fs::exists(so_path)) {
@@ -307,7 +339,7 @@ bool CppExecutor::loadCompiledBlock(const std::string& block_id) {
         return false;
     }
 
-    fmt::print("[SUCCESS] Loaded C++ block library: {}\n", canonical_path);
+    // Loaded C++ block library (silent)
     security::AuditLogger::logBlockLoad(block_id, "");
 
     // Create CompiledBlock entry
@@ -367,7 +399,7 @@ std::shared_ptr<interpreter::Value> CppExecutor::executeBlock(
     // Call the function
     execute();
 
-    fmt::print("[SUCCESS] C++ block executed: {}\n", block_id);
+    // C++ block executed (silent)
 
     // For now, return success indicator
     // In production, would need proper return value handling

@@ -1,0 +1,34 @@
+# Test Issue #3: Module Path Resolution
+# Main script imports a module that reads files with relative paths
+
+import { readLocalData, checkFileExists } from "./lib/reader.naab"
+
+main {
+    print("Testing Issue #3: Module Path Resolution\n")
+    print("==========================================\n")
+
+    # Test 1: Module reading file relative to itself
+    print("Test 1: Module reads ./data.txt (relative to module location)")
+    let exists = checkFileExists()
+    print("  file.exists('./data.txt') from module: " + exists)
+
+    if (!exists) {
+        print("  ❌ FAILED: Module could not find data.txt in its own directory")
+        print("  This means paths are being resolved from working directory, not module directory")
+    } else {
+        print("  ✅ PASSED: Module found data.txt in its directory")
+
+        # Test 2: Actually read the file
+        print("\nTest 2: Read file content")
+        let content = readLocalData()
+        print("  Content: '" + content + "'")
+
+        if (content == "Hello from lib/data.txt!") {
+            print("  ✅ PASSED: Correct file was read")
+        } else {
+            print("  ❌ FAILED: Wrong file content")
+        }
+    }
+
+    print("\n✅ Issue #3 Module Path Resolution test complete!")
+}

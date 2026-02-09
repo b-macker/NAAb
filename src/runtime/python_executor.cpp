@@ -26,7 +26,7 @@ PYBIND11_EMBEDDED_MODULE(naab_internal, m) {
 namespace naab {
 namespace runtime {
 
-PythonExecutor::PythonExecutor(bool redirect_output) : timeout_seconds_(30) {
+PythonExecutor::PythonExecutor(bool redirect_output) {
     // NOTE: Caller must hold GIL before creating PythonExecutor
     // In async contexts, the callback already acquired GIL
     // In sync contexts, acquire GIL before calling this constructor

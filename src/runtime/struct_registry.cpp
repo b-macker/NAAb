@@ -43,9 +43,7 @@ void StructRegistry::registerStruct(std::shared_ptr<interpreter::StructDef> def)
         }
 
         if (same_definition) {
-            // Same struct definition - safe to ignore (normal for module reuse)
-            fmt::print("[STRUCT] Struct '{}' already registered, skipping duplicate (same definition)\n",
-                      def->name);
+            // Same struct definition - safe to ignore (normal for module reuse, silent)
         } else {
             // Different struct definitions with same name - warn user but allow it
             // (First definition wins, this is for backward compatibility)
@@ -60,8 +58,7 @@ void StructRegistry::registerStruct(std::shared_ptr<interpreter::StructDef> def)
 
     // First time registration
     structs_[def->name] = def;
-    fmt::print("[STRUCT] Registered new struct: '{}' with {} field(s)\n",
-              def->name, def->fields.size());
+    // Registered new struct (silent)
 }
 
 std::shared_ptr<interpreter::StructDef> StructRegistry::getStruct(

@@ -139,8 +139,7 @@ bool CppBlockLoader::loadBlock(const std::string& block_id, const std::string& s
         }
     }
 
-    fmt::print("[INFO] Loaded C++ block: {} v{} ({} functions)\n",
-               handle->block_id, handle->version, handle->functions.size());
+    // Loaded C++ block (silent)
 
     blocks_[block_id] = std::move(handle);
     return true;
@@ -209,14 +208,14 @@ std::shared_ptr<interpreter::Value> CppBlockLoader::callBlockFunction(
 void CppBlockLoader::unloadBlock(const std::string& block_id) {
     auto it = blocks_.find(block_id);
     if (it != blocks_.end()) {
-        fmt::print("[INFO] Unloading C++ block: {}\n", block_id);
+        // Unloading C++ block (silent)
         blocks_.erase(it);
     }
 }
 
 void CppBlockLoader::unloadAll() {
     if (!blocks_.empty()) {
-        fmt::print("[INFO] Unloading {} C++ blocks\n", blocks_.size());
+        // Unloading C++ blocks (silent)
         blocks_.clear();
     }
 }

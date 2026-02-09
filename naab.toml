@@ -1,0 +1,41 @@
+[package]
+name = "my-naab-project"
+version = "0.1.0"
+authors = ["Your Name <you@example.com>"]
+description = "My NAAb project"
+
+[dependencies]
+# Future: External NAAb packages
+# http = "1.0"
+# json = "2.1"
+
+[build]
+# Build configuration
+target = "debug"  # or "release"
+optimize = false
+
+[polyglot]
+# Which language runtimes to enable
+python = true
+javascript = true
+rust = true
+cpp = true
+csharp = true
+shell = true
+ruby = true
+go = true
+
+[python]
+# Python-specific config
+version = "3.7+"
+packages = []
+
+[javascript]
+# JavaScript-specific config
+runtime = "quickjs"  # or "node"
+packages = []
+
+[features]
+# Feature flags
+async_blocks = false
+sandbox_mode = true

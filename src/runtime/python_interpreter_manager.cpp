@@ -14,19 +14,17 @@ bool PythonInterpreterManager::initialized_ = false;
 
 PythonInterpreterManager::PythonInterpreterManager()
 {
-    fmt::print("[Python] Initializing global Python interpreter...\n");
+    // Initialize global Python interpreter (silent)
     interpreter_ = std::make_unique<py::scoped_interpreter>();
 
     // CRITICAL: Release the GIL so other threads can acquire it
     // py::scoped_interpreter acquires GIL on creation and holds it
     // Use py::gil_scoped_release to properly release it for worker threads
     gil_release_ = std::make_unique<py::gil_scoped_release>();
-
-    fmt::print("[Python] Global interpreter initialized and GIL released for multi-threading\n");
 }
 
 PythonInterpreterManager::~PythonInterpreterManager() {
-    fmt::print("[Python] Shutting down global Python interpreter\n");
+    // Shutting down global Python interpreter (silent)
 
     // Re-acquire GIL before destroying the interpreter
     // Destroy gil_release_ which re-acquires the GIL
@@ -40,7 +38,7 @@ void PythonInterpreterManager::initialize() {
     std::lock_guard<std::mutex> lock(init_mutex_);
 
     if (initialized_) {
-        fmt::print("[Python] Interpreter already initialized (no-op)\n");
+        // Interpreter already initialized (silent)
         return;
     }
 

@@ -18,7 +18,7 @@ namespace naab {
 namespace runtime {
 
 ShellExecutor::ShellExecutor() {
-    fmt::print("[Shell] Shell executor initialized\n");
+    // Shell executor initialized (silent)
 }
 
 ShellExecutor::~ShellExecutor() {
@@ -32,7 +32,7 @@ bool ShellExecutor::execute(const std::string& code) {
 std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
     const std::string& code) {
 
-    fmt::print("[Shell] Executing with return: \'{}\'\n", code);
+    // Executing with return (silent)
 
     std::string stdout_output;
     std::string stderr_output;
@@ -84,7 +84,7 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
     }
 
     if (exit_code != 0) {
-        fmt::print("[Shell] Command failed with exit code {}\n", exit_code);
+        // Command failed (silent - error will be in stderr)
     }
 
     // Trim trailing newlines from outputs
@@ -155,7 +155,7 @@ bool ShellExecutor::runCommand(const std::string& command) {
         throw std::runtime_error("Shell execution denied by sandbox");
     }
 
-    fmt::print("[Shell] Executing: \'{}\'\n", command);
+    // Executing command (silent)
 
     std::string stdout_buffer_local;
     std::string stderr_buffer_local;
@@ -192,7 +192,7 @@ bool ShellExecutor::runCommand(const std::string& command) {
     bool success = (exit_code == 0);
     
     if (success) {
-        fmt::print("[SUCCESS] Shell command executed (exit code {}\n)", exit_code);
+        // Shell command executed (silent)
     } else {
         fmt::print("[ERROR] Shell command failed with code {} (captured stderr: \'{}\')\n", exit_code, stderr_buffer_local);
     }

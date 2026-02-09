@@ -179,6 +179,9 @@ private:
     // Type annotation parsing
     std::shared_ptr<Type> parseTypeAnnotation(const std::string& annotation);
 
+    // AST type conversion (Phase 1)
+    std::shared_ptr<Type> convertAstType(const ast::Type& ast_type);
+
     // Environment management
     void pushScope();
     void popScope();

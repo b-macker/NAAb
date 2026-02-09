@@ -1,5 +1,0 @@
-# Direct variable access error
-main {
-    let count = 10
-    let x = cout  # Direct assignment with typo
-}

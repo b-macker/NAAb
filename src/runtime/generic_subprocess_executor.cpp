@@ -53,8 +53,7 @@ GenericSubprocessExecutor::GenericSubprocessExecutor(
     : language_id_(std::move(language_id)),
       command_template_(std::move(command_template)),
       file_extension_(std::move(file_extension)) {
-    fmt::print("[GenericSubprocessExecutor] Initialized for language \'{}\' with template \'{}\'\n",
-               language_id_, command_template_);
+    // GenericSubprocessExecutor initialized (silent)
 }
 
 GenericSubprocessExecutor::~GenericSubprocessExecutor() {
@@ -335,7 +334,7 @@ bool naab::runtime::GenericSubprocessExecutor::runCommand(const std::string& com
     bool success = (exit_code == 0);
 
     if (success) {
-        fmt::print("[SUCCESS] GenericSubprocessExecutor-{} command executed (exit code {})\n", language_id_, exit_code);
+        // Command executed (silent)
     } else {
         fmt::print("[ERROR] GenericSubprocessExecutor-{} command failed with code {} (captured stderr: \'{}\')\n", language_id_, exit_code, stderr_buffer_local);
     }

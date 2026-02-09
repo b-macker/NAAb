@@ -72,6 +72,10 @@ public:
     // Get all captured output and clear buffers
     std::string getCapturedOutput();
 
+    // Timeout configuration
+    void setTimeout(int seconds) { timeout_seconds_ = seconds; }
+    int getTimeout() const { return timeout_seconds_; }
+
 private:
     // NOTE: Interpreter is now managed globally by PythonInterpreterManager
     // No more py::scoped_interpreter guard_ here!
@@ -83,6 +87,8 @@ private:
     // Optional redirectors - only used when redirect_output=true
     std::unique_ptr<py::object> stdout_redirector_; // Python-side stdout redirector instance
     std::unique_ptr<py::object> stderr_redirector_; // Python-side stderr redirector instance
+
+    int timeout_seconds_ = 30;  // Timeout for Python execution (default: 30)
 
     // Type conversion helpers
     py::object valueToPython(const std::shared_ptr<interpreter::Value>& val);

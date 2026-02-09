@@ -143,8 +143,13 @@ void TypeChecker::visit(ast::FunctionDecl& node) {
         );
     }
 
-    // TODO: Build proper function type from parameters
-    auto func_type = Type::makeFunction({}, Type::makeAny());
+    // Phase 2: Build proper function type from parameters
+    std::vector<std::shared_ptr<Type>> param_types;
+    for (const auto& param : node.getParams()) {
+        param_types.push_back(convertAstType(param.type));
+    }
+    auto return_type = convertAstType(node.getReturnType());
+    auto func_type = Type::makeFunction(param_types, return_type);
 
     // Add function to environment
     env_->define(node.getName(), func_type);
@@ -153,7 +158,7 @@ void TypeChecker::visit(ast::FunctionDecl& node) {
     semantic::Symbol func_symbol(
         node.getName(),
         semantic::SymbolKind::Function,
-        "function",  // TODO: Better function type representation
+        func_type->toString(),  // Phase 2: Use actual function type
         semantic::SourceLocation(current_filename_, loc.line, loc.column)
     );
     symbol_table_.define(node.getName(), std::move(func_symbol));
@@ -164,21 +169,22 @@ void TypeChecker::visit(ast::FunctionDecl& node) {
 
     // Add parameters to new scope
     for (const auto& param : node.getParams()) {
-        // TODO: Convert ast::Type to typecheck::Type properly
-        env_->define(param.name, Type::makeAny());
+        // Phase 2: Convert ast::Type to typecheck::Type properly
+        auto param_type = convertAstType(param.type);
+        env_->define(param.name, param_type);
 
         // Add parameter to symbol table
         semantic::Symbol param_symbol(
             param.name,
             semantic::SymbolKind::Parameter,
-            "any",  // TODO: Get actual parameter type
+            param_type->toString(),  // Phase 2: Get actual parameter type
             semantic::SourceLocation(current_filename_, loc.line, loc.column)
         );
         symbol_table_.define(param.name, std::move(param_symbol));
     }
 
     // Set current function return type for return statement checking
-    current_function_return_type_ = Type::makeAny();  // TODO: Use actual return type
+    current_function_return_type_ = return_type;  // Phase 2: Use actual return type
 
     // Type check function body
     if (node.getBody()) {
@@ -253,15 +259,23 @@ void TypeChecker::visit(ast::IfStmt& node) {
 void TypeChecker::visit(ast::ForStmt& node) {
     auto loc = node.getLocation();
     if (node.getIter()) { node.getIter()->accept(*this); }
+
+    // Phase 3: Infer loop variable type from iterable
+    auto iterable_type = current_type_;
+    std::shared_ptr<Type> loop_var_type = Type::makeAny();
+    if (iterable_type && iterable_type->kind == TypeKind::List && iterable_type->element_type) {
+        loop_var_type = iterable_type->element_type;
+    }
+
     pushScope();
     symbol_table_.push_scope();
-    env_->define(node.getVar(), Type::makeAny());
+    env_->define(node.getVar(), loop_var_type);
 
     // Add loop variable to symbol table
     semantic::Symbol loop_var_symbol(
         node.getVar(),
         semantic::SymbolKind::Variable,
-        "any",  // TODO: Infer from iterable element type
+        loop_var_type->toString(),  // Phase 3: Use inferred type
         semantic::SourceLocation(current_filename_, loc.line, loc.column)
     );
     symbol_table_.define(node.getVar(), std::move(loop_var_symbol));
@@ -369,10 +383,12 @@ void TypeChecker::visit(ast::TryStmt& node) {
         env_->define(cc->error_name, Type::makeAny());
 
         // Add exception variable to symbol table
+        // Phase 6: Track exception type (currently always Any since catch clauses
+        // don't have type annotations - would need syntax like "catch(e: Error)")
         semantic::Symbol exc_var_symbol(
             cc->error_name,
             semantic::SymbolKind::Variable,
-            "any",  // TODO: Exception type
+            "any",  // Exception type - always Any without type annotations
             semantic::SourceLocation(current_filename_, loc.line, loc.column)
         );
         symbol_table_.define(cc->error_name, std::move(exc_var_symbol));
@@ -444,6 +460,9 @@ void TypeChecker::visit(ast::BinaryExpr& node) {
             loc.line, loc.column
         );
     }
+
+    // Phase 4: Cache type in AST node
+    node.setCachedType(current_type_);
 }
 void TypeChecker::visit(ast::UnaryExpr& node) {
     node.getOperand()->accept(*this);
@@ -467,6 +486,9 @@ void TypeChecker::visit(ast::UnaryExpr& node) {
             loc.line, loc.column
         );
     }
+
+    // Phase 4: Cache type in AST node
+    node.setCachedType(current_type_);
 }
 void TypeChecker::visit(ast::CallExpr& node) {
     // Step 1: Infer callee type
@@ -485,25 +507,67 @@ void TypeChecker::visit(ast::CallExpr& node) {
         return;
     }
 
-    // Step 3: Check argument types (basic validation)
+    // Step 3: Check argument types and validate signature (Phase 7)
     std::vector<std::shared_ptr<Type>> arg_types;
     for (const auto& arg : node.getArgs()) {
         arg->accept(*this);
         arg_types.push_back(current_type_);
     }
 
-    // TODO: Match against function signature when available
-    // For now, assume function calls return Any
-    current_type_ = Type::makeAny();
+    // Phase 7: Match against function signature when available
+    if (callee_type->kind == TypeKind::Function) {
+        // Check argument count
+        size_t expected_count = callee_type->param_types.size();
+        size_t actual_count = arg_types.size();
+
+        if (actual_count != expected_count) {
+            reportError(
+                fmt::format("Function expects {} argument{}, got {}",
+                           expected_count, expected_count == 1 ? "" : "s", actual_count),
+                loc.line, loc.column
+            );
+        }
+
+        // Check argument types
+        size_t min_count = std::min(actual_count, expected_count);
+        for (size_t i = 0; i < min_count; ++i) {
+            auto param_type = callee_type->param_types[i];
+            auto arg_type = arg_types[i];
+
+            if (!checkTypeCompatibility(param_type, arg_type, "function argument", loc.line, loc.column)) {
+                reportError(
+                    fmt::format("Argument {} type mismatch: expected {}, got {}",
+                               i + 1, param_type->toString(), arg_type->toString()),
+                    loc.line, loc.column
+                );
+            }
+        }
+
+        // Return function's return type
+        current_type_ = callee_type->return_type;
+    } else {
+        // For Any type or unknown functions, return Any
+        current_type_ = Type::makeAny();
+    }
+
+    // Phase 4: Cache type in AST node
+    node.setCachedType(current_type_);
 }
 void TypeChecker::visit(ast::MemberExpr& node) {
     // Type check the object
     node.getObject()->accept(*this);
     auto object_type = current_type_;
 
-    // TODO: Implement proper member type lookup when we have struct/class types
+    // Phase 5: Member type lookup (deferred - requires struct/class type system)
+    // Would need to look up field type from struct definition:
+    // if (object_type->kind == TypeKind::Struct) {
+    //     current_type_ = lookupStructField(object_type->struct_name, member_name);
+    // }
     // For now, assume member access returns Any
     current_type_ = Type::makeAny();
+
+    // Phase 4: Cache type in AST node
+    node.setCachedType(current_type_);
 }
 void TypeChecker::visit(ast::IdentifierExpr& node) {
     // Look up variable in type environment
@@ -516,10 +580,13 @@ void TypeChecker::visit(ast::IdentifierExpr& node) {
             loc.line, loc.column
         );
         current_type_ = Type::makeUnknown();
+        node.setCachedType(current_type_);  // Phase 4
         return;
     }
 
     current_type_ = type;
+    // Phase 4: Cache type in AST node
+    node.setCachedType(current_type_);
 }
 void TypeChecker::visit(ast::LiteralExpr& node) {
     switch (node.getLiteralKind()) {
@@ -541,6 +608,9 @@ void TypeChecker::visit(ast::LiteralExpr& node) {
         default:
             current_type_ = Type::makeUnknown();
     }
+
+    // Phase 4: Cache type in AST node
+    node.setCachedType(current_type_);
 }
 void TypeChecker::visit(ast::DictExpr& node) {
     if (node.getEntries().empty()) {
@@ -582,10 +652,13 @@ void TypeChecker::visit(ast::DictExpr& node) {
     }
 
     current_type_ = Type::makeDict(key_type, value_type);
+    // Phase 4: Cache type in AST node
+    node.setCachedType(current_type_);
 }
 void TypeChecker::visit(ast::ListExpr& node) {
     if (node.getElements().empty()) {
         current_type_ = Type::makeList(Type::makeAny());
+        node.setCachedType(current_type_);  // Phase 4
         return;
     }
 
@@ -608,6 +681,8 @@ void TypeChecker::visit(ast::ListExpr& node) {
     }
 
     current_type_ = Type::makeList(element_type);
+    // Phase 4: Cache type in AST node
+    node.setCachedType(current_type_);
 }
 
 // Helper methods
@@ -634,7 +709,12 @@ std::shared_ptr<Type> TypeChecker::inferBinaryOpType(
 
         // List concatenation: list + list = list
         if (op == "+" && left->kind == TypeKind::List && right->kind == TypeKind::List) {
-            return Type::makeList(Type::makeAny());  // TODO: Track element types
+            // Phase 3: Preserve element type if both lists have same element type
+            if (left->element_type && right->element_type &&
+                left->element_type->isCompatibleWith(*right->element_type)) {
+                return Type::makeList(left->element_type);
+            }
+            return Type::makeList(Type::makeAny());
         }
 
         return Type::makeUnknown();
@@ -663,11 +743,17 @@ std::shared_ptr<Type> TypeChecker::inferBinaryOpType(
     // Subscript operator: list[int] or dict[key]
     if (op == "[]") {
         if (left->kind == TypeKind::List) {
-            // TODO: Return actual element type
+            // Phase 3: Return actual element type
+            if (left->element_type) {
+                return left->element_type;
+            }
             return Type::makeAny();
         }
         if (left->kind == TypeKind::Dict) {
-            // TODO: Return actual value type
+            // Phase 3: Return actual value type
+            if (left->value_type) {
+                return left->value_type;
+            }
             return Type::makeAny();
         }
         if (left->kind == TypeKind::String) {
@@ -676,9 +762,22 @@ std::shared_ptr<Type> TypeChecker::inferBinaryOpType(
         return Type::makeUnknown();
     }
 
-    // Pipeline operator: a |> b
+    // Pipeline operator: a |> b (Phase 5)
     if (op == "|>") {
-        // TODO: Implement proper pipeline type checking
+        // The left side is piped as the first argument to the right side (function)
+        if (right->kind == TypeKind::Function) {
+            // Validate that left type is compatible with first parameter
+            if (!right->param_types.empty()) {
+                auto first_param = right->param_types[0];
+                if (!checkTypeCompatibility(first_param, left, "pipeline argument", line, column)) {
+                    // Type mismatch warning (don't fail, just report)
+                    // Pipeline is flexible and runtime will handle conversion if needed
+                }
+            }
+            // Return the function's return type
+            return right->return_type ? right->return_type : Type::makeAny();
+        }
+        // If right side is not a function, return Any (error reported elsewhere)
         return Type::makeAny();
     }
 
@@ -761,6 +860,44 @@ std::shared_ptr<Type> TypeChecker::parseTypeAnnotation(const std::string& annota
     // TODO: Parse list<T>, dict<K,V>, function types
     // For now, treat unknown types as Any
     return Type::makeAny();
+}
+
+// Helper to convert AST types to TypeChecker types (Phase 1)
+std::shared_ptr<Type> TypeChecker::convertAstType(const ast::Type& ast_type) {
+    switch (ast_type.kind) {
+        case ast::TypeKind::Void:
+            return Type::makeVoid();
+        case ast::TypeKind::Int:
+            return Type::makeInt();
+        case ast::TypeKind::Float:
+            return Type::makeFloat();
+        case ast::TypeKind::String:
+            return Type::makeString();
+        case ast::TypeKind::Bool:
+            return Type::makeBool();
+        case ast::TypeKind::List:
+            if (ast_type.element_type) {
+                return Type::makeList(convertAstType(*ast_type.element_type));
+            }
+            return Type::makeList(Type::makeAny());
+        case ast::TypeKind::Dict:
+            if (ast_type.key_value_types) {
+                return Type::makeDict(
+                    convertAstType(ast_type.key_value_types->first),
+                    convertAstType(ast_type.key_value_types->second)
+                );
+            }
+            return Type::makeDict(Type::makeAny(), Type::makeAny());
+        case ast::TypeKind::Function:
+            // Function types in ast::Type don't store signature details
+            // Signature comes from FunctionDecl's getParams() and getReturnType()
+            return Type::makeFunction({}, Type::makeAny());
+        case ast::TypeKind::Block:
+            return Type::makeBlock();
+        case ast::TypeKind::Any:
+        default:
+            return Type::makeAny();
+    }
 }
 
 } // namespace typecheck

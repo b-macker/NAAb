@@ -1,0 +1,18 @@
+use io
+use array
+use json // Added missing import
+
+main {
+    let numbers = [1, 2, 3, 4, 5]
+    io.write("Original: " + json.stringify(numbers) + "\n")
+
+    let popped_value = array.pop(numbers)
+    io.write("Popped value: " + json.stringify(popped_value) + "\n")
+    io.write("After pop: " + json.stringify(numbers) + "\n")
+
+    // Test on empty array
+    let empty_array = []
+    let popped_empty = array.pop(empty_array)
+    io.write("Popped from empty: " + json.stringify(popped_empty) + "\n")
+    io.write("Empty after pop: " + json.stringify(empty_array) + "\n")
+}

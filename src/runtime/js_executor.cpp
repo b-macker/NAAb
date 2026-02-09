@@ -49,7 +49,7 @@ JsExecutor::JsExecutor() : rt_(nullptr), ctx_(nullptr), timeout_triggered_(false
     // Initialize standard library
     js_std_add_helpers(ctx_, 0, nullptr);
 
-    fmt::print("[JS] JavaScript runtime initialized with timeout support\n");
+    // JavaScript runtime initialized with timeout support (silent)
 }
 
 JsExecutor::~JsExecutor() {
@@ -61,7 +61,7 @@ JsExecutor::~JsExecutor() {
         JS_FreeRuntime(rt_);
         rt_ = nullptr;
     }
-    fmt::print("[JS] JavaScript runtime shut down\n");
+    // JavaScript runtime shut down (silent)
 }
 
 bool JsExecutor::execute(const std::string& code) {
@@ -121,7 +121,7 @@ bool JsExecutor::execute(const std::string& code) {
     }
 
     JS_FreeValue(ctx_, result);
-    fmt::print("[SUCCESS] JavaScript code executed\n");
+    // JavaScript code executed (silent)
     return true;
 }
 

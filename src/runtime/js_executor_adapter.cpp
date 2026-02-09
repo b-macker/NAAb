@@ -9,18 +9,18 @@ namespace naab {
 namespace runtime {
 
 JsExecutorAdapter::JsExecutorAdapter() {
-    fmt::print("[JS ADAPTER] JavaScript executor adapter initialized\n");
+    // JavaScript executor adapter initialized (silent)
 }
 
 bool JsExecutorAdapter::execute(const std::string& code) {
-    fmt::print("[JS ADAPTER] Executing JavaScript code\n");
+    // Executing JavaScript code (silent)
     return executor_.execute(code);
 }
 
 // Phase 2.3: Execute code and return result value
 std::shared_ptr<interpreter::Value> JsExecutorAdapter::executeWithReturn(
     const std::string& code) {
-    fmt::print("[JS ADAPTER] Executing JavaScript code with return\n");
+    // Executing JavaScript code with return (silent)
     try {
         return executor_.evaluate(code);
     } catch (const std::exception& e) {
@@ -33,7 +33,7 @@ std::shared_ptr<interpreter::Value> JsExecutorAdapter::callFunction(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
 
-    fmt::print("[JS ADAPTER] Calling function: {}\n", function_name);
+    // Calling function (silent)
     return executor_.callFunction(function_name, args);
 }
 

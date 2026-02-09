@@ -21,20 +21,20 @@ BlockRegistry& BlockRegistry::instance() {
 
 void BlockRegistry::initialize(const std::string& blocks_path) {
     if (initialized_) {
-        fmt::print("[WARNING] BlockRegistry already initialized\n");
+        // BlockRegistry already initialized (silent)
         return;
     }
 
     blocks_path_ = blocks_path;
     blocks_.clear();
 
-    fmt::print("[INFO] Initializing BlockRegistry from: {}\n", blocks_path_);
+    // Initializing BlockRegistry (silent)
 
     // Scan the blocks directory
     scanDirectory(blocks_path_);
 
     initialized_ = true;
-    fmt::print("[INFO] BlockRegistry initialized: {} blocks found\n", blocks_.size());
+    // BlockRegistry initialized (silent)
 }
 
 std::optional<BlockMetadata> BlockRegistry::getBlock(const std::string& block_id) const {
@@ -150,7 +150,7 @@ void BlockRegistry::scanDirectory(const std::string& base_path) {
                 language = "cpp";
             }
 
-            fmt::print("[INFO] Scanning language directory: {} ({})\n", entry_name, language);
+            // Scanning language directory (silent)
             scanLanguageDirectory(full_path, language);
         }
     }
@@ -306,7 +306,7 @@ void BlockRegistry::scanLanguageDirectory(const std::string& lang_dir, const std
     }
 
     closedir(dir);
-    fmt::print("[INFO]   Found {} {} blocks\n", blocks_found, language);
+    // Found blocks (silent)
 }
 
 std::string BlockRegistry::extractBlockId(const std::string& filename) const {

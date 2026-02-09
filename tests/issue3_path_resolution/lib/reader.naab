@@ -1,0 +1,14 @@
+# Module that reads a file relative to its own location
+# Issue #3: This should resolve ./data.txt from lib/ directory, not working directory
+
+export fn readLocalData() -> string {
+    # This path is relative to THIS file (lib/reader.naab)
+    # Should resolve to lib/data.txt
+    let content = file.read("./data.txt")
+    return content
+}
+
+export fn checkFileExists() -> bool {
+    # Also test file.exists() with relative path
+    return file.exists("./data.txt")
+}

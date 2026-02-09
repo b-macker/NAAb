@@ -626,9 +626,21 @@ private:
 class Expr : public ASTNode {
 public:
     explicit Expr(NodeKind kind, SourceLocation loc = SourceLocation())
-        : ASTNode(kind, loc) {}
+        : ASTNode(kind, loc), cached_type_(nullptr) {}
 
     virtual Type getType() const = 0;
+
+    // Type caching for static analysis (Phase 4)
+    void setCachedType(std::shared_ptr<void> type) const {
+        cached_type_ = type;
+    }
+
+    std::shared_ptr<void> getCachedType() const {
+        return cached_type_;
+    }
+
+private:
+    mutable std::shared_ptr<void> cached_type_;  // Type from TypeChecker (typecheck::Type)
 };
 
 // Binary operators: +, -, *, /, ==, !=, <, >, etc.

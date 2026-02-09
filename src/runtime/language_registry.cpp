@@ -13,7 +13,7 @@ namespace runtime {
 LanguageRegistry* LanguageRegistry::instance_ = nullptr;
 
 LanguageRegistry::LanguageRegistry() {
-    fmt::print("[REGISTRY] Language registry initialized\n");
+    // Language registry initialized (silent)
 }
 
 void LanguageRegistry::registerExecutor(const std::string& language,
@@ -26,7 +26,6 @@ void LanguageRegistry::registerExecutor(const std::string& language,
         fmt::print("[WARN] Overwriting existing executor for language: {}\n", language);
     }
 
-    fmt::print("[REGISTRY] Registered executor for language: {}\n", language);
     executors_[language] = std::move(executor);
 }
 
@@ -60,10 +59,7 @@ std::vector<std::string> LanguageRegistry::supportedLanguages() const {
 void LanguageRegistry::unregisterExecutor(const std::string& language) {
     auto it = executors_.find(language);
     if (it != executors_.end()) {
-        fmt::print("[REGISTRY] Unregistered executor for language: {}\n", language);
         executors_.erase(it);
-    } else {
-        fmt::print("[WARN] Attempted to unregister non-existent language: {}\n", language);
     }
 }
 

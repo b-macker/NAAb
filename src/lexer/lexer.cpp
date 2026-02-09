@@ -364,8 +364,9 @@ std::vector<Token> Lexer::tokenize() {
                 advance();  // Skip ]
             }
 
-            // Skip whitespace/newlines after language name (or var list)
-            while (currentChar() && (*currentChar() == ' ' || *currentChar() == '\t' || *currentChar() == '\n' || *currentChar() == '\r')) {
+            // Skip only newlines after language name (or var list)
+            // Don't skip spaces/tabs - they're part of the code's indentation
+            while (currentChar() && (*currentChar() == '\n' || *currentChar() == '\r')) {
                 if (*currentChar() == '\n') {
                     line_++;
                     column_ = 1;

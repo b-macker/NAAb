@@ -1,0 +1,13 @@
+use io
+use string
+
+main {
+    let num_int = 42
+    let num_float = 3.14
+
+    let str_int = string.from_int(num_int)
+    let str_float = string.from_float(num_float) // Assuming from_float exists
+
+    io.write("Int to string: " + str_int + "\n")
+    io.write("Float to string: " + str_float + "\n")
+}

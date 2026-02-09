@@ -44,26 +44,19 @@ void initialize_executors() {
 
     // Register Python executor
     #ifdef HAVE_PYBIND11
-    LOG_DEBUG("[INIT] HAVE_PYBIND11 is defined, registering Python executor\n");
     // Initialize Python interpreter before creating executor
     naab::runtime::PythonInterpreterManager::initialize();
     registry.registerExecutor("python",
         std::make_unique<naab::runtime::PyExecutorAdapter>());
-    #else
-    LOG_DEBUG("[INIT] HAVE_PYBIND11 is NOT defined, Python executor disabled\n");
     #endif
 
     // Register Rust executor (Phase 3.1-3.3)
     #ifdef HAVE_RUST
-    LOG_DEBUG("[INIT] HAVE_RUST is defined, registering Rust executor\n");
     registry.registerExecutor("rust",
         std::make_unique<naab::runtime::RustExecutor>());
-    #else
-    LOG_DEBUG("[INIT] HAVE_RUST is NOT defined, Rust executor disabled\n");
     #endif
 
     // Polyglot Phase 7: Register shell executor
-    LOG_DEBUG("[INIT] Registering Shell executor\n");
     registry.registerExecutor("shell",
         std::make_unique<naab::runtime::ShellExecutor>());
     registry.registerExecutor("sh",
@@ -72,17 +65,14 @@ void initialize_executors() {
         std::make_unique<naab::runtime::ShellExecutor>());
 
     // Polyglot Phase 7: Register Ruby executor (via GenericSubprocessExecutor)
-    LOG_DEBUG("[INIT] Registering Ruby executor\n");
     registry.registerExecutor("ruby",
         std::make_unique<naab::runtime::GenericSubprocessExecutor>("ruby", "ruby {}", ".rb"));
 
     // Polyglot Phase 7: Register Go executor (via GenericSubprocessExecutor)
-    LOG_DEBUG("[INIT] Registering Go executor\n");
     registry.registerExecutor("go",
         std::make_unique<naab::runtime::GenericSubprocessExecutor>("go", "go run {}", ".go"));
 
     // Polyglot Phase 11: Register C# executor
-    LOG_DEBUG("[INIT] Registering C# executor\n");
     registry.registerExecutor("csharp", std::make_unique<naab::runtime::CSharpExecutor>());
     registry.registerExecutor("cs", std::make_unique<naab::runtime::CSharpExecutor>());
 }
