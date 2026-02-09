@@ -25,10 +25,10 @@ main {
 
     // --- Phase 1: Environment Prep (Bash) ---
     io.write("1. [Bash] Preparing environment...\n")
-    let prep_result = <<sh
-    rm -rf output/*
-    mkdir -p output
-    echo "Environment Cleaned"
+    let prep_result = <<bash
+rm -rf output/*
+mkdir -p output
+echo "Environment Cleaned"
     >>
     io.write("   ", prep_result.stdout, "\n")
 

@@ -3,13 +3,13 @@ use io
 use json
 
 export fn format_report(revenue: float) -> string {
-    io.write("💎 [Ruby] Formatting report...\n")
-    
-    // Ruby block - using puts to ensure stdout capture
-    let report_text = <<ruby[revenue]
-    puts "Financial Report: Total Revenue is $#{revenue}"
+    io.write("💎 [Python] Formatting report...\n")
+
+    // Python block for report formatting
+    let report_text = <<python[revenue]
+f"Financial Report: Total Revenue is ${revenue}"
     >>
-    
+
     return report_text
 }
 

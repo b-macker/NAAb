@@ -22,7 +22,7 @@ struct Employee {
 }
 
 fn structExample() {
-    let employee = Employee {
+    let employee = new Employee {
         name: "Bob",
         age: 25,
         role: "Designer"
@@ -58,7 +58,7 @@ import statistics
 statistics.mean(data)
     >>
 
-    io.write("Mean: " + toString(mean))
+    io.write("Mean: ", mean)
 }
 
 // Example 6: Using 'use' for imports (not 'import')
@@ -75,7 +75,7 @@ fn demonstrateTypoDetection() {
 
     // If you accidentally type 'config' instead of 'configuration',
     // the error message will suggest: "Did you mean 'configuration'?"
-    io.write("Config: " + toString(configuration["timeout"]))
+    io.write("Config: ", configuration["timeout"])
 }
 
 // Dummy function
@@ -103,7 +103,7 @@ main {
 
     io.write("\n✅ Safe null handling")
     let result = safeNullHandling(42)
-    io.write("Result: " + toString(result))
+    io.write("Result: ", result)
 
     io.write("\n✅ Correct polyglot block syntax")
     correctPolyglotBlock()

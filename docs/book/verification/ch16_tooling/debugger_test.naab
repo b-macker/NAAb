@@ -56,20 +56,20 @@ main {
     // Test 1: Fibonacci with loop
     io.write("\nTest 1: Fibonacci")
     let fib_result = fibonacci(10)
-    io.write("Fibonacci(10) = " + toString(fib_result))
+    io.write("Fibonacci(10) = ", fib_result)
 
     // Test 2: Factorial with recursion
     io.write("\nTest 2: Factorial")
     let fact_result = factorial(5)
-    io.write("Factorial(5) = " + toString(fact_result))
+    io.write("Factorial(5) = ", fact_result)
 
     // Test 3: Data processing
     io.write("\nTest 3: Data Processing")
     let numbers = [10, 20, 30, 40, 50]
     let stats = processData(numbers)
-    io.write("Sum: " + toString(stats["sum"]))
-    io.write("Count: " + toString(stats["count"]))
-    io.write("Average: " + toString(stats["average"]))
+    io.write("Sum: ", stats["sum"])
+    io.write("Count: ", stats["count"])
+    io.write("Average: ", stats["average"])
 
     io.write("\nDebugger test complete!")
 }

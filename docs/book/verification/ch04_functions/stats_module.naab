@@ -12,12 +12,13 @@ sum(numbers) / len(numbers)
 // Exported function with multi-line Python polyglot
 export fn calculate_stats(data: list<float>) -> dict<string, float> {
     let stats = <<python[data]
-{
-    "mean": sum(data) / len(data),
-    "min": min(data),
-    "max": max(data),
-    "count": len(data)
-}
+    result = {
+        "mean": sum(data) / len(data),
+        "min": min(data),
+        "max": max(data),
+        "count": len(data)
+    }
+    result
     >>
     return stats
 }
