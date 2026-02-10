@@ -1,0 +1,27 @@
+// Minimal quick test for JavaScript arrays
+
+main {
+    print("Test 1: Empty array")
+    let empty = <<javascript
+[]
+    >>
+    print("  Type:", type(empty))
+    print("  Length:", array.length(empty))
+
+    print("Test 2: Single element")
+    let single = <<javascript
+[42]
+    >>
+    print("  Type:", type(single))
+    print("  Element:", single[0])
+
+    print("Test 3: Object")
+    let obj = <<javascript
+({name: "Alice", age: 30})
+    >>
+    print("  Type:", type(obj))
+    print("  Name:", obj["name"])
+    print("  Age:", obj["age"])
+
+    print("Done!")
+}

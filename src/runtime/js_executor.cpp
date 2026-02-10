@@ -267,20 +267,34 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
 
     // Check if code contains newlines (multi-statement)
     if (code.find('\n') != std::string::npos) {
-        // Multi-line code: wrap in IIFE and use eval() to get last expression value
-        // JavaScript's eval() returns the value of the last expression statement
+        // Multi-line code: wrap in IIFE to get last expression value
+        // For a simple expression like [42], just wrap it in an IIFE
+        // For multiple statements, wrap in IIFE and use eval to get last value
 
-        // Escape backticks and backslashes for template literal
-        std::string escaped_code = code;
-        std::string result_str;
-        for (char c : escaped_code) {
-            if (c == '`') result_str += "\\`";
-            else if (c == '\\') result_str += "\\\\";
-            else if (c == '$') result_str += "\\$";
-            else result_str += c;
+        // Check if code is a simple expression (no semicolons, no 'let'/'const'/'var'/'function')
+        bool is_simple_expr = (code.find(';') == std::string::npos &&
+                               code.find("let ") == std::string::npos &&
+                               code.find("const ") == std::string::npos &&
+                               code.find("var ") == std::string::npos &&
+                               code.find("function ") == std::string::npos);
+
+        std::string wrapped;
+        if (is_simple_expr) {
+            // Simple expression: wrap directly in IIFE without eval
+            wrapped = "(function() { return (" + code + "); })()";
+        } else {
+            // Complex code with statements: use eval approach
+            // Escape backticks and backslashes for template literal
+            std::string escaped_code = code;
+            std::string result_str;
+            for (char c : escaped_code) {
+                if (c == '`') result_str += "\\`";
+                else if (c == '\\') result_str += "\\\\";
+                else if (c == '$') result_str += "\\$";
+                else result_str += c;
+            }
+            wrapped = "(function() { return eval(`" + result_str + "`); })()";
         }
-
-        std::string wrapped = "(function() { return eval(`" + result_str + "`); })()";
 
         JSValue result = JS_Eval(ctx_, wrapped.c_str(), wrapped.length(),
                                   "<eval>", JS_EVAL_TYPE_GLOBAL);
@@ -342,6 +356,24 @@ static JSValue toJSValue(JSContext* ctx, const std::shared_ptr<interpreter::Valu
         return JS_NewString(ctx, str.c_str());
     } else if (std::holds_alternative<std::monostate>(val->data)) {
         return JS_NULL;
+    } else if (std::holds_alternative<std::vector<std::shared_ptr<interpreter::Value>>>(val->data)) {
+        // Array
+        const auto& vec = std::get<std::vector<std::shared_ptr<interpreter::Value>>>(val->data);
+        JSValue arr = JS_NewArray(ctx);
+        for (size_t i = 0; i < vec.size(); i++) {
+            JSValue elem = toJSValue(ctx, vec[i]);
+            JS_SetPropertyUint32(ctx, arr, static_cast<uint32_t>(i), elem);
+        }
+        return arr;
+    } else if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(val->data)) {
+        // Dictionary/Object
+        const auto& map = std::get<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(val->data);
+        JSValue obj = JS_NewObject(ctx);
+        for (const auto& [key, value] : map) {
+            JSValue prop_val = toJSValue(ctx, value);
+            JS_SetPropertyStr(ctx, obj, key.c_str(), prop_val);
+        }
+        return obj;
     } else {
         // Unsupported type - return undefined
         fmt::print("[WARN] Unsupported type for JavaScript conversion\n");
@@ -384,6 +416,58 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
             JS_FreeCString(ctx, str);
             return result;
         }
+    }
+
+    // Array
+    if (JS_IsArray(ctx, val)) {
+        // Get array length
+        JSValue length_val = JS_GetPropertyStr(ctx, val, "length");
+        uint32_t length = 0;
+        if (JS_IsNumber(length_val)) {
+            JS_ToUint32(ctx, &length, length_val);
+        }
+        JS_FreeValue(ctx, length_val);
+
+        // Convert each element recursively
+        std::vector<std::shared_ptr<interpreter::Value>> naab_array;
+        for (uint32_t i = 0; i < length; i++) {
+            JSValue elem = JS_GetPropertyUint32(ctx, val, i);
+            naab_array.push_back(fromJSValue(ctx, elem));
+            JS_FreeValue(ctx, elem);
+        }
+
+        return std::make_shared<interpreter::Value>(naab_array);
+    }
+
+    // Object (but not array)
+    if (JS_IsObject(val)) {
+        std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> naab_dict;
+
+        // Get property names
+        JSPropertyEnum* props = nullptr;
+        uint32_t prop_count = 0;
+        if (JS_GetOwnPropertyNames(ctx, &props, &prop_count, val,
+                                   JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == 0) {
+            // Iterate through properties
+            for (uint32_t i = 0; i < prop_count; i++) {
+                JSAtom atom = props[i].atom;
+                const char* key = JS_AtomToCString(ctx, atom);
+                if (key) {
+                    JSValue prop_val = JS_GetProperty(ctx, val, atom);
+                    naab_dict[std::string(key)] = fromJSValue(ctx, prop_val);
+                    JS_FreeValue(ctx, prop_val);
+                    JS_FreeCString(ctx, key);
+                }
+            }
+
+            // Free property array
+            for (uint32_t i = 0; i < prop_count; i++) {
+                JS_FreeAtom(ctx, props[i].atom);
+            }
+            js_free(ctx, props);
+        }
+
+        return std::make_shared<interpreter::Value>(naab_dict);
     }
 
     // Unsupported type

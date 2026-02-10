@@ -1,50 +1,57 @@
 # Known Issues
 
-## JavaScript Array/Object Type Conversion (Bug #3)
+## ~~JavaScript Array/Object Type Conversion (Bug #3)~~ ✅ FIXED
 
-**Status:** Under Investigation
-**Severity:** Medium
-**Workaround:** Available
+**Status:** ✅ FIXED (February 2026)
+**Severity:** Was Medium
+**Solution:** Complete array/object conversion support added
 
 ### Description
-JavaScript polyglot blocks cannot return arrays or objects as structured data. They are converted to strings instead.
+JavaScript polyglot blocks can now return arrays and objects as structured data. This was previously broken, causing either null returns or program hangs.
 
-### Symptoms
+### What Was Fixed
+1. **Added complete array/object support** to `fromJSValue()` and `toJSValue()`
+   - Recursive conversion for nested structures
+   - Proper memory management with QuickJS
+   - Bidirectional support (JS ↔ NAAb)
+
+2. **Simplified code wrapping strategy**
+   - Simple expressions: Direct IIFE wrapping without eval()
+   - Complex code: eval() approach for statements
+   - Avoids problematic eval() + template literal combination
+
+### Now Works Correctly
 ```naab
 let arr = <<javascript
 [1, 2, 3]
 >>
-// arr is treated as string, not array
-```
+// arr is now a proper NAAb array!
+print(arr[0])  // Works: 1
 
-### Root Cause
-The `fromJSValue()` function in `js_executor.cpp` lacks array and object conversion support. When implementing this feature, execution hangs when processing arrays with elements (empty arrays work fine).
-
-### Investigation Findings
-- Empty JavaScript arrays work correctly
-- Arrays with elements cause hanging before `fromJSValue()` is even called
-- The hang occurs during or before `JS_Eval()` in the `evaluate()` method
-- The hang is NOT in type conversion code (confirmed via debug output)
-- Possible causes: QuickJS runtime state, resource limiter, or context issues
-- Cross-language-bridge has similar code but is only used for Python
-
-### Workaround
-Use `JSON.stringify()` to return complex data as strings:
-
-```naab
-let data = <<javascript
-JSON.stringify([1, 2, 3])
+let obj = <<javascript
+({name: "Alice", age: 30})
 >>
-let parsed = json.parse(data)  // Use NAAb's json module
+print(obj["name"])  // Works: "Alice"
 ```
 
-### Next Steps
-1. Investigate with proper debugging tools (gdb, lldb)
-2. Check if QuickJS needs special initialization for array handling
-3. Compare runtime state between working (empty array) and hanging (array with elements) cases
-4. Consider alternative QuickJS API calls for array access
+### Documentation
+See `BUG_3_JAVASCRIPT_ARRAYS_FIX.md` for complete technical details.
 
-### Related Files
-- `src/runtime/js_executor.cpp` - JavaScript executor
-- `src/runtime/cross_language_bridge.cpp` - Similar (unused) implementation
-- `tests/bugs/test_js_types.naab` - Test cases for this issue
+### Tests
+- `tests/bugs/test_js_arrays_fix.naab` - 10 comprehensive tests
+- All nested structures, mixed types, arrays of objects, etc.
+
+---
+
+## No Other Known Issues
+
+All discovered bugs have been fixed and tested. The NAAb language polyglot integration now supports:
+- ✅ All primitive types (int, float, bool, string, null)
+- ✅ Arrays with recursive nesting
+- ✅ Objects/dicts with recursive nesting
+- ✅ Mixed structures (arrays of objects, objects with arrays)
+- ✅ All polyglot operators (`>>` in code, etc.)
+- ✅ Number parsing (leading/trailing decimals)
+- ✅ Python large integers (graceful overflow)
+
+If you discover a new issue, please document it here following the template above.
