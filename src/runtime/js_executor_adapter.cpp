@@ -4,6 +4,7 @@
 #include "naab/interpreter.h"  // Phase 2.3: MUST be first for Value definition
 #include "naab/js_executor_adapter.h"
 #include <fmt/core.h>
+#include <iostream>
 
 namespace naab {
 namespace runtime {
@@ -26,10 +27,14 @@ bool JsExecutorAdapter::execute(const std::string& code, JsExecutionMode mode) {
 std::shared_ptr<interpreter::Value> JsExecutorAdapter::executeWithReturn(
     const std::string& code) {
     // Executing JavaScript code with return (silent)
+    std::cerr << "[DEBUG ADAPTER] executeWithReturn called with code length: " << code.length() << std::endl;
     try {
-        return executor_.evaluate(code);
+        std::cerr << "[DEBUG ADAPTER] About to call evaluate()" << std::endl;
+        auto result = executor_.evaluate(code);
+        std::cerr << "[DEBUG ADAPTER] evaluate() returned" << std::endl;
+        return result;
     } catch (const std::exception& e) {
-        fmt::print("[JS ADAPTER ERROR] {}\n", e.what());
+        std::cerr << "[JS ADAPTER ERROR] " << e.what() << std::endl;
         return std::make_shared<interpreter::Value>();  // Return null on error
     }
 }

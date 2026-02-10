@@ -1,0 +1,149 @@
+// Simplified JavaScript array/object type conversion test (Bug #3)
+
+main {
+    print("=== JavaScript Array/Object Type Conversion Tests ===")
+    print()
+
+    let passed = 0
+    let total = 10
+
+    // Test 1: Empty array
+    print("Test 1: Empty array")
+    let empty_arr = <<javascript
+[]
+    >>
+    if type(empty_arr) == "array" and array.length(empty_arr) == 0 {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    // Test 2: Single element array
+    print("Test 2: Single element array")
+    let single_arr = <<javascript
+[42]
+    >>
+    if type(single_arr) == "array" and single_arr[0] == 42 {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    // Test 3: Multiple elements
+    print("Test 3: Multiple elements array")
+    let multi_arr = <<javascript
+[1, 2, 3, 4, 5]
+    >>
+    if type(multi_arr) == "array" and multi_arr[0] == 1 and multi_arr[4] == 5 {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    // Test 4: Mixed types
+    print("Test 4: Mixed types array")
+    let mixed_arr = <<javascript
+[42, "hello", 3.14, true, null]
+    >>
+    if type(mixed_arr) == "array" and mixed_arr[0] == 42 and mixed_arr[1] == "hello" {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    // Test 5: Nested array
+    print("Test 5: Nested array")
+    let nested_arr = <<javascript
+[[1, 2], [3, 4], [5, 6]]
+    >>
+    if type(nested_arr) == "array" and nested_arr[0][1] == 2 and nested_arr[2][0] == 5 {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    // Test 6: Empty object
+    print("Test 6: Empty object")
+    let empty_obj = <<javascript
+({})
+    >>
+    if type(empty_obj) == "dict" {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    // Test 7: Object with properties
+    print("Test 7: Object with properties")
+    let obj = <<javascript
+({name: "Alice", age: 30, active: true})
+    >>
+    if type(obj) == "dict" and obj["name"] == "Alice" and obj["age"] == 30 {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    // Test 8: Nested object
+    print("Test 8: Nested object")
+    let nested_obj = <<javascript
+({
+    user: {name: "Bob", age: 25},
+    scores: [95, 87, 92]
+})
+    >>
+    if type(nested_obj) == "dict" and nested_obj["user"]["name"] == "Bob" and nested_obj["scores"][1] == 87 {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    // Test 9: Array of objects
+    print("Test 9: Array of objects")
+    let arr_of_objs = <<javascript
+[{id: 1, name: "Item 1"}, {id: 2, name: "Item 2"}]
+    >>
+    if type(arr_of_objs) == "array" and arr_of_objs[0]["id"] == 1 and arr_of_objs[1]["name"] == "Item 2" {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    // Test 10: Object with arrays
+    print("Test 10: Object with array properties")
+    let obj_with_arrays = <<javascript
+({
+    numbers: [1, 2, 3],
+    strings: ["a", "b", "c"]
+})
+    >>
+    if type(obj_with_arrays) == "dict" and obj_with_arrays["numbers"][0] == 1 and obj_with_arrays["strings"][0] == "a" {
+        print("  ✓ PASS")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL")
+    }
+
+    print()
+    print("=" * 50)
+    print("Total:", total)
+    print("Passed:", passed)
+    print("Failed:", total - passed)
+
+    if passed == total {
+        print()
+        print("✓ ALL TESTS PASSED! Bug #3 is FIXED!")
+    } else {
+        print()
+        print("✗ Some tests failed")
+    }
+}

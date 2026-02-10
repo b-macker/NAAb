@@ -5,6 +5,7 @@
 #include "naab/limits.h"  // Week 1, Task 1.2: Input size caps
 #include <cctype>
 #include <stdexcept>
+#include <iostream>
 
 namespace naab {
 namespace lexer {
@@ -261,16 +262,26 @@ std::string Lexer::readInlineCode() {
     //   x = 8 >> 1  # Right shift (>> not at line start)
     //   >>          # Closes block (>> at line start)
     //
+
+    std::cerr << "[LEXER] readInlineCode() START\n" << std::flush;
+
     size_t start = pos_;
     bool at_line_start = true;  // We start right after the newline following language name
+    size_t loop_count = 0;
 
     while (currentChar()) {
         char ch = *currentChar();
+
+        loop_count++;
+        if (loop_count % 100 == 0) {
+            std::cerr << "[LEXER] Loop iteration " << loop_count << ", ch='" << ch << "'\n" << std::flush;
+        }
 
         // Check if we're at line start and found closing >>
         if (at_line_start && ch == '>' && peekChar() && *peekChar() == '>') {
             // Found the closing >> at line start
             std::string code = source_.substr(start, pos_ - start);
+            std::cerr << "[LEXER] Found >>, returning code (length=" << code.length() << ")\n" << std::flush;
             return code;
         }
 

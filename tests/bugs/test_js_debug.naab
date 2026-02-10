@@ -1,0 +1,29 @@
+// Debug JavaScript array conversion - try different approaches
+
+main {
+    print("Test 1 - Return primitive from JS (should work)")
+    let num = <<javascript
+42
+    >>
+    print("Got:", num, "Type:", type(num))
+
+    print("\nTest 2 - Try to return array length instead of array")
+    let arr_len = <<javascript
+[42, 100, 200].length
+    >>
+    print("Array length:", arr_len)
+
+    print("\nTest 3 - Return first element of array")
+    let first = <<javascript
+[42, 100, 200][0]
+    >>
+    print("First element:", first)
+
+    print("\nTest 4 - Return JSON string of array")
+    let json_arr = <<javascript
+JSON.stringify([42, 100])
+    >>
+    print("JSON array:", json_arr, "Type:", type(json_arr))
+
+    print("\nAll workarounds completed!")
+}

@@ -1,0 +1,217 @@
+// Comprehensive test for JavaScript array/object type conversion fix (Bug #3)
+
+main {
+    print("=== JavaScript Array/Object Type Conversion Tests ===")
+    print()
+
+    let total = 0
+    let passed = 0
+
+    // Test 1: Empty array
+    print("Test 1: Empty array")
+    total = total + 1
+    let empty_arr = <<javascript
+[]
+    >>
+    if type(empty_arr) == "array" {
+        if array.length(empty_arr) == 0 {
+            print("  ✓ PASS - Empty array works")
+            passed = passed + 1
+        } else {
+            print("  ✗ FAIL - Length should be 0, got:", array.length(empty_arr))
+        }
+    } else {
+        print("  ✗ FAIL - Type should be array, got:", type(empty_arr))
+    }
+
+    // Test 2: Single element array
+    print("Test 2: Single element array")
+    total = total + 1
+    let single_arr = <<javascript
+[42]
+    >>
+    if type(single_arr) == "array" {
+        if array.length(single_arr) == 1 {
+            if single_arr[0] == 42 {
+                print("  ✓ PASS - Single element array works")
+                passed = passed + 1
+            } else {
+                print("  ✗ FAIL - Element should be 42, got:", single_arr[0])
+            }
+        } else {
+            print("  ✗ FAIL - Length should be 1, got:", array.length(single_arr))
+        }
+    } else {
+        print("  ✗ FAIL - Type should be array, got:", type(single_arr))
+    }
+
+    // Test 3: Multiple elements
+    print("Test 3: Multiple elements array")
+    total = total + 1
+    let multi_arr = <<javascript
+[1, 2, 3, 4, 5]
+    >>
+    let test3_pass = false
+    if type(multi_arr) == "array" {
+        if array.length(multi_arr) == 5 {
+            if multi_arr[0] == 1 {
+                if multi_arr[4] == 5 {
+                    test3_pass = true
+                }
+            }
+        }
+    }
+    if test3_pass {
+        print("  ✓ PASS - Multiple elements array works")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL - Multiple elements test failed")
+    }
+
+    // Test 4: Mixed types array
+    print("Test 4: Mixed types array")
+    total = total + 1
+    let mixed_arr = <<javascript
+[42, "hello", 3.14, true, null]
+    >>
+    if type(mixed_arr) == "array" {
+        if array.length(mixed_arr) == 5 {
+            if mixed_arr[0] == 42 and mixed_arr[1] == "hello" {
+                print("  ✓ PASS - Mixed types array works")
+                passed = passed + 1
+            } else {
+                print("  ✗ FAIL - Elements incorrect")
+            }
+        } else {
+            print("  ✗ FAIL - Length should be 5, got:", array.length(mixed_arr))
+        }
+    } else {
+        print("  ✗ FAIL - Type should be array, got:", type(mixed_arr))
+    }
+
+    // Test 5: Nested array
+    print("Test 5: Nested array")
+    total = total + 1
+    let nested_arr = <<javascript
+[[1, 2], [3, 4], [5, 6]]
+    >>
+    if type(nested_arr) == "array" {
+        if array.length(nested_arr) == 3 {
+            if nested_arr[0][1] == 2 and nested_arr[2][0] == 5 {
+                print("  ✓ PASS - Nested array works")
+                passed = passed + 1
+            } else {
+                print("  ✗ FAIL - Nested elements incorrect")
+            }
+        } else {
+            print("  ✗ FAIL - Length should be 3, got:", array.length(nested_arr))
+        }
+    } else {
+        print("  ✗ FAIL - Type should be array, got:", type(nested_arr))
+    }
+
+    // Test 6: Empty object
+    print("Test 6: Empty object")
+    total = total + 1
+    let empty_obj = <<javascript
+({})
+    >>
+    if type(empty_obj) == "dict" {
+        print("  ✓ PASS - Empty object works")
+        passed = passed + 1
+    } else {
+        print("  ✗ FAIL - Type should be dict, got:", type(empty_obj))
+    }
+
+    // Test 7: Object with properties
+    print("Test 7: Object with properties")
+    total = total + 1
+    let obj = <<javascript
+({name: "Alice", age: 30, active: true})
+    >>
+    if type(obj) == "dict" {
+        if obj["name"] == "Alice" and obj["age"] == 30 and obj["active"] == true {
+            print("  ✓ PASS - Object with properties works")
+            passed = passed + 1
+        } else {
+            print("  ✗ FAIL - Properties incorrect")
+        }
+    } else {
+        print("  ✗ FAIL - Type should be dict, got:", type(obj))
+    }
+
+    // Test 8: Nested object
+    print("Test 8: Nested object")
+    total = total + 1
+    let nested_obj = <<javascript
+({
+    user: {name: "Bob", age: 25},
+    scores: [95, 87, 92]
+})
+    >>
+    if type(nested_obj) == "dict" {
+        if nested_obj["user"]["name"] == "Bob" and nested_obj["scores"][1] == 87 {
+            print("  ✓ PASS - Nested object works")
+            passed = passed + 1
+        } else {
+            print("  ✗ FAIL - Nested properties incorrect")
+        }
+    } else {
+        print("  ✗ FAIL - Type should be dict, got:", type(nested_obj))
+    }
+
+    // Test 9: Array of objects
+    print("Test 9: Array of objects")
+    total = total + 1
+    let arr_of_objs = <<javascript
+[{id: 1, name: "Item 1"}, {id: 2, name: "Item 2"}]
+    >>
+    if type(arr_of_objs) == "array" {
+        if array.length(arr_of_objs) == 2 {
+            if arr_of_objs[0]["id"] == 1 and arr_of_objs[1]["name"] == "Item 2" {
+                print("  ✓ PASS - Array of objects works")
+                passed = passed + 1
+            } else {
+                print("  ✗ FAIL - Object properties incorrect")
+            }
+        } else {
+            print("  ✗ FAIL - Length should be 2, got:", array.length(arr_of_objs))
+        }
+    } else {
+        print("  ✗ FAIL - Type should be array, got:", type(arr_of_objs))
+    }
+
+    // Test 10: Object with array properties
+    print("Test 10: Object with array properties")
+    total = total + 1
+    let obj_with_arrays = <<javascript
+({
+    numbers: [1, 2, 3],
+    strings: ["a", "b", "c"]
+})
+    >>
+    if type(obj_with_arrays) == "dict" {
+        if array.length(obj_with_arrays["numbers"]) == 3 and obj_with_arrays["strings"][0] == "a" {
+            print("  ✓ PASS - Object with array properties works")
+            passed = passed + 1
+        } else {
+            print("  ✗ FAIL - Array properties incorrect")
+        }
+    } else {
+        print("  ✗ FAIL - Type should be dict, got:", type(obj_with_arrays))
+    }
+
+    print()
+    print("=" * 50)
+    print("Total:", total)
+    print("Passed:", passed)
+    print("Failed:", total - passed)
+
+    if passed == total {
+        print()
+        print("✓ ALL TESTS PASSED! Bug #3 is FIXED!")
+    } else {
+        print()
+        print("✗ Some tests failed")
+    }
+}

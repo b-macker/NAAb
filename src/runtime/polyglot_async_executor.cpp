@@ -12,6 +12,8 @@
 #include "naab/generic_subprocess_executor.h"
 #include "naab/audit_logger.h"
 #include <fmt/format.h>
+#include <fstream>
+#include <iostream>
 #include <mutex>
 #include <memory>
 #include <future>
@@ -151,21 +153,33 @@ std::future<ffi::AsyncCallbackResult> JavaScriptAsyncExecutor::executeAsync(
     const std::vector<interpreter::Value>& args,
     std::chrono::milliseconds timeout
 ) {
+    std::cerr << "[JS_ASYNC] executeAsync START, code_len=" << code.length() << "\n" << std::flush;
     auto callback = makeJavaScriptCallback(code, args);
+    std::cerr << "[JS_ASYNC] Callback created\n" << std::flush;
 
     // Keep wrapper alive on heap
+    std::cerr << "[JS_ASYNC] Creating AsyncCallbackWrapper...\n" << std::flush;
     auto wrapper = std::make_shared<ffi::AsyncCallbackWrapper>(
         std::move(callback),
         "javascript_async",
         timeout
     );
+    std::cerr << "[JS_ASYNC] Wrapper created\n" << std::flush;
 
+    std::cerr << "[JS_ASYNC] Calling wrapper->executeAsync()...\n" << std::flush;
     auto future = wrapper->executeAsync();
+    std::cerr << "[JS_ASYNC] wrapper->executeAsync() returned\n" << std::flush;
 
-    // Wrap to extend wrapper's lifetime - use async launch to actually run in parallel
-    return std::async(std::launch::async, [wrapper, future = std::move(future)]() mutable {
-        return future.get();
-    });
+    // WORKAROUND: Return inner future directly to avoid double-async thread exhaustion
+    // The wrapper lifetime is extended by capturing it in a shared_ptr that we'll move to the future
+    // We use a wrapper to ensure the AsyncCallbackWrapper stays alive until the future completes
+    std::cerr << "[JS_ASYNC] Returning future (no outer async wrapper)\n" << std::flush;
+
+    // Store wrapper in a static to keep it alive (HACK - better solution needed)
+    static std::vector<std::shared_ptr<ffi::AsyncCallbackWrapper>> alive_wrappers;
+    alive_wrappers.push_back(wrapper);
+
+    return future;
 }
 
 ffi::AsyncCallbackResult JavaScriptAsyncExecutor::executeBlocking(
@@ -188,23 +202,49 @@ ffi::AsyncCallbackWrapper::CallbackFunc JavaScriptAsyncExecutor::makeJavaScriptC
     const std::string& code,
     const std::vector<interpreter::Value>& args
 ) {
+    std::cerr << "[MAKE_CALLBACK] Creating callback for code: " << code << "\n" << std::flush;
     // Capture code and args by value
     return [code, args]() -> interpreter::Value {
+        std::cerr << "[JS_CALLBACK] *** CALLBACK INVOKED *** code_len=" << code.length() << "\n" << std::flush;
+        std::cerr << "[JS_CALLBACK] Code: " << code << "\n" << std::flush;
+        std::ofstream debug_file("/tmp/naab_async_debug.txt", std::ios::app);
+        debug_file << "=== JS ASYNC CALLBACK START ===" << std::endl;
+        debug_file << "Code length: " << code.length() << std::endl;
+        debug_file << "Code: " << (code.length() > 100 ? code.substr(0, 100) : code) << std::endl;
+        debug_file.close();
+        std::cerr << "[JS_CALLBACK] Debug file written\n" << std::flush;
+
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
             fmt::format("Executing JavaScript code asynchronously ({} bytes)", code.size())
         );
 
         try {
+            std::ofstream debug_file2("/tmp/naab_async_debug.txt", std::ios::app);
+            debug_file2 << "Creating JsExecutor..." << std::endl;
+            debug_file2.close();
+
             // Create fresh executor (no state to preserve between calls)
             auto executor = std::make_unique<runtime::JsExecutor>();
+
+            std::ofstream debug_file3("/tmp/naab_async_debug.txt", std::ios::app);
+            debug_file3 << "Checking if initialized..." << std::endl;
+            debug_file3.close();
 
             if (!executor->isInitialized()) {
                 throw std::runtime_error("JavaScript executor failed to initialize");
             }
 
+            std::ofstream debug_file4("/tmp/naab_async_debug.txt", std::ios::app);
+            debug_file4 << "About to call evaluate()..." << std::endl;
+            debug_file4.close();
+
             // Execute JavaScript code
             auto result_ptr = executor->evaluate(code);
+
+            std::ofstream debug_file5("/tmp/naab_async_debug.txt", std::ios::app);
+            debug_file5 << "evaluate() returned!" << std::endl;
+            debug_file5.close();
 
             if (!result_ptr) {
                 throw std::runtime_error("JavaScript execution returned null result");
@@ -710,25 +750,33 @@ std::vector<ffi::AsyncCallbackResult> PolyglotAsyncExecutor::executeParallel(
     const std::vector<std::tuple<Language, std::string, std::vector<interpreter::Value>>>& blocks,
     std::chrono::milliseconds timeout
 ) {
+    std::cerr << "[ASYNC] executeParallel START, blocks=" << blocks.size() << "\n" << std::flush;
     security::AuditLogger::log(
         security::AuditEvent::BLOCK_EXECUTE,
         fmt::format("Executing {} polyglot blocks in parallel", blocks.size())
     );
 
     // Launch all blocks asynchronously
+    std::cerr << "[ASYNC] Launching async tasks...\n" << std::flush;
     std::vector<std::future<ffi::AsyncCallbackResult>> futures;
     futures.reserve(blocks.size());
 
-    for (const auto& [language, code, args] : blocks) {
+    for (size_t i = 0; i < blocks.size(); ++i) {
+        const auto& [language, code, args] = blocks[i];
+        std::cerr << "[ASYNC] Launching block " << i << ", language=" << languageToString(language) << ", code_len=" << code.length() << "\n" << std::flush;
         futures.push_back(executeAsync(language, code, args, timeout));
+        std::cerr << "[ASYNC] Block " << i << " future created\n" << std::flush;
     }
 
     // Collect results
+    std::cerr << "[ASYNC] Collecting results from " << futures.size() << " futures...\n" << std::flush;
     std::vector<ffi::AsyncCallbackResult> results;
     results.reserve(futures.size());
 
-    for (auto& future : futures) {
-        results.push_back(future.get());
+    for (size_t i = 0; i < futures.size(); ++i) {
+        std::cerr << "[ASYNC] Waiting for future " << i << "...\n" << std::flush;
+        results.push_back(futures[i].get());
+        std::cerr << "[ASYNC] Future " << i << " completed\n" << std::flush;
     }
 
     security::AuditLogger::log(

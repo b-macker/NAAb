@@ -1,0 +1,19 @@
+// Test improved error messages
+// These should fail with helpful error messages
+
+main {
+    print("This file contains intentional errors to test error messages")
+    print("Comment out different sections to test each error:")
+
+    // Test 1: Missing language name in polyglot block
+    // Uncomment to test:
+    // let x = <<
+    // 42
+    // >>
+
+    // Test 2: Unexpected character
+    // Uncomment to test (if you can type a special char):
+    // let y = @@@
+
+    print("To test error messages, uncomment one section at a time")
+}

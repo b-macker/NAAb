@@ -21,6 +21,7 @@
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <string>
 #include <type_traits>
 #include <stdexcept>
@@ -1547,6 +1548,7 @@ void Interpreter::visit(ast::CompoundStmt& node) {
     auto groups = analyzer.analyze(stmt_ptrs);
 
     // Debug: Print group information
+    std::cerr << "[COMPOUND] Analyzed groups, found: " << groups.size() << " groups\n" << std::flush;
     if (!groups.empty() && verbose_mode_) {
         fmt::print("[PARALLEL] Found {} polyglot group(s)\n", groups.size());
         for (size_t g = 0; g < groups.size(); ++g) {
@@ -1555,12 +1557,14 @@ void Interpreter::visit(ast::CompoundStmt& node) {
     }
 
     if (groups.empty()) {
+        std::cerr << "[COMPOUND] No groups, executing sequentially\n" << std::flush;
         // No polyglot blocks - execute statements normally (sequential)
         for (auto& stmt : statements) {
             stmt->accept(*this);
             if (returning_ || breaking_ || continuing_) break;
         }
     } else {
+        std::cerr << "[COMPOUND] Has groups, executing with parallelization\n" << std::flush;
         // Polyglot blocks detected - execute in groups
         // Build a map from statement index to group index
         std::unordered_map<size_t, size_t> stmt_to_group;
@@ -1598,7 +1602,9 @@ void Interpreter::visit(ast::CompoundStmt& node) {
                     }
 
                     // THEN: Execute the polyglot group
+                    std::cerr << "[COMPOUND] Executing group " << group_idx << " with " << groups[group_idx].parallel_blocks.size() << " blocks\n" << std::flush;
                     executePolyglotGroupParallel(groups[group_idx]);
+                    std::cerr << "[COMPOUND] Group " << group_idx << " completed\n" << std::flush;
                     executed_groups.insert(group_idx);
 
                     // Update last_executed to skip all blocks in this group
@@ -4278,6 +4284,11 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
 void Interpreter::visit(ast::InlineCodeExpr& node) {
     std::string language = node.getLanguage();
     std::string raw_code = node.getCode();
+
+    // DIAGNOSTIC: Force output to prove this function is called
+    fmt::print(stderr, "\n\n***** VISIT INLINE CODE: lang={}, code_len={} *****\n\n", language, raw_code.length());
+    fflush(stderr);
+
     const auto& bound_vars = node.getBoundVariables();  // Phase 2.2
 
     // Get the executor early (needed for object-based variable passing)
@@ -4365,14 +4376,21 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     explain("Executing inline " + language + " code" +
             (bound_vars.empty() ? "" : " with " + std::to_string(bound_vars.size()) + " bound variables"));
 
+    std::cerr << "[DEBUG PRE-SANDBOX] About to initialize sandbox for " << language << std::endl;
+
     // Enterprise Security: Activate sandbox for polyglot execution
     auto& sandbox_manager = security::SandboxManager::instance();
     security::SandboxConfig sandbox_config = sandbox_manager.getDefaultConfig();
+
+    std::cerr << "[DEBUG PRE-SANDBOX] About to create ScopedSandbox" << std::endl;
     security::ScopedSandbox scoped_sandbox(sandbox_config);
+    std::cerr << "[DEBUG POST-SANDBOX] ScopedSandbox created" << std::endl;
 
     // Phase 2.3: Execute the code and capture return value
     try {
+        std::cerr << "[DEBUG INTERPRETER] About to call executeWithReturn, code length: " << final_code.length() << std::endl;
         result_ = executor->executeWithReturn(final_code);
+        std::cerr << "[DEBUG INTERPRETER] executeWithReturn returned" << std::endl;
 
         // Flush stdout from executor
         flushExecutorOutput(executor);
@@ -4507,41 +4525,64 @@ void Interpreter::VariableSnapshot::capture(
 
 // Parallel polyglot execution: Execute a group of polyglot blocks in parallel
 void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
+    std::cerr << "[PARALLEL] executePolyglotGroupParallel START, blocks=" << group.parallel_blocks.size() << "\n" << std::flush;
+
     if (group.parallel_blocks.empty()) {
+        std::cerr << "[PARALLEL] Empty group, returning\n" << std::flush;
         return;  // Nothing to execute
     }
 
+    std::cerr << "[PARALLEL] Getting sandbox manager...\n" << std::flush;
     // Enterprise Security: Activate sandbox for parallel polyglot execution
     auto& sandbox_manager = security::SandboxManager::instance();
+
+    std::cerr << "[PARALLEL] Getting default config...\n" << std::flush;
     security::SandboxConfig sandbox_config = sandbox_manager.getDefaultConfig();
+
+    std::cerr << "[PARALLEL] Creating scoped sandbox...\n" << std::flush;
     security::ScopedSandbox scoped_sandbox(sandbox_config);
+
+    std::cerr << "[PARALLEL] Sandbox created!\n" << std::flush;
 
     // Always use parallel execution, even for single blocks
     // This avoids Python segfault in sequential path and ensures consistency
     // Step 1: Capture variable snapshots for each block (thread-safe deep copy)
+    std::cerr << "[PARALLEL] About to capture snapshots for " << group.parallel_blocks.size() << " blocks\n" << std::flush;
     std::vector<VariableSnapshot> snapshots;
     for (size_t block_idx = 0; block_idx < group.parallel_blocks.size(); ++block_idx) {
+        std::cerr << "[PARALLEL] Capturing snapshot for block " << block_idx << "\n" << std::flush;
         const auto& block = group.parallel_blocks[block_idx];
 
+        std::cerr << "[PARALLEL] Block " << block_idx << " has " << block.read_vars.size() << " read_vars\n" << std::flush;
         VariableSnapshot snapshot;
+        std::cerr << "[PARALLEL] Calling snapshot.capture()...\n" << std::flush;
         snapshot.capture(current_env_.get(), block.read_vars, this);
+        std::cerr << "[PARALLEL] snapshot.capture() returned\n" << std::flush;
+
         snapshots.push_back(std::move(snapshot));
+        std::cerr << "[PARALLEL] Snapshot " << block_idx << " added to vector\n" << std::flush;
     }
+    std::cerr << "[PARALLEL] All snapshots captured\n" << std::flush;
 
     // Step 2: Prepare code for each block with variable bindings
+    std::cerr << "[PARALLEL] Step 2: Preparing code with variable bindings\n" << std::flush;
     std::vector<std::tuple<
         polyglot::PolyglotAsyncExecutor::Language,
         std::string,
         std::vector<interpreter::Value>
     >> tasks;
 
+    std::cerr << "[PARALLEL] Starting loop over " << group.parallel_blocks.size() << " blocks\n" << std::flush;
     for (size_t i = 0; i < group.parallel_blocks.size(); ++i) {
+        std::cerr << "[PARALLEL] Processing block " << i << "\n" << std::flush;
         const auto& block = group.parallel_blocks[i];
         const auto& snapshot = snapshots[i];
         auto* inline_code = block.node;
 
+        std::cerr << "[PARALLEL] Getting language for block " << i << "\n" << std::flush;
         // Convert language string to enum
         std::string lang_str = inline_code->getLanguage();
+        std::cerr << "[PARALLEL] Language: " << lang_str << "\n" << std::flush;
         polyglot::PolyglotAsyncExecutor::Language lang;
 
         // Check if language is supported by PolyglotAsyncExecutor
@@ -4550,6 +4591,9 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         if (lang_str == "python") {
             lang = polyglot::PolyglotAsyncExecutor::Language::Python;
         } else if (lang_str == "javascript" || lang_str == "js") {
+            // TEMPORARY: Disable parallel execution for JavaScript due to thread limit issues
+            // Run JavaScript sequentially to avoid "thread constructor failed" errors
+            lang_supported = false;
             lang = polyglot::PolyglotAsyncExecutor::Language::JavaScript;
         } else if (lang_str == "cpp" || lang_str == "c++") {
             lang = polyglot::PolyglotAsyncExecutor::Language::Cpp;
@@ -4567,7 +4611,9 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         }
 
         // If language not supported for parallel execution, execute sequentially
+        std::cerr << "[PARALLEL] Checking language support for block " << i << "\n" << std::flush;
         if (!lang_supported) {
+            std::cerr << "[PARALLEL] Language not supported, executing sequentially\n" << std::flush;
             // Execute the full statement sequentially (e.g., VarDeclStmt)
             // This ensures the variable gets properly assigned
             auto* stmt = block.statement;
@@ -4577,10 +4623,14 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             continue;
         }
 
+        std::cerr << "[PARALLEL] Language supported, preparing variable declarations\n" << std::flush;
         // Prepare variable declarations by serializing snapshot values
         std::string var_declarations;
+        std::cerr << "[PARALLEL] Snapshot has " << snapshot.variables.size() << " variables\n" << std::flush;
         for (const auto& [var_name, value] : snapshot.variables) {
+            std::cerr << "[PARALLEL] Serializing variable: " << var_name << "\n" << std::flush;
             std::string serialized = serializeValueForLanguage(value, lang_str);
+            std::cerr << "[PARALLEL] Serialized to: " << serialized << "\n" << std::flush;
 
             // Language-specific variable declaration syntax
             if (lang_str == "python") {
@@ -4601,14 +4651,17 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             }
         }
 
+        std::cerr << "[PARALLEL] Getting raw code for block " << i << "\n" << std::flush;
         // Get raw code and strip common indentation
         std::string raw_code = inline_code->getCode();
+        std::cerr << "[PARALLEL] Raw code length: " << raw_code.length() << "\n" << std::flush;
         std::vector<std::string> lines;
         std::istringstream stream(raw_code);
         std::string line;
         while (std::getline(stream, line)) {
             lines.push_back(line);
         }
+        std::cerr << "[PARALLEL] Split into " << lines.size() << " lines\n" << std::flush;
 
         // Find minimum indentation (ignoring empty lines)
         size_t min_indent = std::string::npos;
@@ -4632,17 +4685,25 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             }
         }
 
+        std::cerr << "[PARALLEL] Prepending variable declarations\n" << std::flush;
         // Prepend variable declarations
         std::string final_code = var_declarations + code;
+        std::cerr << "[PARALLEL] Final code length: " << final_code.length() << "\n" << std::flush;
 
         // Create task with empty args (variables are injected into code)
         std::vector<interpreter::Value> args;
+        std::cerr << "[PARALLEL] Creating task tuple\n" << std::flush;
         tasks.emplace_back(lang, final_code, args);
+        std::cerr << "[PARALLEL] Task " << i << " created successfully\n" << std::flush;
     }
+    std::cerr << "[PARALLEL] All tasks prepared, total: " << tasks.size() << "\n" << std::flush;
 
     // Step 3: Execute in parallel using PolyglotAsyncExecutor
+    std::cerr << "[PARALLEL] Step 3: Creating executor and calling executeParallel\n" << std::flush;
     polyglot::PolyglotAsyncExecutor executor;
+    std::cerr << "[PARALLEL] Calling executeParallel with " << tasks.size() << " tasks...\n" << std::flush;
     auto results = executor.executeParallel(tasks, std::chrono::milliseconds(30000));
+    std::cerr << "[PARALLEL] executeParallel returned with " << results.size() << " results\n" << std::flush;
 
     // Step 4: Store results back to environment (sequential, thread-safe)
     for (size_t i = 0; i < results.size(); ++i) {

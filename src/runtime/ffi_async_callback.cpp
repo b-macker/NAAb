@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include <thread>
 #include <algorithm>
+#include <iostream>
 
 namespace naab {
 namespace ffi {
@@ -34,11 +35,24 @@ AsyncCallbackWrapper::~AsyncCallbackWrapper() {
 }
 
 std::future<AsyncCallbackResult> AsyncCallbackWrapper::executeAsync() {
+    std::cerr << "[EXEC_ASYNC] executeAsync() ENTRY, name=" << name_ << "\n" << std::flush;
+    std::cerr << "[EXEC_ASYNC] About to call logAsyncEvent...\n" << std::flush;
     logAsyncEvent("execute_async", "Starting async execution");
+    std::cerr << "[EXEC_ASYNC] logAsyncEvent returned\n" << std::flush;
 
-    return std::async(std::launch::async, [this]() {
-        return executeWithTimeout();
-    });
+    // WORKAROUND: Use deferred execution - no separate thread, runs when .get() is called
+    // This avoids "thread constructor failed" errors from thread exhaustion
+    std::cerr << "[EXEC_ASYNC] Using std::launch::deferred (no thread creation)...\n" << std::flush;
+    auto lambda = [this]() {
+        std::cerr << "[EXEC_DEFERRED] Lambda running (deferred)\n" << std::flush;
+        auto result = executeWithTimeout();
+        std::cerr << "[EXEC_DEFERRED] executeWithTimeout returned\n" << std::flush;
+        return result;
+    };
+
+    auto future = std::async(std::launch::deferred, std::move(lambda));
+    std::cerr << "[EXEC_ASYNC] Deferred future created\n" << std::flush;
+    return future;
 }
 
 AsyncCallbackResult AsyncCallbackWrapper::executeBlocking() {
@@ -71,11 +85,13 @@ bool AsyncCallbackWrapper::isCancelled() const {
 }
 
 AsyncCallbackResult AsyncCallbackWrapper::executeWithTimeout() {
+    std::cerr << "[WRAPPER] executeWithTimeout START\n" << std::flush;
     auto start_time = std::chrono::steady_clock::now();
 
     try {
         // Check for cancellation before starting
         if (cancelled_.load()) {
+            std::cerr << "[WRAPPER] Cancelled before start\n" << std::flush;
             return AsyncCallbackResult::makeError(
                 "Callback cancelled before execution",
                 "CancelledException"
@@ -84,12 +100,16 @@ AsyncCallbackResult AsyncCallbackWrapper::executeWithTimeout() {
 
         // Execute callback in a separate thread with timeout
         // Use shared_ptr so detached threads don't access destroyed promise
+        std::cerr << "[WRAPPER] Creating promise/future pair\n" << std::flush;
         auto result_promise = std::make_shared<std::promise<interpreter::Value>>();
         std::future<interpreter::Value> result_future = result_promise->get_future();
 
+        std::cerr << "[WRAPPER] Launching worker thread...\n" << std::flush;
         std::thread worker_thread([this, result_promise]() {
+            std::cerr << "[WORKER] Worker thread started\n" << std::flush;
             try {
                 if (cancelled_.load()) {
+                    std::cerr << "[WORKER] Cancelled during execution\n" << std::flush;
                     result_promise->set_exception(
                         std::make_exception_ptr(
                             AsyncCallbackException("Callback cancelled during execution")
@@ -99,8 +119,11 @@ AsyncCallbackResult AsyncCallbackWrapper::executeWithTimeout() {
                 }
 
                 // Execute the actual callback
+                std::cerr << "[WORKER] About to call callback_()\n" << std::flush;
                 interpreter::Value result = callback_();
+                std::cerr << "[WORKER] callback_() returned\n" << std::flush;
                 result_promise->set_value(result);
+                std::cerr << "[WORKER] set_value() complete\n" << std::flush;
 
             } catch (const std::exception& e) {
                 result_promise->set_exception(std::current_exception());
@@ -112,18 +135,23 @@ AsyncCallbackResult AsyncCallbackWrapper::executeWithTimeout() {
                 );
             }
         });
+        std::cerr << "[WRAPPER] Worker thread launched\n" << std::flush;
 
         // Wait for result with timeout
+        std::cerr << "[WRAPPER] Waiting for result, timeout=" << timeout_.count() << "ms\n" << std::flush;
         std::future_status status;
         if (timeout_.count() > 0) {
             status = result_future.wait_for(timeout_);
+            std::cerr << "[WRAPPER] wait_for returned, status=" << (status == std::future_status::ready ? "ready" : status == std::future_status::timeout ? "timeout" : "deferred") << "\n" << std::flush;
         } else {
             result_future.wait();
             status = std::future_status::ready;
+            std::cerr << "[WRAPPER] wait returned\n" << std::flush;
         }
 
         // Handle timeout
         if (status == std::future_status::timeout) {
+            std::cerr << "[WRAPPER] TIMEOUT occurred\n" << std::flush;
             cancelled_.store(true);
 
             // Detach thread (can't safely cancel it)
