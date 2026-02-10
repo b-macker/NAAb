@@ -1,0 +1,7 @@
+// Test improved error message for unclosed polyglot block
+
+main {
+    let x = <<python
+    result = 42
+    # Missing closing >>
+}

@@ -230,7 +230,16 @@ std::string Lexer::readString() {
 
 std::string Lexer::readInlineCode() {
     // Called after we've seen "<<", should read until ">>"
+    //
     // IMPORTANT: Only treat >> as closing delimiter when at line start
+    // This allows >> to appear in code (bitwise shift, bash redirect, etc.)
+    // without prematurely closing the polyglot block.
+    //
+    // Example that works correctly:
+    //   <<python
+    //   x = 8 >> 1  # Right shift (>> not at line start)
+    //   >>          # Closes block (>> at line start)
+    //
     size_t start = pos_;
     bool at_line_start = true;  // We start right after the newline following language name
 
@@ -259,7 +268,19 @@ std::string Lexer::readInlineCode() {
     }
 
     // If we get here, we never found the closing >>
-    throw std::runtime_error("Unclosed inline code block at line " + std::to_string(line_));
+    throw std::runtime_error(
+        "Unclosed polyglot code block starting at line " + std::to_string(line_) + "\n\n"
+        "  Help:\n"
+        "  - Make sure your polyglot block has a closing >> at the start of a line\n"
+        "  - The closing >> must be at the beginning of a line (optionally after spaces/tabs)\n"
+        "  - If you have >> in your code (like bitwise shift or bash redirect), that's OK!\n"
+        "  - Only >> at line start closes the block\n\n"
+        "  Example:\n"
+        "    let result = <<python\n"
+        "    x = 8 >> 1  # This >> is fine (not at line start)\n"
+        "    result = x * 2\n"
+        "    >>  # This >> closes the block (at line start)\n"
+    );
 }
 
 std::vector<Token> Lexer::tokenize() {
