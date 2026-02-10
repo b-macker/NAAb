@@ -27,14 +27,10 @@ bool JsExecutorAdapter::execute(const std::string& code, JsExecutionMode mode) {
 std::shared_ptr<interpreter::Value> JsExecutorAdapter::executeWithReturn(
     const std::string& code) {
     // Executing JavaScript code with return (silent)
-    std::cerr << "[DEBUG ADAPTER] executeWithReturn called with code length: " << code.length() << std::endl;
     try {
-        std::cerr << "[DEBUG ADAPTER] About to call evaluate()" << std::endl;
         auto result = executor_.evaluate(code);
-        std::cerr << "[DEBUG ADAPTER] evaluate() returned" << std::endl;
         return result;
     } catch (const std::exception& e) {
-        std::cerr << "[JS ADAPTER ERROR] " << e.what() << std::endl;
         return std::make_shared<interpreter::Value>();  // Return null on error
     }
 }

@@ -202,7 +202,6 @@ ffi::AsyncCallbackWrapper::CallbackFunc JavaScriptAsyncExecutor::makeJavaScriptC
     const std::string& code,
     const std::vector<interpreter::Value>& args
 ) {
-    std::cerr << "[MAKE_CALLBACK] Creating callback for code: " << code << "\n" << std::flush;
     // Capture code and args by value
     return [code, args]() -> interpreter::Value {
         std::cerr << "[JS_CALLBACK] *** CALLBACK INVOKED *** code_len=" << code.length() << "\n" << std::flush;
@@ -750,33 +749,26 @@ std::vector<ffi::AsyncCallbackResult> PolyglotAsyncExecutor::executeParallel(
     const std::vector<std::tuple<Language, std::string, std::vector<interpreter::Value>>>& blocks,
     std::chrono::milliseconds timeout
 ) {
-    std::cerr << "[ASYNC] executeParallel START, blocks=" << blocks.size() << "\n" << std::flush;
     security::AuditLogger::log(
         security::AuditEvent::BLOCK_EXECUTE,
         fmt::format("Executing {} polyglot blocks in parallel", blocks.size())
     );
 
     // Launch all blocks asynchronously
-    std::cerr << "[ASYNC] Launching async tasks...\n" << std::flush;
     std::vector<std::future<ffi::AsyncCallbackResult>> futures;
     futures.reserve(blocks.size());
 
     for (size_t i = 0; i < blocks.size(); ++i) {
         const auto& [language, code, args] = blocks[i];
-        std::cerr << "[ASYNC] Launching block " << i << ", language=" << languageToString(language) << ", code_len=" << code.length() << "\n" << std::flush;
         futures.push_back(executeAsync(language, code, args, timeout));
-        std::cerr << "[ASYNC] Block " << i << " future created\n" << std::flush;
     }
 
     // Collect results
-    std::cerr << "[ASYNC] Collecting results from " << futures.size() << " futures...\n" << std::flush;
     std::vector<ffi::AsyncCallbackResult> results;
     results.reserve(futures.size());
 
     for (size_t i = 0; i < futures.size(); ++i) {
-        std::cerr << "[ASYNC] Waiting for future " << i << "...\n" << std::flush;
         results.push_back(futures[i].get());
-        std::cerr << "[ASYNC] Future " << i << " completed\n" << std::flush;
     }
 
     security::AuditLogger::log(

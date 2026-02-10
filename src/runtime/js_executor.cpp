@@ -222,10 +222,6 @@ std::shared_ptr<interpreter::Value> JsExecutor::callFunction(
 std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
     const std::string& expression) {
 
-    fmt::print("[DEBUG EVALUATE] Called with code length: {}, first 50 chars: {}\n",
-               expression.length(),
-               expression.length() > 50 ? expression.substr(0, 50) : expression);
-
     if (!isInitialized()) {
         throw std::runtime_error("JavaScript runtime not initialized");
     }
@@ -301,13 +297,8 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
             wrapped = "(function() { return eval(`" + result_str + "`); })()";
         }
 
-        fmt::print("[DEBUG EVAL] About to call JS_Eval with: {}\n",
-                   wrapped.length() > 100 ? wrapped.substr(0, 100) : wrapped);
-
         JSValue result = JS_Eval(ctx_, wrapped.c_str(), wrapped.length(),
                                   "<eval>", JS_EVAL_TYPE_GLOBAL);
-
-        fmt::print("[DEBUG EVAL] JS_Eval returned\n");
 
         if (JS_IsException(result)) {
             std::string error = getLastError();
@@ -323,12 +314,8 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
         // Single-line expression: wrap in parens and evaluate
         std::string wrapped_expr = "(" + code + ")";
 
-        fmt::print("[DEBUG EVAL SINGLE] About to eval: {}\n", wrapped_expr);
-
         JSValue result = JS_Eval(ctx_, wrapped_expr.c_str(), wrapped_expr.length(),
                                   "<eval>", JS_EVAL_TYPE_GLOBAL);
-
-        fmt::print("[DEBUG EVAL SINGLE] JS_Eval returned\n");
 
         if (JS_IsException(result)) {
             std::string error = getLastError();
@@ -432,47 +419,37 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
         }
     }
 
-    // Array - TESTING: Just return empty array without accessing elements
+    // Array
     if (JS_IsArray(ctx, val)) {
-        fmt::print("[DEBUG] Found JS array, getting length...\n");
-
-        // Try to get length
+        // Get array length
         JSValue length_val = JS_GetPropertyStr(ctx, val, "length");
-        fmt::print("[DEBUG] Got length property\n");
 
         if (JS_IsException(length_val)) {
             JS_FreeValue(ctx, length_val);
-            fmt::print("[DEBUG] Exception getting length\n");
             return std::make_shared<interpreter::Value>();
         }
 
         uint32_t length = 0;
         if (JS_IsNumber(length_val)) {
             JS_ToUint32(ctx, &length, length_val);
-            fmt::print("[DEBUG] Array length: {}\n", length);
         }
         JS_FreeValue(ctx, length_val);
 
         // Convert array elements
-        fmt::print("[DEBUG] Converting {} array elements...\n", length);
         std::vector<std::shared_ptr<interpreter::Value>> naab_array;
         for (uint32_t i = 0; i < length; i++) {
-            fmt::print("[DEBUG] Getting element {}\n", i);
             JSValue elem = JS_GetPropertyUint32(ctx, val, i);
 
             if (JS_IsException(elem)) {
                 JS_FreeValue(ctx, elem);
-                fmt::print("[WARN] Failed to get array element {}\n", i);
                 naab_array.push_back(std::make_shared<interpreter::Value>());
                 continue;
             }
 
-            fmt::print("[DEBUG] Converting element {}\n", i);
             naab_array.push_back(fromJSValue(ctx, elem));
             JS_FreeValue(ctx, elem);
         }
 
-        fmt::print("[DEBUG] Array conversion complete, returning array with {} elements\n", naab_array.size());
         return std::make_shared<interpreter::Value>(naab_array);
     }
 
@@ -485,7 +462,6 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
         uint32_t prop_count = 0;
         if (JS_GetOwnPropertyNames(ctx, &props, &prop_count, val,
                                    JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) < 0) {
-            fmt::print("[WARN] Failed to get object property names\n");
             return std::make_shared<interpreter::Value>();
         }
 
@@ -501,7 +477,6 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
             if (JS_IsException(prop_val)) {
                 JS_FreeValue(ctx, prop_val);
                 JS_FreeCString(ctx, key);
-                fmt::print("[WARN] Failed to get property {}\n", key);
                 continue;
             }
 
@@ -519,8 +494,7 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
         return std::make_shared<interpreter::Value>(naab_dict);
     }
 
-    // Unsupported type
-    fmt::print("[WARN] Unsupported JavaScript type, returning null\n");
+    // Unsupported type - return null
     return std::make_shared<interpreter::Value>();
 }
 
