@@ -1,0 +1,54 @@
+// Test decimal number fixes (Bug #1 and #2)
+
+main {
+    print("Testing Decimal Number Parsing Fixes")
+    print()
+
+    // Test 1: Leading decimal
+    print("Test 1 - Leading decimal .5")
+    let leading = .5
+    if leading == 0.5 {
+        print("  PASS - .5 equals 0.5")
+    } else {
+        print("  FAIL - Got:", leading)
+    }
+
+    // Test 2: Trailing decimal
+    print("Test 2 - Trailing decimal 5.")
+    let trailing = 5.
+    if trailing == 5.0 {
+        print("  PASS - 5. equals 5.0")
+    } else {
+        print("  FAIL - Got:", trailing)
+    }
+
+    // Test 3: Normal decimal
+    print("Test 3 - Normal decimal 3.14")
+    let normal = 3.14
+    if normal == 3.14 {
+        print("  PASS - 3.14 works")
+    } else {
+        print("  FAIL - Got:", normal)
+    }
+
+    // Test 4: Leading decimal in expression
+    print("Test 4 - Leading decimal in math")
+    let calc = .25 + .75
+    if calc == 1.0 {
+        print("  PASS - .25 + .75 = 1.0")
+    } else {
+        print("  FAIL - Got:", calc)
+    }
+
+    // Test 5: Trailing decimal in expression
+    print("Test 5 - Trailing decimal in math")
+    let calc2 = 10. + 5.
+    if calc2 == 15.0 {
+        print("  PASS - 10. + 5. = 15.0")
+    } else {
+        print("  FAIL - Got:", calc2)
+    }
+
+    print()
+    print("All decimal tests completed!")
+}

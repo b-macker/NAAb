@@ -169,6 +169,13 @@ std::string Lexer::readNumber() {
     size_t start = pos_;
     bool has_dot = false;
 
+    // Handle leading dot (like .123)
+    if (currentChar() && *currentChar() == '.') {
+        has_dot = true;
+        advance();
+    }
+
+    // Read digits and optional decimal point
     while (currentChar() && (std::isdigit(*currentChar()) || *currentChar() == '.')) {
         if (*currentChar() == '.') {
             // Check if this is the range operator (..)
@@ -178,6 +185,7 @@ std::string Lexer::readNumber() {
                 break;
             }
             if (has_dot) {
+                // Already have a dot, stop here
                 break;
             }
             has_dot = true;
@@ -185,7 +193,20 @@ std::string Lexer::readNumber() {
         advance();
     }
 
-    return source_.substr(start, pos_ - start);
+    std::string number = source_.substr(start, pos_ - start);
+
+    // Handle trailing dot (like 123.) - treat as 123.0
+    if (number.length() > 0 && number[number.length() - 1] == '.') {
+        number += "0";
+    }
+
+    // Handle leading dot without digits after (just . followed by non-digit) - shouldn't happen due to check above
+    if (number == ".") {
+        // This shouldn't happen anymore, but handle gracefully
+        number = "0.0";
+    }
+
+    return number;
 }
 
 std::string Lexer::readString() {
@@ -334,8 +355,17 @@ std::vector<Token> Lexer::tokenize() {
             continue;
         }
 
-        // Number
+        // Number (including leading decimal like .123)
         if (std::isdigit(ch)) {
+            int line = line_, col = column_;
+            std::string number = readNumber();
+            tokens_.emplace_back(TokenType::NUMBER, number, line, col);
+            continue;
+        }
+
+        // Leading decimal number (like .123)
+        auto next_char = peekChar();
+        if (ch == '.' && next_char && std::isdigit(*next_char)) {
             int line = line_, col = column_;
             std::string number = readNumber();
             tokens_.emplace_back(TokenType::NUMBER, number, line, col);
