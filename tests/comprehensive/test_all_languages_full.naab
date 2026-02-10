@@ -371,58 +371,119 @@ puts [10, 20, 30, 40, 50].sum
     print()
 
     // ═══════════════════════════════════════════════════════════════════════
-    // SECTION 9: PHP (Inline) - NOT INSTALLED
+    // SECTION 9: PHP (Inline)
     // ═══════════════════════════════════════════════════════════════════════
 
     print("═══════════════════════════════════════════════════════════════")
-    print("  Section 9: PHP (Not Installed)")
+    print("  Section 9: PHP (Inline)")
     print("═══════════════════════════════════════════════════════════════")
     print()
-    print("  ⚠️  SKIPPED: PHP not available on this system")
+
+    print("[PHP.1] Inline: pow(2, 8)")
+    let php_i1 = <<php
+<?php
+echo pow(2, 8);
+?>
+    >>
+    total_tests = total_tests + 1
+    if php_i1 == 256 {
+        print("  ✅ PASS: ", php_i1)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: ", php_i1, " (expected 256)")
+        failed_tests = failed_tests + 1
+    }
+
+    print("[PHP.2] Inline: array sum")
+    let php_i2 = <<php
+<?php
+echo array_sum([10, 20, 30, 40, 50]);
+?>
+    >>
+    total_tests = total_tests + 1
+    if php_i2 == 150 {
+        print("  ✅ PASS: ", php_i2)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: ", php_i2, " (expected 150)")
+        failed_tests = failed_tests + 1
+    }
     print()
 
     // ═══════════════════════════════════════════════════════════════════════
-    // SECTION 10: TYPESCRIPT (Inline) - NOT INSTALLED
+    // SECTION 10: TYPESCRIPT (Inline)
     // ═══════════════════════════════════════════════════════════════════════
 
     print("═══════════════════════════════════════════════════════════════")
-    print("  Section 10: TypeScript (Not Installed)")
+    print("  Section 10: TypeScript (Inline)")
     print("═══════════════════════════════════════════════════════════════")
     print()
-    print("  ⚠️  SKIPPED: TypeScript not available on this system")
+
+    print("[TS.1] Inline: typed calculation")
+    let ts_i1 = <<typescript
+function calculate(a: number, b: number): number {
+    return a * b + 10;
+}
+console.log(calculate(7, 8));
+    >>
+    total_tests = total_tests + 1
+    if ts_i1 == 66 {
+        print("  ✅ PASS: ", ts_i1)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: ", ts_i1, " (expected 66)")
+        failed_tests = failed_tests + 1
+    }
+
+    print("[TS.2] Inline: fibonacci")
+    let ts_i2 = <<typescript
+function fib(n: number): number {
+    if (n <= 1) return n;
+    return fib(n - 1) + fib(n - 2);
+}
+console.log(fib(9));
+    >>
+    total_tests = total_tests + 1
+    if ts_i2 == 34 {
+        print("  ✅ PASS: ", ts_i2)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: ", ts_i2, " (expected 34)")
+        failed_tests = failed_tests + 1
+    }
     print()
 
     // ═══════════════════════════════════════════════════════════════════════
-    // SECTION 11: SWIFT (Inline) - NOT INSTALLED
+    // SECTION 11: SWIFT (Inline) - NOT AVAILABLE
     // ═══════════════════════════════════════════════════════════════════════
 
     print("═══════════════════════════════════════════════════════════════")
-    print("  Section 11: Swift (Not Installed)")
+    print("  Section 11: Swift (Not Available)")
     print("═══════════════════════════════════════════════════════════════")
     print()
-    print("  ⚠️  SKIPPED: Swift not available on this system")
-    print()
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // SECTION 12: KOTLIN (Inline) - NOT INSTALLED
-    // ═══════════════════════════════════════════════════════════════════════
-
-    print("═══════════════════════════════════════════════════════════════")
-    print("  Section 12: Kotlin (Not Installed)")
-    print("═══════════════════════════════════════════════════════════════")
-    print()
-    print("  ⚠️  SKIPPED: Kotlin not available on this system")
+    print("  ⚠️  NOT AVAILABLE: Swift requires Apple toolchain (not on Android/ARM)")
     print()
 
     // ═══════════════════════════════════════════════════════════════════════
-    // SECTION 13: JAVA (Inline) - NOT INSTALLED
+    // SECTION 12: KOTLIN (Inline) - NOT AVAILABLE
     // ═══════════════════════════════════════════════════════════════════════
 
     print("═══════════════════════════════════════════════════════════════")
-    print("  Section 13: Java (Not Installed)")
+    print("  Section 12: Kotlin (Not Available)")
     print("═══════════════════════════════════════════════════════════════")
     print()
-    print("  ⚠️  SKIPPED: Java not available on this system")
+    print("  ⚠️  NOT AVAILABLE: Kotlin requires JVM (not reliably available in Termux)")
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 13: JAVA (Inline) - NOT AVAILABLE
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 13: Java (Not Available)")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+    print("  ⚠️  NOT AVAILABLE: Java requires JVM (not reliably available in Termux)")
     print()
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -538,12 +599,14 @@ echo $result
         print("  ✓ Go (calculations, fibonacci)")
         print("  ✓ Shell/Bash (arithmetic, loops)")
         print("  ✓ Ruby (power, array operations)")
+        print("  ✓ PHP (pow, array operations)")
+        print("  ✓ TypeScript (typed functions, fibonacci)")
         print()
         print("CROSS-LANGUAGE VERIFICATION:")
         print("  ✓ 7 languages (C++, JS, Python, Rust, Go, C#, Shell)")
         print("  ✓ All correctly calculated 2^10 = 1024")
         print()
-        print("Languages tested: 8 available (PHP, TS, Swift, Kotlin, Java not installed)")
+        print("Languages tested: 10 available (Swift, Kotlin, Java not available on platform)")
         print("Block references: 5 languages")
         print("Total tests: ", total_tests)
     } else {

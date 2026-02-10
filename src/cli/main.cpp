@@ -75,6 +75,16 @@ void initialize_executors() {
     // Polyglot Phase 11: Register C# executor
     registry.registerExecutor("csharp", std::make_unique<naab::runtime::CSharpExecutor>());
     registry.registerExecutor("cs", std::make_unique<naab::runtime::CSharpExecutor>());
+
+    // Register PHP executor (via GenericSubprocessExecutor)
+    registry.registerExecutor("php",
+        std::make_unique<naab::runtime::GenericSubprocessExecutor>("php", "php {}", ".php"));
+
+    // Register TypeScript executor (via GenericSubprocessExecutor)
+    registry.registerExecutor("typescript",
+        std::make_unique<naab::runtime::GenericSubprocessExecutor>("typescript", "tsx {}", ".ts"));
+    registry.registerExecutor("ts",
+        std::make_unique<naab::runtime::GenericSubprocessExecutor>("ts", "tsx {}", ".ts"));
 }
 
 std::string read_file(const std::string& filename) {
