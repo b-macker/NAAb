@@ -35,23 +35,16 @@ AsyncCallbackWrapper::~AsyncCallbackWrapper() {
 }
 
 std::future<AsyncCallbackResult> AsyncCallbackWrapper::executeAsync() {
-    std::cerr << "[EXEC_ASYNC] executeAsync() ENTRY, name=" << name_ << "\n" << std::flush;
-    std::cerr << "[EXEC_ASYNC] About to call logAsyncEvent...\n" << std::flush;
     logAsyncEvent("execute_async", "Starting async execution");
-    std::cerr << "[EXEC_ASYNC] logAsyncEvent returned\n" << std::flush;
 
     // WORKAROUND: Use deferred execution - no separate thread, runs when .get() is called
     // This avoids "thread constructor failed" errors from thread exhaustion
-    std::cerr << "[EXEC_ASYNC] Using std::launch::deferred (no thread creation)...\n" << std::flush;
     auto lambda = [this]() {
-        std::cerr << "[EXEC_DEFERRED] Lambda running (deferred)\n" << std::flush;
         auto result = executeWithTimeout();
-        std::cerr << "[EXEC_DEFERRED] executeWithTimeout returned\n" << std::flush;
         return result;
     };
 
     auto future = std::async(std::launch::deferred, std::move(lambda));
-    std::cerr << "[EXEC_ASYNC] Deferred future created\n" << std::flush;
     return future;
 }
 

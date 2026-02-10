@@ -1,0 +1,385 @@
+// Bug Hunt Round 2: Systematic Testing
+// Testing areas not covered in first bug hunt
+
+main {
+    print("=== BUG HUNT ROUND 2 ===\n")
+
+    let passed = 0
+    let failed = 0
+
+    // ===== CATEGORY 1: Python Type Conversion =====
+    print("CATEGORY 1: Python Type Conversion")
+
+    // Test 1: Python empty list
+    let py_empty = <<python
+[]
+    >>
+    if type(py_empty) == "array" {
+        print("  ✅ PASS: Python empty list is array")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Python empty list type =", type(py_empty))
+        failed = failed + 1
+    }
+
+    // Test 2: Python list with elements
+    let py_list = <<python
+[1, 2, 3]
+    >>
+    if type(py_list) == "array" {
+        if py_list[0] == 1 && py_list[1] == 2 && py_list[2] == 3 {
+            print("  ✅ PASS: Python list elements correct")
+            passed = passed + 1
+        } else {
+            print("  ❌ FAIL: Python list elements wrong:", py_list[0], py_list[1], py_list[2])
+            failed = failed + 1
+        }
+    } else {
+        print("  ❌ FAIL: Python list type =", type(py_list))
+        failed = failed + 1
+    }
+
+    // Test 3: Python nested list
+    let py_nested = <<python
+[[1, 2], [3, 4]]
+    >>
+    if type(py_nested) == "array" {
+        if py_nested[0][0] == 1 && py_nested[1][1] == 4 {
+            print("  ✅ PASS: Python nested list works")
+            passed = passed + 1
+        } else {
+            print("  ❌ FAIL: Python nested list access wrong")
+            failed = failed + 1
+        }
+    } else {
+        print("  ❌ FAIL: Python nested list type =", type(py_nested))
+        failed = failed + 1
+    }
+
+    // Test 4: Python empty dict
+    let py_empty_dict = <<python
+{}
+    >>
+    if type(py_empty_dict) == "dict" {
+        print("  ✅ PASS: Python empty dict is dict")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Python empty dict type =", type(py_empty_dict))
+        failed = failed + 1
+    }
+
+    // Test 5: Python dict with values
+    let py_dict = <<python
+{"name": "Bob", "age": 25}
+    >>
+    if type(py_dict) == "dict" {
+        if py_dict["name"] == "Bob" && py_dict["age"] == 25 {
+            print("  ✅ PASS: Python dict values correct")
+            passed = passed + 1
+        } else {
+            print("  ❌ FAIL: Python dict values wrong")
+            failed = failed + 1
+        }
+    } else {
+        print("  ❌ FAIL: Python dict type =", type(py_dict))
+        failed = failed + 1
+    }
+
+    // Test 6: Python string
+    let py_string = <<python
+"Hello from Python"
+    >>
+    if type(py_string) == "string" {
+        if py_string == "Hello from Python" {
+            print("  ✅ PASS: Python string works")
+            passed = passed + 1
+        } else {
+            print("  ❌ FAIL: Python string value =", py_string)
+            failed = failed + 1
+        }
+    } else {
+        print("  ❌ FAIL: Python string type =", type(py_string))
+        failed = failed + 1
+    }
+
+    // Test 7: Python boolean True
+    let py_true = <<python
+True
+    >>
+    if type(py_true) == "bool" {
+        if py_true == true {
+            print("  ✅ PASS: Python True converts to bool")
+            passed = passed + 1
+        } else {
+            print("  ❌ FAIL: Python True value =", py_true)
+            failed = failed + 1
+        }
+    } else {
+        print("  ❌ FAIL: Python True type =", type(py_true))
+        failed = failed + 1
+    }
+
+    // Test 8: Python boolean False
+    let py_false = <<python
+False
+    >>
+    if type(py_false) == "bool" {
+        if py_false == false {
+            print("  ✅ PASS: Python False converts to bool")
+            passed = passed + 1
+        } else {
+            print("  ❌ FAIL: Python False value =", py_false)
+            failed = failed + 1
+        }
+    } else {
+        print("  ❌ FAIL: Python False type =", type(py_false))
+        failed = failed + 1
+    }
+
+    // Test 9: Python None
+    let py_none = <<python
+None
+    >>
+    if py_none == null {
+        print("  ✅ PASS: Python None converts to null")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Python None value =", py_none, "type =", type(py_none))
+        failed = failed + 1
+    }
+
+    // Test 10: Python float
+    let py_float = <<python
+3.14159
+    >>
+    if type(py_float) == "float" {
+        // Allow small floating point error
+        if py_float > 3.14 && py_float < 3.15 {
+            print("  ✅ PASS: Python float works")
+            passed = passed + 1
+        } else {
+            print("  ❌ FAIL: Python float value =", py_float)
+            failed = failed + 1
+        }
+    } else {
+        print("  ❌ FAIL: Python float type =", type(py_float))
+        failed = failed + 1
+    }
+
+    print("")
+
+    // ===== CATEGORY 2: JavaScript Edge Cases =====
+    print("CATEGORY 2: JavaScript Edge Cases")
+
+    // Test 11: JS null
+    let js_null = <<javascript
+null
+    >>
+    if js_null == null {
+        print("  ✅ PASS: JS null converts to null")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: JS null value =", js_null, "type =", type(js_null))
+        failed = failed + 1
+    }
+
+    // Test 12: JS undefined
+    let js_undefined = <<javascript
+undefined
+    >>
+    if js_undefined == null {
+        print("  ✅ PASS: JS undefined converts to null")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: JS undefined value =", js_undefined, "type =", type(js_undefined))
+        failed = failed + 1
+    }
+
+    // Test 13: JS true
+    let js_true = <<javascript
+true
+    >>
+    if type(js_true) == "bool" && js_true == true {
+        print("  ✅ PASS: JS true converts correctly")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: JS true type/value =", type(js_true), js_true)
+        failed = failed + 1
+    }
+
+    // Test 14: JS string
+    let js_string = <<javascript
+"Hello from JS"
+    >>
+    if type(js_string) == "string" && js_string == "Hello from JS" {
+        print("  ✅ PASS: JS string works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: JS string type/value =", type(js_string), js_string)
+        failed = failed + 1
+    }
+
+    // Test 15: JS nested object
+    let js_nested_obj = <<javascript
+({user: {name: "Charlie", score: 100}})
+    >>
+    if type(js_nested_obj) == "dict" {
+        if js_nested_obj["user"]["name"] == "Charlie" {
+            print("  ✅ PASS: JS nested object works")
+            passed = passed + 1
+        } else {
+            print("  ❌ FAIL: JS nested object access wrong")
+            failed = failed + 1
+        }
+    } else {
+        print("  ❌ FAIL: JS nested object type =", type(js_nested_obj))
+        failed = failed + 1
+    }
+
+    // Test 16: JS mixed array
+    let js_mixed = <<javascript
+[1, "two", true, null, {key: "value"}]
+    >>
+    if type(js_mixed) == "array" && array.length(js_mixed) == 5 {
+        print("  ✅ PASS: JS mixed array works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: JS mixed array type/length =", type(js_mixed), array.length(js_mixed))
+        failed = failed + 1
+    }
+
+    print("")
+
+    // ===== CATEGORY 3: String Edge Cases =====
+    print("CATEGORY 3: String Edge Cases")
+
+    // Test 17: Empty string
+    let empty_str = ""
+    if string.length(empty_str) == 0 {
+        print("  ✅ PASS: Empty string length = 0")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Empty string length =", string.length(empty_str))
+        failed = failed + 1
+    }
+
+    // Test 18: String with quotes
+    let quoted = "He said \"Hello\""
+    if string.contains(quoted, "Hello") {
+        print("  ✅ PASS: String with quotes works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: String with quotes =", quoted)
+        failed = failed + 1
+    }
+
+    // Test 19: String with newlines
+    let multiline = "Line1\nLine2\nLine3"
+    let lines = string.split(multiline, "\n")
+    if array.length(lines) == 3 {
+        print("  ✅ PASS: String with newlines splits correctly")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Split newline count =", array.length(lines))
+        failed = failed + 1
+    }
+
+    // Test 20: String concatenation with numbers
+    let concat_num = "Number: " + 42
+    if concat_num == "Number: 42" {
+        print("  ✅ PASS: String concat with int works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: String concat =", concat_num)
+        failed = failed + 1
+    }
+
+    print("")
+
+    // ===== CATEGORY 4: Array Edge Cases =====
+    print("CATEGORY 4: Array Edge Cases")
+
+    // Test 21: Array push/pop
+    let arr = [1, 2, 3]
+    array.push(arr, 4)
+    let popped = array.pop(arr)
+    if array.length(arr) == 3 && popped == 4 {
+        print("  ✅ PASS: Array push/pop works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Array after push/pop length =", array.length(arr), "popped =", popped)
+        failed = failed + 1
+    }
+
+    // Test 22: Array slice
+    let slice_arr = [1, 2, 3, 4, 5]
+    let sliced = array.slice(slice_arr, 1, 4)
+    if array.length(sliced) == 3 && sliced[0] == 2 {
+        print("  ✅ PASS: Array slice works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Sliced length/first =", array.length(sliced), sliced[0])
+        failed = failed + 1
+    }
+
+    // Test 23: Array contains
+    let contains_arr = [10, 20, 30]
+    if array.contains(contains_arr, 20) && !array.contains(contains_arr, 99) {
+        print("  ✅ PASS: Array contains works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Array contains issue")
+        failed = failed + 1
+    }
+
+    print("")
+
+    // ===== CATEGORY 5: Math Edge Cases =====
+    print("CATEGORY 5: Math Edge Cases")
+
+    // Test 24: Division by zero should error (we test that it throws)
+    // Skip for now - need try/catch
+
+    // Test 25: Negative numbers
+    let neg = -42
+    if neg < 0 && neg == -42 {
+        print("  ✅ PASS: Negative numbers work")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Negative number =", neg)
+        failed = failed + 1
+    }
+
+    // Test 26: Float precision
+    let f1 = 0.1 + 0.2
+    // JavaScript-style floating point issue - check if close enough
+    if f1 > 0.29 && f1 < 0.31 {
+        print("  ✅ PASS: Float addition (0.1 + 0.2)")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: 0.1 + 0.2 =", f1)
+        failed = failed + 1
+    }
+
+    // Test 27: Integer vs float division
+    let int_div = 7 / 2
+    if type(int_div) == "float" {
+        print("  ✅ PASS: Integer division returns float")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: 7/2 type =", type(int_div), "value =", int_div)
+        failed = failed + 1
+    }
+
+    print("")
+    print("=== RESULTS ===")
+    print("Total tests:", passed + failed)
+    print("Passed:", passed)
+    print("Failed:", failed)
+
+    if failed == 0 {
+        print("\n✅✅✅ ALL BUG HUNT 2 TESTS PASSED ✅✅✅")
+    } else {
+        print("\n❌ Some tests failed - bugs found!")
+    }
+}

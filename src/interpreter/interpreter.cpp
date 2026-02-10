@@ -1915,14 +1915,11 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
         if (node.getInit()) {
             effective_type = inferTypeFromValue(value);
 
-            // Special case: cannot infer from null alone (ambiguous)
+            // Special case: infer null as any? (nullable any type)
+            // This allows polyglot blocks to return null without explicit type annotations
             if (isNull(value)) {
-                throw std::runtime_error(
-                    "Type inference error: Cannot infer type for variable '" + node.getName() + "' from 'null'\n" +
-                    "  Help: 'null' can be any nullable type, add explicit annotation\n" +
-                    "    let " + node.getName() + ": string? = null\n" +
-                    "    let " + node.getName() + ": int? = null"
-                );
+                effective_type = ast::Type::makeAny();
+                effective_type.is_nullable = true;
             }
         } else {
             // No initializer and no type annotation - error

@@ -31,7 +31,7 @@ static int compareValues(const std::shared_ptr<interpreter::Value>& a, const std
 bool ArrayModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "length", "push", "pop", "shift", "unshift", "first", "last",
-        "map_fn", "filter_fn", "reduce_fn", "find", "slice_arr",
+        "map_fn", "filter_fn", "reduce_fn", "find", "slice_arr", "slice",
         "reverse", "sort", "contains", "join"
     };
     return functions.count(name) > 0;
@@ -380,8 +380,8 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         return std::make_shared<interpreter::Value>();
     }
 
-    // Function 8: slice_arr
-    if (function_name == "slice_arr") {
+    // Function 8: slice_arr (also accessible as "slice" for convenience)
+    if (function_name == "slice_arr" || function_name == "slice") {
         if (args.size() != 3) {
             throw std::runtime_error(
                 utils::ErrorFormatter::formatArgumentError(
@@ -471,7 +471,7 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
     // Unknown function - provide helpful error with suggestions
     static const std::vector<std::string> FUNCTIONS = {
         "length", "push", "pop", "shift", "unshift", "first", "last",
-        "map_fn", "filter_fn", "reduce_fn", "find", "slice_arr",
+        "map_fn", "filter_fn", "reduce_fn", "find", "slice_arr", "slice",
         "reverse", "sort", "contains", "join"
     };
 
