@@ -3,6 +3,7 @@
 #include "naab/subprocess_helpers.h" // For execute_subprocess_with_pipes
 #include "naab/temp_file_guard.h"   // For TempFileGuard
 #include "naab/sandbox.h" // For security sandbox
+#include "naab/resource_limits.h" // Enterprise security: Resource limits
 #include "naab/audit_logger.h" // For security audit logging
 #include <climits>      // For INT_MIN, INT_MAX
 #include <cstdio>       // For popen, pclose
@@ -118,6 +119,21 @@ bool naab::runtime::GenericSubprocessExecutor::execute(const std::string& code) 
 // Phase 2.3: Execute and return stdout as value
 std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn(
     const std::string& code) {
+
+    // Enterprise Security: Install signal handlers for resource limits (once)
+    if (!security::ResourceLimiter::isInitialized()) {
+        security::ResourceLimiter::installSignalHandlers();
+    }
+
+    // Enterprise Security: Get timeout from sandbox config (if active)
+    unsigned int timeout = 30;  // Default: 30 seconds
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (sandbox) {
+        timeout = sandbox->getConfig().max_cpu_seconds;
+    }
+
+    // Enterprise Security: Apply timeout for subprocess execution
+    security::ScopedTimeout scoped_timeout(timeout);
 
     std::string stdout_output;
     std::string stderr_output;

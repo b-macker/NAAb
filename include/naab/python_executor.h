@@ -76,6 +76,10 @@ public:
     void setTimeout(int seconds) { timeout_seconds_ = seconds; }
     int getTimeout() const { return timeout_seconds_; }
 
+    // Import security configuration
+    static void setBlockDangerousImports(bool block) { block_dangerous_imports_ = block; }
+    static bool shouldBlockDangerousImports() { return block_dangerous_imports_; }
+
 private:
     // NOTE: Interpreter is now managed globally by PythonInterpreterManager
     // No more py::scoped_interpreter guard_ here!
@@ -89,6 +93,9 @@ private:
     std::unique_ptr<py::object> stderr_redirector_; // Python-side stderr redirector instance
 
     int timeout_seconds_ = 30;  // Timeout for Python execution (default: 30)
+
+    // Security: Control whether to block dangerous imports (static for thread safety)
+    static inline bool block_dangerous_imports_ = true;  // Default: block for safety
 
     // Type conversion helpers
     py::object valueToPython(const std::shared_ptr<interpreter::Value>& val);

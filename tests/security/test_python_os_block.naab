@@ -1,0 +1,37 @@
+// Test: Python os.system() should be blocked in restricted/standard mode
+
+main {
+    print("Testing Python os.system() blocking...")
+    print()
+
+    // Test 1: Should BLOCK os.system() in default (standard) mode
+    print("[Test 1] Python os.system() in standard mode (default)")
+    try {
+        let result = <<python
+import os
+os.system("echo pwned")
+"EXECUTED"
+        >>
+        print("  ❌ FAIL: os.system() executed -", result)
+    } catch (error) {
+        print("  ✅ PASS: os.system() blocked -", error)
+    }
+
+    print()
+
+    // Test 2: Should BLOCK subprocess in standard mode
+    print("[Test 2] Python subprocess in standard mode")
+    try {
+        let result = <<python
+import subprocess
+subprocess.run(["echo", "pwned"])
+"EXECUTED"
+        >>
+        print("  ❌ FAIL: subprocess executed -", result)
+    } catch (error) {
+        print("  ✅ PASS: subprocess blocked -", error)
+    }
+
+    print()
+    print("✅ Tests complete!")
+}

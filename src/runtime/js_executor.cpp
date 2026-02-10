@@ -226,6 +226,28 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
         throw std::runtime_error("JavaScript runtime not initialized");
     }
 
+    // Enterprise Security: Install signal handlers for resource limits (once)
+    if (!security::ResourceLimiter::isInitialized()) {
+        security::ResourceLimiter::installSignalHandlers();
+    }
+
+    // Enterprise Security: Get limits from sandbox config (if active)
+    unsigned int timeout = 30;  // Default: 30 seconds
+    size_t memory_limit = 512;  // Default: 512MB
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (sandbox) {
+        timeout = sandbox->getConfig().max_cpu_seconds;
+        memory_limit = sandbox->getConfig().max_memory_mb;
+    }
+
+    // Enterprise Security: Apply resource limits BEFORE executing JavaScript code
+    try {
+        security::ResourceLimiter::setMemoryLimit(memory_limit);
+    } catch (const std::exception& e) {
+        // Memory limit may fail on some systems, log but continue
+    }
+    security::ScopedTimeout scoped_timeout(timeout);
+
     // Phase 2.3: Fixed multi-line code handling
     // Strategy: Just evaluate the code directly - QuickJS eval returns the last expression value
 

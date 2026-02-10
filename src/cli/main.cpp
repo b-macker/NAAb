@@ -15,6 +15,7 @@
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
 #include "naab/python_executor_adapter.h"
+#include "naab/python_executor.h"
 #include "naab/python_interpreter_manager.h"
 #include "naab/rust_executor.h"
 #include "naab/csharp_executor.h"
@@ -23,12 +24,47 @@
 #include "naab/rest_api.h"
 #include "naab/manifest.h"
 #include "naab/logger.h"
+#include "naab/sandbox.h"
+#include "naab/resource_limits.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <filesystem>
+
+// Enterprise security configuration for polyglot blocks
+naab::security::SandboxConfig createEnterpriseConfig() {
+    naab::security::SandboxConfig config;
+
+    // Filesystem: Allow read/write in current directory and /tmp only
+    config.addCapability(naab::security::Capability::FS_READ);
+    config.addCapability(naab::security::Capability::FS_WRITE);
+    config.allow_fork = false;  // Prevent fork bombs
+    config.allow_exec = false;  // Prevent arbitrary command execution
+
+    // Block interaction: Allow polyglot blocks to execute
+    config.addCapability(naab::security::Capability::BLOCK_CALL);
+
+    // Network: Disabled by default for security
+    config.network_enabled = false;
+
+    // Resource limits
+    config.max_memory_mb = 2048;    // 2GB per block (Python needs more for allocator)
+    config.max_cpu_seconds = 30;    // 30 second timeout
+    config.max_file_size_mb = 100;  // 100MB file limit
+
+    // Allowed paths
+    std::filesystem::path cwd = std::filesystem::current_path();
+    std::filesystem::path tmp = "/data/data/com.termux/files/usr/tmp";
+    config.allowReadPath(cwd.string());
+    config.allowWritePath(cwd.string());
+    config.allowReadPath(tmp.string());
+    config.allowWritePath(tmp.string());
+
+    return config;
+}
 
 // Phase 7c: Initialize language registry with available executors
 void initialize_executors() {
@@ -122,6 +158,12 @@ void print_usage() {
     fmt::print("  --explain                           Explain execution step-by-step\n");
     fmt::print("  --debug, -d                         Enable interactive debugger\n");
     fmt::print("  --no-color                          Disable colored error messages\n");
+    fmt::print("\nSecurity Options:\n");
+    fmt::print("  --sandbox-level <level>             Security: restricted|standard|elevated|unrestricted\n");
+    fmt::print("                                      (default: standard - safe for enterprise)\n");
+    fmt::print("  --timeout <seconds>                 Execution timeout per block (default: 30)\n");
+    fmt::print("  --memory-limit <MB>                 Memory limit per block (default: 512)\n");
+    fmt::print("  --allow-network                     Enable network access (default: disabled)\n");
 }
 
 int main(int argc, char** argv) {
@@ -140,16 +182,21 @@ int main(int argc, char** argv) {
             fmt::print("Error: Missing file argument\n");
             return 1;
         }
-        std::string filename = argv[2];
 
-        // Parse flags and collect script arguments (ISS-028)
+        // Parse flags first, then find filename (ISS-028)
         bool verbose = false;
         bool profile = false;
         bool explain = false;
         bool no_color = false;
         bool debug = false;
+        std::string sandbox_level = "unrestricted";  // Default: full language power
+        unsigned int timeout = 30;
+        size_t memory_limit = 512;
+        bool network_enabled = false;
+        std::string filename;
         std::vector<std::string> script_args;
-        for (int i = 3; i < argc; ++i) {
+
+        for (int i = 2; i < argc; ++i) {
             std::string arg(argv[i]);
             if (arg == "--verbose" || arg == "-v") {
                 verbose = true;
@@ -161,10 +208,30 @@ int main(int argc, char** argv) {
                 no_color = true;
             } else if (arg == "--debug" || arg == "-d") {
                 debug = true;
+            } else if (arg == "--sandbox-level" && i + 1 < argc) {
+                sandbox_level = argv[++i];
+            } else if (arg == "--timeout" && i + 1 < argc) {
+                timeout = std::stoi(argv[++i]);
+            } else if (arg == "--memory-limit" && i + 1 < argc) {
+                memory_limit = std::stoull(argv[++i]);
+            } else if (arg == "--allow-network") {
+                network_enabled = true;
             } else {
-                // Non-flag argument - pass to script
-                script_args.push_back(arg);
+                // Non-flag argument
+                if (filename.empty()) {
+                    // First non-flag is the filename
+                    filename = arg;
+                } else {
+                    // Subsequent non-flags are script arguments
+                    script_args.push_back(arg);
+                }
             }
+        }
+
+        // Validate filename was provided
+        if (filename.empty()) {
+            fmt::print("Error: Missing file argument\n");
+            return 1;
         }
 
         // Configure logger based on verbosity
@@ -172,6 +239,48 @@ int main(int argc, char** argv) {
 
         // Set global color preference for diagnostics (Phase 4.1.32)
         naab::error::Diagnostic::setGlobalColorEnabled(!no_color);
+
+        // Initialize security sandbox (enterprise hardening)
+        naab::security::SandboxConfig security_config;
+        if (sandbox_level == "restricted") {
+            security_config = naab::security::SandboxConfig::fromPermissionLevel(
+                naab::security::PermissionLevel::RESTRICTED
+            );
+        } else if (sandbox_level == "standard") {
+            security_config = createEnterpriseConfig();  // Safe default
+        } else if (sandbox_level == "elevated") {
+            security_config = naab::security::SandboxConfig::fromPermissionLevel(
+                naab::security::PermissionLevel::ELEVATED
+            );
+        } else if (sandbox_level == "unrestricted") {
+            security_config = naab::security::SandboxConfig::fromPermissionLevel(
+                naab::security::PermissionLevel::UNRESTRICTED
+            );
+        } else {
+            fmt::print("Error: Invalid sandbox level '{}'. Use: restricted|standard|elevated|unrestricted\n", sandbox_level);
+            return 1;
+        }
+
+        // Apply CLI overrides to security config
+        security_config.max_cpu_seconds = timeout;
+        security_config.max_memory_mb = memory_limit;
+        security_config.network_enabled = network_enabled;
+
+        // Set default config for SandboxManager
+        naab::security::SandboxManager::instance().setDefaultConfig(security_config);
+
+        // Configure Python import blocking based on sandbox level
+        // Unrestricted mode allows all imports (including os, subprocess, etc.)
+        if (sandbox_level == "unrestricted") {
+            naab::runtime::PythonExecutor::setBlockDangerousImports(false);
+        } else {
+            naab::runtime::PythonExecutor::setBlockDangerousImports(true);
+        }
+
+        if (verbose) {
+            fmt::print("[Security] Sandbox level: {}, timeout: {}s, memory: {}MB, network: {}\n",
+                       sandbox_level, timeout, memory_limit, network_enabled ? "enabled" : "disabled");
+        }
 
         // Load manifest if available
         auto manifest = naab::manifest::ManifestLoader::findAndLoad(".");

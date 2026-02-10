@@ -16,6 +16,8 @@
 #include "cycle_detector.h"  // Phase 3.2: Garbage collection
 #include "naab/polyglot_dependency_analyzer.h"  // Parallel polyglot execution
 #include "naab/polyglot_async_executor.h"  // Parallel polyglot execution
+#include "naab/sandbox.h"  // Enterprise security: Sandbox isolation
+#include "naab/resource_limits.h"  // Enterprise security: Resource limits
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
@@ -4363,6 +4365,11 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     explain("Executing inline " + language + " code" +
             (bound_vars.empty() ? "" : " with " + std::to_string(bound_vars.size()) + " bound variables"));
 
+    // Enterprise Security: Activate sandbox for polyglot execution
+    auto& sandbox_manager = security::SandboxManager::instance();
+    security::SandboxConfig sandbox_config = sandbox_manager.getDefaultConfig();
+    security::ScopedSandbox scoped_sandbox(sandbox_config);
+
     // Phase 2.3: Execute the code and capture return value
     try {
         result_ = executor->executeWithReturn(final_code);
@@ -4503,6 +4510,11 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
     if (group.parallel_blocks.empty()) {
         return;  // Nothing to execute
     }
+
+    // Enterprise Security: Activate sandbox for parallel polyglot execution
+    auto& sandbox_manager = security::SandboxManager::instance();
+    security::SandboxConfig sandbox_config = sandbox_manager.getDefaultConfig();
+    security::ScopedSandbox scoped_sandbox(sandbox_config);
 
     // Always use parallel execution, even for single blocks
     // This avoids Python segfault in sequential path and ensures consistency

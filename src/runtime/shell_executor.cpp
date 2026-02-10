@@ -6,6 +6,7 @@
 #include "naab/ast.h" // For ast::StructField and ast::Type
 #include "naab/subprocess_helpers.h" // For execute_subprocess_with_pipes
 #include "naab/sandbox.h" // For security sandbox
+#include "naab/resource_limits.h" // Enterprise security: Resource limits
 #include "naab/audit_logger.h" // For security audit logging
 #include <cstdio>       // For popen, pclose, FILE
 #include <array>        // For std::array
@@ -31,6 +32,41 @@ bool ShellExecutor::execute(const std::string& code) {
 // Phase 2.3: Execute command and return struct with {exit_code, stdout, stderr}
 std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
     const std::string& code) {
+
+    // Enterprise Security: Install signal handlers for resource limits (once)
+    if (!security::ResourceLimiter::isInitialized()) {
+        security::ResourceLimiter::installSignalHandlers();
+    }
+
+    // Enterprise Security: Get timeout from sandbox config (if active)
+    unsigned int timeout = 30;  // Default: 30 seconds
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (sandbox) {
+        timeout = sandbox->getConfig().max_cpu_seconds;
+    }
+
+    // Enterprise Security: Apply timeout for shell execution
+    security::ScopedTimeout scoped_timeout(timeout);
+
+    // Enterprise Security: FAIL-CLOSED - Check if system command execution is allowed
+    // Block by default if no sandbox or if sandbox denies execution
+    bool execution_allowed = false;
+    if (sandbox) {
+        // Check both the allow_exec flag and SYS_EXEC capability
+        execution_allowed = sandbox->getConfig().allow_exec &&
+                           sandbox->getConfig().hasCapability(security::Capability::SYS_EXEC);
+    }
+    // If no sandbox, default to DENY (fail-closed security)
+
+    if (!execution_allowed) {
+        throw std::runtime_error(
+            "Security: Shell command execution denied by sandbox\n\n"
+            "  Shell blocks can execute arbitrary system commands.\n"
+            "  For security, shell execution is disabled by default.\n\n"
+            "  To enable (not recommended for untrusted code):\n"
+            "    naab-lang run --sandbox-level unrestricted script.naab\n"
+        );
+    }
 
     // Executing with return (silent)
 

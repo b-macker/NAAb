@@ -139,10 +139,28 @@ void PythonExecutor::execute(const std::string& code) {
         }
     }
 
+    // Enterprise Security: Block dangerous imports when enabled
+    // NOTE: Due to threading in parallel execution, we can't rely on ScopedSandbox
+    // thread-local storage. Instead, use static flag set by main.cpp.
+    std::string final_code = code;  // Make mutable copy
+
+    // Check if import blocking is enabled (controlled via setBlockDangerousImports())
+    if (PythonExecutor::shouldBlockDangerousImports()) {
+        std::string security_prefix =
+            "import sys\n"
+            "# Security: Block dangerous modules\n"
+            "_blocked = ['os', 'subprocess', 'commands', 'pty', 'fcntl', 'multiprocessing', 'threading', 'ctypes']\n"
+            "for _m in _blocked:\n"
+            "    if _m in sys.modules: del sys.modules[_m]\n"
+            "    sys.modules[_m] = None\n"
+            "del _blocked, _m\n\n";
+        final_code = security_prefix + code;
+    }
+
     try {
         // Execute with configurable timeout (default 30 seconds)
         security::ScopedTimeout timeout(static_cast<unsigned int>(timeout_seconds_));
-        py::exec(code, py::globals());
+        py::exec(final_code, py::globals());
         LOG_DEBUG("[Python] Executed code successfully\n");
     } catch (const security::ResourceLimitException& e) {
         fmt::print("[ERROR] Python execution timeout: {}\n", e.what());
@@ -190,10 +208,52 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
     // Week 1, Task 1.2: Check polyglot block size
     limits::checkPolyglotBlockSize(code.size(), "Python");
 
+    // Enterprise Security: Install signal handlers for resource limits (once)
+    if (!security::ResourceLimiter::isInitialized()) {
+        security::ResourceLimiter::installSignalHandlers();
+    }
+
+    // Enterprise Security: Get limits from sandbox config (if active)
+    unsigned int timeout = 30;  // Default: 30 seconds
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (sandbox) {
+        timeout = sandbox->getConfig().max_cpu_seconds;
+    }
+
+    // Enterprise Security: Apply CPU timeout
+    // NOTE: Memory limits are NOT applied to Python due to RLIMIT_AS being
+    // incompatible with Python's memory allocator architecture. Python's
+    // allocator pre-allocates virtual address space for memory pools, which
+    // counts against RLIMIT_AS even when not used, causing MemoryError on
+    // basic operations like creating empty lists.
+    //
+    // SECURITY TRADE-OFF: Python blocks can allocate large amounts of memory.
+    // Mitigation: CPU timeout (30s default) still prevents infinite loops and
+    // limits total work. For stricter control, use subprocess-based executors.
+    security::ScopedTimeout scoped_timeout(timeout);
+
+    // Enterprise Security: Block dangerous imports when enabled
+    // NOTE: Due to threading in parallel execution, we can't rely on ScopedSandbox
+    // thread-local storage. Instead, use static flag set by main.cpp.
+    std::string final_code = code;  // Make mutable copy
+
+    // Check if import blocking is enabled (controlled via setBlockDangerousImports())
+    if (PythonExecutor::shouldBlockDangerousImports()) {
+        std::string security_prefix =
+            "import sys\n"
+            "# Security: Block dangerous modules\n"
+            "_blocked = ['os', 'subprocess', 'commands', 'pty', 'fcntl', 'multiprocessing', 'threading', 'ctypes']\n"
+            "for _m in _blocked:\n"
+            "    if _m in sys.modules: del sys.modules[_m]\n"
+            "    sys.modules[_m] = None\n"
+            "del _blocked, _m\n\n";
+        final_code = security_prefix + code;
+    }
+
     try {
         // Issue #3/#5/#7 Fix: Wrap code in function if it contains 'return' statement
         // This allows return statements, multi-line dicts, and with open(...) with return to work
-        if (code.find("return ") != std::string::npos || code.find("return\n") != std::string::npos) {
+        if (final_code.find("return ") != std::string::npos || final_code.find("return\n") != std::string::npos) {
             LOG_DEBUG("[Python] Code contains 'return', wrapping in function\n");
 
             // Wrap code in a function and immediately call it
@@ -201,7 +261,7 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
 
             // Indent all lines of the original code
             std::vector<std::string> code_lines;
-            std::istringstream stream(code);
+            std::istringstream stream(final_code);
             std::string line;
             while (std::getline(stream, line)) {
                 code_lines.push_back(line);
@@ -290,7 +350,7 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
 
         // Try eval() first for simple expressions (backwards compatible)
         try {
-            py::object result = py::eval(code, py::globals());
+            py::object result = py::eval(final_code, py::globals());
             return pythonToValue(result);
         } catch (const py::error_already_set& e) {
             // Check if it's a SyntaxError (likely multi-line statements)
@@ -304,7 +364,7 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
 
                 // Phase 2.3: Auto-capture last expression value
                 // Strategy: Find the last non-indented statement and prepend `_ = ` to capture its value
-                std::string modified_code = code;
+                std::string modified_code = final_code;
                 std::vector<std::string> lines;
                 std::istringstream stream(modified_code);
                 std::string line;
