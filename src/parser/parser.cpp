@@ -356,8 +356,14 @@ std::unique_ptr<ast::UseStatement> Parser::parseUseStatement() {
         advance();
     } else {
         throw std::runtime_error(
-            "Expected block ID, string literal, or identifier at line " +
-            std::to_string(token.line) + ", column " + std::to_string(token.column)
+            "Use statement error at line " + std::to_string(token.line) +
+            ", column " + std::to_string(token.column) + "\n\n"
+            "  Expected: block ID, string literal, or identifier\n"
+            "  Got: " + token.value + "\n\n"
+            "  Help:\n"
+            "  - Block ID format: use BLOCK-abc123 from \"path/file.naab\"\n"
+            "  - String format: use \"module_name\" from \"path/file.naab\"\n"
+            "  - Identifier format: use some_module from \"path/file.naab\"\n"
         );
     }
 

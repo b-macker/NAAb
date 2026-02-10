@@ -410,7 +410,18 @@ std::vector<Token> Lexer::tokenize() {
 
             // Read language name
             if (!currentChar() || !std::isalpha(*currentChar())) {
-                throw std::runtime_error("Expected language name after '<<' at line " + std::to_string(line_));
+                throw std::runtime_error(
+                    "Expected language name after '<<' at line " + std::to_string(line_) + "\n\n"
+                    "  Help:\n"
+                    "  - Polyglot blocks need a language name: <<python, <<javascript, etc.\n"
+                    "  - Supported languages: python, javascript, typescript, rust, cpp, csharp,\n"
+                    "    shell, php, ruby, go\n\n"
+                    "  Example:\n"
+                    "    let result = <<python\n"
+                    "    x = 42\n"
+                    "    x * 2\n"
+                    "    >>\n"
+                );
             }
 
             std::string language = readIdentifier();
@@ -566,10 +577,21 @@ std::vector<Token> Lexer::tokenize() {
             case ']': tokens_.emplace_back(TokenType::RBRACKET, "]", line, col); break;
             case ',': tokens_.emplace_back(TokenType::COMMA, ",", line, col); break;
             case ';': tokens_.emplace_back(TokenType::SEMICOLON, ";", line, col); break;
-            default:
-                throw std::runtime_error("Unexpected character '" + std::string(1, ch) +
-                                       "' at line " + std::to_string(line_) +
-                                       ", column " + std::to_string(column_));
+            default: {
+                std::string char_display = (std::isprint(ch)) ?
+                    std::string(1, ch) :
+                    "\\x" + std::to_string(static_cast<int>(static_cast<unsigned char>(ch)));
+
+                throw std::runtime_error(
+                    "Unexpected character '" + char_display +
+                    "' at line " + std::to_string(line_) +
+                    ", column " + std::to_string(column_) + "\n\n"
+                    "  Help:\n"
+                    "  - Check for typos or invalid characters\n"
+                    "  - Special characters in strings must be quoted: \"" + char_display + "\"\n"
+                    "  - Some Unicode characters may not be supported\n"
+                );
+            }
         }
 
         advance();
