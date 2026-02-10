@@ -209,6 +209,62 @@ std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn
             }
         }
 
+        // TypeScript-specific wrapping: wrap expressions in console.log()
+        if ((language_id_ == "typescript" || language_id_ == "ts")) {
+            // Check if multi-line
+            if (code.find('\n') != std::string::npos) {
+                // Multi-line: wrap last expression in console.log()
+                std::vector<std::string> lines;
+                std::istringstream stream(code);
+                std::string line;
+                while (std::getline(stream, line)) {
+                    lines.push_back(line);
+                }
+
+                // Find last non-empty line
+                int last_line_idx = -1;
+                for (int i = lines.size() - 1; i >= 0; i--) {
+                    std::string trimmed = lines[i];
+                    size_t s = trimmed.find_first_not_of(" \t\r");
+                    if (s != std::string::npos) {
+                        last_line_idx = i;
+                        break;
+                    }
+                }
+
+                wrapped_code = "";
+                for (size_t i = 0; i < lines.size(); i++) {
+                    if (static_cast<int>(i) == last_line_idx) {
+                        // Last line: wrap in console.log()
+                        std::string trimmed = lines[i];
+                        size_t s = trimmed.find_first_not_of(" \t\r");
+                        if (s != std::string::npos) {
+                            trimmed = trimmed.substr(s);
+                            // Remove trailing semicolon if present
+                            if (!trimmed.empty() && trimmed.back() == ';') {
+                                trimmed.pop_back();
+                            }
+                            wrapped_code += "console.log(" + trimmed + ");\n";
+                        }
+                    } else {
+                        wrapped_code += lines[i] + "\n";
+                    }
+                }
+            } else {
+                // Single-line expression: wrap in console.log()
+                std::string expr = code;
+                size_t s = expr.find_first_not_of(" \t\r");
+                if (s != std::string::npos) {
+                    expr = expr.substr(s);
+                }
+                // Remove trailing semicolon if present
+                if (!expr.empty() && expr.back() == ';') {
+                    expr.pop_back();
+                }
+                wrapped_code = "console.log(" + expr + ");\n";
+            }
+        }
+
         std::ofstream ofs(temp_file_path);
         if (!ofs.is_open()) {
             throw std::runtime_error("Failed to create temp file");
