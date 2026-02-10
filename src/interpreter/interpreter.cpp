@@ -819,8 +819,6 @@ void Interpreter::visit(ast::UseStatement& node) {
 
         LOG_DEBUG("[INFO] Loaded block {} from filesystem as {} ({})\n",
                    node.getBlockId(), alias, metadata.language);
-        fmt::print("       Source: {}\n", metadata.file_path);
-        fmt::print("       Code size: {} bytes\n", code.size());
 
     } else if (block_loader_) {
         // Fall back to BlockLoader (database)
@@ -830,8 +828,6 @@ void Interpreter::visit(ast::UseStatement& node) {
 
             LOG_DEBUG("[INFO] Loaded block {} from database as {} ({}, {} tokens)\n",
                        node.getBlockId(), alias, metadata.language, metadata.token_count);
-            fmt::print("       Source: {}\n", metadata.file_path);
-            fmt::print("       Code size: {} bytes\n", code.size());
         } catch (const std::exception& e) {
             fmt::print("[ERROR] Failed to load block {}: {}\n", node.getBlockId(), e.what());
             return;
@@ -4071,10 +4067,21 @@ void Interpreter::visit(ast::IdentifierExpr& node) {
 
 void Interpreter::visit(ast::LiteralExpr& node) {
     switch (node.getLiteralKind()) {
-        case ast::LiteralKind::Int:
-            result_ = std::make_shared<Value>(std::stoi(node.getValue()));
+        case ast::LiteralKind::Int: {
+            // Use stod first to avoid overflow, then check if it fits in int
+            try {
+                double d = std::stod(node.getValue());
+                if (d >= INT_MIN && d <= INT_MAX && d == static_cast<int>(d)) {
+                    result_ = std::make_shared<Value>(static_cast<int>(d));
+                } else {
+                    // Too large for int, store as double
+                    result_ = std::make_shared<Value>(d);
+                }
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Invalid integer literal: " + node.getValue());
+            }
             break;
-
+        }
         case ast::LiteralKind::Float:
             result_ = std::make_shared<Value>(std::stod(node.getValue()));
             break;

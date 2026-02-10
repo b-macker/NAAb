@@ -11,13 +11,13 @@ namespace runtime {
 class TempFileGuard {
 public:
     TempFileGuard(const std::filesystem::path& path) : path_(path) {
-        fmt::print("[TempFileGuard] Created guard for: '{}'\n", path_.string());
+        // Silent: guard created
     }
 
     ~TempFileGuard() {
         if (!path_.empty() && std::filesystem::exists(path_)) {
             std::filesystem::remove(path_);
-            fmt::print("[TempFileGuard] Deleted temporary file: '{}'\n", path_.string());
+            // Silent: temp file deleted
         }
     }
 

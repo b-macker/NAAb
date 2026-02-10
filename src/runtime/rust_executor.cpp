@@ -64,7 +64,6 @@ bool RustExecutor::execute(const std::string& code) {
 
     // Compile with rustc
     std::string compile_cmd = fmt::format("rustc {} -o {}", temp_rs.string(), temp_bin.string());
-    fmt::print("[INFO] Compiling Rust code: {}\n", compile_cmd);
 
     std::string compile_stdout, compile_stderr;
     int compile_exit = execute_subprocess_with_pipes(

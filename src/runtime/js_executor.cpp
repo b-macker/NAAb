@@ -8,6 +8,7 @@
 #include "naab/sandbox.h"
 #include "naab/stack_tracer.h"  // Phase 4.2.3: Cross-language stack traces
 #include "naab/limits.h"  // Week 1, Task 1.2: Input size caps
+#include <climits>      // For INT32_MIN, INT32_MAX
 #include <fmt/core.h>
 #include <stdexcept>
 #include <chrono>
@@ -339,16 +340,15 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
         return std::make_shared<interpreter::Value>(b != 0);
     }
 
-    // Number (check int first, then double)
+    // Number (always get as double first, then check if it fits in int)
     if (JS_IsNumber(val)) {
-        int32_t i;
-        if (JS_ToInt32(ctx, &i, val) == 0) {
-            // Check if it's actually an integer
-            double d;
-            JS_ToFloat64(ctx, &d, val);
-            if (d == static_cast<double>(i)) {
-                return std::make_shared<interpreter::Value>(i);
+        double d;
+        if (JS_ToFloat64(ctx, &d, val) == 0) {
+            // Check if it fits in int32 range and is actually an integer
+            if (d >= INT32_MIN && d <= INT32_MAX && d == static_cast<int32_t>(d)) {
+                return std::make_shared<interpreter::Value>(static_cast<int>(d));
             } else {
+                // Too large or has decimal part, return as double
                 return std::make_shared<interpreter::Value>(d);
             }
         }

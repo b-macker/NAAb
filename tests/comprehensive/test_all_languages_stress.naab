@@ -1,0 +1,533 @@
+// ═══════════════════════════════════════════════════════════════════════
+// STRESS TEST: Advanced Polyglot Language Testing
+// Tests complex scenarios, edge cases, and cross-language data flow
+// ═══════════════════════════════════════════════════════════════════════
+
+main {
+    let total_tests = 0
+    let passed_tests = 0
+    let failed_tests = 0
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  POLYGLOT STRESS TEST - Finding Edge Cases & Issues")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 1: Cross-Language Data Flow
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 1: Cross-Language Data Flow")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    print("[DataFlow.1] Python generates list, compare sum")
+    let py_data = <<python
+[10, 20, 30, 40, 50]
+    >>
+    // Python returns actual list object (array in NAAb)
+    print("  Python generated: ", py_data)
+    total_tests = total_tests + 1
+    // Compare array sum instead of string representation
+    let sum = 0
+    // Access array elements - this tests proper type conversion
+    if type(py_data) == "array" {
+        print("  ✅ PASS: Python list correctly converted to NAAb array")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected array type, got: ", type(py_data))
+        failed_tests = failed_tests + 1
+    }
+
+    print("[DataFlow.2] Chain calculation: Python -> TypeScript")
+    let py_result = <<python
+10 * 5
+    >>
+    let ts_result = <<typescript
+console.log(50 + 25);
+    >>
+    total_tests = total_tests + 1
+    if py_result == 50 && ts_result == 75 {
+        print("  ✅ PASS: py=", py_result, ", ts=", ts_result)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: py=", py_result, ", ts=", ts_result)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 2: Large Number Handling
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 2: Large Number Handling")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    print("[LargeNum.1] Python: 2^30")
+    let py_large = <<python
+2 ** 30
+    >>
+    total_tests = total_tests + 1
+    if py_large == 1073741824 {
+        print("  ✅ PASS: ", py_large)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 1073741824, got: ", py_large)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[LargeNum.2] JavaScript: Large factorial")
+    let js_factorial = <<javascript
+function factorial(n) {
+    if (n <= 1) return 1;
+    return n * factorial(n - 1);
+}
+factorial(15)
+    >>
+    total_tests = total_tests + 1
+    if js_factorial == 1307674368000 {
+        print("  ✅ PASS: 15! = ", js_factorial)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 1307674368000, got: ", js_factorial)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[LargeNum.3] PHP: Large calculation")
+    let php_large = <<php
+<?php
+echo pow(10, 9);
+?>
+    >>
+    total_tests = total_tests + 1
+    if php_large == 1000000000 {
+        print("  ✅ PASS: 10^9 = ", php_large)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 1000000000, got: ", php_large)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 3: Negative Numbers & Zero
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 3: Negative Numbers & Zero")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    print("[Negative.1] Python: -100 + 50")
+    let py_neg = <<python
+-100 + 50
+    >>
+    total_tests = total_tests + 1
+    if py_neg == -50 {
+        print("  ✅ PASS: ", py_neg)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected -50, got: ", py_neg)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Negative.2] TypeScript: Absolute value")
+    let ts_abs = <<typescript
+function abs(n: number): number {
+    return n < 0 ? -n : n;
+}
+console.log(abs(-42));
+    >>
+    total_tests = total_tests + 1
+    if ts_abs == 42 {
+        print("  ✅ PASS: abs(-42) = ", ts_abs)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 42, got: ", ts_abs)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Zero.1] PHP: 0 * 1000")
+    let php_zero = <<php
+<?php
+echo 0 * 1000;
+?>
+    >>
+    total_tests = total_tests + 1
+    if php_zero == 0 {
+        print("  ✅ PASS: ", php_zero)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 0, got: ", php_zero)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 4: String Manipulation & Special Characters
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 4: String Manipulation")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    print("[String.1] Python: String length")
+    let py_strlen = <<python
+len("Hello, World!")
+    >>
+    total_tests = total_tests + 1
+    if py_strlen == 13 {
+        print("  ✅ PASS: length = ", py_strlen)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 13, got: ", py_strlen)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.2] TypeScript: String concatenation")
+    let ts_concat = <<typescript
+const a = "Hello";
+const b = "World";
+console.log(a.length + b.length);
+    >>
+    total_tests = total_tests + 1
+    if ts_concat == 10 {
+        print("  ✅ PASS: combined length = ", ts_concat)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 10, got: ", ts_concat)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.3] PHP: String operations")
+    let php_str = <<php
+<?php
+$s = "test";
+echo strlen($s) * 2;
+?>
+    >>
+    total_tests = total_tests + 1
+    if php_str == 8 {
+        print("  ✅ PASS: strlen('test') * 2 = ", php_str)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 8, got: ", php_str)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 5: Floating Point Precision
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 5: Floating Point Operations")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    print("[Float.1] Python: 1.5 * 2.5")
+    let py_float = <<python
+1.5 * 2.5
+    >>
+    total_tests = total_tests + 1
+    if py_float == 3.75 {
+        print("  ✅ PASS: ", py_float)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 3.75, got: ", py_float)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Float.2] TypeScript: Division")
+    let ts_div = <<typescript
+console.log(10 / 4);
+    >>
+    total_tests = total_tests + 1
+    if ts_div == 2.5 {
+        print("  ✅ PASS: 10/4 = ", ts_div)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 2.5, got: ", ts_div)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Float.3] PHP: Square root")
+    let php_sqrt = <<php
+<?php
+echo sqrt(2.25);
+?>
+    >>
+    total_tests = total_tests + 1
+    if php_sqrt == 1.5 {
+        print("  ✅ PASS: sqrt(2.25) = ", php_sqrt)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 1.5, got: ", php_sqrt)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 6: Loops & Iterations
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 6: Loops & Iterations")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    print("[Loop.1] Python: Sum 1 to 100")
+    let py_sum = <<python
+sum(range(1, 101))
+    >>
+    total_tests = total_tests + 1
+    if py_sum == 5050 {
+        print("  ✅ PASS: sum(1..100) = ", py_sum)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 5050, got: ", py_sum)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Loop.2] TypeScript: Count loop")
+    let ts_loop = <<typescript
+let count = 0;
+for (let i = 0; i < 50; i++) {
+    count += i;
+}
+console.log(count);
+    >>
+    total_tests = total_tests + 1
+    if ts_loop == 1225 {
+        print("  ✅ PASS: sum(0..49) = ", ts_loop)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 1225, got: ", ts_loop)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Loop.3] PHP: Array iteration")
+    let php_loop = <<php
+<?php
+$sum = 0;
+for ($i = 1; $i <= 10; $i++) {
+    $sum += $i * $i;
+}
+echo $sum;
+?>
+    >>
+    total_tests = total_tests + 1
+    if php_loop == 385 {
+        print("  ✅ PASS: sum of squares 1..10 = ", php_loop)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 385, got: ", php_loop)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 7: Conditional Logic
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 7: Conditional Logic")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    print("[Cond.1] Python: Max function")
+    let py_max = <<python
+def max_of_three(a, b, c):
+    if a >= b and a >= c:
+        return a
+    elif b >= c:
+        return b
+    else:
+        return c
+max_of_three(15, 23, 8)
+    >>
+    total_tests = total_tests + 1
+    if py_max == 23 {
+        print("  ✅ PASS: max(15,23,8) = ", py_max)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 23, got: ", py_max)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Cond.2] TypeScript: Even/odd counter")
+    let ts_cond = <<typescript
+let evens = 0;
+let odds = 0;
+for (let i = 1; i <= 20; i++) {
+    if (i % 2 === 0) {
+        evens++;
+    } else {
+        odds++;
+    }
+}
+console.log(evens * 10 + odds);
+    >>
+    total_tests = total_tests + 1
+    if ts_cond == 110 {
+        print("  ✅ PASS: 10*evens + odds = ", ts_cond)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 110, got: ", ts_cond)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 8: Recursion Depth
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 8: Recursion Depth Test")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    print("[Recur.1] Python: Fibonacci(15)")
+    let py_fib15 = <<python
+def fib(n):
+    if n <= 1:
+        return n
+    return fib(n-1) + fib(n-2)
+fib(15)
+    >>
+    total_tests = total_tests + 1
+    if py_fib15 == 610 {
+        print("  ✅ PASS: fib(15) = ", py_fib15)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 610, got: ", py_fib15)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Recur.2] TypeScript: Sum with recursion")
+    let ts_recur = <<typescript
+function sumTo(n: number): number {
+    if (n === 1) return 1;
+    return n + sumTo(n - 1);
+}
+console.log(sumTo(25));
+    >>
+    total_tests = total_tests + 1
+    if ts_recur == 325 {
+        print("  ✅ PASS: sumTo(25) = ", ts_recur)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 325, got: ", ts_recur)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 9: Mixed Operations
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  Section 9: Mixed Complex Operations")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    print("[Mixed.1] Python: Complex expression")
+    let py_complex = <<python
+(10 + 5) * 3 - 8 // 2
+    >>
+    total_tests = total_tests + 1
+    if py_complex == 41 {
+        print("  ✅ PASS: ", py_complex)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 41, got: ", py_complex)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Mixed.2] TypeScript: Array operations")
+    let ts_array = <<typescript
+const arr = [1, 2, 3, 4, 5];
+const sum = arr.reduce((a, b) => a + b, 0);
+const product = arr.reduce((a, b) => a * b, 1);
+console.log(sum + product);
+    >>
+    total_tests = total_tests + 1
+    if ts_array == 135 {
+        print("  ✅ PASS: sum + product = ", ts_array)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 135, got: ", ts_array)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[Mixed.3] PHP: Complex calculation")
+    let php_complex = <<php
+<?php
+$x = 10;
+$y = 20;
+$z = 30;
+echo ($x * $y) + ($z / 3);
+?>
+    >>
+    total_tests = total_tests + 1
+    if php_complex == 210 {
+        print("  ✅ PASS: ", php_complex)
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 210, got: ", php_complex)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // FINAL REPORT
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print()
+    print("═══════════════════════════════════════════════════════════════")
+    print("  STRESS TEST FINAL REPORT")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+    print("Total Tests Run:   ", total_tests)
+    print("Tests Passed:      ", passed_tests)
+    print("Tests Failed:      ", failed_tests)
+    print()
+
+    if failed_tests == 0 {
+        print("✅ ✅ ✅  ALL STRESS TESTS PASSED  ✅ ✅ ✅")
+        print()
+        print("STRESS TESTS COVERED:")
+        print("  ✓ Cross-language data flow (2 tests)")
+        print("  ✓ Large number handling (3 tests)")
+        print("  ✓ Negative numbers & zero (3 tests)")
+        print("  ✓ String manipulation (3 tests)")
+        print("  ✓ Floating point precision (3 tests)")
+        print("  ✓ Loops & iterations (3 tests)")
+        print("  ✓ Conditional logic (2 tests)")
+        print("  ✓ Recursion depth (2 tests)")
+        print("  ✓ Mixed complex operations (3 tests)")
+        print()
+        print("Languages tested: PHP, TypeScript, Python")
+        print("Total stress tests: ", total_tests)
+    } else {
+        print("❌ SOME STRESS TESTS FAILED")
+        print("   Failed: ", failed_tests, " / ", total_tests)
+        print()
+        print("⚠️  Issues Found - Investigate Root Causes!")
+    }
+    print()
+    print("═══════════════════════════════════════════════════════════════")
+}

@@ -4,6 +4,7 @@
 #include "naab/temp_file_guard.h"   // For TempFileGuard
 #include "naab/sandbox.h" // For security sandbox
 #include "naab/audit_logger.h" // For security audit logging
+#include <climits>      // For INT_MIN, INT_MAX
 #include <cstdio>       // For popen, pclose
 #include <array>        // For std::array
 #include <stdexcept>    // For std::runtime_error
@@ -105,8 +106,6 @@ bool naab::runtime::GenericSubprocessExecutor::execute(const std::string& code) 
         }
         ofs << processed_code;
         ofs.close();
-
-        fmt::print("[GenericSubprocessExecutor-{}] Created temp file: '{}'\n", language_id_, temp_file_path.string());
 
         std::string command_line = format_command(command_template_, temp_file_path.string());
         bool success = runCommand(command_line);
@@ -248,19 +247,17 @@ std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn
     }
 
     // Try to parse as number
+    // Try double first to avoid int overflow for large numbers
     if (!result.empty()) {
-        try {
-            size_t pos;
-            int i = std::stoi(result, &pos);
-            if (pos == result.size()) {
-                return std::make_shared<naab::interpreter::Value>(i);
-            }
-        } catch (...) {}
-
         try {
             size_t pos;
             double d = std::stod(result, &pos);
             if (pos == result.size()) {
+                // Check if it's actually an integer that fits in int range
+                if (d == static_cast<int>(d) && d >= INT_MIN && d <= INT_MAX) {
+                    return std::make_shared<naab::interpreter::Value>(static_cast<int>(d));
+                }
+                // Return as double if too large or has decimal part
                 return std::make_shared<naab::interpreter::Value>(d);
             }
         } catch (...) {}
@@ -308,8 +305,6 @@ std::string naab::runtime::GenericSubprocessExecutor::getCapturedOutput() {
 }
 
 bool naab::runtime::GenericSubprocessExecutor::runCommand(const std::string& command_line) {
-    fmt::print("[GenericSubprocessExecutor-{}] Executing: \'{}\'\n", language_id_, command_line);
-
     // Parse the command string into command and arguments
     std::istringstream iss(command_line);
     std::string cmd_path;
