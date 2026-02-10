@@ -1,0 +1,22 @@
+// Minimal JS test to debug hang
+
+main {
+    print("Test 1 - Empty array")
+    let arr1 = <<javascript
+[]
+    >>
+    print("Type:", type(arr1))
+
+    print("Test 2 - Single element")
+    let arr2 = <<javascript
+[42]
+    >>
+    print("Type:", type(arr2))
+
+    print("Test 3 - Two elements")
+    let arr3 = <<javascript
+[42, 100]
+    >>
+    print("Type:", type(arr3))
+    print("Done!")
+}

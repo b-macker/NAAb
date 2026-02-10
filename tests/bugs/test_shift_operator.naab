@@ -1,0 +1,17 @@
+// Minimal test for >> operator inside Python polyglot block
+
+main {
+    print("Testing right shift operator in Python")
+
+    let result = <<python
+8 >> 1
+    >>
+
+    print("Result:", result)
+
+    if result == 4 {
+        print("PASS - Right shift works correctly")
+    } else {
+        print("FAIL - Got:", result)
+    }
+}

@@ -1,0 +1,95 @@
+// Test strings with special characters
+// Bug Hunt reported issues with brackets, keywords, equals in strings
+
+main {
+    print("Testing Strings with Special Characters")
+    print()
+
+    let total = 0
+    let passed = 0
+
+    // Test 1: String with square brackets
+    print("Test 1 - String with brackets")
+    total = total + 1
+    let brackets = "[Test 123] Some text"
+    if brackets == "[Test 123] Some text" {
+        print("  PASS")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Got:", brackets)
+    }
+
+    // Test 2: String with keyword "in"
+    print("Test 2 - String with keyword")
+    total = total + 1
+    let keyword = "in comment here"
+    if keyword == "in comment here" {
+        print("  PASS")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Got:", keyword)
+    }
+
+    // Test 3: String with equals signs
+    print("Test 3 - String with equals")
+    total = total + 1
+    let equals = "=========="
+    if equals == "==========" {
+        print("  PASS")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Got:", equals)
+    }
+
+    // Test 4: String with >> symbols
+    print("Test 4 - String with >>")
+    total = total + 1
+    let arrows = "test >> string"
+    if arrows == "test >> string" {
+        print("  PASS")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Got:", arrows)
+    }
+
+    // Test 5: Complex string with multiple special chars
+    print("Test 5 - Complex string")
+    total = total + 1
+    let complex = "[Test] with >> and == and in keyword"
+    if string.length(complex) == 36 {
+        print("  PASS")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Length:", string.length(complex))
+    }
+
+    // Test 6: String in if condition
+    print("Test 6 - String in condition")
+    total = total + 1
+    if "[bracket]" == "[bracket]" {
+        print("  PASS")
+        passed = passed + 1
+    } else {
+        print("  FAIL")
+    }
+
+    // Test 7: String comparison with operators
+    print("Test 7 - String with operators in comparison")
+    total = total + 1
+    let op_str = "x == y"
+    if op_str == "x == y" {
+        print("  PASS")
+        passed = passed + 1
+    } else {
+        print("  FAIL")
+    }
+
+    print()
+    print("Total:", total)
+    print("Passed:", passed)
+    if passed == total {
+        print("ALL STRING TESTS PASSED - No bugs found!")
+    } else {
+        print("Some string bugs still exist")
+    }
+}

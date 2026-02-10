@@ -230,15 +230,32 @@ std::string Lexer::readString() {
 
 std::string Lexer::readInlineCode() {
     // Called after we've seen "<<", should read until ">>"
+    // IMPORTANT: Only treat >> as closing delimiter when at line start
     size_t start = pos_;
+    bool at_line_start = true;  // We start right after the newline following language name
 
     while (currentChar()) {
-        if (*currentChar() == '>' && peekChar() && *peekChar() == '>') {
-            // Found the closing >>
+        char ch = *currentChar();
+
+        // Check if we're at line start and found closing >>
+        if (at_line_start && ch == '>' && peekChar() && *peekChar() == '>') {
+            // Found the closing >> at line start
             std::string code = source_.substr(start, pos_ - start);
             return code;
         }
-        advance();
+
+        // Update line start tracking
+        if (ch == '\n') {
+            at_line_start = true;  // Next char will be at line start
+            advance();
+        } else if (ch == ' ' || ch == '\t' || ch == '\r') {
+            // Whitespace doesn't change line start status
+            advance();
+        } else {
+            // Non-whitespace character - no longer at line start
+            at_line_start = false;
+            advance();
+        }
     }
 
     // If we get here, we never found the closing >>

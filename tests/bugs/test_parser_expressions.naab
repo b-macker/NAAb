@@ -1,0 +1,131 @@
+// BUG HUNT TEST - Complex Expression Edge Cases
+
+main {
+    let total = 0
+    let pass_count = 0
+
+    print("BUG HUNT - Complex Expressions")
+    print()
+
+    // Test 1: Deeply nested parentheses
+    print("Test 1 - Deeply nested parentheses")
+    total = total + 1
+    let nested = ((((10 + 5) * 2) - 8) / 2)
+    if nested == 11 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL got", nested)
+    }
+
+    // Test 2: Complex operator precedence
+    print("Test 2 - Operator precedence")
+    total = total + 1
+    let precedence = 1 + 2 * 3 - 4 / 2
+    if precedence == 5 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL got", precedence)
+    }
+
+    // Test 3: Long expression
+    print("Test 3 - Long expression")
+    total = total + 1
+    let long_expr = 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
+    if long_expr == 10 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL got", long_expr)
+    }
+
+    // Test 4: Nested array access
+    print("Test 4 - Nested array access")
+    total = total + 1
+    let arr = [[1, 2], [3, 4]]
+    let nested_val = arr[1][0]
+    if nested_val == 3 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL got", nested_val)
+    }
+
+    // Test 5: Nested dict access
+    print("Test 5 - Nested dict access")
+    total = total + 1
+    let d = {"outer": {"inner": 42}}
+    let nested_dict = d["outer"]["inner"]
+    if nested_dict == 42 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL got", nested_dict)
+    }
+
+    // Test 6: Mixed operators no spaces
+    print("Test 6 - Mixed operators no spaces")
+    total = total + 1
+    let no_space = 10+5-3*2
+    if no_space == 9 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL got", no_space)
+    }
+
+    // Test 7: Chained comparisons
+    print("Test 7 - Chained comparisons")
+    total = total + 1
+    let chain = (5 > 3) && (3 > 1)
+    if chain == true {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL got", chain)
+    }
+
+    // Test 8: Unary minus
+    print("Test 8 - Unary minus")
+    total = total + 1
+    let neg = -10
+    let double_neg = -(-10)
+    if neg == -10 && double_neg == 10 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 9: Mixed types in expression
+    print("Test 9 - Int and float mixing")
+    total = total + 1
+    let mixed = 10 + 2.5
+    if mixed == 12.5 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL got", mixed)
+    }
+
+    // Test 10: Array literal in expression
+    print("Test 10 - Array literal in expression")
+    total = total + 1
+    let arr_expr = [1, 2, 3][1]
+    if arr_expr == 2 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL got", arr_expr)
+    }
+
+    print()
+    print("Total", total)
+    print("Passed", pass_count)
+    if pass_count == total {
+        print("ALL EXPRESSION TESTS PASSED")
+    } else {
+        print("Some tests failed")
+    }
+}

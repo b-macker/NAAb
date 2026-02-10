@@ -1,0 +1,48 @@
+// Minimal polyglot delimiter test
+
+main {
+    let total = 0
+    let pass_count = 0
+
+    print("Test 1 - Normal Python")
+    total = total + 1
+    let t1 = <<python
+1 + 1
+    >>
+    if t1 == 2 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    print("Test 2 - Python multiply")
+    total = total + 1
+    let t2 = <<python
+8 * 2
+>>
+    if t2 == 16 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    print("Test 3 - Multiple blocks")
+    total = total + 1
+    let t3a = <<python
+10
+    >>
+    let t3b = <<python
+20
+    >>
+    if t3a + t3b == 30 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    print("Total tests", total)
+    print("Passed", pass_count)
+}

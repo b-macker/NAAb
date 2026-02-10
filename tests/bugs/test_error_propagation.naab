@@ -1,0 +1,125 @@
+// BUG HUNT TEST - Error Propagation Edge Cases
+
+main {
+    let total = 0
+    let pass_count = 0
+
+    print("BUG HUNT - Error Propagation")
+    print()
+
+    // Test 1: Python error caught by try-catch
+    print("Test 1 - Python error caught")
+    total = total + 1
+    try {
+        let bad = <<python
+1 / 0
+        >>
+        print("FAIL - should have thrown error")
+    } catch (error) {
+        print("PASS - error caught")
+        pass_count = pass_count + 1
+    }
+
+    // Test 2: Python undefined variable
+    print("Test 2 - Python undefined variable")
+    total = total + 1
+    try {
+        let bad2 = <<python
+undefined_var
+        >>
+        print("FAIL - should have thrown error")
+    } catch (error) {
+        print("PASS - undefined variable caught")
+        pass_count = pass_count + 1
+    }
+
+    // Test 3: Python syntax error
+    print("Test 3 - Python syntax error")
+    total = total + 1
+    try {
+        let bad3 = <<python
+def bad syntax here
+        >>
+        print("FAIL - should have thrown error")
+    } catch (error) {
+        print("PASS - syntax error caught")
+        pass_count = pass_count + 1
+    }
+
+    // Test 4: TypeScript error caught
+    print("Test 4 - TypeScript error")
+    total = total + 1
+    try {
+        let bad4 = <<typescript
+throw new Error("test error")
+        >>
+        print("FAIL - should have thrown error")
+    } catch (error) {
+        print("PASS - TS error caught")
+        pass_count = pass_count + 1
+    }
+
+    // Test 5: Nested try-catch
+    print("Test 5 - Nested try-catch")
+    total = total + 1
+    try {
+        try {
+            let bad5 = <<python
+raise Exception("nested error")
+            >>
+            print("FAIL - inner should throw")
+        } catch (inner_error) {
+            print("PASS - nested error caught")
+            pass_count = pass_count + 1
+        }
+    } catch (outer_error) {
+        print("FAIL - should not reach outer catch")
+    }
+
+    // Test 6: Error after successful execution
+    print("Test 6 - Error after success")
+    total = total + 1
+    let success = <<python
+42
+    >>
+    if success == 42 {
+        try {
+            let fail = <<python
+1 / 0
+            >>
+            print("FAIL - should throw")
+        } catch (e) {
+            print("PASS - error after success")
+            pass_count = pass_count + 1
+        }
+    }
+
+    // Test 7: Continue after caught error
+    print("Test 7 - Continue after error")
+    total = total + 1
+    try {
+        let err = <<python
+1 / 0
+        >>
+    } catch (e) {
+        // Continue normally
+    }
+    let after = <<python
+100
+    >>
+    if after == 100 {
+        print("PASS - execution continues")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL - execution broken")
+    }
+
+    print()
+    print("Total", total)
+    print("Passed", pass_count)
+    if pass_count == total {
+        print("ALL ERROR TESTS PASSED")
+    } else {
+        print("Some tests failed")
+    }
+}

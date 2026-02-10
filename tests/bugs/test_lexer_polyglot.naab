@@ -1,0 +1,165 @@
+// BUG HUNT TEST - Polyglot Delimiter Edge Cases
+
+main {
+    let total = 0
+    let pass_count = 0
+
+    print("BUG HUNT - Polyglot Delimiters")
+    print()
+
+    print("Test Normal Python block")
+    total = total + 1
+    let t1 = <<python
+1 + 1
+    >>
+    if t1 == 2 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t1)
+    }
+
+    print("Test Python with gt gt in string")
+    total = total + 1
+    let t2 = <<python
+s = "test >> string"
+len(s)
+    >>
+    if t2 == 14 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t2)
+    }
+
+    print("Test 3 - Python with gt gt comment")
+    total = total + 1
+    let t3 = <<python
+# Comment with >> symbols
+42
+    >>
+    if t3 == 42 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t3)
+    }
+
+    print("Test Python right shift operator")
+    total = total + 1
+    let t4 = <<python
+8 >> 1
+    >>
+    if t4 == 4 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t4)
+    }
+
+    print("Test Python less than comparison")
+    total = total + 1
+    let t5 = <<python
+5 < 10
+    >>
+    if t5 == true {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t5)
+    }
+
+    print("Test Python left shift operator")
+    total = total + 1
+    let t6 = <<python
+2 << 3
+    >>
+    if t6 == 16 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t6)
+    }
+
+    print("Test Block with extra newlines")
+    total = total + 1
+    let t7 = <<python
+
+
+42
+
+    >>
+    if t7 == 42 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t7)
+    }
+
+    print("Test Block with leading spaces")
+    total = total + 1
+    let t8 = <<python
+    100
+    >>
+    if t8 == 100 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t8)
+    }
+
+    print("Test Multiple Python blocks")
+    total = total + 1
+    let t9a = <<python
+10
+    >>
+    let t9b = <<python
+20
+    >>
+    let t9 = t9a + t9b
+    if t9 == 30 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t9)
+    }
+
+    print("Test Mixed Python and TypeScript")
+    total = total + 1
+    let t10a = <<python
+5
+    >>
+    let t10b = <<typescript
+7
+    >>
+    let t10 = t10a + t10b
+    if t10 == 12 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t10)
+    }
+
+    print("Test Long Python block with loop")
+    total = total + 1
+    let t11 = <<python
+total = 0
+for i in range(1, 101):
+    total += i
+total
+    >>
+    if t11 == 5050 {
+        print("  PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("  FAIL - got ", t11)
+    }
+
+    print()
+    print("Results")
+    if pass_count == total {
+        print("ALL POLYGLOT DELIMITER TESTS PASSED")
+    } else {
+        print("Some tests failed")
+    }
+}

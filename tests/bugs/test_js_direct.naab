@@ -1,0 +1,12 @@
+// Test JavaScript array without my conversion code
+// Use Python to verify the hang isn't general
+
+main {
+    print("Test - Python array (should work)")
+    let py_arr = <<python
+[42, 100]
+    >>
+    print("Type:", type(py_arr))
+    print("Length:", array.length(py_arr))
+    print("Done!")
+}

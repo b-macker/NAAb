@@ -1,0 +1,119 @@
+// BUG HUNT TEST - Operator Edge Cases
+
+main {
+    let total = 0
+    let pass_count = 0
+
+    print("BUG HUNT - Operators")
+    print()
+
+    // Test 1: Less than
+    print("Test 1 - Less than")
+    total = total + 1
+    if 5 < 10 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 2: Greater than
+    print("Test 2 - Greater than")
+    total = total + 1
+    if 10 > 5 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 3: Less than or equal
+    print("Test 3 - Less than or equal")
+    total = total + 1
+    if 5 <= 5 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 4: Greater than or equal
+    print("Test 4 - Greater than or equal")
+    total = total + 1
+    if 10 >= 10 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 5: Not equal
+    print("Test 5 - Not equal")
+    total = total + 1
+    if 5 != 10 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 6: Logical AND
+    print("Test 6 - Logical AND")
+    total = total + 1
+    if true && true {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 7: Logical OR
+    print("Test 7 - Logical OR")
+    total = total + 1
+    if false || true {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 8: Logical NOT
+    print("Test 8 - Logical NOT")
+    total = total + 1
+    if !false {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 9: Modulo
+    print("Test 9 - Modulo")
+    total = total + 1
+    if 10 % 3 == 1 {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    // Test 10: String concatenation
+    print("Test 10 - String concat")
+    total = total + 1
+    let concat = "Hello" + " " + "World"
+    if concat == "Hello World" {
+        print("PASS")
+        pass_count = pass_count + 1
+    } else {
+        print("FAIL")
+    }
+
+    print()
+    print("Total", total)
+    print("Passed", pass_count)
+    if pass_count == total {
+        print("ALL OPERATOR TESTS PASSED")
+    } else {
+        print("Some tests failed")
+    }
+}

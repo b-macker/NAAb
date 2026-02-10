@@ -1,0 +1,98 @@
+// Test JavaScript type conversion (Bug #3 fix)
+
+main {
+    print("Testing JavaScript Type Conversion Fixes")
+    print()
+
+    let total = 0
+    let passed = 0
+
+    // Test 1: Empty array
+    print("Test 1 - JS empty array")
+    total = total + 1
+    let empty_arr = <<javascript
+[]
+    >>
+    if type(empty_arr) == "array" {
+        print("  PASS - Type is array")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Got type:", type(empty_arr))
+    }
+
+    // Test 2: Array with mixed types
+    print("Test 2 - JS mixed array")
+    total = total + 1
+    let mixed_arr = <<javascript
+[42, 'hello', 3.14, true, null]
+    >>
+    if type(mixed_arr) == "array" {
+        print("  PASS - Type is array")
+        if array.length(mixed_arr) == 5 {
+            print("  PASS - Length is 5")
+            passed = passed + 1
+        } else {
+            print("  FAIL - Length:", array.length(mixed_arr))
+        }
+    } else {
+        print("  FAIL - Got type:", type(mixed_arr))
+    }
+
+    // Test 3: Empty object
+    print("Test 3 - JS empty object")
+    total = total + 1
+    let empty_obj = <<javascript
+({})
+    >>
+    if type(empty_obj) == "dict" {
+        print("  PASS - Type is dict")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Got type:", type(empty_obj))
+    }
+
+    // Test 4: Object with properties
+    print("Test 4 - JS object with properties")
+    total = total + 1
+    let obj = <<javascript
+({name: 'Alice', age: 30, active: true})
+    >>
+    if type(obj) == "dict" {
+        print("  PASS - Type is dict")
+        if obj["name"] == "Alice" {
+            print("  PASS - Property access works")
+            passed = passed + 1
+        } else {
+            print("  FAIL - name property:", obj["name"])
+        }
+    } else {
+        print("  FAIL - Got type:", type(obj))
+    }
+
+    // Test 5: Nested array
+    print("Test 5 - JS nested array")
+    total = total + 1
+    let nested = <<javascript
+[[1, 2], [3, 4]]
+    >>
+    if type(nested) == "array" {
+        print("  PASS - Type is array")
+        if nested[0][1] == 2 {
+            print("  PASS - Nested access works")
+            passed = passed + 1
+        } else {
+            print("  FAIL - nested[0][1]:", nested[0][1])
+        }
+    } else {
+        print("  FAIL - Got type:", type(nested))
+    }
+
+    print()
+    print("Total:", total)
+    print("Passed:", passed)
+    if passed == total {
+        print("ALL JS TYPE CONVERSION TESTS PASSED")
+    } else {
+        print("Some tests failed")
+    }
+}

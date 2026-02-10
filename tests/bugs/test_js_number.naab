@@ -1,0 +1,11 @@
+// Test basic JS number (not array)
+
+main {
+    print("Test - JS returns number")
+    let num = <<javascript
+42
+    >>
+    print("Got:", num)
+    print("Type:", type(num))
+    print("Done!")
+}

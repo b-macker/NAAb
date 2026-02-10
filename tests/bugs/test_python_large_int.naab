@@ -1,0 +1,106 @@
+// Test Python large integer handling (Bug #4 fix)
+
+main {
+    print("Testing Python Large Integer Handling")
+    print()
+
+    let total = 0
+    let passed = 0
+
+    // Test 1: Normal int32 range
+    print("Test 1 - Normal int32")
+    total = total + 1
+    let normal = <<python
+42
+    >>
+    if normal == 42 {
+        print("  PASS - Normal int works")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Got:", normal)
+    }
+
+    // Test 2: INT_MAX
+    print("Test 2 - INT_MAX (2147483647)")
+    total = total + 1
+    let max_int = <<python
+2147483647
+    >>
+    if max_int == 2147483647 {
+        print("  PASS - INT_MAX works")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Got:", max_int)
+    }
+
+    // Test 3: INT_MIN
+    print("Test 3 - INT_MIN (-2147483648)")
+    total = total + 1
+    let min_int = <<python
+-2147483648
+    >>
+    if min_int == -2147483648 {
+        print("  PASS - INT_MIN works")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Got:", min_int)
+    }
+
+    // Test 4: Slightly larger than INT_MAX (should convert to float)
+    print("Test 4 - Larger than INT_MAX")
+    total = total + 1
+    let large = <<python
+2147483648
+    >>
+    if type(large) == "float" {
+        print("  PASS - Converted to float")
+        passed = passed + 1
+    } else {
+        print("  FAIL - Type:", type(large), "Value:", large)
+    }
+
+    // Test 5: Very large integer (should convert to float)
+    print("Test 5 - Very large integer")
+    total = total + 1
+    let very_large = <<python
+999999999999
+    >>
+    if type(very_large) == "float" {
+        print("  PASS - Large int converted to float")
+        if very_large > 999999999990.0 {
+            print("  PASS - Value preserved (approximately)")
+            passed = passed + 1
+        } else {
+            print("  FAIL - Value:", very_large)
+        }
+    } else {
+        print("  FAIL - Type:", type(very_large))
+    }
+
+    // Test 6: Python list with large int
+    print("Test 6 - Array with large int")
+    total = total + 1
+    let arr_with_large = <<python
+[1, 2, 9999999999, 4]
+    >>
+    if type(arr_with_large) == "array" {
+        print("  PASS - Array type preserved")
+        if array.length(arr_with_large) == 4 {
+            print("  PASS - All elements present")
+            passed = passed + 1
+        } else {
+            print("  FAIL - Length:", array.length(arr_with_large))
+        }
+    } else {
+        print("  FAIL - Type:", type(arr_with_large))
+    }
+
+    print()
+    print("Total:", total)
+    print("Passed:", passed)
+    if passed == total {
+        print("ALL PYTHON LARGE INT TESTS PASSED")
+    } else {
+        print("Some tests failed")
+    }
+}

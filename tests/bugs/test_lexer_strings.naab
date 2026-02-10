@@ -1,0 +1,285 @@
+// ═══════════════════════════════════════════════════════════════════════
+// BUG HUNT TEST: String Literal Edge Cases
+// Tests lexer string parsing for edge cases that could cause crashes or bugs
+// Priority: HIGH (could cause crashes, data corruption, or parsing errors)
+// ═══════════════════════════════════════════════════════════════════════
+
+main {
+    let total_tests = 0
+    let passed_tests = 0
+    let failed_tests = 0
+
+    print("═══════════════════════════════════════════════════════════════")
+    print("  BUG HUNT: String Literal Edge Cases")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 1: Empty Strings
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("[String.1] Empty string - double quotes")
+    total_tests = total_tests + 1
+    let empty1 = ""
+    if empty1 == "" {
+        print("  ✅ PASS: Empty string with double quotes works")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Empty string not equal to empty string")
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.2] Empty string - single quotes")
+    total_tests = total_tests + 1
+    let empty2 = ''
+    if empty2 == '' {
+        print("  ✅ PASS: Empty string with single quotes works")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Single quote empty string failed")
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.3] Empty strings equality")
+    total_tests = total_tests + 1
+    if empty1 == empty2 {
+        print("  ✅ PASS: Empty strings from different quotes are equal")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Empty strings not equal across quote types")
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 2: Unicode Characters
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("[String.4] Unicode emoji in string")
+    total_tests = total_tests + 1
+    let emoji = "Hello 👋 World 🌍"
+    if emoji == "Hello 👋 World 🌍" {
+        print("  ✅ PASS: Emoji preserved correctly")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Emoji not preserved: ", emoji)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.5] Unicode Chinese characters")
+    total_tests = total_tests + 1
+    let chinese = "你好世界"
+    if chinese == "你好世界" {
+        print("  ✅ PASS: Chinese characters preserved")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Chinese characters corrupted: ", chinese)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.6] Mixed ASCII and Unicode")
+    total_tests = total_tests + 1
+    let mixed = "Test: 你好 👋 ABC 123"
+    if mixed == "Test: 你好 👋 ABC 123" {
+        print("  ✅ PASS: Mixed ASCII/Unicode preserved")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Mixed string corrupted: ", mixed)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 3: Escape Sequences
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("[String.7] Basic escape sequences")
+    total_tests = total_tests + 1
+    let escaped = "Line1\nLine2\tTabbed"
+    // Should contain newline and tab
+    let has_newline = string.contains(escaped, "\n")
+    let has_tab = string.contains(escaped, "\t")
+    if has_newline && has_tab {
+        print("  ✅ PASS: Basic escapes (\\n, \\t) work")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Escape sequences not working")
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.8] Escaped quotes")
+    total_tests = total_tests + 1
+    let quoted = "He said \"hello\""
+    if string.contains(quoted, "\"") {
+        print("  ✅ PASS: Escaped double quotes work")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Escaped quotes failed: ", quoted)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.9] Escaped backslash")
+    total_tests = total_tests + 1
+    let backslash = "C:\\path\\to\\file"
+    if string.contains(backslash, "\\") {
+        print("  ✅ PASS: Escaped backslash works")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Escaped backslash failed: ", backslash)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.10] Consecutive escapes")
+    total_tests = total_tests + 1
+    let consecutive = "Test\\\nDouble"
+    // Should be: Test\<newline>Double
+    if string.contains(consecutive, "\\") && string.contains(consecutive, "\n") {
+        print("  ✅ PASS: Consecutive escapes (\\\\\\n) work")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Consecutive escapes failed: ", consecutive)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 4: Special Characters
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("[String.11] Null character escape")
+    total_tests = total_tests + 1
+    let null_char = "Before\0After"
+    // Null character might truncate or be handled specially
+    let null_len = string.length(null_char)
+    if null_len > 0 {
+        print("  ✅ PASS: Null character handled (length: ", null_len, ")")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Null character broke string")
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.12] String with only whitespace")
+    total_tests = total_tests + 1
+    let whitespace = "   \t  \n  "
+    if string.length(whitespace) > 0 {
+        print("  ✅ PASS: Whitespace-only string preserved")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Whitespace string empty")
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 5: String Length Edge Cases
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("[String.13] Very long string (1000 chars)")
+    total_tests = total_tests + 1
+    // Build a 1000-character string using Python
+    let long_str = <<python
+"x" * 1000
+    >>
+    let long_len = string.length(long_str)
+    if long_len == 1000 {
+        print("  ✅ PASS: 1000-char string length correct")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 1000, got: ", long_len)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.14] Very long string (10000 chars)")
+    total_tests = total_tests + 1
+    let huge_str = <<python
+"y" * 10000
+    >>
+    let huge_len = string.length(huge_str)
+    if huge_len == 10000 {
+        print("  ✅ PASS: 10k-char string length correct")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Expected 10000, got: ", huge_len)
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SECTION 6: String Operations Edge Cases
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print("[String.15] Concatenate empty strings")
+    total_tests = total_tests + 1
+    let concat_empty = "" + "" + ""
+    if concat_empty == "" {
+        print("  ✅ PASS: Empty string concatenation works")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Empty concat failed: '", concat_empty, "'")
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.16] Concatenate with unicode")
+    total_tests = total_tests + 1
+    let concat_unicode = "Hello " + "👋" + " World"
+    if concat_unicode == "Hello 👋 World" {
+        print("  ✅ PASS: Unicode concatenation works")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Unicode concat failed: ", concat_unicode)
+        failed_tests = failed_tests + 1
+    }
+
+    print("[String.17] String equality with escapes")
+    total_tests = total_tests + 1
+    let str1 = "Hello\nWorld"
+    let str2 = "Hello\nWorld"
+    if str1 == str2 {
+        print("  ✅ PASS: Strings with escapes are equal")
+        passed_tests = passed_tests + 1
+    } else {
+        print("  ❌ FAIL: Escaped strings not equal")
+        failed_tests = failed_tests + 1
+    }
+
+    print()
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // FINAL REPORT
+    // ═══════════════════════════════════════════════════════════════════════
+
+    print()
+    print("═══════════════════════════════════════════════════════════════")
+    print("  STRING LITERAL EDGE CASES - FINAL REPORT")
+    print("═══════════════════════════════════════════════════════════════")
+    print()
+    print("Total Tests:  ", total_tests)
+    print("Passed:       ", passed_tests)
+    print("Failed:       ", failed_tests)
+    print()
+
+    if failed_tests == 0 {
+        print("✅ ✅ ✅  ALL STRING TESTS PASSED  ✅ ✅ ✅")
+        print()
+        print("STRING EDGE CASES COVERED:")
+        print("  ✓ Empty strings (double/single quotes)")
+        print("  ✓ Unicode characters (emoji, Chinese)")
+        print("  ✓ Escape sequences (\\n, \\t, \\\", \\\\, \\0)")
+        print("  ✓ Special characters and whitespace")
+        print("  ✓ Very long strings (1k, 10k chars)")
+        print("  ✓ String operations (concat, equality)")
+        print()
+    } else {
+        print("❌ SOME STRING TESTS FAILED")
+        print("   Bugs found: ", failed_tests, " / ", total_tests)
+        print()
+        print("⚠️  Review failures and fix lexer string handling!")
+    }
+    print("═══════════════════════════════════════════════════════════════")
+}

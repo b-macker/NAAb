@@ -755,7 +755,29 @@ std::shared_ptr<interpreter::Value> PythonExecutor::pythonToValue(const py::obje
 
     // Integer
     if (py::isinstance<py::int_>(obj)) {
-        return std::make_shared<interpreter::Value>(obj.cast<int>());
+        try {
+            // Try to cast to int32 first
+            int int_val = obj.cast<int>();
+            return std::make_shared<interpreter::Value>(int_val);
+        } catch (const py::cast_error&) {
+            // Integer too large for int32, convert to double instead
+            // This handles Python's arbitrary precision integers
+            try {
+                double double_val = obj.cast<double>();
+                return std::make_shared<interpreter::Value>(double_val);
+            } catch (const py::cast_error&) {
+                // If even double conversion fails, convert to string representation
+                std::string str_repr = py::str(obj).cast<std::string>();
+                throw std::runtime_error(
+                    "Python integer too large to convert\n\n"
+                    "  Value: " + str_repr + "\n\n"
+                    "  Help:\n"
+                    "  - NAAb uses 32-bit integers (range: -2,147,483,648 to 2,147,483,647)\n"
+                    "  - Values outside this range are converted to float (may lose precision)\n"
+                    "  - For very large integers, consider using strings or breaking into smaller values\n"
+                );
+            }
+        }
     }
 
     // Float
