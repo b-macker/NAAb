@@ -76,7 +76,7 @@ main {
     >>
     if type(mixed_arr) == "array" {
         if array.length(mixed_arr) == 5 {
-            if mixed_arr[0] == 42 and mixed_arr[1] == "hello" {
+            if mixed_arr[0] == 42 && mixed_arr[1] == "hello" {
                 print("  ✓ PASS - Mixed types array works")
                 passed = passed + 1
             } else {
@@ -97,7 +97,7 @@ main {
     >>
     if type(nested_arr) == "array" {
         if array.length(nested_arr) == 3 {
-            if nested_arr[0][1] == 2 and nested_arr[2][0] == 5 {
+            if nested_arr[0][1] == 2 && nested_arr[2][0] == 5 {
                 print("  ✓ PASS - Nested array works")
                 passed = passed + 1
             } else {
@@ -130,7 +130,7 @@ main {
 ({name: "Alice", age: 30, active: true})
     >>
     if type(obj) == "dict" {
-        if obj["name"] == "Alice" and obj["age"] == 30 and obj["active"] == true {
+        if obj["name"] == "Alice" && obj["age"] == 30 && obj["active"] == true {
             print("  ✓ PASS - Object with properties works")
             passed = passed + 1
         } else {
@@ -150,7 +150,7 @@ main {
 })
     >>
     if type(nested_obj) == "dict" {
-        if nested_obj["user"]["name"] == "Bob" and nested_obj["scores"][1] == 87 {
+        if nested_obj["user"]["name"] == "Bob" && nested_obj["scores"][1] == 87 {
             print("  ✓ PASS - Nested object works")
             passed = passed + 1
         } else {
@@ -168,7 +168,7 @@ main {
     >>
     if type(arr_of_objs) == "array" {
         if array.length(arr_of_objs) == 2 {
-            if arr_of_objs[0]["id"] == 1 and arr_of_objs[1]["name"] == "Item 2" {
+            if arr_of_objs[0]["id"] == 1 && arr_of_objs[1]["name"] == "Item 2" {
                 print("  ✓ PASS - Array of objects works")
                 passed = passed + 1
             } else {
@@ -191,7 +191,7 @@ main {
 })
     >>
     if type(obj_with_arrays) == "dict" {
-        if array.length(obj_with_arrays["numbers"]) == 3 and obj_with_arrays["strings"][0] == "a" {
+        if array.length(obj_with_arrays["numbers"]) == 3 && obj_with_arrays["strings"][0] == "a" {
             print("  ✓ PASS - Object with array properties works")
             passed = passed + 1
         } else {
@@ -202,7 +202,7 @@ main {
     }
 
     print()
-    print("=" * 50)
+    print("==================================================")
     print("Total:", total)
     print("Passed:", passed)
     print("Failed:", total - passed)

@@ -12,7 +12,7 @@ main {
     let empty_arr = <<javascript
 []
     >>
-    if type(empty_arr) == "array" and array.length(empty_arr) == 0 {
+    if type(empty_arr) == "array" && array.length(empty_arr) == 0 {
         print("  ✓ PASS")
         passed = passed + 1
     } else {
@@ -24,7 +24,7 @@ main {
     let single_arr = <<javascript
 [42]
     >>
-    if type(single_arr) == "array" and single_arr[0] == 42 {
+    if type(single_arr) == "array" && single_arr[0] == 42 {
         print("  ✓ PASS")
         passed = passed + 1
     } else {
@@ -36,7 +36,7 @@ main {
     let multi_arr = <<javascript
 [1, 2, 3, 4, 5]
     >>
-    if type(multi_arr) == "array" and multi_arr[0] == 1 and multi_arr[4] == 5 {
+    if type(multi_arr) == "array" && multi_arr[0] == 1 && multi_arr[4] == 5 {
         print("  ✓ PASS")
         passed = passed + 1
     } else {
@@ -48,7 +48,7 @@ main {
     let mixed_arr = <<javascript
 [42, "hello", 3.14, true, null]
     >>
-    if type(mixed_arr) == "array" and mixed_arr[0] == 42 and mixed_arr[1] == "hello" {
+    if type(mixed_arr) == "array" && mixed_arr[0] == 42 && mixed_arr[1] == "hello" {
         print("  ✓ PASS")
         passed = passed + 1
     } else {
@@ -60,7 +60,7 @@ main {
     let nested_arr = <<javascript
 [[1, 2], [3, 4], [5, 6]]
     >>
-    if type(nested_arr) == "array" and nested_arr[0][1] == 2 and nested_arr[2][0] == 5 {
+    if type(nested_arr) == "array" && nested_arr[0][1] == 2 && nested_arr[2][0] == 5 {
         print("  ✓ PASS")
         passed = passed + 1
     } else {
@@ -84,7 +84,7 @@ main {
     let obj = <<javascript
 ({name: "Alice", age: 30, active: true})
     >>
-    if type(obj) == "dict" and obj["name"] == "Alice" and obj["age"] == 30 {
+    if type(obj) == "dict" && obj["name"] == "Alice" && obj["age"] == 30 {
         print("  ✓ PASS")
         passed = passed + 1
     } else {
@@ -99,7 +99,7 @@ main {
     scores: [95, 87, 92]
 })
     >>
-    if type(nested_obj) == "dict" and nested_obj["user"]["name"] == "Bob" and nested_obj["scores"][1] == 87 {
+    if type(nested_obj) == "dict" && nested_obj["user"]["name"] == "Bob" && nested_obj["scores"][1] == 87 {
         print("  ✓ PASS")
         passed = passed + 1
     } else {
@@ -111,7 +111,7 @@ main {
     let arr_of_objs = <<javascript
 [{id: 1, name: "Item 1"}, {id: 2, name: "Item 2"}]
     >>
-    if type(arr_of_objs) == "array" and arr_of_objs[0]["id"] == 1 and arr_of_objs[1]["name"] == "Item 2" {
+    if type(arr_of_objs) == "array" && arr_of_objs[0]["id"] == 1 && arr_of_objs[1]["name"] == "Item 2" {
         print("  ✓ PASS")
         passed = passed + 1
     } else {
@@ -126,7 +126,7 @@ main {
     strings: ["a", "b", "c"]
 })
     >>
-    if type(obj_with_arrays) == "dict" and obj_with_arrays["numbers"][0] == 1 and obj_with_arrays["strings"][0] == "a" {
+    if type(obj_with_arrays) == "dict" && obj_with_arrays["numbers"][0] == 1 && obj_with_arrays["strings"][0] == "a" {
         print("  ✓ PASS")
         passed = passed + 1
     } else {
@@ -134,7 +134,7 @@ main {
     }
 
     print()
-    print("=" * 50)
+    print("==================================================")
     print("Total:", total)
     print("Passed:", passed)
     print("Failed:", total - passed)
