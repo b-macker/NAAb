@@ -405,6 +405,8 @@ public:
     void visit(ast::FunctionDecl& node) override;
     void visit(ast::StructDecl& node) override;
     void visit(ast::EnumDecl& node) override;  // Phase 2.4.3
+    void visit(ast::FunctionDeclStmt& node) override;  // Nested function declaration
+    void visit(ast::StructDeclStmt& node) override;    // Nested struct declaration
     void visit(ast::MainBlock& node) override;
     void visit(ast::CompoundStmt& node) override;
     void visit(ast::ExprStmt& node) override;

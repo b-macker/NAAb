@@ -189,5 +189,13 @@ void Program::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void FunctionDeclStmt::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
+void StructDeclStmt::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 } // namespace ast
 } // namespace naab

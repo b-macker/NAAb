@@ -20,6 +20,9 @@ PyExecutorAdapter::PyExecutorAdapter() {
 }
 
 bool PyExecutorAdapter::execute(const std::string& code) {
+    // CRITICAL: Acquire GIL before executing Python code
+    py::gil_scoped_acquire gil;
+
     // Executing Python code (silent)
     try {
         executor_->execute(code);
@@ -33,6 +36,10 @@ bool PyExecutorAdapter::execute(const std::string& code) {
 // Phase 2.3: Execute code and return result value
 std::shared_ptr<interpreter::Value> PyExecutorAdapter::executeWithReturn(
     const std::string& code) {
+    // CRITICAL: Acquire GIL before executing Python code
+    // Python API calls (py::eval, py::exec) require the caller to hold the GIL
+    py::gil_scoped_acquire gil;
+
     // Executing Python code with return (silent)
     try {
         return executor_->executeWithResult(code);
@@ -45,6 +52,9 @@ std::shared_ptr<interpreter::Value> PyExecutorAdapter::executeWithReturn(
 std::shared_ptr<interpreter::Value> PyExecutorAdapter::callFunction(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+
+    // CRITICAL: Acquire GIL before calling Python functions
+    py::gil_scoped_acquire gil;
 
     // Calling function (silent)
     return executor_->callFunction(function_name, args);

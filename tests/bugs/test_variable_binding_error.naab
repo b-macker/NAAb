@@ -1,0 +1,16 @@
+// Test: Variable binding error message
+// This should produce a helpful error about the [var] syntax
+
+main {
+    print("Testing variable binding error message...")
+    print("")
+
+    let y = 10
+
+    // This should fail with helpful error about [y] syntax
+    let result = <<python
+y * 2
+>>
+
+    print("Should not reach here!")
+}

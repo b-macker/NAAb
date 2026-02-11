@@ -133,6 +133,8 @@ public:
     void visit(ast::ModuleUseStmt& node) override; // Phase 4.0
     void visit(ast::TryStmt& node) override;      // Phase 4.1
     void visit(ast::ThrowStmt& node) override;    // Phase 4.1
+    void visit(ast::FunctionDeclStmt& node) override;  // Nested function declaration
+    void visit(ast::StructDeclStmt& node) override;    // Nested struct declaration
     void visit(ast::BinaryExpr& node) override;
     void visit(ast::UnaryExpr& node) override;
     void visit(ast::CallExpr& node) override;

@@ -60,6 +60,8 @@ enum class NodeKind {
     TryStmt,        // Phase 4.1: try statement
     ThrowStmt,      // Phase 4.1: throw statement
     ModuleUseStmt,  // Phase 4.0: module use statement (use math_utils)
+    FunctionDeclStmt, // Nested function declaration statement
+    StructDeclStmt,   // Nested struct declaration statement
 
     // Expressions
     BinaryExpr,
@@ -619,6 +621,36 @@ private:
     std::string alias_;        // Optional alias (e.g., "use data.processor as dp")
 };
 
+// Nested function declaration statement
+class FunctionDeclStmt : public Stmt {
+public:
+    explicit FunctionDeclStmt(std::unique_ptr<FunctionDecl> decl, SourceLocation loc = SourceLocation())
+        : Stmt(NodeKind::FunctionDeclStmt, loc), decl_(std::move(decl)) {}
+
+    FunctionDecl* getDecl() { return decl_.get(); }
+    const FunctionDecl* getDecl() const { return decl_.get(); }
+
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::unique_ptr<FunctionDecl> decl_;
+};
+
+// Nested struct declaration statement
+class StructDeclStmt : public Stmt {
+public:
+    explicit StructDeclStmt(std::unique_ptr<StructDecl> decl, SourceLocation loc = SourceLocation())
+        : Stmt(NodeKind::StructDeclStmt, loc), decl_(std::move(decl)) {}
+
+    StructDecl* getDecl() { return decl_.get(); }
+    const StructDecl* getDecl() const { return decl_.get(); }
+
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::unique_ptr<StructDecl> decl_;
+};
+
 // ============================================================================
 // Expressions
 // ============================================================================
@@ -983,6 +1015,8 @@ public:
     virtual void visit(TryStmt& node) = 0;      // Phase 4.1
     virtual void visit(ThrowStmt& node) = 0;    // Phase 4.1
     virtual void visit(ModuleUseStmt& node) = 0;  // Phase 4.0
+    virtual void visit(FunctionDeclStmt& node) = 0;  // Nested function declaration
+    virtual void visit(StructDeclStmt& node) = 0;    // Nested struct declaration
 
     virtual void visit(BinaryExpr& node) = 0;
     virtual void visit(UnaryExpr& node) = 0;

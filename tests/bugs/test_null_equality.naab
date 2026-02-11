@@ -1,0 +1,22 @@
+main {
+    print("Testing null equality bug...")
+
+    let nullable_str: string? = null
+    print("nullable_str value:", nullable_str)
+    print("nullable_str type:", type(nullable_str))
+    print("null type:", type(null))
+
+    if nullable_str == null {
+        print("✅ PASS: nullable_str == null")
+    } else {
+        print("❌ FAIL: nullable_str != null (BUG!)")
+    }
+
+    // Test with explicit null variable
+    let null_val: int? = null
+    if null_val == null {
+        print("✅ PASS: null_val == null")
+    } else {
+        print("❌ FAIL: null_val != null (BUG!)")
+    }
+}

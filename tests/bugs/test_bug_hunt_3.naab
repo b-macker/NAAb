@@ -1,0 +1,350 @@
+// Bug Hunt Round 3: Advanced Edge Cases
+// Testing error handling, type system, operators, control flow, functions, structs
+
+main {
+    print("=== BUG HUNT ROUND 3 ===\n")
+
+    let passed = 0
+    let failed = 0
+
+    // ===== CATEGORY 1: Error Handling =====
+    print("CATEGORY 1: Error Handling")
+
+    // Test 1: Try-catch with polyglot error
+    try {
+        let bad = <<python
+1 / 0
+        >>
+        print("  ❌ FAIL: Should have thrown division by zero error")
+        failed = failed + 1
+    } catch (e) {
+        print("  ✅ PASS: Python error caught by try-catch")
+        passed = passed + 1
+    }
+
+    // Test 2: Try-catch with NAAb error
+    try {
+        let arr = [1, 2, 3]
+        let bad = arr[10]  // Out of bounds
+        print("  ❌ FAIL: Should have thrown index error")
+        failed = failed + 1
+    } catch (e) {
+        print("  ✅ PASS: NAAb index error caught")
+        passed = passed + 1
+    }
+
+    // Test 3: Nested try-catch
+    try {
+        try {
+            let x = 1 / 0
+            print("  ❌ FAIL: Inner should have thrown")
+            failed = failed + 1
+        } catch (e) {
+            // Inner catch - rethrow would go to outer
+            print("  ✅ PASS: Nested try-catch works")
+            passed = passed + 1
+        }
+    } catch (e) {
+        print("  ❌ FAIL: Should not reach outer catch")
+        failed = failed + 1
+    }
+
+    print("")
+
+    // ===== CATEGORY 2: Type System =====
+    print("CATEGORY 2: Type System")
+
+    // Test 4: Nullable type with null
+    let nullable_str: string? = null
+    if nullable_str == null {
+        print("  ✅ PASS: Nullable type accepts null")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Nullable null check failed")
+        failed = failed + 1
+    }
+
+    // Test 5: Nullable type with value
+    let nullable_int: int? = 42
+    if nullable_int == 42 {
+        print("  ✅ PASS: Nullable type accepts value")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Nullable value check failed")
+        failed = failed + 1
+    }
+
+    // Test 6: Type function
+    let type_int = type(42)
+    if type_int == "int" {
+        print("  ✅ PASS: type() returns correct type")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: type(42) =", type_int)
+        failed = failed + 1
+    }
+
+    // Test 7: Type of null
+    let null_val: int? = null
+    let type_null = type(null_val)
+    // null should have some type
+    if type_null == "null" || type_null == "any" {
+        print("  ✅ PASS: type(null) returns", type_null)
+        passed = passed + 1
+    } else {
+        print("  ⚠️  SKIP: type(null) =", type_null, "(implementation-defined)")
+        // Don't count as pass or fail
+    }
+
+    print("")
+
+    // ===== CATEGORY 3: Operators =====
+    print("CATEGORY 3: Operators")
+
+    // Test 8: Equality with different types
+    let str_num = "42"
+    let int_num = 42
+    if str_num != int_num {
+        print("  ✅ PASS: String != Int (no type coercion)")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: String should not equal Int")
+        failed = failed + 1
+    }
+
+    // Test 9: Boolean AND short-circuit
+    let and_count = 0
+    let and_result = false && (and_count = and_count + 1) == 1
+    if and_count == 0 {
+        print("  ✅ PASS: AND short-circuits (right side not evaluated)")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: AND did not short-circuit, count =", and_count)
+        failed = failed + 1
+    }
+
+    // Test 10: Boolean OR short-circuit
+    let or_count = 0
+    let or_result = true || (or_count = or_count + 1) == 1
+    if or_count == 0 {
+        print("  ✅ PASS: OR short-circuits (right side not evaluated)")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: OR did not short-circuit, count =", or_count)
+        failed = failed + 1
+    }
+
+    // Test 11: Comparison chaining (if supported)
+    let x = 5
+    if x > 0 && x < 10 {
+        print("  ✅ PASS: Comparison operators work correctly")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Comparison failed for x =", x)
+        failed = failed + 1
+    }
+
+    // Test 12: Modulo with negative numbers
+    let mod_neg = -7 % 3
+    // Different languages handle this differently
+    // Just check it doesn't crash
+    print("  ✅ PASS: Modulo with negative works (result:", mod_neg, ")")
+    passed = passed + 1
+
+    print("")
+
+    // ===== CATEGORY 4: Control Flow =====
+    print("CATEGORY 4: Control Flow")
+
+    // Test 13: Break in nested loop
+    let break_result = 0
+    for i in [1, 2, 3] {
+        for j in [1, 2, 3] {
+            break_result = break_result + 1
+            if j == 2 {
+                break
+            }
+        }
+    }
+    if break_result == 6 {
+        print("  ✅ PASS: Break in nested loop works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Break result =", break_result)
+        failed = failed + 1
+    }
+
+    // Test 14: Continue in loop
+    let continue_sum = 0
+    for i in [1, 2, 3, 4, 5, 6] {
+        if i == 2 || i == 5 {
+            continue
+        }
+        continue_sum = continue_sum + i
+    }
+    // Expected: 1 + 3 + 4 + 6 = 14 (skipping 2 and 5)
+    if continue_sum == 14 {
+        print("  ✅ PASS: Continue in loop works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Continue sum =", continue_sum, "expected 14")
+        failed = failed + 1
+    }
+
+    // Test 15: While loop with break
+    let while_count = 0
+    while true {
+        while_count = while_count + 1
+        if while_count >= 5 {
+            break
+        }
+    }
+    if while_count == 5 {
+        print("  ✅ PASS: While with break works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: While count =", while_count)
+        failed = failed + 1
+    }
+
+    print("")
+
+    // ===== CATEGORY 5: Nested Functions =====
+    print("CATEGORY 5: Nested Functions")
+
+    // Test 16: Simple nested function
+    function add3(a: int, b: int, c: int) -> int {
+        return a + b + c
+    }
+    let sum3 = add3(1, 2, 3)
+    if sum3 == 6 {
+        print("  ✅ PASS: Nested function works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: add3(1,2,3) =", sum3)
+        failed = failed + 1
+    }
+
+    // Test 17: Nested function with closure
+    let outer_val = 10
+    function useOuter() -> int {
+        return outer_val + 5
+    }
+    let closure_result = useOuter()
+    if closure_result == 15 {
+        print("  ✅ PASS: Closure captures variable")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Closure result =", closure_result)
+        failed = failed + 1
+    }
+
+    print("")
+
+    // ===== CATEGORY 6: Nested Structs =====
+    print("CATEGORY 6: Nested Structs")
+
+    // Test 18: Simple nested struct
+    struct Point {
+        x: int
+        y: int
+    }
+    let p = new Point { x: 10, y: 20 }
+    if p.x == 10 && p.y == 20 {
+        print("  ✅ PASS: Nested struct works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Struct fields:", p.x, p.y)
+        failed = failed + 1
+    }
+
+    // Test 19: Struct with nullable field
+    struct User {
+        name: string
+        age: int?
+    }
+    let user = new User { name: "Alice", age: null }
+    if user.name == "Alice" && user.age == null {
+        print("  ✅ PASS: Struct with nullable field works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: User struct fields wrong")
+        failed = failed + 1
+    }
+
+    print("")
+
+    // ===== CATEGORY 7: Edge Cases =====
+    print("CATEGORY 7: Edge Cases")
+
+    // Test 21: Empty array iteration
+    let empty_iter_count = 0
+    for item in [] {
+        empty_iter_count = empty_iter_count + 1
+    }
+    if empty_iter_count == 0 {
+        print("  ✅ PASS: Empty array iteration works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Empty iteration count =", empty_iter_count)
+        failed = failed + 1
+    }
+
+    // Test 22: Single element array
+    let single_sum = 0
+    for item in [42] {
+        single_sum = single_sum + item
+    }
+    if single_sum == 42 {
+        print("  ✅ PASS: Single element iteration works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Single sum =", single_sum)
+        failed = failed + 1
+    }
+
+    // Test 23: Variable shadowing in block
+    let outer = 10
+    if true {
+        let outer = 20
+        if outer == 20 {
+            print("  ✅ PASS: Variable shadowing works")
+            passed = passed + 1
+        } else {
+            print("  ❌ FAIL: Inner outer =", outer)
+            failed = failed + 1
+        }
+    }
+
+    // Test 24: Boolean truthiness
+    if true && !false {
+        print("  ✅ PASS: Boolean logic works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: Boolean logic failed")
+        failed = failed + 1
+    }
+
+    // Test 25: String comparison
+    let str1 = "hello"
+    let str2 = "hello"
+    if str1 == str2 {
+        print("  ✅ PASS: String comparison works")
+        passed = passed + 1
+    } else {
+        print("  ❌ FAIL: String comparison failed")
+        failed = failed + 1
+    }
+
+    print("")
+    print("=== RESULTS ===")
+    print("Total tests:", passed + failed)
+    print("Passed:", passed)
+    print("Failed:", failed)
+
+    if failed == 0 {
+        print("\n✅✅✅ ALL BUG HUNT 3 TESTS PASSED ✅✅✅")
+    } else {
+        print("\n❌ Some tests failed - bugs found!")
+    }
+}

@@ -1,0 +1,24 @@
+// Test: JavaScript variable binding error message
+// This should produce a helpful error about the [var] syntax
+
+main {
+    print("Testing JavaScript variable binding error message...")
+    print("")
+
+    let x = 42
+
+    // This should fail with helpful error about [x] syntax
+    let result = <<javascript
+x * 2
+>>
+
+    print("Result:", result)
+    print("Type:", type(result))
+
+    if result == null {
+        print("❌ Got null - variable binding didn't work!")
+    } else {
+        print("Result value suggests it worked (unexpected)")
+    }
+}
+}

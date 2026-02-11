@@ -412,6 +412,17 @@ void TypeChecker::visit(ast::ThrowStmt& node) {
     if (node.getExpr()) { node.getExpr()->accept(*this); }
     current_type_ = Type::makeVoid();
 }
+
+void TypeChecker::visit(ast::FunctionDeclStmt& node) {
+    // Delegate to the wrapped FunctionDecl
+    node.getDecl()->accept(*this);
+}
+
+void TypeChecker::visit(ast::StructDeclStmt& node) {
+    // Delegate to the wrapped StructDecl
+    node.getDecl()->accept(*this);
+}
+
 void TypeChecker::visit(ast::BinaryExpr& node) {
     // Step 1: Infer left operand type
     node.getLeft()->accept(*this);

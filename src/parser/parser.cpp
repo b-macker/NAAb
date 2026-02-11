@@ -792,6 +792,18 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
     if (check(lexer::TokenType::RETURN)) {
         return parseReturnStmt();
     }
+    // Handle nested function declarations
+    if (check(lexer::TokenType::FUNCTION)) {
+        auto func_decl = parseFunctionDecl();
+        auto loc = func_decl->getLocation();
+        return std::make_unique<ast::FunctionDeclStmt>(std::move(func_decl), loc);
+    }
+    // Handle nested struct declarations
+    if (check(lexer::TokenType::STRUCT)) {
+        auto struct_decl = parseStructDecl();
+        auto loc = struct_decl->getLocation();
+        return std::make_unique<ast::StructDeclStmt>(std::move(struct_decl), loc);
+    }
     if (check(lexer::TokenType::BREAK)) {
         return parseBreakStmt();
     }
@@ -945,6 +957,22 @@ std::unique_ptr<ast::TryStmt> Parser::parseTryStmt() {
     expect(lexer::TokenType::CATCH, "Expected 'catch' after try block");
 
     // Parse catch (error_name) { ... }
+    // Check for common mistake: catch e instead of catch (e)
+    if (check(lexer::TokenType::IDENTIFIER)) {
+        throw std::runtime_error(
+            "Syntax error: Missing parentheses in catch clause\n\n"
+            "  NAAb requires parentheses around the error variable:\n\n"
+            "  ✗ Wrong: catch e { ... }\n"
+            "  ✓ Right: catch (e) { ... }\n\n"
+            "  Example:\n"
+            "    try {\n"
+            "      let x = 1 / 0\n"
+            "    } catch (error) {\n"
+            "      print(\"Error:\", error)\n"
+            "    }"
+        );
+    }
+
     expect(lexer::TokenType::LPAREN, "Expected '(' after 'catch'");
     auto& error_name_token = expect(lexer::TokenType::IDENTIFIER, "Expected error variable name");
     std::string error_name = error_name_token.value;

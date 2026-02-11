@@ -1499,6 +1499,20 @@ void Interpreter::visit(ast::StructDecl& node) {
     result_ = std::make_shared<Value>();
 }
 
+// Nested function declaration statement
+void Interpreter::visit(ast::FunctionDeclStmt& node) {
+    // Simply delegate to the existing FunctionDecl visitor
+    // This handles closure capture, type inference, everything
+    node.getDecl()->accept(*this);
+}
+
+// Nested struct declaration statement
+void Interpreter::visit(ast::StructDeclStmt& node) {
+    // Simply delegate to the existing StructDecl visitor
+    // This handles struct registration, field setup, everything
+    node.getDecl()->accept(*this);
+}
+
 // Phase 2.4.3: Enum declaration visitor
 void Interpreter::visit(ast::EnumDecl& node) {
     explain("Defining enum '" + node.getName() + "' with " +
@@ -2588,54 +2602,81 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // For strings: compare as strings
             // For different types: false (no implicit coercion)
 
-            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
-                                  std::holds_alternative<double>(left->data) ||
-                                  std::holds_alternative<bool>(left->data);
-            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
-                                   std::holds_alternative<double>(right->data) ||
-                                   std::holds_alternative<bool>(right->data);
+            // Check for null comparisons first (null == null should be true)
+            bool left_null = isNull(left);
+            bool right_null = isNull(right);
 
-            if (left_is_numeric && right_is_numeric) {
-                // Both numeric: compare as numbers
-                result_ = std::make_shared<Value>(left->toFloat() == right->toFloat());
-            } else if (std::holds_alternative<std::string>(left->data) &&
-                       std::holds_alternative<std::string>(right->data)) {
-                // Both strings: compare as strings
-                result_ = std::make_shared<Value>(left->toString() == right->toString());
-            } else if (std::holds_alternative<bool>(left->data) &&
-                       std::holds_alternative<bool>(right->data)) {
-                // Both bools: compare as bools
-                result_ = std::make_shared<Value>(left->toBool() == right->toBool());
-            } else {
-                // Different types: not equal
+            if (left_null && right_null) {
+                // Both null: equal
+                result_ = std::make_shared<Value>(true);
+            } else if (left_null || right_null) {
+                // One null, one non-null: not equal
                 result_ = std::make_shared<Value>(false);
+            } else {
+                // Neither is null - proceed with type-specific comparisons
+                bool left_is_numeric = std::holds_alternative<int>(left->data) ||
+                                      std::holds_alternative<double>(left->data) ||
+                                      std::holds_alternative<bool>(left->data);
+                bool right_is_numeric = std::holds_alternative<int>(right->data) ||
+                                       std::holds_alternative<double>(right->data) ||
+                                       std::holds_alternative<bool>(right->data);
+
+                if (left_is_numeric && right_is_numeric) {
+                    // Both numeric: compare as numbers
+                    result_ = std::make_shared<Value>(left->toFloat() == right->toFloat());
+                } else if (std::holds_alternative<std::string>(left->data) &&
+                           std::holds_alternative<std::string>(right->data)) {
+                    // Both strings: compare as strings
+                    result_ = std::make_shared<Value>(left->toString() == right->toString());
+                } else if (std::holds_alternative<bool>(left->data) &&
+                           std::holds_alternative<bool>(right->data)) {
+                    // Both bools: compare as bools
+                    result_ = std::make_shared<Value>(left->toBool() == right->toBool());
+                } else {
+                    // Different types: not equal
+                    result_ = std::make_shared<Value>(false);
+                }
             }
             break;
         }
 
         case ast::BinaryOp::Ne: {
             // Type-aware inequality comparison (inverse of Eq)
-            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
-                                  std::holds_alternative<double>(left->data) ||
-                                  std::holds_alternative<bool>(left->data);
-            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
-                                   std::holds_alternative<double>(right->data) ||
-                                   std::holds_alternative<bool>(right->data);
 
-            if (left_is_numeric && right_is_numeric) {
-                // Both numeric: compare as numbers
-                result_ = std::make_shared<Value>(left->toFloat() != right->toFloat());
-            } else if (std::holds_alternative<std::string>(left->data) &&
-                       std::holds_alternative<std::string>(right->data)) {
-                // Both strings: compare as strings
-                result_ = std::make_shared<Value>(left->toString() != right->toString());
-            } else if (std::holds_alternative<bool>(left->data) &&
-                       std::holds_alternative<bool>(right->data)) {
-                // Both bools: compare as bools
-                result_ = std::make_shared<Value>(left->toBool() != right->toBool());
-            } else {
-                // Different types: not equal
+            // Check for null comparisons first (null != null should be false)
+            bool left_null = isNull(left);
+            bool right_null = isNull(right);
+
+            if (left_null && right_null) {
+                // Both null: not different (false)
+                result_ = std::make_shared<Value>(false);
+            } else if (left_null || right_null) {
+                // One null, one non-null: different (true)
                 result_ = std::make_shared<Value>(true);
+            } else {
+                // Neither is null - proceed with type-specific comparisons
+                bool left_is_numeric = std::holds_alternative<int>(left->data) ||
+                                      std::holds_alternative<double>(left->data) ||
+                                      std::holds_alternative<bool>(left->data);
+                bool right_is_numeric = std::holds_alternative<int>(right->data) ||
+                                       std::holds_alternative<double>(right->data) ||
+                                       std::holds_alternative<bool>(right->data);
+
+                if (left_is_numeric && right_is_numeric) {
+                    // Both numeric: compare as numbers
+                    result_ = std::make_shared<Value>(left->toFloat() != right->toFloat());
+                } else if (std::holds_alternative<std::string>(left->data) &&
+                           std::holds_alternative<std::string>(right->data)) {
+                    // Both strings: compare as strings
+                    result_ = std::make_shared<Value>(left->toString() != right->toString());
+                } else if (std::holds_alternative<bool>(left->data) &&
+                           std::holds_alternative<bool>(right->data)) {
+                    // Both bools: compare as bools
+                    result_ = std::make_shared<Value>(left->toBool() != right->toBool());
+                } else {
+                    // Different types: not equal
+                    result_ = std::make_shared<Value>(true);
+                }
             }
             break;
         }
@@ -4378,7 +4419,78 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         flushExecutorOutput(executor);
 
     } catch (const std::exception& e) {
-        throw std::runtime_error("Inline " + language + " execution failed: " + e.what());
+        std::string error_msg = e.what();
+
+        // Detect undefined variable errors and provide helpful guidance
+        bool is_undefined_var = false;
+        std::string var_name;
+
+        // Python: "NameError: name 'x' is not defined"
+        if (error_msg.find("NameError") != std::string::npos &&
+            error_msg.find("not defined") != std::string::npos) {
+            is_undefined_var = true;
+            // Try to extract variable name between quotes
+            size_t quote1 = error_msg.find('\'');
+            if (quote1 != std::string::npos) {
+                size_t quote2 = error_msg.find('\'', quote1 + 1);
+                if (quote2 != std::string::npos) {
+                    var_name = error_msg.substr(quote1 + 1, quote2 - quote1 - 1);
+                }
+            }
+        }
+
+        // JavaScript: "ReferenceError: x is not defined"
+        if (error_msg.find("ReferenceError") != std::string::npos &&
+            error_msg.find("is not defined") != std::string::npos) {
+            is_undefined_var = true;
+            // Extract variable name before "is not defined"
+            size_t pos = error_msg.find("is not defined");
+            if (pos != std::string::npos) {
+                // Look backwards for the variable name
+                std::string prefix = error_msg.substr(0, pos);
+                size_t last_space = prefix.find_last_of(" :");
+                if (last_space != std::string::npos) {
+                    var_name = prefix.substr(last_space + 1);
+                    // Trim whitespace
+                    var_name.erase(0, var_name.find_first_not_of(" \t"));
+                    var_name.erase(var_name.find_last_not_of(" \t") + 1);
+                }
+            }
+        }
+
+        if (is_undefined_var) {
+            std::ostringstream oss;
+            oss << "Inline " << language << " execution failed: " << error_msg << "\n\n";
+            oss << "  Help: Did you forget to bind a NAAb variable?\n";
+            oss << "  Inline polyglot code requires explicit variable binding syntax.\n\n";
+
+            if (!var_name.empty()) {
+                oss << "  ✗ Wrong - variable not bound:\n";
+                oss << "    let result = <<" << language << "\n";
+                oss << "    " << var_name << " * 2\n";
+                oss << "    >>\n\n";
+                oss << "  ✓ Right - explicit variable binding:\n";
+                oss << "    let result = <<" << language << "[" << var_name << "]\n";
+                oss << "    " << var_name << " * 2\n";
+                oss << "    >>\n\n";
+            } else {
+                oss << "  Syntax: <<language[var1, var2, ...]\n";
+                oss << "    your code here\n";
+                oss << "  >>\n\n";
+            }
+
+            oss << "  Example with multiple variables:\n";
+            oss << "    let a = 10\n";
+            oss << "    let b = 20\n";
+            oss << "    let sum = <<" << language << "[a, b]\n";
+            oss << "    a + b\n";
+            oss << "    >>\n";
+
+            throw std::runtime_error(oss.str());
+        }
+
+        // For other errors, throw original message
+        throw std::runtime_error("Inline " + language + " execution failed: " + error_msg);
     }
 }
 
@@ -4665,10 +4777,80 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 current_env_->define(block.assigned_var, value);
             }
         } else {
-            // Handle error
+            // Handle error - check for undefined variable errors
+            std::string error_msg = result.error_message;
+            bool is_undefined_var = false;
+            std::string var_name;
+            std::string language = block.node ? block.node->getLanguage() : "unknown";
+
+            // Python: "NameError: name 'x' is not defined"
+            if (error_msg.find("NameError") != std::string::npos &&
+                error_msg.find("not defined") != std::string::npos) {
+                is_undefined_var = true;
+                // Try to extract variable name between quotes
+                size_t quote1 = error_msg.find('\'');
+                if (quote1 != std::string::npos) {
+                    size_t quote2 = error_msg.find('\'', quote1 + 1);
+                    if (quote2 != std::string::npos) {
+                        var_name = error_msg.substr(quote1 + 1, quote2 - quote1 - 1);
+                    }
+                }
+            }
+
+            // JavaScript: "ReferenceError: x is not defined"
+            if (error_msg.find("ReferenceError") != std::string::npos &&
+                error_msg.find("is not defined") != std::string::npos) {
+                is_undefined_var = true;
+                // Extract variable name before "is not defined"
+                size_t pos = error_msg.find("is not defined");
+                if (pos != std::string::npos) {
+                    // Look backwards for the variable name
+                    std::string prefix = error_msg.substr(0, pos);
+                    size_t last_space = prefix.find_last_of(" :");
+                    if (last_space != std::string::npos) {
+                        var_name = prefix.substr(last_space + 1);
+                        // Trim whitespace
+                        var_name.erase(0, var_name.find_first_not_of(" \t"));
+                        var_name.erase(var_name.find_last_not_of(" \t") + 1);
+                    }
+                }
+            }
+
+            if (is_undefined_var) {
+                std::ostringstream oss;
+                oss << "Parallel polyglot execution failed in block " << i << ": " << error_msg << "\n\n";
+                oss << "  Help: Did you forget to bind a NAAb variable?\n";
+                oss << "  Inline polyglot code requires explicit variable binding syntax.\n\n";
+
+                if (!var_name.empty()) {
+                    oss << "  ✗ Wrong - variable not bound:\n";
+                    oss << "    let result = <<" << language << "\n";
+                    oss << "    " << var_name << " * 2\n";
+                    oss << "    >>\n\n";
+                    oss << "  ✓ Right - explicit variable binding:\n";
+                    oss << "    let result = <<" << language << "[" << var_name << "]\n";
+                    oss << "    " << var_name << " * 2\n";
+                    oss << "    >>\n\n";
+                } else {
+                    oss << "  Syntax: <<language[var1, var2, ...]\n";
+                    oss << "    your code here\n";
+                    oss << "  >>\n\n";
+                }
+
+                oss << "  Example with multiple variables:\n";
+                oss << "    let a = 10\n";
+                oss << "    let b = 20\n";
+                oss << "    let sum = <<" << language << "[a, b]\n";
+                oss << "    a + b\n";
+                oss << "    >>\n";
+
+                throw std::runtime_error(oss.str());
+            }
+
+            // For other errors, throw original message
             throw std::runtime_error(fmt::format(
                 "Parallel polyglot execution failed in block {}: {}",
-                i, result.error_message
+                i, error_msg
             ));
         }
     }

@@ -1,0 +1,15 @@
+main {
+    print("Testing basic nested struct...")
+
+    struct Point {
+        x: int
+        y: int
+    }
+
+    let p = new Point { x: 10, y: 20 }
+    if p.x == 10 && p.y == 20 {
+        print("✅ PASS: Nested struct works! Point:", p.x, ",", p.y)
+    } else {
+        print("❌ FAIL: Expected (10, 20), got:", p.x, ",", p.y)
+    }
+}
