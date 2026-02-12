@@ -143,14 +143,27 @@ std::optional<fs::path> ModuleResolver::resolveRelative(
     const std::string& spec,
     const fs::path& current_dir) {
 
-    // Must start with ./ or ../
-    if (spec.rfind("./", 0) != 0 && spec.rfind("../", 0) != 0) {
+    // First try paths starting with ./ or ../
+    if (spec.rfind("./", 0) == 0 || spec.rfind("../", 0) == 0) {
+        fs::path candidate = current_dir / spec;
+
+        // Try exact path
+        if (fs::exists(candidate) && fs::is_regular_file(candidate)) {
+            return candidate;
+        }
+
+        // Try with .naab extension
+        fs::path with_ext = fs::path(candidate.string() + ".naab");
+        if (fs::exists(with_ext) && fs::is_regular_file(with_ext)) {
+            return with_ext;
+        }
+
         return std::nullopt;
     }
 
+    // Also try bare relative paths (e.g., "modules/logger.naab")
+    // These are resolved relative to the current file's directory
     fs::path candidate = current_dir / spec;
-
-    // Try exact path
     if (fs::exists(candidate) && fs::is_regular_file(candidate)) {
         return candidate;
     }
