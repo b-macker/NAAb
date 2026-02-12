@@ -1,0 +1,8 @@
+// Test: 'def' keyword works as alias for 'function'
+def multiply(a: int, b: int) -> int {
+    return a * b
+}
+
+main {
+    print(multiply(3, 4))
+}

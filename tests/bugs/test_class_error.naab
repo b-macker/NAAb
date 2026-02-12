@@ -1,0 +1,5 @@
+// Test: 'class' keyword should produce helpful error suggesting 'struct'
+class Person {
+    name: string
+    age: int
+}

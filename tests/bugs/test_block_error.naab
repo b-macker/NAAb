@@ -1,0 +1,4 @@
+// Test: 'block' keyword at top level should produce helpful error
+block SystemIO {
+    print("hello")
+}

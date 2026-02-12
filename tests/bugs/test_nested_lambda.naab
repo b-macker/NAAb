@@ -1,0 +1,51 @@
+// Test nested lambda / higher-order function patterns
+
+main {
+    // Test 1: Function returning a lambda (closure)
+    let make_adder = func(n) {
+        return func(x) { return x + n }
+    }
+    let add5 = make_adder(5)
+    let add10 = make_adder(10)
+    print(add5(3))
+    print(add10(3))
+
+    // Test 2: Lambda inside lambda (double nesting)
+    let compose = func(f, g) {
+        return func(x) { return f(g(x)) }
+    }
+    let double_it = func(x) { return x * 2 }
+    let add_one = func(x) { return x + 1 }
+    let double_then_add = compose(add_one, double_it)
+    print(double_then_add(5))
+
+    // Test 3: Lambda stored in dict
+    let ops = {
+        "add": func(a, b) { return a + b },
+        "mul": func(a, b) { return a * b }
+    }
+    print(ops["add"](3, 4))
+    print(ops["mul"](3, 4))
+
+    // Test 4: Lambda stored in array
+    let fns = [
+        func(x) { return x + 1 },
+        func(x) { return x * 2 },
+        func(x) { return x * x }
+    ]
+    print(fns[0](10))
+    print(fns[1](10))
+    print(fns[2](10))
+
+    // Test 5: Triple nesting
+    let outer = func(a) {
+        return func(b) {
+            return func(c) {
+                return a + b + c
+            }
+        }
+    }
+    print(outer(1)(2)(3))
+
+    print("done")
+}

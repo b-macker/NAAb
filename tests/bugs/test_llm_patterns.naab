@@ -1,0 +1,25 @@
+// Test LLM-common patterns that should produce helpful errors or work correctly
+
+// Test 1: Semicolons in import-like statements (use with semicolons)
+use math;
+
+main {
+    // Test 2: Semicolons after let
+    let x = 42;
+    let y = "hello";
+
+    // Test 3: For loop with parentheses
+    for (i in [1, 2, 3]) {
+        print(i);
+    }
+
+    // Test 4: For loop without parentheses (normal NAAb)
+    for j in [10, 20] {
+        print(j);
+    }
+
+    // Test 5: Return with semicolons (tested via function)
+    print(x);
+    print(y);
+    print("done");
+}

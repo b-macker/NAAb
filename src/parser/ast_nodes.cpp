@@ -189,6 +189,10 @@ void IfExpr::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void LambdaExpr::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 void Program::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }

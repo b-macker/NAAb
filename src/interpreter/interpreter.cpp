@@ -614,8 +614,9 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
         throw std::runtime_error(oss.str());
     }
 
-    // Create new environment for function execution
-    auto func_env = std::make_shared<Environment>(global_env_);
+    // Create new environment for function execution with closure as parent (lexical scoping)
+    auto parent_env = func->closure ? func->closure : global_env_;
+    auto func_env = std::make_shared<Environment>(parent_env);
 
     // Bind provided arguments
     for (size_t i = 0; i < args.size(); i++) {
@@ -1766,6 +1767,43 @@ void Interpreter::visit(ast::IfExpr& node) {
         node.getElseExpr()->accept(*this);
     }
     // last_value_ is set by whichever branch expression was evaluated
+}
+
+void Interpreter::visit(ast::LambdaExpr& node) {
+    // Create an anonymous FunctionValue with closure capture
+    static int lambda_counter = 0;
+    std::string name = "__lambda_" + std::to_string(lambda_counter++);
+
+    // Extract parameter names and types
+    std::vector<std::string> param_names;
+    std::vector<ast::Type> param_types;
+    std::vector<ast::Expr*> defaults;
+
+    for (const auto& param : node.getParams()) {
+        param_names.push_back(param.name);
+        param_types.push_back(param.type);
+        defaults.push_back(param.default_value.has_value() ? param.default_value->get() : nullptr);
+    }
+
+    // Create shared body (FunctionValue needs shared_ptr)
+    auto body = std::shared_ptr<ast::CompoundStmt>(
+        node.getBody(), [](ast::CompoundStmt*) {}  // non-owning - AST owns the body
+    );
+
+    auto func_val = std::make_shared<FunctionValue>(
+        name,
+        param_names,
+        std::move(param_types),
+        std::move(defaults),
+        body,
+        std::vector<std::string>{},  // no type parameters
+        node.getReturnType(),
+        current_file_,
+        node.getLocation().line,
+        current_env_  // capture current environment as closure
+    );
+
+    result_ = std::make_shared<Value>(func_val);
 }
 
 void Interpreter::visit(ast::ForStmt& node) {

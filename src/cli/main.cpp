@@ -177,13 +177,29 @@ int main(int argc, char** argv) {
 
     if (argc < 2) {
         print_usage();
+        fflush(stdout);
         return 1;
     }
 
     std::string command = argv[1];
 
+    // Handle --help and -h flags (common user expectation)
+    if (command == "--help" || command == "-h") {
+        print_usage();
+        fflush(stdout);
+        _exit(0);
+    }
+
+    // Auto-detect .naab files: `naab-lang file.naab` → `naab-lang run file.naab`
+    // This is the #1 source of confusion for new users and LLMs
+    bool auto_run = false;
+    if (command.size() > 5 && command.substr(command.size() - 5) == ".naab") {
+        auto_run = true;
+        command = "run";
+    }
+
     if (command == "run") {
-        if (argc < 3) {
+        if (!auto_run && argc < 3) {
             fmt::print("Error: Missing file argument\n");
             return 1;
         }
@@ -201,7 +217,9 @@ int main(int argc, char** argv) {
         std::string filename;
         std::vector<std::string> script_args;
 
-        for (int i = 2; i < argc; ++i) {
+        // When auto-detected, argv[1] is the .naab file, start scanning from index 1
+        int arg_start = auto_run ? 1 : 2;
+        for (int i = arg_start; i < argc; ++i) {
             std::string arg(argv[i]);
             if (arg == "--verbose" || arg == "-v") {
                 verbose = true;
@@ -994,8 +1012,10 @@ int main(int argc, char** argv) {
         print_usage();
 
     } else {
-        fmt::print("Unknown command: {}\n", command);
+        fmt::print("Unknown command: {}\n\n", command);
         print_usage();
+        fflush(stdout);
+        fflush(stderr);
         _exit(1);
     }
 

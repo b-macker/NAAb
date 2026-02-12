@@ -1,0 +1,19 @@
+main {
+    // Test that semicolons are accepted as optional statement terminators
+    let x = 42;
+    let y = "hello";
+    print(x);
+    print(y);
+
+    // Test semicolons in control flow
+    for i in [1, 2, 3] {
+        print(i);
+    }
+
+    // Test for loop with parentheses (common LLM pattern)
+    for (j in [10, 20]) {
+        print(j);
+    }
+
+    print("done");
+}

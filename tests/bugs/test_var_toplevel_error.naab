@@ -1,0 +1,6 @@
+// Test: 'var' at top level should produce helpful error
+var globalConfig = "production"
+
+main {
+    print("hello")
+}

@@ -1,0 +1,5 @@
+// Test: 'var' keyword should produce helpful error suggesting 'let'
+main {
+    var x = 10
+    print(x)
+}

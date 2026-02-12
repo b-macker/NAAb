@@ -1,0 +1,4 @@
+// Test: 'function main()' should produce helpful error
+function main() {
+    print("hello")
+}

@@ -20,6 +20,7 @@ class StructDecl;
 class StructLiteralExpr;
 class InlineCodeExpr;
 class IfExpr;
+class LambdaExpr;
 
 // Source location for error reporting
 struct SourceLocation {
@@ -77,6 +78,7 @@ enum class NodeKind {
     StructLiteralExpr,    // Struct literal expression
     InlineCodeExpr,       // Inline polyglot code: <<language code >>
     IfExpr,               // If expression: if cond { expr } else { expr }
+    LambdaExpr,           // Anonymous function: function(params) { body }
 };
 
 class ASTNode {
@@ -947,6 +949,36 @@ private:
     std::unique_ptr<Expr> else_expr_;
 };
 
+// Lambda expression: function(params) -> type { body }
+// Also: func(params) { body }, def(params) { body }, fn(params) { body }
+class LambdaExpr : public Expr {
+public:
+    LambdaExpr(std::vector<Parameter> params,
+               std::vector<Type> param_types,
+               Type return_type,
+               std::unique_ptr<CompoundStmt> body,
+               SourceLocation loc = SourceLocation())
+        : Expr(NodeKind::LambdaExpr, loc),
+          params_(std::move(params)),
+          param_types_(std::move(param_types)),
+          return_type_(std::move(return_type)),
+          body_(std::move(body)) {}
+
+    const std::vector<Parameter>& getParams() const { return params_; }
+    const std::vector<Type>& getParamTypes() const { return param_types_; }
+    const Type& getReturnType() const { return return_type_; }
+    CompoundStmt* getBody() { return body_.get(); }
+
+    Type getType() const override { return Type::makeAny(); }
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::vector<Parameter> params_;
+    std::vector<Type> param_types_;
+    Type return_type_;
+    std::unique_ptr<CompoundStmt> body_;
+};
+
 // ============================================================================
 // Program (top-level)
 // ============================================================================
@@ -1076,6 +1108,10 @@ public:
     virtual void visit(IfExpr& node) {
         (void)node;
         throw std::runtime_error("IfExpr not supported by this visitor");
+    }
+    virtual void visit(LambdaExpr& node) {
+        (void)node;
+        throw std::runtime_error("LambdaExpr not supported by this visitor");
     }
     // Phase 2.4.3: Enum support
     virtual void visit(EnumDecl& node) {

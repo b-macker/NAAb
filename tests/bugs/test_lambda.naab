@@ -1,0 +1,38 @@
+// Test lambda/anonymous function support
+
+function add(a: int, b: int) -> int {
+    return a + b
+}
+
+main {
+    // Test 1: Lambda with type annotations
+    let double_it = func(x: int) -> int { return x * 2 }
+    print(double_it(5))
+
+    // Test 2: Lambda without type annotations
+    let triple = func(x) { return x * 3 }
+    print(triple(4))
+
+    // Test 3: Lambda with multiple params, no types (fn keyword)
+    let sum = fn(a, b) { return a + b }
+    print(sum(10, 20))
+
+    // Test 4: Lambda using def keyword
+    let greet = def(name) { return "Hello " + name }
+    print(greet("World"))
+
+    // Test 5: Lambda passed to higher-order function
+    let nums = [1, 2, 3, 4, 5]
+    let doubled = array.map_fn(nums, func(x) { return x * 2 })
+    print(doubled)
+
+    // Test 6: Lambda with no params
+    let get_value = func() { return 42 }
+    print(get_value())
+
+    // Test 7: Immediately invoked lambda
+    let result = func(x, y) { return x * y }(6, 7)
+    print(result)
+
+    print("done")
+}

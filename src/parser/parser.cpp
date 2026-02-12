@@ -296,10 +296,79 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
                             tok.line, tok.column, tok.value
                         )
                     );
-                } else {
-                    fmt::print("[PARSER] Stopping parse at unknown token: {} (line {}, col {})\n",
-                               tok.value, tok.line, tok.column);
-                    fmt::print("[PARSER] Hint: Top level can only contain: use, import, export, struct, enum, function, main\n");
+                }
+                // 'var' keyword - suggest 'let'
+                else if (tok.type == lexer::TokenType::IDENTIFIER && tok.value == "var") {
+                    throw std::runtime_error(
+                        fmt::format(
+                            "Parse error at line {}, column {}: NAAb uses 'let' instead of 'var' for variable declarations.\n\n"
+                            "  Also, variables must be inside a 'main {{}}' block or function.\n\n"
+                            "  \xE2\x9C\x97 Wrong:\n"
+                            "    var x = 10\n\n"
+                            "  \xE2\x9C\x93 Right:\n"
+                            "    main {{\n"
+                            "        let x = 10\n"
+                            "    }}\n\n"
+                            "  Hint: Top level can only contain: use, import, export, struct, enum, function, main",
+                            tok.line, tok.column
+                        )
+                    );
+                }
+                // 'block' keyword - explain NAAb structure
+                else if (tok.type == lexer::TokenType::IDENTIFIER && tok.value == "block") {
+                    throw std::runtime_error(
+                        fmt::format(
+                            "Parse error at line {}, column {}: 'block' is not a top-level construct in NAAb.\n\n"
+                            "  NAAb uses 'function' for reusable code and 'main' for the entry point.\n\n"
+                            "  \xE2\x9C\x97 Wrong:\n"
+                            "    block MyModule {{\n"
+                            "        // ...\n"
+                            "    }}\n\n"
+                            "  \xE2\x9C\x93 Right - use functions:\n"
+                            "    function my_function(param: string) -> string {{\n"
+                            "        return param\n"
+                            "    }}\n\n"
+                            "  \xE2\x9C\x93 Right - use main for entry point:\n"
+                            "    main {{\n"
+                            "        let result = my_function(\"hello\")\n"
+                            "        print(result)\n"
+                            "    }}\n\n"
+                            "  Hint: Top level can only contain: use, import, export, struct, enum, function, main",
+                            tok.line, tok.column
+                        )
+                    );
+                }
+                // 'class' keyword - explain NAAb uses 'struct'
+                else if (tok.type == lexer::TokenType::CLASS) {
+                    throw std::runtime_error(
+                        fmt::format(
+                            "Parse error at line {}, column {}: NAAb uses 'struct' instead of 'class'.\n\n"
+                            "  \xE2\x9C\x97 Wrong:\n"
+                            "    class Person {{\n"
+                            "        name: string\n"
+                            "    }}\n\n"
+                            "  \xE2\x9C\x93 Right:\n"
+                            "    struct Person {{\n"
+                            "        name: string\n"
+                            "    }}\n\n"
+                            "  Hint: Top level can only contain: use, import, export, struct, enum, function, main",
+                            tok.line, tok.column
+                        )
+                    );
+                }
+                else {
+                    throw std::runtime_error(
+                        fmt::format(
+                            "Parse error at line {}, column {}: Unexpected '{}' at top level.\n\n"
+                            "  Hint: Top level can only contain: use, import, export, struct, enum, function, main\n\n"
+                            "  All other statements (let, print, for, if, etc.) must be inside a 'main {{}}' block or function.\n\n"
+                            "  Example:\n"
+                            "    main {{\n"
+                            "        // your code here\n"
+                            "    }}",
+                            tok.line, tok.column, tok.value
+                        )
+                    );
                 }
             }
             break;
@@ -372,6 +441,8 @@ std::unique_ptr<ast::UseStatement> Parser::parseUseStatement() {
     auto& alias_token = expect(lexer::TokenType::IDENTIFIER, "Expected identifier");
     std::string alias = alias_token.value;
 
+    optionalSemicolon();  // Allow optional semicolon after use statement
+
     return std::make_unique<ast::UseStatement>(
         block_id, alias,
         ast::SourceLocation(start.line, start.column)
@@ -442,6 +513,8 @@ std::unique_ptr<ast::ImportStmt> Parser::parseImportStmt() {
         throw ParseError("Expected string path, '{', or '*' after 'import'");
     }
 
+    optionalSemicolon();  // Allow optional semicolon after import
+
     return std::make_unique<ast::ImportStmt>(
         std::move(items), module_path, is_wildcard, wildcard_alias,
         ast::SourceLocation(start.line, start.column)
@@ -474,6 +547,8 @@ std::unique_ptr<ast::ModuleUseStmt> Parser::parseModuleUseStmt() {
         auto& alias_token = expect(lexer::TokenType::IDENTIFIER, "Expected identifier after 'as'");
         alias = alias_token.value;
     }
+
+    optionalSemicolon();  // Allow optional semicolon after use statement
 
     return std::make_unique<ast::ModuleUseStmt>(
         module_path,
@@ -540,6 +615,26 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
     bool is_async = match(lexer::TokenType::ASYNC);
 
     expect(lexer::TokenType::FUNCTION, "Expected 'function'");
+
+    // Detect 'function main()' or 'func main()' pattern - suggest 'main { ... }' syntax
+    if (check(lexer::TokenType::MAIN)) {
+        auto& tok = current();
+        throw std::runtime_error(
+            fmt::format(
+                "Parse error at line {}, column {}: NAAb uses 'main {{}}' as the entry point, not 'function main()'.\n\n"
+                "  \xE2\x9C\x97 Wrong:\n"
+                "    function main() {{\n"
+                "        // ...\n"
+                "    }}\n\n"
+                "  \xE2\x9C\x93 Right:\n"
+                "    main {{\n"
+                "        // your code here\n"
+                "    }}\n\n"
+                "  Note: 'main' is a special block, not a function declaration.",
+                tok.line, tok.column
+            )
+        );
+    }
 
     auto& name_token = expect(lexer::TokenType::IDENTIFIER, "Expected function name");
     std::string name = name_token.value;
@@ -829,6 +924,21 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
         return parseVarDeclStmt();
     }
 
+    // Detect 'var' keyword and suggest 'let'
+    if (check(lexer::TokenType::IDENTIFIER) && current().value == "var") {
+        auto& tok = current();
+        throw std::runtime_error(
+            fmt::format(
+                "Parse error at line {}, column {}: NAAb uses 'let' instead of 'var' for variable declarations.\n\n"
+                "  \xE2\x9C\x97 Wrong:  var x = 10\n"
+                "  \xE2\x9C\x93 Right:  let x = 10\n\n"
+                "  For constants, use 'const':\n"
+                "    const PI = 3.14159",
+                tok.line, tok.column
+            )
+        );
+    }
+
     // Default: expression statement
     return parseExprStmt();
 }
@@ -858,9 +968,12 @@ std::unique_ptr<ast::ReturnStmt> Parser::parseReturnStmt() {
     expect(lexer::TokenType::RETURN, "Expected 'return'");
 
     std::unique_ptr<ast::Expr> value;
-    if (!check(lexer::TokenType::NEWLINE) && !check(lexer::TokenType::RBRACE)) {
+    if (!check(lexer::TokenType::NEWLINE) && !check(lexer::TokenType::RBRACE)
+        && !check(lexer::TokenType::SEMICOLON)) {
         value = parseExpression();
     }
+
+    optionalSemicolon();  // Allow optional semicolon after return
 
     return std::make_unique<ast::ReturnStmt>(
         std::move(value),
@@ -872,6 +985,8 @@ std::unique_ptr<ast::BreakStmt> Parser::parseBreakStmt() {
     auto start = current();
     expect(lexer::TokenType::BREAK, "Expected 'break'");
 
+    optionalSemicolon();  // Allow optional semicolon after break
+
     return std::make_unique<ast::BreakStmt>(
         ast::SourceLocation(start.line, start.column)
     );
@@ -880,6 +995,8 @@ std::unique_ptr<ast::BreakStmt> Parser::parseBreakStmt() {
 std::unique_ptr<ast::ContinueStmt> Parser::parseContinueStmt() {
     auto start = current();
     expect(lexer::TokenType::CONTINUE, "Expected 'continue'");
+
+    optionalSemicolon();  // Allow optional semicolon after continue
 
     return std::make_unique<ast::ContinueStmt>(
         ast::SourceLocation(start.line, start.column)
@@ -913,12 +1030,20 @@ std::unique_ptr<ast::ForStmt> Parser::parseForStmt() {
     auto start = current();
     expect(lexer::TokenType::FOR, "Expected 'for'");
 
+    // Allow optional parentheses: `for (x in items)` or `for x in items`
+    bool has_parens = match(lexer::TokenType::LPAREN);
+
     auto& var_name = expect(lexer::TokenType::IDENTIFIER, "Expected variable name");
     std::string var = var_name.value;
 
     expect(lexer::TokenType::IN, "Expected 'in'");
 
     auto iterable = parseExpression();
+
+    if (has_parens) {
+        expect(lexer::TokenType::RPAREN, "Expected ')' to close for loop parentheses");
+    }
+
     skipNewlines();
     auto body = parseStatement();
 
@@ -1609,6 +1734,15 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         return parseIfExpr();
     }
 
+    // Lambda expression: function(params) { body } or func(params) { body }
+    if (check(lexer::TokenType::FUNCTION)) {
+        // Peek ahead: if FUNCTION is followed by LPAREN, it's a lambda
+        // If followed by IDENTIFIER, it's a function declaration (handled elsewhere)
+        if (pos_ + 1 < tokens_.size() && tokens_[pos_ + 1].type == lexer::TokenType::LPAREN) {
+            return parseLambdaExpr();
+        }
+    }
+
     // Provide helpful hints for common mistakes
     auto& tok = current();
     std::string hint;
@@ -1624,6 +1758,19 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
                "  ✓ Right:\n"
                "    let x = \"hello\" " + tok.value + "\n"
                "        \"world\"\n";
+    }
+    // 'as' keyword = type casting attempt (not supported in expressions)
+    else if (tok.type == lexer::TokenType::AS) {
+        hint = "\n\n  Help: NAAb does not support 'as' for type casting in expressions.\n"
+               "  NAAb is dynamically typed - values are converted automatically.\n\n"
+               "  ✗ Wrong:\n"
+               "    return result as MyStruct;\n"
+               "    let x = value as int;\n\n"
+               "  ✓ Right - just use the value directly:\n"
+               "    return result\n"
+               "    let x = value\n\n"
+               "  Note: 'as' is only used in import statements:\n"
+               "    use math_utils as math\n";
     }
     // NEWLINE token = unexpected line break
     else if (tok.type == lexer::TokenType::NEWLINE) {
@@ -1668,6 +1815,60 @@ std::unique_ptr<ast::Expr> Parser::parseIfExpr() {
         std::move(condition),
         std::move(then_expr),
         std::move(else_expr),
+        ast::SourceLocation(start.line, start.column, filename_)
+    );
+}
+
+// Lambda expression: function(params) -> type { body }
+// Type annotations are optional: function(x, y) { return x + y } also works
+std::unique_ptr<ast::Expr> Parser::parseLambdaExpr() {
+    auto start = current();
+    expect(lexer::TokenType::FUNCTION, "Expected 'function'/'func'/'def'/'fn'");
+    expect(lexer::TokenType::LPAREN, "Expected '(' after function keyword");
+
+    // Parse parameters (type annotations are optional for lambdas)
+    std::vector<ast::Parameter> params;
+    std::vector<ast::Type> param_types;
+
+    if (!check(lexer::TokenType::RPAREN)) {
+        do {
+            skipNewlines();
+            auto& param_name = expect(lexer::TokenType::IDENTIFIER, "Expected parameter name");
+
+            // Optional type annotation: param: type
+            ast::Type param_type = ast::Type::makeAny();
+            if (match(lexer::TokenType::COLON)) {
+                param_type = parseType();
+            }
+
+            // Optional default value
+            std::optional<std::unique_ptr<ast::Expr>> default_value;
+            if (match(lexer::TokenType::EQ)) {
+                default_value = parseExpression();
+            }
+
+            params.push_back(ast::Parameter{param_name.value, param_type, std::move(default_value)});
+            param_types.push_back(param_type);
+            skipNewlines();
+        } while (match(lexer::TokenType::COMMA));
+    }
+
+    expect(lexer::TokenType::RPAREN, "Expected ')' after parameters");
+
+    // Optional return type: -> type
+    ast::Type return_type = ast::Type::makeAny();
+    if (match(lexer::TokenType::ARROW)) {
+        return_type = parseType();
+    }
+
+    // Parse body
+    auto body = parseCompoundStmt();
+
+    return std::make_unique<ast::LambdaExpr>(
+        std::move(params),
+        std::move(param_types),
+        std::move(return_type),
+        std::move(body),
         ast::SourceLocation(start.line, start.column, filename_)
     );
 }
