@@ -1,0 +1,19 @@
+// Test if expression
+main {
+    let x = 5
+
+    // Basic if expression - then branch
+    let result = if x > 3 { 10 } else { 20 }
+    print(result)  // 10
+
+    // Basic if expression - else branch
+    let neg = if x < 0 { "negative" } else { "non-negative" }
+    print(neg)  // non-negative
+
+    // If expression with string values
+    let grade = if x >= 5 { "pass" } else { "fail" }
+    print(grade)  // pass
+
+    // If expression used inline
+    print(if true { "yes" } else { "no" })  // yes
+}

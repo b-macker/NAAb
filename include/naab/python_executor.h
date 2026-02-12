@@ -2,8 +2,10 @@
 #define NAAB_PYTHON_EXECUTOR_H
 
 // NAAb Python Block Executor
-// Embeds CPython interpreter using pybind11
+// Uses Python C API sub-interpreters for true isolation
+// Each executor has its own sub-interpreter with own GIL
 
+#include <Python.h>  // MUST be before pybind11
 #include <memory>
 #include <string>
 #include <vector>
@@ -81,28 +83,35 @@ public:
     static bool shouldBlockDangerousImports() { return block_dangerous_imports_; }
 
 private:
-    // NOTE: Interpreter is now managed globally by PythonInterpreterManager
-    // No more py::scoped_interpreter guard_ here!
-    // No more global_namespace_ member - call py::globals() when needed
+    // TRUE ISOLATION: Each executor has own Python sub-interpreter
+    // Each sub-interpreter has:
+    // - Own GIL (no contention with other sub-interpreters)
+    // - Own globals (__main__ module with own dict)
+    // - Own sys.path, sys.modules, builtins, etc.
+    PyThreadState* sub_interpreter_;  // C API sub-interpreter state
 
     OutputBuffer stdout_buffer_; // Buffer for Python stdout
     OutputBuffer stderr_buffer_; // Buffer for Python stderr
 
-    // Optional redirectors - only used when redirect_output=true
-    std::unique_ptr<py::object> stdout_redirector_; // Python-side stdout redirector instance
-    std::unique_ptr<py::object> stderr_redirector_; // Python-side stderr redirector instance
+    // NOTE: Output redirection will be implemented differently for sub-interpreters
+    // Cannot use py::object directly - need PyObject* and C API
+    // For now, output redirection is disabled in sub-interpreters
 
     int timeout_seconds_ = 30;  // Timeout for Python execution (default: 30)
 
     // Security: Control whether to block dangerous imports (static for thread safety)
     static inline bool block_dangerous_imports_ = true;  // Default: block for safety
 
-    // Type conversion helpers
+    // C API Type conversion helpers (replace pybind11 versions)
+    PyObject* valueToPyObject(const std::shared_ptr<interpreter::Value>& val);
+    std::shared_ptr<interpreter::Value> pyObjectToValue(PyObject* obj);
+
+    // Keep pybind11 versions for compatibility with non-sub-interpreter code
     py::object valueToPython(const std::shared_ptr<interpreter::Value>& val);
     std::shared_ptr<interpreter::Value> pythonToValue(const py::object& obj);
 
-    // Phase 4.2.2: Python traceback extraction
-    void extractPythonTraceback(const py::error_already_set& e);
+    // Phase 4.2.2: Python traceback extraction (updated for C API)
+    void extractPythonTraceback();
 };
 
 } // namespace runtime

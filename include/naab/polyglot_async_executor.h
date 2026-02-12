@@ -420,6 +420,16 @@ private:
     static std::string languageToString(Language lang);
 };
 
+/**
+ * @brief Eagerly initialize the polyglot thread pool.
+ *
+ * MUST be called BEFORE any use/dlopen statements to ensure Python C API
+ * warmup creates CFI shadow entries while address space is still clean.
+ * On Android, if called after dlopen (which fragments address space),
+ * mmap for CFI shadow memory will fail.
+ */
+void initializePolyglotThreadPool();
+
 // ============================================================================
 // Helper Functions
 // ============================================================================

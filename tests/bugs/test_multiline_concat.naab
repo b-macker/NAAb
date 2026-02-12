@@ -1,0 +1,7 @@
+// Test multi-line string concat
+main {
+    let script = "line1\n" +
+        "line2\n" +
+        "line3\n"
+    print(script)
+}

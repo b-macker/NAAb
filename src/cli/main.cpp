@@ -15,8 +15,9 @@
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
 #include "naab/python_executor_adapter.h"
-#include "naab/python_executor.h"
+// #include "naab/python_executor.h"  // REMOVED: Using pure C API (PythonCExecutor) now
 #include "naab/python_interpreter_manager.h"
+#include "naab/polyglot_async_executor.h"
 #include "naab/rust_executor.h"
 #include "naab/csharp_executor.h"
 #include "naab/shell_executor.h"
@@ -32,6 +33,7 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <unistd.h>  // _exit()
 #include <filesystem>
 
 // Enterprise security configuration for polyglot blocks
@@ -84,6 +86,9 @@ void initialize_executors() {
     naab::runtime::PythonInterpreterManager::initialize();
     registry.registerExecutor("python",
         std::make_unique<naab::runtime::PyExecutorAdapter>());
+
+    // Create thread pool for parallel polyglot execution
+    naab::polyglot::initializePolyglotThreadPool();
     #endif
 
     // Register Rust executor (Phase 3.1-3.3)
@@ -270,12 +275,14 @@ int main(int argc, char** argv) {
         naab::security::SandboxManager::instance().setDefaultConfig(security_config);
 
         // Configure Python import blocking based on sandbox level
+        // NOTE: Temporarily disabled while using pure C API (PythonCExecutor)
+        // TODO: Re-implement import blocking in PythonCExecutor for security
         // Unrestricted mode allows all imports (including os, subprocess, etc.)
-        if (sandbox_level == "unrestricted") {
-            naab::runtime::PythonExecutor::setBlockDangerousImports(false);
-        } else {
-            naab::runtime::PythonExecutor::setBlockDangerousImports(true);
-        }
+        // if (sandbox_level == "unrestricted") {
+        //     naab::runtime::PythonExecutor::setBlockDangerousImports(false);
+        // } else {
+        //     naab::runtime::PythonExecutor::setBlockDangerousImports(true);
+        // }
 
         if (verbose) {
             fmt::print("[Security] Sandbox level: {}, timeout: {}s, memory: {}MB, network: {}\n",
@@ -334,15 +341,25 @@ int main(int argc, char** argv) {
                 interpreter.printProfile();
             }
 
-            return 0;
+            // Use _exit() after interpreter runs - thread pool workers and
+            // Python thread states trigger bionic CFI crashes during static
+            // destruction on Android. _exit() is safe: the OS cleans up all
+            // process resources, and we've already flushed all output.
+            fflush(stdout);
+            fflush(stderr);
+            _exit(0);
 
         } catch (const naab::interpreter::NaabError& e) {
             // NaabError has full stack trace - print it
             fmt::print("{}\n", e.formatError());
-            return 1;
+            fflush(stdout);
+            fflush(stderr);
+            _exit(1);
         } catch (const std::exception& e) {
             fmt::print("Error: {}\n", e.what());
-            return 1;
+            fflush(stdout);
+            fflush(stderr);
+            _exit(1);
         }
 
     } else if (command == "parse") {
@@ -979,8 +996,13 @@ int main(int argc, char** argv) {
     } else {
         fmt::print("Unknown command: {}\n", command);
         print_usage();
-        return 1;
+        _exit(1);
     }
 
-    return 0;
+    // Use _exit() to skip static destructors on Android.
+    // Thread pool workers and Python thread states trigger bionic CFI
+    // crashes during static destruction (mmap fails for shadow memory
+    // late in process lifetime). _exit() is safe: the OS cleans up all
+    // process resources, and we've already flushed all output.
+    _exit(0);
 }

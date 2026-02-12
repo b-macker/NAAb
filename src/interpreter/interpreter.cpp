@@ -1056,6 +1056,11 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
                 // Execute struct declarations
                 for (const auto& struct_decl : program->getStructs()) {
                     struct_decl->accept(*this);
+                    // Auto-export module structs so they're accessible via module.StructName
+                    auto struct_def = runtime::StructRegistry::instance().getStruct(struct_decl->getName());
+                    if (struct_def) {
+                        current_env_->exported_structs_[struct_decl->getName()] = struct_def;
+                    }
                 }
 
                 // Execute enum declarations
@@ -1616,12 +1621,26 @@ void Interpreter::visit(ast::CompoundStmt& node) {
                     executePolyglotGroupParallel(groups[group_idx]);
                     executed_groups.insert(group_idx);
 
-                    // Update last_executed to skip all blocks in this group
+                    // Find the range of statement indices covered by this group
+                    size_t group_max_idx = 0;
                     for (const auto& block : groups[group_idx].parallel_blocks) {
-                        if (block.statement_index >= last_executed) {
-                            last_executed = block.statement_index + 1;
+                        if (block.statement_index > group_max_idx) {
+                            group_max_idx = block.statement_index;
                         }
                     }
+
+                    // Execute non-polyglot statements BETWEEN the group's blocks
+                    // These are statements like print() that reference variables
+                    // assigned by the group - they must run AFTER the group completes
+                    for (size_t j = i + 1; j <= group_max_idx; ++j) {
+                        if (polyglot_indices.find(j) == polyglot_indices.end()) {
+                            statements[j]->accept(*this);
+                            if (returning_ || breaking_ || continuing_) break;
+                        }
+                    }
+
+                    // Update last_executed past all blocks and intermediate statements
+                    last_executed = group_max_idx + 1;
 
                     if (returning_ || breaking_ || continuing_) break;
                 }
@@ -1737,6 +1756,16 @@ void Interpreter::visit(ast::IfStmt& node) {
     } else if (node.getElseBranch()) {
         node.getElseBranch()->accept(*this);
     }
+}
+
+void Interpreter::visit(ast::IfExpr& node) {
+    auto condition = eval(*node.getCondition());
+    if (condition->toBool()) {
+        node.getThenExpr()->accept(*this);
+    } else {
+        node.getElseExpr()->accept(*this);
+    }
+    // last_value_ is set by whichever branch expression was evaluated
 }
 
 void Interpreter::visit(ast::ForStmt& node) {
@@ -4489,8 +4518,100 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             throw std::runtime_error(oss.str());
         }
 
-        // For other errors, throw original message
-        throw std::runtime_error("Inline " + language + " execution failed: " + error_msg);
+        // Detect common polyglot errors and add helpful context
+        std::ostringstream oss;
+        oss << "Inline " << language << " execution failed: " << error_msg << "\n";
+
+        // Python indentation errors
+        if (error_msg.find("IndentationError") != std::string::npos ||
+            error_msg.find("unexpected indent") != std::string::npos) {
+            oss << "\n  Help: Python indentation error in polyglot block.\n"
+                << "  Common causes:\n"
+                << "  - Mixing tabs and spaces\n"
+                << "  - Code inside the block has inconsistent indentation\n"
+                << "  - All lines in the block should use the same indentation style\n\n"
+                << "  ✗ Wrong - inconsistent indentation:\n"
+                << "    let r = <<python\n"
+                << "    x = 1\n"
+                << "      y = 2   # extra indent!\n"
+                << "    >>\n\n"
+                << "  ✓ Right - consistent indentation:\n"
+                << "    let r = <<python\n"
+                << "    x = 1\n"
+                << "    y = 2\n"
+                << "    >>\n";
+        }
+        // Python SyntaxError
+        else if (language == "python" && error_msg.find("SyntaxError") != std::string::npos) {
+            oss << "\n  Help: Python syntax error in polyglot block.\n"
+                << "  Common causes:\n"
+                << "  - Missing colons after if/for/def/class\n"
+                << "  - Unclosed parentheses or brackets\n"
+                << "  - Python 3 syntax required (print is a function)\n\n"
+                << "  Tip: The last expression in the block is the return value.\n"
+                << "  For multi-line blocks, put the result on the last line:\n"
+                << "    let r = <<python\n"
+                << "    x = compute()\n"
+                << "    x  # this value is returned to NAAb\n"
+                << "    >>\n";
+        }
+        // Python/JS import errors
+        else if (error_msg.find("ModuleNotFoundError") != std::string::npos ||
+                 error_msg.find("ImportError") != std::string::npos ||
+                 error_msg.find("Cannot find module") != std::string::npos) {
+            oss << "\n  Help: Missing module/package in " << language << " polyglot block.\n"
+                << "  The module needs to be installed in your system's " << language << " environment.\n\n"
+                << "  For Python: pip install <module_name>\n"
+                << "  For JavaScript: npm install <module_name>\n\n"
+                << "  Note: Only standard library modules are available by default.\n";
+        }
+        // Compilation errors (Rust, C++, C#)
+        else if (error_msg.find("compilation failed") != std::string::npos) {
+            oss << "\n  Help: Compilation error in " << language << " polyglot block.\n"
+                << "  The " << language << " compiler rejected the generated code.\n"
+                << "  Check that the code is valid " << language << " and that\n"
+                << "  the compiler (" << (language == "rust" ? "rustc" : language == "csharp" ? "mcs" : "g++") << ") is installed.\n\n"
+                << "  Tip: NAAb wraps single expressions automatically.\n"
+                << "  For multi-statement blocks, write a complete program.\n";
+        }
+        // JavaScript: 'return' keyword in expression context
+        else if (language == "javascript" &&
+                 (error_msg.find("unexpected token") != std::string::npos ||
+                  error_msg.find("SyntaxError") != std::string::npos) &&
+                 error_msg.find("return") != std::string::npos) {
+            oss << "\n  Help: Don't use 'return' in JavaScript polyglot blocks.\n"
+                << "  The last expression is automatically returned to NAAb.\n\n"
+                << "  ✗ Wrong:\n"
+                << "    let x = <<javascript\n"
+                << "    return 42\n"
+                << "    >>\n\n"
+                << "  ✓ Right:\n"
+                << "    let x = <<javascript\n"
+                << "    42\n"
+                << "    >>\n\n"
+                << "  For multi-line blocks:\n"
+                << "    let x = <<javascript\n"
+                << "    let result = someComputation();\n"
+                << "    result   // last expression is the return value\n"
+                << "    >>\n";
+        }
+        // Generic: Python None return causing null
+        else if (error_msg.find("Cannot infer type") != std::string::npos &&
+                 error_msg.find("null") != std::string::npos) {
+            oss << "\n  Help: Polyglot block returned null (Python None).\n"
+                << "  Make sure the last expression in the block has a value:\n\n"
+                << "  ✗ Wrong - print() returns None:\n"
+                << "    let x = <<python\n"
+                << "    print('hello')\n"
+                << "    >>\n\n"
+                << "  ✓ Right - last expression has a value:\n"
+                << "    let x = <<python\n"
+                << "    result = 'hello'\n"
+                << "    result\n"
+                << "    >>\n";
+        }
+
+        throw std::runtime_error(oss.str());
     }
 }
 
@@ -4652,6 +4773,10 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         std::vector<interpreter::Value>
     >> tasks;
 
+    // Track which blocks from group.parallel_blocks were submitted for parallel execution
+    // Sequential blocks (lang_supported=false) are executed inline and skipped from tasks
+    std::vector<size_t> parallel_block_indices;
+
     for (size_t i = 0; i < group.parallel_blocks.size(); ++i) {
         const auto& block = group.parallel_blocks[i];
         const auto& snapshot = snapshots[i];
@@ -4665,19 +4790,32 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         bool lang_supported = true;
 
         if (lang_str == "python") {
+            // Execute Python sequentially on main thread to avoid fragmenting
+            // address space with CFI shadow entries in worker threads.
+            // Python thread pool execution creates new CFI mappings that make
+            // subsequent fork/posix_spawn calls fail with SIGABRT on Android.
+            // The main thread uses PyGILState_Ensure which is safe.
+            lang_supported = false;
             lang = polyglot::PolyglotAsyncExecutor::Language::Python;
         } else if (lang_str == "javascript" || lang_str == "js") {
-            // TEMPORARY: Disable parallel execution for JavaScript due to thread limit issues
-            // Run JavaScript sequentially to avoid "thread constructor failed" errors
-            lang_supported = false;
+            // Thread pool allows safe parallel execution
             lang = polyglot::PolyglotAsyncExecutor::Language::JavaScript;
         } else if (lang_str == "cpp" || lang_str == "c++") {
+            // C++ uses fork/exec for compilation - sequential to avoid CFI crash
+            // fork/exec already creates parallel subprocesses
+            lang_supported = false;
             lang = polyglot::PolyglotAsyncExecutor::Language::Cpp;
         } else if (lang_str == "rust") {
+            lang_supported = false;
             lang = polyglot::PolyglotAsyncExecutor::Language::Rust;
         } else if (lang_str == "csharp" || lang_str == "cs") {
+            lang_supported = false;
             lang = polyglot::PolyglotAsyncExecutor::Language::CSharp;
         } else if (lang_str == "shell" || lang_str == "bash" || lang_str == "sh") {
+            // Shell uses fork/exec which triggers Android bionic CFI crash
+            // from thread pool workers. No need for thread pool anyway -
+            // fork/exec already creates a parallel subprocess.
+            lang_supported = false;
             lang = polyglot::PolyglotAsyncExecutor::Language::Shell;
         } else {
             // Unsupported language for parallel execution (e.g., go, ruby, perl)
@@ -4758,6 +4896,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         // Create task with empty args (variables are injected into code)
         std::vector<interpreter::Value> args;
         tasks.emplace_back(lang, final_code, args);
+        parallel_block_indices.push_back(i);
     }
 
     // Step 3: Execute in parallel using PolyglotAsyncExecutor
@@ -4765,9 +4904,12 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
     auto results = executor.executeParallel(tasks, std::chrono::milliseconds(30000));
 
     // Step 4: Store results back to environment (sequential, thread-safe)
-    for (size_t i = 0; i < results.size(); ++i) {
-        const auto& block = group.parallel_blocks[i];
-        const auto& result = results[i];
+    // IMPORTANT: results[j] corresponds to parallel_block_indices[j], NOT group.parallel_blocks[j]
+    // because sequential blocks were already executed and skipped from tasks
+    for (size_t j = 0; j < results.size(); ++j) {
+        size_t block_idx = parallel_block_indices[j];
+        const auto& block = group.parallel_blocks[block_idx];
+        const auto& result = results[j];
 
         if (result.success) {
             // Store result value
@@ -4818,7 +4960,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 
             if (is_undefined_var) {
                 std::ostringstream oss;
-                oss << "Parallel polyglot execution failed in block " << i << ": " << error_msg << "\n\n";
+                oss << "Parallel polyglot execution failed in block " << j << ": " << error_msg << "\n\n";
                 oss << "  Help: Did you forget to bind a NAAb variable?\n";
                 oss << "  Inline polyglot code requires explicit variable binding syntax.\n\n";
 
@@ -4847,11 +4989,39 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 throw std::runtime_error(oss.str());
             }
 
-            // For other errors, throw original message
-            throw std::runtime_error(fmt::format(
-                "Parallel polyglot execution failed in block {}: {}",
-                i, error_msg
-            ));
+            // Detect common polyglot errors and add helpful context
+            std::ostringstream oss;
+            oss << "Parallel polyglot execution failed in block " << j << ": " << error_msg << "\n";
+
+            if (error_msg.find("IndentationError") != std::string::npos ||
+                error_msg.find("unexpected indent") != std::string::npos) {
+                oss << "\n  Help: Python indentation error in polyglot block.\n"
+                    << "  All lines should use consistent indentation (spaces, not tabs).\n"
+                    << "  NAAb strips common leading whitespace, but mixed indentation breaks Python.\n";
+            }
+            else if (language == "python" && error_msg.find("SyntaxError") != std::string::npos) {
+                oss << "\n  Help: Python syntax error. Check colons, brackets, and Python 3 syntax.\n"
+                    << "  The last expression in the block is the return value.\n";
+            }
+            else if (error_msg.find("ModuleNotFoundError") != std::string::npos ||
+                     error_msg.find("ImportError") != std::string::npos) {
+                oss << "\n  Help: Missing Python module. Install with: pip install <module>\n";
+            }
+            else if (error_msg.find("compilation failed") != std::string::npos) {
+                oss << "\n  Help: " << language << " compilation failed. Check syntax and compiler installation.\n";
+            }
+            // JavaScript: 'return' keyword in expression
+            else if (language == "javascript" &&
+                     (error_msg.find("unexpected token") != std::string::npos ||
+                      error_msg.find("SyntaxError") != std::string::npos) &&
+                     error_msg.find("return") != std::string::npos) {
+                oss << "\n  Help: Don't use 'return' in JavaScript polyglot blocks.\n"
+                    << "  The last expression is automatically returned to NAAb.\n\n"
+                    << "  ✗ Wrong:  return 42\n"
+                    << "  ✓ Right:  42\n";
+            }
+
+            throw std::runtime_error(oss.str());
         }
     }
 }

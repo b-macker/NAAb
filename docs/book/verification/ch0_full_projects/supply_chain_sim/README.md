@@ -39,8 +39,8 @@ The application follows this execution flow:
     *   **Why:** C# has strong decimal support and enterprise-grade structure for handling money.
 
 9.  **Report Formatting:** The raw financial and operational data is formatted into a pretty-printed text report.
-    *   **Language:** **Ruby** (Best for: String Manipulation, DSLs).
-    *   **Why:** Ruby's expressive syntax makes string interpolation and formatting very readable.
+    *   **Language:** **Python** (Best for: String Manipulation, Scripting).
+    *   **Why:** Python provides powerful f-strings and text processing capabilities ideal for generating reports. (Note: Ruby was originally planned but Python was used for better variable binding support).
 
 10. **Dashboard Generation:** Finally, the system aggregates all metrics into a JSON object and generates an HTML dashboard.
     *   **Language:** **JavaScript** (Best for: JSON, Web Content).

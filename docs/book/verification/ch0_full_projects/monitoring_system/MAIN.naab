@@ -229,7 +229,8 @@ JSON.stringify({
         <<python[filename, metrics_json]
 f = open(filename, 'a')
 f.write(metrics_json + '\n')
-f.close()>>
+f.close()
+        >>
 
         print("✓ Metrics stored to ", filename)
     } catch (e) {
@@ -392,7 +393,9 @@ main {
 
         // Performance summary using C++ expression
         print("\n⚡ Performance Metrics:")
-        let processing_time = <<cpp (std::rand() % 500) + 100 >>
+        let processing_time = <<cpp
+(std::rand() % 500) + 100
+>>
         print("  Total processing time: ", processing_time, " ms")
         print("  Servers processed: ", array.length(servers))
         print("  Average time per server: ", processing_time / array.length(servers), " ms")

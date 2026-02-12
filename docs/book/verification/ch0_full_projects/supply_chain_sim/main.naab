@@ -30,7 +30,7 @@ rm -rf output/*
 mkdir -p output
 echo "Environment Cleaned"
     >>
-    io.write("   ", prep_result.stdout, "\n")
+    io.write("   ", prep_result, "\n")
 
     // --- Phase 2: Config Loading (NAAb) ---
     io.write("2. [NAAb] Loading configuration...\n")

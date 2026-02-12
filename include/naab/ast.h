@@ -19,6 +19,7 @@ class Stmt;
 class StructDecl;
 class StructLiteralExpr;
 class InlineCodeExpr;
+class IfExpr;
 
 // Source location for error reporting
 struct SourceLocation {
@@ -75,6 +76,7 @@ enum class NodeKind {
     RangeExpr,            // Range operator: start..end
     StructLiteralExpr,    // Struct literal expression
     InlineCodeExpr,       // Inline polyglot code: <<language code >>
+    IfExpr,               // If expression: if cond { expr } else { expr }
 };
 
 class ASTNode {
@@ -920,6 +922,31 @@ private:
     std::vector<std::string> bound_variables_;  // Phase 2.2: Variables to bind from NAAb scope
 };
 
+// If expression: if condition { then_expr } else { else_expr }
+class IfExpr : public Expr {
+public:
+    IfExpr(std::unique_ptr<Expr> condition,
+           std::unique_ptr<Expr> then_expr,
+           std::unique_ptr<Expr> else_expr,
+           SourceLocation loc = SourceLocation())
+        : Expr(NodeKind::IfExpr, loc),
+          condition_(std::move(condition)),
+          then_expr_(std::move(then_expr)),
+          else_expr_(std::move(else_expr)) {}
+
+    Expr* getCondition() { return condition_.get(); }
+    Expr* getThenExpr() { return then_expr_.get(); }
+    Expr* getElseExpr() { return else_expr_.get(); }
+
+    Type getType() const override { return Type::makeVoid(); }
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::unique_ptr<Expr> condition_;
+    std::unique_ptr<Expr> then_expr_;
+    std::unique_ptr<Expr> else_expr_;
+};
+
 // ============================================================================
 // Program (top-level)
 // ============================================================================
@@ -1045,6 +1072,10 @@ public:
     virtual void visit(InlineCodeExpr& node) {
         (void)node; // Mark as intentionally unused
         throw std::runtime_error("InlineCodeExpr not supported by this visitor");
+    }
+    virtual void visit(IfExpr& node) {
+        (void)node;
+        throw std::runtime_error("IfExpr not supported by this visitor");
     }
     // Phase 2.4.3: Enum support
     virtual void visit(EnumDecl& node) {

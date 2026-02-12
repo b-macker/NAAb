@@ -11,95 +11,88 @@
 #include "naab/limits.h"  // Week 1, Task 1.2: Input size caps
 #include "naab/ffi_callback_validator.h"  // Phase 1 Item 9: FFI callback safety
 #include "naab/cross_language_bridge.h"  // For struct serialization
+#include "naab/python_interpreter_manager.h"  // For main interpreter management
 #include <fmt/core.h>
 #include <stdexcept>
 #include <unordered_map>
 
-// This block defines how Python can interact with our C++ class
+// NOTE: PYBIND11_EMBEDDED_MODULE disabled - we now use pure C API (PythonCExecutor)
+// This pybind11 module was causing Android CFI crashes at startup
+// Keeping PythonExecutor class only for setBlockDangerousImports() static method
+/*
 PYBIND11_EMBEDDED_MODULE(naab_internal, m) {
     py::class_<naab::runtime::PythonExecutor::PythonOutputRedirector>(m, "OutputRedirector")
         .def(py::init<naab::runtime::OutputBuffer&>())
         .def("write", &naab::runtime::PythonExecutor::PythonOutputRedirector::write)
         .def("flush", &naab::runtime::PythonExecutor::PythonOutputRedirector::flush);
 }
+*/
 
 namespace naab {
 namespace runtime {
 
 PythonExecutor::PythonExecutor(bool redirect_output) {
-    // NOTE: Caller must hold GIL before creating PythonExecutor
-    // In async contexts, the callback already acquired GIL
-    // In sync contexts, acquire GIL before calling this constructor
-
-    LOG_DEBUG("[DEBUG] PythonExecutor constructor started (redirect_output={})\n", redirect_output);
-
-    // Note: We don't store py::globals() as a member to avoid cleanup issues
-    // Instead, we call py::globals() each time we need it
-    LOG_DEBUG("[DEBUG] Verifying access to py::globals()...\n");
-    auto globals = py::globals();  // Test access
-    (void)globals;  // Unused
-    LOG_DEBUG("[DEBUG] Global namespace accessible\n");
-
-    LOG_DEBUG("[Python] PythonExecutor initialized (using global interpreter)\n");
-
-    // Import commonly used modules
-    try {
-        LOG_DEBUG("[DEBUG] Importing sys module...\n");
-        py::module_::import("sys");
-        LOG_DEBUG("[DEBUG] Importing os module...\n");
-        py::module_::import("os");
-        // Ensure our internal module is loaded so OutputRedirector type is registered
-        LOG_DEBUG("[DEBUG] Importing naab_internal module...\n");
-        py::module_::import("naab_internal");
-        LOG_DEBUG("[Python] Imported standard modules (sys, os) and naab_internal\n");
-    } catch (const py::error_already_set& e) {
-        fmt::print("[WARN] Failed to import standard modules: {}\n", e.what());
+    // CRITICAL: Main interpreter must be initialized first
+    if (!PythonInterpreterManager::isInitialized()) {
+        throw std::runtime_error("Main Python interpreter must be initialized before creating sub-interpreters");
     }
 
-    // --- Optionally redirect Python stdout/stderr ---
+    LOG_DEBUG("[Python] Creating sub-interpreter for TRUE isolation\n");
+
+    // Create isolated Python sub-interpreter using C API
+    // NOTE: Each sub-interpreter has:
+    // - Own GIL (independent of other sub-interpreters)
+    // - Own globals (__main__ module with own dict)
+    // - Own sys.modules, sys.path, builtins, etc.
+
+    sub_interpreter_ = Py_NewInterpreter();
+    if (!sub_interpreter_) {
+        throw std::runtime_error("Failed to create Python sub-interpreter");
+    }
+
+    LOG_DEBUG("[Python] Sub-interpreter created successfully (thread state: {})\n",
+              static_cast<void*>(sub_interpreter_));
+
+    // Py_NewInterpreter() automatically:
+    // 1. Creates new thread state
+    // 2. Acquires that sub-interpreter's GIL
+    // 3. Makes it the current thread state
+    // We are now running in the sub-interpreter's context!
+
+    // Import standard modules into THIS sub-interpreter
+    PyRun_SimpleString("import sys");
+    PyRun_SimpleString("import os");
+
+    LOG_DEBUG("[Python] Standard modules imported into sub-interpreter\n");
+
+    // TODO: Implement output redirection using C API
+    // For now, output redirection is disabled in sub-interpreters
+    // (Cannot use py::object - need PyObject* and manual ref counting)
     if (redirect_output) {
-        // Use low-level C-API PySys_SetObject to bypass potential pybind11 proxy issues
-        // Pybind11 casts automatically handle ref-counting for the new C++ objects
-        stdout_redirector_ = std::make_unique<py::object>(
-            py::cast(new PythonOutputRedirector(stdout_buffer_), py::return_value_policy::take_ownership)
-        );
-        stderr_redirector_ = std::make_unique<py::object>(
-            py::cast(new PythonOutputRedirector(stderr_buffer_), py::return_value_policy::take_ownership)
-        );
-
-        if (PySys_SetObject("stdout", (*stdout_redirector_).ptr()) != 0) {
-            fmt::print("[WARN] Failed to set sys.stdout via PySys_SetObject\n");
-        }
-        if (PySys_SetObject("stderr", (*stderr_redirector_).ptr()) != 0) {
-            fmt::print("[WARN] Failed to set sys.stderr via PySys_SetObject\n");
-        }
-
-        LOG_DEBUG("[Python] Redirected stdout/stderr to internal buffers\n");
-    } else {
-        // Don't create redirector objects at all in async mode
-        stdout_redirector_ = nullptr;
-        stderr_redirector_ = nullptr;
-        LOG_DEBUG("[Python] Skipped stdout/stderr redirection (async mode)\n");
+        LOG_DEBUG("[Python] Output redirection not yet implemented for sub-interpreters\n");
     }
+
+    LOG_DEBUG("[Python] Sub-interpreter initialized successfully\n");
 }
 
 PythonExecutor::~PythonExecutor() {
-    // Only need GIL if we have redirectors to clean up
-    if (stdout_redirector_ || stderr_redirector_) {
-        py::gil_scoped_acquire gil;
+    if (sub_interpreter_) {
+        LOG_DEBUG("[Python] Destroying sub-interpreter (thread state: {})\n",
+                  static_cast<void*>(sub_interpreter_));
 
-        LOG_DEBUG("[Python] Cleaning up PythonExecutor with redirectors (GIL held)\n");
+        // Switch to this sub-interpreter's context
+        // This is necessary because the current thread state might not be our sub-interpreter
+        PyThreadState* old_state = PyThreadState_Swap(sub_interpreter_);
 
-        // CRITICAL: Explicitly destroy Python objects WHILE holding GIL
-        // unique_ptr::reset() destroys the object it points to
-        stdout_redirector_.reset();  // Destroys py::object if it exists
-        stderr_redirector_.reset();  // Destroys py::object if it exists
+        // Clean up and destroy the sub-interpreter
+        // NOTE: This also releases the sub-interpreter's GIL
+        Py_EndInterpreter(sub_interpreter_);
+        sub_interpreter_ = nullptr;
 
-        LOG_DEBUG("[Python] Python redirector objects cleaned up successfully\n");
+        // Restore previous thread state (likely main interpreter or another sub-interpreter)
+        PyThreadState_Swap(old_state);
 
-        // GIL is automatically released when gil goes out of scope
-    } else {
-        LOG_DEBUG("[Python] Cleaning up PythonExecutor (no redirectors, no GIL needed)\n");
+        LOG_DEBUG("[Python] Sub-interpreter destroyed successfully\n");
     }
 }
 
@@ -125,19 +118,9 @@ void PythonExecutor::execute(const std::string& code) {
         throw std::runtime_error(oss.str());
     }
 
-    // Restore sys.stdout/stderr if missing (using robust C-API)
-    // We don't need to import sys module object to use PySys_SetObject
-    // Only if redirectors were created
-    if (stdout_redirector_ && PySys_GetObject("stdout") == NULL) {
-        if (PySys_SetObject("stdout", (*stdout_redirector_).ptr()) != 0) {
-             fmt::print("[WARN] Failed to restore sys.stdout\n");
-        }
-    }
-    if (stderr_redirector_ && PySys_GetObject("stderr") == NULL) {
-        if (PySys_SetObject("stderr", (*stderr_redirector_).ptr()) != 0) {
-             fmt::print("[WARN] Failed to restore sys.stderr\n");
-        }
-    }
+    // NOTE: Output redirection not yet implemented for sub-interpreters
+    // TODO: Implement C API-based output redirection if needed
+    // For now, Python output goes to standard stdout/stderr
 
     // Enterprise Security: Block dangerous imports when enabled
     // NOTE: Due to threading in parallel execution, we can't rely on ScopedSandbox
@@ -160,8 +143,17 @@ void PythonExecutor::execute(const std::string& code) {
     try {
         // Execute with configurable timeout (default 30 seconds)
         security::ScopedTimeout timeout(static_cast<unsigned int>(timeout_seconds_));
-        py::exec(final_code, py::globals());
-        LOG_DEBUG("[Python] Executed code successfully\n");
+
+        // SUBINTERPRETER: Switch to this sub-interpreter's context
+        PyThreadState* old_state = PyThreadState_Swap(sub_interpreter_);
+
+        // Execute in THIS sub-interpreter's isolated globals
+        PyRun_SimpleString(final_code.c_str());
+
+        // Restore previous thread state
+        PyThreadState_Swap(old_state);
+
+        LOG_DEBUG("[Python] Executed code successfully in sub-interpreter\n");
     } catch (const security::ResourceLimitException& e) {
         fmt::print("[ERROR] Python execution timeout: {}\n", e.what());
         security::AuditLogger::logTimeout("Python exec()", static_cast<unsigned int>(timeout_seconds_));
@@ -250,6 +242,9 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
         final_code = security_prefix + code;
     }
 
+    // SUBINTERPRETER: Declare old_state here so catch blocks can access it
+    PyThreadState* old_state = nullptr;
+
     try {
         // Issue #3/#5/#7 Fix: Wrap code in function if it contains 'return' statement
         // This allows return statements, multi-line dicts, and with open(...) with return to work
@@ -310,57 +305,94 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
             wrapped += "_ = __naab_wrapper()\n";
 
             try {
-                py::exec(wrapped, py::globals());
+                // SUBINTERPRETER: Switch to this sub-interpreter's context
+                old_state = PyThreadState_Swap(sub_interpreter_);
+
+                // Get __main__ module's dict (sub-interpreter's globals)
+                PyObject* main_module = PyImport_AddModule("__main__");
+                PyObject* globals = PyModule_GetDict(main_module);
+
+                // Execute wrapped code in sub-interpreter
+                PyRun_SimpleString(wrapped.c_str());
 
                 // Get the result from _ variable
-                auto globals = py::globals();
-                if (globals.contains("_")) {
-                    py::object result = globals["_"];
-                    if (!result.is_none()) {
-                        return pythonToValue(result);
-                    }
-                }
-                // Return empty dict if function returned None
-                return std::make_shared<interpreter::Value>();
-            } catch (const py::error_already_set& wrap_error) {
-                // If wrapping failed, provide helpful error message
-                PyErr_Clear();
-                LOG_DEBUG("[Python] Function wrapping failed, trying original method\n");
+                PyObject* result_key = PyUnicode_FromString("_");
+                PyObject* result = PyDict_GetItem(globals, result_key);
+                Py_DECREF(result_key);
 
-                std::string wrap_err = wrap_error.what();
-                if (wrap_err.find("IndentationError") != std::string::npos) {
-                    throw std::runtime_error(
-                        "Python code with 'return' has indentation issues\n\n"
-                        "When using 'return', ensure all code is properly indented:\n"
-                        "  ✓ Correct:\n"
-                        "    if condition:\n"
-                        "        return value\n\n"
-                        "  ✗ Wrong:\n"
-                        "    if condition:\n"
-                        "    return value  # Indentation error\n\n"
-                        "Original error: " + wrap_err
-                    );
+                std::shared_ptr<interpreter::Value> naab_value;
+                if (result && result != Py_None) {
+                    naab_value = pyObjectToValue(result);
+                } else {
+                    naab_value = std::make_shared<interpreter::Value>();
                 }
-                // Fall through to original logic for other errors
+
+                // Restore previous thread state
+                PyThreadState_Swap(old_state);
+
+                return naab_value;
+            } catch (const std::exception& e) {
+                // If wrapping failed, restore state and rethrow
+                PyThreadState_Swap(old_state);
+                throw;
             }
         }
 
         // Note: Timeout is now handled by AsyncCallbackWrapper for async execution
         // For blocking execution, the wrapper also provides timeout control
 
+        // SUBINTERPRETER: Switch to this sub-interpreter's context
+        old_state = PyThreadState_Swap(sub_interpreter_);
+
+        // Get __main__ module's dict (sub-interpreter's globals)
+        PyObject* main_module = PyImport_AddModule("__main__");
+        if (!main_module) {
+            PyThreadState_Swap(old_state);
+            throw std::runtime_error("Python C API: Failed to get __main__ module");
+        }
+        PyObject* globals = PyModule_GetDict(main_module);  // Borrowed reference
+        if (!globals) {
+            PyThreadState_Swap(old_state);
+            throw std::runtime_error("Python C API: Failed to get globals dict");
+        }
+
         // Try eval() first for simple expressions (backwards compatible)
-        try {
-            py::object result = py::eval(final_code, py::globals());
-            return pythonToValue(result);
-        } catch (const py::error_already_set& e) {
-            // Check if it's a SyntaxError (likely multi-line statements)
-            std::string error_msg = e.what();
-            if (error_msg.find("SyntaxError") != std::string::npos) {
+        PyObject* result = PyRun_String(final_code.c_str(), Py_eval_input, globals, globals);
+
+        if (result) {
+            // Eval succeeded - convert and return
+            auto naab_value = pyObjectToValue(result);
+            Py_DECREF(result);
+            PyThreadState_Swap(old_state);
+            return naab_value;
+        }
+
+        // Eval failed - check if it's a SyntaxError (likely multi-line statements)
+        if (PyErr_Occurred()) {
+            PyObject *ptype, *pvalue, *ptraceback;
+            PyErr_Fetch(&ptype, &pvalue, &ptraceback);
+
+            // Check if it's a SyntaxError
+            bool is_syntax_error = false;
+            if (ptype) {
+                PyObject* type_str = PyObject_Str(ptype);
+                if (type_str) {
+                    const char* type_cstr = PyUnicode_AsUTF8(type_str);
+                    if (type_cstr && std::string(type_cstr).find("SyntaxError") != std::string::npos) {
+                        is_syntax_error = true;
+                    }
+                    Py_DECREF(type_str);
+                }
+            }
+
+            if (is_syntax_error) {
                 // Fall back to exec() for multi-line statements
                 LOG_DEBUG("[Python] eval() failed, trying exec() for multi-line code\n");
 
-                // Clear the error state before trying exec
-                PyErr_Clear();
+                // Clear the error
+                Py_XDECREF(ptype);
+                Py_XDECREF(pvalue);
+                Py_XDECREF(ptraceback);
 
                 // Phase 2.3: Auto-capture last expression value
                 // Strategy: Find the last non-indented statement and prepend `_ = ` to capture its value
@@ -421,18 +453,55 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
                     modified_code = wrapped_code;
                 }
 
-                // Use exec() for multi-line statements
-                py::exec(modified_code, py::globals());
+                // Use exec() for multi-line statements (C API)
+                PyObject* exec_result = PyRun_String(modified_code.c_str(), Py_file_input, globals, globals);
+                if (!exec_result) {
+                    // Exec failed - restore error and throw
+                    PyThreadState_Swap(old_state);
+
+                    // Get error message
+                    PyObject *exec_ptype, *exec_pvalue, *exec_ptraceback;
+                    PyErr_Fetch(&exec_ptype, &exec_pvalue, &exec_ptraceback);
+                    std::string error_msg = "Unknown Python error";
+                    if (exec_pvalue) {
+                        PyObject* str_obj = PyObject_Str(exec_pvalue);
+                        if (str_obj) {
+                            const char* error_cstr = PyUnicode_AsUTF8(str_obj);
+                            if (error_cstr) {
+                                error_msg = error_cstr;
+                            }
+                            Py_DECREF(str_obj);
+                        }
+                    }
+                    Py_XDECREF(exec_ptype);
+                    Py_XDECREF(exec_pvalue);
+                    Py_XDECREF(exec_ptraceback);
+
+                    throw std::runtime_error("Python exec() failed: " + error_msg);
+                }
+                Py_DECREF(exec_result);
 
                 // Try to get the result from the `_` variable
                 try {
-                    auto globals = py::globals();
-                    if (globals.contains("_")) {
-                        py::object result = globals["_"];
-                        if (!result.is_none()) {
-                            return pythonToValue(result);
+                    PyObject* underscore_key = PyUnicode_FromString("_");
+                    if (!underscore_key) {
+                        PyThreadState_Swap(old_state);
+                        throw std::runtime_error("Python C API: Failed to create '_' key");
+                    }
+
+                    // Check if '_' exists in globals
+                    if (PyDict_Contains(globals, underscore_key) == 1) {
+                        PyObject* underscore_val = PyDict_GetItem(globals, underscore_key);  // Borrowed reference
+                        Py_DECREF(underscore_key);
+
+                        if (underscore_val && underscore_val != Py_None) {
+                            auto naab_value = pyObjectToValue(underscore_val);
+                            PyThreadState_Swap(old_state);
+                            return naab_value;
                         } else {
                             // Python block returned None explicitly
+                            Py_DECREF(underscore_key);
+                            PyThreadState_Swap(old_state);
                             fmt::print("[WARN] Python block returned None\n");
                             throw std::runtime_error(
                                 "Python block returned None/null\n\n"
@@ -465,6 +534,8 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
                         }
                     } else {
                         // No '_' variable captured - last line wasn't an expression
+                        Py_DECREF(underscore_key);
+                        PyThreadState_Swap(old_state);
                         fmt::print("[WARN] Python block has no return value (no '_' variable)\n");
                         throw std::runtime_error(
                             "Python block has no return value\n\n"
@@ -501,18 +572,65 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
                 } catch (...) {
                     // Ignore other errors (type conversion failures, etc.)
                     fmt::print("[WARN] Failed to retrieve Python block result\n");
+                    PyThreadState_Swap(old_state);
                     return std::make_shared<interpreter::Value>();
                 }
             } else {
-                // Not a SyntaxError, re-throw the original error
-                throw;
+                // Not a SyntaxError - restore error and throw
+                PyThreadState_Swap(old_state);
+
+                // Get error message from pvalue
+                std::string error_msg = "Unknown Python error";
+                if (pvalue) {
+                    PyObject* str_obj = PyObject_Str(pvalue);
+                    if (str_obj) {
+                        const char* error_cstr = PyUnicode_AsUTF8(str_obj);
+                        if (error_cstr) {
+                            error_msg = error_cstr;
+                        }
+                        Py_DECREF(str_obj);
+                    }
+                }
+
+                // Clean up error objects
+                Py_XDECREF(ptype);
+                Py_XDECREF(pvalue);
+                Py_XDECREF(ptraceback);
+
+                // Enhanced error with code preview
+                std::ostringstream oss;
+                oss << "Error in Python polyglot block:\n"
+                    << "  Python error: " << error_msg << "\n";
+
+                // Add code preview (first 200 chars)
+                if (!code.empty()) {
+                    std::string preview = code.substr(0, std::min(code.size(), size_t(200)));
+                    oss << "  Block preview:\n";
+                    std::istringstream code_stream(preview);
+                    std::string line;
+                    while (std::getline(code_stream, line)) {
+                        oss << "    " << line << "\n";
+                    }
+                    if (code.size() > 200) {
+                        oss << "    ...\n";
+                    }
+                }
+
+                oss << "\n  Hint: Check Python syntax and indentation";
+
+                throw std::runtime_error(oss.str());
             }
         }
-    } catch (const py::error_already_set& e) {
-        // Enhanced error with code preview
+    } catch (const std::runtime_error& e) {
+        // Re-throw runtime errors (including our helpful messages)
+        throw;
+    } catch (const std::exception& e) {
+        // Catch any other standard exceptions
+        PyThreadState_Swap(old_state);
+
         std::ostringstream oss;
         oss << "Error in Python polyglot block:\n"
-            << "  Python error: " << e.what() << "\n";
+            << "  C++ error: " << e.what() << "\n";
 
         // Add code preview (first 200 chars)
         if (!code.empty()) {
@@ -531,6 +649,10 @@ std::shared_ptr<interpreter::Value> PythonExecutor::executeWithResult(const std:
         oss << "\n  Hint: Check Python syntax and indentation";
 
         throw std::runtime_error(oss.str());
+    } catch (...) {
+        // Catch all other exceptions
+        PyThreadState_Swap(old_state);
+        throw std::runtime_error("Unknown error in Python polyglot block");
     }
 }
 
@@ -837,8 +959,9 @@ std::shared_ptr<interpreter::Value> PythonExecutor::pythonToValue(const py::obje
 // Phase 4.2.2: Python Traceback Extraction
 // ============================================================================
 
-void PythonExecutor::extractPythonTraceback(const py::error_already_set& e) {
-    (void)e; // Exception info fetched from Python's global error state instead
+void PythonExecutor::extractPythonTraceback() {
+    // Extract traceback from Python's error state
+    // Exception info fetched from Python's global error state
 
     try {
         // Get Python exception info
@@ -895,6 +1018,252 @@ std::string PythonExecutor::getCapturedOutput() {
         output += " (stderr: " + error_output + ")";
     }
     return output;
+}
+
+// ============================================================================
+// C API Type Conversion Helpers (for sub-interpreters)
+// ============================================================================
+// These functions replace pybind11 conversions when using Python C API
+// Manual reference counting required (Py_INCREF/Py_DECREF/Py_XDECREF)
+
+std::shared_ptr<interpreter::Value> PythonExecutor::pyObjectToValue(PyObject* obj) {
+    if (!obj) {
+        throw std::runtime_error("Python C API: Cannot convert NULL PyObject to Value");
+    }
+
+    // None -> monostate (null)
+    if (obj == Py_None) {
+        return std::make_shared<interpreter::Value>();
+    }
+
+    // Bool -> bool
+    if (PyBool_Check(obj)) {
+        bool val = (obj == Py_True);
+        return std::make_shared<interpreter::Value>(val);
+    }
+
+    // Int -> int (with overflow handling to double)
+    if (PyLong_Check(obj)) {
+        // Try int32 first
+        long long_val = PyLong_AsLong(obj);
+        if (long_val == -1 && PyErr_Occurred()) {
+            // Overflow or other error
+            PyErr_Clear();
+            // Try converting to double instead
+            double double_val = PyLong_AsDouble(obj);
+            if (double_val == -1.0 && PyErr_Occurred()) {
+                PyErr_Clear();
+                throw std::runtime_error("Python C API: Integer too large to convert");
+            }
+            return std::make_shared<interpreter::Value>(double_val);
+        }
+        // Check if fits in int32 range
+        if (long_val > INT_MAX || long_val < INT_MIN) {
+            // Convert to double for large integers
+            double double_val = static_cast<double>(long_val);
+            return std::make_shared<interpreter::Value>(double_val);
+        }
+        int int_val = static_cast<int>(long_val);
+        return std::make_shared<interpreter::Value>(int_val);
+    }
+
+    // Float -> double
+    if (PyFloat_Check(obj)) {
+        double val = PyFloat_AsDouble(obj);
+        if (val == -1.0 && PyErr_Occurred()) {
+            PyErr_Clear();
+            throw std::runtime_error("Python C API: Failed to convert float");
+        }
+        return std::make_shared<interpreter::Value>(val);
+    }
+
+    // String -> string
+    if (PyUnicode_Check(obj)) {
+        Py_ssize_t size;
+        const char* data = PyUnicode_AsUTF8AndSize(obj, &size);
+        if (!data) {
+            PyErr_Clear();
+            throw std::runtime_error("Python C API: Failed to convert unicode string");
+        }
+        std::string val(data, size);
+        return std::make_shared<interpreter::Value>(val);
+    }
+
+    // List -> vector (recursive)
+    if (PyList_Check(obj)) {
+        Py_ssize_t size = PyList_Size(obj);
+        std::vector<std::shared_ptr<interpreter::Value>> vec;
+        vec.reserve(size);
+        for (Py_ssize_t i = 0; i < size; ++i) {
+            PyObject* item = PyList_GetItem(obj, i);  // Borrowed reference
+            if (!item) {
+                PyErr_Clear();
+                throw std::runtime_error("Python C API: Failed to get list item");
+            }
+            vec.push_back(pyObjectToValue(item));  // Recursive conversion
+        }
+        return std::make_shared<interpreter::Value>(vec);
+    }
+
+    // Tuple -> vector (recursive, treat as list in NAAb)
+    if (PyTuple_Check(obj)) {
+        Py_ssize_t size = PyTuple_Size(obj);
+        std::vector<std::shared_ptr<interpreter::Value>> vec;
+        vec.reserve(size);
+        for (Py_ssize_t i = 0; i < size; ++i) {
+            PyObject* item = PyTuple_GetItem(obj, i);  // Borrowed reference
+            if (!item) {
+                PyErr_Clear();
+                throw std::runtime_error("Python C API: Failed to get tuple item");
+            }
+            vec.push_back(pyObjectToValue(item));  // Recursive conversion
+        }
+        return std::make_shared<interpreter::Value>(vec);
+    }
+
+    // Dict -> unordered_map (recursive)
+    if (PyDict_Check(obj)) {
+        std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> map;
+        PyObject* key;
+        PyObject* value;
+        Py_ssize_t pos = 0;
+
+        while (PyDict_Next(obj, &pos, &key, &value)) {  // Borrowed references
+            // Key must be string
+            if (!PyUnicode_Check(key)) {
+                throw std::runtime_error("Python C API: Dictionary keys must be strings");
+            }
+
+            Py_ssize_t key_size;
+            const char* key_data = PyUnicode_AsUTF8AndSize(key, &key_size);
+            if (!key_data) {
+                PyErr_Clear();
+                throw std::runtime_error("Python C API: Failed to convert dict key");
+            }
+            std::string key_str(key_data, key_size);
+
+            map[key_str] = pyObjectToValue(value);  // Recursive conversion
+        }
+
+        return std::make_shared<interpreter::Value>(map);
+    }
+
+    // Unknown type -> try converting to string representation
+    PyObject* str_obj = PyObject_Str(obj);
+    if (str_obj) {
+        Py_ssize_t size;
+        const char* data = PyUnicode_AsUTF8AndSize(str_obj, &size);
+        if (data) {
+            std::string val(data, size);
+            Py_DECREF(str_obj);
+            return std::make_shared<interpreter::Value>(val);
+        }
+        Py_DECREF(str_obj);
+    }
+    PyErr_Clear();
+
+    throw std::runtime_error("Python C API: Unsupported Python type for conversion to NAAb Value");
+}
+
+PyObject* PythonExecutor::valueToPyObject(const std::shared_ptr<interpreter::Value>& val) {
+    if (!val) {
+        Py_RETURN_NONE;
+    }
+
+    return std::visit([this](auto&& arg) -> PyObject* {
+        using T = std::decay_t<decltype(arg)>;
+
+        // monostate (null) -> None
+        if constexpr (std::is_same_v<T, std::monostate>) {
+            Py_RETURN_NONE;
+        }
+        // int -> PyLong
+        else if constexpr (std::is_same_v<T, int>) {
+            return PyLong_FromLong(static_cast<long>(arg));
+        }
+        // double -> PyFloat
+        else if constexpr (std::is_same_v<T, double>) {
+            return PyFloat_FromDouble(arg);
+        }
+        // bool -> PyBool
+        else if constexpr (std::is_same_v<T, bool>) {
+            if (arg) {
+                Py_RETURN_TRUE;
+            } else {
+                Py_RETURN_FALSE;
+            }
+        }
+        // string -> PyUnicode
+        else if constexpr (std::is_same_v<T, std::string>) {
+            return PyUnicode_FromStringAndSize(arg.c_str(), arg.size());
+        }
+        // vector -> PyList (recursive)
+        else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
+            PyObject* list = PyList_New(arg.size());
+            if (!list) {
+                return nullptr;
+            }
+            for (size_t i = 0; i < arg.size(); ++i) {
+                PyObject* item = this->valueToPyObject(arg[i]);  // Recursive conversion
+                if (!item) {
+                    Py_DECREF(list);
+                    return nullptr;
+                }
+                PyList_SET_ITEM(list, i, item);  // Steals reference to item
+            }
+            return list;
+        }
+        // unordered_map -> PyDict (recursive)
+        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>) {
+            PyObject* dict = PyDict_New();
+            if (!dict) {
+                return nullptr;
+            }
+            for (const auto& [key, value] : arg) {
+                PyObject* py_key = PyUnicode_FromStringAndSize(key.c_str(), key.size());
+                if (!py_key) {
+                    Py_DECREF(dict);
+                    return nullptr;
+                }
+                PyObject* py_value = this->valueToPyObject(value);  // Recursive conversion
+                if (!py_value) {
+                    Py_DECREF(py_key);
+                    Py_DECREF(dict);
+                    return nullptr;
+                }
+                int result = PyDict_SetItem(dict, py_key, py_value);
+                Py_DECREF(py_key);
+                Py_DECREF(py_value);
+                if (result != 0) {
+                    Py_DECREF(dict);
+                    return nullptr;
+                }
+            }
+            return dict;
+        }
+        // StructValue -> Not directly supported in C API, return None
+        // (Could use CrossLanguageBridge if needed, but for now keep it simple)
+        else if constexpr (std::is_same_v<T, interpreter::StructValue>) {
+            // TODO: If struct support is needed, implement via CrossLanguageBridge
+            Py_RETURN_NONE;
+        }
+        // FunctionValue -> Not supported, return None
+        else if constexpr (std::is_same_v<T, interpreter::FunctionValue>) {
+            Py_RETURN_NONE;
+        }
+        // BlockValue (shared_ptr) -> Not supported, return None
+        else if constexpr (std::is_same_v<T, std::shared_ptr<interpreter::BlockValue>>) {
+            Py_RETURN_NONE;
+        }
+        // PythonObjectValue (shared_ptr) -> Not supported, return None
+        else if constexpr (std::is_same_v<T, std::shared_ptr<interpreter::PythonObjectValue>>) {
+            Py_RETURN_NONE;
+        }
+        // Unknown type -> None
+        else {
+            Py_RETURN_NONE;
+        }
+    }, val->data);
 }
 
 } // namespace runtime

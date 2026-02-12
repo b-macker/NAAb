@@ -185,6 +185,10 @@ void InlineCodeExpr::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void IfExpr::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 void Program::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }

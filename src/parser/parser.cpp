@@ -1089,6 +1089,7 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
     auto expr = parsePipeline();
 
     if (match(lexer::TokenType::EQ)) {
+        skipNewlines(); // Add this line
         auto value = parseAssignment();  // Right-associative
         expr = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::Assign,
@@ -1128,6 +1129,7 @@ std::unique_ptr<ast::Expr> Parser::parseLogicalOr() {
     auto left = parseLogicalAnd();
 
     while (match(lexer::TokenType::OR)) {
+        skipNewlines(); // Add this line
         auto right = parseLogicalAnd();
         left = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::Or,
@@ -1144,6 +1146,7 @@ std::unique_ptr<ast::Expr> Parser::parseLogicalAnd() {
     auto left = parseEquality();
 
     while (match(lexer::TokenType::AND)) {
+        skipNewlines(); // Add this line
         auto right = parseEquality();
         left = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::And,
@@ -1168,7 +1171,7 @@ std::unique_ptr<ast::Expr> Parser::parseEquality() {
         } else {
             break;
         }
-
+        skipNewlines(); // Add this line
         auto right = parseRange();
         left = std::make_unique<ast::BinaryExpr>(
             op,
@@ -1187,6 +1190,7 @@ std::unique_ptr<ast::Expr> Parser::parseRange() {
 
     // Check for inclusive range ..=
     if (match(lexer::TokenType::DOTDOT_EQ)) {
+        skipNewlines(); // Add this line
         auto right = parseComparison();
         return std::make_unique<ast::RangeExpr>(
             std::move(left),
@@ -1198,6 +1202,7 @@ std::unique_ptr<ast::Expr> Parser::parseRange() {
 
     // Check for exclusive range ..
     if (match(lexer::TokenType::DOTDOT)) {
+        skipNewlines(); // Add this line
         auto right = parseComparison();
         return std::make_unique<ast::RangeExpr>(
             std::move(left),
@@ -1226,7 +1231,7 @@ std::unique_ptr<ast::Expr> Parser::parseComparison() {
         } else {
             break;
         }
-
+        skipNewlines(); // Add this line
         auto right = parseTerm();
         left = std::make_unique<ast::BinaryExpr>(
             op,
@@ -1251,7 +1256,7 @@ std::unique_ptr<ast::Expr> Parser::parseTerm() {
         } else {
             break;
         }
-
+        skipNewlines(); // Add this line
         auto right = parseFactor();
         left = std::make_unique<ast::BinaryExpr>(
             op,
@@ -1278,7 +1283,7 @@ std::unique_ptr<ast::Expr> Parser::parseFactor() {
         } else {
             break;
         }
-
+        skipNewlines(); // Add this line
         auto right = parseUnary();
         left = std::make_unique<ast::BinaryExpr>(
             op,
@@ -1599,7 +1604,72 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         return std::make_unique<ast::DictExpr>(std::move(pairs), ast::SourceLocation());
     }
 
-    throw ParseError(formatError("Unexpected token in expression", current()));
+    // If expression: if condition { expr } else { expr }
+    if (check(lexer::TokenType::IF)) {
+        return parseIfExpr();
+    }
+
+    // Provide helpful hints for common mistakes
+    auto& tok = current();
+    std::string hint;
+
+    // Operator at start of line = likely multi-line expression
+    if (tok.type == lexer::TokenType::PLUS || tok.type == lexer::TokenType::MINUS ||
+        tok.type == lexer::TokenType::STAR || tok.type == lexer::TokenType::SLASH) {
+        hint = "\n\n  Help: Operator '" + tok.value + "' at start of expression is not allowed.\n"
+               "  For multi-line expressions, put the operator at the END of the previous line:\n\n"
+               "  ✗ Wrong:\n"
+               "    let x = \"hello\"\n"
+               "        " + tok.value + " \"world\"\n\n"
+               "  ✓ Right:\n"
+               "    let x = \"hello\" " + tok.value + "\n"
+               "        \"world\"\n";
+    }
+    // NEWLINE token = unexpected line break
+    else if (tok.type == lexer::TokenType::NEWLINE) {
+        hint = "\n\n  Help: Unexpected end of expression.\n"
+               "  If continuing on the next line, put the operator at the end:\n"
+               "    let x = a +\n"
+               "        b\n";
+    }
+
+    throw ParseError(formatError("Unexpected token in expression", tok) + hint);
+}
+
+// If expression: if condition { expr } else { expr }
+std::unique_ptr<ast::Expr> Parser::parseIfExpr() {
+    auto start = current();
+    expect(lexer::TokenType::IF, "Expected 'if'");
+
+    auto condition = parseExpression();
+    skipNewlines();
+
+    expect(lexer::TokenType::LBRACE, "Expected '{' after if condition in if expression");
+    skipNewlines();
+
+    auto then_expr = parseExpression();
+    skipNewlines();
+
+    expect(lexer::TokenType::RBRACE, "Expected '}' after then expression");
+    skipNewlines();
+
+    expect(lexer::TokenType::ELSE, "if expression requires an 'else' branch");
+    skipNewlines();
+
+    expect(lexer::TokenType::LBRACE, "Expected '{' after else");
+    skipNewlines();
+
+    auto else_expr = parseExpression();
+    skipNewlines();
+
+    expect(lexer::TokenType::RBRACE, "Expected '}' after else expression");
+
+    return std::make_unique<ast::IfExpr>(
+        std::move(condition),
+        std::move(then_expr),
+        std::move(else_expr),
+        ast::SourceLocation(start.line, start.column, filename_)
+    );
 }
 
 // ============================================================================

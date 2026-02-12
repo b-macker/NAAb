@@ -48,9 +48,9 @@ run_test() {
     else
         local exit_code=$?
         if [ $exit_code -eq 124 ]; then
-            echo "  ⏱️  TIMEOUT: $test_name (>10s)"
+            echo "  ⏱️  TIMEOUT: $test_name (>$timeout_duration)"
             FAILED=$((FAILED + 1))
-            FAILED_TESTS+=("$test_name (timeout)")
+            FAILED_TESTS+=("$test_name (timeout >$timeout_duration)")
         else
             FAILED=$((FAILED + 1))
             FAILED_TESTS+=("$test_name")
@@ -78,7 +78,9 @@ for dir in "${TEST_DIRS[@]}"; do
     # Set timeout based on directory
     timeout="10s"
     if [ "$dir" = "tests/comprehensive" ]; then
-        timeout="60s"  # Comprehensive tests need more time
+        timeout="180s"  # Comprehensive tests need more time (polyglot compilation)
+    elif [ "$dir" = "docs/book/verification" ]; then
+        timeout="30s"  # Verification tests may have polyglot code
     fi
 
     # Find all .naab files in this directory (not subdirectories for tests/)

@@ -468,6 +468,29 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         return makeBool(false);
     }
 
+    // Common LLM mistakes: map/filter/reduce without _fn suffix
+    if (function_name == "map" || function_name == "filter" || function_name == "reduce") {
+        std::string correct = function_name + "_fn";
+        throw std::runtime_error(
+            "Unknown array function: " + function_name + "\n\n"
+            "  Help: NAAb uses '" + correct + "' instead of '" + function_name + "'.\n"
+            "  Higher-order array functions require the _fn suffix.\n\n"
+            "  Example:\n"
+            "    fn double(x: int) -> int { return x * 2 }\n"
+            "    let doubled = array." + correct + "([1, 2, 3], double)\n"
+        );
+    }
+
+    if (function_name == "forEach" || function_name == "for_each" || function_name == "each") {
+        throw std::runtime_error(
+            "Unknown array function: " + function_name + "\n\n"
+            "  Help: NAAb uses 'for...in' loops instead of forEach:\n\n"
+            "    for item in my_array {\n"
+            "        print(item)\n"
+            "    }\n"
+        );
+    }
+
     // Unknown function - provide helpful error with suggestions
     static const std::vector<std::string> FUNCTIONS = {
         "length", "push", "pop", "shift", "unshift", "first", "last",

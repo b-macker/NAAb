@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -237,7 +238,50 @@ std::shared_ptr<interpreter::Value> StringModule::call(
         return makeString(result);
     }
 
-    throw std::runtime_error("Unknown function: " + function_name);
+    // Common LLM mistakes with specific guidance
+    if (function_name == "from_int" || function_name == "to_string" || function_name == "str" || function_name == "toString") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Help: NAAb uses the + operator for string conversion:\n"
+            "    \"\" + 42       // \"42\"\n"
+            "    \"score: \" + x // \"score: 5\"\n\n"
+            "  There is no string.from_int() or string.to_string() function.\n"
+            "  The + operator auto-converts int/float/bool to string.\n"
+        );
+    }
+
+    if (function_name == "format" || function_name == "fmt") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Help: NAAb does not have string.format().\n"
+            "  Use string concatenation with + operator:\n"
+            "    \"Hello \" + name + \", score: \" + score\n\n"
+            "  Or use Python f-strings in a polyglot block:\n"
+            "    let msg = <<python[name, score]\n"
+            "    f\"Hello {name}, score: {score}\"\n"
+            "    >>\n"
+        );
+    }
+
+    // Generic unknown function with suggestions
+    static const std::vector<std::string> FUNCTIONS = {
+        "length", "substring", "upper", "lower", "trim", "split",
+        "contains", "starts_with", "ends_with", "replace", "index_of",
+        "char_at", "repeat", "reverse"
+    };
+
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown string function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+
+    throw std::runtime_error(oss.str());
 }
 
 // Helper functions

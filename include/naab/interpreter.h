@@ -412,6 +412,7 @@ public:
     void visit(ast::ExprStmt& node) override;
     void visit(ast::ReturnStmt& node) override;
     void visit(ast::IfStmt& node) override;
+    void visit(ast::IfExpr& node) override;
     void visit(ast::ForStmt& node) override;
     void visit(ast::WhileStmt& node) override;
     void visit(ast::BreakStmt& node) override;

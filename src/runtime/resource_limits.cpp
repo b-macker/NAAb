@@ -1,6 +1,7 @@
 #include "naab/resource_limits.h"
 #include <csignal>
 #include <cstring>
+#include <cstdio>
 #include <unistd.h>
 #include <sys/resource.h>
 #include <stdexcept>
@@ -64,6 +65,24 @@ void ResourceLimiter::clearTimeout() {
 }
 
 void ResourceLimiter::setMemoryLimit(size_t megabytes) {
+    // WARNING: This sets RLIMIT_AS which is PROCESS-WIDE and persists after
+    // this call returns. It affects ALL subsequent fork/exec/system calls
+    // because child processes inherit the limit and cannot allocate memory
+    // for the dynamic linker if the limit is too restrictive.
+    //
+    // PREFER language-native memory limits instead:
+    //   - QuickJS: JS_SetMemoryLimit(rt, bytes)
+    //   - Python: resource.setrlimit() within the Python process
+    //   - C++/Rust/C#: Compile-time or subprocess-level limits
+    //
+    // If you MUST use this, call disableAll() afterwards to clear it.
+    fprintf(stderr,
+        "[WARNING] ResourceLimiter::setMemoryLimit(%zu MB) sets process-wide RLIMIT_AS.\n"
+        "  This will break ALL subsequent fork/exec/system calls.\n"
+        "  Use language-native memory limits instead (e.g., JS_SetMemoryLimit for QuickJS).\n"
+        "  Call ResourceLimiter::disableAll() to clear after use.\n",
+        megabytes);
+
     struct rlimit limit;
     limit.rlim_cur = megabytes * 1024 * 1024;  // Convert MB to bytes
     limit.rlim_max = megabytes * 1024 * 1024;

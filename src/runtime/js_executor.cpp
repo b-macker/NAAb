@@ -240,11 +240,12 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
         memory_limit = sandbox->getConfig().max_memory_mb;
     }
 
-    // Enterprise Security: Apply resource limits BEFORE executing JavaScript code
-    try {
-        security::ResourceLimiter::setMemoryLimit(memory_limit);
-    } catch (const std::exception& e) {
-        // Memory limit may fail on some systems, log but continue
+    // Enterprise Security: Apply timeout before executing JavaScript code
+    // NOTE: Process-wide RLIMIT_AS is NOT set here because it persists after
+    // evaluation and breaks fork/exec for subsequent shell blocks.
+    // Use JS_SetMemoryLimit() on the QuickJS runtime instead for JS-specific limits.
+    if (rt_ && memory_limit > 0) {
+        JS_SetMemoryLimit(rt_, memory_limit * 1024 * 1024);
     }
     security::ScopedTimeout scoped_timeout(timeout);
 
@@ -284,17 +285,53 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
             // This avoids any function call overhead that might be causing issues
             wrapped = "(" + code + ")";
         } else {
-            // Complex code with statements: use eval approach
-            // Escape backticks and backslashes for template literal
-            std::string escaped_code = code;
-            std::string result_str;
-            for (char c : escaped_code) {
-                if (c == '`') result_str += "\\`";
-                else if (c == '\\') result_str += "\\\\";
-                else if (c == '$') result_str += "\\$";
-                else result_str += c;
+            // Complex code with statements: wrap in IIFE with explicit return
+            // Split into lines, use all but last as setup, return last expression
+            // This avoids eval() + template literal issues in QuickJS
+            std::vector<std::string> js_lines;
+            std::istringstream js_stream(code);
+            std::string js_line;
+            while (std::getline(js_stream, js_line)) {
+                js_lines.push_back(js_line);
             }
-            wrapped = "(function() { return eval(`" + result_str + "`); })()";
+
+            // Remove trailing empty lines
+            while (!js_lines.empty()) {
+                auto& back = js_lines.back();
+                size_t first_char = back.find_first_not_of(" \t\r\n");
+                if (first_char == std::string::npos) {
+                    js_lines.pop_back();
+                } else {
+                    break;
+                }
+            }
+
+            if (js_lines.empty()) {
+                wrapped = "undefined";
+            } else {
+                // Build IIFE: all lines except last as statements, last as return expression
+                std::string statements;
+                for (size_t i = 0; i + 1 < js_lines.size(); i++) {
+                    statements += js_lines[i] + "\n";
+                }
+
+                // Trim last line for return
+                std::string last_expr = js_lines.back();
+                size_t first_pos = last_expr.find_first_not_of(" \t");
+                if (first_pos != std::string::npos) {
+                    last_expr = last_expr.substr(first_pos);
+                }
+                // Remove trailing semicolon if present
+                size_t last_pos = last_expr.find_last_not_of(" \t\r\n");
+                if (last_pos != std::string::npos) {
+                    last_expr = last_expr.substr(0, last_pos + 1);
+                }
+                if (!last_expr.empty() && last_expr.back() == ';') {
+                    last_expr.pop_back();
+                }
+
+                wrapped = "(function() {\n" + statements + "return (" + last_expr + ");\n})()";
+            }
         }
 
         JSValue result = JS_Eval(ctx_, wrapped.c_str(), wrapped.length(),

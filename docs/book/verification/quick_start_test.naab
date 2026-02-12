@@ -46,7 +46,9 @@ main {
     io.write("✓ Test 5: Stdlib with use: ", upper, "\n")
 
     // Test 6: Simple polyglot block
-    let py_result = <<python 42 + 8 >>
+    let py_result = <<python
+42 + 8
+>>
     io.write("✓ Test 6: Simple polyglot: ", json.stringify(py_result), "\n")
 
     // Test 7: Polyglot with variable binding

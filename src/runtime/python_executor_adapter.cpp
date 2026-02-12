@@ -1,29 +1,21 @@
 // NAAb Python Executor Adapter Implementation
-// Adapts PythonExecutor to the Executor interface
+// Adapts PythonCExecutor to the Executor interface
 
 #include "naab/interpreter.h"  // Phase 2.3: MUST be first for Value definition
 #include "naab/python_executor_adapter.h"
-#include <pybind11/pybind11.h>
 #include <fmt/core.h>
-
-namespace py = pybind11;
 
 namespace naab {
 namespace runtime {
 
 PyExecutorAdapter::PyExecutorAdapter() {
-    // CRITICAL: Acquire GIL before creating PythonExecutor
-    // The global Python interpreter releases GIL for multi-threading,
-    // but PythonExecutor constructor requires the caller to hold the GIL
-    py::gil_scoped_acquire gil;
-    executor_ = std::make_unique<PythonExecutor>();
+    // PythonCExecutor uses pure C API - no pybind11, no CFI crashes
+    // No need to acquire GIL here - PythonCExecutor acquires it when needed
+    executor_ = std::make_unique<PythonCExecutor>();
 }
 
 bool PyExecutorAdapter::execute(const std::string& code) {
-    // CRITICAL: Acquire GIL before executing Python code
-    py::gil_scoped_acquire gil;
-
-    // Executing Python code (silent)
+    // PythonCExecutor handles GIL acquisition internally
     try {
         executor_->execute(code);
         return true;
@@ -36,13 +28,10 @@ bool PyExecutorAdapter::execute(const std::string& code) {
 // Phase 2.3: Execute code and return result value
 std::shared_ptr<interpreter::Value> PyExecutorAdapter::executeWithReturn(
     const std::string& code) {
-    // CRITICAL: Acquire GIL before executing Python code
-    // Python API calls (py::eval, py::exec) require the caller to hold the GIL
-    py::gil_scoped_acquire gil;
-
-    // Executing Python code with return (silent)
+    // PythonCExecutor handles GIL acquisition internally
     try {
-        return executor_->executeWithResult(code);
+        auto result = executor_->executeWithReturn(code);
+        return result;
     } catch (const std::exception& e) {
         fmt::print("[PY ADAPTER ERROR] {}\n", e.what());
         return std::make_shared<interpreter::Value>();  // Return null on error
@@ -53,11 +42,9 @@ std::shared_ptr<interpreter::Value> PyExecutorAdapter::callFunction(
     const std::string& function_name,
     const std::vector<std::shared_ptr<interpreter::Value>>& args) {
 
-    // CRITICAL: Acquire GIL before calling Python functions
-    py::gil_scoped_acquire gil;
-
-    // Calling function (silent)
-    return executor_->callFunction(function_name, args);
+    // PythonCExecutor handles GIL acquisition internally
+    auto result = executor_->callFunction(function_name, args);
+    return result;
 }
 
 bool PyExecutorAdapter::isInitialized() const {

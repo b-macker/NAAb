@@ -2,10 +2,10 @@
 #define NAAB_PYTHON_EXECUTOR_ADAPTER_H
 
 // NAAb Python Executor Adapter
-// Adapts PythonExecutor to the Executor interface for the language registry
+// Adapts PythonCExecutor to the Executor interface for the language registry
 
 #include "naab/language_registry.h"
-#include "naab/python_executor.h"
+#include "naab/python_c_executor.h"
 #include <memory>
 #include <string>
 
@@ -41,7 +41,7 @@ public:
     std::string getCapturedOutput() override;
 
 private:
-    std::unique_ptr<PythonExecutor> executor_;
+    std::unique_ptr<PythonCExecutor> executor_;
 };
 
 } // namespace runtime

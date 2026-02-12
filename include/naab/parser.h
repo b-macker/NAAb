@@ -113,6 +113,7 @@ private:
     std::unique_ptr<ast::Expr> parseUnary();
     std::unique_ptr<ast::Expr> parsePostfix();
     std::unique_ptr<ast::Expr> parsePrimary();
+    std::unique_ptr<ast::Expr> parseIfExpr();
 
     // Type parsing
     ast::Type parseType();

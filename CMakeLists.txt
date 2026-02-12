@@ -403,12 +403,15 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/inline_code_cache.cpp  # Phase 3.3.1: Inline code caching
     src/runtime/polyglot_async_executor.cpp  # Phase 1 Item 10 Day 5: Polyglot async execution
     src/runtime/logger.cpp  # Logging infrastructure
+    src/runtime/thread_pool.cpp  # Thread pool for async execution
 )
 
 # Add Python executor if pybind11 is available
 if(HAVE_PYBIND11)
+    list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_c_wrapper.c)  # Pure C API wrapper (5x faster, no CFI crashes)
+    list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_c_executor.cpp)  # C++ adapter for C wrapper
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_interpreter_manager.cpp)  # Phase 2: Global Python interpreter
-    list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor.cpp)
+    # list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor.cpp)  # REMOVED: Using pure C API now, no pybind11
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor_adapter.cpp)
 endif()
 

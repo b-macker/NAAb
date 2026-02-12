@@ -202,8 +202,11 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
     );
 
     if (compile_exit != 0) {
+        std::string error_msg = compile_stderr;
         std::filesystem::remove(temp_rs);
-        return std::make_shared<interpreter::Value>();
+        throw std::runtime_error(
+            "Rust compilation failed:\n" + error_msg +
+            "\n  Code preview:\n    " + rust_code.substr(0, std::min(rust_code.size(), size_t(200))));
     }
 
     // Execute

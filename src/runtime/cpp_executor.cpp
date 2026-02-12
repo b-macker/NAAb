@@ -249,37 +249,36 @@ bool CppExecutor::compileToSharedLibrary(
     }
 
     // Execute compilation with timeout protection
-    FILE* pipe = nullptr;
+    // Use system() instead of popen() to avoid blocking on pclose()
     int exit_code = -1;
     std::string compiler_output;
 
     try {
-        // Set 30-second timeout for compilation
-        security::ScopedTimeout timeout(30);
+        // Set 60-second timeout for compilation (increased for complex blocks)
+        security::ScopedTimeout timeout(60);
 
-        pipe = popen(command.c_str(), "r");
-        if (!pipe) {
-            fmt::print("[ERROR] Failed to execute compiler\n");
-            security::AuditLogger::logSecurityViolation("popen() failed for C++ compilation");
-            return false;
+        // Redirect output to temp file to capture it
+        std::string output_file = source_path + ".compile_output";
+        std::string full_command = command + " > " + output_file + " 2>&1";
+
+        exit_code = system(full_command.c_str());
+
+        // Read compiler output from file
+        std::ifstream output_stream(output_file);
+        if (output_stream.is_open()) {
+            std::string line;
+            while (std::getline(output_stream, line)) {
+                compiler_output += line + "\n";
+            }
+            output_stream.close();
+            fs::remove(output_file);  // Clean up
         }
-
-        // Read compiler output
-        char buffer[256];
-        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-            compiler_output += buffer;
-        }
-
-        exit_code = pclose(pipe);
-        pipe = nullptr;  // Mark as closed
 
     } catch (const security::ResourceLimitException& e) {
-        if (pipe) pclose(pipe);
-        fmt::print("[ERROR] Compilation timeout: {}\n", e.what());
-        security::AuditLogger::logTimeout("C++ compilation", 30);
+        fmt::print("[ERROR] Compilation timeout (60s): {}\n", e.what());
+        security::AuditLogger::logTimeout("C++ compilation", 60);
         return false;
     } catch (const std::exception& e) {
-        if (pipe) pclose(pipe);
         fmt::print("[ERROR] Compilation error: {}\n", e.what());
         return false;
     }
@@ -325,20 +324,11 @@ bool CppExecutor::loadCompiledBlock(const std::string& block_id) {
         return false;
     }
 
-    // Load shared library with timeout protection
-    void* handle = nullptr;
-    try {
-        security::ScopedTimeout timeout(5);  // 5-second timeout for dlopen
-
-        handle = dlopen(canonical_path.c_str(), RTLD_LAZY);
-        if (!handle) {
-            fmt::print("[ERROR] Failed to load library: {}\n", dlerror());
-            security::AuditLogger::logSecurityViolation("dlopen() failed: " + std::string(dlerror()));
-            return false;
-        }
-    } catch (const security::ResourceLimitException& e) {
-        fmt::print("[ERROR] Library load timeout: {}\n", e.what());
-        security::AuditLogger::logTimeout("dlopen()", 5);
+    // Load shared library (dlopen should be fast, no timeout needed)
+    void* handle = dlopen(canonical_path.c_str(), RTLD_LAZY);
+    if (!handle) {
+        fmt::print("[ERROR] Failed to load library: {}\n", dlerror());
+        security::AuditLogger::logSecurityViolation("dlopen() failed: " + std::string(dlerror()));
         return false;
     }
 

@@ -3,13 +3,10 @@
 
 // Global Python Interpreter Manager
 // Ensures Python interpreter is initialized once and accessible from all threads
+// Uses pure C API (python_c_wrapper.c) - NO pybind11!
 
-#include <pybind11/pybind11.h>
-#include <pybind11/embed.h>
 #include <mutex>
 #include <memory>
-
-namespace py = pybind11;
 
 namespace naab {
 namespace runtime {
@@ -17,8 +14,9 @@ namespace runtime {
 /**
  * @brief Singleton manager for the global Python interpreter.
  *
- * Ensures py::scoped_interpreter is initialized exactly once per process
- * from the main thread. Provides thread-safe access to Python functionality.
+ * Uses pure Python C API (python_c_wrapper.c) for initialization.
+ * Calls python_c_init() which does Py_Initialize() + PyEval_SaveThread().
+ * Thread-safe - worker threads use PyGILState_Ensure/Release.
  */
 class PythonInterpreterManager {
 public:
@@ -43,9 +41,7 @@ public:
     static PythonInterpreterManager* getInstance();
 
     /**
-     * @brief Acquire the GIL for the current thread.
-     *
-     * Use py::gil_scoped_acquire in your code, but this verifies initialization.
+     * @brief Verify Python interpreter is initialized.
      *
      * @throws std::runtime_error if interpreter not initialized
      */
@@ -67,24 +63,8 @@ private:
     static std::mutex init_mutex_;
     static bool initialized_;
 
-    std::unique_ptr<py::scoped_interpreter> interpreter_;
-    std::unique_ptr<py::gil_scoped_release> gil_release_;  // Releases GIL for multi-threading
-};
-
-/**
- * @brief RAII helper to acquire GIL with initialization check.
- *
- * Usage:
- *   PythonGILGuard guard;
- *   // Python code here
- */
-class PythonGILGuard {
-public:
-    PythonGILGuard();
-    ~PythonGILGuard() = default;
-
-private:
-    py::gil_scoped_acquire gil_;
+    // NOTE: Using pure C API (python_c_wrapper.c) instead of pybind11
+    // No member variables needed - python_c_init/shutdown handle everything
 };
 
 } // namespace runtime

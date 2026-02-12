@@ -1,26 +1,120 @@
 // NAAb Subprocess Helpers Implementation
 // Contains common utility functions for executing subprocesses
+//
+// Uses system() with temp file output capture. On Android, system() is the
+// most reliable way to run subprocesses from a multi-threaded process because
+// bionic's system() implementation handles CFI shadow memory correctly.
+// Both posix_spawn() and popen() fail with SIGABRT in the same context.
 
 #include "naab/subprocess_helpers.h"
-#include <cstdio>       // For popen, pclose, FILE
+#include <cstdio>       // For FILE, fopen, fclose, fprintf, tmpnam
 #include <array>        // For std::array
 #include <stdexcept>    // For std::runtime_error
 #include <fmt/core.h>   // For fmt::print
 #include <sstream>      // For std::istringstream
+#include <fstream>      // For std::ifstream
 
-// For fork/execvp/pipe
-#include <unistd.h>     // For fork, pipe, dup2, close, _exit, execvp, execvpe
-#include <sys/wait.h>   // For waitpid, WIFEXITED, WEXITSTATUS
-#include <fcntl.h>      // For file descriptor manipulation
+#include <unistd.h>     // For unlink, getpid
+#include <sys/wait.h>   // For WIFEXITED, WEXITSTATUS, WIFSIGNALED
+#include <sys/resource.h> // For getrlimit, RLIMIT_AS
 #include <vector>       // For std::vector
 #include <map>          // For std::map
-#include <cstring>      // For strdup, free
+#include <cstring>      // For strsignal
+#include <cstdlib>      // For system, mkstemp
+#include <cerrno>       // For errno
 
 namespace naab {
 namespace runtime {
 
-// Helper to execute a subprocess and capture its stdout/stderr separately
+// Helper to read entire file contents into a string
+static std::string readFileContents(const std::string& path) {
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) return "";
+    return std::string((std::istreambuf_iterator<char>(ifs)),
+                        std::istreambuf_iterator<char>());
+}
+
+// Check if a process-wide memory limit (RLIMIT_AS) is currently active.
+// Returns the limit in MB if set, or 0 if unlimited.
+static size_t getActiveMemoryLimitMB() {
+    struct rlimit limit;
+    if (getrlimit(RLIMIT_AS, &limit) == 0) {
+        if (limit.rlim_cur != RLIM_INFINITY) {
+            return limit.rlim_cur / (1024 * 1024);
+        }
+    }
+    return 0;
+}
+
+// Build a helpful error message when subprocess execution fails and a
+// process-wide memory limit (RLIMIT_AS) is active. This detects the exact
+// scenario that caused hours of debugging: JS executor set RLIMIT_AS=512MB
+// via ResourceLimiter::setMemoryLimit() which persisted and broke all
+// subsequent fork/exec/system calls (child processes couldn't allocate
+// memory for the dynamic linker, causing SIGABRT).
+static std::string buildMemoryLimitError(
+    const std::string& command,
+    int signal_num,
+    size_t memory_limit_mb) {
+
+    std::ostringstream oss;
+    oss << "Subprocess error: Command failed";
+    if (signal_num > 0) {
+        oss << " with signal " << signal_num << " (" << strsignal(signal_num) << ")";
+    }
+    oss << "\n\n";
+
+    oss << "  Command: " << command << "\n\n";
+
+    if (memory_limit_mb > 0) {
+        oss << "  Process-wide memory limit detected: RLIMIT_AS = "
+            << memory_limit_mb << " MB\n\n";
+
+        oss << "  This is likely the cause of the failure.\n"
+            << "  RLIMIT_AS limits the total virtual address space for the entire\n"
+            << "  process AND all child processes created via fork/exec/system.\n"
+            << "  When set too low, child processes cannot allocate memory for the\n"
+            << "  dynamic linker, causing SIGABRT or SIGSEGV on startup.\n\n";
+
+        oss << "  Common causes:\n"
+            << "  - A polyglot executor called ResourceLimiter::setMemoryLimit()\n"
+            << "    which sets RLIMIT_AS process-wide and never clears it\n"
+            << "  - Sandbox configuration set max_memory_mb too low\n"
+            << "  - An external tool or wrapper set RLIMIT_AS before launch\n\n";
+
+        oss << "  How to fix:\n"
+            << "  - Use language-native memory limits instead of RLIMIT_AS\n"
+            << "    (e.g., JS_SetMemoryLimit for QuickJS, not setrlimit)\n"
+            << "  - Clear the limit after use: ResourceLimiter::disableAll()\n"
+            << "  - Check sandbox config: max_memory_mb should be 0 (unlimited)\n"
+            << "    for executors that spawn subprocesses\n\n";
+
+        oss << "  Diagnostic:\n"
+            << "    Current RLIMIT_AS: " << memory_limit_mb << " MB ("
+            << (memory_limit_mb * 1024 * 1024) << " bytes)\n"
+            << "    Typical minimum for fork/exec: ~150-300 MB\n"
+            << "    Recommendation: Use RLIM_INFINITY or language-native limits\n";
+    } else {
+        oss << "  No RLIMIT_AS restriction detected.\n"
+            << "  The failure may be caused by:\n"
+            << "  - Command not found (check PATH)\n"
+            << "  - Missing shared libraries\n"
+            << "  - Insufficient file descriptors (RLIMIT_NOFILE)\n"
+            << "  - Sandbox or seccomp restrictions\n";
+    }
+
+    return oss.str();
+}
+
+// Helper to execute a subprocess and capture its stdout/stderr
 // Returns exit code, fills stdout_str and stderr_str
+//
+// Uses system() which is the most reliable subprocess mechanism on Android.
+// Output is captured via temp files to avoid pipe-related issues.
+//
+// IMPORTANT: If this function returns -1 with SIGABRT, check stderr for
+// memory limit diagnostics. Process-wide RLIMIT_AS is the #1 cause of
+// mysterious subprocess failures in polyglot execution.
 int execute_subprocess_with_pipes(
     const std::string& command_path,
     const std::vector<std::string>& args,
@@ -28,94 +122,96 @@ int execute_subprocess_with_pipes(
     std::string& stderr_str,
     const std::map<std::string, std::string>* env) {
 
-    int stdout_pipe[2]; // 0 for read, 1 for write
-    int stderr_pipe[2]; // 0 for read, 1 for write
+    // Create temp files for stdout and stderr capture
+    std::string stdout_tmp = "/data/data/com.termux/files/usr/tmp/naab_out_XXXXXX";
+    std::string stderr_tmp = "/data/data/com.termux/files/usr/tmp/naab_err_XXXXXX";
 
-    if (pipe(stdout_pipe) == -1 || pipe(stderr_pipe) == -1) {
-        perror("pipe");
-        return -1; // Indicate error
+    int stdout_fd = mkstemp(&stdout_tmp[0]);
+    int stderr_fd = mkstemp(&stderr_tmp[0]);
+
+    if (stdout_fd == -1 || stderr_fd == -1) {
+        // Fallback paths if mkstemp fails
+        stdout_tmp = fmt::format("/data/data/com.termux/files/usr/tmp/naab_out_{}", getpid());
+        stderr_tmp = fmt::format("/data/data/com.termux/files/usr/tmp/naab_err_{}", getpid());
+    } else {
+        close(stdout_fd);
+        close(stderr_fd);
     }
 
-    pid_t pid = fork();
+    // Build full command string
+    std::string full_command;
 
-    if (pid == -1) {
-        perror("fork");
-        close(stdout_pipe[0]); close(stdout_pipe[1]);
-        close(stderr_pipe[0]); close(stderr_pipe[1]);
-        return -1; // Indicate error
-    }
-
-    if (pid == 0) { // Child process
-        close(stdout_pipe[0]); // Child closes read end of stdout pipe
-        close(stderr_pipe[0]); // Child closes read end of stderr pipe
-
-        dup2(stdout_pipe[1], STDOUT_FILENO); // Redirect stdout to pipe
-        dup2(stderr_pipe[1], STDERR_FILENO); // Redirect stderr to pipe
-
-        close(stdout_pipe[1]); // Close original write end
-        close(stderr_pipe[1]); // Close original write end
-
-        // Prepare arguments for execvp
-        std::vector<char*> argv_c_str;
-        argv_c_str.push_back(const_cast<char*>(command_path.c_str()));
-        for (const auto& arg : args) {
-            argv_c_str.push_back(const_cast<char*>(arg.c_str()));
+    // If custom environment provided, prepend env vars
+    if (env) {
+        for (const auto& pair : *env) {
+            full_command += pair.first + "='" + pair.second + "' ";
         }
-        argv_c_str.push_back(nullptr); // Null-terminate the array
+    }
 
-        // Prepare environment for execvp if provided
-        // Use std::string to avoid manual memory management
-        std::vector<std::string> envp_strings;
-        std::vector<char*> envp_c_str_ptrs;
-        if (env) {
-            for (const auto& pair : *env) {
-                envp_strings.push_back(pair.first + "=" + pair.second);
+    // Add command path
+    full_command += command_path;
+
+    // Add arguments with single-quote escaping
+    for (const auto& arg : args) {
+        full_command += " '";
+        for (char c : arg) {
+            if (c == '\'') {
+                full_command += "'\\''";
+            } else {
+                full_command += c;
             }
-            for (auto& str : envp_strings) {
-                envp_c_str_ptrs.push_back(const_cast<char*>(str.c_str()));
-            }
-            envp_c_str_ptrs.push_back(nullptr); // Null-terminate
         }
-
-        if (env) {
-            execvpe(command_path.c_str(), argv_c_str.data(), envp_c_str_ptrs.data());
-        } else {
-            execvp(command_path.c_str(), argv_c_str.data());
-        }
-
-        // If execvp returns, an error occurred
-        perror("execvp/execvpe");
-        _exit(1); // Exit child process (envp_strings automatically freed)
-    } else { // Parent process
-        close(stdout_pipe[1]); // Parent closes write end of stdout pipe
-        close(stderr_pipe[1]); // Parent closes write end of stderr pipe
-
-        std::array<char, 4096> buffer;
-        ssize_t bytes_read;
-
-        // Read from stdout pipe
-        while ((bytes_read = read(stdout_pipe[0], buffer.data(), buffer.size())) > 0) {
-            stdout_str.append(buffer.data(), bytes_read);
-        }
-        close(stdout_pipe[0]);
-
-        // Read from stderr pipe
-        while ((bytes_read = read(stderr_pipe[0], buffer.data(), buffer.size())) > 0) {
-            stderr_str.append(buffer.data(), bytes_read);
-        }
-        close(stderr_pipe[0]);
-
-        int status;
-        waitpid(pid, &status, 0); // Wait for child to exit
-
-        // No cleanup needed - envp_strings are automatically freed when child exits or execs
-
-        if (WIFEXITED(status)) {
-            return WEXITSTATUS(status); // Return child's exit status
-        } else {
-            return -1; // Child terminated abnormally
-        }
+        full_command += "'";
     }
+
+    // Redirect stdout and stderr to temp files
+    full_command += " >" + stdout_tmp + " 2>" + stderr_tmp;
+
+    int status = system(full_command.c_str());
+
+    // Read captured output
+    stdout_str = readFileContents(stdout_tmp);
+    stderr_str = readFileContents(stderr_tmp);
+
+    // Clean up temp files
+    unlink(stdout_tmp.c_str());
+    unlink(stderr_tmp.c_str());
+
+    if (status == -1) {
+        // system() itself failed (couldn't fork)
+        // Check if a process-wide memory limit is blocking fork/exec
+        size_t mem_limit = getActiveMemoryLimitMB();
+        std::string error_msg = buildMemoryLimitError(command_path, 0, mem_limit);
+        fprintf(stderr, "%s\n", error_msg.c_str());
+        return -1;
+    }
+
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+        int sig = WTERMSIG(status);
+
+        // Check if this looks like a memory-limit-induced crash.
+        // SIGABRT (6), SIGSEGV (11), and SIGKILL (9) are common when
+        // RLIMIT_AS prevents the child from allocating memory during
+        // exec/dynamic linking. This exact scenario (JS executor setting
+        // RLIMIT_AS=512MB, breaking all subsequent shell blocks) took
+        // hours to debug — this detection cuts that to seconds.
+        if (sig == SIGABRT || sig == SIGSEGV || sig == SIGKILL) {
+            size_t mem_limit = getActiveMemoryLimitMB();
+            if (mem_limit > 0) {
+                std::string error_msg = buildMemoryLimitError(command_path, sig, mem_limit);
+                fprintf(stderr, "%s\n", error_msg.c_str());
+                return -1;
+            }
+        }
+
+        fprintf(stderr, "[subprocess] Child killed by signal %d (%s)\n",
+                sig, strsignal(sig));
+        return -1;
+    }
+
+    return -1;
 }
 
 } // namespace runtime

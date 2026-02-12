@@ -31,6 +31,7 @@ std::shared_ptr<interpreter::Value> JsExecutorAdapter::executeWithReturn(
         auto result = executor_.evaluate(code);
         return result;
     } catch (const std::exception& e) {
+        fmt::print("[JS Error] {}\n", e.what());
         return std::make_shared<interpreter::Value>();  // Return null on error
     }
 }
