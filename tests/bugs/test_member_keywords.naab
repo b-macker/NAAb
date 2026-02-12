@@ -1,0 +1,18 @@
+// Test: keywords allowed as member names after '.'
+main {
+    // Test 1: 'init' as member name
+    let mod = {"init": func(x) { return x * 2 }}
+    print(mod["init"](5))
+
+    // Test 2: colon return type in function
+    func double(x: int): int {
+        return x * 2
+    }
+    print(double(7))
+
+    // Test 3: colon return type in lambda
+    let triple = func(x: int): int { return x * 3 }
+    print(triple(4))
+
+    print("done")
+}

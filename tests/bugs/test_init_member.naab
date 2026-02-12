@@ -1,0 +1,15 @@
+// Test: 'init' keyword works as member name with dot access
+use math
+
+main {
+    let obj = {"init": func(x) { return x + 100 }, "type": "myModule"}
+
+    // Dot access with keyword member names
+    let result = obj.init(5)
+    print(result)
+
+    let t = obj.type
+    print(t)
+
+    print("done")
+}

@@ -689,11 +689,15 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
 
     expect(lexer::TokenType::RPAREN, "Expected ')'");
 
-    // Optional return type
+    // Optional return type: -> type or : type (both accepted for LLM compatibility)
     // Phase 2.4.4 Phase 2: Use Any to mark "needs inference"
     ast::Type return_type = ast::Type::makeAny();  // Default to Any (will be inferred)
     if (match(lexer::TokenType::ARROW)) {
         return_type = parseType();  // Explicit return type provided
+    } else if (check(lexer::TokenType::COLON)) {
+        // Accept ': ReturnType' as alternative to '-> ReturnType'
+        advance();  // consume ':'
+        return_type = parseType();
     }
 
     skipNewlines();
@@ -1528,10 +1532,54 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
                 ));
             }
 
-            auto& member = expect(lexer::TokenType::IDENTIFIER, "Expected member name");
+            // Allow keywords as member names (e.g., obj.init, obj.type, obj.match)
+            // Many keywords are valid member/method names in practice
+            auto& member_tok = current();
+            std::string member_name;
+            if (member_tok.type == lexer::TokenType::IDENTIFIER) {
+                member_name = member_tok.value;
+                advance();
+            } else if (member_tok.type == lexer::TokenType::INIT ||
+                       member_tok.type == lexer::TokenType::MATCH ||
+                       member_tok.type == lexer::TokenType::MODULE ||
+                       member_tok.type == lexer::TokenType::IMPORT ||
+                       member_tok.type == lexer::TokenType::EXPORT ||
+                       member_tok.type == lexer::TokenType::DEFAULT ||
+                       member_tok.type == lexer::TokenType::CONFIG ||
+                       member_tok.type == lexer::TokenType::FROM ||
+                       member_tok.type == lexer::TokenType::IN ||
+                       member_tok.type == lexer::TokenType::AS ||
+                       member_tok.type == lexer::TokenType::RETURN ||
+                       member_tok.type == lexer::TokenType::IF ||
+                       member_tok.type == lexer::TokenType::ELSE ||
+                       member_tok.type == lexer::TokenType::FOR ||
+                       member_tok.type == lexer::TokenType::WHILE ||
+                       member_tok.type == lexer::TokenType::BREAK ||
+                       member_tok.type == lexer::TokenType::CONTINUE ||
+                       member_tok.type == lexer::TokenType::TRY ||
+                       member_tok.type == lexer::TokenType::CATCH ||
+                       member_tok.type == lexer::TokenType::THROW ||
+                       member_tok.type == lexer::TokenType::FUNCTION ||
+                       member_tok.type == lexer::TokenType::CLASS ||
+                       member_tok.type == lexer::TokenType::STRUCT ||
+                       member_tok.type == lexer::TokenType::ENUM ||
+                       member_tok.type == lexer::TokenType::LET ||
+                       member_tok.type == lexer::TokenType::CONST ||
+                       member_tok.type == lexer::TokenType::ASYNC ||
+                       member_tok.type == lexer::TokenType::METHOD) {
+                // Allow reserved keywords as member names after '.'
+                member_name = member_tok.value;
+                advance();
+            } else {
+                throw ParseError(fmt::format(
+                    "Expected member name at line {}\n"
+                    "  Got: '{}'\n",
+                    member_tok.line, member_tok.value
+                ));
+            }
             expr = std::make_unique<ast::MemberExpr>(
                 std::move(expr),
-                member.value,
+                member_name,
                 ast::SourceLocation()
             );
         }
@@ -1855,9 +1903,13 @@ std::unique_ptr<ast::Expr> Parser::parseLambdaExpr() {
 
     expect(lexer::TokenType::RPAREN, "Expected ')' after parameters");
 
-    // Optional return type: -> type
+    // Optional return type: -> type or : type (both accepted for LLM compatibility)
     ast::Type return_type = ast::Type::makeAny();
     if (match(lexer::TokenType::ARROW)) {
+        return_type = parseType();
+    } else if (check(lexer::TokenType::COLON) && !check(lexer::TokenType::LBRACE)) {
+        // Accept ': ReturnType' as alternative to '-> ReturnType' (common in other languages)
+        advance();  // consume ':'
         return_type = parseType();
     }
 
