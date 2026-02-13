@@ -2245,26 +2245,33 @@ ast::Type Parser::parseBaseType() {
             advance();  // Consume the type name
         }
 
-        // Phase 1.3: Detect uppercase type names and provide helpful error
-        // Check for common uppercase type mistakes
-        if (type_name == "INT" || type_name == "FLOAT" || type_name == "STRING" ||
-            type_name == "BOOL" || type_name == "VOID" || type_name == "ANY") {
-            std::string lowercase_name = type_name;
-            std::transform(lowercase_name.begin(), lowercase_name.end(), lowercase_name.begin(), ::tolower);
+        // LLM-friendly type aliases: silently map common alternative type names
+        // Java/TypeScript/Python style → NAAb style
+        static const std::unordered_map<std::string, std::string> type_aliases = {
+            // Capitalized primitives
+            {"String", "string"}, {"Int", "int"}, {"Float", "float"},
+            {"Bool", "bool"}, {"Boolean", "bool"}, {"Void", "void"},
+            {"Any", "any"}, {"Object", "any"},
+            // ALL-CAPS primitives
+            {"INT", "int"}, {"FLOAT", "float"}, {"STRING", "string"},
+            {"BOOL", "bool"}, {"VOID", "void"}, {"ANY", "any"},
+            // Collection aliases
+            {"Map", "dict"}, {"HashMap", "dict"}, {"Dictionary", "dict"},
+            {"Dict", "dict"}, {"Record", "dict"},
+            {"List", "list"}, {"Array", "list"}, {"Vec", "list"},
+            {"Vector", "list"}, {"Slice", "list"},
+            // Special types
+            {"Double", "float"}, {"Number", "float"},
+            {"Integer", "int"}, {"Long", "int"},
+            {"Str", "string"}, {"Char", "string"},
+            {"Exception", "any"}, {"Error", "any"},
+            {"Callable", "function"}, {"Function", "function"},
+            {"Func", "function"},
+        };
 
-            error_reporter_.error(
-                fmt::format("Type names must be lowercase. Use '{}' instead of '{}'",
-                           lowercase_name, type_name),
-                token.line, token.column
-            );
-            error_reporter_.addSuggestion(
-                fmt::format("Change '{}' to '{}'", type_name, lowercase_name)
-            );
-
-            throw ParseError(formatError(
-                fmt::format("Invalid type name '{}'. Type names are case-sensitive and must be lowercase.", type_name),
-                token
-            ));
+        auto alias_it = type_aliases.find(type_name);
+        if (alias_it != type_aliases.end()) {
+            type_name = alias_it->second;
         }
 
         // Built-in types (only if no module prefix)
@@ -2275,10 +2282,12 @@ ast::Type Parser::parseBaseType() {
             if (type_name == "bool") return ast::Type(ast::TypeKind::Bool, "", is_nullable, is_reference);
             if (type_name == "void") return ast::Type(ast::TypeKind::Void, "", is_nullable, is_reference);
             if (type_name == "any") return ast::Type(ast::TypeKind::Any, "", is_nullable, is_reference);
-            // Note: 'function' is handled above as TokenType::FUNCTION before IDENTIFIER check
+            if (type_name == "function") return ast::Type(ast::TypeKind::Function, "", is_nullable, is_reference);
+            // Note: 'function' keyword token is also handled above before IDENTIFIER check
         }
 
         // List or Dict with type parameters (only if no module prefix)
+        // After alias resolution, "Map", "List", etc. are mapped to "dict", "list"
         if (module_prefix.empty() && type_name == "list") {
             // Phase 2.4.1: Support both List<T> (angle brackets) and list[T] (square brackets)
             if (match(lexer::TokenType::LT)) {

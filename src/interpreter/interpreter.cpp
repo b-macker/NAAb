@@ -1417,25 +1417,11 @@ void Interpreter::visit(ast::FunctionDecl& node) {
         return;
     }
 
-    // Phase 2.4.4 Phase 2: Infer return type if not explicitly provided
+    // Return type: use explicitly specified type, or default to Any
+    // Note: inferReturnType() is disabled because it uses eval() at declaration
+    // time, which fails for any function that references parameters or local vars.
+    // Types are checked at call-time instead.
     ast::Type return_type = node.getReturnType();
-    if (return_type.kind == ast::TypeKind::Any) {
-        // Only attempt return type inference if all parameters have explicit types.
-        // If any param has type Any (no annotation), inference would try to evaluate
-        // the body at declaration time, causing "Undefined variable" errors for params.
-        bool all_params_typed = true;
-        for (const auto& param : node.getParams()) {
-            if (param.type.kind == ast::TypeKind::Any) {
-                all_params_typed = false;
-                break;
-            }
-        }
-        if (all_params_typed) {
-            return_type = inferReturnType(body);
-            LOG_DEBUG("[INFO] Inferred return type for function '{}': {}\n",
-                       node.getName(), formatTypeName(return_type));
-        }
-    }
 
     // Phase 2.4.1: Create FunctionValue with types and type parameters
     // ISS-022: Capture closure environment for lexical scoping

@@ -1,0 +1,42 @@
+// Test: LLM-style type names are accepted as aliases
+main {
+    // Test 1: Capitalized primitive types
+    func identity(x: String): String {
+        return x
+    }
+    print(identity("hello"))
+
+    // Test 2: Map as dict alias
+    func getPort(config: Map<String, Any>): Int {
+        return config["port"]
+    }
+    let cfg = {"host": "localhost", "port": 8080}
+    print(getPort(cfg))
+
+    // Test 3: List as list alias
+    func first(items: List<Any>): Any {
+        return items[0]
+    }
+    print(first([10, 20, 30]))
+
+    // Test 4: Nested generics - List<Map<String, Any>>
+    func countItems(data: List<Map<String, Any>>): Int {
+        return array.length(data)
+    }
+    let records = [{"name": "Alice"}, {"name": "Bob"}]
+    print(countItems(records))
+
+    // Test 5: Boolean, Double, Exception types
+    func isValid(flag: Boolean): Bool {
+        return flag
+    }
+    print(isValid(true))
+
+    // Test 6: Lambda with LLM-style types
+    let add = func(a: Integer, b: Int): Int {
+        return a + b
+    }
+    print(add(3, 7))
+
+    print("done")
+}
