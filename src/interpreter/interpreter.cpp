@@ -1234,14 +1234,63 @@ void Interpreter::visit(ast::ImportStmt& node) {
     // Resolve module path
     auto resolved_path = module_resolver_->resolve(node.getModulePath(), current_dir);
     if (!resolved_path) {
-        throw std::runtime_error(
-            fmt::format("Module not found: {}\nSearched:\n"
+        // Fall back to stdlib: import "time" as Time -> treat as stdlib time module
+        std::string bare_name = node.getModulePath();
+        // Strip .naab extension if present
+        if (bare_name.size() > 5 && bare_name.substr(bare_name.size() - 5) == ".naab") {
+            bare_name = bare_name.substr(0, bare_name.size() - 5);
+        }
+        // Strip path separators to get just the module name
+        auto last_slash = bare_name.rfind('/');
+        if (last_slash != std::string::npos) {
+            bare_name = bare_name.substr(last_slash + 1);
+        }
+
+        if (stdlib_->hasModule(bare_name)) {
+            // Handle as stdlib module
+            auto module = stdlib_->getModule(bare_name);
+            // Determine alias from import items or use module name
+            std::string alias = bare_name;
+            if (node.isWildcard()) {
+                alias = node.getWildcardAlias();
+            } else if (!node.getItems().empty() && !node.getItems()[0].alias.empty()) {
+                // For import "time" as Time, the alias comes from import items
+                // But wildcard import handles the alias differently
+            }
+            // Check for wildcard alias pattern (import "time" as Time)
+            if (node.isWildcard()) {
+                alias = node.getWildcardAlias();
+            }
+
+            imported_modules_[alias] = module;
+            auto module_marker = std::make_shared<Value>(
+                std::string("__stdlib_module__:" + alias)
+            );
+            current_env_->define(alias, module_marker);
+            return;
+        }
+
+        // Not a stdlib module either - provide helpful error
+        std::string error_msg = fmt::format("Module not found: {}\nSearched:\n"
                        "  - Relative to current directory\n"
                        "  - naab_modules/ directories\n"
                        "  - ~/.naab/modules/\n"
                        "  - /usr/local/naab/modules/",
-                       node.getModulePath())
-        );
+                       node.getModulePath());
+
+        // Check if it's close to a stdlib module name
+        static const std::vector<std::string> stdlib_names = {
+            "io", "json", "string", "array", "math", "file", "http",
+            "time", "regex", "crypto", "csv", "env", "collections"
+        };
+        for (const auto& stdlib_name : stdlib_names) {
+            if (bare_name == stdlib_name) {
+                error_msg += fmt::format("\n\n  Did you mean the built-in '{}' module?\n"
+                                        "    import {}    // stdlib (no quotes needed)", stdlib_name, stdlib_name);
+                break;
+            }
+        }
+        throw std::runtime_error(error_msg);
     }
 
     std::string canonical_path = modules::ModuleResolver::canonicalizePath(*resolved_path);
