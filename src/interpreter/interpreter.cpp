@@ -2,6 +2,8 @@
 // Core interpreter implementation
 
 #include "naab/interpreter.h"
+#include "naab/lexer.h"   // For string interpolation evaluation
+#include "naab/parser.h"  // For string interpolation evaluation
 #include "naab/limits.h"  // Week 1, Task 1.3: Call depth limits
 #include "naab/error_helpers.h"
 #include "naab/language_registry.h"
@@ -4780,9 +4782,54 @@ void Interpreter::visit(ast::LiteralExpr& node) {
             result_ = std::make_shared<Value>(std::stod(node.getValue()));
             break;
 
-        case ast::LiteralKind::String:
-            result_ = std::make_shared<Value>(node.getValue());
+        case ast::LiteralKind::String: {
+            const std::string& raw = node.getValue();
+            // Check if string contains interpolation ${...}
+            if (raw.find("${") != std::string::npos) {
+                std::string result;
+                size_t i = 0;
+                while (i < raw.size()) {
+                    if (raw[i] == '$' && i + 1 < raw.size() && raw[i + 1] == '{') {
+                        // Extract expression inside ${...}
+                        i += 2; // skip ${
+                        int depth = 1;
+                        std::string expr_text;
+                        while (i < raw.size() && depth > 0) {
+                            if (raw[i] == '{') depth++;
+                            else if (raw[i] == '}') {
+                                depth--;
+                                if (depth == 0) break;
+                            }
+                            expr_text += raw[i];
+                            i++;
+                        }
+                        if (i < raw.size()) i++; // skip closing }
+
+                        // Lex, parse, and evaluate the expression
+                        try {
+                            naab::lexer::Lexer expr_lexer(expr_text);
+                            auto expr_tokens = expr_lexer.tokenize();
+                            naab::parser::Parser expr_parser(expr_tokens);
+                            auto expr_ast = expr_parser.parseExpression();
+                            expr_ast->accept(*this);
+                            if (result_) {
+                                result += result_->toString();
+                            }
+                        } catch (const std::exception& e) {
+                            // On error, keep the original ${...} text
+                            result += "${" + expr_text + "}";
+                        }
+                    } else {
+                        result += raw[i];
+                        i++;
+                    }
+                }
+                result_ = std::make_shared<Value>(result);
+            } else {
+                result_ = std::make_shared<Value>(raw);
+            }
             break;
+        }
 
         case ast::LiteralKind::Bool:
             result_ = std::make_shared<Value>(node.getValue() == "true");
