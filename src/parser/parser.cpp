@@ -365,9 +365,17 @@ void Parser::optionalSemicolon() {
     match(lexer::TokenType::SEMICOLON);  // Optional semicolon for compatibility
 }
 
+// Helper: format location string with optional filename
+std::string Parser::formatLocation(int line, int column) {
+    if (!filename_.empty()) {
+        return fmt::format("in {} at line {}, column {}", filename_, line, column);
+    }
+    return fmt::format("at line {}, column {}", line, column);
+}
+
 std::string Parser::formatError(const std::string& msg, const lexer::Token& token) {
-    return fmt::format("Parse error at line {}, column {}: {}\n  Got: '{}'",
-                      token.line, token.column, msg, token.value);
+    return fmt::format("Parse error {}: {}\n  Got: '{}'",
+                      formatLocation(token.line, token.column), msg, token.value);
 }
 
 // ============================================================================
@@ -458,9 +466,9 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
                     tok.type == lexer::TokenType::CONST) {
                     throw std::runtime_error(
                         fmt::format(
-                            "Parse error at line {}, column {}: '{}' statements must be inside a 'main {{}}' block or function.\n"
+                            "Parse error {}: '{}' statements must be inside a 'main {{}}' block or function.\n"
                             "  Hint: Top level can only contain: use, import, export, struct, enum, function, main",
-                            tok.line, tok.column, tok.value
+                            formatLocation(tok.line, tok.column), tok.value
                         )
                     );
                 }
@@ -468,7 +476,7 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
                 else if (tok.type == lexer::TokenType::IDENTIFIER && tok.value == "var") {
                     throw std::runtime_error(
                         fmt::format(
-                            "Parse error at line {}, column {}: NAAb uses 'let' instead of 'var' for variable declarations.\n\n"
+                            "Parse error {}: NAAb uses 'let' instead of 'var' for variable declarations.\n\n"
                             "  Also, variables must be inside a 'main {{}}' block or function.\n\n"
                             "  \xE2\x9C\x97 Wrong:\n"
                             "    var x = 10\n\n"
@@ -477,7 +485,7 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
                             "        let x = 10\n"
                             "    }}\n\n"
                             "  Hint: Top level can only contain: use, import, export, struct, enum, function, main",
-                            tok.line, tok.column
+                            formatLocation(tok.line, tok.column)
                         )
                     );
                 }
@@ -485,7 +493,7 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
                 else if (tok.type == lexer::TokenType::IDENTIFIER && tok.value == "block") {
                     throw std::runtime_error(
                         fmt::format(
-                            "Parse error at line {}, column {}: 'block' is not a top-level construct in NAAb.\n\n"
+                            "Parse error {}: 'block' is not a top-level construct in NAAb.\n\n"
                             "  NAAb uses 'function' for reusable code and 'main' for the entry point.\n\n"
                             "  \xE2\x9C\x97 Wrong:\n"
                             "    block MyModule {{\n"
@@ -501,7 +509,7 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
                             "        print(result)\n"
                             "    }}\n\n"
                             "  Hint: Top level can only contain: use, import, export, struct, enum, function, main",
-                            tok.line, tok.column
+                            formatLocation(tok.line, tok.column)
                         )
                     );
                 }
@@ -509,7 +517,7 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
                 else if (tok.type == lexer::TokenType::CLASS) {
                     throw std::runtime_error(
                         fmt::format(
-                            "Parse error at line {}, column {}: NAAb uses 'struct' instead of 'class'.\n\n"
+                            "Parse error {}: NAAb uses 'struct' instead of 'class'.\n\n"
                             "  \xE2\x9C\x97 Wrong:\n"
                             "    class Person {{\n"
                             "        name: string\n"
@@ -519,21 +527,21 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
                             "        name: string\n"
                             "    }}\n\n"
                             "  Hint: Top level can only contain: use, import, export, struct, enum, function, main",
-                            tok.line, tok.column
+                            formatLocation(tok.line, tok.column)
                         )
                     );
                 }
                 else {
                     throw std::runtime_error(
                         fmt::format(
-                            "Parse error at line {}, column {}: Unexpected '{}' at top level.\n\n"
+                            "Parse error {}: Unexpected '{}' at top level.\n\n"
                             "  Hint: Top level can only contain: use, import, export, struct, enum, function, main\n\n"
                             "  All other statements (let, print, for, if, etc.) must be inside a 'main {{}}' block or function.\n\n"
                             "  Example:\n"
                             "    main {{\n"
                             "        // your code here\n"
                             "    }}",
-                            tok.line, tok.column, tok.value
+                            formatLocation(tok.line, tok.column), tok.value
                         )
                     );
                 }
@@ -788,7 +796,7 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
         auto& tok = current();
         throw std::runtime_error(
             fmt::format(
-                "Parse error at line {}, column {}: NAAb uses 'main {{}}' as the entry point, not 'function main()'.\n\n"
+                "Parse error {}: NAAb uses 'main {{}}' as the entry point, not 'function main()'.\n\n"
                 "  \xE2\x9C\x97 Wrong:\n"
                 "    function main() {{\n"
                 "        // ...\n"
@@ -798,7 +806,7 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
                 "        // your code here\n"
                 "    }}\n\n"
                 "  Note: 'main' is a special block, not a function declaration.",
-                tok.line, tok.column
+                formatLocation(tok.line, tok.column)
             )
         );
     }
@@ -1115,7 +1123,7 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
         auto& tok = current();
         throw std::runtime_error(
             fmt::format(
-                "Parse error at line {}, column {}: 'match' statements are not yet supported in NAAb.\n\n"
+                "Parse error {}: 'match' statements are not yet supported in NAAb.\n\n"
                 "  Use if/else if/else instead:\n\n"
                 "  \xE2\x9C\x97 Not supported:\n"
                 "    match value {{\n"
@@ -1131,7 +1139,7 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
                 "    }} else {{\n"
                 "        doDefault()\n"
                 "    }}",
-                tok.line, tok.column
+                formatLocation(tok.line, tok.column)
             )
         );
     }
@@ -1141,12 +1149,12 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
         auto& tok = current();
         throw std::runtime_error(
             fmt::format(
-                "Parse error at line {}, column {}: NAAb uses 'let' instead of 'var' for variable declarations.\n\n"
+                "Parse error {}: NAAb uses 'let' instead of 'var' for variable declarations.\n\n"
                 "  \xE2\x9C\x97 Wrong:  var x = 10\n"
                 "  \xE2\x9C\x93 Right:  let x = 10\n\n"
                 "  For constants, use 'const':\n"
                 "    const PI = 3.14159",
-                tok.line, tok.column
+                formatLocation(tok.line, tok.column)
             )
         );
     }
@@ -1445,12 +1453,74 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
     auto expr = parsePipeline();
 
     if (match(lexer::TokenType::EQ)) {
-        skipNewlines(); // Add this line
+        skipNewlines();
         auto value = parseAssignment();  // Right-associative
         expr = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::Assign,
             std::move(expr),
             std::move(value),
+            ast::SourceLocation()
+        );
+    }
+    // Compound assignment: x += y  →  x = x + y (same for -=, *=, /=, %=)
+    else if (check(lexer::TokenType::PLUS_EQ) ||
+             check(lexer::TokenType::MINUS_EQ) ||
+             check(lexer::TokenType::STAR_EQ) ||
+             check(lexer::TokenType::SLASH_EQ) ||
+             check(lexer::TokenType::PERCENT_EQ)) {
+        auto op_token = current();
+        advance();
+        skipNewlines();
+
+        // Determine the arithmetic operation
+        ast::BinaryOp arith_op;
+        switch (op_token.type) {
+            case lexer::TokenType::PLUS_EQ:    arith_op = ast::BinaryOp::Add; break;
+            case lexer::TokenType::MINUS_EQ:   arith_op = ast::BinaryOp::Sub; break;
+            case lexer::TokenType::STAR_EQ:    arith_op = ast::BinaryOp::Mul; break;
+            case lexer::TokenType::SLASH_EQ:   arith_op = ast::BinaryOp::Div; break;
+            case lexer::TokenType::PERCENT_EQ: arith_op = ast::BinaryOp::Mod; break;
+            default: arith_op = ast::BinaryOp::Add; break; // unreachable
+        }
+
+        auto value = parseAssignment();  // Right-associative
+
+        // Clone the left-hand side for the arithmetic expression
+        auto* id = dynamic_cast<ast::IdentifierExpr*>(expr.get());
+        auto* member = dynamic_cast<ast::MemberExpr*>(expr.get());
+
+        std::unique_ptr<ast::Expr> lhs_copy;
+        if (id) {
+            lhs_copy = std::make_unique<ast::IdentifierExpr>(id->getName(), ast::SourceLocation());
+        } else if (member) {
+            auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject());
+            if (obj_id) {
+                auto obj_copy = std::make_unique<ast::IdentifierExpr>(obj_id->getName(), ast::SourceLocation());
+                lhs_copy = std::make_unique<ast::MemberExpr>(std::move(obj_copy), member->getMember(), ast::SourceLocation());
+            }
+        }
+
+        if (!lhs_copy) {
+            throw ParseError(formatError(
+                "Compound assignment (+=, -=, etc.) requires a simple target:\n"
+                "  variable or member access (obj.field)\n\n"
+                "  Example:\n"
+                "    x += 1           // variable\n"
+                "    obj.count += 1   // member access",
+                op_token));
+        }
+
+        // Build: x = x + y
+        auto arith_expr = std::make_unique<ast::BinaryExpr>(
+            arith_op,
+            std::move(lhs_copy),
+            std::move(value),
+            ast::SourceLocation()
+        );
+        expr = std::make_unique<ast::BinaryExpr>(
+            ast::BinaryOp::Assign,
+            std::move(expr),
+            std::move(arith_expr),
             ast::SourceLocation()
         );
     }

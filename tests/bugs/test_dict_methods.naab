@@ -1,0 +1,57 @@
+// Test: calling functions stored in a dict via dot notation
+main {
+    // Test 1: Simple dict with function values
+    let greet = func(name) {
+        return "Hello, " + name
+    }
+    let obj = {"greet": greet}
+    print(obj.greet("World"))
+
+    // Test 2: Factory function returning dict of closures
+    func createCounter() {
+        let count = 0
+        let increment = func() {
+            count = count + 1
+            return count
+        }
+        let getCount = func() {
+            return count
+        }
+        return {
+            "increment": increment,
+            "getCount": getCount
+        }
+    }
+    let counter = createCounter()
+    counter.increment()
+    counter.increment()
+    print(counter.getCount())
+
+    // Test 3: Factory function with internal helpers (like logger pattern)
+    func createLogger(prefix) {
+        let formatMsg = func(level, msg) {
+            return "[" + level + "] " + prefix + ": " + msg
+        }
+        let logInfo = func(msg) {
+            print(formatMsg("INFO", msg))
+        }
+        let logWarn = func(msg) {
+            print(formatMsg("WARN", msg))
+        }
+        return {
+            "logInfo": logInfo,
+            "logWarn": logWarn
+        }
+    }
+    let logger = createLogger("Test")
+    logger.logInfo("Starting test")
+    logger.logWarn("Something happened")
+
+    // Test 4: Passing dict-of-functions to another function
+    func doWork(logger) {
+        logger.logInfo("Doing work")
+    }
+    doWork(logger)
+
+    print("done")
+}

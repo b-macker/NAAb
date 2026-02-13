@@ -123,6 +123,7 @@ private:
     // Helpers
     void skipNewlines();
     void optionalSemicolon();  // Allow optional semicolon after statements
+    std::string formatLocation(int line, int column);
     std::string formatError(const std::string& msg, const lexer::Token& token);
 
     // Phase 2.1: Parser context helpers for enhanced error hints

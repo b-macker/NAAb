@@ -1,0 +1,73 @@
+// Test: built-in methods on dicts, arrays, and strings
+main {
+    // === DICT METHODS ===
+    let d = {"name": "Alice", "age": 30, "city": "NYC"}
+
+    // get
+    print(d.get("name"))
+    print(d.get("missing", "default"))
+
+    // has / size / isEmpty
+    print(d.has("name"))
+    print(d.size())
+    print(d.isEmpty())
+
+    // put and remove
+    d.put("email", "alice@test.com")
+    print(d.has("email"))
+    d.remove("email")
+    print(d.has("email"))
+
+    // keys and values
+    print(d.keys().size())
+
+    // clone
+    let d2 = d.clone()
+    d2.put("extra", true)
+    print(d.has("extra"))
+    print(d2.has("extra"))
+
+    // getString with default
+    print(d.getString("name", "Unknown"))
+    print(d.getString("missing", "fallback"))
+
+    // === ARRAY METHODS ===
+    let arr = [1, 2, 3]
+
+    print(arr.size())
+    print(arr.isEmpty())
+    arr.add(4)
+    print(arr.size())
+    print(arr.get(0))
+    print(arr.contains(3))
+    print(arr.contains(99))
+
+    let first2 = arr.take(2)
+    print(first2.size())
+
+    // === STRING METHODS ===
+    let s = "Hello, World!"
+
+    print(s.size())
+    print(s.isEmpty())
+    print(s.contains("World"))
+    print(s.contains("xyz"))
+    print(s.indexOf("World"))
+    print(s.lastIndexOf("l"))
+    print(s.substring(0, 5))
+    print(s.replace("World", "NAAb"))
+    print(s.toUpperCase())
+    print(s.toLowerCase())
+    print(s.startsWith("Hello"))
+    print(s.endsWith("!"))
+
+    let csv = "a,b,c"
+    let parts = csv.split(",")
+    print(parts.size())
+    print(parts.get(1))
+
+    let padded = "  hello  "
+    print(padded.trim())
+
+    print("done")
+}

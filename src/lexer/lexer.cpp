@@ -217,30 +217,83 @@ std::string Lexer::readString() {
     advance();  // Skip opening quote
 
     std::string value;
-    while (currentChar() && *currentChar() != quote) {
-        if (*currentChar() == '\\') {
+    int interp_depth = 0;  // Track ${} nesting depth
+
+    while (currentChar()) {
+        char ch = *currentChar();
+
+        // Inside ${...} interpolation block - track braces and skip nested strings
+        if (interp_depth > 0) {
+            if (ch == '{') {
+                interp_depth++;
+                value += ch;
+                advance();
+            } else if (ch == '}') {
+                interp_depth--;
+                value += ch;
+                advance();
+            } else if (ch == '"' || ch == '\'') {
+                // Nested string inside interpolation - read through it completely
+                char nested_quote = ch;
+                value += ch;
+                advance();
+                while (currentChar() && *currentChar() != nested_quote) {
+                    if (*currentChar() == '\\') {
+                        value += *currentChar();
+                        advance();
+                        if (currentChar()) {
+                            value += *currentChar();
+                            advance();
+                        }
+                        continue;
+                    }
+                    value += *currentChar();
+                    advance();
+                }
+                if (currentChar()) {
+                    value += *currentChar();  // closing nested quote
+                    advance();
+                }
+            } else {
+                value += ch;
+                advance();
+            }
+            continue;
+        }
+
+        // Not in interpolation - check for end of string
+        if (ch == quote) {
+            break;
+        }
+
+        if (ch == '\\') {
             advance();  // Skip backslash
             if (currentChar()) {
-                // Interpret escape sequences
                 char escaped = *currentChar();
                 switch (escaped) {
-                    case 'n':  value += '\n'; break;  // Newline
-                    case 't':  value += '\t'; break;  // Tab
-                    case 'r':  value += '\r'; break;  // Carriage return
-                    case '\\': value += '\\'; break;  // Backslash
-                    case '"':  value += '"';  break;  // Double quote
-                    case '\'': value += '\''; break;  // Single quote
-                    case '0':  value += '\0'; break;  // Null character
+                    case 'n':  value += '\n'; break;
+                    case 't':  value += '\t'; break;
+                    case 'r':  value += '\r'; break;
+                    case '\\': value += '\\'; break;
+                    case '"':  value += '"';  break;
+                    case '\'': value += '\''; break;
+                    case '0':  value += '\0'; break;
                     default:
-                        // Unknown escape sequence - keep the backslash and character
                         value += '\\';
                         value += escaped;
                         break;
                 }
                 advance();
             }
+        } else if (ch == '$' && peekChar() && *peekChar() == '{') {
+            // Start of ${...} interpolation
+            value += ch;   // $
+            advance();
+            value += *currentChar();  // {
+            advance();
+            interp_depth = 1;
         } else {
-            value += *currentChar();
+            value += ch;
             advance();
         }
     }
@@ -555,6 +608,28 @@ std::vector<Token> Lexer::tokenize() {
             advance();
             advance();
             continue;
+        }
+
+        // Compound assignment operators (+=, -=, *=, /=, %=)
+        if (ch == '+' && next && *next == '=') {
+            tokens_.emplace_back(TokenType::PLUS_EQ, "+=", line, col);
+            advance(); advance(); continue;
+        }
+        if (ch == '-' && next && *next == '=') {
+            tokens_.emplace_back(TokenType::MINUS_EQ, "-=", line, col);
+            advance(); advance(); continue;
+        }
+        if (ch == '*' && next && *next == '=') {
+            tokens_.emplace_back(TokenType::STAR_EQ, "*=", line, col);
+            advance(); advance(); continue;
+        }
+        if (ch == '/' && next && *next == '=') {
+            tokens_.emplace_back(TokenType::SLASH_EQ, "/=", line, col);
+            advance(); advance(); continue;
+        }
+        if (ch == '%' && next && *next == '=') {
+            tokens_.emplace_back(TokenType::PERCENT_EQ, "%=", line, col);
+            advance(); advance(); continue;
         }
 
         // Single-character tokens

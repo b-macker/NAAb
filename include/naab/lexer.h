@@ -38,6 +38,11 @@ enum class TokenType {
     SLASH,         // /
     PERCENT,       // %
     EQ,            // =
+    PLUS_EQ,       // +=
+    MINUS_EQ,      // -=
+    STAR_EQ,       // *=
+    SLASH_EQ,      // /=
+    PERCENT_EQ,    // %=
     EQEQ,          // ==
     NE,            // !=
     LT,            // <

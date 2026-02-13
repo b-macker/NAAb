@@ -1,0 +1,22 @@
+// Test: nested quotes inside string interpolation ${}
+main {
+    // Test 1: Double quotes inside interpolation
+    let obj = {"name": "World", "level": "INFO"}
+    let msg = "Hello ${obj.get("name")}!"
+    print(msg)
+
+    // Test 2: Multiple nested interpolations with quotes
+    let result = "Level: ${obj.get("level")}, Name: ${obj.get("name")}"
+    print(result)
+
+    // Test 3: Single quotes inside double-quoted string interpolation
+    let msg2 = "Value: ${obj.get('name')}"
+    print(msg2)
+
+    // Test 4: Nested function calls with quotes
+    func greet(name) { return "Hi " + name }
+    let greeting = "Says: ${greet("Alice")}"
+    print(greeting)
+
+    print("done")
+}

@@ -1,0 +1,3 @@
+main {
+    Sys.print("hello")
+}

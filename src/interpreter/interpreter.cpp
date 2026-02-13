@@ -29,6 +29,7 @@
 #include <filesystem>  // Phase 3.1: For module path resolution
 #include <unordered_set>  // For constant lookup in stdlib modules
 #include <map>  // Polyglot: Issue #2 - Shell environment variables
+#include <algorithm>  // For std::transform in string methods
 
 // Python embedding support
 #ifdef __has_include
@@ -329,10 +330,49 @@ std::shared_ptr<Value> Environment::get(const std::string& name) {
 
     // Generate helpful error message with suggestions
     std::string error_msg = "Undefined variable: " + name;
-    auto all_names = getAllNames();
-    auto suggestion = error::suggestForUndefinedVariable(name, all_names);
-    if (!suggestion.empty()) {
-        error_msg += "\n  " + suggestion;
+
+    // LLM-friendly hints for common non-existent globals
+    if (name == "Sys" || name == "System" || name == "sys") {
+        error_msg += "\n\n  NAAb does not have a 'Sys' object. Use built-in functions directly:\n"
+                     "    print(\"hello\")          // instead of Sys.print(\"hello\")\n"
+                     "    print(\"error: oops\")    // instead of Sys.error(\"oops\")\n"
+                     "    myFunc(arg1, arg2)      // instead of Sys.callFunction(myFunc, arg1, arg2)\n\n"
+                     "  To call a function stored in a dict:\n"
+                     "    let fn = myDict.get(\"funcName\")\n"
+                     "    fn(args)                // call it directly\n"
+                     "    // or: myDict.funcName(args)\n\n"
+                     "  Built-in functions: print, len, type, typeof, int, float, string, bool";
+    } else if (name == "Console" || name == "console") {
+        error_msg += "\n\n  NAAb does not have a 'Console' object. Use:\n"
+                     "    print(\"hello\")          // instead of Console.log(\"hello\")\n"
+                     "    print(\"error: oops\")    // instead of Console.error(\"oops\")";
+    } else if (name == "Math") {
+        error_msg += "\n\n  NAAb math functions are in the 'math' module (lowercase):\n"
+                     "    import math\n"
+                     "    let x = math.sqrt(16)   // instead of Math.sqrt(16)\n"
+                     "    let pi = math.PI";
+    } else if (name == "Array") {
+        error_msg += "\n\n  NAAb array functions are in the 'array' module (lowercase):\n"
+                     "    import array\n"
+                     "    array.push(myArr, item) // instead of Array.push(...)";
+    } else if (name == "String") {
+        error_msg += "\n\n  NAAb string functions are in the 'string' module (lowercase):\n"
+                     "    import string\n"
+                     "    string.upper(myStr)     // instead of String.toUpperCase(...)";
+    } else if (name == "File" || name == "fs" || name == "FS") {
+        error_msg += "\n\n  NAAb file functions are in the 'file' module:\n"
+                     "    import file\n"
+                     "    let content = file.read(\"path.txt\")";
+    } else if (name == "JSON") {
+        error_msg += "\n\n  NAAb does not have a JSON object. Dicts are native:\n"
+                     "    let data = {\"key\": \"value\"}  // dict literal\n"
+                     "    let val = data.get(\"key\")";
+    } else {
+        auto all_names = getAllNames();
+        auto suggestion = error::suggestForUndefinedVariable(name, all_names);
+        if (!suggestion.empty()) {
+            error_msg += "\n  " + suggestion;
+        }
     }
     throw std::runtime_error(error_msg);
 }
@@ -3046,7 +3086,275 @@ void Interpreter::visit(ast::CallExpr& node) {
     // Check if this is a member expression call (for method chaining)
     auto* member_expr = dynamic_cast<ast::MemberExpr*>(node.getCallee());
     if (member_expr) {
+        // First check if the object is a dict/array/string with built-in methods
+        // We need to evaluate the object BEFORE evaluating the full member access,
+        // because built-in methods like .get(), .has() are not stored as dict keys
+        {
+            auto obj_val = eval(*member_expr->getObject());
+            std::string method_name = member_expr->getMember();
+
+            // Built-in DICT methods
+            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&obj_val->data)) {
+                auto& dict = *dict_ptr;
+
+                if (method_name == "get" || method_name == "getString" || method_name == "getInt" ||
+                    method_name == "getFloat" || method_name == "getBool" || method_name == "getMap" ||
+                    method_name == "getList") {
+                    if (args.empty()) throw std::runtime_error("dict." + method_name + "() requires at least 1 argument (key)");
+                    auto key = args[0]->toString();
+                    auto it = dict.find(key);
+                    if (it != dict.end()) {
+                        result_ = it->second;
+                    } else if (args.size() >= 2) {
+                        result_ = args[1];
+                    } else {
+                        result_ = std::make_shared<Value>();
+                    }
+                    return;
+                }
+                if (method_name == "has" || method_name == "contains" || method_name == "containsKey") {
+                    if (args.empty()) throw std::runtime_error("dict.has() requires 1 argument (key)");
+                    result_ = std::make_shared<Value>(dict.find(args[0]->toString()) != dict.end());
+                    return;
+                }
+                if (method_name == "size" || method_name == "length") {
+                    result_ = std::make_shared<Value>(static_cast<int>(dict.size()));
+                    return;
+                }
+                if (method_name == "isEmpty") {
+                    result_ = std::make_shared<Value>(dict.empty());
+                    return;
+                }
+                if (method_name == "put" || method_name == "set") {
+                    if (args.size() < 2) throw std::runtime_error("dict.put() requires 2 arguments (key, value)");
+                    dict[args[0]->toString()] = args[1];
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    result_ = std::make_shared<Value>();
+                    return;
+                }
+                if (method_name == "remove" || method_name == "delete") {
+                    if (args.empty()) throw std::runtime_error("dict.remove() requires 1 argument (key)");
+                    dict.erase(args[0]->toString());
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    result_ = std::make_shared<Value>();
+                    return;
+                }
+                if (method_name == "keys") {
+                    std::vector<std::shared_ptr<Value>> keys;
+                    for (const auto& pair : dict) keys.push_back(std::make_shared<Value>(pair.first));
+                    result_ = std::make_shared<Value>(keys);
+                    return;
+                }
+                if (method_name == "values") {
+                    std::vector<std::shared_ptr<Value>> vals;
+                    for (const auto& pair : dict) vals.push_back(pair.second);
+                    result_ = std::make_shared<Value>(vals);
+                    return;
+                }
+                if (method_name == "clone" || method_name == "copy") {
+                    result_ = std::make_shared<Value>(dict);
+                    return;
+                }
+                // Not a built-in - fall through to check if it's a function stored in dict
+            }
+
+            // Built-in ARRAY methods
+            if (auto* arr_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&obj_val->data)) {
+                auto& arr = *arr_ptr;
+
+                if (method_name == "size" || method_name == "length") {
+                    result_ = std::make_shared<Value>(static_cast<int>(arr.size()));
+                    return;
+                }
+                if (method_name == "isEmpty") {
+                    result_ = std::make_shared<Value>(arr.empty());
+                    return;
+                }
+                if (method_name == "add" || method_name == "push" || method_name == "append") {
+                    if (args.empty()) throw std::runtime_error("array.add() requires 1 argument");
+                    arr.push_back(args[0]);
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    result_ = obj_val;
+                    return;
+                }
+                if (method_name == "get") {
+                    if (args.empty()) throw std::runtime_error("array.get() requires 1 argument (index)");
+                    int idx = std::get<int>(args[0]->data);
+                    if (idx < 0 || idx >= static_cast<int>(arr.size())) {
+                        throw std::runtime_error(fmt::format("Array index out of bounds: {} (size: {})", idx, arr.size()));
+                    }
+                    result_ = arr[static_cast<size_t>(idx)];
+                    return;
+                }
+                if (method_name == "contains" || method_name == "includes") {
+                    if (args.empty()) throw std::runtime_error("array.contains() requires 1 argument");
+                    bool found = false;
+                    for (const auto& item : arr) {
+                        if (item->toString() == args[0]->toString()) { found = true; break; }
+                    }
+                    result_ = std::make_shared<Value>(found);
+                    return;
+                }
+                if (method_name == "take") {
+                    if (args.empty()) throw std::runtime_error("array.take() requires 1 argument (count)");
+                    int count = std::get<int>(args[0]->data);
+                    std::vector<std::shared_ptr<Value>> taken;
+                    for (int i = 0; i < count && i < static_cast<int>(arr.size()); i++) {
+                        taken.push_back(arr[static_cast<size_t>(i)]);
+                    }
+                    result_ = std::make_shared<Value>(taken);
+                    return;
+                }
+                if (method_name == "clone" || method_name == "copy") {
+                    result_ = std::make_shared<Value>(arr);
+                    return;
+                }
+                if (method_name == "remove" || method_name == "removeAt") {
+                    if (args.empty()) throw std::runtime_error("array.remove() requires 1 argument (index)");
+                    int idx = std::get<int>(args[0]->data);
+                    if (idx >= 0 && idx < static_cast<int>(arr.size())) {
+                        arr.erase(arr.begin() + idx);
+                    }
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    result_ = obj_val;
+                    return;
+                }
+                // Not a built-in array method - fall through
+            }
+
+            // Built-in STRING methods (skip module markers)
+            if (auto* str_ptr = std::get_if<std::string>(&obj_val->data)) {
+                auto& str = *str_ptr;
+
+                // Skip stdlib/module markers - these are handled by the module system
+                if (str.substr(0, 18) == "__stdlib_module__:" ||
+                    str.substr(0, 10) == "__module__:") {
+                    // Fall through to normal member access (module.function call)
+                    goto normal_member_access;
+                }
+
+                if (method_name == "size" || method_name == "length") {
+                    result_ = std::make_shared<Value>(static_cast<int>(str.size()));
+                    return;
+                }
+                if (method_name == "isEmpty") {
+                    result_ = std::make_shared<Value>(str.empty());
+                    return;
+                }
+                if (method_name == "contains" || method_name == "includes") {
+                    if (args.empty()) throw std::runtime_error("string.contains() requires 1 argument");
+                    result_ = std::make_shared<Value>(str.find(args[0]->toString()) != std::string::npos);
+                    return;
+                }
+                if (method_name == "indexOf") {
+                    if (args.empty()) throw std::runtime_error("string.indexOf() requires 1 argument");
+                    auto pos = str.find(args[0]->toString());
+                    result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                    return;
+                }
+                if (method_name == "lastIndexOf") {
+                    if (args.empty()) throw std::runtime_error("string.lastIndexOf() requires 1 argument");
+                    auto pos = str.rfind(args[0]->toString());
+                    result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                    return;
+                }
+                if (method_name == "substring" || method_name == "substr" || method_name == "slice") {
+                    if (args.empty()) throw std::runtime_error("string.substring() requires at least 1 argument");
+                    int start = std::get<int>(args[0]->data);
+                    if (start < 0) start = 0;
+                    if (start >= static_cast<int>(str.size())) {
+                        result_ = std::make_shared<Value>(std::string(""));
+                        return;
+                    }
+                    if (args.size() >= 2) {
+                        int end = std::get<int>(args[1]->data);
+                        if (end > static_cast<int>(str.size())) end = static_cast<int>(str.size());
+                        result_ = std::make_shared<Value>(str.substr(static_cast<size_t>(start), static_cast<size_t>(end - start)));
+                    } else {
+                        result_ = std::make_shared<Value>(str.substr(static_cast<size_t>(start)));
+                    }
+                    return;
+                }
+                if (method_name == "replace") {
+                    if (args.size() < 2) throw std::runtime_error("string.replace() requires 2 arguments (old, new)");
+                    std::string old_s = args[0]->toString(), new_s = args[1]->toString();
+                    std::string result = str;
+                    size_t pos = 0;
+                    while ((pos = result.find(old_s, pos)) != std::string::npos) {
+                        result.replace(pos, old_s.length(), new_s);
+                        pos += new_s.length();
+                    }
+                    result_ = std::make_shared<Value>(result);
+                    return;
+                }
+                if (method_name == "toUpperCase" || method_name == "upper") {
+                    std::string result = str;
+                    std::transform(result.begin(), result.end(), result.begin(), ::toupper);
+                    result_ = std::make_shared<Value>(result);
+                    return;
+                }
+                if (method_name == "toLowerCase" || method_name == "lower") {
+                    std::string result = str;
+                    std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+                    result_ = std::make_shared<Value>(result);
+                    return;
+                }
+                if (method_name == "trim") {
+                    std::string result = str;
+                    result.erase(0, result.find_first_not_of(" \t\n\r"));
+                    if (!result.empty()) result.erase(result.find_last_not_of(" \t\n\r") + 1);
+                    result_ = std::make_shared<Value>(result);
+                    return;
+                }
+                if (method_name == "split") {
+                    if (args.empty()) throw std::runtime_error("string.split() requires 1 argument (separator)");
+                    std::string sep = args[0]->toString();
+                    std::vector<std::shared_ptr<Value>> parts;
+                    if (sep.empty()) {
+                        for (char c : str) parts.push_back(std::make_shared<Value>(std::string(1, c)));
+                    } else {
+                        size_t s = 0, p;
+                        while ((p = str.find(sep, s)) != std::string::npos) {
+                            parts.push_back(std::make_shared<Value>(str.substr(s, p - s)));
+                            s = p + sep.size();
+                        }
+                        parts.push_back(std::make_shared<Value>(str.substr(s)));
+                    }
+                    result_ = std::make_shared<Value>(parts);
+                    return;
+                }
+                if (method_name == "startsWith") {
+                    if (args.empty()) throw std::runtime_error("string.startsWith() requires 1 argument");
+                    result_ = std::make_shared<Value>(str.find(args[0]->toString()) == 0);
+                    return;
+                }
+                if (method_name == "endsWith") {
+                    if (args.empty()) throw std::runtime_error("string.endsWith() requires 1 argument");
+                    std::string suffix = args[0]->toString();
+                    result_ = std::make_shared<Value>(
+                        str.size() >= suffix.size() &&
+                        str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0
+                    );
+                    return;
+                }
+                // Not a built-in string method - fall through
+            }
+        }
+
         // Evaluate the member expression (returns PythonObjectValue for methods)
+        normal_member_access:
         auto callable = eval(*member_expr);
 
         // If it's a Python object, call it
@@ -3294,41 +3602,322 @@ void Interpreter::visit(ast::CallExpr& node) {
     // Handle member access calls (e.g., module.function(...))
     auto* member_call = dynamic_cast<ast::MemberExpr*>(node.getCallee());
     if (member_call) {
-        // Evaluate the member access to get the function
+        std::string method_name = member_call->getMember();
+
+        // Evaluate the object part to check for built-in methods on dicts/arrays/strings
+        auto obj = eval(*member_call->getObject());
+
+        // ===== Built-in DICT methods =====
+        if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&obj->data)) {
+            auto& dict = *dict_ptr;
+
+            if (method_name == "get" || method_name == "getString" || method_name == "getInt" ||
+                method_name == "getFloat" || method_name == "getBool" || method_name == "getMap" ||
+                method_name == "getList") {
+                if (args.empty()) throw std::runtime_error("dict." + method_name + "() requires at least 1 argument (key)");
+                auto key = args[0]->toString();
+                auto it = dict.find(key);
+                if (it != dict.end()) {
+                    result_ = it->second;
+                } else if (args.size() >= 2) {
+                    result_ = args[1];  // default value
+                } else {
+                    result_ = std::make_shared<Value>();  // null
+                }
+                return;
+            }
+            if (method_name == "has" || method_name == "contains" || method_name == "containsKey") {
+                if (args.empty()) throw std::runtime_error("dict.has() requires 1 argument (key)");
+                auto key = args[0]->toString();
+                result_ = std::make_shared<Value>(dict.find(key) != dict.end());
+                return;
+            }
+            if (method_name == "size" || method_name == "length") {
+                result_ = std::make_shared<Value>(static_cast<int>(dict.size()));
+                return;
+            }
+            if (method_name == "isEmpty") {
+                result_ = std::make_shared<Value>(dict.empty());
+                return;
+            }
+            if (method_name == "put" || method_name == "set") {
+                if (args.size() < 2) throw std::runtime_error("dict.put() requires 2 arguments (key, value)");
+                auto key = args[0]->toString();
+                dict[key] = args[1];
+                // Update the original variable
+                auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                if (obj_id && current_env_->has(obj_id->getName())) {
+                    current_env_->set(obj_id->getName(), obj);
+                }
+                result_ = std::make_shared<Value>();
+                return;
+            }
+            if (method_name == "remove" || method_name == "delete") {
+                if (args.empty()) throw std::runtime_error("dict.remove() requires 1 argument (key)");
+                auto key = args[0]->toString();
+                dict.erase(key);
+                auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                if (obj_id && current_env_->has(obj_id->getName())) {
+                    current_env_->set(obj_id->getName(), obj);
+                }
+                result_ = std::make_shared<Value>();
+                return;
+            }
+            if (method_name == "keys") {
+                std::vector<std::shared_ptr<Value>> keys;
+                for (const auto& pair : dict) {
+                    keys.push_back(std::make_shared<Value>(pair.first));
+                }
+                result_ = std::make_shared<Value>(keys);
+                return;
+            }
+            if (method_name == "values") {
+                std::vector<std::shared_ptr<Value>> vals;
+                for (const auto& pair : dict) {
+                    vals.push_back(pair.second);
+                }
+                result_ = std::make_shared<Value>(vals);
+                return;
+            }
+            if (method_name == "clone" || method_name == "copy") {
+                auto new_dict = dict;  // shallow copy
+                result_ = std::make_shared<Value>(new_dict);
+                return;
+            }
+
+            // Not a built-in dict method - check if it's a function stored in the dict
+            auto it = dict.find(method_name);
+            if (it != dict.end()) {
+                auto func_value = it->second;
+                if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&func_value->data)) {
+                    result_ = callFunction(func_value, args);
+                    return;
+                }
+                // Not a function - fall through to error
+            }
+
+            // Dict method not found error
+            std::ostringstream oss;
+            oss << "Name error: Unknown dict method '" << method_name << "'\n\n";
+            oss << "  Available dict methods:\n";
+            oss << "    .get(key), .get(key, default)   - get value by key\n";
+            oss << "    .has(key)                       - check if key exists\n";
+            oss << "    .size()                         - number of entries\n";
+            oss << "    .isEmpty()                      - check if empty\n";
+            oss << "    .put(key, value)                - add/update entry\n";
+            oss << "    .remove(key)                    - remove entry\n";
+            oss << "    .keys(), .values()              - get keys/values as array\n";
+            oss << "    .clone()                        - shallow copy\n";
+            if (!dict.empty()) {
+                oss << "\n  Dict keys: ";
+                size_t count = 0;
+                for (const auto& pair : dict) {
+                    if (count > 0) oss << ", ";
+                    oss << pair.first;
+                    if (++count >= 10) { oss << "..."; break; }
+                }
+                oss << "\n";
+                oss << "  Access keys with: dict.keyName or dict.get(\"keyName\")\n";
+            }
+            throw std::runtime_error(oss.str());
+        }
+
+        // ===== Built-in ARRAY methods =====
+        if (auto* arr_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&obj->data)) {
+            auto& arr = *arr_ptr;
+
+            if (method_name == "size" || method_name == "length") {
+                result_ = std::make_shared<Value>(static_cast<int>(arr.size()));
+                return;
+            }
+            if (method_name == "isEmpty") {
+                result_ = std::make_shared<Value>(arr.empty());
+                return;
+            }
+            if (method_name == "add" || method_name == "push" || method_name == "append") {
+                if (args.empty()) throw std::runtime_error("array.add() requires 1 argument");
+                arr.push_back(args[0]);
+                auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                if (obj_id && current_env_->has(obj_id->getName())) {
+                    current_env_->set(obj_id->getName(), obj);
+                }
+                result_ = obj;
+                return;
+            }
+            if (method_name == "get") {
+                if (args.empty()) throw std::runtime_error("array.get() requires 1 argument (index)");
+                int idx = std::get<int>(args[0]->data);
+                if (idx < 0 || idx >= static_cast<int>(arr.size())) {
+                    throw std::runtime_error(fmt::format("Array index out of bounds: {} (size: {})", idx, arr.size()));
+                }
+                result_ = arr[idx];
+                return;
+            }
+            if (method_name == "contains" || method_name == "includes") {
+                if (args.empty()) throw std::runtime_error("array.contains() requires 1 argument");
+                bool found = false;
+                for (const auto& item : arr) {
+                    if (item->toString() == args[0]->toString()) { found = true; break; }
+                }
+                result_ = std::make_shared<Value>(found);
+                return;
+            }
+            if (method_name == "take") {
+                if (args.empty()) throw std::runtime_error("array.take() requires 1 argument (count)");
+                int count = std::get<int>(args[0]->data);
+                std::vector<std::shared_ptr<Value>> taken;
+                for (int i = 0; i < count && i < static_cast<int>(arr.size()); i++) {
+                    taken.push_back(arr[i]);
+                }
+                result_ = std::make_shared<Value>(taken);
+                return;
+            }
+            if (method_name == "clone" || method_name == "copy") {
+                auto new_arr = arr;
+                result_ = std::make_shared<Value>(new_arr);
+                return;
+            }
+            if (method_name == "remove" || method_name == "removeAt") {
+                if (args.empty()) throw std::runtime_error("array.remove() requires 1 argument (index)");
+                int idx = std::get<int>(args[0]->data);
+                if (idx >= 0 && idx < static_cast<int>(arr.size())) {
+                    arr.erase(arr.begin() + idx);
+                }
+                auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                if (obj_id && current_env_->has(obj_id->getName())) {
+                    current_env_->set(obj_id->getName(), obj);
+                }
+                result_ = obj;
+                return;
+            }
+            // Not a built-in array method - fall through to normal handling
+        }
+
+        // ===== Built-in STRING methods (skip module markers) =====
+        if (auto* str_ptr = std::get_if<std::string>(&obj->data)) {
+            auto& str = *str_ptr;
+
+            if (str.substr(0, 18) == "__stdlib_module__:" ||
+                str.substr(0, 10) == "__module__:") {
+                // Fall through to normal member access
+            } else
+
+            if (method_name == "size" || method_name == "length") {
+                result_ = std::make_shared<Value>(static_cast<int>(str.size()));
+                return;
+            }
+            if (method_name == "isEmpty") {
+                result_ = std::make_shared<Value>(str.empty());
+                return;
+            }
+            if (method_name == "contains" || method_name == "includes") {
+                if (args.empty()) throw std::runtime_error("string.contains() requires 1 argument");
+                result_ = std::make_shared<Value>(str.find(args[0]->toString()) != std::string::npos);
+                return;
+            }
+            if (method_name == "indexOf") {
+                if (args.empty()) throw std::runtime_error("string.indexOf() requires 1 argument");
+                auto pos = str.find(args[0]->toString());
+                result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                return;
+            }
+            if (method_name == "lastIndexOf") {
+                if (args.empty()) throw std::runtime_error("string.lastIndexOf() requires 1 argument");
+                auto pos = str.rfind(args[0]->toString());
+                result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                return;
+            }
+            if (method_name == "substring" || method_name == "substr" || method_name == "slice") {
+                if (args.empty()) throw std::runtime_error("string.substring() requires at least 1 argument (start)");
+                int start = std::get<int>(args[0]->data);
+                if (start < 0) start = 0;
+                if (start >= static_cast<int>(str.size())) {
+                    result_ = std::make_shared<Value>(std::string(""));
+                    return;
+                }
+                if (args.size() >= 2) {
+                    int end = std::get<int>(args[1]->data);
+                    if (end > static_cast<int>(str.size())) end = static_cast<int>(str.size());
+                    result_ = std::make_shared<Value>(str.substr(start, end - start));
+                } else {
+                    result_ = std::make_shared<Value>(str.substr(start));
+                }
+                return;
+            }
+            if (method_name == "replace") {
+                if (args.size() < 2) throw std::runtime_error("string.replace() requires 2 arguments (old, new)");
+                std::string old_str = args[0]->toString();
+                std::string new_str = args[1]->toString();
+                std::string result = str;
+                size_t pos = 0;
+                while ((pos = result.find(old_str, pos)) != std::string::npos) {
+                    result.replace(pos, old_str.length(), new_str);
+                    pos += new_str.length();
+                }
+                result_ = std::make_shared<Value>(result);
+                return;
+            }
+            if (method_name == "toUpperCase" || method_name == "upper") {
+                std::string result = str;
+                std::transform(result.begin(), result.end(), result.begin(), ::toupper);
+                result_ = std::make_shared<Value>(result);
+                return;
+            }
+            if (method_name == "toLowerCase" || method_name == "lower") {
+                std::string result = str;
+                std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+                result_ = std::make_shared<Value>(result);
+                return;
+            }
+            if (method_name == "trim") {
+                std::string result = str;
+                result.erase(0, result.find_first_not_of(" \t\n\r"));
+                result.erase(result.find_last_not_of(" \t\n\r") + 1);
+                result_ = std::make_shared<Value>(result);
+                return;
+            }
+            if (method_name == "split") {
+                if (args.empty()) throw std::runtime_error("string.split() requires 1 argument (separator)");
+                std::string sep = args[0]->toString();
+                std::vector<std::shared_ptr<Value>> parts;
+                if (sep.empty()) {
+                    for (char c : str) parts.push_back(std::make_shared<Value>(std::string(1, c)));
+                } else {
+                    size_t start = 0, pos;
+                    while ((pos = str.find(sep, start)) != std::string::npos) {
+                        parts.push_back(std::make_shared<Value>(str.substr(start, pos - start)));
+                        start = pos + sep.size();
+                    }
+                    parts.push_back(std::make_shared<Value>(str.substr(start)));
+                }
+                result_ = std::make_shared<Value>(parts);
+                return;
+            }
+            if (method_name == "startsWith") {
+                if (args.empty()) throw std::runtime_error("string.startsWith() requires 1 argument");
+                result_ = std::make_shared<Value>(str.find(args[0]->toString()) == 0);
+                return;
+            }
+            if (method_name == "endsWith") {
+                if (args.empty()) throw std::runtime_error("string.endsWith() requires 1 argument");
+                std::string suffix = args[0]->toString();
+                result_ = std::make_shared<Value>(
+                    str.size() >= suffix.size() &&
+                    str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0
+                );
+                return;
+            }
+            // Not a built-in string method - fall through to normal handling
+        }
+
+        // ===== Normal member access call (functions stored in dicts, struct methods, etc.) =====
+        // Evaluate the full member access
         member_call->accept(*this);
         auto func_value = result_;
 
         // Check if it's a function
         if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&func_value->data)) {
-            auto& func = *func_ptr;
-
-            // Check parameter count (simplified - no defaults for now)
-            if (args.size() != func->params.size()) {
-                throw std::runtime_error(
-                    fmt::format("Function {} expects {} arguments, got {}",
-                               func->name, func->params.size(), args.size())
-                );
-            }
-
-            // ISS-022: Create new environment with closure as parent (lexical scoping)
-            auto parent_env = func->closure ? func->closure : global_env_;
-            auto func_env = std::make_shared<Environment>(parent_env);
-
-            // Bind parameters
-            for (size_t i = 0; i < func->params.size(); i++) {
-                func_env->define(func->params[i], args[i]);
-            }
-
-            // Execute function body
-            auto saved_env = current_env_;
-            auto saved_returning = returning_;
-            current_env_ = func_env;
-            returning_ = false;
-
-            func->body->accept(*this);
-
-            current_env_ = saved_env;
-            returning_ = saved_returning;
+            result_ = callFunction(func_value, args);
             return;
         }
 
