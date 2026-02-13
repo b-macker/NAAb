@@ -337,13 +337,19 @@ std::shared_ptr<Value> Environment::get(const std::string& name) {
     if (name == "Sys" || name == "System" || name == "sys") {
         error_msg += "\n\n  NAAb does not have a 'Sys' object. Use built-in functions directly:\n"
                      "    print(\"hello\")          // instead of Sys.print(\"hello\")\n"
-                     "    print(\"error: oops\")    // instead of Sys.error(\"oops\")\n"
-                     "    myFunc(arg1, arg2)      // instead of Sys.callFunction(myFunc, arg1, arg2)\n\n"
-                     "  To call a function stored in a dict:\n"
-                     "    let fn = myDict.get(\"funcName\")\n"
-                     "    fn(args)                // call it directly\n"
-                     "    // or: myDict.funcName(args)\n\n"
-                     "  Built-in functions: print, len, type, typeof, int, float, string, bool";
+                     "    print(\"error: oops\")    // instead of Sys.error(\"oops\")\n\n"
+                     "  IMPORTANT - Sys.callFunction is NOT needed in NAAb:\n"
+                     "    Functions are first-class values. Call them directly:\n"
+                     "      let fn = someDict.get(\"myFunc\")\n"
+                     "      let result = fn(arg1, arg2)    // NOT Sys.callFunction(fn, arg1, arg2)\n"
+                     "      // or: someDict.myFunc(arg1, arg2)\n\n"
+                     "  Common replacements:\n"
+                     "    Sys.callFunction(fn, a, b) -> fn(a, b)\n"
+                     "    Sys.print(msg)             -> print(msg)\n"
+                     "    Sys.exit(code)             -> // just return or end the block\n\n"
+                     "  Built-in functions: print, len, type, typeof, int, float, string, bool\n"
+                     "  For sleep: import time; time.sleep(milliseconds)\n"
+                     "  For exit:  NAAb has no exit(). End the main block or return from functions.";
     } else if (name == "Console" || name == "console") {
         error_msg += "\n\n  NAAb does not have a 'Console' object. Use:\n"
                      "    print(\"hello\")          // instead of Console.log(\"hello\")\n"
@@ -365,6 +371,48 @@ std::shared_ptr<Value> Environment::get(const std::string& name) {
         error_msg += "\n\n  NAAb file functions are in the 'file' module:\n"
                      "    import file\n"
                      "    let content = file.read(\"path.txt\")";
+    } else if (name == "sleep") {
+        error_msg += "\n\n  'sleep' is not a global built-in. It's in the time module:\n"
+                     "    import time\n"
+                     "    time.sleep(1000)         // sleep for 1000 milliseconds";
+    } else if (name == "exit") {
+        error_msg += "\n\n  NAAb has no exit() function. To stop execution:\n"
+                     "    return              // from a function\n"
+                     "    // or just let the main block end naturally";
+    } else if (name == "error") {
+        error_msg += "\n\n  'error' is not a built-in function. To print errors:\n"
+                     "    print(\"ERROR: something went wrong\")\n"
+                     "  To throw an error:\n"
+                     "    throw \"something went wrong\"";
+    } else if (name == "require" || name == "include") {
+        error_msg += "\n\n  NAAb uses 'import' for modules, not 'require':\n"
+                     "    import \"path/to/module.naab\" as MyModule\n"
+                     "    import math        // stdlib module";
+    } else if (name == "callFunction") {
+        error_msg += "\n\n  NAAb does not need callFunction(). Functions are first-class:\n"
+                     "    let fn = myDict.get(\"funcName\")\n"
+                     "    let result = fn(arg1, arg2)   // call directly\n"
+                     "    // or: myDict.funcName(arg1, arg2)";
+    } else if (name == "process" || name == "os" || name == "OS") {
+        error_msg += "\n\n  NAAb does not have a '" + name + "' object.\n"
+                     "    For environment variables: import env; env.get(\"PATH\")\n"
+                     "    For command args: import env; let args = env.args()";
+    } else if (name == "this" || name == "self") {
+        error_msg += "\n\n  NAAb does not use '" + name + "'. In structs, access fields directly:\n"
+                     "    struct Point { x: Int, y: Int }\n"
+                     "  In closures/dicts, capture variables from the enclosing scope.";
+    } else if (name == "new") {
+        error_msg += "\n\n  NAAb does not use 'new'. Create struct instances directly:\n"
+                     "    let p = Point { x: 1, y: 2 }\n"
+                     "  For dicts: let d = {\"key\": \"value\"}";
+    } else if (name == "None" || name == "nil" || name == "undefined") {
+        error_msg += "\n\n  NAAb uses 'null' (not '" + name + "'):\n"
+                     "    let x = null";
+    } else if (name == "Object" || name == "Map") {
+        error_msg += "\n\n  NAAb dicts are created with literal syntax:\n"
+                     "    let d = {\"key\": \"value\"}\n"
+                     "    d.get(\"key\")    // access values\n"
+                     "    d.put(\"k\", v)   // set values";
     } else if (name == "JSON") {
         error_msg += "\n\n  NAAb does not have a JSON object. Dicts are native:\n"
                      "    let data = {\"key\": \"value\"}  // dict literal\n"
@@ -4457,15 +4505,49 @@ void Interpreter::visit(ast::CallExpr& node) {
         result_ = std::make_shared<Value>();  // Return void
     }
     else {
-        // Function not found
+        // Function not found - provide targeted hints for common mistakes
         std::ostringstream oss;
         oss << "Name error: Undefined function\n\n";
         oss << "  Function: " << func_name << "\n\n";
-        oss << "  Help:\n";
-        oss << "  - Check for typos in the function name\n";
-        oss << "  - Make sure the function is defined before calling\n";
-        oss << "  - For stdlib functions, use module.function() (e.g., array.push())\n\n";
-        oss << "  Common builtins: print, len, type, typeof, int, float, string, bool\n\n";
+
+        // Targeted hints for commonly misused function names
+        if (func_name == "sleep") {
+            oss << "  'sleep' is in the time module, not a global function:\n";
+            oss << "    import time\n";
+            oss << "    time.sleep(1000)  // sleep for 1000 milliseconds\n";
+        } else if (func_name == "exit") {
+            oss << "  NAAb has no exit() function.\n";
+            oss << "  To stop: return from functions, or let main block end.\n";
+        } else if (func_name == "error") {
+            oss << "  'error' is not a built-in. To print errors:\n";
+            oss << "    print(\"ERROR: something went wrong\")\n";
+        } else if (func_name == "callFunction") {
+            oss << "  NAAb does not need callFunction(). Functions are first-class:\n";
+            oss << "    let result = fn(arg1, arg2)   // call directly\n";
+        } else if (func_name == "parseInt" || func_name == "parseFloat" || func_name == "Number") {
+            oss << "  Use NAAb type conversion functions:\n";
+            oss << "    int(\"42\")     // instead of parseInt(\"42\")\n";
+            oss << "    float(\"3.14\") // instead of parseFloat(\"3.14\")\n";
+        } else if (func_name == "toString" || func_name == "str") {
+            oss << "  Use NAAb type conversion:\n";
+            oss << "    string(42)    // instead of toString(42)\n";
+        } else if (func_name == "keys" || func_name == "values") {
+            oss << "  '" << func_name << "' is a method on dicts, not a global function:\n";
+            oss << "    myDict." << func_name << "()  // correct\n";
+        } else if (func_name == "push" || func_name == "append" || func_name == "pop") {
+            oss << "  '" << func_name << "' is a method on arrays, not a global function:\n";
+            oss << "    myArray." << func_name << "(item)  // correct\n";
+            oss << "    // or: import array; array.push(myArray, item)\n";
+        } else if (func_name == "forEach" || func_name == "map" || func_name == "filter" || func_name == "reduce") {
+            oss << "  NAAb uses for-in loops instead of " << func_name << ":\n";
+            oss << "    for item in myArray { print(item) }\n";
+        } else {
+            oss << "  Help:\n";
+            oss << "  - Check for typos in the function name\n";
+            oss << "  - Make sure the function is defined before calling\n";
+            oss << "  - For stdlib functions, use module.function() (e.g., array.push())\n";
+        }
+        oss << "\n  Common builtins: print, len, type, typeof, int, float, string, bool\n\n";
         oss << "  Example:\n";
         oss << "    ✗ Wrong: printt(\"hello\")  // typo\n";
         oss << "    ✓ Right: print(\"hello\")\n";
@@ -4816,8 +4898,14 @@ void Interpreter::visit(ast::LiteralExpr& node) {
                                 result += result_->toString();
                             }
                         } catch (const std::exception& e) {
-                            // On error, keep the original ${...} text
-                            result += "${" + expr_text + "}";
+                            // Rethrow with context about the interpolation
+                            std::string interp_err = std::string(e.what());
+                            interp_err += "\n\n  Error occurred inside string interpolation: ${" + expr_text + "}\n"
+                                         "  The expression inside ${...} must be a valid NAAb expression.\n"
+                                         "  If calling a function stored in a variable, call it directly:\n"
+                                         "    \"${myFunc()}\"              // correct\n"
+                                         "    \"${Sys.callFunction(fn)}\"  // WRONG - no Sys in NAAb";
+                            throw std::runtime_error(interp_err);
                         }
                     } else {
                         result += raw[i];
