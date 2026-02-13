@@ -1,0 +1,50 @@
+// Test: keywords allowed as variable names, parameter names, and loop variables
+main {
+    // Test 1: 'config' as variable name
+    let config = {"debug": true, "port": 8080}
+    print(config["port"])
+
+    // Test 2: 'init' as variable name
+    let init = "initialized"
+    print(init)
+
+    // Test 3: 'module' as variable name
+    let module = "my_module"
+    print(module)
+
+    // Test 4: 'default' as variable name
+    let default = 42
+    print(default)
+
+    // Test 5: 'use' as variable name
+    let use = "something"
+    print(use)
+
+    // Test 6: 'await' as variable name
+    let await = "pending"
+    print(await)
+
+    // Test 7: 'config' as function parameter
+    func setup(config: string): string {
+        return "Setup: " + config
+    }
+    print(setup("test"))
+
+    // Test 8: 'init' as function parameter
+    func create(init: int): int {
+        return init * 2
+    }
+    print(create(5))
+
+    // Test 9: 'module' as loop variable
+    let modules = ["a", "b", "c"]
+    for module in modules {
+        print(module)
+    }
+
+    // Test 10: lambda with keyword param
+    let process = func(config: int) { return config + 100 }
+    print(process(50))
+
+    print("done")
+}

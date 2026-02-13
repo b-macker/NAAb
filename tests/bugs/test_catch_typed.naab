@@ -1,0 +1,18 @@
+// Test: catch with optional type annotation
+main {
+    // Test 1: catch (e: Exception) - typed catch
+    try {
+        let x = 1 / 0
+    } catch (e: Exception) {
+        print("caught typed: " + e)
+    }
+
+    // Test 2: catch (e) - untyped catch (always worked)
+    try {
+        throw "custom error"
+    } catch (e) {
+        print("caught untyped: " + e)
+    }
+
+    print("done")
+}

@@ -1,0 +1,5 @@
+// Test: reserved keywords should give helpful error messages
+// This file is expected to FAIL with a helpful error
+main {
+    let return = 5
+}

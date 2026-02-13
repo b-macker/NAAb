@@ -1420,10 +1420,21 @@ void Interpreter::visit(ast::FunctionDecl& node) {
     // Phase 2.4.4 Phase 2: Infer return type if not explicitly provided
     ast::Type return_type = node.getReturnType();
     if (return_type.kind == ast::TypeKind::Any) {
-        // Return type was not specified - infer it from function body
-        return_type = inferReturnType(body);
-        LOG_DEBUG("[INFO] Inferred return type for function '{}': {}\n",
-                   node.getName(), formatTypeName(return_type));
+        // Only attempt return type inference if all parameters have explicit types.
+        // If any param has type Any (no annotation), inference would try to evaluate
+        // the body at declaration time, causing "Undefined variable" errors for params.
+        bool all_params_typed = true;
+        for (const auto& param : node.getParams()) {
+            if (param.type.kind == ast::TypeKind::Any) {
+                all_params_typed = false;
+                break;
+            }
+        }
+        if (all_params_typed) {
+            return_type = inferReturnType(body);
+            LOG_DEBUG("[INFO] Inferred return type for function '{}': {}\n",
+                       node.getName(), formatTypeName(return_type));
+        }
     }
 
     // Phase 2.4.1: Create FunctionValue with types and type parameters

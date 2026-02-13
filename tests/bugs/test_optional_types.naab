@@ -1,0 +1,33 @@
+// Test: function parameters without type annotations
+main {
+    // Test 1: No type annotations at all
+    func add(a, b) {
+        return a + b
+    }
+    print(add(3, 7))
+
+    // Test 2: Mixed - some with types, some without
+    func greet(name: string, greeting) {
+        return greeting + " " + name
+    }
+    print(greet("World", "Hello"))
+
+    // Test 3: No types with default value
+    func power(base, exp: int) {
+        let result = 1
+        for i in 0..exp {
+            result = result * base
+        }
+        return result
+    }
+    print(power(2, 10))
+
+    // Test 4: Higher-order function with func param (no type)
+    func apply(fn, value) {
+        return fn(value)
+    }
+    func triple(x) { return x * 3 }
+    print(apply(triple, 5))
+
+    print("done")
+}

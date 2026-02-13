@@ -27,6 +27,173 @@ Parser::DepthGuard::~DepthGuard() {
     --depth_;
 }
 
+// ============================================================================
+// Name token helpers - centralized keyword-as-name handling
+// ============================================================================
+
+// Helper: Check if a token type can be used as a name (variable, parameter, etc.)
+// Many keywords are valid names in context (e.g., 'config', 'init', 'module')
+static bool isAllowedNameToken(lexer::TokenType type) {
+    switch (type) {
+        case lexer::TokenType::IDENTIFIER:
+        case lexer::TokenType::CONFIG:
+        case lexer::TokenType::INIT:
+        case lexer::TokenType::MODULE:
+        case lexer::TokenType::FROM:
+        case lexer::TokenType::DEFAULT:
+        case lexer::TokenType::MATCH:
+        case lexer::TokenType::METHOD:
+        case lexer::TokenType::NEW:
+        case lexer::TokenType::CLASS:
+        case lexer::TokenType::ENUM:
+        case lexer::TokenType::AS:
+        case lexer::TokenType::IN:
+        case lexer::TokenType::ASYNC:
+        case lexer::TokenType::AWAIT:
+        case lexer::TokenType::IMPORT:
+        case lexer::TokenType::EXPORT:
+        case lexer::TokenType::USE:
+        case lexer::TokenType::REF:
+        case lexer::TokenType::FUNCTION:  // 'func'/'fn'/'def' used as param names
+        case lexer::TokenType::STRUCT:    // 'struct' used as name
+        case lexer::TokenType::TRY:
+        case lexer::TokenType::CATCH:
+        case lexer::TokenType::THROW:
+        case lexer::TokenType::FINALLY:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Helper: Check if a token type can be used as a member name after '.'
+// More permissive than variable names - allows almost all keywords
+static bool isAllowedMemberToken(lexer::TokenType type) {
+    if (isAllowedNameToken(type)) return true;
+    switch (type) {
+        case lexer::TokenType::IF:
+        case lexer::TokenType::ELSE:
+        case lexer::TokenType::FOR:
+        case lexer::TokenType::WHILE:
+        case lexer::TokenType::BREAK:
+        case lexer::TokenType::CONTINUE:
+        case lexer::TokenType::RETURN:
+        case lexer::TokenType::TRY:
+        case lexer::TokenType::CATCH:
+        case lexer::TokenType::THROW:
+        case lexer::TokenType::FINALLY:
+        case lexer::TokenType::LET:
+        case lexer::TokenType::CONST:
+        case lexer::TokenType::FUNCTION:
+        case lexer::TokenType::STRUCT:
+        case lexer::TokenType::MAIN:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// Reserved keywords that cannot be used as variable/parameter names
+// Note: 'func'/'fn'/'def' map to FUNCTION token but ARE allowed as param names
+// (e.g., `fn apply(func: function)` is valid - 'func' is the param name)
+static const std::unordered_set<std::string> forbidden_names = {
+    "if", "else", "for", "while", "break", "continue",
+    "return", "let", "const", "main", "true", "false", "null"
+};
+
+// Helper: Format a helpful error when a reserved keyword is used as a name
+static std::string formatReservedNameError(const std::string& name, const std::string& context) {
+    std::string msg = fmt::format(
+        "'{}' is a reserved keyword and cannot be used as a {} name\n\n"
+        "  Help: '{}' is used for control flow in NAAb.\n"
+        "  Try a descriptive alternative instead:\n\n",
+        name, context, name
+    );
+
+    if (name == "if" || name == "else") {
+        msg += "  Example:\n"
+               "    ✗ Wrong: let if = true\n"
+               "    ✓ Right: let condition = true\n"
+               "    ✓ Right: let is_ready = true\n";
+    } else if (name == "for" || name == "while") {
+        msg += "  Example:\n"
+               "    ✗ Wrong: let for = items\n"
+               "    ✓ Right: let items = [1, 2, 3]\n"
+               "    ✓ Right: let loop_count = 10\n";
+    } else if (name == "return") {
+        msg += "  Example:\n"
+               "    ✗ Wrong: let return = getValue()\n"
+               "    ✓ Right: let result = getValue()\n"
+               "    ✓ Right: let output = getValue()\n";
+    } else if (name == "function" || name == "fn" || name == "func" || name == "def") {
+        msg += "  Example:\n"
+               "    ✗ Wrong: let func = someFunction\n"
+               "    ✓ Right: let handler = someFunction\n"
+               "    ✓ Right: let callback = someFunction\n";
+    } else if (name == "let" || name == "const") {
+        msg += "  Example:\n"
+               "    ✗ Wrong: func process(let: int)\n"
+               "    ✓ Right: func process(value: int)\n";
+    } else if (name == "true" || name == "false" || name == "null") {
+        msg += "  Example:\n"
+               "    ✗ Wrong: let true = 1\n"
+               "    ✓ Right: let is_valid = true\n"
+               "    ✓ Right: let enabled = false\n";
+    } else {
+        msg += fmt::format(
+               "  Example:\n"
+               "    ✗ Wrong: let {} = value\n"
+               "    ✓ Right: let my_{} = value\n",
+               name, name
+        );
+    }
+
+    msg += "\n  Note: These keywords ARE allowed as names: config, init, module,\n"
+           "        from, default, match, method, new, class, enum, as, in,\n"
+           "        async, await, import, export, use, ref";
+
+    return msg;
+}
+
+// Helper: Format a helpful error when an unexpected token is found where a name is expected
+static std::string formatUnexpectedNameError(const lexer::Token& tok, const std::string& context) {
+    std::string msg = fmt::format(
+        "Expected {} name, got '{}' ({})\n\n",
+        context, tok.value,
+        tok.type == lexer::TokenType::LBRACE ? "opening brace" :
+        tok.type == lexer::TokenType::LPAREN ? "opening parenthesis" :
+        tok.type == lexer::TokenType::RPAREN ? "closing parenthesis" :
+        tok.type == lexer::TokenType::COLON ? "colon" :
+        tok.type == lexer::TokenType::EQ ? "equals sign" :
+        tok.type == lexer::TokenType::COMMA ? "comma" :
+        "unexpected token"
+    );
+
+    if (context == "variable") {
+        msg += "  Help: Variable names must be identifiers.\n\n"
+               "  Example:\n"
+               "    let myVariable = 10\n"
+               "    let user_name = \"Alice\"\n"
+               "    let config = {\"key\": \"value\"}\n";
+    } else if (context == "parameter") {
+        msg += "  Help: Parameter names must be identifiers.\n\n"
+               "  Example:\n"
+               "    func process(input: string, count: int) {\n"
+               "        // ...\n"
+               "    }\n";
+    } else if (context == "loop variable") {
+        msg += "  Help: For-loop variable must be an identifier.\n\n"
+               "  Example:\n"
+               "    for item in items {\n"
+               "        print(item)\n"
+               "    }\n";
+    }
+
+    return msg;
+}
+
+// ============================================================================
+
 Parser::Parser(const std::vector<lexer::Token>& tokens)
     : tokens_(tokens), pos_(0),
       stored_gt_token_(lexer::TokenType::GT, ">", 0, 0),  // Initialize with dummy values
@@ -657,23 +824,32 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
     if (!check(lexer::TokenType::RPAREN)) {
         do {
             skipNewlines();
-            auto& param_name = expect(lexer::TokenType::IDENTIFIER, "Expected parameter name");
-
-            // Check if parameter name is a reserved keyword
-            if (isReservedKeyword(param_name.value)) {
-                throw ParseError(fmt::format(
-                    "Cannot use reserved keyword '{}' as parameter name at line {}\n\n"
-                    "Help: '{}' is a reserved keyword. Try using a different name:\n"
-                    "  Suggestions: {}",
-                    param_name.value,
-                    param_name.line,
-                    param_name.value,
-                    suggestAlternatives(param_name.value)
+            // Accept identifiers and most keywords as parameter names
+            // (keywords like 'config', 'init', 'module' are commonly used as param names)
+            auto& param_tok = current();
+            std::string param_name_str;
+            if (isAllowedNameToken(param_tok.type)) {
+                param_name_str = param_tok.value;
+                advance();
+                // Check for forbidden names
+                if (forbidden_names.count(param_name_str)) {
+                    throw ParseError(formatError(
+                        formatReservedNameError(param_name_str, "parameter"),
+                        param_tok
+                    ));
+                }
+            } else {
+                throw ParseError(formatError(
+                    formatUnexpectedNameError(param_tok, "parameter"),
+                    param_tok
                 ));
             }
 
-            expect(lexer::TokenType::COLON, "Expected ':' after parameter name");
-            ast::Type param_type = parseType();
+            // Optional type annotation: param: type (type defaults to Any if omitted)
+            ast::Type param_type = ast::Type::makeAny();
+            if (match(lexer::TokenType::COLON)) {
+                param_type = parseType();
+            }
 
             // Optional default value
             std::optional<std::unique_ptr<ast::Expr>> default_value;
@@ -681,7 +857,7 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
                 default_value = parseExpression();
             }
 
-            params.push_back({param_name.value, param_type, std::move(default_value)});
+            params.push_back({param_name_str, param_type, std::move(default_value)});
 
             skipNewlines();
         } while (match(lexer::TokenType::COMMA));
@@ -892,10 +1068,16 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
         return parseReturnStmt();
     }
     // Handle nested function declarations
+    // Disambiguate: `func myFunc(...)` = declaration, `func(...)` or `func(x)` = expression
     if (check(lexer::TokenType::FUNCTION)) {
-        auto func_decl = parseFunctionDecl();
-        auto loc = func_decl->getLocation();
-        return std::make_unique<ast::FunctionDeclStmt>(std::move(func_decl), loc);
+        // If FUNCTION followed by IDENTIFIER, it's a function declaration
+        if (pos_ + 1 < tokens_.size() && isAllowedNameToken(tokens_[pos_ + 1].type) &&
+            tokens_[pos_ + 1].type != lexer::TokenType::FUNCTION) {
+            auto func_decl = parseFunctionDecl();
+            auto loc = func_decl->getLocation();
+            return std::make_unique<ast::FunctionDeclStmt>(std::move(func_decl), loc);
+        }
+        // Otherwise fall through to expression statement (lambda or variable call)
     }
     // Handle nested struct declarations
     if (check(lexer::TokenType::STRUCT)) {
@@ -926,6 +1108,32 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
     }
     if (check(lexer::TokenType::LET) || check(lexer::TokenType::CONST)) {
         return parseVarDeclStmt();
+    }
+
+    // Detect 'match' keyword and provide helpful error
+    if (check(lexer::TokenType::MATCH)) {
+        auto& tok = current();
+        throw std::runtime_error(
+            fmt::format(
+                "Parse error at line {}, column {}: 'match' statements are not yet supported in NAAb.\n\n"
+                "  Use if/else if/else instead:\n\n"
+                "  \xE2\x9C\x97 Not supported:\n"
+                "    match value {{\n"
+                "        \"a\" => doA()\n"
+                "        \"b\" => doB()\n"
+                "        _ => doDefault()\n"
+                "    }}\n\n"
+                "  \xE2\x9C\x93 Use this instead:\n"
+                "    if value == \"a\" {{\n"
+                "        doA()\n"
+                "    }} else if value == \"b\" {{\n"
+                "        doB()\n"
+                "    }} else {{\n"
+                "        doDefault()\n"
+                "    }}",
+                tok.line, tok.column
+            )
+        );
     }
 
     // Detect 'var' keyword and suggest 'let'
@@ -1037,8 +1245,18 @@ std::unique_ptr<ast::ForStmt> Parser::parseForStmt() {
     // Allow optional parentheses: `for (x in items)` or `for x in items`
     bool has_parens = match(lexer::TokenType::LPAREN);
 
-    auto& var_name = expect(lexer::TokenType::IDENTIFIER, "Expected variable name");
-    std::string var = var_name.value;
+    // Accept identifiers and common keywords as loop variable names
+    auto& var_tok = current();
+    std::string var;
+    if (isAllowedNameToken(var_tok.type)) {
+        var = var_tok.value;
+        advance();
+    } else {
+        throw ParseError(formatError(
+            formatUnexpectedNameError(var_tok, "loop variable"),
+            var_tok
+        ));
+    }
 
     expect(lexer::TokenType::IN, "Expected 'in'");
 
@@ -1087,7 +1305,7 @@ std::unique_ptr<ast::TryStmt> Parser::parseTryStmt() {
 
     // Parse catch (error_name) { ... }
     // Check for common mistake: catch e instead of catch (e)
-    if (check(lexer::TokenType::IDENTIFIER)) {
+    if (check(lexer::TokenType::IDENTIFIER) || isAllowedNameToken(current().type)) {
         throw std::runtime_error(
             "Syntax error: Missing parentheses in catch clause\n\n"
             "  NAAb requires parentheses around the error variable:\n\n"
@@ -1105,6 +1323,10 @@ std::unique_ptr<ast::TryStmt> Parser::parseTryStmt() {
     expect(lexer::TokenType::LPAREN, "Expected '(' after 'catch'");
     auto& error_name_token = expect(lexer::TokenType::IDENTIFIER, "Expected error variable name");
     std::string error_name = error_name_token.value;
+    // Allow optional type annotation: catch (e: Exception) - type is ignored
+    if (match(lexer::TokenType::COLON)) {
+        parseType();  // Consume and discard the type
+    }
     expect(lexer::TokenType::RPAREN, "Expected ')' after error name");
 
     skipNewlines();
@@ -1150,19 +1372,24 @@ std::unique_ptr<ast::VarDeclStmt> Parser::parseVarDeclStmt() {
         expect(lexer::TokenType::LET, "Expected 'let' or 'const'");
     }
 
-    auto& name_token = expect(lexer::TokenType::IDENTIFIER, "Expected variable name");
-    std::string name = name_token.value;
-
-    // Check for reserved keywords (production feedback 2026-01-31)
-    if (isReservedKeyword(name)) {
-        std::string msg = fmt::format(
-            "Cannot use reserved keyword '{}' as variable name\n\n"
-            "Help: '{}' is a reserved keyword in NAAb. Try using a different name:\n"
-            "  Suggestions: {}",
-            name, name, suggestAlternatives(name)
-        );
-        error_reporter_.error(msg, name_token.line, name_token.column);
-        throw ParseError(formatError(msg, name_token));
+    // Accept identifiers and commonly-used keywords as variable names
+    auto& name_token = current();
+    std::string name;
+    if (isAllowedNameToken(name_token.type)) {
+        name = name_token.value;
+        advance();
+        // Reject truly problematic keywords (control flow, etc.)
+        if (forbidden_names.count(name)) {
+            throw ParseError(formatError(
+                formatReservedNameError(name, "variable"),
+                name_token
+            ));
+        }
+    } else {
+        throw ParseError(formatError(
+            formatUnexpectedNameError(name_token, "variable"),
+            name_token
+        ));
     }
 
     // Optional type annotation
@@ -1536,45 +1763,21 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
             // Many keywords are valid member/method names in practice
             auto& member_tok = current();
             std::string member_name;
-            if (member_tok.type == lexer::TokenType::IDENTIFIER) {
-                member_name = member_tok.value;
-                advance();
-            } else if (member_tok.type == lexer::TokenType::INIT ||
-                       member_tok.type == lexer::TokenType::MATCH ||
-                       member_tok.type == lexer::TokenType::MODULE ||
-                       member_tok.type == lexer::TokenType::IMPORT ||
-                       member_tok.type == lexer::TokenType::EXPORT ||
-                       member_tok.type == lexer::TokenType::DEFAULT ||
-                       member_tok.type == lexer::TokenType::CONFIG ||
-                       member_tok.type == lexer::TokenType::FROM ||
-                       member_tok.type == lexer::TokenType::IN ||
-                       member_tok.type == lexer::TokenType::AS ||
-                       member_tok.type == lexer::TokenType::RETURN ||
-                       member_tok.type == lexer::TokenType::IF ||
-                       member_tok.type == lexer::TokenType::ELSE ||
-                       member_tok.type == lexer::TokenType::FOR ||
-                       member_tok.type == lexer::TokenType::WHILE ||
-                       member_tok.type == lexer::TokenType::BREAK ||
-                       member_tok.type == lexer::TokenType::CONTINUE ||
-                       member_tok.type == lexer::TokenType::TRY ||
-                       member_tok.type == lexer::TokenType::CATCH ||
-                       member_tok.type == lexer::TokenType::THROW ||
-                       member_tok.type == lexer::TokenType::FUNCTION ||
-                       member_tok.type == lexer::TokenType::CLASS ||
-                       member_tok.type == lexer::TokenType::STRUCT ||
-                       member_tok.type == lexer::TokenType::ENUM ||
-                       member_tok.type == lexer::TokenType::LET ||
-                       member_tok.type == lexer::TokenType::CONST ||
-                       member_tok.type == lexer::TokenType::ASYNC ||
-                       member_tok.type == lexer::TokenType::METHOD) {
-                // Allow reserved keywords as member names after '.'
+            if (isAllowedMemberToken(member_tok.type)) {
                 member_name = member_tok.value;
                 advance();
             } else {
-                throw ParseError(fmt::format(
-                    "Expected member name at line {}\n"
-                    "  Got: '{}'\n",
-                    member_tok.line, member_tok.value
+                throw ParseError(formatError(
+                    fmt::format(
+                        "Expected member name after '.', got '{}'\n\n"
+                        "  Help: Member names can be identifiers or keywords.\n\n"
+                        "  Example:\n"
+                        "    obj.name      // identifier\n"
+                        "    obj.init()    // keyword as method name\n"
+                        "    obj.config    // keyword as property name\n",
+                        member_tok.value
+                    ),
+                    member_tok
                 ));
             }
             expr = std::make_unique<ast::MemberExpr>(
@@ -1720,7 +1923,25 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         return std::make_unique<ast::InlineCodeExpr>(language, code, bound_vars, ast::SourceLocation());
     }
 
-    // Identifier
+    // Identifier (and keywords used as variable names like 'config', 'init', 'module', etc.)
+    // Excluded: NEW (struct literals), FUNCTION (lambdas), STRUCT/TRY/CATCH/THROW/FINALLY
+    // (these have special handling elsewhere or are only valid in declaration context)
+    if (current().type != lexer::TokenType::IDENTIFIER &&
+        current().type != lexer::TokenType::NEW &&
+        current().type != lexer::TokenType::FUNCTION &&
+        current().type != lexer::TokenType::STRUCT &&
+        current().type != lexer::TokenType::TRY &&
+        current().type != lexer::TokenType::CATCH &&
+        current().type != lexer::TokenType::THROW &&
+        current().type != lexer::TokenType::FINALLY &&
+        isAllowedNameToken(current().type)) {
+        // Keyword token being used as a variable name in expression context
+        auto& token = current();
+        std::string name = token.value;
+        ast::SourceLocation loc(token.line, token.column, filename_);
+        advance();
+        return std::make_unique<ast::IdentifierExpr>(name, loc);
+    }
     if (match(lexer::TokenType::IDENTIFIER)) {
         auto& token = tokens_[pos_ - 1];
         std::string name = token.value;
@@ -1783,12 +2004,52 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
     }
 
     // Lambda expression: function(params) { body } or func(params) { body }
+    // Disambiguate from function CALL on a variable named 'func'/'fn'/'def':
+    //   func(x) { body }    → lambda (has body block after params)
+    //   func(x)             → call expression (no body, variable reference)
     if (check(lexer::TokenType::FUNCTION)) {
-        // Peek ahead: if FUNCTION is followed by LPAREN, it's a lambda
-        // If followed by IDENTIFIER, it's a function declaration (handled elsewhere)
         if (pos_ + 1 < tokens_.size() && tokens_[pos_ + 1].type == lexer::TokenType::LPAREN) {
-            return parseLambdaExpr();
+            // Lookahead: scan past matching ')' to check for '{' (lambda body)
+            size_t lookahead = pos_ + 2;  // skip FUNCTION and LPAREN
+            int paren_depth = 1;
+            bool is_lambda = false;
+            while (lookahead < tokens_.size() && paren_depth > 0) {
+                if (tokens_[lookahead].type == lexer::TokenType::LPAREN) paren_depth++;
+                else if (tokens_[lookahead].type == lexer::TokenType::RPAREN) paren_depth--;
+                lookahead++;
+            }
+            // After matching ')': skip optional return type annotation (-> type or : type)
+            // then check for '{' (lambda body)
+            while (lookahead < tokens_.size() &&
+                   tokens_[lookahead].type == lexer::TokenType::NEWLINE) {
+                lookahead++;
+            }
+            if (lookahead < tokens_.size()) {
+                auto next_type = tokens_[lookahead].type;
+                // Lambda has: -> ReturnType { body } or : ReturnType { body } or { body }
+                if (next_type == lexer::TokenType::ARROW ||
+                    next_type == lexer::TokenType::COLON ||
+                    next_type == lexer::TokenType::LBRACE) {
+                    is_lambda = true;
+                }
+            }
+            if (is_lambda) {
+                return parseLambdaExpr();
+            } else {
+                // Not a lambda - treat FUNCTION token as identifier (variable reference)
+                auto& token = current();
+                std::string name = token.value;
+                ast::SourceLocation loc(token.line, token.column, filename_);
+                advance();
+                return std::make_unique<ast::IdentifierExpr>(name, loc);
+            }
         }
+        // FUNCTION not followed by '(' - treat as identifier
+        auto& token = current();
+        std::string name = token.value;
+        ast::SourceLocation loc(token.line, token.column, filename_);
+        advance();
+        return std::make_unique<ast::IdentifierExpr>(name, loc);
     }
 
     // Provide helpful hints for common mistakes
@@ -1881,7 +2142,24 @@ std::unique_ptr<ast::Expr> Parser::parseLambdaExpr() {
     if (!check(lexer::TokenType::RPAREN)) {
         do {
             skipNewlines();
-            auto& param_name = expect(lexer::TokenType::IDENTIFIER, "Expected parameter name");
+            // Accept identifiers and keywords as parameter names (same as function decl)
+            auto& param_tok = current();
+            std::string param_name_str;
+            if (isAllowedNameToken(param_tok.type)) {
+                param_name_str = param_tok.value;
+                advance();
+                if (forbidden_names.count(param_name_str)) {
+                    throw ParseError(formatError(
+                        formatReservedNameError(param_name_str, "parameter"),
+                        param_tok
+                    ));
+                }
+            } else {
+                throw ParseError(formatError(
+                    formatUnexpectedNameError(param_tok, "parameter"),
+                    param_tok
+                ));
+            }
 
             // Optional type annotation: param: type
             ast::Type param_type = ast::Type::makeAny();
@@ -1895,7 +2173,7 @@ std::unique_ptr<ast::Expr> Parser::parseLambdaExpr() {
                 default_value = parseExpression();
             }
 
-            params.push_back(ast::Parameter{param_name.value, param_type, std::move(default_value)});
+            params.push_back(ast::Parameter{param_name_str, param_type, std::move(default_value)});
             param_types.push_back(param_type);
             skipNewlines();
         } while (match(lexer::TokenType::COMMA));
