@@ -3330,6 +3330,41 @@ void Interpreter::visit(ast::CallExpr& node) {
                     result_ = obj_val;
                     return;
                 }
+                // Type-cast no-ops: .asList(), .toList(), .asArray(), .toArray()
+                if (method_name == "asList" || method_name == "toList" ||
+                    method_name == "asArray" || method_name == "toArray") {
+                    result_ = obj_val; // Already an array, return as-is
+                    return;
+                }
+                // join(separator) - join array elements into a string
+                if (method_name == "join") {
+                    std::string sep = args.empty() ? "," : args[0]->toString();
+                    std::string joined;
+                    for (size_t i = 0; i < arr.size(); i++) {
+                        if (i > 0) joined += sep;
+                        joined += arr[i]->toString();
+                    }
+                    result_ = std::make_shared<Value>(joined);
+                    return;
+                }
+                // reverse() - return reversed copy
+                if (method_name == "reverse" || method_name == "reversed") {
+                    std::vector<std::shared_ptr<Value>> rev(arr.rbegin(), arr.rend());
+                    result_ = std::make_shared<Value>(rev);
+                    return;
+                }
+                // indexOf(item) - find index of item, -1 if not found
+                if (method_name == "indexOf" || method_name == "findIndex") {
+                    if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
+                    for (int i = 0; i < static_cast<int>(arr.size()); i++) {
+                        if (arr[i]->toString() == args[0]->toString()) {
+                            result_ = std::make_shared<Value>(i);
+                            return;
+                        }
+                    }
+                    result_ = std::make_shared<Value>(-1);
+                    return;
+                }
                 // Not a built-in array method - fall through
             }
 
@@ -3887,6 +3922,41 @@ void Interpreter::visit(ast::CallExpr& node) {
                     current_env_->set(obj_id->getName(), obj);
                 }
                 result_ = obj;
+                return;
+            }
+            // Type-cast no-ops: .asList(), .toList(), .asArray(), .toArray()
+            if (method_name == "asList" || method_name == "toList" ||
+                method_name == "asArray" || method_name == "toArray") {
+                result_ = obj; // Already an array, return as-is
+                return;
+            }
+            // join(separator)
+            if (method_name == "join") {
+                std::string sep = args.empty() ? "," : args[0]->toString();
+                std::string joined;
+                for (size_t i = 0; i < arr.size(); i++) {
+                    if (i > 0) joined += sep;
+                    joined += arr[i]->toString();
+                }
+                result_ = std::make_shared<Value>(joined);
+                return;
+            }
+            // reverse()
+            if (method_name == "reverse" || method_name == "reversed") {
+                std::vector<std::shared_ptr<Value>> rev(arr.rbegin(), arr.rend());
+                result_ = std::make_shared<Value>(rev);
+                return;
+            }
+            // indexOf(item)
+            if (method_name == "indexOf" || method_name == "findIndex") {
+                if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
+                for (int i = 0; i < static_cast<int>(arr.size()); i++) {
+                    if (arr[i]->toString() == args[0]->toString()) {
+                        result_ = std::make_shared<Value>(i);
+                        return;
+                    }
+                }
+                result_ = std::make_shared<Value>(-1);
                 return;
             }
             // Not a built-in array method - fall through to normal handling
@@ -4514,6 +4584,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                 result_ = std::make_shared<Value>(static_cast<int>(str->length()));
             } else if (auto* list = std::get_if<std::vector<std::shared_ptr<Value>>>(&args[0]->data)) {
                 result_ = std::make_shared<Value>(static_cast<int>(list->size()));
+            } else if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&args[0]->data)) {
+                result_ = std::make_shared<Value>(static_cast<int>(dict->size()));
             } else {
                 result_ = std::make_shared<Value>(0);
             }
