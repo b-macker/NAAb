@@ -14,6 +14,33 @@
 namespace naab {
 namespace runtime {
 
+// Helper: Add hints for common C++ polyglot compilation errors
+static std::string addCppCompileHints(const std::string& stderr_output) {
+    std::string hints;
+
+    // Detect quote/escaping issues
+    if (stderr_output.find("expected expression") != std::string::npos &&
+        (stderr_output.find("\\\"") != std::string::npos || stderr_output.find("<<") != std::string::npos)) {
+        hints += "\n  Hint: Quote escaping issue in C++ polyglot block.\n"
+                 "  Escaped quotes (\\\" ) can get mangled inside <<cpp ... >> blocks.\n"
+                 "  Workarounds:\n"
+                 "    1. Use C++ raw strings:  R\"(\"key\": \"value\")\" \n"
+                 "    2. Use a quote variable:  std::string q = \"\\\"\"; then q + \"key\" + q\n"
+                 "    3. Build JSON with char:  char q = '\"'; ss << q << \"key\" << q;\n";
+    }
+
+    // Detect return statement issues (polyglot blocks use last expression, not return)
+    if (stderr_output.find("return") != std::string::npos &&
+        stderr_output.find("void function") != std::string::npos) {
+        hints += "\n  Hint: Don't use 'return' in polyglot blocks.\n"
+                 "  The last expression in the block is the return value.\n"
+                 "  Instead of: return result;\n"
+                 "  Just write: result\n";
+    }
+
+    return hints;
+}
+
 // Initialize static temp file counter for thread-safe unique file names
 std::atomic<int> CppExecutorAdapter::temp_file_counter_(0);
 
@@ -82,7 +109,7 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
         );
 
         if (compile_exit != 0) {
-            fmt::print("[ERROR] C++ compilation failed:\n{}\n", compile_stderr);
+            fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", compile_stderr, addCppCompileHints(compile_stderr));
             std::filesystem::remove(temp_cpp);
             return false;
         }
@@ -192,7 +219,7 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
     );
 
     if (compile_exit != 0) {
-        fmt::print("[ERROR] C++ compilation failed:\n{}\n", compile_stderr);
+        fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", compile_stderr, addCppCompileHints(compile_stderr));
         std::filesystem::remove(temp_cpp);
         return false;
     }
@@ -279,7 +306,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
             );
 
             if (compile_exit != 0) {
-                fmt::print("[ERROR] C++ compilation failed:\n{}\n", compile_stderr);
+                fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", compile_stderr, addCppCompileHints(compile_stderr));
                 std::filesystem::remove(temp_cpp);
                 return std::make_shared<interpreter::Value>();
             }
@@ -555,7 +582,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
         );
 
         if (compile_exit != 0) {
-            fmt::print("[ERROR] C++ compilation failed:\n{}\n", compile_stderr);
+            fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", compile_stderr, addCppCompileHints(compile_stderr));
             std::filesystem::remove(temp_cpp);
             return std::make_shared<interpreter::Value>();
         }
