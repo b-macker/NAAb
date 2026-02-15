@@ -746,6 +746,20 @@ std::unique_ptr<ast::ModuleUseStmt> Parser::parseModuleUseStmt() {
     expect(lexer::TokenType::USE, "Expected 'use'");
 
     // Parse module path: math_utils or data.processor
+    // Detect common mistake: use "path/to/file.naab" (string literal instead of module name)
+    if (check(lexer::TokenType::STRING)) {
+        auto& tok = current();
+        throw ParseError(fmt::format(
+            "Parse error {}: 'use' requires a module name, not a file path string.\n\n"
+            "  \xE2\x9C\x97 Wrong:  use \"{}\"\n"
+            "  \xE2\x9C\x93 Right:  use modules.risk_engine\n\n"
+            "  NAAb resolves modules relative to the script file's directory.\n"
+            "  If your script is at /project/output/script.naab and you need modules/risk_engine.naab,\n"
+            "  move the script to /project/script.naab, then 'use modules.risk_engine' will work.\n\n"
+            "  There is no way to use absolute file paths in 'use' statements.\n"
+            "  Place your script next to the modules/ directory instead.",
+            formatLocation(tok.line, tok.column), tok.value));
+    }
     auto& first_token = expect(lexer::TokenType::IDENTIFIER, "Expected module name");
     std::string module_path = first_token.value;
 
