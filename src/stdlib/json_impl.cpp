@@ -141,8 +141,43 @@ std::shared_ptr<interpreter::Value> JSONModule::parse(
         return jsonToValue(j);
 
     } catch (const json::parse_error& e) {
+        std::string error_msg = e.what();
+        std::string hint;
+
+        // Detect common issues and add helpful hints
+        if (error_msg.find("control character") != std::string::npos ||
+            error_msg.find("U+000A") != std::string::npos ||
+            error_msg.find("U+000D") != std::string::npos) {
+            hint = "\n\n  Help:\n"
+                   "  - The input string contains unescaped newlines or control characters.\n"
+                   "  - Common cause: C++ polyglot output includes trailing newlines (std::endl).\n"
+                   "  - Fix: Use std::cout << result (without << std::endl) in your C++ code.\n"
+                   "  - Or: Use string.trim() on the value before calling json.parse().\n";
+        } else if (error_msg.find("unexpected end of input") != std::string::npos) {
+            hint = "\n\n  Help:\n"
+                   "  - The JSON string is incomplete or empty.\n"
+                   "  - Check that the polyglot block actually outputs a value.\n"
+                   "  - Common cause: C++ code uses 'return' in void main (use std::cout instead).\n";
+        } else if (json_str.empty()) {
+            hint = "\n\n  Help:\n"
+                   "  - The input to json.parse() is an empty string.\n"
+                   "  - Ensure the polyglot block produces output via std::cout or print().\n";
+        }
+
+        // Show a preview of the problematic input
+        std::string preview = json_str.substr(0, 100);
+        // Escape control chars for display
+        std::string escaped_preview;
+        for (char c : preview) {
+            if (c == '\n') escaped_preview += "\\n";
+            else if (c == '\r') escaped_preview += "\\r";
+            else if (c == '\t') escaped_preview += "\\t";
+            else escaped_preview += c;
+        }
+
         throw std::runtime_error(
-            fmt::format("JSON parse error at byte {}: {}", e.byte, e.what())
+            fmt::format("JSON parse error at byte {}: {}{}\n\n  Input preview: \"{}\"",
+                        e.byte, e.what(), hint, escaped_preview)
         );
     } catch (const std::exception& e) {
         throw std::runtime_error(

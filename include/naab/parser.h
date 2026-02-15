@@ -50,6 +50,9 @@ private:
     mutable std::optional<lexer::Token> pending_token_;  // For splitting >> into > > in nested generics
     mutable lexer::Token stored_gt_token_;  // Storage for first > when splitting >>
 
+    // Brace tracking for better "Expected '}'" error messages
+    std::vector<size_t> brace_stack_;  // Stack of line numbers where '{' was opened
+
     // Phase 2.1: Parser context for enhanced error hints
     std::unique_ptr<ParserContext> parser_context_;
 

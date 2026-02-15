@@ -294,6 +294,12 @@ void Parser::advance() {
 
 bool Parser::match(lexer::TokenType type) {
     if (check(type)) {
+        // Track brace positions for better error messages
+        if (type == lexer::TokenType::LBRACE) {
+            brace_stack_.push_back(current().line);
+        } else if (type == lexer::TokenType::RBRACE && !brace_stack_.empty()) {
+            brace_stack_.pop_back();
+        }
         advance();
         return true;
     }
@@ -306,6 +312,12 @@ bool Parser::check(lexer::TokenType type) const {
 
 const lexer::Token& Parser::expect(lexer::TokenType type, const std::string& msg) {
     if (check(type)) {
+        // Track brace positions for better error messages
+        if (type == lexer::TokenType::LBRACE) {
+            brace_stack_.push_back(current().line);
+        } else if (type == lexer::TokenType::RBRACE && !brace_stack_.empty()) {
+            brace_stack_.pop_back();
+        }
         const auto& token = current();
         advance();
         return token;
@@ -319,6 +331,33 @@ const lexer::Token& Parser::expect(lexer::TokenType type, const std::string& msg
     auto hints = getErrorHints(token, msg);
     for (const auto& hint : hints) {
         error_reporter_.addSuggestion(hint);
+    }
+
+    // Enhanced error for missing '}' - show where the opening '{' was
+    if (type == lexer::TokenType::RBRACE && !brace_stack_.empty()) {
+        size_t open_line = brace_stack_.back();
+
+        // Count total braces in file for diagnostic
+        size_t total_open = 0, total_close = 0;
+        for (const auto& t : tokens_) {
+            if (t.type == lexer::TokenType::LBRACE) total_open++;
+            else if (t.type == lexer::TokenType::RBRACE) total_close++;
+        }
+
+        std::string enhanced_msg = fmt::format(
+            "{}\n\n"
+            "  The opening '{{' was at line {}.\n"
+            "  Brace count in file: {} opening '{{' vs {} closing '}}' ({} missing)\n\n"
+            "  Help:\n"
+            "  - You are missing {} closing '}}' brace(s)\n"
+            "  - Check that all blocks (if/for/while/func/main) between line {} and EOF are properly closed\n"
+            "  - This is NOT a parser limitation — the file just has mismatched braces",
+            formatError(msg, token), open_line,
+            total_open, total_close,
+            total_open > total_close ? total_open - total_close : total_close - total_open,
+            total_open > total_close ? total_open - total_close : total_close - total_open,
+            open_line);
+        throw ParseError(enhanced_msg);
     }
 
     throw ParseError(formatError(msg, token));

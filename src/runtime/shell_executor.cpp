@@ -117,6 +117,109 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
     }
     if (!stderr_output.empty()) {
         fmt::print("[Shell stderr]: {}", stderr_output);
+
+        // Helper hints for common shell errors
+        if (stderr_output.find("No such file or directory") != std::string::npos) {
+            if (stderr_output.find("naab-lang") != std::string::npos ||
+                stderr_output.find("naab") != std::string::npos) {
+                fmt::print("\n\n  Hint: Can't find naab-lang? Use the environment variable instead of a hardcoded path:\n"
+                           "    Python: naab_path = os.environ['NAAB_INTERPRETER_PATH']\n"
+                           "    Shell:  $NAAB_INTERPRETER_PATH\n"
+                           "  These are automatically set by NAAb at startup.\n"
+                           "  NAAB_LANGUAGE_DIR points to the language root directory.\n\n");
+            } else if (stderr_output.find("python") != std::string::npos ||
+                       stderr_output.find("Python") != std::string::npos) {
+                fmt::print("\n\n  Hint: Python script not found. Check the path is relative to the working directory,\n"
+                           "  not relative to the .naab file. Use absolute paths or os.path.abspath().\n\n");
+            } else {
+                fmt::print("\n\n  Hint: File or command not found. In <<sh blocks, paths are relative to\n"
+                           "  the working directory where naab-lang was invoked, not the .naab file location.\n\n");
+            }
+        } else if (stderr_output.find("Permission denied") != std::string::npos) {
+            fmt::print("\n\n  Hint: Permission denied. Make sure the script is executable:\n"
+                       "    chmod +x <script_path>\n\n");
+        } else if (stderr_output.find("command not found") != std::string::npos) {
+            fmt::print("\n\n  Hint: Command not found. Check that the program is installed and in your PATH.\n"
+                       "  For NAAb interpreter, use: $NAAB_INTERPRETER_PATH\n\n");
+        } else if (stderr_output.find("Module not found") != std::string::npos ||
+                   stderr_output.find("Failed to load module") != std::string::npos) {
+            fmt::print("\n\n  Hint: NAAb module not found error.\n"
+                       "  The --path flag sets the search directory for 'use' imports.\n"
+                       "  If your script has 'use modules.risk_engine', NAAb looks for:\n"
+                       "    <path>/modules/risk_engine.naab\n\n"
+                       "  So --path should be the PARENT directory of 'modules/', not the modules dir itself.\n"
+                       "  Example: if modules/ is at /project/modules/risk_engine.naab:\n"
+                       "    naab-lang run script.naab --path /project\n"
+                       "  NOT:\n"
+                       "    naab-lang run script.naab --path /project/modules\n\n");
+        } else if (stderr_output.find("Expecting value: line 1 column 1") != std::string::npos) {
+            fmt::print("\n\n  Hint: Python json.loads()/json.load() received an empty string.\n\n"
+                       "  IMPORTANT: If you have a broad 'except Exception' block, the error may NOT be\n"
+                       "  from the json.load() you think! It could be a DIFFERENT json.loads() call later\n"
+                       "  in your script (e.g., parsing subprocess output). Print the full traceback to find\n"
+                       "  the exact line:\n"
+                       "    except Exception as e:\n"
+                       "        import traceback; traceback.print_exc()  # shows EXACT line number\n\n"
+                       "  Common causes:\n"
+                       "  1. A subprocess returned empty output, and you called json.loads() on it\n"
+                       "  2. f.read() for debugging exhausted the file handle before json.load(f)\n"
+                       "  3. A different json.loads() call in your script is the one actually failing\n\n"
+                       "  Fix: Replace 'except Exception as e: print(e)' with 'traceback.print_exc()'\n"
+                       "  to see which line actually threw the error.\n\n");
+        } else if (stderr_output.find("JSONDecodeError") != std::string::npos ||
+                   stderr_output.find("json.decoder") != std::string::npos) {
+            fmt::print("\n\n  Hint: Python JSON decode error in subprocess.\n"
+                       "  - Check that the data being parsed is valid JSON (no trailing commas, no comments)\n"
+                       "  - If reading from a file, ensure the file handle isn't exhausted (don't call f.read() twice)\n"
+                       "  - If parsing subprocess output, check for non-JSON text mixed in (warnings, debug prints)\n\n");
+        } else if (stderr_output.find("TypeError") != std::string::npos &&
+                   stderr_output.find("NoneType") != std::string::npos) {
+            fmt::print("\n\n  Hint: Python TypeError with NoneType — a function returned None unexpectedly.\n"
+                       "  - Check that all functions have explicit return statements\n"
+                       "  - A failed operation (file read, API call) may have returned None\n"
+                       "  - Add 'if result is None' checks before using return values\n\n");
+        } else if (stderr_output.find("KeyError") != std::string::npos) {
+            fmt::print("\n\n  Hint: Python KeyError — a dictionary key doesn't exist.\n"
+                       "  - Use dict.get('key', default) instead of dict['key'] to avoid crashes\n"
+                       "  - Print the dict keys to verify the structure: print(list(data.keys()))\n\n");
+        } else if (stderr_output.find("NameError") != std::string::npos) {
+            fmt::print("\n\n  Hint: Python NameError — a variable or function is not defined.\n"
+                       "  - Check for typos in variable names\n"
+                       "  - Make sure the variable is defined before it's used (not in a different function scope)\n"
+                       "  - If using f-strings to generate code, the variable may be in the template\n"
+                       "    but never assigned in the function that runs the generated code\n"
+                       "  - Use 'import traceback; traceback.print_exc()' to see the exact line\n\n");
+        } else if (stderr_output.find("Traceback") != std::string::npos &&
+                   stderr_output.find("ImportError") != std::string::npos) {
+            fmt::print("\n\n  Hint: Python ImportError in subprocess.\n"
+                       "  - Install missing packages: pip install <package>\n"
+                       "  - Check that the Python version matches (python3 vs python)\n\n");
+        } else if ((stderr_output.find("exit code 1") != std::string::npos ||
+                    stderr_output.find("exit code: 1") != std::string::npos ||
+                    stderr_output.find("returncode=1") != std::string::npos) &&
+                   (stderr_output.find("naab") != std::string::npos ||
+                    stderr_output.find("NAAb") != std::string::npos)) {
+            fmt::print("\n\n  Hint: A subprocess calling naab-lang failed with exit code 1.\n"
+                       "  NAAb prints error messages to STDOUT, not stderr.\n"
+                       "  When using subprocess.run(), check result.stdout for the error:\n\n"
+                       "    result = subprocess.run(cmd, capture_output=True, text=True)\n"
+                       "    if result.returncode != 0:\n"
+                       "        print('STDOUT:', result.stdout)   # <-- NAAb errors are HERE\n"
+                       "        print('STDERR:', result.stderr)   # may be empty\n\n"
+                       "  Common NAAb script errors:\n"
+                       "  - Parse error: mismatched braces {{ }} or missing 'main {{ }}' block\n"
+                       "  - Module not found: check 'use' paths are relative to working directory\n"
+                       "  - Use env.get_args() to read command-line arguments in NAAb scripts\n\n");
+        } else if (stderr_output.find("failed") != std::string::npos &&
+                   stderr_output.find("exit code") != std::string::npos &&
+                   stderr_output.find("stderr") == std::string::npos) {
+            // Generic subprocess failure with no stderr content reported
+            fmt::print("\n\n  Hint: A subprocess failed but stderr appears empty.\n"
+                       "  Many programs (including naab-lang) print errors to stdout, not stderr.\n"
+                       "  Check stdout for error details:\n"
+                       "    result = subprocess.run(cmd, capture_output=True, text=True)\n"
+                       "    print('stdout:', result.stdout)  # check here for errors\n\n");
+        }
     }
 
     if (exit_code != 0) {

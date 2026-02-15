@@ -172,6 +172,21 @@ void print_usage() {
 }
 
 int main(int argc, char** argv) {
+    // Export interpreter path so polyglot scripts can find naab-lang
+    // This solves the common problem of Python/shell scripts not knowing
+    // where the NAAb interpreter is located
+    {
+        std::error_code ec;
+        auto exe_path = std::filesystem::canonical(argv[0], ec);
+        if (!ec) {
+            setenv("NAAB_INTERPRETER_PATH", exe_path.c_str(), 1);
+            setenv("NAAB_LANGUAGE_DIR", exe_path.parent_path().parent_path().c_str(), 1);
+        } else {
+            // Fallback: use argv[0] as-is
+            setenv("NAAB_INTERPRETER_PATH", argv[0], 1);
+        }
+    }
+
     // Phase 7c: Initialize language executors
     initialize_executors();
 
@@ -239,6 +254,25 @@ int main(int argc, char** argv) {
                 memory_limit = std::stoull(argv[++i]);
             } else if (arg == "--allow-network") {
                 network_enabled = true;
+            } else if (arg.substr(0, 2) == "--") {
+                // Unknown flag — give helpful error instead of treating as filename
+                fmt::print("Error: Unknown flag '{}'\n\n"
+                           "  Available flags:\n"
+                           "    --verbose, -v         Enable verbose output\n"
+                           "    --profile, -p         Enable performance profiling\n"
+                           "    --explain             Explain execution step-by-step\n"
+                           "    --debug, -d           Enable interactive debugger\n"
+                           "    --no-color            Disable colored error messages\n"
+                           "    --sandbox-level <L>   Security level\n"
+                           "    --timeout <seconds>   Execution timeout per block\n"
+                           "    --memory-limit <MB>   Memory limit per block\n"
+                           "    --allow-network       Enable network access\n\n"
+                           "  Note: There is no --path flag. NAAb resolves modules relative to\n"
+                           "  the script's directory. To use modules from another location,\n"
+                           "  place the script in or near the modules directory, or use\n"
+                           "  absolute paths in 'use' statements.\n", arg);
+                fflush(stdout);
+                return 1;
             } else {
                 // Non-flag argument
                 if (filename.empty()) {

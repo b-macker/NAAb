@@ -3129,13 +3129,23 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             }
 
             std::ostringstream oss;
+            std::string type_name = getTypeName(left);
             oss << "Type error: Subscript operation not supported\n\n";
-            oss << "  Tried to subscript: " << getTypeName(left) << "\n";
+            oss << "  Tried to subscript: " << type_name << "\n";
             oss << "  Supported types: array, dict\n\n";
             oss << "  Help:\n";
-            oss << "  - Only arrays and dictionaries support subscript access []\n";
-            oss << "  - For arrays: use integer indices (arr[0], arr[1])\n";
-            oss << "  - For dicts: use string keys (dict[\"key\"])\n\n";
+            if (type_name == "null" || type_name == "unknown") {
+                oss << "  - The value is null/undefined. This often means:\n";
+                oss << "    - A polyglot block (<<python/js/cpp>>) failed and returned null\n";
+                oss << "    - A function didn't return a value\n";
+                oss << "    - A variable was never assigned\n";
+                oss << "  - Check the output above for [PY ADAPTER ERROR] or similar messages\n";
+                oss << "  - Add error handling: if result != null { result[\"key\"] }\n\n";
+            } else {
+                oss << "  - Only arrays and dictionaries support subscript access []\n";
+                oss << "  - For arrays: use integer indices (arr[0], arr[1])\n";
+                oss << "  - For dicts: use string keys (dict[\"key\"])\n\n";
+            }
             oss << "  Example:\n";
             oss << "    ✗ Wrong: let x = 42; x[0]  // int doesn't support subscript\n";
             oss << "    ✓ Right: let arr = [1, 2, 3]; arr[0]\n";
@@ -5945,7 +5955,9 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
             if (c == '"') escaped += "\\\"";
             else if (c == '\\') escaped += "\\\\";
             else if (c == '\n') escaped += "\\n";
+            else if (c == '\r') escaped += "\\r";
             else if (c == '\t') escaped += "\\t";
+            else if (c == '\0') escaped += "\\0";
             else escaped += c;
         }
         return "\"" + escaped + "\"";

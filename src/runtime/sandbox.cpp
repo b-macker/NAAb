@@ -3,6 +3,7 @@
 
 #include "naab/sandbox.h"
 #include "naab/audit_logger.h"
+#include "naab/logger.h"
 #include <fmt/core.h>
 #include <algorithm>
 #include <filesystem>
@@ -122,7 +123,7 @@ void SandboxConfig::allowExecutePath(const std::string& path) {
 
 Sandbox::Sandbox(const SandboxConfig& config)
     : config_(config) {
-    fmt::print("[SANDBOX] Initialized with {} capabilities\n", config_.capabilities.size());
+    LOG_DEBUG("[SANDBOX] Initialized with {} capabilities\n", config_.capabilities.size());
 }
 
 Sandbox::~Sandbox() {

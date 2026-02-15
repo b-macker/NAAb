@@ -321,7 +321,22 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
                 if (first_pos != std::string::npos) {
                     last_expr = last_expr.substr(first_pos);
                 }
-                // Remove trailing semicolon if present
+                // Strip line comments (// ...) before processing
+                // Be careful not to strip // inside string literals
+                bool in_string = false;
+                char string_char = 0;
+                for (size_t ci = 0; ci + 1 < last_expr.size(); ci++) {
+                    if (!in_string && (last_expr[ci] == '"' || last_expr[ci] == '\'')) {
+                        in_string = true;
+                        string_char = last_expr[ci];
+                    } else if (in_string && last_expr[ci] == string_char && (ci == 0 || last_expr[ci-1] != '\\')) {
+                        in_string = false;
+                    } else if (!in_string && last_expr[ci] == '/' && last_expr[ci+1] == '/') {
+                        last_expr = last_expr.substr(0, ci);
+                        break;
+                    }
+                }
+                // Remove trailing whitespace and semicolon
                 size_t last_pos = last_expr.find_last_not_of(" \t\r\n");
                 if (last_pos != std::string::npos) {
                     last_expr = last_expr.substr(0, last_pos + 1);
@@ -340,8 +355,32 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
         if (JS_IsException(result)) {
             std::string error = getLastError();
             JS_FreeValue(ctx_, result);
+
+            // Add code preview for SyntaxErrors to help debugging
+            std::string hint;
+            if (error.find("SyntaxError") != std::string::npos) {
+                // Show first few lines of generated code
+                std::string preview = wrapped.substr(0, 500);
+                hint = fmt::format("\n\n  Generated JS code preview:\n    {}", preview);
+                // Replace newlines with indented newlines for readability
+                size_t pos = 0;
+                while ((pos = hint.find('\n', pos + 1)) != std::string::npos) {
+                    if (pos + 1 < hint.size() && hint[pos + 1] != ' ') {
+                        hint.insert(pos + 1, "    ");
+                    }
+                }
+
+                if (error.find("expecting ')'") != std::string::npos ||
+                    error.find("unexpected token") != std::string::npos) {
+                    hint += "\n\n  Hint: This may be caused by:\n"
+                            "  - Unescaped special characters in bound variables\n"
+                            "  - Template literals (`...`) with complex expressions\n"
+                            "  - Try simplifying the JS code or checking variable values\n";
+                }
+            }
+
             throw std::runtime_error(fmt::format(
-                "JavaScript evaluation failed: {}", error));
+                "JavaScript evaluation failed: {}{}", error, hint));
         }
 
         auto naab_result = fromJSValue(ctx_, result);
@@ -357,8 +396,15 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
         if (JS_IsException(result)) {
             std::string error = getLastError();
             JS_FreeValue(ctx_, result);
+
+            // Add code preview for SyntaxErrors
+            std::string hint;
+            if (error.find("SyntaxError") != std::string::npos) {
+                hint = fmt::format("\n\n  Generated JS code: {}", wrapped_expr.substr(0, 300));
+            }
+
             throw std::runtime_error(fmt::format(
-                "JavaScript evaluation failed: {}", error));
+                "JavaScript evaluation failed: {}{}", error, hint));
         }
 
         auto naab_result = fromJSValue(ctx_, result);

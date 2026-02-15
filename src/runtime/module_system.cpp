@@ -4,6 +4,7 @@
 #include "naab/module_system.h"
 #include "naab/parser.h"
 #include "naab/lexer.h"
+#include "naab/logger.h"
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -136,7 +137,7 @@ NaabModule* ModuleRegistry::loadModule(
         return getModule(module_path);
     }
 
-    fmt::print("[MODULE] Loading module: {}\n", module_path);
+    LOG_DEBUG("[MODULE] Loading module: {}\n", module_path);
 
     // Resolve file path
     auto resolved_path_opt = resolveModulePath(module_path, current_dir);
@@ -148,11 +149,38 @@ NaabModule* ModuleRegistry::loadModule(
             fmt::print("          - {}\n",
                       (std::filesystem::path(search_path) / modulePathToFilePath(module_path)).string());
         }
+        // Check for common double-path mistake (e.g., modules/modules/foo.naab)
+        std::string searched_path = (current_dir / modulePathToFilePath(module_path)).string();
+        std::string dir_name = current_dir.filename().string();
+        // Check if the module path starts with the directory name the script is in
+        bool is_double_path = (module_path.find(dir_name + ".") == 0);
+
+        if (is_double_path) {
+            // Script is in modules/ and uses "use modules.X" → double path
+            std::string suggested = module_path.substr(dir_name.size() + 1);
+            fmt::print("\n  Hint: Double path detected! Your script is inside the '{}/' directory\n"
+                       "  and uses 'use {}', which resolves to '{}'.\n\n"
+                       "  Since the script is already in '{}/', use the shorter form:\n"
+                       "    use {}  (not 'use {}')\n\n"
+                       "  Or move the script to the parent directory of '{}/'\n"
+                       "  so 'use {}' resolves correctly.\n\n",
+                       dir_name, module_path, searched_path,
+                       dir_name, suggested, module_path,
+                       dir_name, module_path);
+        } else {
+            fmt::print("\n  Hint: NAAb resolves 'use' modules relative to the SCRIPT FILE's directory.\n"
+                       "  If your script is at /tmp/script.naab and uses 'use modules.foo',\n"
+                       "  NAAb looks for /tmp/modules/foo.naab — NOT relative to the working directory.\n\n"
+                       "  Fix: Place the script in the same directory as the modules/ folder.\n"
+                       "  Example: if modules/ is at /project/modules/foo.naab,\n"
+                       "  put your script at /project/script.naab (not /project/output/script.naab).\n\n"
+                       "  There is no --path flag. Module resolution is always relative to the script.\n\n");
+        }
         return nullptr;
     }
 
     std::string resolved_path = *resolved_path_opt;
-    fmt::print("[MODULE] Resolved to: {}\n", resolved_path);
+    LOG_DEBUG("[MODULE] Resolved to: {}\n", resolved_path);
 
     // Parse module
     try {
@@ -166,14 +194,14 @@ NaabModule* ModuleRegistry::loadModule(
         auto dependencies = extractDependencies(module->getAST());
         for (const auto& dep : dependencies) {
             module->addDependency(dep);
-            fmt::print("[MODULE]   Dependency: {}\n", dep);
+            LOG_DEBUG("[MODULE]   Dependency: {}\n", dep);
         }
 
         // Store module
         NaabModule* module_ptr = module.get();
         modules_[module_path] = std::move(module);
 
-        fmt::print("[MODULE] Successfully loaded: {}\n", module_path);
+        LOG_DEBUG("[MODULE] Successfully loaded: {}\n", module_path);
         return module_ptr;
 
     } catch (const std::exception& e) {
@@ -232,7 +260,7 @@ void ModuleRegistry::buildDependencyGraphRecursive(
     for (const auto& dep_path : module->getDependencies()) {
         // ISS-022 Fix: Skip stdlib modules - they're built-in and don't need file loading
         if (isStdlibModule(dep_path)) {
-            fmt::print("[MODULE]   Skipping stdlib module: {}\n", dep_path);
+            LOG_DEBUG("[MODULE]   Skipping stdlib module: {}\n", dep_path);
             continue;
         }
 
@@ -263,7 +291,7 @@ std::vector<NaabModule*> ModuleRegistry::buildDependencyGraph(NaabModule* entry_
         return {};
     }
 
-    fmt::print("[MODULE] Building dependency graph for: {}\n", entry_module->getName());
+    LOG_DEBUG("[MODULE] Building dependency graph for: {}\n", entry_module->getName());
 
     std::vector<NaabModule*> result;
     std::unordered_set<NaabModule*> visited;
@@ -273,9 +301,9 @@ std::vector<NaabModule*> ModuleRegistry::buildDependencyGraph(NaabModule* entry_
     try {
         buildDependencyGraphRecursive(entry_module, result, visited, in_progress, cycle_path);
 
-        fmt::print("[MODULE] Execution order:\n");
+        LOG_DEBUG("[MODULE] Execution order:\n");
         for (size_t i = 0; i < result.size(); i++) {
-            fmt::print("[MODULE]   {}. {}\n", i + 1, result[i]->getName());
+            LOG_DEBUG("[MODULE]   {}. {}\n", i + 1, result[i]->getName());
         }
 
         return result;

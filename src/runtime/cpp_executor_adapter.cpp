@@ -333,9 +333,11 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
             std::filesystem::remove(temp_bin_main);
         }
 
-        // Trim trailing newline
+        // Trim trailing whitespace/newlines (C++ often adds trailing newlines via endl)
         std::string result = exec_stdout;
-        if (!result.empty() && result.back() == '\n') result.pop_back();
+        while (!result.empty() && (result.back() == '\n' || result.back() == '\r' || result.back() == ' ' || result.back() == '\t')) {
+            result.pop_back();
+        }
 
         // Try to parse as number
         if (!result.empty()) {
@@ -550,7 +552,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
 
     if (!cached_binary.empty()) {
         // Cache hit - use cached binary
-        fmt::print("[CPP ADAPTER] Using cached binary\n");
+        // Using cached binary (silent)
         temp_bin = cached_binary;
     } else {
         // Cache miss - compile and cache
@@ -607,9 +609,11 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
     }
     // temp_cpp was already removed above if it was created
 
-    // Trim trailing newline
+    // Trim trailing whitespace/newlines (C++ often adds trailing newlines via endl)
     std::string result = exec_stdout;
-    if (!result.empty() && result.back() == '\n') result.pop_back();
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r' || result.back() == ' ' || result.back() == '\t')) {
+        result.pop_back();
+    }
 
     // Try to parse as number
     if (!result.empty()) {

@@ -251,16 +251,41 @@ std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn
                 wrapped_code = "";
                 for (size_t i = 0; i < lines.size(); i++) {
                     if (static_cast<int>(i) == last_line_idx) {
-                        // Last line: wrap in console.log()
+                        // Last line: wrap in console.log() if not already a print statement
                         std::string trimmed = lines[i];
                         size_t s = trimmed.find_first_not_of(" \t\r");
                         if (s != std::string::npos) {
                             trimmed = trimmed.substr(s);
+                            // Strip line comments (// ...) before processing
+                            bool in_str = false;
+                            char str_ch = 0;
+                            for (size_t ci = 0; ci + 1 < trimmed.size(); ci++) {
+                                if (!in_str && (trimmed[ci] == '"' || trimmed[ci] == '\'')) {
+                                    in_str = true;
+                                    str_ch = trimmed[ci];
+                                } else if (in_str && trimmed[ci] == str_ch && (ci == 0 || trimmed[ci-1] != '\\')) {
+                                    in_str = false;
+                                } else if (!in_str && trimmed[ci] == '/' && trimmed[ci+1] == '/') {
+                                    trimmed = trimmed.substr(0, ci);
+                                    break;
+                                }
+                            }
+                            // Trim trailing whitespace after comment removal
+                            size_t last_nws = trimmed.find_last_not_of(" \t\r\n");
+                            if (last_nws != std::string::npos) {
+                                trimmed = trimmed.substr(0, last_nws + 1);
+                            }
                             // Remove trailing semicolon if present
                             if (!trimmed.empty() && trimmed.back() == ';') {
                                 trimmed.pop_back();
                             }
-                            wrapped_code += "console.log(" + trimmed + ");\n";
+                            // Don't double-wrap if already a console.log/print statement
+                            if (trimmed.find("console.log") == 0 || trimmed.find("console.error") == 0 ||
+                                trimmed.find("process.stdout") == 0) {
+                                wrapped_code += trimmed + ";\n";
+                            } else {
+                                wrapped_code += "console.log(" + trimmed + ");\n";
+                            }
                         }
                     } else {
                         wrapped_code += lines[i] + "\n";
@@ -312,9 +337,9 @@ std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn
         fmt::print("[{} stderr]: {}", language_id_, stderr_output);
     }
 
-    // Trim trailing newline
+    // Trim trailing whitespace/newlines
     std::string result = stdout_output;
-    if (!result.empty() && result.back() == '\n') {
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r' || result.back() == ' ' || result.back() == '\t')) {
         result.pop_back();
     }
 

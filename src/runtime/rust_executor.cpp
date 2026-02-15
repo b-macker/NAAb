@@ -224,9 +224,11 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
     std::filesystem::remove(temp_rs);
     std::filesystem::remove(temp_bin);
 
-    // Trim trailing newline
+    // Trim trailing whitespace/newlines
     std::string result = exec_stdout;
-    if (!result.empty() && result.back() == '\n') result.pop_back();
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r' || result.back() == ' ' || result.back() == '\t')) {
+        result.pop_back();
+    }
 
     // Try to parse as number
     if (!result.empty()) {
