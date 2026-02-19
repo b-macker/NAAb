@@ -6007,6 +6007,79 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 << "    result   // last expression is the return value\n"
                 << "    >>\n";
         }
+        // TypeScript syntax errors (tsx/tsc)
+        else if ((language == "typescript" || language == "ts") &&
+                 (error_msg.find("Expected") != std::string::npos ||
+                  error_msg.find("SyntaxError") != std::string::npos ||
+                  error_msg.find("error TS") != std::string::npos ||
+                  error_msg.find("Cannot find") != std::string::npos)) {
+            oss << "\n  Help: TypeScript syntax error in polyglot block.\n"
+                << "  NAAb injects bound variables as `const name = value;` before your code\n"
+                << "  and wraps the last expression in console.log() for return capture.\n\n"
+                << "  Common causes:\n"
+                << "  - Braces/blocks confuse the auto-wrapping (use explicit console.log)\n"
+                << "  - Variable injection collides with import statements\n"
+                << "  - Type annotations on injected values (NAAb injects `const`, not typed)\n\n"
+                << "  ✗ Fragile — auto-wrapping may break with blocks:\n"
+                << "    let r = <<typescript[x]\n"
+                << "    if (x > 0) { \"positive\" } else { \"negative\" }\n"
+                << "    >>\n\n"
+                << "  ✓ Robust — explicit console.log:\n"
+                << "    let r = <<typescript[x]\n"
+                << "    const result = x > 0 ? \"positive\" : \"negative\";\n"
+                << "    console.log(result);\n"
+                << "    >>\n\n"
+                << "  ✓ Best — use naab_return() for structured data:\n"
+                << "    let r = <<typescript[x]\n"
+                << "    naab_return({value: x, label: \"result\"});\n"
+                << "    >>\n\n"
+                << "  Tip: Put imports FIRST in the block (before any logic).\n"
+                << "  NAAb injects variables after import lines automatically.\n";
+        }
+        // Go: package main collision with variable injection
+        else if ((language == "go") &&
+                 (error_msg.find("expected 'package'") != std::string::npos ||
+                  error_msg.find("expected package") != std::string::npos)) {
+            oss << "\n  Help: Go requires 'package main' as the first line.\n"
+                << "  NAAb injects bound variables after package/import headers,\n"
+                << "  but if the block structure is unusual, injection can collide.\n\n"
+                << "  ✓ Correct — package main first, then imports:\n"
+                << "    let r = <<go[x]\n"
+                << "    package main\n"
+                << "    import \"fmt\"\n"
+                << "    func main() {\n"
+                << "        fmt.Println(x)\n"
+                << "    }\n"
+                << "    >>\n\n"
+                << "  ✓ Simple — let NAAb auto-wrap (no package main needed):\n"
+                << "    let r = <<go[x]\n"
+                << "    x * 2\n"
+                << "    >>\n\n"
+                << "  Tip: For simple expressions, omit package main entirely.\n"
+                << "  NAAb wraps Go expressions in package main automatically.\n";
+        }
+        // Rust: common injection issues
+        else if ((language == "rust") &&
+                 (error_msg.find("expected") != std::string::npos ||
+                  error_msg.find("cannot find") != std::string::npos)) {
+            oss << "\n  Help: Rust compilation error in polyglot block.\n"
+                << "  NAAb injects bound variables as `let name = value;` before your code.\n"
+                << "  For complex types (arrays, dicts), NAAb uses a JSON context file.\n\n"
+                << "  Common causes:\n"
+                << "  - Variable type mismatch (NAAb infers types from values)\n"
+                << "  - Missing use/extern crate for libraries\n"
+                << "  - Rust's strict type system rejecting injected values\n\n"
+                << "  ✓ Simple expressions (auto-wrapped in fn main):\n"
+                << "    let r = <<rust[x]\n"
+                << "    x * 2\n"
+                << "    >>\n\n"
+                << "  ✓ Full programs:\n"
+                << "    let r = <<rust[x]\n"
+                << "    fn main() {\n"
+                << "        println!(\"{}\", x * 2);\n"
+                << "    }\n"
+                << "    >>\n";
+        }
         // Generic: Python None return causing null
         else if (error_msg.find("Cannot infer type") != std::string::npos &&
                  error_msg.find("null") != std::string::npos) {
@@ -6328,8 +6401,15 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             }
         }
 
-        // Prepend variable declarations (includes naab_return helper)
-        std::string final_code = var_declarations + code;
+        // Prepend variable declarations with header awareness
+        std::string final_code;
+        if (!var_declarations.empty() &&
+            (lang_str == "go" || lang_str == "php" ||
+             lang_str == "typescript" || lang_str == "ts")) {
+            final_code = injectDeclarationsAfterHeaders(var_declarations, code, lang_str);
+        } else {
+            final_code = var_declarations + code;
+        }
 
         // Create task with empty args (variables are injected into code)
         std::vector<interpreter::Value> args;
