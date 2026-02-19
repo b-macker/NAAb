@@ -407,6 +407,7 @@ public:
     void visit(ast::EnumDecl& node) override;  // Phase 2.4.3
     void visit(ast::FunctionDeclStmt& node) override;  // Nested function declaration
     void visit(ast::StructDeclStmt& node) override;    // Nested struct declaration
+    void visit(ast::RuntimeDeclStmt& node) override;   // Phase 12: Persistent runtime
     void visit(ast::MainBlock& node) override;
     void visit(ast::CompoundStmt& node) override;
     void visit(ast::ExprStmt& node) override;
@@ -442,6 +443,11 @@ public:
 
     // Phase 11.1: Flush captured output from polyglot executors
     void flushExecutorOutput(runtime::Executor* executor);
+
+    // Phase 12: Polyglot header-aware injection
+    std::string injectDeclarationsAfterHeaders(const std::string& declarations,
+                                                const std::string& code,
+                                                const std::string& language);
 
     // Debugger support
     void setDebugger(std::shared_ptr<debugger::Debugger> debugger);
@@ -537,7 +543,8 @@ private:
     // Phase 3.2: Garbage collection
     std::unique_ptr<CycleDetector> cycle_detector_;
     bool gc_enabled_ = true;  // GC enabled by default
-    size_t gc_threshold_ = 1000;  // Run GC every N allocations
+    bool gc_suspended_ = false;  // Temporarily suspend GC (e.g., during polyglot execution)
+    size_t gc_threshold_ = 5000;  // Run GC every N allocations
     size_t allocation_count_ = 0;
     std::vector<std::weak_ptr<Value>> tracked_values_;  // Global value tracking for complete GC
 
@@ -550,6 +557,15 @@ private:
 
     // Loop depth tracking for break/continue validation
     int loop_depth_;
+
+    // Phase 12: Persistent sub-runtime contexts
+    // Maps runtime name -> {language, executor, code_buffer (for subprocess langs)}
+    struct PersistentRuntime {
+        std::string language;
+        std::shared_ptr<runtime::Executor> executor;
+        std::string code_buffer;  // Accumulated code for subprocess-based languages
+    };
+    std::unordered_map<std::string, PersistentRuntime> named_runtimes_;
 
     // File context tracking for relative imports
     std::vector<std::filesystem::path> file_context_stack_;

@@ -50,6 +50,7 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"null", TokenType::NULL_LITERAL},
     {"ref", TokenType::REF},  // Phase 2.1: Reference types
     {"enum", TokenType::ENUM},  // Phase 2.4.3: Enum types
+    {"runtime", TokenType::RUNTIME},  // Phase 12: Persistent sub-runtime contexts
     {"true", TokenType::BOOLEAN},
     {"false", TokenType::BOOLEAN},
 };
@@ -500,7 +501,26 @@ std::vector<Token> Lexer::tokenize() {
                 advance();  // Skip ]
             }
 
-            // Skip only newlines after language name (or var list)
+            // Phase 12: Check for optional return type: -> JSON
+            std::string return_type;
+            // Skip whitespace before ->
+            while (currentChar() && (*currentChar() == ' ' || *currentChar() == '\t')) {
+                advance();
+            }
+            if (currentChar() && *currentChar() == '-' && peekChar() && *peekChar() == '>') {
+                advance();  // Skip -
+                advance();  // Skip >
+                // Skip whitespace after ->
+                while (currentChar() && (*currentChar() == ' ' || *currentChar() == '\t')) {
+                    advance();
+                }
+                // Read return type identifier
+                if (currentChar() && std::isalpha(*currentChar())) {
+                    return_type = readIdentifier();
+                }
+            }
+
+            // Skip only newlines after language name (or var list, or return type)
             // Don't skip spaces/tabs - they're part of the code's indentation
             while (currentChar() && (*currentChar() == '\n' || *currentChar() == '\r')) {
                 if (*currentChar() == '\n') {
@@ -519,12 +539,14 @@ std::vector<Token> Lexer::tokenize() {
                 advance();  // Skip second >
             }
 
-            // Phase 2.2: Create INLINE_CODE token with format "language[var1,var2]:code" or "language:code"
+            // Phase 2.2/12: Create INLINE_CODE token with format:
+            // "language[var1,var2]->TYPE:code" or "language->TYPE:code" or "language:code"
             std::string value;
+            std::string rt_suffix = return_type.empty() ? "" : "->" + return_type;
             if (!var_list.empty()) {
-                value = language + "[" + var_list + "]:" + code;
+                value = language + "[" + var_list + "]" + rt_suffix + ":" + code;
             } else {
-                value = language + ":" + code;
+                value = language + rt_suffix + ":" + code;
             }
             tokens_.emplace_back(TokenType::INLINE_CODE, value, line, col);
             continue;

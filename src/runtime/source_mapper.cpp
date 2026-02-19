@@ -75,6 +75,42 @@ std::optional<int> SourceMapper::extractLineNumber(const std::string& error_line
         return std::stoi(match[1].str());
     }
 
+    // Python format: File "<string>", line N  /  File "script.py", line N
+    std::regex python_pattern(R"(line (\d+))");
+    if (std::regex_search(error_line, match, python_pattern)) {
+        return std::stoi(match[1].str());
+    }
+
+    // Go format: ./file.go:N:M: error message
+    std::regex go_pattern(R"(\.go:(\d+)(?::\d+)?:)");
+    if (std::regex_search(error_line, match, go_pattern)) {
+        return std::stoi(match[1].str());
+    }
+
+    // Ruby format: script.rb:N:in `method': error message
+    std::regex ruby_pattern(R"(\.rb:(\d+):)");
+    if (std::regex_search(error_line, match, ruby_pattern)) {
+        return std::stoi(match[1].str());
+    }
+
+    // PHP format: PHP Fatal error: ... in /path/file.php on line N
+    std::regex php_pattern(R"(on line (\d+))");
+    if (std::regex_search(error_line, match, php_pattern)) {
+        return std::stoi(match[1].str());
+    }
+
+    // Shell/bash format: line N: error message
+    std::regex shell_pattern(R"(line (\d+):)");
+    if (std::regex_search(error_line, match, shell_pattern)) {
+        return std::stoi(match[1].str());
+    }
+
+    // JavaScript/TypeScript format: file.js:N or file.ts:N
+    std::regex js_pattern(R"(\.(?:js|ts):(\d+)(?::\d+)?:?)");
+    if (std::regex_search(error_line, match, js_pattern)) {
+        return std::stoi(match[1].str());
+    }
+
     return std::nullopt;
 }
 

@@ -864,8 +864,16 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
         );
     }
 
-    auto& name_token = expect(lexer::TokenType::IDENTIFIER, "Expected function name");
-    std::string name = name_token.value;
+    // Allow keywords like 'init', 'config', etc. as function names
+    if (!isAllowedNameToken(current().type)) {
+        throw std::runtime_error(
+            fmt::format("Parse error at {}: Expected function name, got '{}'",
+                formatLocation(current().line, current().column),
+                current().value)
+        );
+    }
+    std::string name = current().value;
+    advance();
 
     // Phase 2.4.1: Parse optional generic type parameters
     std::vector<std::string> type_params;
@@ -955,8 +963,16 @@ std::unique_ptr<ast::StructDecl> Parser::parseStructDecl() {
     auto start = current();
     expect(lexer::TokenType::STRUCT, "Expected 'struct' keyword");
 
-    auto& name_token = expect(lexer::TokenType::IDENTIFIER, "Expected struct name");
-    std::string struct_name = name_token.value;
+    // Allow keywords as struct names
+    if (!isAllowedNameToken(current().type)) {
+        throw std::runtime_error(
+            fmt::format("Parse error at {}: Expected struct name, got '{}'",
+                formatLocation(current().line, current().column),
+                current().value)
+        );
+    }
+    std::string struct_name = current().value;
+    advance();
 
     // Phase 2.4.1: Parse optional generic type parameters
     std::vector<std::string> type_params;
@@ -1004,8 +1020,16 @@ std::unique_ptr<ast::EnumDecl> Parser::parseEnumDecl() {
     auto start = current();
     expect(lexer::TokenType::ENUM, "Expected 'enum' keyword");
 
-    auto& name_token = expect(lexer::TokenType::IDENTIFIER, "Expected enum name");
-    std::string enum_name = name_token.value;
+    // Allow keywords as enum names
+    if (!isAllowedNameToken(current().type)) {
+        throw std::runtime_error(
+            fmt::format("Parse error at {}: Expected enum name, got '{}'",
+                formatLocation(current().line, current().column),
+                current().value)
+        );
+    }
+    std::string enum_name = current().value;
+    advance();
 
     // Phase 4.1: Register enum name for type checking
     enum_names_.insert(enum_name);
@@ -1169,6 +1193,10 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
     }
     if (check(lexer::TokenType::LET) || check(lexer::TokenType::CONST)) {
         return parseVarDeclStmt();
+    }
+    // Phase 12: runtime name = language.start()
+    if (check(lexer::TokenType::RUNTIME)) {
+        return parseRuntimeDeclStmt();
     }
 
     // Detect 'match' keyword and provide helpful error
@@ -1424,6 +1452,44 @@ std::unique_ptr<ast::ThrowStmt> Parser::parseThrowStmt() {
         std::move(expr),
         ast::SourceLocation(start.line, start.column)
     );
+}
+
+// Phase 12: Parse runtime declarations
+// Syntax: runtime name = language.start()
+std::unique_ptr<ast::RuntimeDeclStmt> Parser::parseRuntimeDeclStmt() {
+    auto start = current();
+    expect(lexer::TokenType::RUNTIME, "Expected 'runtime'");
+
+    auto name_tok = current();
+    expect(lexer::TokenType::IDENTIFIER, "Expected runtime name after 'runtime'");
+    std::string name = name_tok.value;
+
+    expect(lexer::TokenType::EQ, "Expected '=' after runtime name");
+
+    // Parse: language.start()
+    auto lang_tok = current();
+    expect(lexer::TokenType::IDENTIFIER, "Expected language name (e.g., 'python')");
+    std::string language = lang_tok.value;
+
+    expect(lexer::TokenType::DOT, "Expected '.start()' after language name");
+
+    auto method_tok = current();
+    expect(lexer::TokenType::IDENTIFIER, "Expected 'start' method");
+    if (method_tok.value != "start") {
+        throw std::runtime_error(
+            fmt::format("Parse error {}: Expected 'start()' but got '{}'.\n\n"
+                        "  Usage: runtime name = language.start()\n"
+                        "  Example: runtime py = python.start()\n",
+                        formatLocation(method_tok.line, method_tok.column),
+                        method_tok.value));
+    }
+
+    expect(lexer::TokenType::LPAREN, "Expected '(' after 'start'");
+    expect(lexer::TokenType::RPAREN, "Expected ')' after '('");
+
+    return std::make_unique<ast::RuntimeDeclStmt>(
+        name, language,
+        ast::SourceLocation(start.line, start.column));
 }
 
 std::unique_ptr<ast::VarDeclStmt> Parser::parseVarDeclStmt() {
@@ -1997,6 +2063,14 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         std::string language_part = value.substr(0, colon_pos);
         std::string code = value.substr(colon_pos + 1);
 
+        // Phase 12: Extract optional return type (->TYPE suffix)
+        std::string return_type;
+        size_t arrow_pos = language_part.find("->");
+        if (arrow_pos != std::string::npos) {
+            return_type = language_part.substr(arrow_pos + 2);
+            language_part = language_part.substr(0, arrow_pos);
+        }
+
         // Extract language and optional variable list
         std::string language;
         std::vector<std::string> bound_vars;
@@ -2014,8 +2088,9 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
                 // Split by comma
                 size_t start = 0;
                 while (start < var_list.size()) {
-                    // Skip whitespace
-                    while (start < var_list.size() && (var_list[start] == ' ' || var_list[start] == '\t')) {
+                    // Skip whitespace (including newlines for multi-line binding lists)
+                    while (start < var_list.size() && (var_list[start] == ' ' || var_list[start] == '\t' ||
+                           var_list[start] == '\n' || var_list[start] == '\r')) {
                         start++;
                     }
 
@@ -2026,8 +2101,9 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
                     // Extract variable name
                     std::string var_name = var_list.substr(start, end - start);
 
-                    // Trim trailing whitespace
-                    while (!var_name.empty() && (var_name.back() == ' ' || var_name.back() == '\t')) {
+                    // Trim trailing whitespace (including newlines)
+                    while (!var_name.empty() && (var_name.back() == ' ' || var_name.back() == '\t' ||
+                           var_name.back() == '\n' || var_name.back() == '\r')) {
                         var_name.pop_back();
                     }
 
@@ -2043,7 +2119,11 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
             language = language_part;
         }
 
-        return std::make_unique<ast::InlineCodeExpr>(language, code, bound_vars, ast::SourceLocation());
+        auto inline_expr = std::make_unique<ast::InlineCodeExpr>(language, code, bound_vars, ast::SourceLocation());
+        if (!return_type.empty()) {
+            inline_expr->setReturnType(return_type);
+        }
+        return inline_expr;
     }
 
     // Identifier (and keywords used as variable names like 'config', 'init', 'module', etc.)

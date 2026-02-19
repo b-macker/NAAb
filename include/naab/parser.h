@@ -101,6 +101,7 @@ private:
     std::unique_ptr<ast::TryStmt> parseTryStmt();          // Phase 4.1
     std::unique_ptr<ast::ThrowStmt> parseThrowStmt();      // Phase 4.1
     std::unique_ptr<ast::VarDeclStmt> parseVarDeclStmt();
+    std::unique_ptr<ast::RuntimeDeclStmt> parseRuntimeDeclStmt();  // Phase 12
     std::unique_ptr<ast::ExprStmt> parseExprStmt();
 
     // Expressions

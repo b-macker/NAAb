@@ -20,6 +20,8 @@
 #include "naab/polyglot_async_executor.h"  // Parallel polyglot execution
 #include "naab/sandbox.h"  // Enterprise security: Sandbox isolation
 #include "naab/resource_limits.h"  // Enterprise security: Resource limits
+#include "naab/source_mapper.h"  // Phase 12: Polyglot error mapping
+#include "naab/json_result_parser.h"  // Phase 12: JSON sovereign pipe
 #include <fmt/core.h>
 #include <iostream>
 #include <sstream>
@@ -493,10 +495,9 @@ Interpreter::Interpreter()
     // It will be lazily initialized only when needed (in UseStatement)
     // This avoids loading 24,488 blocks unnecessarily for simple programs
 
-    // Skip BlockLoader for now - using lazy BlockRegistry instead
-    // This avoids loading 24,482 database blocks upfront
+    // BlockLoader (database) disabled - using filesystem-based BlockRegistry instead
+    // BlockLoader is only used by CLI commands (blocks list/search/info) via BlockSearchIndex
     block_loader_ = nullptr;
-    LOG_DEBUG("[INFO] Using lazy BlockRegistry (BlockLoader disabled for faster startup)\n");
 
     // Initialize Python interpreter
 #ifdef NAAB_HAS_PYTHON
@@ -1586,14 +1587,13 @@ void Interpreter::visit(ast::FunctionDecl& node) {
     LOG_DEBUG("[INFO] Defined function: {}({} params)",
                node.getName(), param_names.size());
     if (!node.getTypeParams().empty()) {
-        fmt::print(" <");
+        LOG_DEBUG(" <");
         for (size_t i = 0; i < node.getTypeParams().size(); i++) {
-            if (i > 0) fmt::print(", ");
-            fmt::print("{}", node.getTypeParams()[i]);
+            if (i > 0) LOG_DEBUG(", ");
+            LOG_DEBUG("{}", node.getTypeParams()[i]);
         }
-        fmt::print(">");
+        LOG_DEBUG(">");
     }
-    fmt::print("\n");
 }
 
 void Interpreter::visit(ast::StructDecl& node) {
@@ -1653,6 +1653,45 @@ void Interpreter::visit(ast::StructDeclStmt& node) {
     // Simply delegate to the existing StructDecl visitor
     // This handles struct registration, field setup, everything
     node.getDecl()->accept(*this);
+}
+
+// Phase 12: Persistent sub-runtime declaration
+void Interpreter::visit(ast::RuntimeDeclStmt& node) {
+    const std::string& name = node.getName();
+    const std::string& language = node.getLanguage();
+
+    explain("Creating persistent runtime '" + name + "' for language '" + language + "'");
+
+    // Check if runtime name already exists
+    if (named_runtimes_.count(name)) {
+        throw std::runtime_error(
+            "Runtime error: Runtime '" + name + "' already exists.\n\n"
+            "  Each runtime name must be unique. Use a different name:\n"
+            "    runtime " + name + "2 = " + language + ".start()\n");
+    }
+
+    // Get executor via LanguageRegistry
+    auto& registry = runtime::LanguageRegistry::instance();
+    auto* executor = registry.getExecutor(language);
+    if (!executor) {
+        throw std::runtime_error(
+            "Runtime error: Unknown language '" + language + "' for persistent runtime.\n\n"
+            "  Supported languages: python, javascript, js, shell, bash, sh,\n"
+            "    rust, go, cpp, csharp, cs, ruby, php, typescript, ts\n\n"
+            "  Example: runtime py = python.start()\n");
+    }
+
+    // Store the persistent runtime (borrowing the shared executor pointer)
+    PersistentRuntime rt;
+    rt.language = language;
+    rt.executor = std::shared_ptr<runtime::Executor>(executor, [](runtime::Executor*){});  // Non-owning shared_ptr
+    rt.code_buffer = "";
+    named_runtimes_[name] = std::move(rt);
+
+    // Define the runtime handle as a special value in the environment
+    // Store it as a string marker that the .exec() handler recognizes
+    auto value = std::make_shared<Value>("__NAAB_RUNTIME__:" + name);
+    current_env_->define(name, value);
 }
 
 // Phase 2.4.3: Enum declaration visitor
@@ -3020,20 +3059,27 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     throw std::runtime_error(oss.str());
                 }
             } else {
-                std::ostringstream oss;
-                oss << "Syntax error: Invalid pipeline expression\n\n";
-                oss << "  Pipeline operator |> requires:\n";
-                oss << "  - Left side: any value\n";
-                oss << "  - Right side: function call or identifier\n\n";
-                oss << "  Help:\n";
-                oss << "  - Use function call: value |> func(arg1, arg2)\n";
-                oss << "  - Use identifier: value |> transform\n";
-                oss << "  - The left value becomes the first argument\n\n";
-                oss << "  Example:\n";
-                oss << "    ✗ Wrong: 100 |> 50 - _  // invalid expression\n";
-                oss << "    ✓ Right: 100 |> subtract(50)\n";
-                oss << "    ✓ Right: 100 |> double  // where double is a function\n";
-                throw std::runtime_error(oss.str());
+                // Try evaluating the right side as an expression (handles lambdas, etc.)
+                auto callee = eval(*node.getRight());
+                if (auto* func = std::get_if<std::shared_ptr<FunctionValue>>(&callee->data)) {
+                    (void)func;
+                    std::vector<std::shared_ptr<Value>> args = {left};
+                    result_ = callFunction(callee, args);
+                } else {
+                    std::ostringstream oss;
+                    oss << "Type error: Pipeline requires callable function\n\n";
+                    oss << "  Right side type: " << getTypeName(callee) << "\n";
+                    oss << "  Expected: function, lambda, or block\n\n";
+                    oss << "  Help:\n";
+                    oss << "  - Use function call: value |> func(arg1, arg2)\n";
+                    oss << "  - Use identifier: value |> transform\n";
+                    oss << "  - Use lambda: value |> (x) => x * 2\n\n";
+                    oss << "  Example:\n";
+                    oss << "    ✓ Right: 100 |> subtract(50)\n";
+                    oss << "    ✓ Right: 100 |> double\n";
+                    oss << "    ✓ Right: 100 |> (x) => x * 2\n";
+                    throw std::runtime_error(oss.str());
+                }
             }
             break;
         }
@@ -3201,6 +3247,101 @@ void Interpreter::visit(ast::CallExpr& node) {
         {
             auto obj_val = eval(*member_expr->getObject());
             std::string method_name = member_expr->getMember();
+
+            // Phase 12: Check if this is a persistent runtime .exec() call
+            if (auto* str_val = std::get_if<std::string>(&obj_val->data)) {
+                if (str_val->find("__NAAB_RUNTIME__:") == 0 && method_name == "exec") {
+                    std::string runtime_name = str_val->substr(17);  // len("__NAAB_RUNTIME__:")
+                    auto it = named_runtimes_.find(runtime_name);
+                    if (it == named_runtimes_.end()) {
+                        throw std::runtime_error("Runtime error: Runtime '" + runtime_name + "' not found");
+                    }
+
+                    // Extract the code from the argument (expects InlineCodeExpr or string)
+                    if (args.empty()) {
+                        throw std::runtime_error(
+                            "Runtime error: " + runtime_name + ".exec() requires a polyglot block argument.\n\n"
+                            "  Example: " + runtime_name + ".exec(<<" + it->second.language + "\n"
+                            "    your code here\n"
+                            "  >>)\n");
+                    }
+
+                    // The argument should be the result of an InlineCodeExpr evaluation
+                    // OR a string value. For inline code blocks, the block was already executed
+                    // by the InlineCodeExpr visitor. We need a different approach.
+                    // For now: accept a string argument and execute it on the persistent runtime
+                    std::string code;
+                    if (auto* code_str = std::get_if<std::string>(&args[0]->data)) {
+                        code = *code_str;
+                    } else {
+                        // If the argument is the result of an InlineCodeExpr, use result directly
+                        result_ = args[0];
+                        return;
+                    }
+
+                    auto& rt = it->second;
+
+                    // For subprocess-based languages, accumulate code
+                    bool is_embedded = (rt.language == "python" || rt.language == "javascript" ||
+                                       rt.language == "js");
+                    if (!is_embedded) {
+                        rt.code_buffer += code + "\n";
+                        code = rt.code_buffer;
+                    }
+
+                    // Detect if code is a statement (no return value expected)
+                    // vs an expression (return value expected)
+                    std::string trimmed_code = code;
+                    size_t fc = trimmed_code.find_first_not_of(" \t\n\r");
+                    if (fc != std::string::npos) trimmed_code = trimmed_code.substr(fc);
+
+                    bool is_statement = (
+                        trimmed_code.find("var ") == 0 ||
+                        trimmed_code.find("let ") == 0 ||
+                        trimmed_code.find("const ") == 0 ||
+                        trimmed_code.find("function ") == 0 ||
+                        trimmed_code.find("import ") == 0 ||
+                        trimmed_code.find("class ") == 0 ||
+                        trimmed_code.find("def ") == 0 ||
+                        trimmed_code.find("from ") == 0 ||
+                        trimmed_code.find("for ") == 0 ||
+                        trimmed_code.find("while ") == 0 ||
+                        trimmed_code.find("if ") == 0);
+
+                    // Execute on the persistent executor
+                    try {
+                        bool is_js = (rt.language == "javascript" || rt.language == "js");
+                        if (is_js) {
+                            // For JS: Use BLOCK_LIBRARY mode for global scope persistence
+                            auto* js_adapter = dynamic_cast<runtime::JsExecutorAdapter*>(rt.executor.get());
+                            if (js_adapter) {
+                                if (is_statement) {
+                                    js_adapter->execute(code, runtime::JsExecutionMode::BLOCK_LIBRARY);
+                                    result_ = std::make_shared<Value>();
+                                } else {
+                                    // For expressions: evaluate directly in global scope
+                                    // executeWithReturn wraps in parens for single expr, which
+                                    // accesses globals since QuickJS context is shared
+                                    result_ = js_adapter->executeWithReturn(code);
+                                }
+                            } else {
+                                result_ = rt.executor->executeWithReturn(code);
+                            }
+                        } else if (is_statement) {
+                            // Statement mode: no return value
+                            rt.executor->execute(code);
+                            result_ = std::make_shared<Value>();
+                        } else {
+                            // Expression mode: capture return value
+                            result_ = rt.executor->executeWithReturn(code);
+                        }
+                    } catch (const std::exception& e) {
+                        throw std::runtime_error(
+                            "Runtime error in " + runtime_name + ".exec(): " + e.what());
+                    }
+                    return;
+                }
+            }
 
             // Built-in DICT methods
             if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&obj_val->data)) {
@@ -4104,15 +4245,26 @@ void Interpreter::visit(ast::CallExpr& node) {
         oss << "Type error: Member is not callable\n\n";
         oss << "  Member type: " << getTypeName(func_value) << "\n";
         oss << "  Expected: function\n\n";
-        oss << "  Help:\n";
-        oss << "  - Only functions can be called with ()\n";
-        oss << "  - Check if the member is a function\n";
-        oss << "  - If accessing a property, don't use ()\n\n";
-        oss << "  Example:\n";
-        oss << "    struct Point { x: int, getX: function }\n";
-        oss << "    let p = Point{x: 10, getX: ...}\n";
-        oss << "    ✗ Wrong: p.x()  // x is not a function\n";
-        oss << "    ✓ Right: p.getX()  // getX is a function\n";
+
+        // Detect stdlib constant access with () - e.g., math.PI()
+        auto* obj_id_err = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+        if (obj_id_err && (method_name == "PI" || method_name == "E")) {
+            std::string mod_name = obj_id_err->getName();
+            oss << "  Help:\n";
+            oss << "  - " << mod_name << "." << method_name << " is a constant, not a function\n";
+            oss << "  - Access it without parentheses:\n\n";
+            oss << "  Example:\n";
+            oss << "    ✗ Wrong: " << mod_name << "." << method_name << "()\n";
+            oss << "    ✓ Right: " << mod_name << "." << method_name << "\n";
+        } else {
+            oss << "  Help:\n";
+            oss << "  - Only functions can be called with ()\n";
+            oss << "  - If accessing a property or constant, don't use ()\n\n";
+            oss << "  Example:\n";
+            oss << "    ✗ Wrong: obj.value()    // value is not a function\n";
+            oss << "    ✓ Right: obj.value       // access the property directly\n";
+            oss << "    ✓ Right: obj.getValue()  // call a function instead\n";
+        }
         throw std::runtime_error(oss.str());
     }
 
@@ -4927,19 +5079,77 @@ void Interpreter::visit(ast::MemberExpr& node) {
         }
     }
 
-    // Member access on other types (TODO)
+    // Member access on other types — type-specific helpful errors
     std::ostringstream oss;
-    oss << "Type error: Member access not supported\n\n";
-    oss << "  Tried to access: " << getTypeName(obj) << "." << member_name << "\n";
-    oss << "  Supported types: struct, dict (for modules), block\n\n";
-    oss << "  Help:\n";
-    oss << "  - Structs support dot notation: obj.field\n";
-    oss << "  - Dictionaries don't support dot notation, use subscript: dict[\"key\"]\n";
-    oss << "  - Modules support member access: module.function\n\n";
-    oss << "  Example:\n";
-    oss << "    ✗ Wrong: let x = 42; x.field\n";
-    oss << "    ✓ Right: struct Point { x: int }; let p = Point{x: 0}; p.x\n";
-    oss << "    ✓ Right: import mymodule; mymodule.function()\n";
+    std::string type_name = getTypeName(obj);
+
+    if (type_name == "array") {
+        oss << "Type error: Arrays don't support dot notation\n\n";
+        oss << "  Tried to access: array." << member_name << "\n\n";
+        oss << "  Help: Use the array module for array operations:\n";
+        if (member_name == "length" || member_name == "size" || member_name == "count") {
+            oss << "    ✗ Wrong: my_array.length\n";
+            oss << "    ✓ Right: len(my_array)             // built-in\n";
+            oss << "    ✓ Right: array.length(my_array)    // module function\n";
+        } else if (member_name == "push" || member_name == "append" || member_name == "add") {
+            oss << "    ✗ Wrong: my_array.push(item)\n";
+            oss << "    ✓ Right: array.push(my_array, item)\n";
+        } else if (member_name == "pop") {
+            oss << "    ✗ Wrong: my_array.pop()\n";
+            oss << "    ✓ Right: array.pop(my_array)\n";
+        } else if (member_name == "map" || member_name == "filter" || member_name == "reduce") {
+            oss << "    ✗ Wrong: my_array." << member_name << "(fn)\n";
+            oss << "    ✓ Right: array." << member_name << "_fn(my_array, fn)\n";
+        } else if (member_name == "sort") {
+            oss << "    ✗ Wrong: my_array.sort()\n";
+            oss << "    ✓ Right: array.sort(my_array)\n";
+        } else if (member_name == "reverse") {
+            oss << "    ✗ Wrong: my_array.reverse()\n";
+            oss << "    ✓ Right: array.reverse(my_array)\n";
+        } else {
+            oss << "    ✗ Wrong: my_array." << member_name << "(...)\n";
+            oss << "    ✓ Right: array." << member_name << "(my_array, ...)\n";
+        }
+    } else if (type_name == "string") {
+        oss << "Type error: Strings don't support dot notation\n\n";
+        oss << "  Tried to access: string." << member_name << "\n\n";
+        oss << "  Help: Use the string module for string operations:\n";
+        if (member_name == "length" || member_name == "size") {
+            oss << "    ✗ Wrong: my_string.length\n";
+            oss << "    ✓ Right: len(my_string)             // built-in\n";
+            oss << "    ✓ Right: string.length(my_string)  // module function\n";
+        } else if (member_name == "upper" || member_name == "toUpperCase" || member_name == "toUpper") {
+            oss << "    ✗ Wrong: my_string." << member_name << "()\n";
+            oss << "    ✓ Right: string.upper(my_string)\n";
+        } else if (member_name == "lower" || member_name == "toLowerCase" || member_name == "toLower") {
+            oss << "    ✗ Wrong: my_string." << member_name << "()\n";
+            oss << "    ✓ Right: string.lower(my_string)\n";
+        } else if (member_name == "trim") {
+            oss << "    ✗ Wrong: my_string.trim()\n";
+            oss << "    ✓ Right: string.trim(my_string)\n";
+        } else if (member_name == "split") {
+            oss << "    ✗ Wrong: my_string.split(delim)\n";
+            oss << "    ✓ Right: string.split(my_string, delim)\n";
+        } else {
+            oss << "    ✗ Wrong: my_string." << member_name << "(...)\n";
+            oss << "    ✓ Right: string." << member_name << "(my_string, ...)\n";
+        }
+    } else if (type_name == "dict") {
+        oss << "Type error: Dictionaries don't support dot notation for data access\n\n";
+        oss << "  Tried to access: dict." << member_name << "\n\n";
+        oss << "  Help: Use bracket notation for dict values:\n";
+        oss << "    ✗ Wrong: my_dict." << member_name << "\n";
+        oss << "    ✓ Right: my_dict[\"" << member_name << "\"]\n\n";
+        oss << "  For iterating keys: for key in my_dict.keys() { }\n";
+    } else {
+        oss << "Type error: Member access not supported\n\n";
+        oss << "  Tried to access: " << type_name << "." << member_name << "\n";
+        oss << "  Supported types: struct, dict (for modules), block\n\n";
+        oss << "  Help:\n";
+        oss << "  - Structs support dot notation: obj.field\n";
+        oss << "  - Dictionaries use bracket notation: dict[\"key\"]\n";
+        oss << "  - Modules support member access: module.function()\n";
+    }
     throw std::runtime_error(oss.str());
 }
 
@@ -5233,6 +5443,103 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
     trackAllocation();
 }
 
+// Phase 12: Header-aware injection for languages that require specific first lines
+std::string Interpreter::injectDeclarationsAfterHeaders(
+    const std::string& declarations, const std::string& code, const std::string& language) {
+
+    if (declarations.empty()) return code;
+
+    std::vector<std::string> lines;
+    std::istringstream stream(code);
+    std::string line;
+    while (std::getline(stream, line)) {
+        lines.push_back(line);
+    }
+
+    // Find the insertion point after all header lines
+    int insert_after = -1;  // -1 means prepend (no headers found)
+    bool in_block_import = false;
+
+    for (size_t i = 0; i < lines.size(); ++i) {
+        std::string trimmed = lines[i];
+        // Trim leading whitespace
+        size_t first_non_space = trimmed.find_first_not_of(" \t");
+        if (first_non_space != std::string::npos) {
+            trimmed = trimmed.substr(first_non_space);
+        } else {
+            // Empty/whitespace line — skip but don't break header scanning
+            if (in_block_import) {
+                insert_after = static_cast<int>(i);
+            }
+            continue;
+        }
+
+        if (language == "go") {
+            // Go: package declaration must be first, then imports
+            if (trimmed.substr(0, 8) == "package ") {
+                insert_after = static_cast<int>(i);
+                continue;
+            }
+            if (trimmed.substr(0, 7) == "import " && trimmed.find("(") != std::string::npos) {
+                // Block import: import (
+                in_block_import = true;
+                insert_after = static_cast<int>(i);
+                continue;
+            }
+            if (in_block_import) {
+                insert_after = static_cast<int>(i);
+                if (trimmed[0] == ')') {
+                    in_block_import = false;
+                }
+                continue;
+            }
+            if (trimmed.substr(0, 7) == "import ") {
+                // Single import
+                insert_after = static_cast<int>(i);
+                continue;
+            }
+            // If we haven't seen any header yet and this is a non-header line, stop scanning
+            if (insert_after >= 0) break;
+            // If no headers at all, stop immediately
+            break;
+        } else if (language == "php") {
+            // PHP: <?php tag must be first
+            if (trimmed.substr(0, 5) == "<?php" || trimmed.substr(0, 2) == "<?") {
+                insert_after = static_cast<int>(i);
+                continue;
+            }
+            break;
+        } else if (language == "typescript" || language == "ts") {
+            // TypeScript: import statements at top
+            if (trimmed.substr(0, 7) == "import ") {
+                insert_after = static_cast<int>(i);
+                continue;
+            }
+            break;
+        } else {
+            // Unknown language — no header awareness, prepend
+            break;
+        }
+    }
+
+    // Build result: header lines + declarations + remaining lines
+    std::string result;
+    if (insert_after < 0) {
+        // No headers found — prepend declarations
+        result = declarations + code;
+    } else {
+        // Insert declarations after the header lines
+        for (size_t i = 0; i <= static_cast<size_t>(insert_after); ++i) {
+            result += lines[i] + "\n";
+        }
+        result += declarations;
+        for (size_t i = static_cast<size_t>(insert_after) + 1; i < lines.size(); ++i) {
+            result += lines[i] + "\n";
+        }
+    }
+    return result;
+}
+
 void Interpreter::visit(ast::InlineCodeExpr& node) {
     std::string language = node.getLanguage();
     std::string raw_code = node.getCode();
@@ -5269,7 +5576,15 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             if (language == "javascript" || language == "js") {
                 var_declarations += "const " + var_name + " = " + serialized + ";\n";
             } else if (language == "go") {
-                var_declarations += "const " + var_name + " = " + serialized + "\n";
+                // Go: const only works for primitives; use var for complex types
+                bool is_complex = value && (
+                    std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data) ||
+                    std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data));
+                if (is_complex) {
+                    var_declarations += "var " + var_name + " = " + serialized + "\n";
+                } else {
+                    var_declarations += "const " + var_name + " = " + serialized + "\n";
+                }
             } else if (language == "rust") {
                 var_declarations += "let " + var_name + " = " + serialized + ";\n";
             } else if (language == "cpp" || language == "c++") {
@@ -5278,7 +5593,53 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 var_declarations += var_name + " = " + serialized + "\n";
             } else if (language == "csharp" || language == "cs") {
                 var_declarations += "var " + var_name + " = " + serialized + ";\n";
+            } else if (language == "typescript" || language == "ts") {
+                var_declarations += "const " + var_name + " = " + serialized + ";\n";
+            } else if (language == "php") {
+                // PHP vars must come after <?php tag. Add tag once, then vars.
+                if (var_declarations.find("<?php") == std::string::npos) {
+                    var_declarations += "<?php\n";
+                }
+                var_declarations += "$" + var_name + " = " + serialized + ";\n";
             }
+        }
+    }
+
+    // Phase 12: Inject naab_return() helper function per language
+    // Only inject if naab_return is actually used in the code (avoids breaking IIFE wrapping)
+    std::string return_type = node.getReturnType();
+    bool code_uses_naab_return = (raw_code.find("naab_return") != std::string::npos);
+    if (code_uses_naab_return) {
+        std::string helper;
+        if (language == "python") {
+            // Python: naab_return returns data directly — CPython eval captures the return value
+            helper = "def naab_return(data):\n    return data\n";
+        } else if (language == "javascript" || language == "js") {
+            // JS/QuickJS: naab_return just returns data — IIFE wrapping makes it the return value
+            helper = "function naab_return(data) { return data; }\n";
+        } else if (language == "typescript" || language == "ts") {
+            helper = "function naab_return(data) { return data; }\n";
+        } else if (language == "ruby") {
+            helper = "require 'json'\ndef naab_return(data); puts \"__NAAB_RETURN__:\" + data.to_json; end\n";
+        } else if (language == "php") {
+            if (var_declarations.find("<?php") == std::string::npos) {
+                helper = "<?php\n";
+            }
+            helper += "function naab_return($data) { echo \"__NAAB_RETURN__:\" . json_encode($data) . \"\\n\"; }\n";
+        } else if (language == "shell" || language == "sh" || language == "bash") {
+            helper = "naab_return() { echo \"__NAAB_RETURN__:$1\"; }\n";
+        } else if (language == "rust") {
+            helper = "macro_rules! naab_return { ($val:expr) => { println!(\"__NAAB_RETURN__:{}\", $val); }; }\n";
+        } else if (language == "go") {
+            // Go's naab_return needs to be inside func main, handled by executor wrapping
+            helper = ""; // Will be added inside main by the executor
+        } else if (language == "cpp" || language == "c++") {
+            helper = "#include <sstream>\n#define naab_return(val) do { std::ostringstream __os; __os << \"__NAAB_RETURN__:\" << (val); std::cout << __os.str() << std::endl; } while(0)\n";
+        } else if (language == "csharp" || language == "cs") {
+            helper = ""; // C# needs it inside the class, handled by executor wrapping
+        }
+        if (!helper.empty()) {
+            var_declarations = helper + var_declarations;
         }
     }
 
@@ -5318,8 +5679,39 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
     }
 
-    // Phase 2.2: Prepend variable declarations (for non-Python, non-shell languages)
-    std::string final_code = var_declarations + code;
+    // Phase 2.2/12: Inject variable declarations with header awareness
+    std::string final_code;
+    if (!var_declarations.empty() &&
+        (language == "go" || language == "php" ||
+         language == "typescript" || language == "ts")) {
+        final_code = injectDeclarationsAfterHeaders(var_declarations, code, language);
+    } else {
+        final_code = var_declarations + code;
+    }
+
+    // Phase 12: For Python with -> JSON, wrap code to capture stdout and extract last JSON line
+    if (!return_type.empty() && (language == "python")) {
+        std::string preamble =
+            "import sys as __naab_sys, io as __naab_io, json as __naab_json\n"
+            "__naab_buf = __naab_io.StringIO()\n"
+            "__naab_orig = __naab_sys.stdout\n"
+            "__naab_sys.stdout = __naab_buf\n";
+        std::string postamble =
+            "\n__naab_sys.stdout = __naab_orig\n"
+            "__naab_captured = __naab_buf.getvalue().strip().split('\\n')\n"
+            "__naab_result = None\n"
+            "for __naab_l in reversed(__naab_captured):\n"
+            "    __naab_l = __naab_l.strip()\n"
+            "    if not __naab_l:\n"
+            "        continue\n"
+            "    try:\n"
+            "        __naab_result = __naab_json.loads(__naab_l)\n"
+            "        break\n"
+            "    except:\n"
+            "        __naab_sys.stdout.write(__naab_l + '\\n')\n"
+            "__naab_result\n";
+        final_code = preamble + final_code + postamble;
+    }
 
     explain("Executing inline " + language + " code" +
             (bound_vars.empty() ? "" : " with " + std::to_string(bound_vars.size()) + " bound variables"));
@@ -5330,15 +5722,70 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 
     security::ScopedSandbox scoped_sandbox(sandbox_config);
 
+    // Phase 12: Create source mapper for error translation
+    int var_decl_lines = static_cast<int>(std::count(var_declarations.begin(), var_declarations.end(), '\n'));
+    runtime::SourceMapper source_mapper(current_file_, node.getLocation().line, node.getLocation().column);
+    source_mapper.setOffset(var_decl_lines);
+
     // Phase 2.3: Execute the code and capture return value
+    // Suspend GC during polyglot execution to prevent collecting live values
+    gc_suspended_ = true;
     try {
         result_ = executor->executeWithReturn(final_code);
 
-        // Flush stdout from executor
-        flushExecutorOutput(executor);
+        // Phase 12: Check for sentinel/JSON return values
+        // Strategy 1: Check executor's captured output buffer (works for Python)
+        std::string captured = executor->getCapturedOutput();
+        bool sentinel_found = false;
+        if (!captured.empty()) {
+            auto polyglot_result = runtime::parsePolyglotOutput(captured, return_type);
+            if (polyglot_result.return_value) {
+                result_ = polyglot_result.return_value;
+                sentinel_found = true;
+            }
+            // Print remaining log output
+            if (!polyglot_result.log_output.empty()) {
+                std::cout << polyglot_result.log_output << std::flush;
+            }
+        } else {
+            // Flush stdout from executor (no captured output to parse)
+            flushExecutorOutput(executor);
+        }
+
+        // Strategy 2: Check if result_ is a string containing the sentinel
+        // (works for shell executor which returns stdout as string value)
+        if (!sentinel_found && result_) {
+            if (auto* str_val = std::get_if<std::string>(&result_->data)) {
+                if (str_val->find("__NAAB_RETURN__:") != std::string::npos) {
+                    auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
+                    if (polyglot_result.return_value) {
+                        result_ = polyglot_result.return_value;
+                    }
+                    // Print log output that was mixed with the sentinel
+                    if (!polyglot_result.log_output.empty()) {
+                        std::cout << polyglot_result.log_output << std::flush;
+                    }
+                } else if (!return_type.empty()) {
+                    // Strategy 3: If -> JSON header specified, try parsing result as JSON
+                    auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
+                    if (polyglot_result.return_value) {
+                        result_ = polyglot_result.return_value;
+                    }
+                }
+            }
+        }
+        gc_suspended_ = false;
 
     } catch (const std::exception& e) {
+        gc_suspended_ = false;
         std::string error_msg = e.what();
+
+        // Phase 12: Translate temp file paths to NAAb source locations
+        std::string translated = source_mapper.translateError(error_msg);
+        if (!translated.empty() && translated != error_msg) {
+            // Prepend the NAAb source context to the error
+            error_msg = translated + "\n  Original error: " + error_msg;
+        }
 
         // Detect undefined variable errors and provide helpful guidance
         bool is_undefined_var = false;
@@ -5780,7 +6227,33 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             }
         }
 
-        // Prepend variable declarations
+        // Phase 12: Inject naab_return() helper for parallel execution path
+        // Only inject if naab_return is actually used in the code (avoids breaking IIFE wrapping)
+        if (raw_code.find("naab_return") != std::string::npos) {
+            std::string helper;
+            if (lang_str == "python") {
+                helper = "def naab_return(data):\n    return data\n";
+            } else if (lang_str == "javascript" || lang_str == "js") {
+                helper = "function naab_return(data) { return data; }\n";
+            } else if (lang_str == "typescript" || lang_str == "ts") {
+                helper = "function naab_return(data) { return data; }\n";
+            } else if (lang_str == "ruby") {
+                helper = "require 'json'\ndef naab_return(data); puts \"__NAAB_RETURN__:\" + data.to_json; end\n";
+            } else if (lang_str == "php") {
+                helper = "function naab_return($data) { echo \"__NAAB_RETURN__:\" . json_encode($data) . \"\\n\"; }\n";
+            } else if (lang_str == "shell" || lang_str == "sh" || lang_str == "bash") {
+                helper = "naab_return() { echo \"__NAAB_RETURN__:$1\"; }\n";
+            } else if (lang_str == "rust") {
+                helper = "macro_rules! naab_return { ($val:expr) => { println!(\"__NAAB_RETURN__:{}\", $val); }; }\n";
+            } else if (lang_str == "cpp" || lang_str == "c++") {
+                helper = "#include <sstream>\n#define naab_return(val) do { std::ostringstream __os; __os << \"__NAAB_RETURN__:\" << (val); std::cout << __os.str() << std::endl; } while(0)\n";
+            }
+            if (!helper.empty()) {
+                var_declarations = helper + var_declarations;
+            }
+        }
+
+        // Prepend variable declarations (includes naab_return helper)
         std::string final_code = var_declarations + code;
 
         // Create task with empty args (variables are injected into code)
@@ -5978,9 +6451,69 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
         return "null";
     }
 
-    // List - serialize as JSON array for simplicity
+    // List - language-specific array serialization
     if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data)) {
         const auto& list = std::get<std::vector<std::shared_ptr<Value>>>(value->data);
+
+        // PHP: array() syntax
+        if (language == "php") {
+            std::string result = "array(";
+            for (size_t i = 0; i < list.size(); i++) {
+                if (i > 0) result += ", ";
+                result += serializeValueForLanguage(list[i], language);
+            }
+            result += ")";
+            return result;
+        }
+
+        // Rust: vec![] macro
+        if (language == "rust") {
+            std::string result = "vec![";
+            for (size_t i = 0; i < list.size(); i++) {
+                if (i > 0) result += ", ";
+                result += serializeValueForLanguage(list[i], language);
+            }
+            result += "]";
+            return result;
+        }
+
+        // Go: []interface{}{}
+        if (language == "go") {
+            std::string result = "[]interface{}{";
+            for (size_t i = 0; i < list.size(); i++) {
+                if (i > 0) result += ", ";
+                result += serializeValueForLanguage(list[i], language);
+            }
+            result += "}";
+            return result;
+        }
+
+        // C#: new List<object>{}
+        if (language == "csharp" || language == "cs") {
+            std::string result = "new System.Collections.Generic.List<object>{";
+            for (size_t i = 0; i < list.size(); i++) {
+                if (i > 0) result += ", ";
+                result += serializeValueForLanguage(list[i], language);
+            }
+            result += "}";
+            return result;
+        }
+
+        // C++: std::vector with initializer list
+        if (language == "cpp" || language == "c++") {
+            // For C++, we use initializer list but need to figure out element type
+            std::string result = "std::vector<std::string>{";
+            for (size_t i = 0; i < list.size(); i++) {
+                if (i > 0) result += ", ";
+                // Serialize all as strings for simplicity
+                auto elem_str = serializeValueForLanguage(list[i], language);
+                result += elem_str;
+            }
+            result += "}";
+            return result;
+        }
+
+        // Default: JSON-like array (Python, JS, TS, Ruby, Shell)
         std::string result = "[";
         for (size_t i = 0; i < list.size(); i++) {
             if (i > 0) result += ", ";
@@ -5990,9 +6523,87 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
         return result;
     }
 
-    // Dict - serialize as JSON object
+    // Dict - language-specific serialization
     if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
         const auto& dict = std::get<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data);
+
+        // Ruby: use hash rocket syntax {key => value}
+        if (language == "ruby") {
+            std::string result = "{";
+            bool first = true;
+            for (const auto& [key, val] : dict) {
+                if (!first) result += ", ";
+                first = false;
+                result += "\"" + key + "\" => " + serializeValueForLanguage(val, language);
+            }
+            result += "}";
+            return result;
+        }
+
+        // PHP: array("key" => "value")
+        if (language == "php") {
+            std::string result = "array(";
+            bool first = true;
+            for (const auto& [key, val] : dict) {
+                if (!first) result += ", ";
+                first = false;
+                result += "\"" + key + "\" => " + serializeValueForLanguage(val, language);
+            }
+            result += ")";
+            return result;
+        }
+
+        // Go: map[string]interface{}{}
+        if (language == "go") {
+            std::string result = "map[string]interface{}{";
+            bool first = true;
+            for (const auto& [key, val] : dict) {
+                if (!first) result += ", ";
+                first = false;
+                result += "\"" + key + "\": " + serializeValueForLanguage(val, language);
+            }
+            result += "}";
+            return result;
+        }
+
+        // Rust: HashMap (use context file for complex, but inline for simple)
+        if (language == "rust") {
+            // Generate a block expression that creates a HashMap
+            std::string result = "{ let mut __m = std::collections::HashMap::new(); ";
+            for (const auto& [key, val] : dict) {
+                result += "__m.insert(\"" + key + "\".to_string(), " + serializeValueForLanguage(val, language) + "); ";
+            }
+            result += "__m }";
+            return result;
+        }
+
+        // C#: Dictionary
+        if (language == "csharp" || language == "cs") {
+            std::string result = "new System.Collections.Generic.Dictionary<string, object>{";
+            bool first = true;
+            for (const auto& [key, val] : dict) {
+                if (!first) result += ", ";
+                first = false;
+                result += "{\"" + key + "\", " + serializeValueForLanguage(val, language) + "}";
+            }
+            result += "}";
+            return result;
+        }
+
+        // C++: std::map
+        if (language == "cpp" || language == "c++") {
+            std::string result = "std::map<std::string, std::string>{";
+            bool first = true;
+            for (const auto& [key, val] : dict) {
+                if (!first) result += ", ";
+                first = false;
+                result += "{\"" + key + "\", " + serializeValueForLanguage(val, language) + "}";
+            }
+            result += "}";
+            return result;
+        }
+
+        // Default: JSON-like object (Python, JS, TS)
         std::string result = "{";
         bool first = true;
         for (const auto& [key, val] : dict) {
@@ -6644,22 +7255,38 @@ void Interpreter::runGarbageCollection(std::shared_ptr<Environment> env) {
         return;  // GC not initialized
     }
 
-    if (!gc_enabled_) {
-        return;  // GC disabled
+    if (!gc_enabled_ || gc_suspended_) {
+        return;  // GC disabled or suspended
     }
 
-    fmt::print("[GC] Running garbage collection...\n");
+    if (verbose_mode_) {
+        fmt::print("[GC] Running garbage collection...\n");
+    }
 
     // Use provided environment or fall back to global environment
     auto root_env = env ? env : global_env_;
 
-    // Run mark-and-sweep cycle detection with global value tracking
-    size_t collected = cycle_detector_->detectAndCollect(root_env, tracked_values_);
+    // Build extra roots: result_ and any in-flight values
+    std::vector<std::shared_ptr<Value>> extra_roots;
+    if (result_) {
+        extra_roots.push_back(result_);
+    }
 
-    if (collected > 0) {
-        fmt::print("[GC] Collected {} cyclic values\n", collected);
-    } else {
-        fmt::print("[GC] No cycles detected\n");
+    // Build extra environments: always include global_env_ if root is not global
+    std::vector<std::shared_ptr<Environment>> extra_envs;
+    if (root_env != global_env_ && global_env_) {
+        extra_envs.push_back(global_env_);
+    }
+
+    // Run mark-and-sweep cycle detection with complete root set
+    size_t collected = cycle_detector_->detectAndCollect(root_env, tracked_values_, extra_roots, extra_envs);
+
+    if (verbose_mode_) {
+        if (collected > 0) {
+            fmt::print("[GC] Collected {} cyclic values\n", collected);
+        } else {
+            fmt::print("[GC] No cycles detected\n");
+        }
     }
 
     // Reset allocation counter after GC
@@ -6674,7 +7301,7 @@ void Interpreter::registerValue(std::shared_ptr<Value> value) {
 }
 
 void Interpreter::trackAllocation() {
-    if (!gc_enabled_ || !cycle_detector_) {
+    if (!gc_enabled_ || !cycle_detector_ || gc_suspended_) {
         return;
     }
 

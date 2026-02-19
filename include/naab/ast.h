@@ -64,6 +64,7 @@ enum class NodeKind {
     ModuleUseStmt,  // Phase 4.0: module use statement (use math_utils)
     FunctionDeclStmt, // Nested function declaration statement
     StructDeclStmt,   // Nested struct declaration statement
+    RuntimeDeclStmt,  // Phase 12: runtime name = language.start()
 
     // Expressions
     BinaryExpr,
@@ -655,6 +656,24 @@ private:
     std::unique_ptr<StructDecl> decl_;
 };
 
+// Phase 12: Persistent sub-runtime declaration
+// Syntax: runtime name = language.start()
+class RuntimeDeclStmt : public Stmt {
+public:
+    RuntimeDeclStmt(const std::string& name, const std::string& language,
+                    SourceLocation loc = SourceLocation())
+        : Stmt(NodeKind::RuntimeDeclStmt, loc), name_(name), language_(language) {}
+
+    const std::string& getName() const { return name_; }
+    const std::string& getLanguage() const { return language_; }
+
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::string name_;
+    std::string language_;
+};
+
 // ============================================================================
 // Expressions
 // ============================================================================
@@ -915,6 +934,10 @@ public:
     const std::string& getCode() const { return code_; }
     const std::vector<std::string>& getBoundVariables() const { return bound_variables_; }
 
+    // Phase 12: Return type header (e.g., "JSON" from <<python -> JSON ... >>)
+    const std::string& getReturnType() const { return return_type_; }
+    void setReturnType(const std::string& rt) { return_type_ = rt; }
+
     Type getType() const override { return Type::makeVoid(); }
     void accept(ASTVisitor& visitor) override;
 
@@ -922,6 +945,7 @@ private:
     std::string language_;
     std::string code_;
     std::vector<std::string> bound_variables_;  // Phase 2.2: Variables to bind from NAAb scope
+    std::string return_type_;  // Phase 12: Return type (e.g., "JSON"), empty = auto-detect
 };
 
 // If expression: if condition { then_expr } else { else_expr }
@@ -1076,6 +1100,7 @@ public:
     virtual void visit(ModuleUseStmt& node) = 0;  // Phase 4.0
     virtual void visit(FunctionDeclStmt& node) = 0;  // Nested function declaration
     virtual void visit(StructDeclStmt& node) = 0;    // Nested struct declaration
+    virtual void visit(RuntimeDeclStmt& node) { (void)node; }  // Phase 12: Persistent runtime
 
     virtual void visit(BinaryExpr& node) = 0;
     virtual void visit(UnaryExpr& node) = 0;

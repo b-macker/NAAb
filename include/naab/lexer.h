@@ -22,6 +22,7 @@ enum class TokenType {
     CONFIG, MAIN, LET, CONST, AWAIT, NULL_LITERAL,
     REF,  // Phase 2.1: Reference types
     ENUM,  // Phase 2.4.3: Enum types
+    RUNTIME,  // Phase 12: Persistent sub-runtime contexts
 
     // Literals
     IDENTIFIER,

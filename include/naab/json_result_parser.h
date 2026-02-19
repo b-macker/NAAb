@@ -2,7 +2,6 @@
 #define NAAB_JSON_RESULT_PARSER_H
 
 #include "naab/value.h"
-#include <nlohmann/json.hpp>
 #include <memory>
 #include <string>
 
@@ -21,10 +20,16 @@ public:
 
     // Parse simple output (non-JSON) - attempts to infer type
     static std::shared_ptr<interpreter::Value> parseSimple(const std::string& output);
-
-private:
-    static std::shared_ptr<interpreter::Value> parseValue(const nlohmann::json& j);
 };
+
+// Phase 12: Polyglot output parsing result
+struct PolyglotOutput {
+    std::shared_ptr<interpreter::Value> return_value;  // Parsed return value (may be null)
+    std::string log_output;  // Non-return stdout lines (logs/debug output)
+};
+
+// Phase 12: Parse polyglot stdout with sentinel detection and JSON scanning
+PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::string& return_type);
 
 } // namespace runtime
 } // namespace naab
