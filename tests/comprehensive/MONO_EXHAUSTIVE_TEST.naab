@@ -3216,6 +3216,52 @@ typeof obj
         print("  FAIL: JS dict binding — " + e["message"])
     }
 
+    // 12g: Block contract violation error
+    print("--- 12g: Contract violation & scope errors ---")
+    try {
+        let bad = <<python -> JSON
+print("not valid json at all")
+>>
+        print("  FAIL: Contract violation not thrown")
+    } catch (e) {
+        if e["message"].contains("contract violation") {
+            print("  PASS: Block contract violation thrown for non-JSON output")
+        } else {
+            print("  FAIL: Wrong error — " + e["message"])
+        }
+    }
+
+    // 12h: Contract violation message includes naab_return suggestion
+    try {
+        let bad2 = <<python -> JSON
+x = 42
+>>
+        print("  FAIL: Python contract violation not thrown for non-JSON assignment")
+    } catch (e) {
+        if e["message"].contains("naab_return") {
+            print("  PASS: Contract violation includes naab_return suggestion")
+        } else if e["message"].contains("contract violation") {
+            print("  PASS: Contract violation thrown (no naab_return hint)")
+        } else {
+            print("  FAIL: Wrong error — " + e["message"])
+        }
+    }
+
+    // 12i: Valid -> JSON with print works (no false positive)
+    try {
+        let good = <<python -> JSON
+import json
+print(json.dumps({"ok": True, "count": 3}))
+>>
+        if good["ok"] == true {
+            print("  PASS: Valid -> JSON block with print returns correct data")
+        } else {
+            print("  FAIL: Valid JSON returned wrong value — " + debug.inspect(good))
+        }
+    } catch (e) {
+        print("  FAIL: Valid -> JSON threw error — " + e["message"])
+    }
+
     print("")
 
     // ====================================================================
@@ -3233,7 +3279,7 @@ typeof obj
     print("║  Nested combinations:       10 patterns                     ║")
     print("║  Documented gotchas:        25                              ║")
     print("║  Helper error verifications: 50+ (Section 10)               ║")
-    print("║  Polyglot enhancements:     22 (Section 12)                 ║")
+    print("║  Polyglot enhancements:     25 (Section 12)                 ║")
     print("║  Security tests:            9 (overflow, div0, bounds, etc) ║")
     print("║  Chapters covered:          ch01-ch20 (all 20)              ║")
     print("╠══════════════════════════════════════════════════════════════╣")

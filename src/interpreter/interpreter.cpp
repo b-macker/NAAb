@@ -3336,8 +3336,44 @@ void Interpreter::visit(ast::CallExpr& node) {
                             result_ = rt.executor->executeWithReturn(code);
                         }
                     } catch (const std::exception& e) {
+                        std::string err = e.what();
+
+                        // Detect scope isolation errors and provide helpful guidance
+                        bool is_scope_error = (
+                            err.find("NameError") != std::string::npos ||
+                            err.find("ReferenceError") != std::string::npos ||
+                            err.find("ModuleNotFoundError") != std::string::npos ||
+                            err.find("ImportError") != std::string::npos ||
+                            err.find("Cannot find module") != std::string::npos);
+
+                        if (is_scope_error) {
+                            // Extract the undefined name from quotes
+                            std::string missing;
+                            size_t q1 = err.find('\'');
+                            if (q1 != std::string::npos) {
+                                size_t q2 = err.find('\'', q1 + 1);
+                                if (q2 != std::string::npos) {
+                                    missing = err.substr(q1 + 1, q2 - q1 - 1);
+                                }
+                            }
+
+                            std::ostringstream oss;
+                            oss << "Persistent runtime '" << runtime_name << "' scope error: " << err << "\n\n"
+                                << "  Help: Each .exec() call shares state with previous calls.\n"
+                                << "  Import libraries in an earlier .exec() call:\n\n"
+                                << "  Example:\n"
+                                << "    runtime " << runtime_name << " = " << rt.language << ".start()\n";
+                            if (!missing.empty()) {
+                                oss << "    " << runtime_name << ".exec(<<" << rt.language << " import " << missing << " >>)\n";
+                            } else {
+                                oss << "    " << runtime_name << ".exec(<<" << rt.language << " import your_module >>)\n";
+                            }
+                            oss << "    let data = " << runtime_name << ".exec(<<" << rt.language << " ... >>)\n";
+                            throw std::runtime_error(oss.str());
+                        }
+
                         throw std::runtime_error(
-                            "Runtime error in " + runtime_name + ".exec(): " + e.what());
+                            "Runtime error in " + runtime_name + ".exec(): " + err);
                     }
                     return;
                 }
@@ -5774,6 +5810,45 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 }
             }
         }
+
+        // Phase 12: BLOCK_CONTRACT_VIOLATION — -> JSON declared but no JSON produced
+        if (!return_type.empty() && return_type == "JSON") {
+            bool has_valid_result = result_ && !std::holds_alternative<std::monostate>(result_->data);
+            if (!has_valid_result) {
+                std::ostringstream oss;
+                oss << "Block contract violation: <<" << language << " -> JSON>> expected a JSON return value, "
+                    << "but no valid JSON was found in stdout.\n\n"
+                    << "  Help:\n"
+                    << "  - Use naab_return({...}) to explicitly return JSON data\n"
+                    << "  - Or print valid JSON as the last line of output\n\n"
+                    << "  Example:\n"
+                    << "    let data = <<" << language << " -> JSON\n";
+                if (language == "python") {
+                    oss << "    import json\n"
+                        << "    result = {\"key\": [1, 2, 3]}\n"
+                        << "    naab_return(result)\n";
+                } else if (language == "javascript" || language == "js") {
+                    oss << "    naab_return({key: [1, 2, 3]})\n";
+                } else {
+                    oss << "    naab_return(your_data)\n";
+                }
+                oss << "    >>\n";
+                gc_suspended_ = false;
+                throw std::runtime_error(oss.str());
+            }
+
+            // AMBIGUOUS_OUTPUT warning: result looks like an error, not structured data
+            if (auto* str_val = std::get_if<std::string>(&result_->data)) {
+                if (str_val->find("Traceback") != std::string::npos ||
+                    str_val->find("Error") != std::string::npos ||
+                    str_val->find("error:") != std::string::npos) {
+                    std::cerr << "Warning: <<" << language << " -> JSON>> returned a string that looks "
+                              << "like an error message, not JSON data. Consider using try/catch "
+                              << "inside the polyglot block.\n";
+                }
+            }
+        }
+
         gc_suspended_ = false;
 
     } catch (const std::exception& e) {
