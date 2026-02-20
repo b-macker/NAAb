@@ -1,0 +1,10 @@
+use io
+use http
+use json
+main {
+    io.write("Fetching...\n")
+    let resp = http.get("https://api.exchangerate-api.com/v4/latest/USD")
+    io.write("OK: ")
+    io.write(resp["ok"])
+    io.write("\n")
+}

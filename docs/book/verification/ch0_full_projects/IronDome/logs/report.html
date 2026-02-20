@@ -1,0 +1,62 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IronDome Compliance Report</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #1a1a1a; color: #e0e0e0; margin: 2rem; }
+        h1 { color: #4CAF50; }
+        .failed { color: #f44336; }
+        .card { background: #2d2d2d; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.5rem; border-bottom: 1px solid #404040; text-align: left; }
+        th { color: #888; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>IronDome Compliance Report</h1>
+        <p>Generated: 2026-02-19T06:44:07.963Z</p>
+    </div>
+
+    <div class="card">
+        <h2>Scan Summary</h2>
+        <p><strong>Files Scanned:</strong> 197</p>
+        <p><strong>Duration:</strong> 57ms</p>
+    </div>
+
+    <div class="card">
+        <h2>Enforcement Results</h2>
+        <p><strong>Total Gates:</strong> 3</p>
+        <p><strong>Passed:</strong> 2</p>
+        <p><strong>Failed:</strong> <span class="failed">1</span></p>
+        <p><strong>Blocking Violations:</strong> <span class="failed">1</span></p>
+    </div>
+
+    <div class="card">
+        <h2>Violations</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Gate</th>
+                    <th>File</th>
+                    <th>Message</th>
+                    <th>Severity</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>gate_file_size</td>
+                    <td>./verification/ch0_full_projects/IronDome/data/large_file.tmp</td>
+                    <td>File size (2097152) exceeds limit (1048576)</td>
+                    <td class="failed">critical</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

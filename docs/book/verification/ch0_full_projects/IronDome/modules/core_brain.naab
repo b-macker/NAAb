@@ -1,0 +1,76 @@
+// IronDome/modules/core_brain.naab
+// Triadic Cognitive Reasoning Module
+// Uses: <<cpp>>, <<python>>, json, math
+
+use io
+use json
+use math
+
+export fn deliberate(violations) {
+    let v_json_naab = json.stringify(violations)
+    
+    // Stage 1: Structural Entropy Analysis (C++)
+    let entropy_report = <<cpp[v_json_naab]
+    #include <iostream>
+    #include <string>
+    #include <map>
+    #include <cmath>
+
+    int main() {
+        std::string s_v_json = v_json_naab;
+        std::map<std::string, int> clusters;
+        std::string search = "\"gate_id\":\"";
+        size_t pos = s_v_json.find(search);
+        int total = 0;
+
+        while (pos != std::string::npos) {
+            pos += search.length();
+            size_t end = s_v_json.find("\"", pos);
+            if (end == std::string::npos) break;
+            std::string gid = s_v_json.substr(pos, end - pos);
+            clusters[gid]++;
+            total++;
+            pos = s_v_json.find(search, end);
+        }
+
+        double entropy = 0.0;
+        if (total > 0) {
+            for (auto const& [key, val] : clusters) {
+                double p = (double)val / total;
+                entropy -= p * log2(p);
+            }
+        }
+
+        std::cout << "{\"entropy\":" << (std::isnan(entropy) ? 0.0 : entropy) 
+                  << ",\"cluster_count\":" << clusters.size() 
+                  << ",\"is_systemic\":" << (entropy < 0.5 && total > 2 ? "true" : "false") << "}" << std::endl;
+        return 0;
+    }
+    >>
+    
+    let entropy_data = json.parse(entropy_report)
+    let e_json = json.stringify(entropy_data)
+
+    // Stage 2: Heuristic Consensus (Python)
+    let decision_json = <<python[v_json_naab, e_json]
+import json
+
+violations = json.loads(v_json_naab)
+entropy = json.loads(e_json)
+
+risk_score = (len(violations) * 10) + (50 if entropy.get("is_systemic", False) else 0)
+status = "CRITICAL" if risk_score > 80 else "STABLE"
+
+result = {
+    "risk_index": risk_score,
+    "systemic_threat": entropy.get("is_systemic", False),
+    "structural_entropy": entropy.get("entropy", 0.0),
+    "consensus_status": status,
+    "recommendation": "HALT_PRODUCTION" if status == "CRITICAL" else "PROCEED_WITH_MONITORING"
+}
+# Return the JSON string as the last expression
+json.dumps(result)
+    >>
+
+    return json.parse(decision_json)
+}

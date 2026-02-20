@@ -1,0 +1,320 @@
+// modules/dashboard.naab
+// PHP-rendered interactive HTML dashboard with dark theme
+// Enhanced: risk gauges, quality badges, Monte Carlo, VaR, audit, recommendations
+// Uses: <<php>>, string, file, json
+
+use io
+use json
+use file
+use string
+use array
+
+// ── PHP Dashboard Renderer (enhanced) ───────────────────────────
+
+export fn render_dashboard(dashboard_data, report_id, output_path) {
+    io.write("  [Dashboard] Rendering HTML via PHP...\n")
+
+    let data_json = json.stringify(dashboard_data)
+    let rid = report_id
+
+    let html = <<php[data_json, rid]
+$data = json_decode($data_json, true);
+$reportId = $rid;
+
+$meta = $data['meta'] ?? ['live_sources' => 0, 'total_sources' => 0, 'live_percent' => 0];
+$weather = $data['weather'] ?? [];
+$crypto = $data['crypto'] ?? [];
+$currency = $data['currency'] ?? [];
+$github = $data['github'] ?? [];
+$geo = $data['geo'] ?? [];
+$correlation = $data['correlation'] ?? [];
+$risk = $data['risk'] ?? [];
+$mc = $data['monte_carlo'] ?? [];
+$varData = $data['var'] ?? [];
+$quality = $data['quality'] ?? [];
+$arbitrage = $data['arbitrage'] ?? [];
+
+$timestamp = date('Y-m-d H:i:s');
+
+function formatNumber($n) {
+    if ($n >= 1000000000000) return round($n / 1000000000000, 2) . 'T';
+    if ($n >= 1000000000) return round($n / 1000000000, 2) . 'B';
+    if ($n >= 1000000) return round($n / 1000000, 2) . 'M';
+    if ($n >= 1000) return round($n / 1000, 2) . 'K';
+    return number_format($n, 2);
+}
+
+function tempColor($temp) {
+    if ($temp > 35) return '#ff4444';
+    if ($temp > 30) return '#ff8800';
+    if ($temp > 20) return '#44bb44';
+    if ($temp > 10) return '#4488ff';
+    return '#8888ff';
+}
+
+function changeColor($change) {
+    return $change >= 0 ? '#3fb950' : '#f85149';
+}
+
+function riskColor($level) {
+    if ($level === 'RED') return '#f85149';
+    if ($level === 'YELLOW') return '#d29922';
+    return '#3fb950';
+}
+
+function qualityColor($score) {
+    if ($score >= 90) return '#3fb950';
+    if ($score >= 70) return '#d29922';
+    return '#f85149';
+}
+
+function disruptionBadge($level) {
+    $colors = ['HIGH' => '#f85149', 'MODERATE' => '#d29922', 'LOW' => '#3fb950'];
+    $c = $colors[$level] ?? '#8b949e';
+    return '<span style="background:'.$c.';color:#fff;padding:2px 6px;border-radius:8px;font-size:0.7rem;font-weight:bold;">'.$level.'</span>';
+}
+
+$html = '<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAAb Nexus V2 - Enterprise Intelligence Dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; }
+.header { background: linear-gradient(135deg, #161b22 0%, #0d1117 50%, #1a1040 100%); padding: 2rem; text-align: center; border-bottom: 1px solid #30363d; }
+.header h1 { font-size: 2.2rem; color: #58a6ff; letter-spacing: 0.05em; }
+.header .subtitle { color: #8b949e; margin-top: 0.5rem; font-size: 0.95rem; }
+.header .meta { display: flex; justify-content: center; gap: 1.5rem; margin-top: 1rem; flex-wrap: wrap; }
+.header .meta-item { background: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.85rem; }
+.header .meta-item .val { color: #58a6ff; font-weight: bold; }
+.container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; }
+.grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; }
+.card h2 { color: #58a6ff; margin-bottom: 1rem; font-size: 1.2rem; border-bottom: 1px solid #21262d; padding-bottom: 0.5rem; }
+.card h3 { color: #8b949e; font-size: 0.9rem; text-transform: uppercase; margin-bottom: 0.5rem; }
+.weather-card { text-align: center; padding: 1rem; background: #0d1117; border: 1px solid #21262d; border-radius: 8px; }
+.weather-card .city { font-weight: bold; font-size: 1rem; color: #f0f6fc; }
+.weather-card .temp { font-size: 2rem; font-weight: bold; margin: 0.3rem 0; }
+.weather-card .detail { font-size: 0.8rem; color: #8b949e; }
+table { width: 100%; border-collapse: collapse; }
+th { color: #8b949e; text-transform: uppercase; font-size: 0.75rem; font-weight: 600; text-align: left; padding: 0.75rem; border-bottom: 2px solid #21262d; }
+td { padding: 0.75rem; border-bottom: 1px solid #21262d; }
+tr:hover { background: #1c2128; }
+.bar-container { display: flex; align-items: center; gap: 0.5rem; margin: 0.3rem 0; }
+.bar { height: 20px; border-radius: 4px; background: linear-gradient(90deg, #238636, #58a6ff); min-width: 4px; }
+.bar-label { font-size: 0.8rem; color: #8b949e; min-width: 80px; }
+.bar-val { font-size: 0.8rem; color: #c9d1d9; min-width: 60px; text-align: right; }
+.insight-box { background: #0d1117; border-left: 3px solid #58a6ff; padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+.status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.badge-live { background: #238636; color: #fff; }
+.badge-synth { background: #6e7681; color: #fff; }
+.risk-gauge { text-align: center; padding: 1.5rem; background: #0d1117; border-radius: 8px; border: 1px solid #21262d; }
+.risk-gauge .score { font-size: 2.5rem; font-weight: bold; }
+.risk-gauge .label { font-size: 0.85rem; color: #8b949e; margin-top: 0.3rem; }
+.footer { text-align: center; padding: 2rem; color: #484f58; font-size: 0.85rem; border-top: 1px solid #21262d; margin-top: 2rem; }
+@media (max-width: 900px) { .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>';
+
+// Header
+$riskLevel = $risk['alert_level'] ?? 'GREEN';
+$riskBg = riskColor($riskLevel);
+$html .= '<div class="header">';
+$html .= '<h1>NAAb Nexus <span style="font-size:0.6em;color:'.$riskBg.';">V2</span></h1>';
+$html .= '<div class="subtitle">Enterprise Intelligence Dashboard | Multi-Source Real-Time Analytics</div>';
+$html .= '<div class="meta">';
+$html .= '<div class="meta-item">Report: <span class="val">' . substr($reportId, 0, 12) . '</span></div>';
+$html .= '<div class="meta-item">Generated: <span class="val">' . $timestamp . '</span></div>';
+$html .= '<div class="meta-item">Live: <span class="val">' . $meta['live_sources'] . '/' . $meta['total_sources'] . ' (' . $meta['live_percent'] . '%)</span></div>';
+$html .= '<div class="meta-item">Risk: <span class="val" style="color:'.$riskBg.'">' . $riskLevel . '</span></div>';
+$html .= '<div class="meta-item">Quality: <span class="val" style="color:'.qualityColor($quality['score'] ?? 0).'">' . ($quality['grade'] ?? 'N/A') . ' (' . ($quality['score'] ?? 0) . '%)</span></div>';
+if (!empty($geo['city']) && $geo['city'] !== 'Unknown') {
+    $html .= '<div class="meta-item">Location: <span class="val">' . htmlspecialchars($geo['city'] . ', ' . $geo['country']) . '</span></div>';
+}
+$html .= '</div></div>';
+
+$html .= '<div class="container">';
+
+// Risk Dashboard (NEW)
+$html .= '<div class="card"><h2>Risk Assessment Dashboard</h2>';
+$html .= '<div class="grid-4">';
+$components = ['weather_risk' => ['Weather', '#f0883e'], 'crypto_risk' => ['Crypto', '#a371f7'], 'currency_risk' => ['Currency', '#58a6ff'], 'quality_risk' => ['Quality', '#3fb950']];
+foreach ($components as $key => $info) {
+    $val = round($risk[$key] ?? 0, 1);
+    $html .= '<div class="risk-gauge"><div class="score" style="color:'.$info[1].'">'.$val.'</div><div class="label">'.$info[0].' Risk</div></div>';
+}
+$html .= '</div>';
+$alertMsg = $risk['alert_message'] ?? '';
+if ($alertMsg) {
+    $html .= '<div class="insight-box" style="border-left-color:'.$riskBg.';margin-top:1rem;"><strong style="color:'.$riskBg.'">[' . $riskLevel . ']</strong> ' . htmlspecialchars($alertMsg) . '</div>';
+}
+$html .= '</div>';
+
+// VaR + Monte Carlo (NEW)
+if (!empty($varData) || !empty($mc)) {
+    $html .= '<div class="card"><h2>Portfolio Risk Analysis (VaR + Monte Carlo)</h2><div class="grid-2">';
+
+    // VaR
+    $html .= '<div>';
+    $html .= '<h3>Value at Risk (95% Confidence)</h3>';
+    $html .= '<table><tbody>';
+    $html .= '<tr><td>Portfolio Value</td><td><strong>$' . formatNumber($varData['portfolio_value'] ?? 0) . '</strong></td></tr>';
+    $html .= '<tr><td>VaR (1-day, 95%)</td><td style="color:#f85149"><strong>$' . formatNumber($varData['var_dollar'] ?? 0) . '</strong> (' . round($varData['var_pct'] ?? 0, 2) . '%)</td></tr>';
+    $html .= '<tr><td>CVaR (Expected Shortfall)</td><td style="color:#f85149">$' . formatNumber($varData['cvar_dollar'] ?? 0) . '</td></tr>';
+    $html .= '<tr><td>Sharpe Ratio</td><td>' . round($varData['sharpe_ratio'] ?? 0, 4) . '</td></tr>';
+    $html .= '<tr><td>Max Drawdown</td><td>' . round($varData['max_drawdown'] ?? 0, 2) . '%</td></tr>';
+    $html .= '</tbody></table></div>';
+
+    // Monte Carlo
+    $html .= '<div>';
+    $html .= '<h3>30-Day Price Forecast (Monte Carlo)</h3>';
+    $html .= '<table><thead><tr><th>Asset</th><th>Current</th><th>Low (5%)</th><th>Median</th><th>High (95%)</th></tr></thead><tbody>';
+    foreach ($mc as $m) {
+        $html .= '<tr>';
+        $html .= '<td><strong>' . htmlspecialchars($m['asset'] ?? '') . '</strong></td>';
+        $html .= '<td>$' . number_format($m['current'] ?? 0, 2) . '</td>';
+        $html .= '<td style="color:#f85149">$' . number_format($m['low'] ?? 0, 2) . '</td>';
+        $html .= '<td>$' . number_format($m['median'] ?? 0, 2) . '</td>';
+        $html .= '<td style="color:#3fb950">$' . number_format($m['high'] ?? 0, 2) . '</td>';
+        $html .= '</tr>';
+    }
+    $html .= '</tbody></table></div>';
+    $html .= '</div></div>';
+}
+
+// Weather Section (enhanced with disruption)
+$html .= '<div class="card"><h2>Weather Intelligence</h2><div class="grid-5">';
+foreach ($weather as $w) {
+    $tc = tempColor($w['temp']);
+    $badge = $w['live'] ? '<span class="status-badge badge-live">LIVE</span>' : '<span class="status-badge badge-synth">SYNTH</span>';
+    $dBadge = disruptionBadge($w['disruption_level'] ?? 'LOW');
+    $html .= '<div class="weather-card">';
+    $html .= '<div class="city">' . htmlspecialchars($w['city']) . ' ' . $badge . '</div>';
+    $html .= '<div class="temp" style="color:' . $tc . '">' . $w['temp'] . '&deg;C</div>';
+    $html .= '<div class="detail">Feels: ' . round($w['feels'], 1) . '&deg;C</div>';
+    $html .= '<div class="detail">' . htmlspecialchars($w['desc']) . '</div>';
+    $html .= '<div class="detail">H: ' . $w['humidity'] . '% | W: ' . $w['wind'] . ' km/h</div>';
+    $html .= '<div class="detail" style="margin-top:4px;">BDI: ' . round($w['disruption'] ?? 0, 1) . ' ' . $dBadge . '</div>';
+    $html .= '</div>';
+}
+$html .= '</div></div>';
+
+// Crypto Section
+$html .= '<div class="card"><h2>Cryptocurrency Markets</h2>';
+$html .= '<table><thead><tr><th>Asset</th><th>Price</th><th>24h</th><th>MCap</th><th>Volume</th><th>Z</th><th>Vol</th></tr></thead><tbody>';
+foreach ($crypto as $c) {
+    $cc = changeColor($c['change']);
+    $sign = $c['change'] >= 0 ? '+' : '';
+    $html .= '<tr>';
+    $html .= '<td><strong>' . htmlspecialchars($c['name']) . '</strong></td>';
+    $html .= '<td>$' . number_format($c['price'], 2) . '</td>';
+    $html .= '<td style="color:' . $cc . '">' . $sign . round($c['change'], 2) . '%</td>';
+    $html .= '<td>' . formatNumber($c['mcap']) . '</td>';
+    $html .= '<td>' . formatNumber($c['vol']) . '</td>';
+    $html .= '<td>' . round($c['zscore'] ?? 0, 3) . '</td>';
+    $html .= '<td>' . htmlspecialchars($c['volClass'] ?? 'n/a') . '</td>';
+    $html .= '</tr>';
+}
+$html .= '</tbody></table></div>';
+
+// Two-column: Currency + GitHub
+$html .= '<div class="grid-2">';
+
+// Currency
+$html .= '<div class="card"><h2>Currency Exchange (vs USD)</h2>';
+$html .= '<table><thead><tr><th>Code</th><th>Rate</th><th>Inverse</th><th>Strength</th></tr></thead><tbody>';
+foreach ($currency as $p) {
+    $html .= '<tr>';
+    $html .= '<td><strong>' . htmlspecialchars($p['code']) . '</strong></td>';
+    $html .= '<td>' . number_format($p['rate'], 4) . '</td>';
+    $html .= '<td>' . number_format($p['inverse'], 4) . '</td>';
+    $html .= '<td>' . str_replace('_', ' ', htmlspecialchars($p['strength'])) . '</td>';
+    $html .= '</tr>';
+}
+$html .= '</tbody></table>';
+// Arbitrage
+if (!empty($arbitrage)) {
+    $html .= '<div class="insight-box" style="margin-top:1rem;border-left-color:#a371f7;"><strong>Arbitrage Check:</strong> ';
+    foreach ($arbitrage as $arb) {
+        $html .= htmlspecialchars($arb['triangle']) . ' profit: ' . $arb['profit_pct'] . '% ';
+        $html .= $arb['exploitable'] ? '<span style="color:#3fb950">[Opportunity]</span>' : '<span style="color:#8b949e">[Neutral]</span>';
+    }
+    $html .= '</div>';
+}
+$html .= '</div>';
+
+// GitHub (with recommendations)
+$html .= '<div class="card"><h2>GitHub Repository Analysis</h2>';
+$maxStars = 1;
+foreach ($github as $r) { if ($r['stars'] > $maxStars) $maxStars = $r['stars']; }
+foreach ($github as $r) {
+    $pct = round($r['stars'] / $maxStars * 100);
+    $recColor = '#8b949e';
+    $rec = $r['recommendation'] ?? 'N/A';
+    if ($rec === 'Strong Buy') $recColor = '#3fb950';
+    elseif ($rec === 'Buy') $recColor = '#58a6ff';
+    elseif ($rec === 'Hold') $recColor = '#d29922';
+    $html .= '<div style="margin-bottom:1rem;padding:0.75rem;background:#0d1117;border-radius:6px;border:1px solid #21262d;">';
+    $html .= '<div style="display:flex;justify-content:space-between;align-items:center;">';
+    $html .= '<strong>' . htmlspecialchars($r['name']) . '</strong>';
+    $html .= '<span><span class="status-badge" style="background:#58a6ff;color:#0d1117;">' . $r['tier'] . '</span> ';
+    $html .= '<span class="status-badge" style="background:'.$recColor.';color:#fff;">' . htmlspecialchars($rec) . '</span></span>';
+    $html .= '</div>';
+    $html .= '<div class="bar-container"><span class="bar-label">Stars</span><div class="bar" style="width:' . $pct . '%;"></div><span class="bar-val">' . formatNumber($r['stars']) . '</span></div>';
+    $forkPct = round($r['forks'] / $maxStars * 100);
+    $html .= '<div class="bar-container"><span class="bar-label">Forks</span><div class="bar" style="width:' . $forkPct . '%;background:linear-gradient(90deg,#6e40c9,#a371f7);"></div><span class="bar-val">' . formatNumber($r['forks']) . '</span></div>';
+    $html .= '<div style="font-size:0.8rem;color:#8b949e;margin-top:0.3rem;">Lang: ' . htmlspecialchars($r['lang']) . ' | Score: ' . round($r['composite'] ?? 0, 1) . ' | Issues: ' . formatNumber($r['issues']) . '</div>';
+    $html .= '</div>';
+}
+$html .= '</div></div>';
+
+// Correlation + Quality
+$html .= '<div class="grid-2">';
+
+// Correlation Insight
+$html .= '<div class="card"><h2>Cross-Source Intelligence</h2>';
+$html .= '<div class="insight-box"><p>' . htmlspecialchars($correlation['insight'] ?? 'No data') . '</p></div>';
+$html .= '<div class="grid-3" style="margin-top:1rem;">';
+$html .= '<div style="text-align:center;"><h3>Severity</h3><div style="font-size:1.5rem;font-weight:bold;color:#f0883e;">' . round($correlation['severity'] ?? 0, 3) . '</div></div>';
+$html .= '<div style="text-align:center;"><h3>Volatility</h3><div style="font-size:1.5rem;font-weight:bold;color:#a371f7;">' . round($correlation['volatility'] ?? 0, 3) . '</div></div>';
+$html .= '<div style="text-align:center;"><h3>r-value</h3><div style="font-size:1.5rem;font-weight:bold;color:#58a6ff;">' . round($correlation['r_value'] ?? 0, 4) . '</div></div>';
+$html .= '</div></div>';
+
+// Data Quality (NEW)
+$html .= '<div class="card"><h2>Data Quality Report</h2>';
+$qScore = $quality['score'] ?? 0;
+$qColor = qualityColor($qScore);
+$html .= '<div style="text-align:center;margin-bottom:1rem;">';
+$html .= '<div style="font-size:3rem;font-weight:bold;color:'.$qColor.'">' . ($quality['grade'] ?? 'N/A') . '</div>';
+$html .= '<div style="color:#8b949e;">Score: ' . $qScore . '% | Checks: ' . ($quality['checks'] ?? 0) . '</div>';
+$html .= '</div>';
+$html .= '<div class="grid-3">';
+$html .= '<div style="text-align:center;"><h3>Passed</h3><div style="font-size:1.5rem;color:#3fb950;">' . ($quality['passed'] ?? 0) . '</div></div>';
+$html .= '<div style="text-align:center;"><h3>Issues</h3><div style="font-size:1.5rem;color:#f85149;">' . ($quality['issues'] ?? 0) . '</div></div>';
+$html .= '<div style="text-align:center;"><h3>Anomalies</h3><div style="font-size:1.5rem;color:#d29922;">' . ($quality['anomalies'] ?? 0) . '</div></div>';
+$html .= '</div></div>';
+
+$html .= '</div>';
+
+// Footer
+$html .= '</div>';
+$html .= '<div class="footer">';
+$html .= '<p>Generated by <strong>NAAb Nexus V2</strong> | Enterprise Polyglot Intelligence Platform</p>';
+$html .= '<p>9 languages: C++ &bull; Python &bull; JavaScript &bull; Rust &bull; Go &bull; Ruby &bull; PHP &bull; TypeScript &bull; Shell</p>';
+$html .= '<p>Report ID: ' . $reportId . ' | Risk Level: <strong style="color:'.$riskBg.'">' . $riskLevel . '</strong></p>';
+$html .= '</div>';
+$html .= '</body></html>';
+
+echo $html;
+    >>
+
+    file.write(output_path, html)
+    io.write("    Written: ", output_path, " (", string.length(html), " bytes)\n")
+    return string.length(html)
+}

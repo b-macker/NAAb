@@ -1,0 +1,96 @@
+// AegisCLI/modules/config_loader.naab
+// Handles configuration loading, validation, and setup wizard.
+// Uses: file, json, io, array
+
+use io
+use json
+use file
+use array
+use string
+
+// ── Structs ──────────────────────────────────────────────────────
+
+export struct Config {
+    api_key: string,
+    model: string,
+    max_tokens: int,
+    ignore_patterns: list,
+    safe_mode: bool
+}
+
+// ── Default Configuration ────────────────────────────────────────
+
+fn get_default_config() {
+    return new Config {
+        api_key: "",
+        model: "gpt-4o",
+        max_tokens: 4096,
+        ignore_patterns: [".git", "node_modules", "dist", "target", "vendor", "__pycache__", ".DS_Store"],
+        safe_mode: true
+    }
+}
+
+// ── Load Configuration ───────────────────────────────────────────
+
+export fn load_config(path) {
+    if !file.exists(path) {
+        throw "Config file not found at " + path
+    }
+
+    let raw = file.read(path)
+    let parsed = json.parse(raw)
+
+    // Basic validation
+    if !string.contains(raw, "api_key") {
+        throw "Config missing 'api_key' field"
+    }
+    if !string.contains(raw, "model") {
+        throw "Config missing 'model' field"
+    }
+
+    return new Config {
+        api_key: parsed["api_key"],
+        model: parsed["model"],
+        max_tokens: parsed["max_tokens"],
+        ignore_patterns: parsed["ignore_patterns"],
+        safe_mode: parsed["safe_mode"]
+    }
+}
+
+// ── Setup Wizard ────────────────────────────────────────────────
+
+export fn run_setup_wizard(path) {
+    io.write("  [Setup] Welcome to Aegis-CLI Configuration Wizard.
+")
+    io.write("  This wizard will guide you through the setup process.
+")
+
+    // In a real CLI, we would prompt for input here using io.read_line()
+    // For now, we'll simulate user input or use environment variables
+    
+    let config = get_default_config()
+    
+    // Simulate prompting (or use env vars if available)
+    // let api_key = io.read_line("Enter your OpenAI/Anthropic API Key: ")
+    // config.api_key = string.trim(api_key)
+    
+    // For this plan, we'll assume a dummy or env var
+    config.api_key = "sk-placeholder-key-replace-me"
+
+    // Save default config
+    let json_str = json.stringify(config)
+    
+    // Ensure directory exists
+    // (Assuming simple path parsing for now, or rely on user to have ~/.aegis)
+    // In a robust app, we'd use `mkdir -p` via `run_shell_command` inside NAAb if `file.create_dir` wasn't recursive
+    
+    try {
+        file.write(path, json_str)
+        io.write("  [Setup] Configuration saved to ", path, "\n")
+    } catch (e) {
+        io.write("  [Setup] Failed to save config: ", e, "\n")
+        io.write("  Please ensure the directory exists and is writable.\n")
+    }
+
+    return config
+}

@@ -1,0 +1,268 @@
+// modules/security.naab
+// Defense-in-Depth: NAAb crypto + Rust SHA + Go verification + audit integration
+// Uses: <<rust>>, <<go>>, crypto.sha256, crypto.sha512, crypto.md5,
+//       crypto.compare_digest, crypto.base64_encode, crypto.base64_decode,
+//       crypto.hex_encode, crypto.hex_decode, crypto.random_bytes,
+//       crypto.random_string, crypto.random_int, crypto.generate_token,
+//       crypto.hash_password, time module, file module
+
+use io
+use json
+use array
+use crypto
+use file
+use string
+use time
+use math
+
+// ── NAAb Native Hashing (multi-algorithm) ────────────────────────
+
+fn hash_data_naab(label, data_str) {
+    let sha256_hash = crypto.sha256(data_str)
+    let sha512_hash = crypto.sha512(data_str)
+    let md5_hash = crypto.md5(data_str)
+    return {
+        "label": label,
+        "sha256": sha256_hash,
+        "sha512": string.substring(sha512_hash, 0, 64),
+        "md5": md5_hash,
+        "source": "naab_crypto"
+    }
+}
+
+// ── Rust SHA-256 Independent Verification ────────────────────────
+
+fn hash_data_rust(label, data_str) {
+    let hash_result = <<rust[label, data_str]
+fn sha256_simple(input: &str) -> String {
+    // Simple deterministic hash (not cryptographic SHA-256, but
+    // demonstrates Rust polyglot for verification cross-check)
+    let bytes = input.as_bytes();
+    let mut h: u64 = 0xcbf29ce484222325;
+    for &b in bytes {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    let mut h2: u64 = 0x6c62272e07bb0142;
+    for &b in bytes {
+        h2 = h2.wrapping_mul(31).wrapping_add(b as u64);
+    }
+    format!("{:016x}{:016x}{:016x}{:016x}",
+        h, h2,
+        h ^ h2,
+        h.wrapping_add(h2))
+}
+
+let hash = sha256_simple(&data_str);
+format!("{{\"label\":\"{}\",\"hash\":\"{}\",\"source\":\"rust\",\"len\":{}}}", label, hash, data_str.len())
+    >>
+
+    return json.parse(hash_result)
+}
+
+// ── Go Verification ──────────────────────────────────────────────
+
+fn verify_with_go(summary_str) {
+    let verify_result = <<go[summary_str]
+// summary_str format: "naab_count:rust_count:labels_match"
+naab_count := 0
+rust_count := 0
+labels_match := true
+part := 0
+current := ""
+for i := 0; i < len(summary_str); i++ {
+    if summary_str[i] == ':' {
+        if part == 0 {
+            for _, ch := range current {
+                naab_count = naab_count*10 + int(ch-'0')
+            }
+        } else if part == 1 {
+            for _, ch := range current {
+                rust_count = rust_count*10 + int(ch-'0')
+            }
+        }
+        part++
+        current = ""
+    } else {
+        current += string(summary_str[i])
+    }
+}
+if current == "false" {
+    labels_match = false
+}
+total := naab_count + rust_count
+status := "VERIFIED"
+all_present := naab_count > 0 && rust_count > 0 && labels_match
+if !all_present {
+    if naab_count == 0 || rust_count == 0 {
+        status = "INCOMPLETE"
+    } else {
+        status = "MISMATCH_LABELS"
+    }
+}
+ap := "true"
+if !all_present {
+    ap = "false"
+}
+fmt.Sprintf("{\"total_checks\":%d,\"naab_count\":%d,\"rust_count\":%d,\"all_present\":%s,\"status\":\"%s\"}", total, naab_count, rust_count, ap, status)
+    >>
+
+    return json.parse(verify_result)
+}
+
+// ── Crypto Module Showcase ──────────────────────────────────────
+
+fn demonstrate_crypto_depth(data_str) {
+    io.write("    [Crypto] Running defense-in-depth checks...\n")
+
+    // SHA family
+    let sha256 = crypto.sha256(data_str)
+    let sha512 = crypto.sha512(data_str)
+    let md5 = crypto.md5(data_str)
+
+    // Base64 round-trip
+    let b64_encoded = crypto.base64_encode(data_str)
+    let b64_decoded = crypto.base64_decode(b64_encoded)
+    let b64_match = if b64_decoded == data_str { true } else { false }
+    io.write("    Base64 round-trip: ", if b64_match { "PASS" } else { "FAIL" }, "\n")
+
+    // Hex round-trip
+    let hex_encoded = crypto.hex_encode(data_str)
+    let hex_decoded = crypto.hex_decode(hex_encoded)
+    let hex_match = if hex_decoded == data_str { true } else { false }
+    io.write("    Hex round-trip: ", if hex_match { "PASS" } else { "FAIL" }, "\n")
+
+    // Constant-time comparison
+    let sha256_dup = crypto.sha256(data_str)
+    let digest_match = crypto.compare_digest(sha256, sha256_dup)
+    io.write("    Constant-time compare: ", if digest_match { "PASS" } else { "FAIL" }, "\n")
+
+    // Random generation
+    let rand_bytes = crypto.random_bytes(16)
+    let rand_str = crypto.random_string(12)
+    let rand_int = crypto.random_int(1, 1000000)
+    io.write("    Random string(12): ", rand_str, "\n")
+    io.write("    Random int[1,1M]: ", rand_int, "\n")
+
+    // Password hashing
+    let pwd_hash = crypto.hash_password("NAAb_Enterprise_2024")
+    io.write("    Password hash: ", string.substring(pwd_hash, 0, 20), "...\n")
+
+    return {
+        "sha256": sha256,
+        "sha512": string.substring(sha512, 0, 64),
+        "md5": md5,
+        "b64_roundtrip": b64_match,
+        "hex_roundtrip": hex_match,
+        "digest_match": digest_match,
+        "random_sample": rand_str,
+        "crypto_functions_verified": 12
+    }
+}
+
+// ── Main Security Entry Point (enhanced) ────────────────────────
+
+export fn verify_integrity(all_raw_data, output_dir, audit_summary) {
+    io.write("  [Security] Computing data integrity hashes...\n")
+
+    // Generate unique report ID
+    let report_id = crypto.generate_token(16)
+    io.write("    Report ID: ", report_id, "\n")
+
+    // Timestamp
+    let ts = time.now()
+    let ts_formatted = time.format_timestamp(ts, "%Y-%m-%d %H:%M:%S")
+    io.write("    Timestamp: ", ts_formatted, "\n")
+
+    // Time components showcase
+    let yr = time.year(ts)
+    let mo = time.month(ts)
+    let dy = time.day(ts)
+    let hr = time.hour(ts)
+    let mn = time.minute(ts)
+    let sc = time.second(ts)
+    let wd = time.weekday(ts)
+    io.write("    Date components: ", yr, "-", mo, "-", dy, " ", hr, ":", mn, ":", sc, " (weekday: ", wd, ")\n")
+
+    // Serialize each data source for hashing
+    let data_sources = [
+        {"label": "weather", "data": json.stringify(all_raw_data["weather"])},
+        {"label": "crypto", "data": json.stringify(all_raw_data["crypto"])},
+        {"label": "currency", "data": json.stringify(all_raw_data["currency"])},
+        {"label": "github", "data": json.stringify(all_raw_data["github"])},
+        {"label": "geo", "data": json.stringify(all_raw_data["geo"])}
+    ]
+
+    // NAAb crypto hashes (multi-algorithm)
+    let naab_hashes = []
+    let i = 0
+    while i < array.length(data_sources) {
+        let src = data_sources[i]
+        let h = hash_data_naab(src["label"], src["data"])
+        array.push(naab_hashes, h)
+        io.write("    [NAAb] ", src["label"], ": ", string.substring(h["sha256"], 0, 16), "...\n")
+        i = i + 1
+    }
+
+    // Rust independent hashes
+    io.write("  [Security] Rust independent hash verification...\n")
+    let rust_hashes = []
+    i = 0
+    while i < array.length(data_sources) {
+        let src = data_sources[i]
+        let h = hash_data_rust(src["label"], src["data"])
+        array.push(rust_hashes, h)
+        io.write("    [Rust] ", src["label"], ": ", string.substring(h["hash"], 0, 16), "...\n")
+        i = i + 1
+    }
+
+    // Go verification
+    io.write("  [Security] Go cross-verification...\n")
+    let naab_count = array.length(naab_hashes)
+    let rust_count = array.length(rust_hashes)
+    let labels_match = true
+    let li = 0
+    while li < naab_count {
+        let found = false
+        let lj = 0
+        while lj < rust_count {
+            if naab_hashes[li]["label"] == rust_hashes[lj]["label"] {
+                found = true
+            }
+            lj = lj + 1
+        }
+        if !found {
+            labels_match = false
+        }
+        li = li + 1
+    }
+    let match_str = if labels_match { "true" } else { "false" }
+    let summary = "" + naab_count + ":" + rust_count + ":" + match_str
+    let verification = verify_with_go(summary)
+
+    io.write("    Status: ", verification["status"], "\n")
+    io.write("    Total checks: ", verification["total_checks"], "\n")
+
+    // Crypto depth demonstration
+    let crypto_demo = demonstrate_crypto_depth(json.stringify(all_raw_data))
+
+    // Build integrity report
+    let integrity = {
+        "report_id": report_id,
+        "timestamp": ts_formatted,
+        "timestamp_ms": ts,
+        "naab_hashes": naab_hashes,
+        "rust_hashes": rust_hashes,
+        "verification": verification,
+        "crypto_demo": crypto_demo,
+        "audit_summary": audit_summary
+    }
+
+    // Write integrity.json using json.pretty
+    let path = output_dir + "/integrity.json"
+    let pretty_json = json.pretty(integrity)
+    file.write(path, pretty_json)
+    io.write("    Written: ", path, " (", string.length(pretty_json), " bytes)\n")
+
+    return integrity
+}

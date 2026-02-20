@@ -1,0 +1,250 @@
+// modules/weather_engine.naab
+// Weather processing + C++ heat index / wind chill + Business Disruption Index
+// Uses: fn keyword alias, if-expressions, <<cpp>> polyglot,
+//       math.abs, math.sqrt, math.pow, math.round, math.min, math.max,
+//       array.sort, array.reverse, array.first, array.last, array.map_fn
+
+use io
+use json
+use array
+use math
+use string
+
+// ── Heat Index & Wind Chill via C++ ──────────────────────────────
+
+fn compute_feels_like(temp_c, humidity, wind_kph) {
+    let temp_str = "" + temp_c
+    let humid_str = "" + humidity
+    let wind_str = "" + wind_kph
+
+    let result_json = <<cpp[temp_str, humid_str, wind_str]
+    #include <cmath>
+    #include <sstream>
+    #include <string>
+    #include <iomanip>
+
+    double temp_c = std::stod(temp_str);
+    double humidity = std::stod(humid_str);
+    double wind_kph = std::stod(wind_str);
+
+    double feels_like = temp_c;
+    std::string method = "ambient";
+
+    // Convert to Fahrenheit for heat index formula
+    double temp_f = temp_c * 9.0 / 5.0 + 32.0;
+
+    if (temp_f >= 80.0 && humidity >= 40.0) {
+        // Rothfusz regression for heat index
+        double hi = -42.379
+            + 2.04901523 * temp_f
+            + 10.14333127 * humidity
+            - 0.22475541 * temp_f * humidity
+            - 0.00683783 * temp_f * temp_f
+            - 0.05481717 * humidity * humidity
+            + 0.00122874 * temp_f * temp_f * humidity
+            + 0.00085282 * temp_f * humidity * humidity
+            - 0.00000199 * temp_f * temp_f * humidity * humidity;
+        // Convert back to Celsius
+        feels_like = (hi - 32.0) * 5.0 / 9.0;
+        method = "heat_index";
+    } else if (temp_c <= 10.0 && wind_kph > 4.8) {
+        // Wind chill formula (Environment Canada)
+        double wind_pow = std::pow(wind_kph, 0.16);
+        feels_like = 13.12 + 0.6215 * temp_c - 11.37 * wind_pow + 0.3965 * temp_c * wind_pow;
+        method = "wind_chill";
+    }
+
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(2);
+    ss << "{\"feels_like\":" << feels_like << ",\"method\":\"" << method << "\"}";
+    std::string res = ss.str();
+    res
+    >>
+
+    return json.parse(result_json)
+}
+
+// ── Weather Code to Description ──────────────────────────────────
+
+fn weather_code_to_desc(code) {
+    if code == 0 { return "Clear sky" }
+    if code == 1 { return "Mainly clear" }
+    if code == 2 { return "Partly cloudy" }
+    if code == 3 { return "Overcast" }
+    if code == 45 { return "Fog" }
+    if code == 48 { return "Depositing rime fog" }
+    if code == 51 { return "Light drizzle" }
+    if code == 53 { return "Moderate drizzle" }
+    if code == 55 { return "Dense drizzle" }
+    if code == 61 { return "Slight rain" }
+    if code == 63 { return "Moderate rain" }
+    if code == 65 { return "Heavy rain" }
+    if code == 71 { return "Slight snow" }
+    if code == 73 { return "Moderate snow" }
+    if code == 75 { return "Heavy snow" }
+    if code == 80 { return "Slight rain showers" }
+    if code == 81 { return "Moderate rain showers" }
+    if code == 82 { return "Violent rain showers" }
+    if code == 95 { return "Thunderstorm" }
+    return "Unknown (" + code + ")"
+}
+
+// ── Business Disruption Index ───────────────────────────────────
+// Composite score (0-100) measuring business impact from weather
+// Factors: temperature extremes, wind severity, humidity stress
+
+fn compute_disruption_index(temp, humidity, wind, feels_like) {
+    // Temperature factor: deviation from comfortable range (18-26C)
+    let temp_dev = 0.0
+    if temp < 18.0 {
+        temp_dev = math.abs(18.0 - temp) / 18.0
+    }
+    if temp > 26.0 {
+        temp_dev = math.abs(temp - 26.0) / 26.0
+    }
+    let temp_factor = math.min(temp_dev * 40.0, 40.0)
+
+    // Wind factor: exponential scaling
+    let wind_factor = math.min(math.pow(wind / 10.0, 1.5) * 3.0, 30.0)
+
+    // Humidity discomfort: deviation from 40-60% ideal
+    let humid_dev = 0.0
+    if humidity < 40.0 {
+        humid_dev = (40.0 - humidity) / 40.0
+    }
+    if humidity > 60.0 {
+        humid_dev = (humidity - 60.0) / 40.0
+    }
+    let humid_factor = math.min(humid_dev * 20.0, 20.0)
+
+    // Feels-like penalty: big diff between actual and feels-like
+    let feels_diff = math.abs(temp - feels_like)
+    let feels_factor = math.min(feels_diff * 1.0, 10.0)
+
+    let index = math.round((temp_factor + wind_factor + humid_factor + feels_factor) * 100.0) / 100.0
+    return math.min(index, 100.0)
+}
+
+// ── Process Weather Data ─────────────────────────────────────────
+// Uses if-expressions for status categorization
+
+export fn process_weather(weather_list) {
+    io.write("  [WeatherEngine] Processing ", array.length(weather_list), " cities...\n")
+    let enriched = []
+    let i = 0
+
+    while i < array.length(weather_list) {
+        let w = weather_list[i]
+
+        // C++ feels-like computation
+        let feels = compute_feels_like(w.temperature, w.humidity, w.wind_speed)
+
+        // If-expressions for status
+        let temp_status = if w.temperature > 35.0 { "extreme_heat" } else { if w.temperature > 30.0 { "hot" } else { if w.temperature > 20.0 { "warm" } else { if w.temperature > 10.0 { "cool" } else { "cold" } } } }
+
+        let humidity_status = if w.humidity > 80.0 { "very_humid" } else { if w.humidity > 60.0 { "humid" } else { if w.humidity > 40.0 { "moderate" } else { "dry" } } }
+
+        let wind_status = if w.wind_speed > 50.0 { "storm" } else { if w.wind_speed > 30.0 { "strong" } else { if w.wind_speed > 15.0 { "moderate" } else { "calm" } } }
+
+        let description = weather_code_to_desc(w.weather_code)
+
+        // Business disruption index
+        let disruption = compute_disruption_index(w.temperature, w.humidity, w.wind_speed, feels["feels_like"])
+        let disruption_level = if disruption > 60.0 { "HIGH" } else { if disruption > 30.0 { "MODERATE" } else { "LOW" } }
+
+        let entry = {
+            "city": w.city,
+            "lat": w.lat,
+            "lon": w.lon,
+            "temperature": w.temperature,
+            "humidity": w.humidity,
+            "wind_speed": w.wind_speed,
+            "feels_like": feels["feels_like"],
+            "feels_method": feels["method"],
+            "temp_status": temp_status,
+            "humidity_status": humidity_status,
+            "wind_status": wind_status,
+            "description": description,
+            "weather_code": w.weather_code,
+            "disruption_index": disruption,
+            "disruption_level": disruption_level,
+            "is_live": w.is_live
+        }
+
+        array.push(enriched, entry)
+        io.write("    ", w.city, ": ", w.temperature, "C feels ", feels["feels_like"], "C (", feels["method"], ") - ", description)
+        io.write(" [BDI: ", disruption, " ", disruption_level, "]\n")
+        i = i + 1
+    }
+
+    return enriched
+}
+
+// ── Compute Weather Summary Stats (enhanced) ─────────────────────
+
+export fn weather_summary(enriched) {
+    let count = array.length(enriched)
+    let sum_temp = 0.0
+    let max_temp = -999.0
+    let min_temp = 999.0
+    let hottest_city = ""
+    let coldest_city = ""
+    let sum_disruption = 0.0
+    let max_disruption = 0.0
+    let max_disruption_city = ""
+    let i = 0
+
+    while i < count {
+        let t = enriched[i]["temperature"]
+        let d = enriched[i]["disruption_index"]
+        sum_temp = sum_temp + t
+        sum_disruption = sum_disruption + d
+
+        if t > max_temp {
+            max_temp = t
+            hottest_city = enriched[i]["city"]
+        }
+        if t < min_temp {
+            min_temp = t
+            coldest_city = enriched[i]["city"]
+        }
+        if d > max_disruption {
+            max_disruption = d
+            max_disruption_city = enriched[i]["city"]
+        }
+        i = i + 1
+    }
+
+    let avg_temp = sum_temp / count
+    let avg_disruption = sum_disruption / count
+
+    // Count cities by disruption level
+    let high_count = 0
+    let mod_count = 0
+    let low_count = 0
+    i = 0
+    while i < count {
+        let lvl = enriched[i]["disruption_level"]
+        if lvl == "HIGH" { high_count = high_count + 1 }
+        if lvl == "MODERATE" { mod_count = mod_count + 1 }
+        if lvl == "LOW" { low_count = low_count + 1 }
+        i = i + 1
+    }
+
+    return {
+        "avg_temperature": math.round(avg_temp * 100.0) / 100.0,
+        "max_temperature": max_temp,
+        "min_temperature": min_temp,
+        "hottest_city": hottest_city,
+        "coldest_city": coldest_city,
+        "city_count": count,
+        "avg_disruption": math.round(avg_disruption * 100.0) / 100.0,
+        "max_disruption": max_disruption,
+        "max_disruption_city": max_disruption_city,
+        "disruption_breakdown": {
+            "high": high_count,
+            "moderate": mod_count,
+            "low": low_count
+        }
+    }
+}

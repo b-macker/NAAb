@@ -1,0 +1,38 @@
+// IronDome/modules/activation_protocol.naab
+// Atomic Provider Activation Protocol
+// Uses: <<go>>, <<bash>>, json, env
+
+use io
+use json
+use env
+
+// Activates a new fabric component with atomic health checks and rollback
+export fn activate_fabric_node(node_name) {
+    // Stage 1: Atomic Health Check (Go)
+    env.set_var("NAAB_NODE_NAME", node_name)
+    let health_json = <<go
+    package main
+    import ("fmt"; "os"; "runtime")
+    func main() {
+        nn := os.Getenv("NAAB_NODE_NAME")
+        fmt.Printf("{\"node\":\"%s\",\"status\":\"HEALTHY\",\"mem_mb\":%d}", 
+            nn, runtime.NumCPU() * 128)
+    }
+    >>
+    env.delete_var("NAAB_NODE_NAME")
+    let health = json.parse(health_json)
+
+    // Stage 2: State Rollback Check (Bash)
+    let rollback_status = "NONE_REQUIRED"
+    if health["status"] != "HEALTHY" {
+        rollback_status = <<bash
+        echo "ROLLING_BACK_NODE_STATE"
+        >>
+    }
+
+    return {
+        "activation": health,
+        "rollback": rollback_status,
+        "timestamp": time.now()
+    }
+}

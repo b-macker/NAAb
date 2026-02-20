@@ -1,0 +1,50 @@
+[
+  {
+    "id": "SHP-2026-001",
+    "origin": "Shanghai",
+    "destination": "Rotterdam",
+    "cargo": {
+      "type": "Electronics",
+      "hs_code": "854231",
+      "weight_kg": 25000,
+      "value_usd": 4500000,
+      "hazardous": false
+    },
+    "constraints": {
+      "max_transit_days": 35,
+      "max_cost_usd": 10000
+    }
+  },
+  {
+    "id": "SHP-2026-002",
+    "origin": "Singapore",
+    "destination": "Los Angeles",
+    "cargo": {
+      "type": "Chemicals",
+      "hs_code": "280440",
+      "weight_kg": 12000,
+      "value_usd": 85000,
+      "hazardous": true
+    },
+    "constraints": {
+      "max_transit_days": 20,
+      "max_cost_usd": 15000
+    }
+  },
+  {
+    "id": "SHP-2026-003",
+    "origin": "Hamburg",
+    "destination": "New York",
+    "cargo": {
+      "type": "Automotive Parts",
+      "hs_code": "870899",
+      "weight_kg": 45000,
+      "value_usd": 210000,
+      "hazardous": false
+    },
+    "constraints": {
+      "max_transit_days": 15,
+      "max_cost_usd": 5000
+    }
+  }
+]

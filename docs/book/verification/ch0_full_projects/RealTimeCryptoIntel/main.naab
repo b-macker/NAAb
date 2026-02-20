@@ -1,0 +1,145 @@
+// RealTimeCryptoIntel/main.naab
+// Pure NAAb orchestrator — no Python dependencies
+// Fetches live crypto data, calculates risk via C++ FFI, generates HTML report
+
+use io
+use json
+use file
+use time
+use array
+use modules.config_loader
+use modules.market_data
+use modules.risk_engine
+use modules.reporting
+
+fn find_amount(portfolio, asset_id: string) -> float {
+    let i = 0
+    while i < array.length(portfolio) {
+        if portfolio[i].id == asset_id {
+            return portfolio[i].amount
+        }
+        i = i + 1
+    }
+    return 0.0
+}
+
+main {
+    // Detect project base directory using shell (before any output)
+    let base_dir = <<sh
+    for d in "verification/ch0_full_projects/RealTimeCryptoIntel" "."; do if [ -f "$d/config.json" ]; then printf "%s" "$d"; exit 0; fi; done; printf "."
+    >>
+
+    io.write("╔═══════════════════════════════════════════╗\n")
+    io.write("║  REAL-TIME CRYPTO RISK INTEL PLATFORM     ║\n")
+    io.write("║  Powered by NAAb + C++ FFI (No Python!)   ║\n")
+    io.write("╚═══════════════════════════════════════════╝\n\n")
+
+    // 1. Load configuration
+    io.write("1. Loading configuration...\n")
+    let config = config_loader.load_config(base_dir + "/config.json")
+    io.write("   ✓ Portfolio: ", array.length(config.portfolio), " assets\n")
+    io.write("   ✓ Risk settings: ", config.risk_settings.history_days, " day history, ")
+    io.write(config.risk_settings.confidence_level * 100, "% confidence\n\n")
+
+    // 2. Prepare output directory (resolve relative to base_dir)
+    io.write("2. Preparing workspace...\n")
+    let out_dir = base_dir + "/" + config.reporting.output_dir
+    <<sh[out_dir]
+    mkdir -p "$out_dir"
+    >>
+    io.write("   ✓ Output directory: ", out_dir, "\n\n")
+
+    // Override config output_dir with resolved path for downstream modules
+    config.reporting.output_dir = out_dir
+
+    // 3. Fetch live market data (http.get → CoinCap API)
+    io.write("3. Fetching market data...\n")
+    let market = market_data.fetch_live_data(config)
+    io.write("   ✓ Received data for ", array.length(market), " assets\n\n")
+
+    // 4. Individual asset risk calculation (C++ FFI)
+    io.write("4. Calculating individual asset risk metrics...\n")
+    let risk_reports = []
+    let i = 0
+    while i < array.length(market) {
+        let asset = market[i]
+        let amount = find_amount(config.portfolio, asset.id)
+        let current_value = asset.current_price * amount
+
+        if array.length(asset.history) >= 2 {
+            let metrics = risk_engine.calculate_risk(
+                asset.id,
+                asset.history,
+                config.risk_settings.confidence_level,
+                current_value
+            )
+            array.push(risk_reports, metrics)
+            io.write("   ✓ ", asset.symbol, ": VaR=$", metrics.var_95, " MaxDD=", metrics.max_drawdown, "\n")
+        } else {
+            io.write("   ⚠ ", asset.symbol, ": insufficient history (", array.length(asset.history), " points)\n")
+        }
+        i = i + 1
+    }
+    io.write("\n")
+
+    // 5. Portfolio Monte Carlo simulation (C++ FFI)
+    io.write("5. Running Monte Carlo portfolio simulation...\n")
+
+    // Build the JSON inputs that risk_engine expects
+    let prices_list = []
+    let amounts_list = []
+    i = 0
+    while i < array.length(market) {
+        let asset = market[i]
+        let amount = find_amount(config.portfolio, asset.id)
+        array.push(prices_list, {
+            "id": asset.id,
+            "symbol": asset.symbol,
+            "current_price": asset.current_price
+        })
+        array.push(amounts_list, {
+            "id": asset.id,
+            "symbol": asset.symbol,
+            "amount": amount
+        })
+        i = i + 1
+    }
+
+    // Build history JSON with embedded history arrays
+    let history_list = []
+    i = 0
+    while i < array.length(market) {
+        let asset = market[i]
+        array.push(history_list, {
+            "id": asset.id,
+            "symbol": asset.symbol,
+            "current_price": asset.current_price,
+            "history": asset.history
+        })
+        i = i + 1
+    }
+
+    let mc = config.risk_settings.monte_carlo
+    let portfolio_risk = risk_engine.calculate_portfolio_risk_monte_carlo(
+        json.stringify(prices_list),
+        json.stringify(history_list),
+        json.stringify(amounts_list),
+        mc.num_simulations,
+        mc.num_days_forecast,
+        config.risk_settings.confidence_level,
+        mc.risk_free_rate_annual
+    )
+
+    io.write("   ✓ Portfolio Value: $", portfolio_risk.portfolio_value_current, "\n")
+    io.write("   ✓ VaR (95%): ", portfolio_risk.portfolio_var_percent, "% ($", portfolio_risk.portfolio_var_usd, ")\n")
+    io.write("   ✓ CVaR (95%): ", portfolio_risk.portfolio_cvar_percent, "% ($", portfolio_risk.portfolio_cvar_usd, ")\n\n")
+
+    // 6. Generate reports
+    io.write("6. Generating reports...\n")
+    reporting.generate_report(config, market, risk_reports, portfolio_risk)
+
+    io.write("\n╔═══════════════════════════════════════════╗\n")
+    io.write("║  ✅ INTELLIGENCE CYCLE COMPLETE            ║\n")
+    io.write("║  100% NAAb — Zero Python Dependencies     ║\n")
+    io.write("╚═══════════════════════════════════════════╝\n")
+}

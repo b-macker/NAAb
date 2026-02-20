@@ -1,0 +1,146 @@
+// modules/market_data.naab
+// Fetches real-time and historical crypto data using NAAb's native http.get()
+// Uses CoinGecko free API (no key required)
+use io
+use json
+use http
+use array
+use time
+
+export struct AssetData {
+    id: string,
+    symbol: string,
+    current_price: float,
+    history: list<float>
+}
+
+// Fetch live data from CoinGecko API with synthetic fallback
+export fn fetch_live_data(config) -> list<AssetData> {
+    let base_url = config.api.base_url
+    let results = []
+    let days = config.risk_settings.history_days
+
+    // Build comma-separated id list for batch price fetch
+    let ids = ""
+    let i = 0
+    while i < array.length(config.portfolio) {
+        if i > 0 {
+            ids = ids + ","
+        }
+        ids = ids + config.portfolio[i].id
+        i = i + 1
+    }
+
+    // 2. Fetch history + build results for each asset
+    i = 0
+    while i < array.length(config.portfolio) {
+        let asset = config.portfolio[i]
+        io.write("📡 Fetching data for ", asset.symbol, " (", asset.id, ")...\n")
+
+        let price = 0.0
+        let history = []
+        let live = false
+
+        // Fetch current price for this asset
+        try {
+            let price_url = base_url + "/simple/price?ids=" + asset.id + "&vs_currencies=usd"
+            let resp = http.get(price_url)
+            if resp["ok"] {
+                let body = json.parse(resp["body"])
+                price = body[asset.id]["usd"] * 1.0
+                io.write("  ✓ Live price: $", price, "\n")
+                live = true
+            } else {
+                io.write("  ⚠ Price API returned status ", resp["status"], "\n")
+            }
+        } catch (e) {
+            io.write("  ⚠ Price fetch failed: ", e, "\n")
+        }
+
+        // Fetch historical data
+        if live {
+            try {
+                let hist_url = base_url + "/coins/" + asset.id + "/market_chart?vs_currency=usd&days=" + days + "&interval=daily"
+                let hist_resp = http.get(hist_url)
+
+                if hist_resp["ok"] {
+                    let hist_body = json.parse(hist_resp["body"])
+                    let price_points = hist_body["prices"]
+                    let j = 0
+                    while j < array.length(price_points) {
+                        // Each entry is [timestamp_ms, price]
+                        let entry = price_points[j]
+                        array.push(history, entry[1] * 1.0)
+                        j = j + 1
+                    }
+                    io.write("  ✓ History: ", array.length(history), " daily prices\n")
+                } else {
+                    io.write("  ⚠ History fetch failed, generating synthetic\n")
+                    history = generate_synthetic_history(price, days)
+                }
+            } catch (e) {
+                io.write("  ⚠ History error: ", e, "\n")
+                history = generate_synthetic_history(price, days)
+            }
+        } else {
+            io.write("  ⚠ No live data, generating synthetic (GBM via C++)\n")
+            price = asset.cost_basis * 1.15
+            history = generate_synthetic_history(price, days)
+        }
+
+        array.push(results, new AssetData {
+            id: asset.id,
+            symbol: asset.symbol,
+            current_price: price,
+            history: history
+        })
+        i = i + 1
+    }
+
+    return results
+}
+
+// Generate synthetic price history using C++ random (Geometric Brownian Motion)
+fn generate_synthetic_history(current_price: float, num_days: int) -> list<float> {
+    let price_str = "" + current_price
+    let days_str = "" + num_days
+
+    let history_json = <<cpp[price_str, days_str]
+    #include <vector>
+    #include <cmath>
+    #include <random>
+    #include <sstream>
+    #include <string>
+    #include <iomanip>
+
+    double price = std::stod(price_str);
+    int days = std::stoi(days_str);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    double daily_vol = 0.03;
+    double daily_drift = 0.0001;
+    std::normal_distribution<> dist(0.0, 1.0);
+
+    // Generate prices backwards from current
+    std::vector<double> prices(days);
+    prices[days - 1] = price;
+    for (int i = days - 2; i >= 0; --i) {
+        double shock = dist(gen);
+        double factor = std::exp((daily_drift - 0.5 * daily_vol * daily_vol) + daily_vol * shock);
+        prices[i] = prices[i + 1] / factor;
+    }
+
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(2) << "[";
+    for (int i = 0; i < days; ++i) {
+        if (i > 0) ss << ",";
+        ss << prices[i];
+    }
+    ss << "]";
+    std::string result = ss.str();
+    result
+    >>
+
+    return json.parse(history_json)
+}
