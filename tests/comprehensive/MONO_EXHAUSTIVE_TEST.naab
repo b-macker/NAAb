@@ -285,8 +285,8 @@ main {
     // IMPROVEMENT OPPORTUNITY: Implement int(), float(), string(), bool() cast functions
     // For now, use string concatenation for type coercion:
     assert_eq("" + 42, "42", "string coercion via concatenation")
-    // GOTCHA: Float-to-string uses %f format (6 decimal places), NOT minimal representation
-    assert_eq("" + 3.14, "3.140000", "float to string via concatenation (6 decimals)")
+    // Float-to-string trims trailing zeros (uses %g format)
+    assert_eq("" + 3.14, "3.14", "float to string via concatenation")
     assert_eq("" + true, "true", "bool to string via concatenation")
 
     // len() builtin
@@ -890,11 +890,11 @@ main {
     print("  math.E = " + (e_val))
     assert_true(e_val > 2.71 && e_val < 2.72, "math.E ~2.71828")
 
-    // Aliases (lowercase)
-    // DISCOVERED BUG: math.pi and math.e return internal string "__stdlib_call__:math:pi"
-    // instead of numeric values. Only math.PI and math.E work correctly.
-    // IMPROVEMENT OPPORTUNITY: Make math.pi/math.e return same values as PI/E
-    print("  KNOWN BUG: math.pi returns internal string, use math.PI instead")
+    // Aliases (lowercase) — math.pi and math.e work as aliases for PI/E
+    let pi_lower = math.pi
+    assert_true(pi_lower > 3.14 && pi_lower < 3.15, "math.pi alias")
+    let e_lower = math.e
+    assert_true(e_lower > 2.71 && e_lower < 2.72, "math.e alias")
 
     // Functions
     assert_eq(math.abs(-42), 42, "math.abs(-42)")
@@ -2011,15 +2011,12 @@ item ** 2
         assert_eq(outer_e, "outer error", "nested try/catch (outer)")
     }
 
-    // Polyglot error propagation
-    // DISCOVERED BUG: Python errors print to stderr via [PY ADAPTER ERROR]
-    // but do NOT propagate as exceptions to NAAb try/catch
-    // IMPROVEMENT OPPORTUNITY: Route Python stderr errors through catch
+    // Polyglot error propagation — Python errors propagate to NAAb catch
     try {
         <<python
 1 / 0
         >>
-        print("  KNOWN BUG: Python div-by-zero doesn't propagate to catch")
+        print("  FAIL: Python div-by-zero should have thrown")
     } catch (e) {
         print("  PASS: Python error propagated to NAAb catch")
     }
@@ -2033,32 +2030,31 @@ item ** 2
     print("SECTION 07: Security & Overflow (Ch13)")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-    // Integer overflow detection (INT64_MAX + 1)
-    // DISCOVERED BUG: Overflow detection NOT working at runtime!
-    // The safe_math.h checks exist in C++ but overflow silently wraps
-    // at the NAAb interpreter level. This is a SECURITY ISSUE.
-    // IMPROVEMENT OPPORTUNITY: Enable safe_math overflow detection in interpreter
-    let int_max = 9223372036854775807
+    // Integer overflow detection (INT32_MAX + 1)
+    // NAAb uses 32-bit int; values > INT32_MAX are promoted to double
+    let int_max = 2147483647
     try {
         let overflow = int_max + 1
-        print("  KNOWN BUG: integer overflow not detected (wraps silently)")
+        print("  FAIL: integer overflow not detected")
     } catch (e) {
-        print("  PASS: integer overflow detected: " + e)
+        print("  PASS: integer overflow detected")
     }
 
     // Multiplication overflow
     try {
         let mul_overflow = int_max * 2
-        print("  KNOWN BUG: multiplication overflow not detected")
+        print("  FAIL: multiplication overflow not detected")
     } catch (e) {
         print("  PASS: multiplication overflow detected")
     }
 
-    // Subtraction underflow (INT64_MIN - 1)
-    let int_min = -9223372036854775808
+    // Subtraction underflow (INT32_MIN - 1)
+    // Note: -2147483648 is parsed as -(2147483648) which overflows to double.
+    // Construct INT_MIN via arithmetic to keep it as int.
+    let int_min = -2147483647 - 1
     try {
         let underflow = int_min - 1
-        print("  KNOWN BUG: integer underflow not detected")
+        print("  FAIL: integer underflow not detected")
     } catch (e) {
         print("  PASS: integer underflow detected")
     }
@@ -2079,10 +2075,10 @@ item ** 2
         print("  PASS: modulo by zero detected")
     }
 
-    // Negation overflow (-INT64_MIN)
+    // Negation overflow (-INT32_MIN)
     try {
         let neg_overflow = -int_min
-        print("  KNOWN BUG: negation overflow not detected")
+        print("  FAIL: negation overflow not detected")
     } catch (e) {
         print("  PASS: negation overflow detected")
     }

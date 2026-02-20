@@ -571,8 +571,14 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
                                    (trimmed_last.find("while") == 0);
 
                 if (is_statement) {
-                    // Last line is a statement - just add it
-                    wrapped_code += "    " + code_lines[i] + "\n";
+                    // Last line is a statement - add it with semicolon if needed
+                    std::string stmt_line = code_lines[i];
+                    size_t stmt_end = stmt_line.find_last_not_of(" \t\r");
+                    if (stmt_end != std::string::npos && stmt_line[stmt_end] != ';' &&
+                        stmt_line[stmt_end] != '{' && stmt_line[stmt_end] != '}') {
+                        stmt_line += ";";
+                    }
+                    wrapped_code += "    " + stmt_line + "\n";
                 } else {
                     // Last line is an expression - print it
                     wrapped_code += "    std::cout << (" + code_lines[i] + ");\n";

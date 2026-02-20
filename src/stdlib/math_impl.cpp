@@ -20,7 +20,7 @@ static double getDouble(const std::shared_ptr<interpreter::Value>& val);
 
 bool MathModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
-        "PI", "E",
+        "PI", "E", "pi", "e",
         "abs", "sqrt", "pow", "floor", "ceil", "round",
         "min", "max", "sin", "cos", "tan"
     };
@@ -35,8 +35,11 @@ std::shared_ptr<interpreter::Value> MathModule::call(
     if (function_name == "PI") {
         return std::make_shared<interpreter::Value>(3.14159265358979323846);
     }
-    if (function_name == "E") {
+    if (function_name == "E" || function_name == "e") {
         return std::make_shared<interpreter::Value>(2.71828182845904523536);
+    }
+    if (function_name == "pi") {
+        return std::make_shared<interpreter::Value>(3.14159265358979323846);
     }
 
     // Function 1: abs

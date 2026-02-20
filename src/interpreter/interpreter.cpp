@@ -191,7 +191,10 @@ std::string Value::toString() const {
         } else if constexpr (std::is_same_v<T, int>) {
             return std::to_string(arg);
         } else if constexpr (std::is_same_v<T, double>) {
-            return std::to_string(arg);
+            // Use %g to trim trailing zeros (3.14 not 3.140000)
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%.15g", arg);
+            return std::string(buf);
         } else if constexpr (std::is_same_v<T, bool>) {
             return arg ? "true" : "false";
         } else if constexpr (std::is_same_v<T, std::string>) {
@@ -3215,7 +3218,17 @@ void Interpreter::visit(ast::UnaryExpr& node) {
             if (std::holds_alternative<double>(operand->data)) {
                 result_ = std::make_shared<Value>(-operand->toFloat());
             } else {
-                result_ = std::make_shared<Value>(-operand->toInt());
+                int val = operand->toInt();
+                if (val == INT_MIN) {
+                    std::ostringstream oss;
+                    oss << "Math error: Integer overflow in negation\n\n";
+                    oss << "  Expression: -(" << val << ")\n";
+                    oss << "  -INT_MIN (" << val << ") exceeds INT_MAX (" << INT_MAX << ")\n\n";
+                    oss << "  Help:\n";
+                    oss << "  - Use float for this value: -(" << val << ".0)\n";
+                    throw std::runtime_error(oss.str());
+                }
+                result_ = std::make_shared<Value>(-val);
             }
             break;
 
@@ -5119,7 +5132,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
             // ISS-034 FIX: Check if this is a constant (zero-argument function like PI, E)
             // If so, invoke it immediately instead of creating a marker
             // This prevents constants from returning __stdlib_call__ markers
-            static const std::unordered_set<std::string> math_constants = {"PI", "E"};
+            static const std::unordered_set<std::string> math_constants = {"PI", "E", "pi", "e"};
             if (module_alias == "math" && math_constants.count(member_name) > 0) {
                 // Invoke the constant immediately with no arguments
                 std::vector<std::shared_ptr<Value>> no_args;

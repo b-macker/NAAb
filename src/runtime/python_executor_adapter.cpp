@@ -20,8 +20,8 @@ bool PyExecutorAdapter::execute(const std::string& code) {
         executor_->execute(code);
         return true;
     } catch (const std::exception& e) {
-        fmt::print("[PY ADAPTER ERROR] {}\n", e.what());
-        return false;
+        std::string error_msg = std::string("Python execution error: ") + e.what();
+        throw std::runtime_error(error_msg);
     }
 }
 
@@ -77,7 +77,8 @@ std::shared_ptr<interpreter::Value> PyExecutorAdapter::executeWithReturn(
                        "  - Check spelling and that the variable is listed in the binding list\n\n");
         }
 
-        return std::make_shared<interpreter::Value>();  // Return null on error
+        // Re-throw so NAAb try/catch can handle it
+        throw std::runtime_error(std::string("Python execution error: ") + error_msg);
     }
 }
 

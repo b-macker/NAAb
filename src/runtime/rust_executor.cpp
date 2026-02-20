@@ -132,9 +132,15 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
         code.find("fn main (") == std::string::npos) {
 
         // No main() - need to wrap
+        // Check if code already outputs (println!, print!, eprintln!)
+        bool already_prints = (code.find("println!") != std::string::npos ||
+                               code.find("print!") != std::string::npos ||
+                               code.find("eprintln!") != std::string::npos ||
+                               code.find("eprint!") != std::string::npos);
+
         // Check if multi-line
         if (code.find('\n') != std::string::npos) {
-            // Multi-line: wrap in main() and print last expression
+            // Multi-line: wrap in main()
             std::vector<std::string> lines;
             std::istringstream stream(code);
             std::string line;
@@ -142,72 +148,79 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
                 lines.push_back(line);
             }
 
-            // Find last statement start by scanning backwards for balanced parens/braces
-            // A statement boundary is a line ending with ';' at nesting depth 0
-            int last_stmt_start = -1;
-            int last_non_empty = -1;
-
-            // Find last non-empty line
-            for (int i = lines.size() - 1; i >= 0; i--) {
-                size_t s = lines[i].find_first_not_of(" \t\r");
-                if (s != std::string::npos) {
-                    last_non_empty = i;
-                    break;
+            if (already_prints) {
+                // Code already prints - just wrap in main() without println wrapping
+                rust_code = "fn main() {\n";
+                for (const auto& l : lines) {
+                    rust_code += "    " + l + "\n";
                 }
-            }
+                rust_code += "}\n";
+            } else {
+                // Find last statement start by scanning backwards for balanced parens/braces
+                // A statement boundary is a line ending with ';' at nesting depth 0
+                int last_stmt_start = -1;
+                int last_non_empty = -1;
 
-            if (last_non_empty >= 0) {
-                // Scan backwards from last non-empty line to find statement start
-                // Track nesting of (), {}, [] to handle multi-line expressions
-                int depth = 0;
-                last_stmt_start = last_non_empty;
-                for (int i = last_non_empty; i >= 0; i--) {
-                    for (int j = lines[i].size() - 1; j >= 0; j--) {
-                        char c = lines[i][j];
-                        if (c == ')' || c == '}' || c == ']') depth++;
-                        else if (c == '(' || c == '{' || c == '[') depth--;
+                // Find last non-empty line
+                for (int i = lines.size() - 1; i >= 0; i--) {
+                    size_t s = lines[i].find_first_not_of(" \t\r");
+                    if (s != std::string::npos) {
+                        last_non_empty = i;
+                        break;
                     }
-                    // If at depth 0 and previous line ends with ';', this is the start
-                    if (depth <= 0 && i > 0) {
-                        std::string prev = lines[i - 1];
-                        size_t ps = prev.find_last_not_of(" \t\r");
-                        if (ps != std::string::npos && prev[ps] == ';') {
-                            last_stmt_start = i;
-                            break;
+                }
+
+                if (last_non_empty >= 0) {
+                    // Scan backwards from last non-empty line to find statement start
+                    int depth = 0;
+                    last_stmt_start = last_non_empty;
+                    for (int i = last_non_empty; i >= 0; i--) {
+                        for (int j = lines[i].size() - 1; j >= 0; j--) {
+                            char c = lines[i][j];
+                            if (c == ')' || c == '}' || c == ']') depth++;
+                            else if (c == '(' || c == '{' || c == '[') depth--;
+                        }
+                        if (depth <= 0 && i > 0) {
+                            std::string prev = lines[i - 1];
+                            size_t ps = prev.find_last_not_of(" \t\r");
+                            if (ps != std::string::npos && prev[ps] == ';') {
+                                last_stmt_start = i;
+                                break;
+                            }
+                        }
+                        if (depth <= 0 && i == 0) {
+                            last_stmt_start = 0;
                         }
                     }
-                    if (depth <= 0 && i == 0) {
-                        last_stmt_start = 0;
-                    }
                 }
-            }
 
-            rust_code = "fn main() {\n";
-            // Add all lines before the last statement as-is
-            for (int i = 0; i < last_stmt_start; i++) {
-                rust_code += "    " + lines[i] + "\n";
+                rust_code = "fn main() {\n";
+                // Add all lines before the last statement as-is
+                for (int i = 0; i < last_stmt_start; i++) {
+                    rust_code += "    " + lines[i] + "\n";
+                }
+                // Collect the last statement (may be multi-line)
+                if (last_stmt_start >= 0 && last_non_empty >= 0) {
+                    std::string last_expr;
+                    for (int i = last_stmt_start; i <= last_non_empty; i++) {
+                        if (!last_expr.empty()) last_expr += "\n";
+                        last_expr += lines[i];
+                    }
+                    // Trim
+                    size_t s = last_expr.find_first_not_of(" \t\r\n");
+                    if (s != std::string::npos) {
+                        last_expr = last_expr.substr(s);
+                    }
+                    size_t e = last_expr.find_last_not_of(" \t\r\n;");
+                    if (e != std::string::npos) {
+                        last_expr = last_expr.substr(0, e + 1);
+                    }
+                    rust_code += "    println!(\"{}\", " + last_expr + ");\n";
+                }
+                rust_code += "}\n";
             }
-            // Collect the last statement (may be multi-line)
-            if (last_stmt_start >= 0 && last_non_empty >= 0) {
-                std::string last_expr;
-                for (int i = last_stmt_start; i <= last_non_empty; i++) {
-                    if (!last_expr.empty()) last_expr += "\n";
-                    last_expr += lines[i];
-                }
-                // Trim
-                size_t s = last_expr.find_first_not_of(" \t\r\n");
-                if (s != std::string::npos) {
-                    last_expr = last_expr.substr(s);
-                }
-                size_t e = last_expr.find_last_not_of(" \t\r\n;");
-                if (e != std::string::npos) {
-                    last_expr = last_expr.substr(0, e + 1);
-                }
-                rust_code += "    println!(\"{}\", " + last_expr + ");\n";
-            }
-            rust_code += "}\n";
         } else {
-            // Single-line expression
+            // Single-line
             std::string expr = code;
             size_t s = expr.find_first_not_of(" \t\r");
             if (s != std::string::npos) {
@@ -217,7 +230,13 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
             if (!expr.empty() && expr.back() == ';') {
                 expr.pop_back();
             }
-            rust_code = "fn main() {\n    println!(\"{}\", " + expr + ");\n}\n";
+
+            if (already_prints) {
+                // Code already prints - just wrap in main()
+                rust_code = "fn main() {\n    " + expr + ";\n}\n";
+            } else {
+                rust_code = "fn main() {\n    println!(\"{}\", " + expr + ");\n}\n";
+            }
         }
     }
 
