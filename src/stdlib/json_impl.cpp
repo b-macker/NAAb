@@ -3,9 +3,11 @@
 
 #include "naab/stdlib.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
 #include <stdexcept>
+#include <sstream>
 
 using json = nlohmann::json;
 
@@ -40,7 +42,41 @@ std::shared_ptr<interpreter::Value> JSONModule::call(
         return pretty(args);
     }
 
-    throw std::runtime_error("Unknown JSON function: " + function_name);
+    // Common LLM mistakes - Python/JS naming conventions
+    if (function_name == "dumps" || function_name == "encode") {
+        throw std::runtime_error(
+            "Unknown JSON function: " + function_name + "\n\n"
+            "  Did you mean: json.stringify()?\n"
+            "  NAAb uses 'stringify' (like JavaScript), not 'dumps' (Python) or 'encode'.\n\n"
+            "  Example:\n"
+            "    let text = json.stringify(my_dict)\n"
+        );
+    }
+    if (function_name == "loads" || function_name == "decode") {
+        throw std::runtime_error(
+            "Unknown JSON function: " + function_name + "\n\n"
+            "  Did you mean: json.parse()?\n"
+            "  NAAb uses 'parse' (like JavaScript), not 'loads' (Python) or 'decode'.\n\n"
+            "  Example:\n"
+            "    let data = json.parse(json_string)\n"
+        );
+    }
+
+    // Fuzzy matching for typos
+    static const std::vector<std::string> FUNCTIONS = {
+        "parse", "stringify", "parse_object", "parse_array", "is_valid", "pretty"
+    };
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown JSON function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+    throw std::runtime_error(oss.str());
 }
 
 // Helper: Convert nlohmann::json to NAAb Value

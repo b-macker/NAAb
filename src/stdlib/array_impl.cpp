@@ -481,6 +481,44 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         );
     }
 
+    if (function_name == "append" || function_name == "add") {
+        throw std::runtime_error(
+            "Unknown array function: " + function_name + "\n\n"
+            "  Did you mean: array.push()?\n"
+            "  Example: array.push(my_array, new_item)\n"
+            "  Note: push() mutates the original array.\n"
+        );
+    }
+    if (function_name == "includes") {
+        throw std::runtime_error(
+            "Unknown array function: includes\n\n"
+            "  Did you mean: array.contains()?\n"
+            "  Example: array.contains(my_array, value)  // true/false\n"
+        );
+    }
+    if (function_name == "remove" || function_name == "delete") {
+        throw std::runtime_error(
+            "Unknown array function: " + function_name + "\n\n"
+            "  NAAb arrays don't have remove(). Use filter_fn to create a filtered copy:\n"
+            "    let filtered = array.filter_fn(arr, fn(x) { return x != unwanted })\n"
+        );
+    }
+    if (function_name == "len" || function_name == "size" || function_name == "count") {
+        throw std::runtime_error(
+            "Unknown array function: " + function_name + "\n\n"
+            "  Did you mean: array.length()? Or use the built-in len():\n"
+            "    array.length(my_array)  // module function\n"
+            "    len(my_array)           // built-in (simpler)\n"
+        );
+    }
+    if (function_name == "indexOf" || function_name == "index_of" || function_name == "findIndex") {
+        throw std::runtime_error(
+            "Unknown array function: " + function_name + "\n\n"
+            "  NAAb arrays don't have indexOf. Use array.find() with a predicate:\n"
+            "    array.find(arr, fn(x) { return x == target })\n"
+        );
+    }
+
     if (function_name == "forEach" || function_name == "for_each" || function_name == "each") {
         throw std::runtime_error(
             "Unknown array function: " + function_name + "\n\n"

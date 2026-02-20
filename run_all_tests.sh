@@ -5,9 +5,23 @@ set -e
 
 NAAB_BIN="./build/naab-lang"
 TEST_DIRS=(
+    "examples"
     "tests/bugs"
     "tests/comprehensive"
+    "tests/integration"
+    "tests/security"
+    "tests/benchmarks"
+    "tests/debugger"
+    "tests/error_messages"
+    "tests/fixtures"
+    "tests/formatter"
+    "tests/llm_patterns"
+    "tests/issue3_path_resolution"
     "docs/book/verification"
+    "docs/docs_archive/solve_ISSUES"
+    "docs/verification/ai_assistant_tests"
+    "docs/verification/user_guide_tests"
+    "docs/tutorials"
     "tests"
 )
 
@@ -81,6 +95,18 @@ for dir in "${TEST_DIRS[@]}"; do
         timeout="180s"  # Comprehensive tests need more time (polyglot compilation)
     elif [ "$dir" = "docs/book/verification" ]; then
         timeout="30s"  # Verification tests may have polyglot code
+    elif [ "$dir" = "examples" ]; then
+        timeout="30s"  # Examples use polyglot blocks + C++ compilation
+    elif [ "$dir" = "tests/integration" ]; then
+        timeout="30s"  # Integration tests may use polyglot + pipelines
+    elif [ "$dir" = "tests/security" ]; then
+        timeout="120s"  # Security tests: recursion limits, FFI, DoS prevention need time
+    elif [ "$dir" = "tests/benchmarks" ]; then
+        timeout="60s"  # Benchmarks need more time
+    elif [ "$dir" = "docs/tutorials" ]; then
+        timeout="30s"  # Tutorials may have polyglot demos
+    elif [ "$dir" = "docs/docs_archive/solve_ISSUES" ]; then
+        timeout="30s"  # Issue regression tests may use polyglot
     fi
 
     # Find all .naab files in this directory (not subdirectories for tests/)

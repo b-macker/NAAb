@@ -15,6 +15,42 @@ namespace naab {
 namespace runtime {
 
 // Helper: Add hints for common C++ polyglot compilation errors
+// Truncate C++ compiler output to show only error lines (not verbose notes)
+static std::string truncateCppErrors(const std::string& stderr_output, size_t max_lines = 20) {
+    std::string result;
+    std::istringstream stream(stderr_output);
+    std::string line;
+    size_t error_lines = 0;
+    size_t total_lines = 0;
+    bool in_note = false;
+
+    while (std::getline(stream, line)) {
+        total_lines++;
+        // Show error and warning lines, skip verbose "note:" lines
+        if (line.find("error:") != std::string::npos ||
+            line.find("warning:") != std::string::npos) {
+            in_note = false;
+            if (error_lines < max_lines) {
+                result += line + "\n";
+                error_lines++;
+            }
+        } else if (line.find("note:") != std::string::npos) {
+            in_note = true;
+            // Skip notes - they're too verbose
+        } else if (!in_note && error_lines < max_lines) {
+            // Show context lines (source code snippets) but not note context
+            result += line + "\n";
+            error_lines++;
+        }
+    }
+
+    if (total_lines > error_lines + 5) {
+        result += fmt::format("  ({} lines of compiler notes hidden)\n", total_lines - error_lines);
+    }
+
+    return result;
+}
+
 static std::string addCppCompileHints(const std::string& stderr_output) {
     std::string hints;
 
@@ -29,13 +65,30 @@ static std::string addCppCompileHints(const std::string& stderr_output) {
                  "    3. Build JSON with char:  char q = '\"'; ss << q << \"key\" << q;\n";
     }
 
+    // Detect return type mismatch (common: returning string from int function)
+    if (stderr_output.find("no viable conversion") != std::string::npos &&
+        stderr_output.find("return type") != std::string::npos) {
+        hints += "\n  Hint: Don't use 'return' in <<cpp>> blocks.\n"
+                 "  The last expression is automatically the return value.\n"
+                 "  Instead of:  return result;\n"
+                 "  Just write:  result\n";
+    }
+
     // Detect return statement issues (polyglot blocks use last expression, not return)
     if (stderr_output.find("return") != std::string::npos &&
         stderr_output.find("void function") != std::string::npos) {
-        hints += "\n  Hint: Don't use 'return' in polyglot blocks.\n"
-                 "  The last expression in the block is the return value.\n"
-                 "  Instead of: return result;\n"
-                 "  Just write: result\n";
+        hints += "\n  Hint: Don't use 'return' in <<cpp>> blocks.\n"
+                 "  The last expression is automatically the return value.\n"
+                 "  Instead of:  return result;\n"
+                 "  Just write:  result\n";
+    }
+
+    // Detect lambda capture issues
+    if (stderr_output.find("cannot be implicitly captured") != std::string::npos ||
+        stderr_output.find("capture-default") != std::string::npos) {
+        hints += "\n  Hint: Lambda needs to capture outer variables.\n"
+                 "  Change [] to [&] for capture-by-reference:\n"
+                 "    auto fn = [&](args) { ... };  // captures all outer vars\n";
     }
 
     return hints;
@@ -109,7 +162,7 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
         );
 
         if (compile_exit != 0) {
-            fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", compile_stderr, addCppCompileHints(compile_stderr));
+            fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
             std::filesystem::remove(temp_cpp);
             return false;
         }
@@ -219,7 +272,7 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
     );
 
     if (compile_exit != 0) {
-        fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", compile_stderr, addCppCompileHints(compile_stderr));
+        fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
         std::filesystem::remove(temp_cpp);
         return false;
     }
@@ -306,7 +359,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
             );
 
             if (compile_exit != 0) {
-                fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", compile_stderr, addCppCompileHints(compile_stderr));
+                fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
                 std::filesystem::remove(temp_cpp);
                 return std::make_shared<interpreter::Value>();
             }
@@ -584,7 +637,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
         );
 
         if (compile_exit != 0) {
-            fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", compile_stderr, addCppCompileHints(compile_stderr));
+            fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
             std::filesystem::remove(temp_cpp);
             return std::make_shared<interpreter::Value>();
         }

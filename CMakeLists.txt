@@ -10,6 +10,7 @@ project(naab_lang
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ============================================================================
 # Sanitizer Build Options (Week 1: Security Hardening Sprint)
@@ -404,6 +405,8 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/polyglot_async_executor.cpp  # Phase 1 Item 10 Day 5: Polyglot async execution
     src/runtime/logger.cpp  # Logging infrastructure
     src/runtime/thread_pool.cpp  # Thread pool for async execution
+    src/runtime/source_mapper.cpp  # Phase 12: Polyglot error mapping
+    src/runtime/json_result_parser.cpp  # Phase 12: JSON sovereign pipe
 )
 
 # Add Python executor if pybind11 is available
@@ -480,6 +483,7 @@ add_library(naab_stdlib
     src/stdlib/regex_impl.cpp
     src/stdlib/crypto_impl.cpp
     src/stdlib/file_impl.cpp
+    src/stdlib/debug_impl.cpp
     # Utility modules
     src/utils/error_formatter.cpp
     src/utils/string_utils.cpp

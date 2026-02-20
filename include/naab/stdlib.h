@@ -17,6 +17,11 @@ namespace interpreter {
 
 namespace stdlib {
 
+// Pipe mode: when enabled, io.write() redirects to stderr
+// so stdout stays clean for machine-readable output via io.output()
+void setPipeMode(bool enabled);
+bool getPipeMode();
+
 // Module interface
 class Module {
 public:

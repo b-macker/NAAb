@@ -125,6 +125,17 @@ private:
      */
     std::string readFile(const std::string& file_path) const;
 
+    /**
+     * Try to load metadata cache from .block_cache.json
+     * @return true if cache was loaded successfully
+     */
+    bool loadCache(const std::string& base_path);
+
+    /**
+     * Save metadata cache to .block_cache.json
+     */
+    void saveCache(const std::string& base_path) const;
+
     bool initialized_ = false;
     std::string blocks_path_;
     std::unordered_map<std::string, BlockMetadata> blocks_;

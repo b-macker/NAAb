@@ -118,7 +118,9 @@ void CycleDetector::breakCycles(const std::vector<std::shared_ptr<Value>>& cycle
 
 // Main entry point: detect and collect cycles (COMPLETE TRACING GC)
 size_t CycleDetector::detectAndCollect(std::shared_ptr<Environment> root_env,
-                                      std::vector<std::weak_ptr<Value>>& tracked_values)
+                                      std::vector<std::weak_ptr<Value>>& tracked_values,
+                                      const std::vector<std::shared_ptr<Value>>& extra_roots,
+                                      const std::vector<std::shared_ptr<Environment>>& extra_envs)
 {
     if (!root_env) {
         return 0;
@@ -130,6 +132,20 @@ size_t CycleDetector::detectAndCollect(std::shared_ptr<Environment> root_env,
 
     // Mark all reachable values from the environment (includes parent chain)
     markFromEnvironment(root_env, visited, reachable);
+
+    // Mark additional environments (e.g., global_env_ when root is current_env_)
+    for (const auto& env : extra_envs) {
+        if (env) {
+            markFromEnvironment(env, visited, reachable);
+        }
+    }
+
+    // Mark additional root values (e.g., result_, in-flight return values)
+    for (const auto& val : extra_roots) {
+        if (val) {
+            markReachable(val, visited, reachable);
+        }
+    }
 
     // Phase 2: Build set of ALL tracked values (including out-of-scope)
     std::set<std::shared_ptr<Value>> all_values;

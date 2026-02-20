@@ -3,6 +3,7 @@
 
 #include "naab/stdlib.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include <curl/curl.h>
 #include <fmt/core.h>
 #include <stdexcept>
@@ -104,6 +105,9 @@ std::shared_ptr<interpreter::Value> performRequest(
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
 
+    // Set User-Agent (many APIs require this)
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "NAAb/1.0 (https://github.com/naab-lang)");
+
     // Set custom headers
     struct curl_slist* header_list = nullptr;
     for (const auto& [key, value] : headers) {
@@ -172,7 +176,33 @@ std::shared_ptr<interpreter::Value> HTTPModule::call(
         return del(args);
     }
 
-    throw std::runtime_error("Unknown http function: " + function_name);
+    // Common LLM mistakes
+    if (function_name == "fetch" || function_name == "request") {
+        throw std::runtime_error(
+            "Unknown http function: " + function_name + "\n\n"
+            "  Use the specific HTTP method:\n"
+            "    http.get(url)             // GET request\n"
+            "    http.post(url, body)      // POST request\n"
+            "    http.put(url, body)       // PUT request\n"
+            "    http.delete(url)          // DELETE request\n"
+        );
+    }
+
+    // Fuzzy matching for typos
+    static const std::vector<std::string> FUNCTIONS = {
+        "get", "post", "put", "delete"
+    };
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown http function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+    throw std::runtime_error(oss.str());
 }
 
 std::shared_ptr<interpreter::Value> HTTPModule::get(

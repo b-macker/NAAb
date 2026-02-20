@@ -21,20 +21,21 @@ BlockRegistry& BlockRegistry::instance() {
 
 void BlockRegistry::initialize(const std::string& blocks_path) {
     if (initialized_) {
-        // BlockRegistry already initialized (silent)
         return;
     }
 
     blocks_path_ = blocks_path;
     blocks_.clear();
 
-    // Initializing BlockRegistry (silent)
-
-    // Scan the blocks directory
-    scanDirectory(blocks_path_);
+    // Try loading from cache first (much faster than scanning 24K+ files)
+    if (!loadCache(blocks_path_)) {
+        // Cache miss or stale — do full directory scan
+        scanDirectory(blocks_path_);
+        // Save cache for next time
+        saveCache(blocks_path_);
+    }
 
     initialized_ = true;
-    // BlockRegistry initialized (silent)
 }
 
 std::optional<BlockMetadata> BlockRegistry::getBlock(const std::string& block_id) const {
@@ -70,6 +71,15 @@ std::string BlockRegistry::getBlockSource(const std::string& block_id) const {
 
             json block_json = json::parse(json_content);
             source = block_json.value("code", "");
+
+            // If no inline code, check for code_file reference
+            if (source.empty() && block_json.contains("code_file")) {
+                std::string code_file = block_json["code_file"].get<std::string>();
+                // Resolve relative to the JSON file's directory
+                std::string dir = file_path.substr(0, file_path.find_last_of('/'));
+                std::string code_path = dir + "/" + code_file;
+                source = readFile(code_path);
+            }
         } catch (const std::exception& e) {
             return "";
         }
@@ -267,6 +277,11 @@ void BlockRegistry::scanLanguageDirectory(const std::string& lang_dir, const std
                     continue;
                 }
 
+                // Don't override JSON-registered blocks with raw source files
+                if (blocks_.count(block_id) > 0) {
+                    continue;  // JSON metadata takes priority
+                }
+
                 BlockMetadata metadata;
                 metadata.block_id = block_id;
                 metadata.name = block_id;
@@ -355,6 +370,110 @@ std::string BlockRegistry::readFile(const std::string& file_path) const {
     std::stringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
+}
+
+bool BlockRegistry::loadCache(const std::string& base_path) {
+    std::string cache_path = base_path + "/.block_cache.json";
+
+    struct stat cache_stat;
+    if (stat(cache_path.c_str(), &cache_stat) != 0) {
+        return false;  // No cache file
+    }
+
+    // Check if any language directory is newer than cache
+    DIR* dir = opendir(base_path.c_str());
+    if (!dir) return false;
+
+    time_t cache_time = cache_stat.st_mtime;
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        if (entry->d_name[0] == '.') continue;
+        std::string full_path = base_path + "/" + entry->d_name;
+        struct stat dir_stat;
+        if (stat(full_path.c_str(), &dir_stat) == 0 && S_ISDIR(dir_stat.st_mode)) {
+            if (dir_stat.st_mtime > cache_time) {
+                closedir(dir);
+                return false;  // Directory modified after cache
+            }
+        }
+    }
+    closedir(dir);
+
+    // Load cache
+    try {
+        std::string content = readFile(cache_path);
+        if (content.empty()) return false;
+
+        json cache = json::parse(content);
+        if (!cache.contains("version") || cache["version"].get<int>() != 1) {
+            return false;  // Wrong version
+        }
+
+        auto& blocks = cache["blocks"];
+        for (auto it = blocks.begin(); it != blocks.end(); ++it) {
+            BlockMetadata metadata;
+            const auto& b = it.value();
+            metadata.block_id = it.key();
+            metadata.name = b.value("name", metadata.block_id);
+            metadata.language = b.value("language", "");
+            metadata.file_path = b.value("file_path", "");
+            metadata.version = b.value("version", "1.0.0");
+            metadata.token_count = b.value("token_count", 0);
+            metadata.times_used = b.value("times_used", 0);
+            metadata.is_active = b.value("is_active", true);
+            metadata.category = b.value("category", "");
+            metadata.subcategory = b.value("subcategory", "");
+            metadata.description = b.value("description", "");
+            metadata.short_desc = b.value("short_desc", "");
+            metadata.input_types = b.value("input_types", "");
+            metadata.output_type = b.value("output_type", "");
+            metadata.performance_tier = b.value("performance_tier", "unknown");
+            metadata.success_rate_percent = b.value("success_rate_percent", 100);
+
+            blocks_[metadata.block_id] = metadata;
+        }
+
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+void BlockRegistry::saveCache(const std::string& base_path) const {
+    std::string cache_path = base_path + "/.block_cache.json";
+
+    try {
+        json cache;
+        cache["version"] = 1;
+
+        json blocks_json;
+        for (const auto& [id, meta] : blocks_) {
+            json b;
+            b["name"] = meta.name;
+            b["language"] = meta.language;
+            b["file_path"] = meta.file_path;
+            b["version"] = meta.version;
+            b["token_count"] = meta.token_count;
+            b["is_active"] = meta.is_active;
+            b["category"] = meta.category;
+            b["description"] = meta.description;
+            b["short_desc"] = meta.short_desc;
+            b["input_types"] = meta.input_types;
+            b["output_type"] = meta.output_type;
+            b["performance_tier"] = meta.performance_tier;
+            b["success_rate_percent"] = meta.success_rate_percent;
+            blocks_json[id] = b;
+        }
+        cache["blocks"] = blocks_json;
+
+        std::ofstream out(cache_path);
+        if (out.is_open()) {
+            out << cache.dump();
+            out.close();
+        }
+    } catch (const std::exception&) {
+        // Silent failure — cache is optional optimization
+    }
 }
 
 } // namespace runtime

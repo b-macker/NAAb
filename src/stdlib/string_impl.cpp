@@ -29,7 +29,8 @@ bool StringModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "length", "substring", "concat", "split", "join",
         "trim", "upper", "lower", "replace", "contains",
-        "starts_with", "ends_with", "index_of", "repeat"
+        "starts_with", "ends_with", "index_of", "repeat",
+        "char_at", "reverse", "format", "fmt"
     };
     return functions.count(name) > 0;
 }
@@ -238,6 +239,32 @@ std::shared_ptr<interpreter::Value> StringModule::call(
         return makeString(result);
     }
 
+    // Function 15: char_at
+    if (function_name == "char_at") {
+        if (args.size() != 2) {
+            throw std::runtime_error("char_at() takes exactly 2 arguments (string, index)");
+        }
+        std::string s = getString(args[0]);
+        int index = getInt(args[1]);
+        if (index < 0 || index >= static_cast<int>(s.length())) {
+            throw std::runtime_error(
+                "Index error: char_at() index " + std::to_string(index) +
+                " out of range for string of length " + std::to_string(s.length())
+            );
+        }
+        return makeString(std::string(1, s[index]));
+    }
+
+    // Function 16: reverse
+    if (function_name == "reverse") {
+        if (args.size() != 1) {
+            throw std::runtime_error("reverse() takes exactly 1 argument");
+        }
+        std::string s = getString(args[0]);
+        std::reverse(s.begin(), s.end());
+        return makeString(s);
+    }
+
     // Common LLM mistakes with specific guidance
     if (function_name == "from_int" || function_name == "to_string" || function_name == "str" || function_name == "toString") {
         throw std::runtime_error(
@@ -250,24 +277,96 @@ std::shared_ptr<interpreter::Value> StringModule::call(
         );
     }
 
-    if (function_name == "format" || function_name == "fmt") {
+    // camelCase → snake_case helpers
+    if (function_name == "charAt") {
+        throw std::runtime_error(
+            "Unknown string function: charAt\n\n"
+            "  Did you mean: string.char_at()? NAAb uses snake_case.\n"
+            "  Example: string.char_at(\"hello\", 0)  // \"h\"\n"
+        );
+    }
+    if (function_name == "toUpper" || function_name == "toUpperCase") {
         throw std::runtime_error(
             "Unknown string function: " + function_name + "\n\n"
-            "  Help: NAAb does not have string.format().\n"
-            "  Use string concatenation with + operator:\n"
-            "    \"Hello \" + name + \", score: \" + score\n\n"
-            "  Or use Python f-strings in a polyglot block:\n"
-            "    let msg = <<python[name, score]\n"
-            "    f\"Hello {name}, score: {score}\"\n"
-            "    >>\n"
+            "  Did you mean: string.upper()?\n"
+            "  Example: string.upper(\"hello\")  // \"HELLO\"\n"
         );
+    }
+    if (function_name == "toLower" || function_name == "toLowerCase") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Did you mean: string.lower()?\n"
+            "  Example: string.lower(\"HELLO\")  // \"hello\"\n"
+        );
+    }
+    if (function_name == "indexOf") {
+        throw std::runtime_error(
+            "Unknown string function: indexOf\n\n"
+            "  Did you mean: string.index_of()? NAAb uses snake_case.\n"
+            "  Example: string.index_of(\"hello\", \"ll\")  // 2\n"
+        );
+    }
+    if (function_name == "startsWith") {
+        throw std::runtime_error(
+            "Unknown string function: startsWith\n\n"
+            "  Did you mean: string.starts_with()? NAAb uses snake_case.\n"
+            "  Example: string.starts_with(\"hello\", \"hel\")  // true\n"
+        );
+    }
+    if (function_name == "endsWith") {
+        throw std::runtime_error(
+            "Unknown string function: endsWith\n\n"
+            "  Did you mean: string.ends_with()? NAAb uses snake_case.\n"
+            "  Example: string.ends_with(\"hello\", \"llo\")  // true\n"
+        );
+    }
+
+    if (function_name == "format" || function_name == "fmt") {
+        if (args.empty()) {
+            throw std::runtime_error(
+                "Argument error: string.format() requires at least 1 argument\n\n"
+                "  Expected: string.format(template, args...)\n\n"
+                "  Example:\n"
+                "    string.format(\"Hello {}, score: {}\", name, score)\n"
+            );
+        }
+
+        auto* tmpl_str = std::get_if<std::string>(&args[0]->data);
+        if (!tmpl_str) {
+            throw std::runtime_error(
+                "Type error: string.format() first argument must be a string template\n\n"
+                "  Got: " + args[0]->toString() + "\n"
+                "  Expected: string with {} placeholders\n"
+            );
+        }
+
+        // Replace {} placeholders with arguments
+        std::string result = *tmpl_str;
+        size_t arg_idx = 1;
+        size_t pos = 0;
+        while ((pos = result.find("{}", pos)) != std::string::npos) {
+            if (arg_idx < args.size()) {
+                std::string replacement = args[arg_idx]->toString();
+                // Remove quotes from string values
+                if (auto* s = std::get_if<std::string>(&args[arg_idx]->data)) {
+                    replacement = *s;
+                }
+                result.replace(pos, 2, replacement);
+                pos += replacement.length();
+                arg_idx++;
+            } else {
+                pos += 2;  // Skip unfilled placeholder
+            }
+        }
+
+        return std::make_shared<interpreter::Value>(result);
     }
 
     // Generic unknown function with suggestions
     static const std::vector<std::string> FUNCTIONS = {
         "length", "substring", "upper", "lower", "trim", "split",
         "contains", "starts_with", "ends_with", "replace", "index_of",
-        "char_at", "repeat", "reverse"
+        "char_at", "repeat", "reverse", "format", "fmt"
     };
 
     auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);

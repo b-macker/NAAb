@@ -16,6 +16,18 @@ namespace fs = std::filesystem;
 namespace naab {
 namespace stdlib {
 
+// Global pipe mode flag: when true, io.write() redirects to stderr
+// so stdout remains clean for machine-readable output (io.output())
+static bool g_pipe_mode = false;
+
+void setPipeMode(bool enabled) {
+    g_pipe_mode = enabled;
+}
+
+bool getPipeMode() {
+    return g_pipe_mode;
+}
+
 // ============================================================================
 // IO Module Implementation
 // ============================================================================
@@ -23,7 +35,8 @@ namespace stdlib {
 bool IOModule::hasFunction(const std::string& name) const {
     return name == "read_file" || name == "write_file" ||
            name == "exists" || name == "list_dir" ||
-           name == "write" || name == "write_error" || name == "read_line";
+           name == "write" || name == "write_error" || name == "read_line" ||
+           name == "output";
 }
 
 std::shared_ptr<interpreter::Value> IOModule::call(
@@ -43,9 +56,22 @@ std::shared_ptr<interpreter::Value> IOModule::call(
 
     // Console I/O functions
     else if (function_name == "write") {
-        // Write to stdout
+        // Write to stdout (or stderr in --pipe mode)
         if (args.empty()) {
             throw std::runtime_error("write() requires at least one argument");
+        }
+        auto& out = g_pipe_mode ? std::cerr : std::cout;
+        for (const auto& arg : args) {
+            out << arg->toString();
+        }
+        out.flush();
+        return std::make_shared<interpreter::Value>();  // Return null/void
+    }
+    else if (function_name == "output") {
+        // Write to stdout ALWAYS (even in --pipe mode)
+        // Use this for machine-readable output (JSON results, etc.)
+        if (args.empty()) {
+            throw std::runtime_error("output() requires at least one argument");
         }
         for (const auto& arg : args) {
             std::cout << arg->toString();
@@ -73,7 +99,19 @@ std::shared_ptr<interpreter::Value> IOModule::call(
         return std::make_shared<interpreter::Value>("");  // Return empty string on EOF
     }
 
-    throw std::runtime_error("Unknown io function: " + function_name);
+    // Common LLM mistakes
+    if (function_name == "print" || function_name == "println" || function_name == "log") {
+        throw std::runtime_error(
+            "Unknown io function: " + function_name + "\n\n"
+            "  Did you mean: io.write() or the built-in print()?\n"
+            "    io.write(\"hello\")  // module function\n"
+            "    print(\"hello\")     // built-in (simpler)\n"
+        );
+    }
+    throw std::runtime_error(
+        "Unknown io function: " + function_name + "\n\n"
+        "  Available: write, read, output\n"
+    );
 }
 
 std::shared_ptr<interpreter::Value> IOModule::read_file(
@@ -323,6 +361,7 @@ void StdLib::registerModules() {
     modules_["regex"] = std::make_shared<RegexModule>();
     modules_["crypto"] = std::make_shared<CryptoModule>();
     modules_["file"] = std::make_shared<FileModule>();
+    modules_["debug"] = std::make_shared<DebugModule>();
 }
 
 std::shared_ptr<Module> StdLib::getModule(const std::string& name) const {

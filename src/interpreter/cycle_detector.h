@@ -23,8 +23,12 @@ public:
     // Run cycle detection and collection
     // Returns number of values collected
     // Now supports global value tracking for complete GC
+    // extra_roots: additional values to mark as reachable (e.g., result_, return values)
+    // extra_envs: additional environments to mark from (e.g., global_env_)
     size_t detectAndCollect(std::shared_ptr<Environment> root_env,
-                           std::vector<std::weak_ptr<Value>>& tracked_values);
+                           std::vector<std::weak_ptr<Value>>& tracked_values,
+                           const std::vector<std::shared_ptr<Value>>& extra_roots = {},
+                           const std::vector<std::shared_ptr<Environment>>& extra_envs = {});
 
     // Get statistics
     size_t getTotalAllocations() const { return total_allocations_; }

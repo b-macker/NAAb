@@ -329,12 +329,12 @@ std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn
             cmd, args, stdout_output, stderr_output, nullptr);
     }
 
-    // Print output (side effects preserved)
+    // Buffer output for flushExecutorOutput (don't print raw)
     if (!stdout_output.empty()) {
-        fmt::print("{}", stdout_output);
+        stdout_buffer_.append(stdout_output);
     }
     if (!stderr_output.empty()) {
-        fmt::print("[{} stderr]: {}", language_id_, stderr_output);
+        stderr_buffer_.append(stderr_output);
     }
 
     // Trim trailing whitespace/newlines

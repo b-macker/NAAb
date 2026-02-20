@@ -111,10 +111,8 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
         );
     }
 
-    // Print output (side effects preserved)
-    if (!stdout_output.empty()) {
-        fmt::print("{}", stdout_output);
-    }
+    // Note: stdout is captured as the return value, not printed to terminal.
+    // Use io.write() in NAAb or "echo ... >&2" in shell for side-effect output.
     if (!stderr_output.empty()) {
         fmt::print("[Shell stderr]: {}", stderr_output);
 
@@ -164,6 +162,11 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
                        "  1. A subprocess returned empty output, and you called json.loads() on it\n"
                        "  2. f.read() for debugging exhausted the file handle before json.load(f)\n"
                        "  3. A different json.loads() call in your script is the one actually failing\n\n"
+                       "  If calling naab-lang as a subprocess and parsing stdout as JSON:\n"
+                       "  - NAAb's io.write() in imported modules may pollute stdout with debug messages\n"
+                       "  - Use --pipe flag: naab-lang --pipe script.naab args...\n"
+                       "    This redirects io.write() to stderr, keeping stdout clean\n"
+                       "  - In the NAAb script, use io.output() instead of io.write() for the JSON result\n\n"
                        "  Fix: Replace 'except Exception as e: print(e)' with 'traceback.print_exc()'\n"
                        "  to see which line actually threw the error.\n\n");
         } else if (stderr_output.find("JSONDecodeError") != std::string::npos ||
@@ -206,9 +209,13 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
                        "    if result.returncode != 0:\n"
                        "        print('STDOUT:', result.stdout)   # <-- NAAb errors are HERE\n"
                        "        print('STDERR:', result.stderr)   # may be empty\n\n"
+                       "  If parsing NAAb's stdout as JSON, use --pipe to keep stdout clean:\n"
+                       "    cmd = [naab_path, '--pipe', script_path, ...args]\n"
+                       "  Then in the NAAb script, use io.output() for the JSON result:\n"
+                       "    io.output(json.stringify(result))  // goes to stdout even in --pipe mode\n\n"
                        "  Common NAAb script errors:\n"
                        "  - Parse error: mismatched braces {{ }} or missing 'main {{ }}' block\n"
-                       "  - Module not found: check 'use' paths are relative to working directory\n"
+                       "  - Module not found: check 'use' paths are relative to the script file's directory\n"
                        "  - Use env.get_args() to read command-line arguments in NAAb scripts\n\n");
         } else if (stderr_output.find("failed") != std::string::npos &&
                    stderr_output.find("exit code") != std::string::npos &&

@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -201,7 +202,22 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
         return std::make_shared<interpreter::Value>(result);
     }
 
-    throw std::runtime_error("Unknown function: " + function_name);
+    // Fuzzy matching for typos
+    static const std::vector<std::string> FUNCTIONS = {
+        "read", "read_dict", "parse", "parse_dict",
+        "write", "write_dict", "format_row", "format_rows"
+    };
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown csv function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+    throw std::runtime_error(oss.str());
 }
 
 // CSV parsing helper functions

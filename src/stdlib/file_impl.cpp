@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -189,7 +190,60 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         return std::make_shared<interpreter::Value>();
     }
 
-    throw std::runtime_error("Unknown function: " + function_name);
+    // Common LLM mistakes - Node.js/Python naming conventions
+    if (function_name == "readFile" || function_name == "readFileSync" || function_name == "read_file") {
+        throw std::runtime_error(
+            "Unknown file function: " + function_name + "\n\n"
+            "  Did you mean: file.read()?\n"
+            "  NAAb file operations are synchronous. Just use file.read(path).\n"
+        );
+    }
+    if (function_name == "writeFile" || function_name == "writeFileSync" || function_name == "write_file") {
+        throw std::runtime_error(
+            "Unknown file function: " + function_name + "\n\n"
+            "  Did you mean: file.write()?\n"
+            "  Example: file.write(path, content)\n"
+        );
+    }
+    if (function_name == "mkdir" || function_name == "mkdirs" || function_name == "makedirs") {
+        throw std::runtime_error(
+            "Unknown file function: " + function_name + "\n\n"
+            "  Did you mean: file.create_dir()?\n"
+            "  Example: file.create_dir(\"/path/to/dir\")\n"
+        );
+    }
+    if (function_name == "remove" || function_name == "unlink" || function_name == "rm") {
+        throw std::runtime_error(
+            "Unknown file function: " + function_name + "\n\n"
+            "  Did you mean: file.delete()?\n"
+            "  Example: file.delete(\"/path/to/file\")\n"
+        );
+    }
+    if (function_name == "readdir" || function_name == "listdir" || function_name == "ls") {
+        throw std::runtime_error(
+            "Unknown file function: " + function_name + "\n\n"
+            "  Did you mean: file.list_dir()?\n"
+            "  Example: file.list_dir(\"/path/to/dir\")\n"
+        );
+    }
+
+    // Fuzzy matching for typos
+    static const std::vector<std::string> FUNCTIONS = {
+        "read", "write", "append", "exists", "delete",
+        "list_dir", "create_dir", "is_file", "is_dir",
+        "read_lines", "write_lines"
+    };
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown file function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+    throw std::runtime_error(oss.str());
 }
 
 // Helper functions

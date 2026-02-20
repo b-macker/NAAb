@@ -6,10 +6,12 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include "naab/safe_regex.h"
 #include <regex>
 #include <string>
 #include <vector>
+#include <sstream>
 #include <unordered_set>
 
 namespace naab {
@@ -254,7 +256,51 @@ std::shared_ptr<interpreter::Value> RegexModule::call(
         }
     }
 
-    throw std::runtime_error("Unknown function: " + function_name);
+    // Common LLM mistakes
+    if (function_name == "match") {
+        throw std::runtime_error(
+            "Unknown regex function: " + function_name + "\n\n"
+            "  Did you mean: regex.matches() (full match) or regex.search() (partial match)?\n\n"
+            "  regex.matches(str, pattern) — true only if ENTIRE string matches\n"
+            "  regex.search(str, pattern)  — true if pattern found anywhere\n"
+        );
+    }
+    if (function_name == "test") {
+        throw std::runtime_error(
+            "Unknown regex function: " + function_name + "\n\n"
+            "  Did you mean: regex.matches() or regex.search()?\n"
+            "  NAAb uses 'matches' (full) or 'search' (partial), not 'test'.\n"
+        );
+    }
+    if (function_name == "findAll" || function_name == "find_all_matches") {
+        throw std::runtime_error(
+            "Unknown regex function: " + function_name + "\n\n"
+            "  Did you mean: regex.find_all()? NAAb uses snake_case.\n"
+        );
+    }
+    if (function_name == "replaceAll" || function_name == "replace_all") {
+        throw std::runtime_error(
+            "Unknown regex function: " + function_name + "\n\n"
+            "  Did you mean: regex.replace()? It replaces all matches by default.\n"
+        );
+    }
+
+    // Fuzzy matching for typos
+    static const std::vector<std::string> FUNCTIONS = {
+        "matches", "search", "find", "find_all", "replace", "replace_first",
+        "split", "groups", "find_groups", "escape", "is_valid", "compile_pattern"
+    };
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown regex function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+    throw std::runtime_error(oss.str());
 }
 
 // Helper functions

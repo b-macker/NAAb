@@ -158,6 +158,16 @@ public:
         const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
 };
 
+// Debug Module
+class DebugModule : public Module {
+public:
+    std::string getName() const override { return "debug"; }
+    bool hasFunction(const std::string& name) const override;
+    std::shared_ptr<interpreter::Value> call(
+        const std::string& function_name,
+        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+};
+
 } // namespace stdlib
 } // namespace naab
 

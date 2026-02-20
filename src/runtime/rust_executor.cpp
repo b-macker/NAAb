@@ -142,34 +142,68 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
                 lines.push_back(line);
             }
 
+            // Find last statement start by scanning backwards for balanced parens/braces
+            // A statement boundary is a line ending with ';' at nesting depth 0
+            int last_stmt_start = -1;
+            int last_non_empty = -1;
+
             // Find last non-empty line
-            int last_line_idx = -1;
             for (int i = lines.size() - 1; i >= 0; i--) {
-                std::string trimmed = lines[i];
-                size_t s = trimmed.find_first_not_of(" \t\r");
+                size_t s = lines[i].find_first_not_of(" \t\r");
                 if (s != std::string::npos) {
-                    last_line_idx = i;
+                    last_non_empty = i;
                     break;
                 }
             }
 
-            rust_code = "fn main() {\n";
-            for (size_t i = 0; i < lines.size(); i++) {
-                if (static_cast<int>(i) == last_line_idx) {
-                    // Last line: print it
-                    std::string trimmed = lines[i];
-                    size_t s = trimmed.find_first_not_of(" \t\r");
-                    if (s != std::string::npos) {
-                        trimmed = trimmed.substr(s);
-                        // Remove trailing semicolon if present
-                        if (!trimmed.empty() && trimmed.back() == ';') {
-                            trimmed.pop_back();
-                        }
-                        rust_code += "    println!(\"{}\", " + trimmed + ");\n";
+            if (last_non_empty >= 0) {
+                // Scan backwards from last non-empty line to find statement start
+                // Track nesting of (), {}, [] to handle multi-line expressions
+                int depth = 0;
+                last_stmt_start = last_non_empty;
+                for (int i = last_non_empty; i >= 0; i--) {
+                    for (int j = lines[i].size() - 1; j >= 0; j--) {
+                        char c = lines[i][j];
+                        if (c == ')' || c == '}' || c == ']') depth++;
+                        else if (c == '(' || c == '{' || c == '[') depth--;
                     }
-                } else {
-                    rust_code += "    " + lines[i] + "\n";
+                    // If at depth 0 and previous line ends with ';', this is the start
+                    if (depth <= 0 && i > 0) {
+                        std::string prev = lines[i - 1];
+                        size_t ps = prev.find_last_not_of(" \t\r");
+                        if (ps != std::string::npos && prev[ps] == ';') {
+                            last_stmt_start = i;
+                            break;
+                        }
+                    }
+                    if (depth <= 0 && i == 0) {
+                        last_stmt_start = 0;
+                    }
                 }
+            }
+
+            rust_code = "fn main() {\n";
+            // Add all lines before the last statement as-is
+            for (int i = 0; i < last_stmt_start; i++) {
+                rust_code += "    " + lines[i] + "\n";
+            }
+            // Collect the last statement (may be multi-line)
+            if (last_stmt_start >= 0 && last_non_empty >= 0) {
+                std::string last_expr;
+                for (int i = last_stmt_start; i <= last_non_empty; i++) {
+                    if (!last_expr.empty()) last_expr += "\n";
+                    last_expr += lines[i];
+                }
+                // Trim
+                size_t s = last_expr.find_first_not_of(" \t\r\n");
+                if (s != std::string::npos) {
+                    last_expr = last_expr.substr(s);
+                }
+                size_t e = last_expr.find_last_not_of(" \t\r\n;");
+                if (e != std::string::npos) {
+                    last_expr = last_expr.substr(0, e + 1);
+                }
+                rust_code += "    println!(\"{}\", " + last_expr + ");\n";
             }
             rust_code += "}\n";
         } else {
@@ -216,9 +250,9 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
         exec_stdout, exec_stderr, nullptr
     );
 
-    // Print output
-    if (!exec_stdout.empty()) fmt::print("{}", exec_stdout);
-    if (!exec_stderr.empty()) fmt::print("[Rust stderr]: {}", exec_stderr);
+    // Buffer output for flushExecutorOutput (don't print raw)
+    if (!exec_stdout.empty()) stdout_buffer_.append(exec_stdout);
+    if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
     // Cleanup
     std::filesystem::remove(temp_rs);

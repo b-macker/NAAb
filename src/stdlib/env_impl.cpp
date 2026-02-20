@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include <cstdlib>
 #include <string>
 #include <unordered_map>
@@ -253,7 +254,39 @@ std::shared_ptr<interpreter::Value> EnvModule::call(
         }
     }
 
-    throw std::runtime_error("Unknown function: " + function_name);
+    // Common LLM mistakes
+    if (function_name == "get_env" || function_name == "getenv" || function_name == "getEnv") {
+        throw std::runtime_error(
+            "Unknown env function: " + function_name + "\n\n"
+            "  Did you mean: env.get()?\n"
+            "  Example: let val = env.get(\"HOME\")\n"
+        );
+    }
+    if (function_name == "set" || function_name == "setenv" || function_name == "setEnv" || function_name == "put") {
+        throw std::runtime_error(
+            "Unknown env function: " + function_name + "\n\n"
+            "  Did you mean: env.set_var()?\n"
+            "  Example: env.set_var(\"MY_KEY\", \"my_value\")\n"
+        );
+    }
+
+    // Fuzzy matching for typos
+    static const std::vector<std::string> FUNCTIONS = {
+        "get", "set_var", "has", "delete_var", "get_all",
+        "load_dotenv", "parse_env_file", "get_int", "get_float",
+        "get_bool", "get_args"
+    };
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown env function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+    throw std::runtime_error(oss.str());
 }
 
 // Helper functions

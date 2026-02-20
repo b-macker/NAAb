@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include <string>
 #include <vector>
 #include <unordered_set>
@@ -236,7 +237,44 @@ std::shared_ptr<interpreter::Value> CryptoModule::call(
         return makeString(hashed);
     }
 
-    throw std::runtime_error("Unknown function: " + function_name);
+    // Common LLM mistakes
+    if (function_name == "hash") {
+        throw std::runtime_error(
+            "Unknown crypto function: " + function_name + "\n\n"
+            "  Specify the hash algorithm directly:\n"
+            "    crypto.sha256(data)   // SHA-256\n"
+            "    crypto.md5(data)      // MD5\n"
+            "    crypto.sha1(data)     // SHA-1\n"
+            "    crypto.sha512(data)   // SHA-512\n"
+        );
+    }
+    if (function_name == "encrypt" || function_name == "decrypt") {
+        throw std::runtime_error(
+            "Unknown crypto function: " + function_name + "\n\n"
+            "  NAAb crypto module doesn't support encryption/decryption yet.\n"
+            "  Use a polyglot block for encryption:\n"
+            "    <<python\nimport cryptography\n# ...\n    >>\n"
+        );
+    }
+
+    // Fuzzy matching for typos
+    static const std::vector<std::string> FUNCTIONS = {
+        "md5", "sha1", "sha256", "sha512",
+        "base64_encode", "base64_decode", "hex_encode", "hex_decode",
+        "random_bytes", "random_string", "random_int",
+        "compare_digest", "generate_token", "hash_password"
+    };
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown crypto function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+    throw std::runtime_error(oss.str());
 }
 
 // Helper functions

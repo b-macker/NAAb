@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include <chrono>
 #include <ctime>
 #include <thread>
@@ -41,10 +42,10 @@ std::shared_ptr<interpreter::Value> TimeModule::call(
             throw std::runtime_error("now() takes no arguments");
         }
         auto now = std::chrono::system_clock::now();
-        auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
+        auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()).count();
-        // Return double to avoid 2038 overflow problem
-        return std::make_shared<interpreter::Value>(static_cast<double>(seconds));
+        // Return fractional seconds (millisecond precision) as double
+        return std::make_shared<interpreter::Value>(static_cast<double>(millis) / 1000.0);
     }
 
     // Function 2: now_millis - Unix timestamp in milliseconds
@@ -234,7 +235,44 @@ std::shared_ptr<interpreter::Value> TimeModule::call(
         return makeInt(tm_info->tm_wday);
     }
 
-    throw std::runtime_error("Unknown function: " + function_name);
+    // Common LLM mistakes
+    if (function_name == "now_ms") {
+        throw std::runtime_error(
+            "Unknown time function: " + function_name + "\n\n"
+            "  Did you mean: time.now_millis()?\n"
+        );
+    }
+    if (function_name == "format" || function_name == "strftime") {
+        throw std::runtime_error(
+            "Unknown time function: " + function_name + "\n\n"
+            "  Did you mean: time.format_timestamp(timestamp, format_string)?\n"
+            "  Example: time.format_timestamp(time.now(), \"%Y-%m-%d %H:%M:%S\")\n"
+        );
+    }
+    if (function_name == "parse" || function_name == "strptime") {
+        throw std::runtime_error(
+            "Unknown time function: " + function_name + "\n\n"
+            "  Did you mean: time.parse_datetime(datetime_string, format_string)?\n"
+            "  Example: time.parse_datetime(\"2024-01-15 10:00:00\", \"%Y-%m-%d %H:%M:%S\")\n"
+        );
+    }
+
+    // Fuzzy matching for typos
+    static const std::vector<std::string> FUNCTIONS = {
+        "now", "now_millis", "sleep", "format_timestamp", "parse_datetime",
+        "year", "month", "day", "hour", "minute", "second", "weekday"
+    };
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    std::ostringstream oss;
+    oss << "Unknown time function: " << function_name << suggestion
+        << "\n\n  Available: ";
+    for (size_t i = 0; i < FUNCTIONS.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << FUNCTIONS[i];
+    }
+    throw std::runtime_error(oss.str());
 }
 
 // Helper functions

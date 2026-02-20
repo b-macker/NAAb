@@ -5,9 +5,11 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/utils/string_utils.h"
 #include <cmath>
 #include <algorithm>
 #include <memory>
+#include <vector>
 #include <unordered_set>
 
 namespace naab {
@@ -95,6 +97,23 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         return std::make_shared<interpreter::Value>(static_cast<int>(std::round(x)));
     }
 
+    // Function 6b: round_to - round to N decimal places
+    if (function_name == "round_to") {
+        if (args.size() != 2) {
+            throw std::runtime_error(
+                "Argument error: math.round_to() takes exactly 2 arguments\n\n"
+                "  Expected: math.round_to(value, decimal_places)\n\n"
+                "  Example:\n"
+                "    math.round_to(3.14159, 2)  // returns 3.14\n"
+            );
+        }
+        double x = getDouble(args[0]);
+        int places = static_cast<int>(getDouble(args[1]));
+        double factor = std::pow(10.0, places);
+        double rounded = std::round(x * factor) / factor;
+        return std::make_shared<interpreter::Value>(rounded);
+    }
+
     // Function 7: min
     if (function_name == "min") {
         if (args.size() != 2) {
@@ -149,7 +168,57 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         return std::make_shared<interpreter::Value>(std::tan(x));
     }
 
-    throw std::runtime_error("Unknown function: " + function_name);
+    // Common LLM mistakes
+    if (function_name == "random" || function_name == "rand") {
+        throw std::runtime_error(
+            "Unknown math function: " + function_name + "\n\n"
+            "  NAAb math module doesn't have random().\n"
+            "  Use the crypto module for random numbers:\n"
+            "    crypto.random_int(1, 100)    // random int in range\n"
+            "    crypto.random_string(16)     // random string\n"
+        );
+    }
+    if (function_name == "log" || function_name == "ln" || function_name == "log2" || function_name == "log10") {
+        throw std::runtime_error(
+            "Unknown math function: " + function_name + "\n\n"
+            "  Logarithm functions are not yet implemented in NAAb.\n"
+            "  Use a polyglot block:\n"
+            "    let result = <<python\nimport math\nmath." + function_name + "(value)\n    >>\n"
+        );
+    }
+
+    // Known functions for suggestions
+    static const std::vector<std::string> FUNCTIONS = {
+        "PI", "E", "abs", "sqrt", "pow", "floor", "ceil", "round", "round_to",
+        "min", "max", "sin", "cos", "tan"
+    };
+
+    // Special case: common constant casing mistakes
+    if (function_name == "pi" || function_name == "Pi") {
+        throw std::runtime_error(
+            "Unknown math function: " + function_name + "\n\n"
+            "  Did you mean: math.PI (uppercase, no parentheses)?\n\n"
+            "  Constants are accessed without ():\n"
+            "    ✗ Wrong: math.pi()  or  math.PI()\n"
+            "    ✓ Right: math.PI\n"
+        );
+    }
+    if (function_name == "e") {
+        throw std::runtime_error(
+            "Unknown math function: " + function_name + "\n\n"
+            "  Did you mean: math.E (uppercase, no parentheses)?\n\n"
+            "  Constants are accessed without ():\n"
+            "    ✗ Wrong: math.e()  or  math.E()\n"
+            "    ✓ Right: math.E\n"
+        );
+    }
+
+    auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
+    std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
+
+    throw std::runtime_error(
+        "Unknown math function: " + function_name + "\n" + suggestion
+    );
 }
 
 // Helper function

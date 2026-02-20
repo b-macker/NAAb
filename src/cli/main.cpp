@@ -10,6 +10,7 @@
 #include "../formatter/formatter.h"
 #include "naab/language_registry.h"
 #include "naab/block_search_index.h"
+#include "naab/block_registry.h"
 #include "naab/block_loader.h"
 #include "naab/composition_validator.h"
 #include "naab/cpp_executor_adapter.h"
@@ -27,6 +28,7 @@
 #include "naab/logger.h"
 #include "naab/sandbox.h"
 #include "naab/resource_limits.h"
+#include "naab/stdlib.h"  // For setPipeMode()
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -163,6 +165,8 @@ void print_usage() {
     fmt::print("  --explain                           Explain execution step-by-step\n");
     fmt::print("  --debug, -d                         Enable interactive debugger\n");
     fmt::print("  --no-color                          Disable colored error messages\n");
+    fmt::print("  --pipe                              Pipe mode: io.write() → stderr,\n");
+    fmt::print("                                      io.output() → stdout (for JSON)\n");
     fmt::print("\nSecurity Options:\n");
     fmt::print("  --sandbox-level <level>             Security: restricted|standard|elevated|unrestricted\n");
     fmt::print("                                      (default: standard - safe for enterprise)\n");
@@ -196,7 +200,28 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::string command = argv[1];
+    // Pre-scan for global flags that can appear before the command
+    // e.g., `naab-lang --pipe script.naab` or `naab-lang --pipe run script.naab`
+    bool global_pipe_mode = false;
+    int command_arg_index = 1;  // Index of the actual command/file in argv
+
+    while (command_arg_index < argc) {
+        std::string arg(argv[command_arg_index]);
+        if (arg == "--pipe") {
+            global_pipe_mode = true;
+            command_arg_index++;
+        } else {
+            break;  // Found the command or file
+        }
+    }
+
+    if (command_arg_index >= argc) {
+        print_usage();
+        fflush(stdout);
+        return 1;
+    }
+
+    std::string command = argv[command_arg_index];
 
     // Handle --help and -h flags (common user expectation)
     if (command == "--help" || command == "-h") {
@@ -214,7 +239,7 @@ int main(int argc, char** argv) {
     }
 
     if (command == "run") {
-        if (!auto_run && argc < 3) {
+        if (!auto_run && command_arg_index + 1 >= argc) {
             fmt::print("Error: Missing file argument\n");
             return 1;
         }
@@ -225,6 +250,7 @@ int main(int argc, char** argv) {
         bool explain = false;
         bool no_color = false;
         bool debug = false;
+        bool pipe_mode = global_pipe_mode;  // Inherit from global pre-scan
         std::string sandbox_level = "unrestricted";  // Default: full language power
         unsigned int timeout = 30;
         size_t memory_limit = 512;
@@ -232,8 +258,9 @@ int main(int argc, char** argv) {
         std::string filename;
         std::vector<std::string> script_args;
 
-        // When auto-detected, argv[1] is the .naab file, start scanning from index 1
-        int arg_start = auto_run ? 1 : 2;
+        // When auto-detected, command_arg_index points to the .naab file
+        // Otherwise, command_arg_index points to "run", so start at +1
+        int arg_start = auto_run ? command_arg_index : command_arg_index + 1;
         for (int i = arg_start; i < argc; ++i) {
             std::string arg(argv[i]);
             if (arg == "--verbose" || arg == "-v") {
@@ -246,6 +273,8 @@ int main(int argc, char** argv) {
                 no_color = true;
             } else if (arg == "--debug" || arg == "-d") {
                 debug = true;
+            } else if (arg == "--pipe") {
+                pipe_mode = true;
             } else if (arg == "--sandbox-level" && i + 1 < argc) {
                 sandbox_level = argv[++i];
             } else if (arg == "--timeout" && i + 1 < argc) {
@@ -263,6 +292,7 @@ int main(int argc, char** argv) {
                            "    --explain             Explain execution step-by-step\n"
                            "    --debug, -d           Enable interactive debugger\n"
                            "    --no-color            Disable colored error messages\n"
+                           "    --pipe                Pipe mode (io.write→stderr, io.output→stdout)\n"
                            "    --sandbox-level <L>   Security level\n"
                            "    --timeout <seconds>   Execution timeout per block\n"
                            "    --memory-limit <MB>   Memory limit per block\n"
@@ -354,6 +384,12 @@ int main(int argc, char** argv) {
             if (verbose) {
                 fmt::print("[Manifest] No naab.toml found, using defaults\n");
             }
+        }
+
+        // Activate pipe mode: io.write() → stderr, io.output() → stdout
+        // Use --pipe when calling NAAb as a subprocess and parsing stdout as JSON
+        if (pipe_mode) {
+            naab::stdlib::setPipeMode(true);
         }
 
         try {
@@ -740,35 +776,73 @@ int main(int argc, char** argv) {
         if (argc < 3) {
             fmt::print("Error: Missing blocks subcommand\n");
             fmt::print("Usage:\n");
-            fmt::print("  naab-lang blocks list\n");
-            fmt::print("  naab-lang blocks search <query>\n");
+            fmt::print("  naab-lang blocks list [--language <lang>] [--category <cat>]\n");
+            fmt::print("  naab-lang blocks search <query> [--language <lang>] [--category <cat>]\n");
             fmt::print("  naab-lang blocks info <block-id>\n");
+            fmt::print("  naab-lang blocks similar <block-id>\n");
             fmt::print("  naab-lang blocks index [path]\n");
+            fmt::print("  naab-lang blocks stats\n");
+            fmt::print("  naab-lang blocks export <block-id>\n");
+            fmt::print("  naab-lang blocks import <file.json>\n");
+            fmt::print("  naab-lang blocks backup / restore\n");
             return 1;
         }
         std::string subcmd = argv[2];
 
         if (subcmd == "list") {
+            // Parse optional --language and --category flags
+            std::string language_filter;
+            std::string category_filter;
+            for (int i = 3; i < argc; i++) {
+                std::string arg(argv[i]);
+                if (arg == "--language" && i + 1 < argc) {
+                    language_filter = argv[++i];
+                } else if (arg == "--category" && i + 1 < argc) {
+                    category_filter = argv[++i];
+                }
+            }
+
             try {
                 // Use default blocks database location
                 std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
                 naab::runtime::BlockSearchIndex search_index(db_path);
 
-                int total_blocks = search_index.getBlockCount();
-                auto stats = search_index.getStatistics();
+                if (!language_filter.empty() || !category_filter.empty()) {
+                    // Filtered list via search
+                    naab::runtime::SearchQuery query;
+                    query.query = "*";
+                    query.limit = 100;
+                    if (!language_filter.empty()) query.language = language_filter;
+                    if (!category_filter.empty()) query.category = category_filter;
+                    auto results = search_index.search(query);
 
-                fmt::print("NAAb Block Registry Statistics\n");
-                fmt::print("==============================\n\n");
-                fmt::print("Total blocks indexed: {}\n", total_blocks);
+                    fmt::print("NAAb Blocks");
+                    if (!language_filter.empty()) fmt::print(" [language: {}]", language_filter);
+                    if (!category_filter.empty()) fmt::print(" [category: {}]", category_filter);
+                    fmt::print("\n{}\n\n", std::string(40, '='));
 
-                if (!stats.empty()) {
-                    fmt::print("\nBreakdown by language:\n");
-                    for (const auto& [lang, count] : stats) {
-                        fmt::print("  {}: {} blocks\n", lang, count);
+                    for (const auto& result : results) {
+                        fmt::print("  {} - {}\n", result.metadata.block_id, result.metadata.description);
                     }
-                }
+                    fmt::print("\n{} blocks found\n", results.size());
+                } else {
+                    int total_blocks = search_index.getBlockCount();
+                    auto stats = search_index.getStatistics();
 
-                fmt::print("\nUse 'naab-lang blocks search <query>' to search blocks\n");
+                    fmt::print("NAAb Block Registry Statistics\n");
+                    fmt::print("==============================\n\n");
+                    fmt::print("Total blocks indexed: {}\n", total_blocks);
+
+                    if (!stats.empty()) {
+                        fmt::print("\nBreakdown by language:\n");
+                        for (const auto& [lang, count] : stats) {
+                            fmt::print("  {}: {} blocks\n", lang, count);
+                        }
+                    }
+
+                    fmt::print("\nUse 'naab-lang blocks search <query>' to search blocks\n");
+                    fmt::print("Filter: 'naab-lang blocks list --language <lang>'\n");
+                }
                 return 0;
 
             } catch (const std::exception& e) {
@@ -780,11 +854,29 @@ int main(int argc, char** argv) {
         } else if (subcmd == "search") {
             if (argc < 4) {
                 fmt::print("Error: Missing search query\n");
-                fmt::print("Usage: naab-lang blocks search <query>\n");
+                fmt::print("Usage: naab-lang blocks search <query> [--language <lang>] [--category <cat>]\n");
                 return 1;
             }
 
-            std::string query_str = argv[3];
+            // Parse search arguments with optional --language and --category flags
+            std::string query_str;
+            std::string language_filter;
+            std::string category_filter;
+            for (int i = 3; i < argc; i++) {
+                std::string arg(argv[i]);
+                if (arg == "--language" && i + 1 < argc) {
+                    language_filter = argv[++i];
+                } else if (arg == "--category" && i + 1 < argc) {
+                    category_filter = argv[++i];
+                } else if (query_str.empty()) {
+                    query_str = arg;
+                }
+            }
+
+            if (query_str.empty()) {
+                fmt::print("Error: Missing search query\n");
+                return 1;
+            }
 
             try {
                 // Use default blocks database location
@@ -795,6 +887,12 @@ int main(int argc, char** argv) {
                 naab::runtime::SearchQuery query;
                 query.query = query_str;
                 query.limit = 10;  // Show top 10 results
+                if (!language_filter.empty()) {
+                    query.language = language_filter;
+                }
+                if (!category_filter.empty()) {
+                    query.category = category_filter;
+                }
 
                 // Execute search
                 auto results = search_index.search(query);
@@ -839,8 +937,8 @@ int main(int argc, char** argv) {
             if (argc >= 4) {
                 blocks_path = argv[3];
             } else {
-                // Default to ~/.naab/blocks/library
-                blocks_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks/library";
+                // Default to ~/.naab/language/blocks/library
+                blocks_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/language/blocks/library";
             }
 
             try {
@@ -940,9 +1038,225 @@ int main(int argc, char** argv) {
                 return 1;
             }
 
+        } else if (subcmd == "similar") {
+            if (argc < 4) {
+                fmt::print("Error: Missing block ID\n");
+                fmt::print("Usage: naab-lang blocks similar <block-id>\n");
+                return 1;
+            }
+            std::string block_id = argv[3];
+            try {
+                std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+                naab::runtime::BlockSearchIndex search_index(db_path);
+
+                // Get block metadata to use as search query
+                auto block_opt = search_index.getBlock(block_id);
+                if (!block_opt.has_value()) {
+                    fmt::print("Block not found: {}\n", block_id);
+                    return 1;
+                }
+
+                // Search using the block's description and keywords
+                naab::runtime::SearchQuery query;
+                query.query = block_opt->description;
+                if (!block_opt->language.empty()) {
+                    query.language = block_opt->language;
+                }
+                query.limit = 11;  // Extra one to skip self
+
+                auto results = search_index.search(query);
+
+                fmt::print("Blocks similar to {}\n", block_id);
+                fmt::print("{}\n\n", std::string(40, '='));
+
+                int shown = 0;
+                for (const auto& result : results) {
+                    if (result.metadata.block_id == block_id) continue;  // Skip self
+                    fmt::print("  {} (score: {:.2f})\n", result.metadata.block_id, result.final_score);
+                    fmt::print("    {}\n\n", result.metadata.description);
+                    if (++shown >= 10) break;
+                }
+
+                if (shown == 0) {
+                    fmt::print("  No similar blocks found\n");
+                }
+                return 0;
+            } catch (const std::exception& e) {
+                fmt::print("Error: {}\n", e.what());
+                fmt::print("Hint: Run 'naab-lang blocks index' first\n");
+                return 1;
+            }
+
+        } else if (subcmd == "stats") {
+            // Alias to top-level stats command
+            try {
+                std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+                naab::runtime::BlockSearchIndex search_index(db_path);
+
+                int total_blocks = search_index.getBlockCount();
+                auto stats = search_index.getStatistics();
+
+                fmt::print("NAAb Block Registry Statistics\n");
+                fmt::print("==============================\n\n");
+                fmt::print("Total blocks indexed: {}\n", total_blocks);
+
+                if (!stats.empty()) {
+                    fmt::print("\nBreakdown by language:\n");
+                    for (const auto& [lang, count] : stats) {
+                        fmt::print("  {}: {} blocks\n", lang, count);
+                    }
+                }
+                return 0;
+            } catch (const std::exception& e) {
+                fmt::print("Error: {}\n", e.what());
+                fmt::print("Hint: Run 'naab-lang blocks index' first\n");
+                return 1;
+            }
+
+        } else if (subcmd == "export") {
+            if (argc < 4) {
+                fmt::print("Error: Missing block ID\n");
+                fmt::print("Usage: naab-lang blocks export <block-id>\n");
+                return 1;
+            }
+            std::string block_id = argv[3];
+
+            // Use BlockRegistry to find the block's JSON file
+            std::string blocks_dir = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/language/blocks/library";
+            naab::runtime::BlockRegistry::instance().initialize(blocks_dir);
+            auto block_opt = naab::runtime::BlockRegistry::instance().getBlock(block_id);
+
+            if (!block_opt.has_value()) {
+                fmt::print("Block not found: {}\n", block_id);
+                return 1;
+            }
+
+            // Read and print the raw JSON file
+            std::ifstream file(block_opt->file_path);
+            if (!file.is_open()) {
+                fmt::print("Error: Cannot read block file: {}\n", block_opt->file_path);
+                return 1;
+            }
+            std::string content((std::istreambuf_iterator<char>(file)),
+                                std::istreambuf_iterator<char>());
+            fmt::print("{}\n", content);
+            return 0;
+
+        } else if (subcmd == "import") {
+            if (argc < 4) {
+                fmt::print("Error: Missing file path\n");
+                fmt::print("Usage: naab-lang blocks import <file.json>\n");
+                return 1;
+            }
+            std::string file_path = argv[3];
+
+            // Read and parse the JSON file
+            std::ifstream file(file_path);
+            if (!file.is_open()) {
+                fmt::print("Error: Cannot open file: {}\n", file_path);
+                return 1;
+            }
+            std::string content((std::istreambuf_iterator<char>(file)),
+                                std::istreambuf_iterator<char>());
+
+            // Extract "id" and "language" fields with simple string search
+            auto extractField = [&](const std::string& field) -> std::string {
+                std::string key = "\"" + field + "\"";
+                auto pos = content.find(key);
+                if (pos == std::string::npos) return "";
+                pos = content.find("\"", pos + key.size() + 1);  // skip past colon
+                if (pos == std::string::npos) return "";
+                auto end = content.find("\"", pos + 1);
+                if (end == std::string::npos) return "";
+                return content.substr(pos + 1, end - pos - 1);
+            };
+
+            std::string block_id = extractField("id");
+            std::string language = extractField("language");
+
+            if (language.empty() || block_id.empty()) {
+                fmt::print("Error: JSON must contain 'id' and 'language' fields\n");
+                return 1;
+            }
+
+            // Copy to appropriate language directory
+            std::string dest_dir = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") +
+                "/.naab/language/blocks/library/" + language;
+            std::string dest_path = dest_dir + "/" + block_id + ".json";
+
+            std::ofstream out(dest_path);
+            if (!out.is_open()) {
+                fmt::print("Error: Cannot write to {}\n", dest_path);
+                return 1;
+            }
+            out << content;
+            out.close();
+
+            fmt::print("Imported {} to {}\n", block_id, dest_path);
+            fmt::print("Run 'naab-lang blocks index' to update the search index\n");
+            return 0;
+
+        } else if (subcmd == "create" || subcmd == "test" || subcmd == "submit") {
+            fmt::print("'blocks {}' is not yet implemented.\n\n", subcmd);
+            if (subcmd == "create") {
+                fmt::print("To create a block manually:\n");
+                fmt::print("  1. Create a JSON file with id, language, code, and description fields\n");
+                fmt::print("  2. Place it in ~/.naab/language/blocks/library/<language>/\n");
+                fmt::print("  3. Run 'naab-lang blocks index' to update the registry\n");
+            } else if (subcmd == "test") {
+                fmt::print("To test a block, create a .naab file:\n");
+                fmt::print("  use BLOCK-ID as alias\n");
+                fmt::print("  main { let result = alias.function_name(args) }\n");
+            } else {
+                fmt::print("Block submission to public registry is planned for a future release.\n");
+            }
+            return 1;
+
+        } else if (subcmd == "update") {
+            fmt::print("Blocks are currently local-only.\n");
+            fmt::print("Use 'naab-lang blocks index' to rebuild the search index from local files.\n");
+            return 0;
+
+        } else if (subcmd == "backup") {
+            std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+            std::string backup_path = db_path + ".backup";
+            std::ifstream src(db_path, std::ios::binary);
+            if (!src.is_open()) {
+                fmt::print("Error: Cannot open blocks.db for backup\n");
+                return 1;
+            }
+            std::ofstream dst(backup_path, std::ios::binary);
+            dst << src.rdbuf();
+            fmt::print("Backed up blocks.db to {}\n", backup_path);
+            return 0;
+
+        } else if (subcmd == "restore") {
+            std::string db_path = std::string(std::getenv("HOME") ? std::getenv("HOME") : ".") + "/.naab/blocks.db";
+            std::string backup_path = db_path + ".backup";
+            std::ifstream src(backup_path, std::ios::binary);
+            if (!src.is_open()) {
+                fmt::print("Error: No backup found at {}\n", backup_path);
+                return 1;
+            }
+            std::ofstream dst(db_path, std::ios::binary);
+            dst << src.rdbuf();
+            fmt::print("Restored blocks.db from backup\n");
+            return 0;
+
+        } else if (subcmd == "report") {
+            if (argc < 4) {
+                fmt::print("Error: Missing block ID\n");
+                fmt::print("Usage: naab-lang blocks report <block-id>\n");
+                return 1;
+            }
+            fmt::print("Block issue reporting is planned for a future release.\n");
+            fmt::print("For now, please file issues at the NAAb project repository.\n");
+            return 0;
+
         } else {
             fmt::print("Unknown blocks subcommand: {}\n", subcmd);
-            fmt::print("Available: list, search, index, info\n");
+            fmt::print("Available: list, search, index, info, similar, stats, export, import,\n");
+            fmt::print("           create, test, submit, update, backup, restore, report\n");
             return 1;
         }
 
