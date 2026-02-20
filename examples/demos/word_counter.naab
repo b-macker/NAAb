@@ -1,73 +1,33 @@
-// word_counter.naab - A simple utility to count words in a text file.
-
-use io     // For printing output and errors
-use string // For string manipulation
-use file   // For file system operations
+// word_counter.naab - A simple utility to count words in a string.
 
 main {
-    // Attempt to get arguments via polyglot shell block
-    // Shell blocks return a ShellResult struct: { exit_code: int, stdout: string, stderr: string }
-    let shell_result = <<sh
-    echo "$@"
-    >>
-    
-    // Check for shell execution errors first
-    if shell_result.exit_code != 0 {
-        io.write_error("ERROR: Shell command failed with exit code ", shell_result.exit_code, "\n")
-        io.write_error("Stderr: ", shell_result.stderr, "\n")
-        return
-    }
+    print("--- NAAb Word Counter ---")
 
-    let raw_args_string_untrimmed = shell_result.stdout // Extract stdout string
-    
-    io.write("DEBUG: raw_args_string_untrimmed: '", raw_args_string_untrimmed, "'\n") // Debug print
-    // io.write("DEBUG: type of raw_args_string_untrimmed: ", string.from(raw_args_string_untrimmed), "\n") // string.from() does not exist
+    let text = "The quick brown fox jumps over the lazy dog"
+    print("Text: '" + text + "'")
 
-    let raw_args_string = string.trim(raw_args_string_untrimmed) // Trim whitespace, including newlines
-    
-    io.write("DEBUG: raw_args_string (trimmed): '", raw_args_string, "'\n")
+    // Split by spaces to get words
+    let words = string.split(text, " ")
+    let word_count = len(words)
+    print("Total word count: " + word_count)
 
-    // Split the string into a list of arguments.
-    let args = string.split(raw_args_string, " ")
-
-    // If no arguments were passed, raw_args_string might be empty, resulting in args being [""]
-    // Handle the case where string.split("") might return [""] or []
-    let final_args: list<string> = []
-    let i = 0
-    while i < string.length(args) {
-        if string.length(args[i]) > 0 { // Filter out empty strings
-            final_args.append(args[i])
+    // Count unique words by collecting lowercase versions
+    let unique_words = []
+    for word in words {
+        let lower_word = string.lower(word)
+        if !unique_words.contains(lower_word) {
+            unique_words.push(lower_word)
         }
-        i = i + 1
     }
+    print("Unique word count: " + len(unique_words))
 
-    if string.length(final_args) == 0 { // Check if no actual arguments
-        io.write("Usage: naab run word_counter.naab <file_path>\n")
-        return
-    }
+    // Test with multi-space text
+    let text2 = "hello   world   foo"
+    let words2 = string.split(text2, " ")
+    // Filter empty strings from split
+    let filtered = array.filter_fn(words2, fn(w) { string.length(w) > 0 })
+    print("Multi-space text word count: " + len(filtered))
 
-    let file_path = final_args[0] // The first argument provided to the script
-    io.write("Counting words in: ", file_path, "\n")
-
-    let file_content_result = file.read(file_path)
-    if file_content_result.err != null {
-        io.write_error("Error: Could not read file '", file_path, "': ", file_content_result.err.message, "\n")
-        return
-    }
-    let content = file_content_result.ok
-
-    // Split content by whitespace to get words
-    let words = string.split(content, " ")
-
-    // Filter out empty strings that might result from multiple spaces
-    let word_count = 0
-    let j = 0
-    while j < string.length(words) {
-        if string.length(words[j]) > 0 {
-            word_count = word_count + 1
-        }
-        j = j + 1
-    }
-
-    io.write("Total word count: ", word_count, "\n")
+    print("")
+    print("--- End of word counter ---")
 }
