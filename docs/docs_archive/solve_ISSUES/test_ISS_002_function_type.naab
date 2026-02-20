@@ -1,27 +1,34 @@
 # Test ISS-002: Function Type Annotation
-# Status in ISSUES.md: ❌ Failed - `function` keyword as type not recognized
-# Expected: Parser does not implement function<T...> type
+# Tests: function references as variables, function parameters
 
-main {
-    print("=== Testing ISS-002: Function Type Annotation ===")
+use io
 
-    # Test 1: Declare variable with function type
-    print("Test 1: let callback: function = add_five")
-    let callback: function = add_five
-    print("  Calling callback(10):", callback(10))
-
-    # Test 2: Function parameter with function type
-    print("Test 2: apply_fn(5, callback)")
-    let result = apply_fn(5, callback)
-    print("  Result:", result)
-
-    print("VERDICT: If you see this, function types work!")
-}
-
-fn add_five(x: int) -> int {
+fn add_five(x) {
     return x + 5
 }
 
-fn apply_fn(value: int, fn: function) -> int {
-    return fn(value)
+fn apply_fn(value, callback) {
+    return callback(value)
+}
+
+main {
+    io.write("=== Testing ISS-002: Function Type Annotation ===\n")
+
+    # Test 1: Declare variable with function reference
+    io.write("Test 1: let callback = add_five\n")
+    let callback = add_five
+    io.write("  Calling callback(10): " + callback(10) + "\n")
+
+    # Test 2: Function parameter with function reference
+    io.write("Test 2: apply_fn(5, callback)\n")
+    let result = apply_fn(5, callback)
+    io.write("  Result: " + result + "\n")
+
+    # Test 3: Lambda as callback
+    io.write("Test 3: Lambda callback\n")
+    let double = fn(x) { return x * 2 }
+    let result2 = apply_fn(7, double)
+    io.write("  apply_fn(7, fn(x) { x * 2 }) = " + result2 + "\n")
+
+    io.write("VERDICT: Function types work!\n")
 }

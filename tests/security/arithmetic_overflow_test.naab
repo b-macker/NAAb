@@ -4,103 +4,89 @@
 fn testAdditionOverflow() {
     print("Testing addition overflow detection...")
 
-    // Should succeed
     let x = 1000 + 2000
-    assert(x == 3000, "Normal addition should work")
+    if x != 3000 { throw "Normal addition should work" }
 
-    // Large numbers that should trigger overflow detection in C++ backend
-    // (when using int64 max values)
-    // Note: NAAb interpreter will catch these with safe_math
     try {
-        let max_int = 9223372036854775807  // INT64_MAX
-        let overflow = max_int + 1  // Should throw OverflowException
-        assert(false, "Should have thrown overflow exception")
-    } catch e {
-        print("✓ Caught overflow: " + e)
+        let max_int = 9223372036854775807
+        let overflow = max_int + 1
+        throw "Should have thrown overflow exception"
+    } catch (e) {
+        print("  Caught overflow: " + e)
     }
 }
 
 fn testSubtractionUnderflow() {
     print("Testing subtraction underflow detection...")
 
-    // Should succeed
     let x = 5000 - 2000
-    assert(x == 3000, "Normal subtraction should work")
+    if x != 3000 { throw "Normal subtraction should work" }
 
-    // Test underflow
     try {
-        let min_int = -9223372036854775808  // INT64_MIN
-        let underflow = min_int - 1  // Should throw UnderflowException
-        assert(false, "Should have thrown underflow exception")
-    } catch e {
-        print("✓ Caught underflow: " + e)
+        let min_int = -9223372036854775808
+        let underflow = min_int - 1
+        throw "Should have thrown underflow exception"
+    } catch (e) {
+        print("  Caught underflow: " + e)
     }
 }
 
 fn testMultiplicationOverflow() {
     print("Testing multiplication overflow detection...")
 
-    // Should succeed
     let x = 100 * 50
-    assert(x == 5000, "Normal multiplication should work")
+    if x != 5000 { throw "Normal multiplication should work" }
 
-    // Test overflow
     try {
-        let large = 9223372036854775807  // INT64_MAX
-        let overflow = large * 2  // Should throw OverflowException
-        assert(false, "Should have thrown overflow exception")
-    } catch e {
-        print("✓ Caught overflow: " + e)
+        let large = 9223372036854775807
+        let overflow = large * 2
+        throw "Should have thrown overflow exception"
+    } catch (e) {
+        print("  Caught overflow: " + e)
     }
 }
 
 fn testDivisionByZero() {
     print("Testing division by zero detection...")
 
-    // Should succeed
     let x = 100 / 5
-    assert(x == 20, "Normal division should work")
+    if x != 20 { throw "Normal division should work" }
 
-    // Test divide by zero
     try {
-        let result = 100 / 0  // Should throw DivisionByZeroException
-        assert(false, "Should have thrown division by zero exception")
-    } catch e {
-        print("✓ Caught division by zero: " + e)
+        let result = 100 / 0
+        throw "Should have thrown division by zero exception"
+    } catch (e) {
+        print("  Caught division by zero: " + e)
     }
 }
 
 fn testModuloByZero() {
     print("Testing modulo by zero detection...")
 
-    // Should succeed
     let x = 100 % 7
-    assert(x == 2, "Normal modulo should work")
+    if x != 2 { throw "Normal modulo should work" }
 
-    // Test modulo by zero
     try {
-        let result = 100 % 0  // Should throw DivisionByZeroException
-        assert(false, "Should have thrown modulo by zero exception")
-    } catch e {
-        print("✓ Caught modulo by zero: " + e)
+        let result = 100 % 0
+        throw "Should have thrown modulo by zero exception"
+    } catch (e) {
+        print("  Caught modulo by zero: " + e)
     }
 }
 
 fn testNegationOverflow() {
     print("Testing negation overflow detection...")
 
-    // Should succeed
     let x = -1000
     let y = -x
-    assert(y == 1000, "Normal negation should work")
+    if y != 1000 { throw "Normal negation should work" }
 
-    // Test INT_MIN negation overflow
     try {
-        let min_int = -9223372036854775808  // INT64_MIN
-        let overflow = -min_int  // Should throw OverflowException
-        assert(false, "Should have thrown overflow exception")
-    } catch e {
-        print("✓ Caught negation overflow: " + e)
+        let min_int = -9223372036854775808
+        let overflow = -min_int
+        throw "Should have thrown overflow exception"
+    } catch (e) {
+        print("  Caught negation overflow: " + e)
     }
 }
 
@@ -109,47 +95,26 @@ fn testArrayBoundsChecking() {
 
     let arr = [10, 20, 30, 40, 50]
 
-    // Valid access
-    assert(arr[0] == 10, "Index 0 should work")
-    assert(arr[4] == 50, "Index 4 should work")
+    if arr[0] != 10 { throw "Index 0 should work" }
+    if arr[4] != 50 { throw "Index 4 should work" }
 
-    // Out of bounds access
     try {
-        let invalid = arr[10]  // Should throw out_of_range
-        assert(false, "Should have thrown out of range exception")
-    } catch e {
-        print("✓ Caught out of bounds: " + e)
+        let invalid = arr[10]
+        throw "Should have thrown out of range exception"
+    } catch (e) {
+        print("  Caught out of bounds: " + e)
     }
 
-    // Negative index
     try {
-        let invalid = arr[-1]  // Should throw out_of_range
-        assert(false, "Should have thrown negative index exception")
-    } catch e {
-        print("✓ Caught negative index: " + e)
+        let invalid = arr[-1]
+        throw "Should have thrown negative index exception"
+    } catch (e) {
+        print("  Caught negative index: " + e)
     }
 }
 
-fn testSafeIntegerConversion() {
-    print("Testing safe integer type conversion...")
-
-    // Should succeed (within bounds)
-    let x: int = 127  // Fits in int8
-
-    // Test overflow in conversion (conceptual - depends on type system)
-    try {
-        // Attempting to fit large value in smaller type
-        let large = 999999999
-        // If NAAb had explicit int8 type:
-        // let small: int8 = large  // Should throw OverflowException
-        print("✓ Type conversion would be checked")
-    } catch e {
-        print("✓ Caught conversion overflow: " + e)
-    }
-}
-
-fn runAllTests() {
-    print("=== Arithmetic Overflow Security Tests ===\n")
+main {
+    print("=== Arithmetic Overflow Security Tests ===")
 
     testAdditionOverflow()
     testSubtractionUnderflow()
@@ -158,10 +123,7 @@ fn runAllTests() {
     testModuloByZero()
     testNegationOverflow()
     testArrayBoundsChecking()
-    testSafeIntegerConversion()
 
-    print("\n✅ All arithmetic overflow tests completed!")
+    print("")
+    print("All arithmetic overflow tests completed!")
 }
-
-// Run tests
-runAllTests()

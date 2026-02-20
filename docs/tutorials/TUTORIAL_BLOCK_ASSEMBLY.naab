@@ -1,13 +1,13 @@
 # NAAb Tutorial: Block Assembly System
-# Learn how to use the 24,515+ pre-built blocks from the block registry
+# Learn how to use pre-built blocks from the block registry
 
 # ═══════════════════════════════════════════════════════════════
 # INTRODUCTION TO BLOCK ASSEMBLY
 # ═══════════════════════════════════════════════════════════════
 
-# NAAb has a database of 24,515+ pre-built, tested code blocks that you
-# can search, discover, and use in your programs. This is called the
-# "Block Assembly" system.
+# NAAb has a registry of pre-built code blocks across multiple languages
+# that you can search, discover, and use in your programs. This is called
+# the "Block Assembly" system.
 #
 # Think of it like a massive library of functions across multiple languages
 # that you can import and use without writing the code yourself.
@@ -81,9 +81,13 @@
 # PART 3: USING BLOCKS IN YOUR CODE (Basic)
 # ═══════════════════════════════════════════════════════════════
 
+use io
+
 fn demo_basic_block_usage() {
-    print("=== PART 3: Basic Block Usage ===")
-    print("")
+    io.write("=== PART 3: Basic Block Usage ===\n
+")
+    io.write("\n
+")
 
     # Import a block using its ID
     # Syntax: use BLOCK-ID as name
@@ -102,8 +106,10 @@ fn demo_basic_block_usage() {
     # print("Is '", email1, "' valid? ", valid1)  # true
     # print("Is '", email2, "' valid? ", valid2)  # false
 
-    print("(See comments in source code for usage examples)")
-    print("")
+    io.write("(See comments in source code for usage examples)
+")
+    io.write("\n
+")
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -111,8 +117,10 @@ fn demo_basic_block_usage() {
 # ═══════════════════════════════════════════════════════════════
 
 fn demo_block_composition() {
-    print("=== PART 4: Block Composition ===")
-    print("")
+    io.write("=== PART 4: Block Composition ===\n
+")
+    io.write("\n
+")
 
     # You can chain multiple blocks together!
     # This is the power of Block Assembly
@@ -138,8 +146,10 @@ fn demo_block_composition() {
 
     # print("Result: ", formatted)
 
-    print("(Block composition allows cross-language pipelines)")
-    print("")
+    io.write("(Block composition allows cross-language pipelines)
+")
+    io.write("\n
+")
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -259,11 +269,14 @@ fn demo_block_composition() {
 # ═══════════════════════════════════════════════════════════════
 
 fn demo_practical_examples() {
-    print("=== PART 8: Practical Examples ===")
-    print("")
+    io.write("=== PART 8: Practical Examples ===\n
+")
+    io.write("\n
+")
 
     # Example 1: User Registration System
-    print("[Example 1] User Registration")
+    io.write("[Example 1] User Registration\n
+")
 
     # Blocks needed:
     # - Email validation
@@ -284,15 +297,18 @@ fn demo_practical_examples() {
     #     if check_password_strength(password) {
     #         let clean_username = sanitize_username(username)
     #         let success = insert_user(email, password, clean_username)
-    #         print("User registered: ", success)
+    #         io.write("User registered: ", success)
     #     }
     # }
 
-    print("  (Uses 4 blocks: validation, security, sanitization, database)")
-    print("")
+    io.write("  (Uses 4 blocks: validation, security, sanitization, database)
+")
+    io.write("\n
+")
 
     # Example 2: Data Analytics Pipeline
-    print("[Example 2] Data Analytics")
+    io.write("[Example 2] Data Analytics\n
+")
 
     # Blocks needed:
     # - CSV parser
@@ -313,11 +329,14 @@ fn demo_practical_examples() {
 
     # print("  Analytics complete: ", stats)
 
-    print("  (Uses 4 blocks: parsing, cleaning, analytics, visualization)")
-    print("")
+    io.write("  (Uses 4 blocks: parsing, cleaning, analytics, visualization)
+")
+    io.write("\n
+")
 
     # Example 3: Web Scraping
-    print("[Example 3] Web Scraping")
+    io.write("[Example 3] Web Scraping\n
+")
 
     # Blocks needed:
     # - HTTP GET request
@@ -338,8 +357,10 @@ fn demo_practical_examples() {
 
     # print("  Scraped data: ", json)
 
-    print("  (Uses 4 blocks: HTTP, parsing, extraction, serialization)")
-    print("")
+    io.write("  (Uses 4 blocks: HTTP, parsing, extraction, serialization)
+")
+    io.write("\n
+")
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -347,46 +368,78 @@ fn demo_practical_examples() {
 # ═══════════════════════════════════════════════════════════════
 
 fn demo_advanced_features() {
-    print("=== PART 9: Advanced Features ===")
-    print("")
+    io.write("=== PART 9: Advanced Features ===\n
+")
+    io.write("\n
+")
 
     # Feature 1: Block Metadata
-    print("[Feature 1] Block Metadata")
-    print("  Each block includes metadata:")
-    print("  • Author and version")
-    print("  • Performance characteristics (O notation)")
-    print("  • Security audit status")
-    print("  • Test coverage percentage")
-    print("  • Dependencies")
-    print("  • License information")
-    print("")
+    io.write("[Feature 1] Block Metadata\n
+")
+    io.write("  Each block includes metadata:\n
+")
+    io.write("  • Author and version\n
+")
+    io.write("  • Performance characteristics (O notation)
+")
+    io.write("  • Security audit status\n
+")
+    io.write("  • Test coverage percentage\n
+")
+    io.write("  • Dependencies\n
+")
+    io.write("  • License information\n
+")
+    io.write("\n
+")
 
     # Feature 2: Type Safety
-    print("[Feature 2] Type Safety")
-    print("  Blocks have strict type signatures:")
-    print("  • Input types validated at runtime")
-    print("  • Output types guaranteed")
-    print("  • Type conversion handled automatically")
-    print("  • Compile-time checking (when possible)")
-    print("")
+    io.write("[Feature 2] Type Safety\n
+")
+    io.write("  Blocks have strict type signatures:\n
+")
+    io.write("  • Input types validated at runtime\n
+")
+    io.write("  • Output types guaranteed\n
+")
+    io.write("  • Type conversion handled automatically\n
+")
+    io.write("  • Compile-time checking (when possible)
+")
+    io.write("\n
+")
 
     # Feature 3: Performance Optimization
-    print("[Feature 3] Performance")
-    print("  The block system is optimized:")
-    print("  • Blocks cached after first load")
-    print("  • JIT compilation for hot paths")
-    print("  • Lazy loading of dependencies")
-    print("  • Cross-language optimization")
-    print("")
+    io.write("[Feature 3] Performance\n
+")
+    io.write("  The block system is optimized:\n
+")
+    io.write("  • Blocks cached after first load\n
+")
+    io.write("  • JIT compilation for hot paths\n
+")
+    io.write("  • Lazy loading of dependencies\n
+")
+    io.write("  • Cross-language optimization\n
+")
+    io.write("\n
+")
 
     # Feature 4: Security
-    print("[Feature 4] Security")
-    print("  All blocks are security-audited:")
-    print("  • Sandboxed execution")
-    print("  • No arbitrary code execution")
-    print("  • Input validation")
-    print("  • Resource limits enforced")
-    print("")
+    io.write("[Feature 4] Security\n
+")
+    io.write("  All blocks are security-audited:\n
+")
+    io.write("  • Sandboxed execution\n
+")
+    io.write("  • No arbitrary code execution\n
+")
+    io.write("  • Input validation\n
+")
+    io.write("  • Resource limits enforced\n
+")
+    io.write("\n
+")
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -424,28 +477,45 @@ fn demo_advanced_features() {
 # ═══════════════════════════════════════════════════════════════
 
 fn demo_discovery_strategies() {
-    print("=== PART 11: Finding the Right Blocks ===")
-    print("")
+    io.write("=== PART 11: Finding the Right Blocks ===\n
+")
+    io.write("\n
+")
 
-    print("Strategy 1: Search by task")
-    print("  $ ./naab-lang blocks search 'validate email'")
-    print("")
+    io.write("Strategy 1: Search by task\n
+")
+    io.write("  $ ./naab-lang blocks search 'validate email'\n
+")
+    io.write("\n
+")
 
-    print("Strategy 2: Search by input/output types")
-    print("  $ ./naab-lang blocks search 'string -> int'")
-    print("")
+    io.write("Strategy 2: Search by input/output types\n
+")
+    io.write("  $ ./naab-lang blocks search 'string -> int'\n
+")
+    io.write("\n
+")
 
-    print("Strategy 3: Browse by category")
-    print("  $ ./naab-lang blocks list --category validation")
-    print("")
+    io.write("Strategy 3: Browse by category\n
+")
+    io.write("  $ ./naab-lang blocks list --category validation\n
+")
+    io.write("\n
+")
 
-    print("Strategy 4: Search by language")
-    print("  $ ./naab-lang blocks search 'sort array' --language python")
-    print("")
+    io.write("Strategy 4: Search by language\n
+")
+    io.write("  $ ./naab-lang blocks search 'sort array' --language python\n
+")
+    io.write("\n
+")
 
-    print("Strategy 5: Similar blocks")
-    print("  $ ./naab-lang blocks similar BLOCK-PY-09145")
-    print("")
+    io.write("Strategy 5: Similar blocks\n
+")
+    io.write("  $ ./naab-lang blocks similar BLOCK-PY-09145\n
+")
+    io.write("\n
+")
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -453,33 +523,57 @@ fn demo_discovery_strategies() {
 # ═══════════════════════════════════════════════════════════════
 
 fn demo_comparison() {
-    print("=== PART 12: Block Assembly vs Inline Code ===")
-    print("")
+    io.write("=== PART 12: Block Assembly vs Inline Code ===\n
+")
+    io.write("\n
+")
 
-    print("BLOCK ASSEMBLY:")
-    print("  ✓ Pre-tested and audited")
-    print("  ✓ Optimized performance")
-    print("  ✓ Type-safe")
-    print("  ✓ Reusable across projects")
-    print("  ✓ Maintained by community")
-    print("  ✗ Less flexible")
-    print("  ✗ May not fit exact needs")
-    print("")
+    io.write("BLOCK ASSEMBLY:\n
+")
+    io.write("  ✓ Pre-tested and audited\n
+")
+    io.write("  ✓ Optimized performance\n
+")
+    io.write("  ✓ Type-safe\n
+")
+    io.write("  ✓ Reusable across projects\n
+")
+    io.write("  ✓ Maintained by community\n
+")
+    io.write("  ✗ Less flexible\n
+")
+    io.write("  ✗ May not fit exact needs\n
+")
+    io.write("\n
+")
 
-    print("INLINE CODE:")
-    print("  ✓ Fully customizable")
-    print("  ✓ No block search needed")
-    print("  ✓ Can use any library")
-    print("  ✗ You write the tests")
-    print("  ✗ You maintain the code")
-    print("  ✗ Potential security issues")
-    print("")
+    io.write("INLINE CODE:\n
+")
+    io.write("  ✓ Fully customizable\n
+")
+    io.write("  ✓ No block search needed\n
+")
+    io.write("  ✓ Can use any library\n
+")
+    io.write("  ✗ You write the tests\n
+")
+    io.write("  ✗ You maintain the code\n
+")
+    io.write("  ✗ Potential security issues\n
+")
+    io.write("\n
+")
 
-    print("RECOMMENDATION:")
-    print("  • Use blocks for common tasks")
-    print("  • Use inline code for custom logic")
-    print("  • Combine both for best results!")
-    print("")
+    io.write("RECOMMENDATION:\n
+")
+    io.write("  • Use blocks for common tasks\n
+")
+    io.write("  • Use inline code for custom logic\n
+")
+    io.write("  • Combine both for best results!\n
+")
+    io.write("\n
+")
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -487,30 +581,51 @@ fn demo_comparison() {
 # ═══════════════════════════════════════════════════════════════
 
 fn demo_troubleshooting() {
-    print("=== PART 13: Troubleshooting ===")
-    print("")
+    io.write("=== PART 13: Troubleshooting ===\n
+")
+    io.write("\n
+")
 
-    print("Problem: Block not found")
-    print("  Solution:")
-    print("  • Check block ID spelling")
-    print("  • Update block database: ./naab-lang blocks update")
-    print("  • Search for similar blocks")
-    print("")
+    io.write("Problem: Block not found\n
+")
+    io.write("  Solution:\n
+")
+    io.write("  • Check block ID spelling\n
+")
+    io.write("  • Update block database: ./naab-lang blocks update\n
+")
+    io.write("  • Search for similar blocks\n
+")
+    io.write("\n
+")
 
-    print("Problem: Type mismatch")
-    print("  Solution:")
-    print("  • Check block signatures: ./naab-lang blocks info BLOCK-ID")
-    print("  • Add type conversion block")
-    print("  • Validate composition: ./naab-lang validate")
-    print("")
+    io.write("Problem: Type mismatch\n
+")
+    io.write("  Solution:\n
+")
+    io.write("  • Check block signatures: ./naab-lang blocks info BLOCK-ID\n
+")
+    io.write("  • Add type conversion block\n
+")
+    io.write("  • Validate composition: ./naab-lang validate\n
+")
+    io.write("\n
+")
 
-    print("Problem: Block execution fails")
-    print("  Solution:")
-    print("  • Check block dependencies")
-    print("  • Verify input data format")
-    print("  • Check block version compatibility")
-    print("  • Report issue: ./naab-lang blocks report BLOCK-ID")
-    print("")
+    io.write("Problem: Block execution fails\n
+")
+    io.write("  Solution:\n
+")
+    io.write("  • Check block dependencies\n
+")
+    io.write("  • Verify input data format\n
+")
+    io.write("  • Check block version compatibility\n
+")
+    io.write("  • Report issue: ./naab-lang blocks report BLOCK-ID\n
+")
+    io.write("\n
+")
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -518,11 +633,16 @@ fn demo_troubleshooting() {
 # ═══════════════════════════════════════════════════════════════
 
 main {
-    print("╔══════════════════════════════════════════════════════════╗")
-    print("║  NAAb Block Assembly System Tutorial                     ║")
-    print("║  24,515+ Pre-built Blocks at Your Fingertips             ║")
-    print("╚══════════════════════════════════════════════════════════╝")
-    print("")
+    io.write("╔══════════════════════════════════════════════════════════╗\n
+")
+    io.write("║  NAAb Block Assembly System Tutorial                     ║\n
+")
+    io.write("║  24,500+ Pre-built Blocks at Your Fingertips             ║\n
+")
+    io.write("╚══════════════════════════════════════════════════════════╝\n
+")
+    io.write("\n
+")
 
     demo_basic_block_usage()
     demo_block_composition()
@@ -532,26 +652,48 @@ main {
     demo_comparison()
     demo_troubleshooting()
 
-    print("╔══════════════════════════════════════════════════════════╗")
-    print("║  Tutorial Complete!                                       ║")
-    print("║                                                          ║")
-    print("║  Block Assembly System:                                  ║")
-    print("║  • 24,515+ blocks available                              ║")
-    print("║  • 8 languages supported                                 ║")
-    print("║  • Search, discover, validate, use                       ║")
-    print("║                                                          ║")
-    print("║  Key Commands:                                           ║")
-    print("║  $ ./naab-lang blocks search <query>                     ║")
-    print("║  $ ./naab-lang blocks list                               ║")
-    print("║  $ ./naab-lang blocks info <BLOCK-ID>                    ║")
-    print("║  $ ./naab-lang validate <BLOCK-IDs>                      ║")
-    print("║                                                          ║")
-    print("║  In Code:                                                ║")
-    print("║  use BLOCK-ID as name                                    ║")
-    print("║  let result = name(input)                                ║")
-    print("║                                                          ║")
-    print("║  Next: Try searching for blocks!                         ║")
-    print("║  $ cd ~/.naab/language/build                             ║")
-    print("║  $ ./naab-lang blocks search 'your task'                 ║")
-    print("╚══════════════════════════════════════════════════════════╝")
+    io.write("╔══════════════════════════════════════════════════════════╗\n
+")
+    io.write("║  Tutorial Complete!                                       ║\n
+")
+    io.write("║                                                          ║\n
+")
+    io.write("║  Block Assembly System:                                  ║\n
+")
+    io.write("║  • 24,500+ blocks available                              ║\n
+")
+    io.write("║  • 8 languages supported                                 ║\n
+")
+    io.write("║  • Search, discover, validate, use                       ║\n
+")
+    io.write("║                                                          ║\n
+")
+    io.write("║  Key Commands:                                           ║\n
+")
+    io.write("║  $ ./naab-lang blocks search <query>                     ║\n
+")
+    io.write("║  $ ./naab-lang blocks list                               ║\n
+")
+    io.write("║  $ ./naab-lang blocks info <BLOCK-ID>                    ║\n
+")
+    io.write("║  $ ./naab-lang validate <BLOCK-IDs>                      ║\n
+")
+    io.write("║                                                          ║\n
+")
+    io.write("║  In Code:                                                ║\n
+")
+    io.write("║  use BLOCK-ID as name                                    ║\n
+")
+    io.write("║  let result = name(input)                                ║
+")
+    io.write("║                                                          ║\n
+")
+    io.write("║  Next: Try searching for blocks!                         ║\n
+")
+    io.write("║  $ cd ~/.naab/language/build                             ║\n
+")
+    io.write("║  $ ./naab-lang blocks search 'your task'                 ║\n
+")
+    io.write("╚══════════════════════════════════════════════════════════╝\n
+")
 }

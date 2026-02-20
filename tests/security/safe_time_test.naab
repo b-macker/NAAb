@@ -4,60 +4,51 @@
 fn testSafeTimeAddition() {
     print("Test: Safe time addition...")
 
-    // Normal addition should work
     let time1 = 1000000
     let delta = 500000
     let result = time1 + delta
-    assert(result == 1500000, "Normal time addition")
+    if result != 1500000 { throw "Normal time addition failed" }
 
-    // Test wraparound detection (conceptual - tested in C++)
-    print("✓ Safe time addition works")
+    print("  Safe time addition works")
 }
 
 fn testCounterIncrement() {
     print("Test: Counter increment...")
 
-    // Normal counter increment
     let counter = 0
-    for i in range(0, 100) {
+    let i = 0
+    while i < 100 {
         counter = counter + 1
+        i = i + 1
     }
-    assert(counter == 100, "Counter incremented correctly")
+    if counter != 100 { throw "Counter incremented incorrectly" }
 
-    print("✓ Counter increment works")
+    print("  Counter increment works")
 }
 
 fn testCounterOverflowDetection() {
     print("Test: Counter overflow detection...")
-
-    // Attempting to overflow counter should be detected in C++ layer
-    // This is tested at the C++ level with UINT64_MAX
-
-    print("✓ Counter overflow detection (tested in C++)")
+    print("  Counter overflow detection (tested in C++)")
 }
 
 fn testTimeGoingBackwards() {
     print("Test: Time monotonicity...")
 
-    // Time should never go backwards (unless system clock adjusted)
     let time1 = 1000000
-    let time2 = 999999  // Earlier time
+    let time2 = 999999
+    if !(time2 < time1) { throw "Time comparison failed" }
 
-    // Detection happens in C++ layer
-    assert(time2 < time1, "Detected time going backwards")
-
-    print("✓ Time monotonicity check works")
+    print("  Time monotonicity check works")
 }
 
-fn runAllTests() {
-    print("=== Safe Time Tests ===\n")
+main {
+    print("=== Safe Time Tests ===")
 
     testSafeTimeAddition()
     testCounterIncrement()
     testCounterOverflowDetection()
     testTimeGoingBackwards()
 
-    print("\n✅ All safe time tests passed!")
+    print("")
+    print("All safe time tests passed!")
 }
-
-runAllTests()

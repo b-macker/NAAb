@@ -1,0 +1,34 @@
+// verification/chaos_tests/polyglot_tax.naab
+// Goal: Test large data transfer through the polyglot bridge.
+use json
+
+main {
+    print("--- POLYGLOT TAX ---")
+
+    let size = 500
+    print("Generating " + size + " objects in Python...")
+
+    // Python prints JSON to stdout — use expression return, not print
+    let big_data = <<python[size]
+import json
+data = [{"id": i, "payload": "X" * 100} for i in range(int(size))]
+json.dumps(data)
+>>
+
+    if big_data == null {
+        print("FAIL: Polyglot block returned null!")
+        return
+    }
+
+    let arr = json.parse(big_data)
+    print("Array received. Length: " + arr.length())
+
+    // Check data integrity
+    let last = arr[size - 1]
+    print("Last item ID: " + last["id"])
+    if last["id"] == size - 1 {
+        print("PASS: Data integrity verified (" + size + " objects)")
+    } else {
+        print("FAIL: Data corruption in JSON bridge!")
+    }
+}

@@ -1,6 +1,9 @@
 # NAAb Tutorial: Syntax and Polyglot Blocks
 # Complete guide to writing NAAb code and using embedded language blocks
 
+use string
+use array
+
 # ============================================================================
 # PART 1: BASIC NAAB SYNTAX
 # ============================================================================
@@ -45,10 +48,10 @@ fn demo_basic_blocks() {
     # Python block
     print("Running Python block:")
     <<python
-    print("  Hello from Python!")
-    for i in range(3):
-        print(f"  Python count: {i}")
-    "ok"  # Return value for standalone block
+print("  Hello from Python!")
+for i in range(3):
+    print(f"  Python count: {i}")
+"ok"
     >>
 
     # JavaScript block
@@ -91,22 +94,22 @@ fn demo_variable_binding() {
     # Bind variables to Python block with [var1, var2, ...] syntax
     print("Python with bound variables:")
     <<python[username, user_age, score, active]
-    print(f"  Name: {username}")
-    print(f"  Age: {user_age}")
-    print(f"  Score: {score}")
-    print(f"  Active: {active}")
-    print(f"  Types: {type(username)}, {type(user_age)}, {type(score)}, {type(active)}")
-    True  # Return value for standalone block
+print(f"  Name: {username}")
+print(f"  Age: {user_age}")
+print(f"  Score: {score}")
+print(f"  Active: {active}")
+print(f"  Types: {type(username)}, {type(user_age)}, {type(score)}, {type(active)}")
+True
     >>
 
     # Bind list and dict
     print("Python with list and dict:")
     <<python[tags, settings]
-    print(f"  Tags: {tags}")
-    print(f"  Config: {settings}")
-    print(f"  First tag: {tags[0]}")
-    print(f"  Theme: {settings['theme']}")
-    True  # Return value for standalone block
+print(f"  Tags: {tags}")
+print(f"  Config: {settings}")
+print(f"  First tag: {tags[0]}")
+print(f"  Theme: {settings['theme']}")
+True
     >>
 
     # JavaScript with bound variables
@@ -139,32 +142,28 @@ fn demo_return_values() {
 
     # Return single value (last expression in block)
     let py_result = <<python
-    2 + 2
+2 + 2
     >>
     print("Python returned: ", py_result)
 
     # Return from computation
     let factorial = <<python
-    result = 1
-    for i in range(1, 6):
-        result *= i
-    result  # Last expression is returned
+result = 1
+for i in range(1, 6):
+    result *= i
+result
     >>
     print("Factorial of 5: ", factorial)
 
     # Return list
     let squares = <<python
-    [x * x for x in range(1, 6)]
+[x * x for x in range(1, 6)]
     >>
     print("Squares: ", squares)
 
     # Return dictionary
     let stats = <<python
-    {
-        "min": 1,
-        "max": 100,
-        "avg": 50.5
-    }
+{"min": 1, "max": 100, "avg": 50.5}
     >>
     print("Stats: ", stats)
     print("  Min: ", stats["min"])
@@ -191,19 +190,20 @@ fn demo_combined() {
     let numbers = [5, 2, 8, 1, 9, 3, 7, 4, 6]
 
     let sorted_nums = <<python[numbers]
-    sorted(numbers)
+sorted(numbers)
     >>
     print("Original: ", numbers)
     print("Sorted (Python): ", sorted_nums)
 
     # Statistical analysis
     let stats = <<python[numbers]
-    import statistics
-    {
-        "mean": statistics.mean(numbers),
-        "median": statistics.median(numbers),
-        "stdev": statistics.stdev(numbers)
-    }
+import statistics
+result = {
+    "mean": statistics.mean(numbers),
+    "median": statistics.median(numbers),
+    "stdev": statistics.stdev(numbers)
+}
+result
     >>
     print("Statistics:")
     print("  Mean: ", stats["mean"])
@@ -213,7 +213,7 @@ fn demo_combined() {
     # String processing
     let text = "hello world from naab"
     let processed = <<python[text]
-    text.upper().replace(" ", "_")
+text.upper().replace(" ", "_")
     >>
     print("Original text: ", text)
     print("Processed: ", processed)
@@ -238,17 +238,16 @@ fn demo_real_world() {
     ]
 
     let processed = <<python[raw_data]
-    # Convert scores to int, calculate grade
-    result = []
-    for item in raw_data:
-        score = int(item["score"])
-        grade = "A" if score >= 90 else "B" if score >= 80 else "C"
-        result.append({
-            "name": item["name"],
-            "score": score,
-            "grade": grade
-        })
-    result
+result = []
+for item in raw_data:
+    score = int(item["score"])
+    grade = "A" if score >= 90 else "B" if score >= 80 else "C"
+    result.append({
+        "name": item["name"],
+        "score": score,
+        "grade": grade
+    })
+result
     >>
 
     print("  Processed data:")
@@ -263,18 +262,17 @@ fn demo_real_world() {
     # Example 2: JSON processing with pandas
     print("[Example 2] Using Pandas for Analysis")
     let csv_data = <<python
-    import pandas as pd
-    # Create sample data
-    df = pd.DataFrame({
-        'product': ['A', 'B', 'C', 'D'],
-        'sales': [100, 150, 80, 200]
-    })
-    # Return summary as dict
-    {
-        "total_sales": int(df['sales'].sum()),
-        "avg_sales": float(df['sales'].mean()),
-        "top_product": df.loc[df['sales'].idxmax(), 'product']
-    }
+import pandas as pd
+df = pd.DataFrame({
+    'product': ['A', 'B', 'C', 'D'],
+    'sales': [100, 150, 80, 200]
+})
+result = {
+    "total_sales": int(df['sales'].sum()),
+    "avg_sales": float(df['sales'].mean()),
+    "top_product": df.loc[df['sales'].idxmax(), 'product']
+}
+result
     >>
     print("  Total sales: ", csv_data["total_sales"])
     print("  Average: ", csv_data["avg_sales"])
@@ -294,8 +292,9 @@ fn demo_real_world() {
 
     # Read and process with Python
     let line_count = <<python[filename]
-    with open(filename, 'r') as f:
-        len(f.readlines())
+with open(filename, 'r') as f:
+    line_count = len(f.readlines())
+line_count
     >>
     print("  Created file: ", filename)
     print("  Line count: ", line_count)
@@ -320,7 +319,7 @@ fn demo_multi_language() {
 
     # Process with Python
     let py_doubled = <<python[data]
-    [x * 2 for x in data]
+[x * 2 for x in data]
     >>
     print("Python doubled: ", py_doubled)
 
@@ -338,7 +337,7 @@ fn demo_multi_language() {
     let initial = [10, 20, 30]
 
     let step1 = <<python[initial]
-    [x + 5 for x in initial]
+[x + 5 for x in initial]
     >>
 
     let step2 = <<javascript[step1]
@@ -363,7 +362,7 @@ fn demo_advanced() {
 
     # Capitalize with Python
     let capitalized = <<python[names]
-    [name.capitalize() for name in names]
+[name.capitalize() for name in names]
     >>
 
     # Process with NAAb stdlib
@@ -375,7 +374,7 @@ fn demo_advanced() {
 
     if choose_python {
         let result = <<python
-        "Executed Python block"
+"Executed Python block"
         >>
         print("Result: ", result)
     } else {
@@ -388,8 +387,7 @@ fn demo_advanced() {
     # Pattern 3: Error handling with try/catch
     try {
         let risky_result = <<python
-        # This might fail
-        1 / 0
+1 / 0
         >>
         print("This won't print")
     } catch (error) {
@@ -409,8 +407,8 @@ fn demo_all_languages() {
 
     # 1. Python
     <<python
-    print("  ✓ Python works!")
-    True
+print("  Python works!")
+True
     >>
 
     # 2. JavaScript
@@ -464,12 +462,12 @@ fn demo_best_practices() {
     let nums = [1, 2, 3, 4, 5]
 
     # Fast - native NAAb
-    let sum_naab = array.sum(nums)  # Use built-in sum instead of reduce
+    let sum_naab = array.reduce_fn(nums, fn(acc, x) { return acc + x }, 0)
     print("1. NAAb native sum: ", sum_naab, " (FAST!)")
 
     # Slower - polyglot overhead
     let sum_python = <<python[nums]
-    sum(nums)
+sum(nums)
     >>
     print("   Python sum: ", sum_python, " (slower)")
 
@@ -477,7 +475,7 @@ fn demo_best_practices() {
     print("2. Batch operations when possible")
     # Good - single block
     let results = <<python[nums]
-    [x * 2 for x in nums]
+[x * 2 for x in nums]
     >>
     print("   Batched: ", results)
 
@@ -493,11 +491,11 @@ fn demo_best_practices() {
     # Good practice:
     # Calculate fibonacci sequence using Python
     let fib = <<python
-    def fib(n):
-        if n <= 1:
-            return n
-        return fib(n-1) + fib(n-2)
-    [fib(i) for i in range(10)]
+def fib(n):
+    if n <= 1:
+        return n
+    return fib(n-1) + fib(n-2)
+[fib(i) for i in range(10)]
     >>
     print("   Fibonacci: ", fib)
 

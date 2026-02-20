@@ -3,17 +3,11 @@
 
 use io
 
-struct Person {
-    name: string,
-    age: int,
-    email: string
+fn greet(name) {
+    return "Hello, " + name
 }
 
-fn greet(person: Person) -> string {
-    return "Hello, " + person.name
-}
-
-fn calculate(x: int, y: int) -> int {
+fn calculate(x, y) {
     if x > y {
         return x + y
     } else {
@@ -21,7 +15,7 @@ fn calculate(x: int, y: int) -> int {
     }
 }
 
-fn processArray(items: list<int>) -> int {
+fn processArray(items) {
     let total = 0
     for item in items {
         total = total + item
@@ -30,21 +24,13 @@ fn processArray(items: list<int>) -> int {
 }
 
 main {
-    let person = Person {
-        name: "Alice",
-        age: 30,
-        email: "alice@example.com"
-    }
-
-    let greeting = greet(person)
-    io.write(greeting)
+    let greeting = greet("Alice")
+    io.write(greeting + "\n")
 
     let numbers = [1, 2, 3, 4, 5]
     let sum = processArray(numbers)
-    io.write("Sum: ")
-    io.write(sum)
+    io.write("Sum: " + sum + "\n")
 
     let result = calculate(10, 5)
-    io.write("Result: ")
-    io.write(result)
+    io.write("Result: " + result + "\n")
 }

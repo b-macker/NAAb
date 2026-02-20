@@ -1,6 +1,6 @@
 use io
 use array
-use json // Added missing import
+use json
 
 main {
     let numbers = [1, 2, 3, 4, 5]
@@ -10,9 +10,13 @@ main {
     io.write("Popped value: " + json.stringify(popped_value) + "\n")
     io.write("After pop: " + json.stringify(numbers) + "\n")
 
-    // Test on empty array
+    // Test on empty array (should throw)
     let empty_array = []
-    let popped_empty = array.pop(empty_array)
-    io.write("Popped from empty: " + json.stringify(popped_empty) + "\n")
+    try {
+        let popped_empty = array.pop(empty_array)
+        io.write("Popped from empty: " + json.stringify(popped_empty) + "\n")
+    } catch (e) {
+        io.write("Correctly caught empty pop error\n")
+    }
     io.write("Empty after pop: " + json.stringify(empty_array) + "\n")
 }

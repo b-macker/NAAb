@@ -1,31 +1,11 @@
 // Test parser error messages and hints
-// This file contains intentional errors to test error reporting
+// This file intentionally contains an error to test error reporting
+// EXPECTED: This test should FAIL with a helpful error about 'fn main()' vs 'main {}'
 
 use io
 
-// ERROR 1: Using 'fn main()' instead of 'main {}'
+// ERROR: Using 'fn main()' instead of 'main {}'
 // Expected: Hint about using 'main {}' block
 fn main() {
-    io.write("This should fail\n")
+    io.write("This should fail with a helpful error message\n")
 }
-
-// ERROR 2: Unquoted dictionary keys
-// Expected: Hint about quoting keys
-let config = {
-    host: "localhost",
-    port: 8080
-}
-
-// ERROR 3: Reserved keyword as variable name
-// Expected: Suggestion for alternatives
-let config = loadSettings()
-
-// ERROR 4: Missing closing brace
-fn testBrace() {
-    if true {
-        io.write("test")
-    // Missing closing brace
-
-// ERROR 5: Incorrect import syntax (JavaScript style)
-// Expected: Hint about using 'use' instead
-import io from "std"

@@ -1,0 +1,16 @@
+// Test: Isolate JS multi-line cases one at a time
+
+main {
+    print("=== Start ===")
+
+    // ONLY test multi-line with const (the failing case)
+    let result = <<javascript
+    const a = 10;
+    const b = 20;
+    a * b
+    >>
+
+    print("Type:", typeof(result))
+    print("Value:", result)
+    print("=== Done ===")
+}

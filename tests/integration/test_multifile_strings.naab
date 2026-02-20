@@ -3,36 +3,38 @@
 
 import {reverse_string, is_palindrome, word_count, capitalize_words} from "./modules/string_utils.naab"
 
-// Test 1: Function using stdlib internally
-let result1 = reverse_string("hello")
-if (result1 != "olleh") {
-    throw "FAIL: reverse_string('hello') should return 'olleh', got " + result1
-}
-print("PASS: module function using stdlib")
+main {
+    // Test 1: Function using stdlib internally
+    let result1 = reverse_string("hello")
+    if result1 != "olleh" {
+        throw "FAIL: reverse_string('hello') should return 'olleh', got " + result1
+    }
+    print("PASS: module function using stdlib")
 
-// Test 2: Complex logic across module boundary
-let result2 = is_palindrome("racecar")
-if (result2 != true) {
-    throw "FAIL: is_palindrome('racecar') should return true"
-}
-let result3 = is_palindrome("hello")
-if (result3 != false) {
-    throw "FAIL: is_palindrome('hello') should return false"
-}
-print("PASS: complex boolean logic in imported function")
+    // Test 2: Complex logic across module boundary
+    let result2 = is_palindrome("racecar")
+    if result2 != true {
+        throw "FAIL: is_palindrome('racecar') should return true"
+    }
+    let result3 = is_palindrome("hello")
+    if result3 != false {
+        throw "FAIL: is_palindrome('hello') should return false"
+    }
+    print("PASS: complex boolean logic in imported function")
 
-// Test 3: Function with iteration
-let result4 = word_count("hello world from naab")
-if (result4 != 4) {
-    throw "FAIL: word_count should return 4, got " + result4
-}
-print("PASS: iteration in imported function")
+    // Test 3: Function with iteration
+    let result4 = word_count("hello world from naab")
+    if result4 != 4 {
+        throw "FAIL: word_count should return 4, got " + result4
+    }
+    print("PASS: iteration in imported function")
 
-// Test 4: String transformation
-let result5 = capitalize_words("hello world")
-if (result5 != "Hello World") {
-    throw "FAIL: capitalize_words should return 'Hello World', got " + result5
-}
-print("PASS: string transformation in imported function")
+    // Test 4: String transformation
+    let result5 = capitalize_words("hello world")
+    if result5 != "Hello World" {
+        throw "FAIL: capitalize_words should return 'Hello World', got " + result5
+    }
+    print("PASS: string transformation in imported function")
 
-print("✓ All string module tests passed")
+    print("All string module tests passed")
+}

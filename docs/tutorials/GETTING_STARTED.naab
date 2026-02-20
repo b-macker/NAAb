@@ -179,11 +179,11 @@ fn lesson_6() {
     # Just use << and >>
     print("Running Python:")
     <<python
-    print("  This is Python code inside NAAb!")
-    print("  You can use any Python features")
-    for i in range(3):
-        print(f"    Count: {i}")
-
+print("  This is Python code inside NAAb!")
+print("  You can use any Python features")
+for i in range(3):
+    print(f"    Count: {i}")
+"ok"
     >>
 
     print("Back to NAAb code!")
@@ -198,26 +198,27 @@ fn lesson_6() {
 fn lesson_7() {
     print("=== LESSON 7: Variable Binding ===")
 
-    # Create NAAb variables
+    # Create NAAb variables (define all before polyglot blocks)
     let name = "Alice"
     let age = 25
+    let numbers = [1, 2, 3, 4, 5]
 
     # Pass them to Python using [var1, var2] syntax
     print("Passing variables to Python:")
     <<python[name, age]
-    print(f"  Name: {name}")
-    print(f"  Age: {age}")
-    print(f"  In 5 years: {age + 5}")
-
+print(f"  Name: {name}")
+print(f"  Age: {age}")
+print(f"  In 5 years: {age + 5}")
+True
     >>
 
     # Works with lists too!
-    let numbers = [1, 2, 3, 4, 5]
+    print("Passing list to Python:")
     <<python[numbers]
-    print(f"  Numbers: {numbers}")
-    print(f"  Sum: {sum(numbers)}")
-    print(f"  Max: {max(numbers)}")
-
+print(f"  Numbers: {numbers}")
+print(f"  Sum: {sum(numbers)}")
+print(f"  Max: {max(numbers)}")
+True
     >>
 
     print("")
@@ -233,24 +234,24 @@ fn lesson_8() {
     # Get a result from Python
     # Last expression is returned
     let result = <<python
-    2 + 2
+2 + 2
     >>
 
     print("Python calculated: ", result)
 
     # More complex example
     let factorial = <<python
-    result = 1
-    for i in range(1, 6):
-        result *= i
-    result  # This is returned
+result = 1
+for i in range(1, 6):
+    result *= i
+result
     >>
 
     print("Factorial of 5: ", factorial)
 
     # Return a list
     let squares = <<python
-    [x * x for x in range(1, 6)]
+[x * x for x in range(1, 6)]
     >>
 
     print("Squares: ", squares)
@@ -276,16 +277,16 @@ fn lesson_9() {
 
     # Process with Python
     let with_grades = <<python[students]
-    result = []
-    for student in students:
-        score = int(student["score"])
-        grade = "A" if score >= 90 else "B" if score >= 80 else "C"
-        result.append({
-            "name": student["name"],
-            "score": score,
-            "grade": grade
-        })
-    result
+result = []
+for student in students:
+    score = int(student["score"])
+    grade = "A" if score >= 90 else "B" if score >= 80 else "C"
+    result.append({
+        "name": student["name"],
+        "score": score,
+        "grade": grade
+    })
+result
     >>
 
     print("With grades: ", with_grades)
@@ -314,10 +315,10 @@ fn lesson_10() {
     let sorted_nums = array.sort(numbers)
     print("Sorted: ", sorted_nums)
 
-    let doubled = array.map(numbers, fn(x: int) -> int { return x * 2 })
+    let doubled = array.map_fn(numbers, fn(x) { return x * 2 })
     print("Doubled: ", doubled)
 
-    let sum = array.reduce(numbers, fn(acc: int, x: int) -> int { return acc + x }, 0)
+    let sum = array.reduce_fn(numbers, fn(acc, x) { return acc + x }, 0)
     print("Sum: ", sum)
 
     # String operations

@@ -1,0 +1,14 @@
+main {
+    print("Testing basic nested function...")
+
+    function add(a: int, b: int) -> int {
+        return a + b
+    }
+
+    let result = add(5, 3)
+    if result == 8 {
+        print("✅ PASS: Nested function works! Result:", result)
+    } else {
+        print("❌ FAIL: Expected 8, got:", result)
+    }
+}

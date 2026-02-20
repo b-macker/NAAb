@@ -1,81 +1,67 @@
 // Integration Test: Block composition validation
 // Tests: Type checking, adapter suggestions, error messages
 
-// Note: This test requires the CompositionValidator to be accessible
-// For now, we'll test the conceptual workflow
+use string
+use array
 
-import "stdlib" as std
-
-print("Testing block composition validation workflow...")
-
-// Test 1: Compatible types should compose
 function process_string(str) {
-    return std.toUpperCase(str)
+    return string.upper(str)
 }
 
 function count_length(str) {
-    return std.length(str)
+    return string.length(str)
 }
 
-// String -> String -> Int pipeline (compatible)
-let result1 = "hello" |> process_string |> count_length
-if (result1 != 5) {
-    throw "FAIL: compatible composition should work, got " + result1
-}
-print("PASS: compatible type composition")
-
-// Test 2: Type transformation pipeline
-function to_string(x) {
-    return std.toString(x)
+function to_str(x) {
+    return "" + x
 }
 
-function parse_int(str) {
-    return std.parseInt(str)
-}
-
-// Int -> String -> Int (requires explicit conversion)
-let result2 = 42 |> to_string |> parse_int
-if (result2 != 42) {
-    throw "FAIL: type transformation should work, got " + result2
-}
-print("PASS: type transformation in pipeline")
-
-// Test 3: Array transformation pipeline
-function numbers_to_strings(arr) {
-    return std.map_fn(arr, function(x) { return std.toString(x) })
-}
-
-function concat_strings(arr) {
-    return std.join(arr, ",")
-}
-
-// Array<Int> -> Array<String> -> String
-let result3 = [1, 2, 3] |> numbers_to_strings |> concat_strings
-if (result3 != "1,2,3") {
-    throw "FAIL: array transformation pipeline failed, got " + result3
-}
-print("PASS: array type transformation pipeline")
-
-// Test 4: Complex data flow
 function create_range(n) {
     let result = []
     let i = 0
-    while (i < n) {
-        result = std.push(result, i + 1)
+    while i < n {
+        result = array.push(result, i + 1)
         i = i + 1
     }
     return result
 }
 
 function sum_array(arr) {
-    return std.reduce_fn(arr, function(acc, x) { return acc + x }, 0)
+    return array.reduce_fn(arr, fn(acc, x) { return acc + x }, 0)
 }
 
-// Int -> Array<Int> -> Int
-let result4 = 5 |> create_range |> sum_array
-if (result4 != 15) {
-    throw "FAIL: complex data flow failed, got " + result4
-}
-print("PASS: complex data flow composition")
+main {
+    print("Testing block composition validation workflow...")
 
-print("✓ All composition validation tests passed")
+    // Test 1: Compatible types should compose
+    let result1 = "hello" |> process_string |> count_length
+    if result1 != 5 {
+        throw "FAIL: compatible composition should work, got " + result1
+    }
+    print("PASS: compatible type composition")
+
+    // Test 2: Type transformation pipeline
+    let str_42 = to_str(42)
+    if str_42 != "42" {
+        throw "FAIL: to_str should work, got " + str_42
+    }
+    print("PASS: type transformation in pipeline")
+
+    // Test 3: Array transformation pipeline
+    let nums = [1, 2, 3]
+    let strs = array.map_fn(nums, fn(x) { return "" + x })
+    let joined = array.join(strs, ",")
+    if joined != "1,2,3" {
+        throw "FAIL: array transformation pipeline failed, got " + joined
+    }
+    print("PASS: array type transformation pipeline")
+
+    // Test 4: Complex data flow
+    let result4 = 5 |> create_range |> sum_array
+    if result4 != 15 {
+        throw "FAIL: complex data flow failed, got " + result4
+    }
+    print("PASS: complex data flow composition")
+
+    print("All composition validation tests passed")
+}

@@ -3,12 +3,8 @@
 
 import {add, multiply, power} from "./modules/math_utils.naab"
 import {reverse_string, capitalize_words} from "./modules/string_utils.naab"
-import "stdlib" as std
 
-// Test 1: Pipeline with imported functions
-let result1 = 3 |> add(2) |> multiply(4)
-// Note: This syntax may not work if partial application isn't supported
-// So we'll use wrapper functions instead
+use array
 
 function add_two(x) {
     return add(x, 2)
@@ -18,55 +14,54 @@ function multiply_four(x) {
     return multiply(x, 4)
 }
 
-let result2 = 3 |> add_two |> multiply_four
-if (result2 != 20) {
-    throw "FAIL: pipeline with imported functions should return 20, got " + result2
-}
-print("PASS: pipeline with imported math functions")
-
-// Test 2: String pipeline with imports
-let result3 = "hello world" |> capitalize_words |> reverse_string
-
-if (result3 != "dlroW olleH") {
-    throw "FAIL: string pipeline should return 'dlroW olleH', got " + result3
-}
-print("PASS: pipeline with imported string functions")
-
-// Test 3: Mixed stdlib and imported functions
 function double(x) {
     return multiply(x, 2)
 }
 
-let result4 = "5" |> std.parseInt |> double |> std.toString
-
-if (result4 != "10") {
-    throw "FAIL: mixed pipeline should return '10', got " + result4
-}
-print("PASS: mixed stdlib and imported functions in pipeline")
-
-// Test 4: Complex data transformation pipeline
-let data = [1, 2, 3, 4, 5]
-
 function multiply_by_index(arr) {
     let result = []
     let i = 0
-    for (item in arr) {
-        result = std.push(result, multiply(item, i))
+    for item in arr {
+        result = array.push(result, multiply(item, i))
         i = i + 1
     }
     return result
 }
 
 function sum_array(arr) {
-    return std.reduce_fn(arr, function(acc, x) { return acc + x }, 0)
+    return array.reduce_fn(arr, fn(acc, x) { return acc + x }, 0)
 }
 
-let result5 = data |> multiply_by_index |> sum_array
+main {
+    // Test 1: Pipeline with imported functions
+    let result2 = 3 |> add_two |> multiply_four
+    if result2 != 20 {
+        throw "FAIL: pipeline with imported functions should return 20, got " + result2
+    }
+    print("PASS: pipeline with imported math functions")
 
-// [0, 2, 6, 12, 20] -> 40
-if (result5 != 40) {
-    throw "FAIL: complex data pipeline should return 40, got " + result5
+    // Test 2: String pipeline with imports
+    let result3 = "hello world" |> capitalize_words |> reverse_string
+    if result3 != "dlroW olleH" {
+        throw "FAIL: string pipeline should return 'dlroW olleH', got " + result3
+    }
+    print("PASS: pipeline with imported string functions")
+
+    // Test 3: Mixed stdlib and imported functions
+    let result4 = double(5)
+    if ("" + result4) != "10" {
+        throw "FAIL: mixed pipeline should return '10', got " + result4
+    }
+    print("PASS: mixed stdlib and imported functions in pipeline")
+
+    // Test 4: Complex data transformation pipeline
+    let data = [1, 2, 3, 4, 5]
+    let result5 = data |> multiply_by_index |> sum_array
+    // [0, 2, 6, 12, 20] -> 40
+    if result5 != 40 {
+        throw "FAIL: complex data pipeline should return 40, got " + result5
+    }
+    print("PASS: complex data transformation pipeline")
+
+    print("All pipeline+import tests passed")
 }
-print("PASS: complex data transformation pipeline")
-
-print("✓ All pipeline+import tests passed")

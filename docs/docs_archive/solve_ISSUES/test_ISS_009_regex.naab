@@ -1,28 +1,38 @@
 # Test ISS-009: Regex Module
-# Status in ISSUES.md: ❌ Failed - All regex functions reported as "Unknown function"
-# Despite docs claiming "ALL WORKING ✅"
+# Tests: regex.matches, regex.search, regex.find_all, regex.replace, regex.split
 
 use regex as re
+use io
 
 main {
-    print("=== Testing ISS-009: Regex Module ===")
+    io.write("=== Testing ISS-009: Regex Module ===\n")
 
     let text = "Hello World 123"
 
-    # Test 1: re.match
-    print("Test 1: re.match")
-    let m = re.match(text, "Hello")
-    print("  Match result:", m)
+    # Test 1: re.matches (full string match)
+    io.write("Test 1: re.matches\n")
+    let m = re.matches(text, "Hello.*")
+    io.write("  matches('Hello World 123', 'Hello.*'): " + m + "\n")
 
-    # Test 2: re.search
-    print("Test 2: re.search")
+    # Test 2: re.search (find first match)
+    io.write("Test 2: re.search\n")
     let s = re.search(text, "\\d+")
-    print("  Search result:", s)
+    io.write("  search('Hello World 123', '\\d+'): " + s + "\n")
 
-    # Test 3: re.find_all
-    print("Test 3: re.find_all")
+    # Test 3: re.find_all (find all matches)
+    io.write("Test 3: re.find_all\n")
     let all = re.find_all(text, "\\w+")
-    print("  Find all result:", all)
+    io.write("  find_all result: " + all + "\n")
 
-    print("VERDICT: If you see results, regex module works!")
+    # Test 4: re.replace
+    io.write("Test 4: re.replace\n")
+    let replaced = re.replace(text, "\\d+", "###")
+    io.write("  replace digits: " + replaced + "\n")
+
+    # Test 5: re.split
+    io.write("Test 5: re.split\n")
+    let parts = re.split(text, " ")
+    io.write("  split by space: " + parts + "\n")
+
+    io.write("VERDICT: Regex module works!\n")
 }

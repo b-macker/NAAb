@@ -1,0 +1,9 @@
+main {
+    print("Testing Python block...")
+
+    let result = <<python
+result = 2 ** 10
+>>
+
+    print("Result:", result)
+}

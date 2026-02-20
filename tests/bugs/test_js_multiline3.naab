@@ -1,0 +1,20 @@
+// Test: Two JS blocks in same compound to test parallel grouping
+
+main {
+    print("=== Start ===")
+
+    let a = <<javascript
+    10 + 20
+    >>
+
+    print("a =", a)
+
+    let b = <<javascript
+    const x = 5;
+    const y = 3;
+    x * y
+    >>
+
+    print("b =", b)
+    print("=== Done ===")
+}

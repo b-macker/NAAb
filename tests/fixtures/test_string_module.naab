@@ -1,8 +1,16 @@
 # Test string module to verify it's working
-import string
+use string
 
 main {
     print("Testing string module...")
     let result = string.upper("hello")
     print(result)
+
+    let trimmed = string.trim("  hello  ")
+    print(trimmed)
+
+    let len = string.length("hello world")
+    print("Length: " + len)
+
+    print("String module working!")
 }

@@ -1,0 +1,29 @@
+// verification/chaos_tests/atomic_crash.naab
+// Goal: Stress the exception unwinder and polyglot cleanup.
+use io
+use json
+
+fn nested_error(depth) {
+    if depth <= 0 {
+        // Trigger a Python error inside a nested call
+        return <<python
+raise Exception("Python Chaos")
+>>
+    }
+
+    try {
+        nested_error(depth - 1)
+    } catch (e) {
+        // Re-throw to stress the unwinder
+        throw "Wrapped: " + json.stringify(e)
+    }
+}
+
+main {
+    print("--- ATOMIC CRASH TEST ---")
+    try {
+        nested_error(10)
+    } catch (final_err) {
+        print("PASS: Successfully unwound deep polyglot error")
+    }
+}
