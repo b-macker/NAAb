@@ -183,7 +183,7 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
                         if (depth <= 0 && i > 0) {
                             std::string prev = lines[i - 1];
                             size_t ps = prev.find_last_not_of(" \t\r");
-                            if (ps != std::string::npos && prev[ps] == ';') {
+                            if (ps != std::string::npos && (prev[ps] == ';' || prev[ps] == '}')) {
                                 last_stmt_start = i;
                                 break;
                             }
