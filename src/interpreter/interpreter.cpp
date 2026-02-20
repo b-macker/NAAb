@@ -4818,6 +4818,55 @@ void Interpreter::visit(ast::CallExpr& node) {
         std::string type_name = getValueTypeName(args[0]);
         result_ = std::make_shared<Value>(type_name);
     }
+    // range() builtin — range(end), range(start, end), range(start, end, step)
+    else if (func_name == "range") {
+        if (args.empty() || args.size() > 3) {
+            throw std::runtime_error(
+                "Argument error: range() takes 1-3 arguments (end), (start, end), or (start, end, step)\n\n"
+                "  Example:\n"
+                "    range(5)        // [0, 1, 2, 3, 4]\n"
+                "    range(2, 6)     // [2, 3, 4, 5]\n"
+                "    range(0, 10, 2) // [0, 2, 4, 6, 8]\n");
+        }
+
+        int start = 0, end = 0, step = 1;
+
+        if (args.size() == 1) {
+            if (auto* v = std::get_if<int>(&args[0]->data)) { end = *v; }
+            else if (auto* d = std::get_if<double>(&args[0]->data)) { end = static_cast<int>(*d); }
+            else { throw std::runtime_error("range() arguments must be numbers"); }
+        } else if (args.size() >= 2) {
+            if (auto* v = std::get_if<int>(&args[0]->data)) { start = *v; }
+            else if (auto* d = std::get_if<double>(&args[0]->data)) { start = static_cast<int>(*d); }
+            else { throw std::runtime_error("range() arguments must be numbers"); }
+
+            if (auto* v = std::get_if<int>(&args[1]->data)) { end = *v; }
+            else if (auto* d = std::get_if<double>(&args[1]->data)) { end = static_cast<int>(*d); }
+            else { throw std::runtime_error("range() arguments must be numbers"); }
+        }
+        if (args.size() == 3) {
+            if (auto* v = std::get_if<int>(&args[2]->data)) { step = *v; }
+            else if (auto* d = std::get_if<double>(&args[2]->data)) { step = static_cast<int>(*d); }
+            else { throw std::runtime_error("range() arguments must be numbers"); }
+        }
+
+        if (step == 0) {
+            throw std::runtime_error("range() step cannot be zero");
+        }
+
+        std::vector<std::shared_ptr<Value>> result;
+        if (step > 0) {
+            for (int i = start; i < end; i += step) {
+                result.push_back(std::make_shared<Value>(i));
+            }
+        } else {
+            for (int i = start; i > end; i += step) {
+                result.push_back(std::make_shared<Value>(i));
+            }
+        }
+
+        result_ = std::make_shared<Value>(result);
+    }
     // Phase 3.2: Manual garbage collection trigger
     else if (func_name == "gc_collect") {
         runGarbageCollection(current_env_);  // Pass current environment
