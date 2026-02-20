@@ -112,3 +112,16 @@ vscode-naab/*.vsix
 # Custom
 monitoring_data.jsonl
 baseline_test_results.txt
+
+# Runtime caches
+blocks/library/.block_cache.json
+compile_commands.json
+
+# Test artifacts
+test_results.txt
+tmp_leak.txt
+
+# Generated block library files
+blocks/library/cpp/BLOCK-CPP-VECTOR.json
+blocks/library/javascript/BLOCK-JS-FORMAT.json
+blocks/library/javascript/BLOCK-JS-STRING.json
