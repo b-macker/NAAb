@@ -1,1 +1,0 @@
-/data/data/com.termux/files/usr/bin/c++ -fPIC -O2 -g -DNDEBUG -shared -Xlinker --dependency-file=CMakeFiles/json_block.dir/link.d -Wl,-soname,libjson_block.so -o /storage/emulated/0/Download/.naab/naab_language/blocks/json/libjson_block.so CMakeFiles/json_block.dir/json_block.cpp.o

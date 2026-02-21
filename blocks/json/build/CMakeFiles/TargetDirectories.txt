@@ -1,3 +1,0 @@
-/storage/emulated/0/Download/.naab/naab_language/blocks/json/build/CMakeFiles/json_block.dir
-/storage/emulated/0/Download/.naab/naab_language/blocks/json/build/CMakeFiles/edit_cache.dir
-/storage/emulated/0/Download/.naab/naab_language/blocks/json/build/CMakeFiles/rebuild_cache.dir
