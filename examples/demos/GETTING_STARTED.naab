@@ -1,6 +1,8 @@
 # Getting Started with NAAb - Your First Program
 # This file teaches you step-by-step how to write NAAb code
 
+use math
+
 # ════════════════════════════════════════════════════════════════
 # LESSON 1: Hello World
 # ════════════════════════════════════════════════════════════════
@@ -173,13 +175,13 @@ fn lesson_6() {
     # Embed Python code directly in NAAb!
     # Just use << and >>
     print("Running Python:")
-    <<python
-    print("  This is Python code inside NAAb!")
-    print("  You can use any Python features")
-    for i in range(3):
-        print(f"    Count: {i}")
+    let py_result = <<python
+result = []
+for i in range(3):
+    result.append(f"  Count: {i}")
+"\n".join(result)
     >>
-
+    print(py_result)
     print("Back to NAAb code!")
 
     print("")
@@ -195,21 +197,22 @@ fn lesson_7() {
     # Create NAAb variables
     let name = "Alice"
     let age = 25
+    let numbers = [1, 2, 3, 4, 5]
 
     # Pass them to Python using [var1, var2] syntax
     print("Passing variables to Python:")
     <<python[name, age]
-    print(f"  Name: {name}")
-    print(f"  Age: {age}")
-    print(f"  In 5 years: {age + 5}")
+print(f"  Name: {name}")
+print(f"  Age: {age}")
+print(f"  In 5 years: {age + 5}")
     >>
 
     # Works with lists too!
-    let numbers = [1, 2, 3, 4, 5]
+    print("Passing a list to Python:")
     <<python[numbers]
-    print(f"  Numbers: {numbers}")
-    print(f"  Sum: {sum(numbers)}")
-    print(f"  Max: {max(numbers)}")
+print(f"  Numbers: {numbers}")
+print(f"  Sum: {sum(numbers)}")
+print(f"  Max: {max(numbers)}")
     >>
 
     print("")
@@ -232,10 +235,10 @@ fn lesson_8() {
 
     # More complex example
     let factorial = <<python
-    result = 1
-    for i in range(1, 6):
-        result *= i
-    result  # This is returned
+result = 1
+for i in range(1, 6):
+    result *= i
+result
     >>
 
     print("Factorial of 5: ", factorial)
@@ -268,16 +271,16 @@ fn lesson_9() {
 
     # Process with Python
     let with_grades = <<python[students]
-    result = []
-    for student in students:
-        score = int(student["score"])
-        grade = "A" if score >= 90 else "B" if score >= 80 else "C"
-        result.append({
-            "name": student["name"],
-            "score": score,
-            "grade": grade
-        })
-    result
+result = []
+for student in students:
+    score = int(student["score"])
+    grade = "A" if score >= 90 else "B" if score >= 80 else "C"
+    result.append({
+        "name": student["name"],
+        "score": score,
+        "grade": grade
+    })
+result
     >>
 
     print("With grades: ", with_grades)
@@ -300,21 +303,16 @@ fn lesson_9() {
 fn lesson_10() {
     print("=== LESSON 10: Standard Library ===")
 
-    # Import stdlib modules
-    use array
-    use string
-    use math
-
     # Array operations (much faster than Python!)
     let numbers = [5, 2, 8, 1, 9, 3]
 
     let sorted_nums = array.sort(numbers)
     print("Sorted: ", sorted_nums)
 
-    let doubled = array.map(numbers, fn(x) { return x * 2 })
+    let doubled = array.map_fn(numbers, fn(x) { return x * 2 })
     print("Doubled: ", doubled)
 
-    let sum = array.reduce(numbers, fn(acc, x) { return acc + x }, 0)
+    let sum = array.reduce_fn(numbers, fn(acc, x) { return acc + x }, 0)
     print("Sum: ", sum)
 
     # String operations

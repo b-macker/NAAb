@@ -1,35 +1,10 @@
 # NAAb Quick Reference - Syntax and Blocks Cheat Sheet
 
+use math
+
 # ═══════════════════════════════════════════════════════════════
-# BASIC SYNTAX
+# BASIC SYNTAX (variables, structs, functions)
 # ═══════════════════════════════════════════════════════════════
-
-# Variables (type inference)
-let name = "Alice"      # string
-let age = 30            # int
-let price = 99.99       # float
-let active = true       # bool
-let items = [1, 2, 3]   # list
-let data = {"key": "value"}  # dict
-
-# Array assignment (NEW!)
-items[0] = 100
-data["new_key"] = "new_value"
-
-# Control flow
-if age > 18 {
-    print("Adult")
-} else {
-    print("Minor")
-}
-
-while age < 100 {
-    age = age + 1
-}
-
-for item in items {
-    print(item)
-}
 
 # Functions
 fn add(a: int, b: int) -> int {
@@ -42,16 +17,35 @@ struct Person {
     age: int
 }
 
-let person = new Person { name: "Bob", age: 25 }
-print(person.name)
-
-# ═══════════════════════════════════════════════════════════════
-# POLYGLOT BLOCKS - Quick Examples
-# ═══════════════════════════════════════════════════════════════
-
 main {
     print("=== POLYGLOT BLOCKS QUICK REFERENCE ===")
     print("")
+
+    # Variables (type inference)
+    let name = "Alice"
+    let age = 30
+    let price = 99.99
+    let active = true
+    let items = [1, 2, 3]
+    let data = {"key": "value"}
+
+    # Array assignment
+    items[0] = 100
+    data["new_key"] = "new_value"
+
+    # Control flow
+    if age > 18 {
+        print("Adult")
+    } else {
+        print("Minor")
+    }
+
+    # Struct usage
+    let person = new Person { name: "Bob", age: 25 }
+    print("Person: ", person.name)
+
+    # Function call
+    print("add(2, 3) = ", add(2, 3))
 
     # ─────────────────────────────────────────────────────────
     # 1. BASIC BLOCKS (no variables)
@@ -59,10 +53,6 @@ main {
 
     <<python
     print("Hello from Python!")
-    >>
-
-    <<javascript
-    console.log("Hello from JavaScript!");
     >>
 
     <<bash
@@ -73,16 +63,17 @@ main {
     # 2. VARIABLE BINDING (pass NAAb vars to blocks)
     # ─────────────────────────────────────────────────────────
 
+    # Declare variables for binding (must be before polyglot blocks)
     let x = 42
     let y = "hello"
+    let numbers = [5, 2, 8, 1, 9]
+    let scores = [95, 87, 72, 91]
+    let initial = [1, 2, 3]
+    let nums = [1, 2, 3, 4, 5]
 
     # Syntax: <<language[var1, var2, ...] code >>
     <<python[x, y]
     print(f"x={x}, y={y}")
-    >>
-
-    <<javascript[x, y]
-    console.log(`x=${x}, y=${y}`);
     >>
 
     # ─────────────────────────────────────────────────────────
@@ -93,56 +84,41 @@ main {
     let result = <<python
     2 + 2
     >>
-    print("Python returned: ", result)  # 4
+    print("Python returned: ", result)
 
     let squared = <<python
     [x * x for x in range(1, 6)]
     >>
-    print("Squares: ", squared)  # [1, 4, 9, 16, 25]
+    print("Squares: ", squared)
 
     let stats = <<python
     {"min": 1, "max": 100, "avg": 50.5}
     >>
-    print("Stats: ", stats)  # dict
+    print("Stats: ", stats)
 
     # ─────────────────────────────────────────────────────────
     # 4. COMBINING BOTH (variables + return)
     # ─────────────────────────────────────────────────────────
-
-    let numbers = [5, 2, 8, 1, 9]
 
     let sorted_nums = <<python[numbers]
     sorted(numbers)
     >>
     print("Sorted: ", sorted_nums)
 
-    let doubled = <<javascript[numbers]
-    numbers.map(x => x * 2)
-    >>
-    print("Doubled: ", doubled)
-
     # ─────────────────────────────────────────────────────────
-    # 5. SUPPORTED LANGUAGES (8 total)
+    # 5. SUPPORTED LANGUAGES
     # ─────────────────────────────────────────────────────────
 
-    # Python
     <<python
-    print("✓ Python")
+    print("  Python")
     >>
 
-    # JavaScript
-    <<javascript
-    console.log("✓ JavaScript");
-    >>
-
-    # Bash/Shell
     <<bash
-    echo "✓ Bash"
+    echo "  Bash"
     >>
 
-    # C++ (compiled at runtime)
     <<cpp
-    std::cout << "✓ C++" << std::endl;
+    std::cout << "  C++" << std::endl;
     >>
 
     # Also: rust, ruby, go, csharp (may need installation)
@@ -151,48 +127,21 @@ main {
     # 6. REAL-WORLD EXAMPLES
     # ─────────────────────────────────────────────────────────
 
-    # Data processing
-    let data_list = [
-        {"name": "Alice", "score": "95"},
-        {"name": "Bob", "score": "87"}
-    ]
-
-    let processed = <<python[data_list]
-    [{**item, "score": int(item["score"])} for item in data_list]
+    # Data processing with Python
+    let avg = <<python[scores]
+    sum(scores) / len(scores)
     >>
-    print("Processed: ", processed)
-
-    # Pandas analysis
-    let analysis = <<python
-    import pandas as pd
-    df = pd.DataFrame({"sales": [100, 150, 80, 200]})
-    {"total": int(df["sales"].sum()), "avg": float(df["sales"].mean())}
-    >>
-    print("Analysis: ", analysis)
-
-    # File operations
-    <<bash
-    echo "Test" > /tmp/test.txt
-    cat /tmp/test.txt
-    rm /tmp/test.txt
-    >>
+    print("Average score: ", avg)
 
     # ─────────────────────────────────────────────────────────
     # 7. USING NAAB STDLIB (faster than polyglot!)
     # ─────────────────────────────────────────────────────────
 
-    use array
-    use string
-    use math
-    use json
-
-    let nums = [1, 2, 3, 4, 5]
-
     # Array operations (FAST - native C++)
-    let len = array.length(nums)
-    let doubled_native = array.map(nums, fn(x) { return x * 2 })
-    let sum = array.reduce(nums, fn(acc, x) { return acc + x }, 0)
-    print("Native sum: ", sum, " (10-100x faster!)")
+    let nums_len = len(nums)
+    let doubled_native = array.map_fn(nums, fn(x) { return x * 2 })
+    let nums_sum = array.reduce_fn(nums, fn(acc, x) { return acc + x }, 0)
+    print("Native sum: ", nums_sum)
 
     # String operations
     let text = "  hello world  "
@@ -211,9 +160,9 @@ main {
 
     try {
         let risky = <<python
-        1 / 0  # Will throw error
+        1 / 0
         >>
-    } catch error {
+    } catch (error) {
         print("Caught error: ", error)
     } finally {
         print("Cleanup always runs")
@@ -223,51 +172,32 @@ main {
     # 9. CHAINING LANGUAGES
     # ─────────────────────────────────────────────────────────
 
-    let initial = [1, 2, 3]
-
     # NAAb -> Python
     let step1 = <<python[initial]
     [x + 5 for x in initial]
     >>
 
-    # Python result -> JavaScript
-    let step2 = <<javascript[step1]
-    step1.map(x => x * 2)
-    >>
-
-    print("Chain: ", initial, " -> ", step1, " -> ", step2)
+    print("Chain: ", initial, " -> ", step1)
 
     # ─────────────────────────────────────────────────────────
     # 10. BEST PRACTICES
     # ─────────────────────────────────────────────────────────
 
-    # ✓ DO: Use NAAb stdlib when possible (faster!)
+    # Use NAAb stdlib when possible (faster!)
     let fast = array.sort(nums)
 
-    # ✗ AVOID: Polyglot for simple operations (slower)
-    # let slow = <<python[nums]
-    # sorted(nums)
-    # >>
-
-    # ✓ DO: Batch operations in single block
+    # Batch operations in single block
     let batched = <<python[nums]
-    [x * 2 for x in nums]  # All in one block
+    [x * 2 for x in nums]
     >>
 
-    # ✗ AVOID: Multiple small blocks
-    # for num in nums {
-    #     let result = <<python[num]
-    #     num * 2
-    #     >>
-    # }
+    # Use type inference
+    let auto = 42
 
-    # ✓ DO: Use type inference
-    let auto = 42  # Type inferred
-
-    # ✓ DO: Handle errors
+    # Handle errors
     try {
-        # Risky code here
-    } catch error {
+        let val = 1 / 1
+    } catch (error) {
         print("Error: ", error)
     }
 
@@ -280,16 +210,8 @@ main {
 # ═══════════════════════════════════════════════════════════════
 
 # Basic block:           <<language code >>
-# With variables:        <<language[var1, var2] code >>
+# With variables:        <<language[var1, var2, ...] code >>
 # With return:           let x = <<language code >>
 # Combined:              let x = <<language[var] code >>
 
 # Supported languages:   python, javascript, bash, cpp, rust, ruby, go, csharp
-
-# Type conversions happen automatically:
-# - NAAb int/float/string/bool -> Python/JS equivalent
-# - NAAb list -> Python list / JS array
-# - NAAb dict -> Python dict / JS object
-
-# Return types supported:
-# - int, float, string, bool, list, dict, void

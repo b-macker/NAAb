@@ -387,8 +387,27 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
         JS_FreeValue(ctx_, result);
         return naab_result;
     } else {
-        // Single-line expression: wrap in parens and evaluate
-        std::string wrapped_expr = "(" + code + ")";
+        // Single-line code: strip trailing semicolons, then evaluate
+        std::string expr = code;
+        // Remove trailing semicolons (they cause SyntaxError inside parens)
+        while (!expr.empty() && expr.back() == ';') {
+            expr.pop_back();
+        }
+        // Trim trailing whitespace
+        size_t trail = expr.find_last_not_of(" \t\r");
+        if (trail != std::string::npos) {
+            expr = expr.substr(0, trail + 1);
+        }
+
+        // For statement-like calls (console.log, etc.), don't wrap in parens
+        // Just eval directly - QuickJS returns the expression value
+        std::string wrapped_expr;
+        if (expr.find("console.") == 0 || expr.find("print(") == 0 ||
+            expr.find("alert(") == 0) {
+            wrapped_expr = expr;
+        } else {
+            wrapped_expr = "(" + expr + ")";
+        }
 
         JSValue result = JS_Eval(ctx_, wrapped_expr.c_str(), wrapped_expr.length(),
                                   "<eval>", JS_EVAL_TYPE_GLOBAL);
