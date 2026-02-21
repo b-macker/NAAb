@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  enum UTTKind {\n#define TRANSFORM_TYPE_TRAIT_DEF(Enum, _) Enum,\n#include \"clang/Basic/TransformTypeTraits.def\"\n  };\n\nprivate:\n  /// The untransformed type.\n  QualType BaseType;\n\n  /// The transformed type if not dependent, otherwise the same as BaseType.\n  QualType UnderlyingType;\n\n  UTTKind UKind;\n\nprotected:\n  friend class ASTContext;\n\n  UnaryTransformType(QualType BaseTy, QualType UnderlyingTy, UTTKind UKind,\n                     QualType CanonicalTy);\n\npublic:\n  bool isSugared() const { return !isDependentType(); }\n  QualType desugar() const { return UnderlyingType; }\n\n  QualType getUnderlyingType() const { return UnderlyingType; }\n  QualType getBaseType() const { return BaseType; }\n\n  UTTKind getUTTKind() const { return UKind; }\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == UnaryTransform;\n  }\n}",
-  "id": "BLOCK-CPP-14146",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 4787,
-  "validation_status": "validated"
-}

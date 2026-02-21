@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19780_execute() {\n    {\n    /// Refers to the field being initialized.\n    const IdentifierInfo *FieldName;\n\n    /// The location of the '.' in the designated initializer.\n    SourceLocation DotLoc;\n\n    /// The location of the field name in the designated initializer.\n    SourceLocation FieldLoc;\n\n    FieldDesignatorInfo(const IdentifierInfo *FieldName, SourceLocation DotLoc,\n                        SourceLocation FieldLoc)\n        : FieldName(FieldName), DotLoc(DotLoc), FieldLoc(FieldLoc) {}\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19780",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Designator.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

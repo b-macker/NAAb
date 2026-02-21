@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <ostream>\n#include <string>\n#include <vector>\n#include \"absl/hash/hash.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_join.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05685_execute() {\n    {\n    // Pass an instance of SpyHashStateImpl<A> when trying to combine `A`. This\n    // allows us to test that the user only uses this instance for combine calls\n    // and does not call AbslHashValue directly.\n    // See AbslHashValue implementation at the bottom.\n    s = SpyHashStateImpl<A>::HashStateBase::combine(std::move(s), a);\n    return SpyHashStateImpl::combine(std::move(s), args...);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05685",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/spy_hash_state.h",
-  "source_line": 72,
-  "validation_status": "validated"
-}

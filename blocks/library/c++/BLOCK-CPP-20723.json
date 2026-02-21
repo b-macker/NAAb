@@ -1,8 +1,0 @@
-{
-  "code": "{\n  /// The declaration that was looked up, together with its access.\n  /// Might be a UsingShadowDecl, but usually a FunctionTemplateDecl.\n  DeclAccessPair FoundDecl;\n\n  /// Specialization - The actual specialization that this candidate\n  /// represents. When NULL, this may be a built-in candidate.\n  Decl *Specialization;\n\n  /// Template argument deduction info\n  DeductionFailureInfo DeductionFailure;\n\n  void set(DeclAccessPair Found, Decl *Spec, DeductionFailureInfo Info) {\n    FoundDecl = Found;\n    Specialization = Spec;\n    DeductionFailure = Info;\n  }\n\n  /// Diagnose a template argument deduction failure.\n  void NoteDeductionFailure(Sema &S, bool ForTakingAddress);\n}",
-  "id": "BLOCK-CPP-20723",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/TemplateDeduction.h",
-  "source_line": 307,
-  "validation_status": "validated"
-}

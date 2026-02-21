@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/RecursiveASTVisitor.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11272_execute() {\n    {\n    SmallVector<Stmt *, 8> Children(CE->children());\n    bool Swap;\n    // Switch the operator and the first operand for all infix and postfix\n    // operations.\n    switch (CE->getOperator()) {\n    case OO_Arrow:\n    case OO_Call:\n    case OO_Subscript:\n      Swap = true;\n      break;\n    case OO_PlusPlus:\n    case OO_MinusMinus:\n      // These are postfix unless there is exactly one argument.\n      Swap = Children.size() != 2;\n      break;\n    default:\n      Swap = CE->isInfixBinaryOp();\n      break;\n    }\n    if (Swap && Children.size() > 1)\n      std::swap(Children[0], Children[1]);\n    return Children;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11272",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LexicallyOrderedRecursiveASTVisitor.h",
-  "source_line": 115,
-  "validation_status": "validated"
-}

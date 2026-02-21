@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  PrintfConversionSpecifier()\n    : ConversionSpecifier(true, nullptr, InvalidSpecifier) {}\n\n  PrintfConversionSpecifier(const char *pos, Kind k)\n    : ConversionSpecifier(true, pos, k) {}\n\n  bool isObjCArg() const { return kind >= ObjCBeg && kind <= ObjCEnd; }\n  bool isDoubleArg() const { return kind >= DoubleArgBeg &&\n                                    kind <= DoubleArgEnd; }\n\n  static bool classof(const analyze_format_string::ConversionSpecifier *CS) {\n    return CS->isPrintfKind();\n  }\n}",
-  "id": "BLOCK-CPP-11205",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
-  "source_line": 488,
-  "validation_status": "validated"
-}

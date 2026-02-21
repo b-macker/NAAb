@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19418_execute() {\n    { return CleanupsHaveSideEffects; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19418",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/CleanupInfo.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

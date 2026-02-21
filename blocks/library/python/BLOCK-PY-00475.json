@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00475_execute() {\n    class ScopedEvalContextModifier(EvalContextModifier):\n    \"\"\"Modifies the eval context and reverts it later.  Works exactly like\n    :class:`EvalContextModifier` but will only modify the\n    :class:`~jinja2.nodes.EvalContext` for nodes in the :attr:`body`.\n    \"\"\"\n\n    fields = (\"body\",)\n    body: list[Node]\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00475",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 1184,
-  "validation_status": "validated"
-}

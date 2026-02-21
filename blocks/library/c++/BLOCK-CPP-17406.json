@@ -1,8 +1,0 @@
-{
-  "code": "{\n  bool has(XRayInstrMask K) const {\n    assert(llvm::isPowerOf2_32(K));\n    return Mask & K;\n  }\n\n  bool hasOneOf(XRayInstrMask K) const { return Mask & K; }\n\n  void set(XRayInstrMask K, bool Value) {\n    Mask = Value ? (Mask | K) : (Mask & ~K);\n  }\n\n  void clear(XRayInstrMask K = XRayInstrKind::All) { Mask &= ~K; }\n\n  bool empty() const { return Mask == 0; }\n\n  bool full() const { return Mask == XRayInstrKind::All; }\n\n  XRayInstrMask Mask = 0;\n}",
-  "id": "BLOCK-CPP-17406",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/XRayInstr.h",
-  "source_line": 47,
-  "validation_status": "validated"
-}

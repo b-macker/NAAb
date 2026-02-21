@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00528_execute() {\n    def validate_regex(\n    ctx: click.Context,\n    param: click.Parameter,\n    value: str | None,\n) -> Pattern[str] | None:\n    try:\n        return re_compile_maybe_verbose(value) if value is not None else None\n    except re.error as e:\n        raise click.BadParameter(f\"Not a valid regular expression: {e}\") from None\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00528",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 223,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/internal/pool_urbg.h\"\n#include <algorithm>\n#include <atomic>\n#include <cstdint>\n#include <cstring>\n#include <iterator>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/call_once.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/sysinfo.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/random/internal/randen.h\"\n#include \"absl/random/internal/seed_material.h\"\n#include \"absl/random/seed_gen_exception.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02782_execute() {\n    {\n    SpinLockHolder l(&mu_);  // Always uncontested.\n    std::copy(data.begin(), data.end(), std::begin(state_));\n    next_ = kState;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02782",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pool_urbg.cc",
-  "source_line": 56,
-  "validation_status": "validated"
-}

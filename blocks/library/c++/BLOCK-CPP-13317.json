@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/AST/StmtCXX.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13317_execute() {\n    {\n    Data->getChildren()[numLoopChildren(\n        getLoopsNumber(),\n        llvm::omp::OMPD_target_teams_distribute_parallel_for)] = E;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-13317",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtOpenMP.h",
-  "source_line": 5296,
-  "validation_status": "validated"
-}

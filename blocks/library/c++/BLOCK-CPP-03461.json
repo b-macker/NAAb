@@ -1,8 +1,0 @@
-{
-  "code": "#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/cleanup/internal/cleanup.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03461_execute() {\n    {\n  static_assert(cleanup_internal::WasDeduced<cleanup_internal::Tag, Args...>(),\n                \"Explicit template parameters are not supported.\");\n\n  static_assert(cleanup_internal::ReturnsVoid<Callback>(),\n                \"Callbacks that return values are not supported.\");\n\n  return {std::move(callback)};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03461",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/cleanup/cleanup.h",
-  "source_line": 126,
-  "validation_status": "validated"
-}

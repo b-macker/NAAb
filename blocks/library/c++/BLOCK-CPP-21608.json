@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyUtil.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <iterator>\n#include <optional>\n#include <string>\n#include <utility>\n#include \"ThreadSafetyOps.def\"\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace til;\nusing namespace ThreadSafetyTIL;\nusing namespace ThreadSafetyTIL;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21608_execute() {\n    {\n    return DominatorNode.isParentOfOrEqual(Other.DominatorNode);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21608",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1581,
-  "validation_status": "validated"
-}

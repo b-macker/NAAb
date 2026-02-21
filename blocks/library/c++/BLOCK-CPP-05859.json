@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/traits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05859_execute() {\n    {\n public:\n  using result_type = UIntType;\n\n  static constexpr result_type(min)() { return 0; }\n  static constexpr result_type(max)() {\n    return (std::numeric_limits<result_type>::max)();\n  }\n\n  template <typename URBG>\n  result_type operator()(URBG& g);  // NOLINT(runtime/references)\n\n private:\n  static_assert(IsUnsigned<UIntType>::value,\n                \"Class-template FastUniformBits<> must be parameterized using \"\n                \"an unsigned type.\");\n\n  // Generate() generates a random value, dispatched on whether\n  // the underlying URBG must use rejection sampling to generate a value,\n  // or whether a simplified loop will suffice.\n  template <typename URBG>\n  result_type Generate(URBG& g,  // NOLINT(runtime/references)\n                       SimplifiedLoopTag);\n\n  template <typename URBG>\n  result_type Generate(URBG& g,  // NOLINT(runtime/references)\n                       RejectionLoopTag);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05859",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/fast_uniform_bits.h",
-  "source_line": 89,
-  "validation_status": "validated"
-}

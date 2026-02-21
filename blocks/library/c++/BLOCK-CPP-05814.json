@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include <intrin.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace numeric_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05814_execute() {\n    {\n  // If T is narrower than unsigned, it undergoes promotion to unsigned when we\n  // shift.  We calculate the number of bits added by the wider type.\n  return BitCeilPromotionHelper(\n      static_cast<T>(std::numeric_limits<T>::digits - CountLeadingZeroes(x)),\n      T{sizeof(T) >= sizeof(unsigned) ? 0\n                                      : std::numeric_limits<unsigned>::digits -\n                                            std::numeric_limits<T>::digits});\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05814",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/internal/bits.h",
-  "source_line": 343,
-  "validation_status": "validated"
-}

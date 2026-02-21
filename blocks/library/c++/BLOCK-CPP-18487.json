@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/FileManager.h\"\n#include \"llvm/ADT/APInt.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\nusing namespace index;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18487_execute() {\n    { return Buffer; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18487",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/IndexSerialization/SerializablePathCollection.h",
-  "source_line": 39,
-  "validation_status": "validated"
-}

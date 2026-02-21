@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTContext; // ASTContext creates these\n\n  RValueReferenceType(QualType Referencee, QualType CanonicalRef)\n       : ReferenceType(RValueReference, Referencee, CanonicalRef, false) {}\n\npublic:\n  bool isSugared() const { return false; }\n  QualType desugar() const { return QualType(this, 0); }\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == RValueReference;\n  }\n}",
-  "id": "BLOCK-CPP-14129",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 2993,
-  "validation_status": "validated"
-}

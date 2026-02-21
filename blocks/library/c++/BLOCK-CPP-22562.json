@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ARCMigrate/FileRemapper.h\"\n#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n\nusing namespace clang;\nusing namespace arcmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22562_execute() {\n    {\n  FileRemapper Remapper;\nprotected:\n  bool BeginInvocation(CompilerInstance &CI) override;\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22562",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ARCMigrate/ARCMTActions.h",
-  "source_line": 35,
-  "validation_status": "validated"
-}

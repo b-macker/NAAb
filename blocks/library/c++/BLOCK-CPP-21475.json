@@ -1,8 +1,0 @@
-{
-  "code": "{\n  til::SExpr *Expr;\n\npublic:\n  Terminal(til::SExpr *Expr) : LExpr(LExpr::Terminal), Expr(Expr) {}\n\n  const til::SExpr *expr() const { return Expr; }\n  til::SExpr *expr() { return Expr; }\n\n  static bool classof(const LExpr *E) { return E->kind() == LExpr::Terminal; }\n}",
-  "id": "BLOCK-CPP-21475",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyLogical.h",
-  "source_line": 42,
-  "validation_status": "validated"
-}

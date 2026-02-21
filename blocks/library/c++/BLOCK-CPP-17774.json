@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Driver/Action.h\"\n#include \"clang/Driver/Types.h\"\n#include \"llvm/Option/Arg.h\"\n#include <cassert>\n#include <string>\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17774_execute() {\n    { return Kind == InputArg; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17774",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/InputInfo.h",
-  "source_line": 76,
-  "validation_status": "validated"
-}

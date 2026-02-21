@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n    #include <fmt/color.h>\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00843_execute() {\n    {\n  auto&& buf = detail::get_buffer<Char>(out);\n  detail::vformat_to(buf, ts, format_str, args);\n  return detail::get_iterator(buf);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00843",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 564,
-  "validation_status": "validated"
-}

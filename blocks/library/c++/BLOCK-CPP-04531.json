@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/utility/utility.h\"\n#include <variant>  // IWYU pragma: export\n#include <functional>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/internal/variant.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04531_execute() {\n    {\n  return variant_internal::\n      VisitIndices<variant_size<absl::decay_t<Variants> >::value...>::Run(\n          variant_internal::PerformVisitation<Visitor, Variants...>{\n              std::forward_as_tuple(absl::forward<Variants>(vars)...),\n              absl::forward<Visitor>(vis)},\n          vars.index()...);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04531",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/variant.h",
-  "source_line": 429,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/details/file_helper.h>\n#include <spdlog/common.h>\n#include <spdlog/details/os.h>\n#include <cerrno>\n#include <chrono>\n#include <cstdio>\n#include <string>\n#include <thread>\n#include <tuple>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00214_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00214",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/file_helper-inl.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

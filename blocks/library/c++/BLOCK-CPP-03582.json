@@ -1,8 +1,0 @@
-{
-  "code": "#include <memory>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/fast_type_id.h\"\n#include \"absl/flags/internal/commandlineflag.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/optional.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03582_execute() {\n    {\n    return TypeId() == base_internal::FastTypeId<T>();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03582",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/commandlineflag.h",
-  "source_line": 73,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/RawCommentList.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/ExtractAPI/AvailabilityInfo.h\"\n#include \"clang/ExtractAPI/DeclarationFragments.h\"\n#include \"llvm/ADT/MapVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <memory>\n#include <type_traits>\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17995_execute() {\n    {\n    /// The USR of the parent API.\n    StringRef ParentUSR;\n    /// The name of the parent API.\n    StringRef ParentName;\n    /// The record kind of the parent API.\n    RecordKind ParentKind = RK_Unknown;\n    /// A pointer to the parent APIRecord if known.\n    APIRecord *ParentRecord = nullptr;\n\n    HierarchyInformation() = default;\n    HierarchyInformation(StringRef ParentUSR, StringRef ParentName,\n                         RecordKind Kind, APIRecord *ParentRecord = nullptr)\n        : ParentUSR(ParentUSR), ParentName(ParentName), ParentKind(Kind),\n          ParentRecord(ParentRecord) {}\n\n    bool empty() const {\n      return ParentUSR.empty() && ParentName.empty() &&\n             ParentKind == RK_Unknown && ParentRecord == nullptr;\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17995",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/API.h",
-  "source_line": 81,
-  "validation_status": "validated"
-}

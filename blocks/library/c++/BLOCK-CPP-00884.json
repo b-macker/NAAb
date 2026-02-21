@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00884_execute() {\n    {\n  return cf.format(out, args...);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00884",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 520,
-  "validation_status": "validated"
-}

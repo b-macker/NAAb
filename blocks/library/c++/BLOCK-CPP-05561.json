@@ -1,8 +1,0 @@
-{
-  "code": "#include <iosfwd>\n#include <ostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/flags/commandlineflag.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05561_execute() {\n    {\n  kNone,\n  kImportant,\n  kShort,\n  kFull,\n  kPackage,\n  kMatch,\n  kVersion,\n  kOnlyCheckArgs\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05561",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/usage.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

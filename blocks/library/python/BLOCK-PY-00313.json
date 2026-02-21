@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00313_execute() {\n    def end_write(self, frame: Frame) -> None:\n        \"\"\"End the writing process started by `start_write`.\"\"\"\n        if frame.buffer is not None:\n            self.write(\")\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00313",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 427,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  /// Designators - The actual designators for this initializer.\n  SmallVector<Designator, 2> Designators;\n\npublic:\n  /// AddDesignator - Add a designator to the end of this list.\n  void AddDesignator(Designator D) { Designators.push_back(D); }\n\n  bool empty() const { return Designators.empty(); }\n\n  unsigned getNumDesignators() const { return Designators.size(); }\n  const Designator &getDesignator(unsigned Idx) const {\n    assert(Idx < Designators.size());\n    return Designators[Idx];\n  }\n}",
-  "id": "BLOCK-CPP-19779",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Designator.h",
-  "source_line": 208,
-  "validation_status": "validated"
-}

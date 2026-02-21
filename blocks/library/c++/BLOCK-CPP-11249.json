@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/ASTDumperUtils.h\"\n#include \"clang/AST/ASTNodeTraverser.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/ExprConcepts.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/Mangle.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/Support/JSON.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11249_execute() {\n    {\n    // FIXME: it would be nice to dump template parameters and specializations\n    // to their own named arrays rather than shoving them into the \"inner\"\n    // array. However, template declarations are currently being handled at the\n    // wrong \"level\" of the traversal hierarchy and so it is difficult to\n    // achieve without losing information elsewhere.\n\n    dumpTemplateParameters(TD->getTemplateParameters());\n\n    Visit(TD->getTemplatedDecl());\n\n    for (const auto *Child : TD->specializations())\n      writeTemplateDeclSpecialization(Child, DumpExplicitInst,\n                                      !TD->isCanonicalDecl());\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11249",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/JSONNodeDumper.h",
-  "source_line": 407,
-  "validation_status": "validated"
-}

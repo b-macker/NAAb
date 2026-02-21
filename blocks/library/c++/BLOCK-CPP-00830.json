@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00830_execute() {\n    {\n    return static_cast<uint8_t>(em) & static_cast<uint8_t>(mask);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00830",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 404,
-  "validation_status": "validated"
-}

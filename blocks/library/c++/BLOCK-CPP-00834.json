@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00834_execute() {\n    {\n  int result = std::fputs(chars, stream);\n  if (result < 0)\n    FMT_THROW(system_error(errno, FMT_STRING(\"cannot write to file\")));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00834",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 426,
-  "validation_status": "validated"
-}

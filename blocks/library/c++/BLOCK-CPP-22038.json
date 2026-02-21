@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/FlowSensitive/Formula.h\"\n#include \"clang/Analysis/FlowSensitive/StorageLocation.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <utility>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22038_execute() {\n    {\n    Integer,\n    Reference,\n    Pointer,\n    Struct,\n\n    // TODO: Top values should not be need to be type-specific.\n    TopBool,\n    AtomicBool,\n    FormulaBool,\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22038",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Value.h",
-  "source_line": 35,
-  "validation_status": "validated"
-}

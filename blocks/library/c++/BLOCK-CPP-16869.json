@@ -1,8 +1,0 @@
-{
-  "code": "{\n  SourceLocation B;\n  SourceLocation E;\n\npublic:\n  SourceRange() = default;\n  SourceRange(SourceLocation loc) : B(loc), E(loc) {}\n  SourceRange(SourceLocation begin, SourceLocation end) : B(begin), E(end) {}\n\n  SourceLocation getBegin() const { return B; }\n  SourceLocation getEnd() const { return E; }\n\n  void setBegin(SourceLocation b) { B = b; }\n  void setEnd(SourceLocation e) { E = e; }\n\n  bool isValid() const { return B.isValid() && E.isValid(); }\n  bool isInvalid() const { return !isValid(); }\n\n  bool operator==(const SourceRange &X) const {\n    return B == X.B && E == X.E;\n  }\n\n  bool operator!=(const SourceRange &X) const {\n    return B != X.B || E != X.E;\n  }\n\n  // Returns true iff other is wholly contained within this range.\n  bool fullyContains(const SourceRange &other) const {\n    return B <= other.B && E >= other.E;\n  }\n\n  void print(raw_ostream &OS, const SourceManager &SM) const;\n  std::string printToString(const SourceManager &SM) const;\n  void dump(const SourceManager &SM) const;\n}",
-  "id": "BLOCK-CPP-16869",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SourceLocation.h",
-  "source_line": 210,
-  "validation_status": "validated"
-}

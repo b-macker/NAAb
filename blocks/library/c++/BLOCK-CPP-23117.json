@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicWriter.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23117_execute() {\n    {\n    ArrayRef<APValue::LValuePathEntry> path = lvaluePath.Path;\n    QualType elemTy = lvaluePath.getType();\n    asImpl().writeQualType(elemTy);\n    asImpl().writeUInt32(path.size());\n    auto &ctx = ((BasicWriterBase<Impl> *)this)->getASTContext();\n    for (auto elem : path) {\n      if (elemTy->getAs<RecordType>()) {\n        asImpl().writeUInt32(elem.getAsBaseOrMember().getInt());\n        const Decl *baseOrMember = elem.getAsBaseOrMember().getPointer();\n        if (const auto *recordDecl = dyn_cast<CXXRecordDecl>(baseOrMember)) {\n          asImpl().writeDeclRef(recordDecl);\n          elemTy = ctx.getRecordType(recordDecl);\n        } else {\n          const auto *valueDecl = cast<ValueDecl>(baseOrMember);\n          asImpl().writeDeclRef(valueDecl);\n          elemTy = valueDecl->getType();\n        }\n      } else {\n        asImpl().writeUInt32(elem.getAsArrayIndex());\n        elemTy = ctx.getAsArrayType(elemTy)->getElementType();\n      }\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23117",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicWriter.h",
-  "source_line": 172,
-  "validation_status": "validated"
-}

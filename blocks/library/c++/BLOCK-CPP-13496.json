@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/ASTDumperUtils.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/ExprConcepts.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13496_execute() {\n    {\n    return AddChild(\"\", DoAddChild);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-13496",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TextNodeDumper.h",
-  "source_line": 51,
-  "validation_status": "validated"
-}

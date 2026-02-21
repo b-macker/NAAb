@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  /// Construct a PostInitializer point that represents a location after\n  ///   CXXCtorInitializer expression evaluation.\n  ///\n  /// \\param I The initializer.\n  /// \\param Loc The location of the field being initialized.\n  PostInitializer(const CXXCtorInitializer *I,\n                  const void *Loc,\n                  const LocationContext *L)\n    : ProgramPoint(I, Loc, PostInitializerKind, L) {}\n\n  const CXXCtorInitializer *getInitializer() const {\n    return static_cast<const CXXCtorInitializer *>(getData1());\n  }\n\n  /// Returns the location of the field.\n  const void *getLocationValue() const {\n    return getData2();\n  }\n\nprivate:\n  friend class ProgramPoint;\n  PostInitializer() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == PostInitializerKind;\n  }\n}",
-  "id": "BLOCK-CPP-15885",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 522,
-  "validation_status": "validated"
-}

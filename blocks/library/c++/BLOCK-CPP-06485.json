@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/synchronization/internal/futex_waiter.h\"\n#include \"absl/synchronization/internal/pthread_waiter.h\"\n#include \"absl/synchronization/internal/sem_waiter.h\"\n#include \"absl/synchronization/internal/stdcpp_waiter.h\"\n#include \"absl/synchronization/internal/win32_waiter.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06485_execute() {\n    {\n\n#if ABSL_WAITER_MODE == ABSL_WAITER_MODE_FUTEX\nusing Waiter = FutexWaiter;\n#elif ABSL_WAITER_MODE == ABSL_WAITER_MODE_SEM\nusing Waiter = SemWaiter;\n#elif ABSL_WAITER_MODE == ABSL_WAITER_MODE_CONDVAR\nusing Waiter = PthreadWaiter;\n#elif ABSL_WAITER_MODE == ABSL_WAITER_MODE_WIN32\nusing Waiter = Win32Waiter;\n#elif ABSL_WAITER_MODE == ABSL_WAITER_MODE_STDCPP\nusing Waiter = StdcppWaiter;\n#endif\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06485",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/waiter.h",
-  "source_line": 51,
-  "validation_status": "validated"
-}

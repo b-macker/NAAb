@@ -1,8 +1,0 @@
-{
-  "code": "{\n    Parser &P;\n    bool OldVal;\n\n  public:\n    ParsingOpenMPDirectiveRAII(Parser &P, bool Value = true)\n        : P(P), OldVal(P.OpenMPDirectiveParsing) {\n      P.OpenMPDirectiveParsing = Value;\n    }\n\n    /// This can be used to restore the state early, before the dtor\n    /// is run.\n    void restore() { P.OpenMPDirectiveParsing = OldVal; }\n\n    ~ParsingOpenMPDirectiveRAII() { restore(); }\n  }",
-  "id": "BLOCK-CPP-19394",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
-  "source_line": 295,
-  "validation_status": "validated"
-}

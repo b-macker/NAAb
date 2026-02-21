@@ -1,8 +1,0 @@
-{
-  "code": "#include \"spdlog/common.h\"\n#include \"spdlog/details/log_msg.h\"\n#include \"spdlog/details/synchronous_factory.h\"\n#include \"spdlog/sinks/base_sink.h\"\n#include <array>\n#include <QPlainTextEdit>\n#include <QTextEdit>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00435_execute() {\n    {\n        // std::lock_guard<Mutex> lock(base_sink<Mutex>::mutex_);\n        default_color_ = format;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00435",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/qt_sinks.h",
-  "source_line": 105,
-  "validation_status": "validated"
-}

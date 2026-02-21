@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\n\n// AddLogSink(), RemoveLogSink()\n//\n// Adds or removes a `absl::LogSink` as a consumer of logging data.\n//\n// These functions are thread-safe.\n//\n// It is an error to attempt to add a sink that's already registered or to\n// attempt to remove one that isn't.\n//\n// To avoid unbounded recursion, dispatch to registered `absl::LogSink`s is\n// disabled per-thread while running the `Send()` method of registered\n// `absl::LogSink`s.  Affected messages are dispatched to a special internal\n// sink instead which writes them to `stderr`.\n//\n// Do not call these inside `absl::LogSink::Send`.\ninline void AddLogSink(absl::LogSink* sink) { log_internal::AddLogSink(sink); }\ninline void RemoveLogSink(absl::LogSink* sink) {\n  log_internal::RemoveLogSink(sink);\n}\n\n// FlushLogSinks()\n//\n// Calls `absl::LogSink::Flush` on all registered sinks.\n//\n// Do not call this inside `absl::LogSink::Send`.\ninline void FlushLogSinks() { log_internal::FlushLogSinks(); }\n\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-03677",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/log_sink_registry.h",
-  "source_line": 28,
-  "validation_status": "validated"
-}

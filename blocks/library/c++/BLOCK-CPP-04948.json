@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <cstring>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04948_execute() {\n    {\n    return std::is_same<decltype(transfer_impl<std::allocator<char>>(\n                            nullptr, nullptr, nullptr, Rank0{})),\n                        std::true_type>::value;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04948",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/common_policy_traits.h",
-  "source_line": 83,
-  "validation_status": "validated"
-}

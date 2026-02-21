@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01141_execute() {\n    {\n  template <typename U, typename V = decltype(format_as(U())),\n            FMT_ENABLE_IF(std::is_enum<U>::value&& std::is_integral<V>::value)>\n  static auto check(U*) -> std::true_type;\n  static auto check(...) -> std::false_type;\n\n  enum { value = decltype(check(static_cast<T*>(nullptr)))::value };\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01141",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 1333,
-  "validation_status": "validated"
-}

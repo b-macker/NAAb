@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19182_execute() {\n    {\n    if (Val)\n      setFlag(Flag);\n    else\n      clearFlag(Flag);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19182",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Token.h",
-  "source_line": 266,
-  "validation_status": "validated"
-}

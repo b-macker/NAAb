@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  virtual ~ASTDeserializationListener();\n\n  /// The ASTReader was initialized.\n  virtual void ReaderInitialized(ASTReader *Reader) { }\n\n  /// An identifier was deserialized from the AST file.\n  virtual void IdentifierRead(serialization::IdentID ID,\n                              IdentifierInfo *II) { }\n  /// A macro was read from the AST file.\n  virtual void MacroRead(serialization::MacroID ID, MacroInfo *MI) { }\n  /// A type was deserialized from the AST file. The ID here has the\n  ///        qualifier bits already removed, and T is guaranteed to be locally\n  ///        unqualified.\n  virtual void TypeRead(serialization::TypeIdx Idx, QualType T) { }\n  /// A decl was deserialized from the AST file.\n  virtual void DeclRead(serialization::DeclID ID, const Decl *D) { }\n  /// A selector was read from the AST file.\n  virtual void SelectorRead(serialization::SelectorID iD, Selector Sel) {}\n  /// A macro definition was read from the AST file.\n  virtual void MacroDefinitionRead(serialization::PreprocessedEntityID,\n                                   MacroDefinitionRecord *MD) {}\n  /// A module definition was read from the AST file.\n  virtual void ModuleRead(serialization::SubmoduleID ID, Module *Mod) {}\n  /// A module import was read from the AST file.\n  virtual void ModuleImportRead(serialization::SubmoduleID ID,\n                                SourceLocation ImportLoc) {}\n}",
-  "id": "BLOCK-CPP-20821",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTDeserializationListener.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

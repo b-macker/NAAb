@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTStmtReader;\n\n  VersionTuple VersionToCheck;\n  SourceLocation AtLoc, RParen;\n\npublic:\n  ObjCAvailabilityCheckExpr(VersionTuple VersionToCheck, SourceLocation AtLoc,\n                            SourceLocation RParen, QualType Ty)\n      : Expr(ObjCAvailabilityCheckExprClass, Ty, VK_PRValue, OK_Ordinary),\n        VersionToCheck(VersionToCheck), AtLoc(AtLoc), RParen(RParen) {\n    setDependence(ExprDependence::None);\n  }\n\n  explicit ObjCAvailabilityCheckExpr(EmptyShell Shell)\n      : Expr(ObjCAvailabilityCheckExprClass, Shell) {}\n\n  SourceLocation getBeginLoc() const { return AtLoc; }\n  SourceLocation getEndLoc() const { return RParen; }\n  SourceRange getSourceRange() const { return {AtLoc, RParen}; }\n\n  /// This may be '*', in which case this should fold to true.\n  bool hasVersion() const { return !VersionToCheck.empty(); }\n  VersionTuple getVersion() const { return VersionToCheck; }\n\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ObjCAvailabilityCheckExprClass;\n  }\n}",
-  "id": "BLOCK-CPP-11058",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprObjC.h",
-  "source_line": 1685,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07157_execute() {\n    {\n    getNodeDelegate().AddChild([=] {\n      getNodeDelegate().Visit(R);\n      if (!R)\n        return;\n      if (auto *TR = dyn_cast<concepts::TypeRequirement>(R)) {\n        if (!TR->isSubstitutionFailure())\n          Visit(TR->getType()->getType().getTypePtr());\n      } else if (auto *ER = dyn_cast<concepts::ExprRequirement>(R)) {\n        if (!ER->isExprSubstitutionFailure())\n          Visit(ER->getExpr());\n        if (!ER->getReturnTypeRequirement().isEmpty())\n          Visit(ER->getReturnTypeRequirement()\n                    .getTypeConstraint()\n                    ->getImmediatelyDeclaredConstraint());\n      } else if (auto *NR = dyn_cast<concepts::NestedRequirement>(R)) {\n        if (!NR->hasInvalidConstraint())\n          Visit(NR->getConstraintExpr());\n      }\n    });\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07157",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
-  "source_line": 234,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CanonicalType.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace analyze_format_string;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11144_execute() {\n    {\n    assert(hasDataArgument());\n    return amt + 1;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11144",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
-  "source_line": 390,
-  "validation_status": "validated"
-}

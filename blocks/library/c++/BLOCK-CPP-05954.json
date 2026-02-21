@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05954_execute() {\n    {\n  // Size of the entire sponge / state for the randen PRNG.\n  static constexpr size_t kStateBytes = 256;  // 2048-bit\n\n  // Size of the 'inner' (inaccessible) part of the sponge. Larger values would\n  // require more frequent calls to RandenGenerate.\n  static constexpr size_t kCapacityBytes = 16;  // 128-bit\n\n  // Size of the default seed consumed by the sponge.\n  static constexpr size_t kSeedBytes = kStateBytes - kCapacityBytes;\n\n  // Assuming 128-bit blocks, the number of blocks in the state.\n  // Largest size for which security proofs are known.\n  static constexpr size_t kFeistelBlocks = 16;\n\n  // Ensures SPRP security and two full subblock diffusions.\n  // Must be > 4 * log2(kFeistelBlocks).\n  static constexpr size_t kFeistelRounds = 16 + 1;\n\n  // Size of the key. A 128-bit key block is used for every-other\n  // feistel block (Type-2 generalized Feistel network) in each round.\n  static constexpr size_t kKeyBytes = 16 * kFeistelRounds * kFeistelBlocks / 2;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05954",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_traits.h",
-  "source_line": 56,
-  "validation_status": "validated"
-}

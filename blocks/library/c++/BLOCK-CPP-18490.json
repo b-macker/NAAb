@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/FileManager.h\"\n#include \"llvm/ADT/APInt.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\nusing namespace index;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18490_execute() {\n    {\n  llvm::SmallString<512> Buffer;\n\npublic:\n  struct StringOffsetSize {\n    std::size_t Offset;\n    std::size_t Size;\n\n    StringOffsetSize(size_t Offset, size_t Size) : Offset(Offset), Size(Size) {}\n  };\n\n  StringOffsetSize add(StringRef Str);\n  StringRef getBuffer() const { return Buffer; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18490",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/IndexSerialization/SerializablePathCollection.h",
-  "source_line": 27,
-  "validation_status": "validated"
-}

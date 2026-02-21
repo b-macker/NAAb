@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/BitmaskEnum.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cstdint>\n#include <optional>\n#include <set>\n#include <string>\n#include <unordered_map>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace RISCV;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21080_execute() {\n    {\n    return TailPolicy == Undisturbed && MaskPolicy == Undisturbed;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21080",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Support/RISCVVIntrinsicUtils.h",
-  "source_line": 133,
-  "validation_status": "validated"
-}

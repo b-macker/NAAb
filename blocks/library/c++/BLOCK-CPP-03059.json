@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include <string.h>\n#include <algorithm>\n#include <cassert>\n#include <cmath>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/functional/function_ref.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/numeric/internal/representation.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03059_execute() {\n    {\n  if (state.conv.width() < 0 ||\n      static_cast<size_t>(state.conv.width()) <= total_size) {\n    return {0, 0, 0};\n  }\n  size_t missing_chars = static_cast<size_t>(state.conv.width()) - total_size;\n  if (state.conv.has_left_flag()) {\n    return {0, 0, missing_chars};\n  } else if (state.conv.has_zero_flag()) {\n    return {0, missing_chars, 0};\n  } else {\n    return {missing_chars, 0, 0};\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03059",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
-  "source_line": 470,
-  "validation_status": "validated"
-}

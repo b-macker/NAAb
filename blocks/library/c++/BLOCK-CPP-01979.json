@@ -1,8 +1,0 @@
-{
-  "code": "{\n  IntType value = 0;\n  const IntType vmin = std::numeric_limits<IntType>::min();\n  assert(vmin < 0);\n  assert(vmin <= 0 - base);\n  IntType vmin_over_base = LookupTables<IntType>::kVminOverBase[base];\n  assert(base < 2 ||\n         std::numeric_limits<IntType>::min() / base == vmin_over_base);\n  // 2003 c++ standard [expr.mul]\n  // \"... the sign of the remainder is implementation-defined.\"\n  // Although (vmin/base)*base + vmin%base is always vmin.\n  // 2011 c++ standard tightens the spec but we cannot rely on it.\n  // TODO(junyer): Handle this in the lookup table generation.\n  if (vmin % base > 0) {\n    vmin_over_base += 1;\n  }\n  const char* start = text.data();\n  const char* end = start + text.size();\n  // loop over digits\n  for (; start < end; ++start) {\n    unsigned char c = static_cast<unsigned char>(start[0]);\n    int digit = kAsciiToInt[c];\n    if (digit >= base) {\n      *value_p = value;\n      return false;\n    }\n    if (value < vmin_over_base) {\n      *value_p = vmin;\n      return false;\n    }\n    value *= base;\n    if (value < vmin + digit) {\n      *value_p = vmin;\n      return false;\n    }\n    value -= digit;\n  }\n  *value_p = value;\n  return true;\n}",
-  "id": "BLOCK-CPP-01979",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/numbers.cc",
-  "source_line": 1243,
-  "validation_status": "validated"
-}

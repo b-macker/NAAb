@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21915_execute() {\n    {\n\n/// Effect indicating whether a lattice join operation resulted in a new value.\n// FIXME: Rename to `LatticeEffect` since `widen` uses it as well, and we are\n// likely removing it from `join`.\nenum class LatticeJoinEffect {\n  Unchanged,\n  Changed,\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21915",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DataflowLattice.h",
-  "source_line": 18,
-  "validation_status": "validated"
-}

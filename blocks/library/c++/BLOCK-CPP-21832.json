@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <ostream>\n#include <string>\n#include <vector>\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace til;\nusing namespace til;\nusing namespace threadSafety;\nusing namespace clang;\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace til;\nusing namespace til;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21832_execute() {\n    { return CopyOnWriteVector(Data); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21832",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyUtil.h",
-  "source_line": 303,
-  "validation_status": "validated"
-}

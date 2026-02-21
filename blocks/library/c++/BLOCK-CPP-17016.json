@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17016_execute() {\n    {\n  switch (S) {\n  case SyncScope::HIPSingleThread:\n    return \"hip_singlethread\";\n  case SyncScope::HIPWavefront:\n    return \"hip_wavefront\";\n  case SyncScope::HIPWorkgroup:\n    return \"hip_workgroup\";\n  case SyncScope::HIPAgent:\n    return \"hip_agent\";\n  case SyncScope::HIPSystem:\n    return \"hip_system\";\n  case SyncScope::OpenCLWorkGroup:\n    return \"opencl_workgroup\";\n  case SyncScope::OpenCLDevice:\n    return \"opencl_device\";\n  case SyncScope::OpenCLAllSVMDevices:\n    return \"opencl_allsvmdevices\";\n  case SyncScope::OpenCLSubGroup:\n    return \"opencl_subgroup\";\n  }\n  llvm_unreachable(\"Invalid synch scope\");\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17016",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SyncScope.h",
-  "source_line": 55,
-  "validation_status": "validated"
-}

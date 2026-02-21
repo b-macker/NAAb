@@ -1,8 +1,0 @@
-{
-  "code": "using namespace and;\nusing namespace my_matchers;\nusing namespace my_matchers;\nusing namespace may;\nusing namespace clang;\nusing namespace ast_matchers;\nusing namespace ast_matchers;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15286_execute() {\n    {                                          \\\n    return ::clang::ast_matchers::internal::MemoizedMatcher<                   \\\n        ReturnType, DefineMatcher##_getInstance>::getInstance();               \\\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15286",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchersMacros.h",
-  "source_line": 57,
-  "validation_status": "validated"
-}

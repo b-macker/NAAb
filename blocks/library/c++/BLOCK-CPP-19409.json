@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19409_execute() {\n    { FieldCount.push_back(0); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19409",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/CXXFieldCollector.h",
-  "source_line": 52,
-  "validation_status": "validated"
-}

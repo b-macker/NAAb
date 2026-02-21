@@ -1,8 +1,0 @@
-{
-  "code": "#include <exception>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03894_execute() {\n    {\n public:\n  SeedGenException() = default;\n  ~SeedGenException() override;\n  const char* what() const noexcept override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03894",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/seed_gen_exception.h",
-  "source_line": 39,
-  "validation_status": "validated"
-}

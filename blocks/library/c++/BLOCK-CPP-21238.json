@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  virtual ~SourceFileCallbacks() = default;\n\n  /// Called before a source file is processed by a FrontEndAction.\n  /// \\see clang::FrontendAction::BeginSourceFileAction\n  virtual bool handleBeginSource(CompilerInstance &CI) {\n    return true;\n  }\n\n  /// Called after a source file is processed by a FrontendAction.\n  /// \\see clang::FrontendAction::EndSourceFileAction\n  virtual void handleEndSource() {}\n}",
-  "id": "BLOCK-CPP-21238",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/Tooling.h",
-  "source_line": 125,
-  "validation_status": "validated"
-}

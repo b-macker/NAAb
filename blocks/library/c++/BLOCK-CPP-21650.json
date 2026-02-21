@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Literal(const Expr *C)\n     : SExpr(COP_Literal), ValType(ValueType::getValueType<void>()), Cexpr(C) {}\n  Literal(ValueType VT) : SExpr(COP_Literal), ValType(VT) {}\n  Literal(const Literal &) = default;\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Literal; }\n\n  // The clang expression for this literal.\n  const Expr *clangExpr() const { return Cexpr; }\n\n  ValueType valueType() const { return ValType; }\n\n  template<class T> const LiteralT<T>& as() const {\n    return *static_cast<const LiteralT<T>*>(this);\n  }\n  template<class T> LiteralT<T>& as() {\n    return *static_cast<LiteralT<T>*>(this);\n  }\n\n  template <class V> typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx);\n\n  template <class C>\n  typename C::CType compare(const Literal* E, C& Cmp) const {\n    // TODO: defer actual comparison to LiteralT\n    return Cmp.trueResult();\n  }\n\nprivate:\n  const ValueType ValType;\n  const Expr *Cexpr = nullptr;\n}",
-  "id": "BLOCK-CPP-21650",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 533,
-  "validation_status": "validated"
-}

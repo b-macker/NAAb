@@ -1,8 +1,0 @@
-{
-  "code": "{\n    //     #pragma <name>(push, InternalPragmaSlot, <current_pragma_value>)\n    //     void Method {}\n    //     #pragma <name>(pop, InternalPragmaSlot)\n    //   };\n    //\n    // It works even with #pragma vtordisp, although MSVC doesn't support\n    //   #pragma vtordisp(push [, id], n)\n    // syntax.\n    //\n    // Push / pop a named sentinel slot.\n    void SentinelAction(PragmaMsStackAction Action, StringRef Label) {\n      assert((Action == PSK_Push || Action == PSK_Pop) &&\n             \"Can only push / pop #pragma stack sentinels!\");\n      Act(CurrentPragmaLocation, Action, Label, CurrentValue);\n    }\n\n    // Constructors.\n    explicit PragmaStack(const ValueType &Default)\n        : DefaultValue(Default), CurrentValue(Default) {}\n\n    bool hasValue() const { return CurrentValue != DefaultValue; }\n\n    SmallVector<Slot, 2> Stack;\n    ValueType DefaultValue; // Value used for PSK_Reset action.\n    ValueType CurrentValue;\n    SourceLocation CurrentPragmaLocation;\n  }",
-  "id": "BLOCK-CPP-20571",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
-  "source_line": 644,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n// Arbitrary value with high bits set. Xor'ing with it is unlikely\n// to map one valid pointer to another valid pointer.\nconstexpr uintptr_t HideMask() {\n  return (uintptr_t{0xF03A5F7BU} << (sizeof(uintptr_t) - 4) * 8) | 0xF03A5F7BU;\n}\n\n// Hide a pointer from the leak checker. For internal use only.\n// Differs from absl::IgnoreLeak(ptr) in that absl::IgnoreLeak(ptr) causes ptr\n// and all objects reachable from ptr to be ignored by the leak checker.\ntemplate <class T>\ninline uintptr_t HidePtr(T* ptr) {\n  return reinterpret_cast<uintptr_t>(ptr) ^ HideMask();\n}\n\n// Return a pointer that has been hidden from the leak checker.\n// For internal use only.\ntemplate <class T>\ninline T* UnhidePtr(uintptr_t hidden) {\n  return reinterpret_cast<T*>(hidden ^ HideMask());\n}\n\n}",
-  "id": "BLOCK-CPP-04676",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/hide_ptr.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

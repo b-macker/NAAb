@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Type.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/OperatorKinds.h\"\n#include \"clang/Basic/PartialDiagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <cstdint>\n#include <cstring>\n#include <string>\n\nusing namespace clang;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09412_execute() {\n    {\n    // We rely on the fact that the first 7 NameKind and StoredNameKind\n    // have the same numerical value. This makes the usual case efficient.\n    StoredNameKind StoredKind = getStoredNameKind();\n    if (StoredKind != StoredDeclarationNameExtra)\n      return static_cast<NameKind>(StoredKind);\n    // We have to consult DeclarationNameExtra. We rely on the fact that the\n    // enumeration values of ExtraKind correspond to the enumeration values of\n    // NameKind minus an offset of UncommonNameKindOffset.\n    unsigned ExtraKind = castAsExtra()->getKind();\n    return static_cast<NameKind>(UncommonNameKindOffset + ExtraKind);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-09412",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclarationName.h",
-  "source_line": 393,
-  "validation_status": "validated"
-}

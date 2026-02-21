@@ -1,8 +1,0 @@
-{
-  "code": "#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <system_error>  // std::system_error\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01473_execute() {\n    {\n  return vwindows_error(error_code, message, fmt::make_format_args(args...));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01473",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/os.h",
-  "source_line": 200,
-  "validation_status": "validated"
-}

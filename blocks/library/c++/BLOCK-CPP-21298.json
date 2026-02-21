@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  enum Kind {\n    AK_Matcher,\n    AK_Node,\n    AK_Boolean,\n    AK_Double,\n    AK_Unsigned,\n    AK_String\n  };\n  /// Constructor for non-matcher types.\n  ArgKind(Kind K) : K(K) { assert(K != AK_Matcher); }\n\n  /// Constructor for matcher types.\n  static ArgKind MakeMatcherArg(ASTNodeKind MatcherKind) {\n    return ArgKind{AK_Matcher, MatcherKind};\n  }\n\n  static ArgKind MakeNodeArg(ASTNodeKind MatcherKind) {\n    return ArgKind{AK_Node, MatcherKind};\n  }\n\n  Kind getArgKind() const { return K; }\n  ASTNodeKind getMatcherKind() const {\n    assert(K == AK_Matcher);\n    return NodeKind;\n  }\n  ASTNodeKind getNodeKind() const {\n    assert(K == AK_Node);\n    return NodeKind;\n  }\n\n  /// Determines if this type can be converted to \\p To.\n  ///\n  /// \\param To the requested destination type.\n  ///\n  /// \\param Specificity value corresponding to the \"specificity\" of the\n  ///   conversion.\n  bool isConvertibleTo(ArgKind To, unsigned *Specificity) const;\n\n  bool operator<(const ArgKind &Other) const {\n    if ((K == AK_Matcher && Other.K == AK_Matcher) ||\n        (K == AK_Node && Other.K == AK_Node))\n      return NodeKind < Other.NodeKind;\n    return K < Other.K;\n  }\n\n  /// String representation of the type.\n  std::string asString() const;\n\nprivate:\n  ArgKind(Kind K, ASTNodeKind NK) : K(K), NodeKind(NK) {}\n  Kind K;\n  ASTNodeKind NodeKind;\n}",
-  "id": "BLOCK-CPP-21298",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/Dynamic/VariantValue.h",
-  "source_line": 34,
-  "validation_status": "validated"
-}

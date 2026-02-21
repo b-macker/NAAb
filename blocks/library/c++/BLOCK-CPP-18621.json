@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/CachedHashString.h\"\n#include \"llvm/ADT/Hashing.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include <cstdint>\n#include <map>\n#include <string>\n#include <vector>\n\nusing namespace clang;\nusing namespace frontend;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18621_execute() {\n    {\n\n/// IncludeDirGroup - Identifies the group an include Entry belongs to,\n/// representing its relative positive in the search list.\n/// \\#include directives whose paths are enclosed by string quotes (\"\")\n/// start searching at the Quoted group (specified by '-iquote'),\n/// then search the Angled group, then the System group, etc.\nenum IncludeDirGroup {\n  /// '\\#include \"\"' paths, added by 'gcc -iquote'.\n  Quoted = 0,\n\n  /// Paths for '\\#include <>' added by '-I'.\n  Angled,\n\n  /// Like Angled, but marks header maps used when building frameworks.\n  IndexHeaderMap,\n\n  /// Like Angled, but marks system directories.\n  System,\n\n  /// Like System, but headers are implicitly wrapped in extern \"C\".\n  ExternCSystem,\n\n  /// Like System, but only used for C.\n  CSystem,\n\n  /// Like System, but only used for C++.\n  CXXSystem,\n\n  /// Like System, but only used for ObjC.\n  ObjCSystem,\n\n  /// Like System, but only used for ObjC++.\n  ObjCXXSystem,\n\n  /// Like System, but searched after the system directories.\n  After\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18621",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/HeaderSearchOptions.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

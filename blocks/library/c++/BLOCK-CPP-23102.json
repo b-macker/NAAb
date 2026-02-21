@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicReader.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23102_execute() {\n    {\n      esi.SourceDecl = asImpl().readFunctionDeclRef();\n      esi.SourceTemplate = asImpl().readFunctionDeclRef();\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23102",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
-  "source_line": 230,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <iterator>\n#include <random>\n#include \"absl/base/config.h\"\n#include \"absl/random/internal/salted_seed_seq.h\"\n#include \"absl/random/internal/seed_material.h\"\n#include \"absl/random/seed_gen_exception.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03897_execute() {\n    {\n  SeedSeq::result_type\n      seed_material[random_internal::kEntropyBlocksNeeded];\n\n  if (!random_internal::ReadSeedMaterialFromURBG(\n          urbg, absl::MakeSpan(seed_material))) {\n    random_internal::ThrowSeedGenException();\n  }\n  return SeedSeq(std::begin(seed_material), std::end(seed_material));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03897",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/seed_sequences.h",
-  "source_line": 79,
-  "validation_status": "validated"
-}

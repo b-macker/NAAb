@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTContext; // ASTContext creates these.\n\n  QualType TOType;\n\n  TypeOfType(QualType T, QualType Can, TypeOfKind Kind)\n      : Type(TypeOf,\n             Kind == TypeOfKind::Unqualified ? Can.getAtomicUnqualifiedType()\n                                             : Can,\n             T->getDependence()),\n        TOType(T) {\n    TypeOfBits.IsUnqual = Kind == TypeOfKind::Unqualified;\n  }\n\npublic:\n  QualType getUnmodifiedType() const { return TOType; }\n\n  /// Remove a single level of sugar.\n  QualType desugar() const {\n    QualType QT = getUnmodifiedType();\n    return TypeOfBits.IsUnqual ? QT.getAtomicUnqualifiedType() : QT;\n  }\n\n  /// Returns whether this type directly provides sugar.\n  bool isSugared() const { return true; }\n\n  /// Returns the kind of 'typeof' type this is.\n  TypeOfKind getKind() const {\n    return TypeOfBits.IsUnqual ? TypeOfKind::Unqualified\n                               : TypeOfKind::Qualified;\n  }\n\n  static bool classof(const Type *T) { return T->getTypeClass() == TypeOf; }\n}",
-  "id": "BLOCK-CPP-14144",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 4708,
-  "validation_status": "validated"
-}

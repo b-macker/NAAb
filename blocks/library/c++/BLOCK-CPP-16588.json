@@ -1,8 +1,0 @@
-{
-  "code": "#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16588_execute() {\n    {\n  switch (L) {\n  case UniqueExternalLinkage:\n    return ExternalLinkage;\n  case VisibleNoLinkage:\n    return NoLinkage;\n  default:\n    return L;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16588",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Linkage.h",
-  "source_line": 90,
-  "validation_status": "validated"
-}

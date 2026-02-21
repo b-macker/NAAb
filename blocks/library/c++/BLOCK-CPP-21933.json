@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n#include <vector>\n#include \"clang/Analysis/FlowSensitive/Solver.h\"\n#include \"clang/Analysis/FlowSensitive/Value.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21933_execute() {\n    {\nnamespace dataflow {\n\n/// Returns a string representation of a value kind.\nllvm::StringRef debugString(Value::Kind Kind);\n\n/// Returns a string representation of the result status of a SAT check.\nllvm::StringRef debugString(Solver::Result::Status Status);\n\n} // namespace dataflow\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21933",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DebugSupport.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

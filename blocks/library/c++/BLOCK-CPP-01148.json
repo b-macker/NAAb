@@ -1,8 +1,0 @@
-{
-  "code": "{\n    Handler& handler;\n\n    FMT_CONSTEXPR void operator()() { handler.on_dynamic_width(auto_id()); }\n    FMT_CONSTEXPR void operator()(int id) { handler.on_dynamic_width(id); }\n    FMT_CONSTEXPR void operator()(basic_string_view<Char> id) {\n      handler.on_dynamic_width(id);\n    }\n    FMT_CONSTEXPR void on_error(const char* message) {\n      if (message) handler.on_error(message);\n    }\n  }",
-  "id": "BLOCK-CPP-01148",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 2446,
-  "validation_status": "validated"
-}

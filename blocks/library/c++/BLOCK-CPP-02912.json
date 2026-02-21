@@ -1,8 +1,0 @@
-{
-  "code": "{\n  Queue() = default;\n\n  absl::Mutex mutex;\n  std::atomic<CordzHandle*> dq_tail ABSL_GUARDED_BY(mutex){nullptr};\n\n  // Returns true if this delete queue is empty. This method does not acquire\n  // the lock, but does a 'load acquire' observation on the delete queue tail.\n  // It is used inside Delete() to check for the presence of a delete queue\n  // without holding the lock. The assumption is that the caller is in the\n  // state of 'being deleted', and can not be newly discovered by a concurrent\n  // 'being constructed' snapshot instance. Practically, this means that any\n  // such discovery (`find`, 'first' or 'next', etc) must have proper 'happens\n  // before / after' semantics and atomic fences.\n  bool IsEmpty() const ABSL_NO_THREAD_SAFETY_ANALYSIS {\n    return dq_tail.load(std::memory_order_acquire) == nullptr;\n  }\n}",
-  "id": "BLOCK-CPP-02912",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_handle.cc",
-  "source_line": 27,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/iterator.h\"\n#include <cstddef>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14594_execute() {\n    { return decls(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-14594",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/UnresolvedSet.h",
-  "source_line": 89,
-  "validation_status": "validated"
-}

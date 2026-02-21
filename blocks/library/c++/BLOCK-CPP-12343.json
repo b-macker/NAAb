@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/CommentOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <map>\n\nusing namespace clang;\nusing namespace comments;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12343_execute() {\n    {\npublic:\n  RawCommentList(SourceManager &SourceMgr) : SourceMgr(SourceMgr) {}\n\n  void addComment(const RawComment &RC, const CommentOptions &CommentOpts,\n                  llvm::BumpPtrAllocator &Allocator);\n\n  /// \\returns A mapping from an offset of the start of the comment to the\n  /// comment itself, or nullptr in case there are no comments in \\p File.\n  const std::map<unsigned, RawComment *> *getCommentsInFile(FileID File) const;\n\n  bool empty() const;\n\n  unsigned getCommentBeginLine(RawComment *C, FileID File,\n                               unsigned Offset) const;\n  unsigned getCommentEndOffset(RawComment *C) const;\n\nprivate:\n  SourceManager &SourceMgr;\n  // mapping: FileId -> comment begin offset -> comment\n  llvm::DenseMap<FileID, std::map<unsigned, RawComment *>> OrderedComments;\n  mutable llvm::DenseMap<RawComment *, unsigned> CommentBeginLine;\n  mutable llvm::DenseMap<RawComment *, unsigned> CommentEndOffset;\n\n  friend class ASTReader;\n  friend class ASTWriter;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12343",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/RawCommentList.h",
-  "source_line": 206,
-  "validation_status": "validated"
-}

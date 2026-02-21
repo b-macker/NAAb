@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/flags/commandlineflag.h\"\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/flags/internal/commandlineflag.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01656_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\nbool CommandLineFlag::IsRetired() const { return false; }\nbool CommandLineFlag::ParseFrom(absl::string_view value, std::string* error) {\n  return ParseFrom(value, flags_internal::SET_FLAGS_VALUE,\n                   flags_internal::kProgrammaticChange, *error);\n}\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01656",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/commandlineflag.cc",
-  "source_line": 24,
-  "validation_status": "validated"
-}

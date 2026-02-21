@@ -1,8 +1,0 @@
-{
-  "code": "#include <array>\n#include <ostream>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03430_execute() {\n    { \\\n    return static_cast<absl::LogSeverity>(lhs) op1 rhs;             \\\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03430",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/log_severity.h",
-  "source_line": 162,
-  "validation_status": "validated"
-}

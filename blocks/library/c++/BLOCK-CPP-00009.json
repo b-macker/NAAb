@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/logger.h>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00009_execute() {\n    {\n    block,           // Block until message can be enqueued\n    overrun_oldest,  // Discard oldest message in the queue if full when trying to\n                     // add new item.\n    discard_new      // Discard new message if the queue is full when trying to add new item.\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00009",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/async_logger.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

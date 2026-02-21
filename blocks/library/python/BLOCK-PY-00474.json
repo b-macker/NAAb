@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00474_execute() {\n    class EvalContextModifier(Stmt):\n    \"\"\"Modifies the eval context.  For each option that should be modified,\n    a :class:`Keyword` has to be added to the :attr:`options` list.\n\n    Example to change the `autoescape` setting::\n\n        EvalContextModifier(options=[Keyword('autoescape', Const(True))])\n    \"\"\"\n\n    fields = (\"options\",)\n    options: list[Keyword]\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00474",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 1171,
-  "validation_status": "validated"
-}

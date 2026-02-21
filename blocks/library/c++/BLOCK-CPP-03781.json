@@ -1,8 +1,0 @@
-{
-  "code": "{\nconstexpr uint128 AddResult(uint128 result, uint128 lhs) {\n  // check for carry\n  return (Uint128Low64(result) < Uint128Low64(lhs))\n             ? MakeUint128(Uint128High64(result) + 1, Uint128Low64(result))\n             : result;\n}\n}",
-  "id": "BLOCK-CPP-03781",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/int128.h",
-  "source_line": 937,
-  "validation_status": "validated"
-}

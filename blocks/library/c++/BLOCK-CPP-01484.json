@@ -1,8 +1,0 @@
-{
-  "code": "#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <system_error>  // std::system_error\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01484_execute() {\n    {\n    oflag = new_oflag;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01484",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/os.h",
-  "source_line": 382,
-  "validation_status": "validated"
-}

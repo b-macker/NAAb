@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/thread_annotations.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04296_execute() {\n    {\n public:\n  // `num_threads` is the number of threads that will participate in the barrier\n  explicit Barrier(int num_threads)\n      : num_to_block_(num_threads), num_to_exit_(num_threads) {}\n\n  Barrier(const Barrier&) = delete;\n  Barrier& operator=(const Barrier&) = delete;\n\n  // Barrier::Block()\n  //\n  // Blocks the current thread, and returns only when the `num_threads`\n  // threshold of threads utilizing this barrier has been reached. `Block()`\n  // returns `true` for precisely one caller, which may then destroy the\n  // barrier.\n  //\n  // Memory ordering: For any threads X and Y, any action taken by X\n  // before X calls `Block()` will be visible to Y after Y returns from\n  // `Block()`.\n  bool Block();\n\n private:\n  Mutex lock_;\n  int num_to_block_ ABSL_GUARDED_BY(lock_);\n  int num_to_exit_ ABSL_GUARDED_BY(lock_);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04296",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/barrier.h",
-  "source_line": 50,
-  "validation_status": "validated"
-}

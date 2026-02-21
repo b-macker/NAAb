@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <functional>\n#include <iterator>\n#include <limits>\n#include <new>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/container/internal/common.h\"\n#include \"absl/container/internal/common_policy_traits.h\"\n#include \"absl/container/internal/compressed_tuple.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/container/internal/layout.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/strings/cord.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/compare.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04872_execute() {\n    {\n    // The root can be a static empty node.\n    if (node == nullptr || (node == root() && empty())) {\n      return node_stats(0, 0);\n    }\n    if (node->is_leaf()) {\n      return node_stats(1, 0);\n    }\n    node_stats res(0, 1);\n    for (int i = node->start(); i <= node->finish(); ++i) {\n      res += internal_stats(node->child(i));\n    }\n    return res;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04872",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
-  "source_line": 1773,
-  "validation_status": "validated"
-}

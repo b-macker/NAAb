@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Stmt.h\"\n#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <cassert>\n#include <deque>\n#include <iterator>\n#include <list>\n#include <map>\n#include <memory>\n#include <optional>\n#include <set>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15744_execute() {\n    {\n    return P->getKind() == Call;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15744",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/PathDiagnostic.h",
-  "source_line": 627,
-  "validation_status": "validated"
-}

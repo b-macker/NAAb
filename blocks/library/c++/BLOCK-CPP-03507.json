@@ -1,8 +1,0 @@
-{
-  "code": "{\n  using slot_policy = container_internal::map_slot_policy<K, V>;\n  using slot_type = typename slot_policy::slot_type;\n  using key_type = K;\n  using mapped_type = V;\n  using init_type = std::pair</*non const*/ key_type, mapped_type>;\n\n  template <class Allocator, class... Args>\n  static void construct(Allocator* alloc, slot_type* slot, Args&&... args) {\n    slot_policy::construct(alloc, slot, std::forward<Args>(args)...);\n  }\n\n  template <class Allocator>\n  static void destroy(Allocator* alloc, slot_type* slot) {\n    slot_policy::destroy(alloc, slot);\n  }\n\n  template <class Allocator>\n  static auto transfer(Allocator* alloc, slot_type* new_slot,\n                       slot_type* old_slot) {\n    return slot_policy::transfer(alloc, new_slot, old_slot);\n  }\n\n  template <class F, class... Args>\n  static decltype(absl::container_internal::DecomposePair(\n      std::declval<F>(), std::declval<Args>()...))\n  apply(F&& f, Args&&... args) {\n    return absl::container_internal::DecomposePair(std::forward<F>(f),\n                                                   std::forward<Args>(args)...);\n  }\n\n  static size_t space_used(const slot_type*) { return 0; }\n\n  static std::pair<const K, V>& element(slot_type* slot) { return slot->value; }\n\n  static V& value(std::pair<const K, V>* kv) { return kv->second; }\n  static const V& value(const std::pair<const K, V>* kv) { return kv->second; }\n}",
-  "id": "BLOCK-CPP-03507",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/flat_hash_map.h",
-  "source_line": 563,
-  "validation_status": "validated"
-}

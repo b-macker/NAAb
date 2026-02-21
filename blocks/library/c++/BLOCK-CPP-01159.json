@@ -1,8 +1,0 @@
-{
-  "code": "{\nenum type FMT_ENUM_UNDERLYING_TYPE(unsigned char){none, left, right, center,\n                                                  numeric};\n}",
-  "id": "BLOCK-CPP-01159",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 2073,
-  "validation_status": "validated"
-}

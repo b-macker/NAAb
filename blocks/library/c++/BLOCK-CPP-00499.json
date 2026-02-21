@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/sinks/base_sink.h>\n#include <spdlog/details/windows_include.h>\n#include <winbase.h>\n#include <mutex>\n#include <string>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace win_eventlog;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00499_execute() {\n    {\n        if (!::IsValidSid(psid)) {\n            throw_spdlog_ex(\"sid_t::sid_t(): invalid SID received\");\n        }\n\n        auto const sid_length{::GetLengthSid(psid)};\n\n        sid_t result;\n        result.buffer_.resize(sid_length);\n        if (!::CopySid(sid_length, (PSID)result.as_sid(), psid)) {\n            SPDLOG_THROW(win32_error(\"CopySid\"));\n        }\n\n        return result;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00499",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/win_eventlog_sink.h",
-  "source_line": 100,
-  "validation_status": "validated"
-}

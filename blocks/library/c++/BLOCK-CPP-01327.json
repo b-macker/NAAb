@@ -1,8 +1,0 @@
-{
-  "code": "{\n  auto data = s.data();\n  auto size = s.size();\n  if (specs.precision >= 0 && to_unsigned(specs.precision) < size)\n    size = code_point_index(s, to_unsigned(specs.precision));\n  bool is_debug = specs.type == presentation_type::debug;\n  size_t width = 0;\n  if (specs.width != 0) {\n    if (is_debug)\n      width = write_escaped_string(counting_iterator{}, s).count();\n    else\n      width = compute_width(basic_string_view<Char>(data, size));\n  }\n  return write_padded(out, specs, size, width,\n                      [=](reserve_iterator<OutputIt> it) {\n                        if (is_debug) return write_escaped_string(it, s);\n                        return copy_str<Char>(data, data + size, it);\n                      });\n}",
-  "id": "BLOCK-CPP-01327",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 2177,
-  "validation_status": "validated"
-}

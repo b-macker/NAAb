@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00455_execute() {\n    class Mod(BinExpr):\n    \"\"\"Left modulo right.\"\"\"\n\n    operator = \"%\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00455",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 975,
-  "validation_status": "validated"
-}

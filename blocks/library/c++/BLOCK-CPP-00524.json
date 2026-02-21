@@ -1,8 +1,0 @@
-{
-  "code": "#include <functional>  // std::reference_wrapper\n#include <memory>      // std::unique_ptr\n#include <vector>\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00524_execute() {\n    {\n    if (detail::const_check(need_copy<T>::value))\n      emplace_arg(dynamic_args_.push<stored_type<T>>(arg));\n    else\n      emplace_arg(detail::unwrap(arg));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00524",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/args.h",
-  "source_line": 165,
-  "validation_status": "validated"
-}

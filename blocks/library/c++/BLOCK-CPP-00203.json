@@ -1,8 +1,0 @@
-{
-  "code": "{\n        // head is ahead of the tail by 1\n        if (max_items_ > 0) {\n            return ((tail_ + 1) % max_items_) == head_;\n        }\n        return false;\n    }",
-  "id": "BLOCK-CPP-00203",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/circular_q.h",
-  "source_line": 85,
-  "validation_status": "validated"
-}

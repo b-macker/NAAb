@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ComputeDependence.h\"\n#include \"clang/AST/Expr.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11087_execute() {\n    {\n    Stmt **Begin = reinterpret_cast<Stmt **>(getTrailingObjects<Expr *>());\n    return child_range(Begin, Begin + NumDims + 1);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11087",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprOpenMP.h",
-  "source_line": 222,
-  "validation_status": "validated"
-}

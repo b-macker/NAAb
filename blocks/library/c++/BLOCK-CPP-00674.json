@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00674_execute() {\n    {\n    if (is_classic_) {\n      on_abbr_weekday();\n      *out_++ = ' ';\n      on_abbr_month();\n      *out_++ = ' ';\n      on_day_of_month_space(numeric_system::standard);\n      *out_++ = ' ';\n      on_iso_time();\n      *out_++ = ' ';\n      on_year(numeric_system::standard);\n    } else {\n      format_localized('c', ns == numeric_system::standard ? '\\0' : 'E');\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00674",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
-  "source_line": 1179,
-  "validation_status": "validated"
-}

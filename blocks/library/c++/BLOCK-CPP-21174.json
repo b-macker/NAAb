@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <memory>\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21174_execute() {\n    {\n  virtual ~PathComparator() = default;\n\n  virtual bool equivalent(StringRef FileA, StringRef FileB) const = 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21174",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/FileMatchTrie.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

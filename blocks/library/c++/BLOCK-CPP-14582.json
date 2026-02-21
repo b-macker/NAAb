@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n\n  /// Performs the operation associated with this visitor object.\n  RetTy Visit(const Type *T) {\n    // Top switch stmt: dispatch to VisitFooType for each FooType.\n    switch (T->getTypeClass()) {\n#define ABSTRACT_TYPE(CLASS, PARENT)\n#define TYPE(CLASS, PARENT) case Type::CLASS: DISPATCH(CLASS##Type);\n#include \"clang/AST/TypeNodes.inc\"\n    }\n    llvm_unreachable(\"Unknown type class!\");\n  }\n\n  // If the implementation chooses not to implement a certain visit method, fall\n  // back on superclass.\n#define TYPE(CLASS, PARENT) RetTy Visit##CLASS##Type(const CLASS##Type *T) { \\\n  DISPATCH(PARENT);                                                          \\\n}\n#include \"clang/AST/TypeNodes.inc\"\n\n  /// Method called if \\c ImpClass doesn't provide specific handler\n  /// for some type class.\n  RetTy VisitType(const Type*) { return RetTy(); }\n}",
-  "id": "BLOCK-CPP-14582",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeVisitor.h",
-  "source_line": 63,
-  "validation_status": "validated"
-}

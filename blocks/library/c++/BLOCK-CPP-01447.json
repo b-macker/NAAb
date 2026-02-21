@@ -1,8 +1,0 @@
-{
-  "code": "{\n  size_t size;\n  size_t padding;\n\n  FMT_CONSTEXPR write_int_data(int num_digits, unsigned prefix,\n                               const basic_format_specs<Char>& specs)\n      : size((prefix >> 24) + to_unsigned(num_digits)), padding(0) {\n    if (specs.align == align::numeric) {\n      auto width = to_unsigned(specs.width);\n      if (width > size) {\n        padding = width - size;\n        size = width;\n      }\n    } else if (specs.precision > num_digits) {\n      size = (prefix >> 24) + to_unsigned(specs.precision);\n      padding = to_unsigned(specs.precision - num_digits);\n    }\n  }\n}",
-  "id": "BLOCK-CPP-01447",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 1883,
-  "validation_status": "validated"
-}

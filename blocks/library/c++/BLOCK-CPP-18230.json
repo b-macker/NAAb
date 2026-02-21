@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Support/CommandLine.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18230_execute() {\n    {\n  namespace cl {\n    /// Command-line option parser that parses source locations.\n    ///\n    /// Source locations are of the form filename:line:column.\n    template<>\n    class parser<clang::ParsedSourceLocation> final\n      : public basic_parser<clang::ParsedSourceLocation> {\n    public:\n      inline bool parse(Option &O, StringRef ArgName, StringRef ArgValue,\n                 clang::ParsedSourceLocation &Val);\n    };\n\n    bool\n    parser<clang::ParsedSourceLocation>::\n    parse(Option &O, StringRef ArgName, StringRef ArgValue,\n          clang::ParsedSourceLocation &Val) {\n      using namespace clang;\n\n      Val = ParsedSourceLocation::FromString(ArgValue);\n      if (Val.FileName.empty()) {\n        errs() << \"error: \"\n               << \"source location must be of the form filename:line:column\\n\";\n        return true;\n      }\n\n      return false;\n    }\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18230",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/CommandLineSourceLoc.h",
-  "source_line": 109,
-  "validation_status": "validated"
-}

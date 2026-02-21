@@ -1,8 +1,0 @@
-{
-  "code": "{\n  explicit BestHints(uint8_t _max) : best_distance(_max + 1) {}\n  bool AddHint(absl::string_view hint, uint8_t distance) {\n    if (hints.size() >= kMaxHints) return false;\n    if (distance == best_distance) {\n      hints.emplace_back(hint);\n    }\n    if (distance < best_distance) {\n      best_distance = distance;\n      hints = std::vector<std::string>{std::string(hint)};\n    }\n    return true;\n  }\n\n  uint8_t best_distance;\n  std::vector<std::string> hints;\n}",
-  "id": "BLOCK-CPP-01723",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/parse.cc",
-  "source_line": 650,
-  "validation_status": "validated"
-}

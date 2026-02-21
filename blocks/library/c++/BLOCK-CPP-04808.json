@@ -1,8 +1,0 @@
-{
-  "code": "{\n    while (s < e) {\n      const absl::weak_ordering c = comp(key(s), k);\n      if (c == 0) {\n        return {s, MatchKind::kEq};\n      } else if (c > 0) {\n        break;\n      }\n      ++s;\n    }\n    return {s, MatchKind::kNe};\n  }",
-  "id": "BLOCK-CPP-04808",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
-  "source_line": 824,
-  "validation_status": "validated"
-}

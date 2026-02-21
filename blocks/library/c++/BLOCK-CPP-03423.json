@@ -1,8 +1,0 @@
-{
-  "code": "#include <stddef.h>\n#include <stdint.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include <sanitizer/hwasan_interface.h>\n#include \"absl/base/internal/dynamic_annotations.h\"  // IWYU pragma: export\n#include <sanitizer/msan_interface.h>\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03423_execute() {\n    {  // NOLINT\n  ABSL_ANNOTATE_IGNORE_READS_BEGIN();\n  T res = x;\n  ABSL_ANNOTATE_IGNORE_READS_END();\n  return res;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03423",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/dynamic_annotations.h",
-  "source_line": 420,
-  "validation_status": "validated"
-}

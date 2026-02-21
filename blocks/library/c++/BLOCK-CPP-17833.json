@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17833_execute() {\n    {\nnamespace phases {\n  /// ID - Ordered values for successive stages in the\n  /// compilation process which interact with user options.\n  enum ID {\n    Preprocess,\n    Precompile,\n    Compile,\n    Backend,\n    Assemble,\n    Link,\n    IfsMerge,\n  };\n\n  enum {\n    MaxNumberOfPhases = IfsMerge + 1\n  };\n\n  const char *getPhaseName(ID Id);\n\n} // end namespace phases\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17833",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Phases.h",
-  "source_line": 13,
-  "validation_status": "validated"
-}

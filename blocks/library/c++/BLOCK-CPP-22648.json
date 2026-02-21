@@ -1,8 +1,0 @@
-{
-  "code": "{\n    static_assert(sizeof(uintptr_t) <= sizeof(uint64_t),\n                  \"pointer doesn't fit in 64 bits?\");\n    uint64_t Value;\n\n  public:\n    LValuePathEntry() : Value() {}\n    LValuePathEntry(BaseOrMemberType BaseOrMember);\n    static LValuePathEntry ArrayIndex(uint64_t Index) {\n      LValuePathEntry Result;\n      Result.Value = Index;\n      return Result;\n    }\n\n    BaseOrMemberType getAsBaseOrMember() const {\n      return BaseOrMemberType::getFromOpaqueValue(\n          reinterpret_cast<void *>(Value));\n    }\n    uint64_t getAsArrayIndex() const { return Value; }\n\n    void Profile(llvm::FoldingSetNodeID &ID) const;\n\n    friend bool operator==(LValuePathEntry A, LValuePathEntry B) {\n      return A.Value == B.Value;\n    }\n    friend bool operator!=(LValuePathEntry A, LValuePathEntry B) {\n      return A.Value != B.Value;\n    }\n    friend llvm::hash_code hash_value(LValuePathEntry A) {\n      return llvm::hash_value(A.Value);\n    }\n  }",
-  "id": "BLOCK-CPP-22648",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/APValue.h",
-  "source_line": 208,
-  "validation_status": "validated"
-}

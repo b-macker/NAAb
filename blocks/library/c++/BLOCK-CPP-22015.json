@@ -1,8 +1,0 @@
-{
-  "code": "#include <optional>\n#include <utility>\n#include <vector>\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Analysis/FlowSensitive/ControlFlowContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowAnalysisContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowEnvironment.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowLattice.h\"\n#include \"llvm/ADT/Any.h\"\n#include \"llvm/Support/Error.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22015_execute() {\n    {\n  /// Options for the built-in model, or empty to not apply them.\n  // FIXME: Remove this option once the framework supports composing analyses\n  // (at which point the built-in transfer functions can be simply a standalone\n  // analysis).\n  std::optional<DataflowAnalysisContext::Options> BuiltinOpts =\n      DataflowAnalysisContext::Options{};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22015",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.h",
-  "source_line": 34,
-  "validation_status": "validated"
-}

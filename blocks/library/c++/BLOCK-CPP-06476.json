@@ -1,8 +1,0 @@
-{
-  "code": "#include <condition_variable>  // NOLINT(build/c++11)\n#include <mutex>  // NOLINT(build/c++11)\n#include \"absl/base/config.h\"\n#include \"absl/synchronization/internal/kernel_timeout.h\"\n#include \"absl/synchronization/internal/waiter_base.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06476_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace synchronization_internal {\n\n#define ABSL_INTERNAL_HAVE_STDCPP_WAITER 1\n\nclass StdcppWaiter : public WaiterCrtp<StdcppWaiter> {\n public:\n  StdcppWaiter();\n\n  bool Wait(KernelTimeout t);\n  void Post();\n  void Poke();\n\n  static constexpr char kName[] = \"StdcppWaiter\";\n\n private:\n  // REQUIRES: mu_ must be held.\n  void InternalCondVarPoke();\n\n  std::mutex mu_;\n  std::condition_variable cv_;\n  int waiter_count_;\n  int wakeup_count_;  // Unclaimed wakeups.\n};\n\n}  // namespace synchronization_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06476",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/stdcpp_waiter.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

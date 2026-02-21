@@ -1,8 +1,0 @@
-{
-  "code": "{\n    Parser *Self;\n    ParseScope(const ParseScope &) = delete;\n    void operator=(const ParseScope &) = delete;\n\n  public:\n    // ParseScope - Construct a new object to manage a scope in the\n    // parser Self where the new Scope is created with the flags\n    // ScopeFlags, but only when we aren't about to enter a compound statement.\n    ParseScope(Parser *Self, unsigned ScopeFlags, bool EnteredScope = true,\n               bool BeforeCompoundStmt = false)\n      : Self(Self) {\n      if (EnteredScope && !BeforeCompoundStmt)\n        Self->EnterScope(ScopeFlags);\n      else {\n        if (BeforeCompoundStmt)\n          Self->incrementMSManglingNumber();\n\n        this->Self = nullptr;\n      }\n    }\n\n    // Exit - Exit the scope associated with this object now, rather\n    // than waiting until the object is destroyed.\n    void Exit() {\n      if (Self) {\n        Self->ExitScope();\n        Self = nullptr;\n      }\n    }\n\n    ~ParseScope() {\n      Exit();\n    }\n  }",
-  "id": "BLOCK-CPP-19340",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
-  "source_line": 1117,
-  "validation_status": "validated"
-}

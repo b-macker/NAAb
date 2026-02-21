@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclTemplate.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07116_execute() {\n    {\n  if (!D) return false;\n  if (CXXConversionDecl *Conv = dyn_cast<CXXConversionDecl>(D))\n    return isLambdaConversionOperator(Conv);\n  if (FunctionTemplateDecl *F = dyn_cast<FunctionTemplateDecl>(D))\n    if (CXXConversionDecl *Conv =\n        dyn_cast_or_null<CXXConversionDecl>(F->getTemplatedDecl()))\n      return isLambdaConversionOperator(Conv);\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07116",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTLambda.h",
-  "source_line": 51,
-  "validation_status": "validated"
-}

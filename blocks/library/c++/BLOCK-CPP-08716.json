@@ -1,8 +1,0 @@
-{
-  "code": "{\n  llvm::PointerIntPair<Expr *, 1, bool> AssertExprAndFailed;\n  Expr *Message;\n  SourceLocation RParenLoc;\n\n  StaticAssertDecl(DeclContext *DC, SourceLocation StaticAssertLoc,\n                   Expr *AssertExpr, Expr *Message, SourceLocation RParenLoc,\n                   bool Failed)\n      : Decl(StaticAssert, DC, StaticAssertLoc),\n        AssertExprAndFailed(AssertExpr, Failed), Message(Message),\n        RParenLoc(RParenLoc) {}\n\n  virtual void anchor();\n\npublic:\n  friend class ASTDeclReader;\n\n  static StaticAssertDecl *Create(ASTContext &C, DeclContext *DC,\n                                  SourceLocation StaticAssertLoc,\n                                  Expr *AssertExpr, Expr *Message,\n                                  SourceLocation RParenLoc, bool Failed);\n  static StaticAssertDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  Expr *getAssertExpr() { return AssertExprAndFailed.getPointer(); }\n  const Expr *getAssertExpr() const { return AssertExprAndFailed.getPointer(); }\n\n  Expr *getMessage() { return Message; }\n  const Expr *getMessage() const { return Message; }\n\n  bool isFailed() const { return AssertExprAndFailed.getInt(); }\n\n  SourceLocation getRParenLoc() const { return RParenLoc; }\n\n  SourceRange getSourceRange() const override LLVM_READONLY {\n    return SourceRange(getLocation(), getRParenLoc());\n  }\n\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == StaticAssert; }\n}",
-  "id": "BLOCK-CPP-08716",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclCXX.h",
-  "source_line": 4011,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00222_execute() {\n    def _generate_k8s_deployment(self, request, platform: str, complexity: str) -> CodeGenerationResult:\n        \"\"\"Generate Kubernetes deployment manifests\"\"\"\n        message = request.message.lower()\n        \n        if 'web' in message or 'frontend' in message:\n            manifests = self._generate_web_k8s_deployment(complexity)\n        elif 'api' in message or 'backend' in message:\n            manifests = self._generate_api_k8s_deployment(complexity) \n        elif 'database' in message:\n            manifests = self._generate_database_k8s_deployment(complexity)\n        else:\n            manifests = self._generate_generic_k8s_deployment(complexity)\n        \n        return CodeGenerationResult(\n            success=True,\n            code=manifests,\n            language=\"yaml\",\n            framework=\"kubernetes\",\n            code_type=CodeType.CONFIGURATION\n        )\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00222",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

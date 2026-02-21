@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/TypeOrdering.h\"\n#include \"clang/Analysis/FlowSensitive/Arena.h\"\n#include \"clang/Analysis/FlowSensitive/ControlFlowContext.h\"\n#include \"clang/Analysis/FlowSensitive/Solver.h\"\n#include \"clang/Analysis/FlowSensitive/StorageLocation.h\"\n#include \"clang/Analysis/FlowSensitive/Value.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/Support/Compiler.h\"\n#include <cassert>\n#include <memory>\n#include <optional>\n#include <type_traits>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21897_execute() {\n    {\n    return querySolver(std::move(Constraints)).getStatus() ==\n           Solver::Result::Status::Unsatisfiable;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21897",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DataflowAnalysisContext.h",
-  "source_line": 219,
-  "validation_status": "validated"
-}

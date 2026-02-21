@@ -1,8 +1,0 @@
-{
-  "code": "def _initialize_templates(self) -> Dict[str, str]:\n        return {\n            'spring_boot_main': '''\n@SpringBootApplication\npublic class {name}Application {\n    public static void main(String[] args) {\n        SpringApplication.run({name}Application.class, args);\n    }\n}''',\n            'rest_controller': '''\n@RestController\n@RequestMapping(\"/api/{path}\")\npublic class {name}Controller {\n    \n    @GetMapping\n    public ResponseEntity<List<{name}>> getAll() {\n        // Implementation\n        return ResponseEntity.ok(new ArrayList<>());\n    }\n}'''\n        }",
-  "id": "BLOCK-PY-00112",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/java_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

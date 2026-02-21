@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06541_execute() {\n    {\n  CONSTEXPR_D int k_days_per_month[1 + 12] = {\n      -1, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31  // non leap year\n  };\n  return k_days_per_month[m] + (m == 2 && is_leap_year(y));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06541",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
-  "source_line": 99,
-  "validation_status": "validated"
-}

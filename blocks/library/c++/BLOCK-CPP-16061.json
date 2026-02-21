@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/DataTypes.h\"\n\nusing namespace clang;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\nusing namespace charinfo;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16061_execute() {\n    {\n  using namespace charinfo;\n  return (InfoTable[c] & (CHAR_UPPER|CHAR_LOWER|CHAR_PERIOD|\n                          CHAR_DIGIT|CHAR_UNDER|CHAR_RAWDEL)) != 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16061",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CharInfo.h",
-  "source_line": 160,
-  "validation_status": "validated"
-}

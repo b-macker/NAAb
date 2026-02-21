@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nclass Assume {\n  template <typename CHECKER>\n  static ProgramStateRef _evalAssume(void *checker,\n                                         ProgramStateRef state,\n                                         const SVal &cond,\n                                         bool assumption) {\n    return ((const CHECKER *)checker)->evalAssume(state, cond, assumption);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForEvalAssume(\n                 CheckerManager::EvalAssumeFunc(checker, _evalAssume<CHECKER>));\n  }\n};\n\nclass Call {\n  template <typename CHECKER>\n  static bool _evalCall(void *checker, const CallEvent &Call,\n                        CheckerContext &C) {\n    return ((const CHECKER *)checker)->evalCall(Call, C);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForEvalCall(\n                     CheckerManager::EvalCallFunc(checker, _evalCall<CHECKER>));\n  }\n};\n\n}",
-  "id": "BLOCK-CPP-22325",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 455,
-  "validation_status": "validated"
-}

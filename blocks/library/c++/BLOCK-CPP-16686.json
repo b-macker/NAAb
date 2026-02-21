@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"llvm/ADT/StringMap.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16686_execute() {\n    {\n  auto CLVer = LO.getOpenCLCompatibleVersion();\n  OpenCLVersionID Code = encodeOpenCLVersion(CLVer);\n  return Mask & Code;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16686",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/OpenCLOptions.h",
-  "source_line": 59,
-  "validation_status": "validated"
-}

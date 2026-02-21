@@ -1,8 +1,0 @@
-{
-  "code": "#include \"spdlog/common.h\"\n#include \"spdlog/details/log_msg.h\"\n#include \"spdlog/sinks/base_sink.h\"\n#include <spdlog/details/synchronous_factory.h>\n#include <bsoncxx/builder/stream/document.hpp>\n#include <bsoncxx/types.hpp>\n#include <bsoncxx/view_or_value.hpp>\n#include <mongocxx/client.hpp>\n#include <mongocxx/instance.hpp>\n#include <mongocxx/uri.hpp>\n#include \"spdlog/details/null_mutex.h\"\n#include <mutex>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00423_execute() {\n    {\n    return Factory::template create<sinks::mongo_sink_mt>(logger_name, db_name, collection_name,\n                                                          uri);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00423",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/mongo_sink.h",
-  "source_line": 88,
-  "validation_status": "validated"
-}

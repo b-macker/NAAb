@@ -1,8 +1,0 @@
-{
-  "code": "{\n    int NodeID = 0;\n\n    // Includes this node, so must be > 1.\n    int SizeOfSubTree = 0;\n\n    // Pointer to parent.\n    BasicBlock *Parent = nullptr;\n\n    TopologyNode() = default;\n\n    bool isParentOf(const TopologyNode& OtherNode) {\n      return OtherNode.NodeID > NodeID &&\n             OtherNode.NodeID < NodeID + SizeOfSubTree;\n    }\n\n    bool isParentOfOrEqual(const TopologyNode& OtherNode) {\n      return OtherNode.NodeID >= NodeID &&\n             OtherNode.NodeID < NodeID + SizeOfSubTree;\n    }\n  }",
-  "id": "BLOCK-CPP-21680",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1517,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20676_execute() {\n    {\n      LangOptions LO;\n      LO.CPlusPlus = true;\n      LO.Bool = true;\n      PrintingPolicy PP(LO);\n      llvm::errs() << \"NumRetainedOuterLevels: \" << NumRetainedOuterLevels\n                   << \"\\n\";\n      for (unsigned Depth = NumRetainedOuterLevels; Depth < getNumLevels();\n           ++Depth) {\n        llvm::errs() << Depth << \": \";\n        printTemplateArgumentList(\n            llvm::errs(),\n            TemplateArgumentLists[getNumLevels() - Depth - 1].Args, PP);\n        llvm::errs() << \"\\n\";\n      }\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20676",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Template.h",
-  "source_line": 277,
-  "validation_status": "validated"
-}

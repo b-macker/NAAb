@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01116_execute() {\n    {\n   public:\n    explicit handle(detail::custom_value<Context> custom) : custom_(custom) {}\n\n    void format(typename Context::parse_context_type& parse_ctx,\n                Context& ctx) const {\n      custom_.format(custom_.value, parse_ctx, ctx);\n    }\n\n   private:\n    detail::custom_value<Context> custom_;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01116",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 1588,
-  "validation_status": "validated"
-}

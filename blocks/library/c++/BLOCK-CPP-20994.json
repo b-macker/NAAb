@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <algorithm>\n#include <cassert>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20994_execute() {\n    {\n    if (!Rep.empty() && Rep.back() == Val)\n      return;\n\n    assert((Rep.empty() || Rep.back().first < Val.first) &&\n           \"Must insert keys in order.\");\n    Rep.push_back(Val);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20994",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ContinuousRangeMap.h",
-  "source_line": 66,
-  "validation_status": "validated"
-}

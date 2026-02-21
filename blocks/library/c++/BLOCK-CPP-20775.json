@@ -1,8 +1,0 @@
-{
-  "code": "{\n  const IdentifierInfo *alias = nullptr; // alias (optional)\n  SourceLocation loc;                    // for diagnostics\npublic:\n  WeakInfo() = default;\n  WeakInfo(const IdentifierInfo *Alias, SourceLocation Loc)\n      : alias(Alias), loc(Loc) {}\n  inline const IdentifierInfo *getAlias() const { return alias; }\n  inline SourceLocation getLocation() const { return loc; }\n  bool operator==(WeakInfo RHS) const = delete;\n  bool operator!=(WeakInfo RHS) const = delete;\n\n  struct DenseMapInfoByAliasOnly\n      : private llvm::DenseMapInfo<const IdentifierInfo *> {\n    static inline WeakInfo getEmptyKey() {\n      return WeakInfo(DenseMapInfo::getEmptyKey(), SourceLocation());\n    }\n    static inline WeakInfo getTombstoneKey() {\n      return WeakInfo(DenseMapInfo::getTombstoneKey(), SourceLocation());\n    }\n    static unsigned getHashValue(const WeakInfo &W) {\n      return DenseMapInfo::getHashValue(W.getAlias());\n    }\n    static bool isEqual(const WeakInfo &LHS, const WeakInfo &RHS) {\n      return DenseMapInfo::isEqual(LHS.getAlias(), RHS.getAlias());\n    }\n  };\n}",
-  "id": "BLOCK-CPP-20775",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Weak.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

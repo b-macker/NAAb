@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08732_execute() {\n    {\n    if (isNull())\n      return;\n    // If this is a list-form, free the list.\n    ASTContext &C = getASTContext();\n    Decls List = Data.getPointer();\n    while (DeclListNode *ToDealloc = List.dyn_cast<DeclListNode *>()) {\n      List = ToDealloc->Rest;\n      C.DeallocateDeclListNode(ToDealloc);\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08732",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclContextInternals.h",
-  "source_line": 96,
-  "validation_status": "validated"
-}

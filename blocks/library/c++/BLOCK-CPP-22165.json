@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Lex/Token.h\"\n#include <cassert>\n#include <list>\n#include <map>\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22165_execute() {\n    { return TokenList.end(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22165",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/TokenRewriter.h",
-  "source_line": 59,
-  "validation_status": "validated"
-}

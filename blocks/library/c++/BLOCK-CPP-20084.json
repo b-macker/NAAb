@@ -1,8 +1,0 @@
-{
-  "code": "{\n    void *Ptr = nullptr;\n\n    explicit OpaquePtr(void *Ptr) : Ptr(Ptr) {}\n\n    using Traits = llvm::PointerLikeTypeTraits<PtrTy>;\n\n  public:\n    OpaquePtr(std::nullptr_t = nullptr) {}\n\n    static OpaquePtr make(PtrTy P) { OpaquePtr OP; OP.set(P); return OP; }\n\n    /// Returns plain pointer to the entity pointed by this wrapper.\n    /// \\tparam PointeeT Type of pointed entity.\n    ///\n    /// It is identical to getPtrAs<PointeeT*>.\n    template <typename PointeeT> PointeeT* getPtrTo() const {\n      return get();\n    }\n\n    /// Returns pointer converted to the specified type.\n    /// \\tparam PtrT Result pointer type.  There must be implicit conversion\n    ///              from PtrTy to PtrT.\n    ///\n    /// In contrast to getPtrTo, this method allows the return type to be\n    /// a smart pointer.\n    template <typename PtrT> PtrT getPtrAs() const {\n      return get();\n    }\n\n    PtrTy get() const {\n      return Traits::getFromVoidPointer(Ptr);\n    }\n\n    void set(PtrTy P) {\n      Ptr = Traits::getAsVoidPointer(P);\n    }\n\n    explicit operator bool() const { return Ptr != nullptr; }\n\n    void *getAsOpaquePtr() const { return Ptr; }\n    static OpaquePtr getFromOpaquePtr(void *P) { return OpaquePtr(P); }\n  }",
-  "id": "BLOCK-CPP-20084",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Ownership.h",
-  "source_line": 49,
-  "validation_status": "validated"
-}

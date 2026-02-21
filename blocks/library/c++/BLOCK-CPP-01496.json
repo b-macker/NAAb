@@ -1,8 +1,0 @@
-{
-  "code": "#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <system_error>  // std::system_error\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01496_execute() {\n    {\n  buffer_size() = default;\n  size_t value = 0;\n  buffer_size operator=(size_t val) const {\n    auto bs = buffer_size();\n    bs.value = val;\n    return bs;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01496",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/os.h",
-  "source_line": 365,
-  "validation_status": "validated"
-}

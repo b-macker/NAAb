@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Stmt.h\"\n\nusing namespace clang;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21868_execute() {\n    {\n// Tests if any two `FixItHint`s in `FixIts` conflict.  Two `FixItHint`s\n// conflict if they have overlapping source ranges.\nbool anyConflict(const llvm::SmallVectorImpl<FixItHint> &FixIts,\n                 const SourceManager &SM);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21868",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/UnsafeBufferUsage.h",
-  "source_line": 59,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Tooling/Execution.h\"\n#include \"llvm/Support/Registry.h\"\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21227_execute() {\n    {\n\nusing ToolExecutorPluginRegistry = llvm::Registry<ToolExecutorPlugin>;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21227",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/ToolExecutorPluginRegistry.h",
-  "source_line": 16,
-  "validation_status": "validated"
-}

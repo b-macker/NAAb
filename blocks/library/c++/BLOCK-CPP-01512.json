@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n// Formats an object of type T that has an overloaded ostream operator<<.\ntemplate <typename T, typename Char>\nstruct fallback_formatter<T, Char, enable_if_t<is_streamable<T, Char>::value>>\n    : basic_ostream_formatter<Char> {\n  using basic_ostream_formatter<Char>::format;\n};\n\ninline void vprint_directly(std::ostream& os, string_view format_str,\n                            format_args args) {\n  auto buffer = memory_buffer();\n  detail::vformat_to(buffer, format_str, args);\n  detail::write_buffer(os, buffer);\n}\n\n}",
-  "id": "BLOCK-CPP-01512",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ostream.h",
-  "source_line": 181,
-  "validation_status": "validated"
-}

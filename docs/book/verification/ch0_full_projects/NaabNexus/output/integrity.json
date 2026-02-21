@@ -1,6 +1,6 @@
 {
   "audit_summary": {
-    "chain_head": "5dea1df6eab017ed27d78586531befc874666136ae609062a20c74857e4be51d",
+    "chain_head": "1f46222417c17aaf08cfbc82582c536a525ffc7d60ac7eb1bb84ef9df30b101c",
     "sources": {
       "data_collection": 5,
       "processing": 5,
@@ -14,38 +14,38 @@
     "crypto_functions_verified": 12,
     "digest_match": true,
     "hex_roundtrip": true,
-    "md5": "ef8637eeb3c44e68dd58abc321428e47",
-    "random_sample": "j6ER1KUyg0vn",
-    "sha256": "3faa3003f51dd08b52969272a3a0575828c0e950685da7a59e3a672719e22a90",
-    "sha512": "883fb85bb515dafa319edfc9b4763d46a2de6501f5bc830137d411913b4ae58e"
+    "md5": "78e5b9b62f01c91c224fba90fdcd79c9",
+    "random_sample": "SS1jlNoVdlpI",
+    "sha256": "0806e6d7c19730fbc6402365662cd1f4be961b938ddb16ab411cf10dc8ae91b7",
+    "sha512": "ecbec9a1921d84780980ddb24c4ed8d17a865845cc700621e18811e51c098e22"
   },
   "naab_hashes": [
     {
       "label": "weather",
-      "md5": "d6f45df25b9489ba260927985b582d9e",
-      "sha256": "b27c3e76024f2013769c2d993c020d08e973f27c1751e8e63fedfe6dd79e4e40",
-      "sha512": "9914d795ebebe07a622906aabd5975e13136cf582635cc03a793441738dd0c95",
+      "md5": "15c362773c0d731848d07307908ed0b5",
+      "sha256": "41b33e5310682fe10a3c3ef108e47d2c0aaaa57ee2e5614723d90a5444b8d3fc",
+      "sha512": "7842e9e5c353171c3cd731daf4883cdef300b5615603e75dbbe9fa693d0a944b",
       "source": "naab_crypto"
     },
     {
       "label": "crypto",
-      "md5": "6344c1974a5f3225d0c35ab7649c5fe9",
-      "sha256": "a17ed9dc1ebb03de7a5ba6afbfcbf1ee1f35807af9c47429630f45b5fc8b5919",
-      "sha512": "59936c37e1c394e77a53be9d03420dd08e7bc2a80586320af592f2fe134f9803",
+      "md5": "f8cc7e5022df81432f733261fbb2b1d2",
+      "sha256": "bceebab10a827fa45f12ede13fac0918d03e43e8e30851304c9bc55cd5b46d8a",
+      "sha512": "a2656999bfff62a903cc057f85585b1e2f074939170c3798244c2fdf956fa0cd",
       "source": "naab_crypto"
     },
     {
       "label": "currency",
-      "md5": "60de3fd48d84d36d914fb85750a57efd",
-      "sha256": "9cb03165fbbb9515db31673feddb131a7787dc26511b96b74d6985c82639f20f",
-      "sha512": "e7d4fd8e7019acf36c6cb948f742b98b7cd3bbde98f2db91670ec946596f1c3b",
+      "md5": "a7dbcb90086e2239a294d50c741ccadc",
+      "sha256": "f2520a81a5d4cd7b473f8ce19b3a195ce858637caefb23a7c51d5de1f532d78c",
+      "sha512": "645f08a36d52c54a8a77b8ad77444aa27d67b700115430a83f4b12be5e2fa72f",
       "source": "naab_crypto"
     },
     {
       "label": "github",
-      "md5": "36d5bd12ab72ab0765b1eb8febe3178f",
-      "sha256": "043db61eb7882495c6fd9e37571ade3918134391792c9e931f0cf05960fe4365",
-      "sha512": "3f51b91c805d48a602ddad5001126ab226cc4042913caa3f9342c21769fd2285",
+      "md5": "b805048640033103cefb40fbd61d0e14",
+      "sha256": "d083723e9d2610a4c4816ea52347954f584466ce31598ff953411ee75401aaf7",
+      "sha512": "fa2f7eb88beb5d4787576c76c11aad2f76db11c03deef4c4df2a9298342884c4",
       "source": "naab_crypto"
     },
     {
@@ -56,28 +56,28 @@
       "source": "naab_crypto"
     }
   ],
-  "report_id": "b1a6b5f4ba6b4ab80434cce60b0cec52",
+  "report_id": "51320d3d29ed25cf7ab6fde68f39abfc",
   "rust_hashes": [
     {
-      "hash": "18456c00977767ef25e381b6b150b71a3da6edb62627d0f53e28edb748c81f09",
+      "hash": "3941676120611a9345d2c00ebba7f49c7c93a76f9bc6ee0f7f14276fdc090f2f",
       "label": "weather",
-      "len": 1602,
+      "len": 1603,
       "source": "rust"
     },
     {
-      "hash": "aa219642b5a77a4e53636763e1ef6eb3f942f121544814fdfd84fda69796e901",
+      "hash": "59789b8bc2ee4174ea93f269918b0b01b3eb69e253654a75440c8df554794c75",
       "label": "crypto",
-      "len": 1262,
+      "len": 1259,
       "source": "rust"
     },
     {
-      "hash": "d92b7980af54c5389d5387cddeca5dff4478fe4d719e98c7767f014e8e1f2337",
+      "hash": "1b1c98b8fe76624df562e597cea3735cee7e7d2f30d51111107f7e50cd19d5a9",
       "label": "currency",
       "len": 1225,
       "source": "rust"
     },
     {
-      "hash": "cb3d4b88091ff7f38650cbb85fef687e4d6d803056f09f8d518e1740690f6071",
+      "hash": "078f1c2b1f54b9dd39b39b63fd36dc4a3e3c8748e26265974142b78f1c8b9627",
       "label": "github",
       "len": 1426,
       "source": "rust"
@@ -89,8 +89,8 @@
       "source": "rust"
     }
   ],
-  "timestamp": "2026-02-19 15:36:53",
-  "timestamp_ms": 1771533413.035,
+  "timestamp": "2026-02-20 20:17:28",
+  "timestamp_ms": 1771636648.514,
   "verification": {
     "all_present": true,
     "naab_count": 5,

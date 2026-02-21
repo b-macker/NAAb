@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h\"\n#include \"llvm/ADT/StringExtras.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22216_execute() {\n    {\n    const VarDecl *VD = R->getDecl();\n    std::string Name = VD->getQualifiedNameAsString();\n    if (isa<ParmVarDecl>(VD))\n      return \"parameter '\" + Name + \"'\";\n    else if (VD->hasAttr<BlocksAttr>())\n      return \"block variable '\" + Name + \"'\";\n    else if (VD->hasLocalStorage())\n      return \"local variable '\" + Name + \"'\";\n    else if (VD->isStaticLocal())\n      return \"static local variable '\" + Name + \"'\";\n    else if (VD->hasGlobalStorage())\n      return \"global variable '\" + Name + \"'\";\n    else\n      llvm_unreachable(\"A variable is either local or global\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22216",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/SValExplainer.h",
-  "source_line": 206,
-  "validation_status": "validated"
-}

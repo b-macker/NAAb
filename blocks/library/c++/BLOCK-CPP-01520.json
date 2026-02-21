@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>  // std::max\n#include <limits>     // std::numeric_limits\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01520_execute() {\n    {\n    return value >= (std::numeric_limits<int>::min)() &&\n           value <= max_value<int>();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01520",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
-  "source_line": 72,
-  "validation_status": "validated"
-}

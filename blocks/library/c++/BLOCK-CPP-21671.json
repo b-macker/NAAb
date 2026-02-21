@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Goto(BasicBlock *B, unsigned I)\n      : Terminator(COP_Goto), TargetBlock(B), Index(I) {}\n  Goto(const Goto &G, BasicBlock *B, unsigned I)\n      : Terminator(COP_Goto), TargetBlock(B), Index(I) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Goto; }\n\n  const BasicBlock *targetBlock() const { return TargetBlock; }\n  BasicBlock *targetBlock() { return TargetBlock; }\n\n  /// Returns the index into the\n  unsigned index() const { return Index; }\n\n  /// Return the list of basic blocks that this terminator can branch to.\n  ArrayRef<BasicBlock *> successors() { return TargetBlock; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    BasicBlock *Ntb = Vs.reduceBasicBlockRef(TargetBlock);\n    return Vs.reduceGoto(*this, Ntb);\n  }\n\n  template <class C>\n  typename C::CType compare(const Goto *E, C &Cmp) const {\n    // TODO: implement CFG comparisons\n    return Cmp.comparePointers(this, E);\n  }\n\nprivate:\n  BasicBlock *TargetBlock;\n  unsigned Index;\n}",
-  "id": "BLOCK-CPP-21671",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1378,
-  "validation_status": "validated"
-}

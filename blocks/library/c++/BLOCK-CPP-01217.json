@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01217_execute() {\n    {\n  auto upper = x >> 8;\n  auto lower_start = 0;\n  for (size_t i = 0; i < singletons_size; ++i) {\n    auto s = singletons[i];\n    auto lower_end = lower_start + s.lower_count;\n    if (upper < s.upper) break;\n    if (upper == s.upper) {\n      for (auto j = lower_start; j < lower_end; ++j) {\n        if (singleton_lowers[j] == (x & 0xff)) return false;\n      }\n    }\n    lower_start = lower_end;\n  }\n\n  auto xsigned = static_cast<int>(x);\n  auto current = true;\n  for (size_t i = 0; i < normal_size; ++i) {\n    auto v = static_cast<int>(normal[i]);\n    auto len = (v & 0x80) != 0 ? (v & 0x7f) << 8 | normal[++i] : v;\n    xsigned -= len;\n    if (xsigned < 0) break;\n    current = !current;\n  }\n  return current;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01217",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
-  "source_line": 1537,
-  "validation_status": "validated"
-}

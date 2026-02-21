@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00828_execute() {\n    {\n    uint8_t em_codes[num_emphases] = {};\n    if (has_emphasis(em, emphasis::bold)) em_codes[0] = 1;\n    if (has_emphasis(em, emphasis::faint)) em_codes[1] = 2;\n    if (has_emphasis(em, emphasis::italic)) em_codes[2] = 3;\n    if (has_emphasis(em, emphasis::underline)) em_codes[3] = 4;\n    if (has_emphasis(em, emphasis::blink)) em_codes[4] = 5;\n    if (has_emphasis(em, emphasis::reverse)) em_codes[5] = 7;\n    if (has_emphasis(em, emphasis::conceal)) em_codes[6] = 8;\n    if (has_emphasis(em, emphasis::strikethrough)) em_codes[7] = 9;\n\n    size_t index = 0;\n    for (size_t i = 0; i < num_emphases; ++i) {\n      if (!em_codes[i]) continue;\n      buffer[index++] = static_cast<Char>('\\x1b');\n      buffer[index++] = static_cast<Char>('[');\n      buffer[index++] = static_cast<Char>('0' + em_codes[i]);\n      buffer[index++] = static_cast<Char>('m');\n    }\n    buffer[index++] = static_cast<Char>(0);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00828",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 365,
-  "validation_status": "validated"
-}

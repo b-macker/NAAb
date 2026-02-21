@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00877_execute() {\n    {\n          constexpr auto next_id =\n              ID != manual_indexing_id ? ID + 1 : manual_indexing_id;\n          return parse_replacement_field_then_tail<\n              decltype(get_type<arg_index, Args>::value), Args, arg_id_end_pos,\n              arg_index, next_id>(format_str);\n        }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00877",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 455,
-  "validation_status": "validated"
-}

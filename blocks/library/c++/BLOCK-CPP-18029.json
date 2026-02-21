@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/FunctionExtras.h\"\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/ParentMapContext.h\"\n#include \"clang/AST/RecursiveASTVisitor.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"clang/ExtractAPI/API.h\"\n#include \"clang/ExtractAPI/TypedefUnderlyingTypeResolver.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <type_traits>\n\nusing namespace clang;\nusing namespace extractapi;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18029_execute() {\n    {\n  for (const auto &Record : Records) {\n    if (Name == Record.second.get()->Name) {\n      auto &DeclFragment = Record.second->Declaration;\n      DeclFragment.insert(DeclFragment.begin(), \" \",\n                          DeclarationFragments::FragmentKind::Text);\n      DeclFragment.insert(DeclFragment.begin(), \"typedef\",\n                          DeclarationFragments::FragmentKind::Keyword, \"\",\n                          nullptr);\n      DeclFragment.insert(--DeclFragment.end(), \" { ... } \",\n                          DeclarationFragments::FragmentKind::Text);\n      DeclFragment.insert(--DeclFragment.end(), Name,\n                          DeclarationFragments::FragmentKind::Identifier);\n      break;\n    }\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18029",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/ExtractAPIVisitor.h",
-  "source_line": 109,
-  "validation_status": "validated"
-}

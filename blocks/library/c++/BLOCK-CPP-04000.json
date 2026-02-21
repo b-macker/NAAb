@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04000_execute() {\n    {\n    return (upper <= 64 * word) ? 0\n           : (upper >= 64 * (word + 1))\n               ? ~static_cast<uint64_t>(0)\n               : (~static_cast<uint64_t>(0) >> (64 - upper % 64));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04000",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/charset.h",
-  "source_line": 140,
-  "validation_status": "validated"
-}

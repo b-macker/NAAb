@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18564_execute() {\n    {\n  uint32_t Key;    // Offset (into strings) of key.\n  uint32_t Prefix; // Offset (into strings) of value prefix.\n  uint32_t Suffix; // Offset (into strings) of value suffix.\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18564",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/HeaderMapTypes.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

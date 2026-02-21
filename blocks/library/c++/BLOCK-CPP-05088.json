@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  explicit DefaultValueAdapter() {}\n\n  void ConstructNext(A& allocator, Pointer<A> construct_at) {\n    AllocatorTraits<A>::construct(allocator, construct_at);\n  }\n\n  void AssignNext(Pointer<A> assign_at) { *assign_at = ValueType<A>(); }\n}",
-  "id": "BLOCK-CPP-05088",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/inlined_vector.h",
-  "source_line": 203,
-  "validation_status": "validated"
-}

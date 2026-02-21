@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTImportError.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/TemplateName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <optional>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07097_execute() {\n    { Conservative, Liberal }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07097",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTImporter.h",
-  "source_line": 69,
-  "validation_status": "validated"
-}

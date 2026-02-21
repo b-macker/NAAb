@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/internal/randen_slow.h\"\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/platform.h\"\n#include \"absl/random/internal/randen_traits.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02833_execute() {\n    {\n  for (size_t round = 0; round < RandenTraits::kFeistelRounds; ++round) {\n    keys = FeistelRound(state, keys);\n    BlockShuffle(state);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02833",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_slow.cc",
-  "source_line": 389,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  ConverterConsumer(Converter converter, absl::Span<const FormatArgImpl> pack)\n      : converter_(converter), arg_context_(pack) {}\n\n  bool Append(string_view s) {\n    converter_.Append(s);\n    return true;\n  }\n  bool ConvertOne(const UnboundConversion& conv, string_view conv_string) {\n    BoundConversion bound;\n    if (!arg_context_.Bind(&conv, &bound)) return false;\n    return converter_.ConvertOne(bound, conv_string);\n  }\n\n private:\n  Converter converter_;\n  ArgContext arg_context_;\n}",
-  "id": "BLOCK-CPP-03030",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/bind.cc",
-  "source_line": 119,
-  "validation_status": "validated"
-}

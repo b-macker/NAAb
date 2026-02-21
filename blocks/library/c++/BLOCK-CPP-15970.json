@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMap.h\"\n\nusing namespace clang;\nusing namespace attr;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15970_execute() {\n    {\n\n/// A list of all the recognized kinds of attributes.\nenum SubjectMatchRule {\n#define ATTR_MATCH_RULE(X, Spelling, IsAbstract) X,\n#include \"clang/Basic/AttrSubMatchRulesList.inc\"\n  SubjectMatchRule_Last = -1\n#define ATTR_MATCH_RULE(X, Spelling, IsAbstract) +1\n#include \"clang/Basic/AttrSubMatchRulesList.inc\"\n};\n\nconst char *getSubjectMatchRuleSpelling(SubjectMatchRule Rule);\n\nusing ParsedSubjectMatchRuleSet = llvm::DenseMap<int, SourceRange>;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15970",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AttrSubjectMatchRules.h",
-  "source_line": 16,
-  "validation_status": "validated"
-}

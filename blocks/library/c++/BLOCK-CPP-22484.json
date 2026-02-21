@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang-c/BuildSystem.h\"\n#include \"clang-c/CXDiagnostic.h\"\n#include \"clang-c/CXErrorCode.h\"\n#include \"clang-c/CXFile.h\"\n#include \"clang-c/CXSourceLocation.h\"\n#include \"clang-c/CXString.h\"\n#include \"clang-c/ExternC.h\"\n#include \"clang-c/Platform.h\"\n\nusing namespace pollution;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22484_execute() {\n    {\n  /**\n   * The major version number, e.g., the '10' in '10.7.3'. A negative\n   * value indicates that there is no version number at all.\n   */\n  int Major;\n  /**\n   * The minor version number, e.g., the '7' in '10.7.3'. This value\n   * will be negative if no minor version number was provided, e.g., for\n   * version '10'.\n   */\n  int Minor;\n  /**\n   * The subminor version number, e.g., the '3' in '10.7.3'. This value\n   * will be negative if no minor or subminor version number was provided,\n   * e.g., in version '10' or '10.7'.\n   */\n  int Subminor;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22484",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang-c/Index.h",
-  "source_line": 154,
-  "validation_status": "validated"
-}

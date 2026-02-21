@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-CPP-06532_execute() {\n    {\n  char tzh_magic[4];      /* TZ_MAGIC */\n  char tzh_version[1];    /* '\\0' or '2'-'4' as of 2021 */\n  char tzh_reserved[15];  /* reserved; must be zero */\n  char tzh_ttisutcnt[4];  /* coded number of trans. time flags */\n  char tzh_ttisstdcnt[4]; /* coded number of trans. time flags */\n  char tzh_leapcnt[4];    /* coded number of leap seconds */\n  char tzh_timecnt[4];    /* coded number of transition times */\n  char tzh_typecnt[4];    /* coded number of local time types */\n  char tzh_charcnt[4];    /* coded number of abbr. chars */\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06532",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/tzfile.h",
-  "source_line": 36,
-  "validation_status": "validated"
-}

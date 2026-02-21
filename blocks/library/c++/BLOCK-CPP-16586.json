@@ -1,8 +1,0 @@
-{
-  "code": "#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16586_execute() {\n    {\n  return L == GVA_Internal || L == GVA_StrongExternal;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16586",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Linkage.h",
-  "source_line": 82,
-  "validation_status": "validated"
-}

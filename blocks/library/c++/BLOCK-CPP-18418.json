@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Bitstream/BitCodes.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18418_execute() {\n    {\nnamespace serialized_diags {\n\nenum BlockIDs {\n  /// A top-level block which represents any meta data associated\n  /// with the diagostics, including versioning of the format.\n  BLOCK_META = llvm::bitc::FIRST_APPLICATION_BLOCKID,\n\n  /// The this block acts as a container for all the information\n  /// for a specific diagnostic.\n  BLOCK_DIAG\n};\n\nenum RecordIDs {\n  RECORD_VERSION = 1,\n  RECORD_DIAG,\n  RECORD_SOURCE_RANGE,\n  RECORD_DIAG_FLAG,\n  RECORD_CATEGORY,\n  RECORD_FILENAME,\n  RECORD_FIXIT,\n  RECORD_FIRST = RECORD_VERSION,\n  RECORD_LAST = RECORD_FIXIT\n};\n\n/// A stable version of DiagnosticIDs::Level.\n///\n/// Do not change the order of values in this enum, and please increment the\n/// serialized diagnostics version number when you add to it.\nenum Level {\n  Ignored = 0,\n  Note,\n  Warning,\n  Error,\n  Fatal,\n  Remark\n};\n\n/// The serialized diagnostics version number.\nenum { VersionNumber = 2 };\n\n} // end serialized_diags namespace\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18418",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/SerializedDiagnostics.h",
-  "source_line": 14,
-  "validation_status": "validated"
-}

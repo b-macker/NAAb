@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/synchronization/blocking_counter.h\"\n#include <atomic>\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02055_execute() {\n    { return *reinterpret_cast<bool *>(arg); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02055",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/blocking_counter.cc",
-  "source_line": 27,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstdint>\n#include <string>\n#include <utility>\n/// source file (MemoryBuffer) along with its \\#include path and \\#line data.\n  /// off the top of a \\#include stack.\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16858_execute() {\n    {\n    assert(Loc.isValid());\n    assert(SrcMgr == Loc.SrcMgr && \"Loc comes from another SourceManager!\");\n    return isBeforeInTranslationUnitThan((SourceLocation)Loc);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16858",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SourceLocation.h",
-  "source_line": 437,
-  "validation_status": "validated"
-}

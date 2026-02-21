@@ -1,8 +1,0 @@
-{
-  "code": "{\n  MacroInfo *Info;\n\npublic:\n  DefMacroDirective(MacroInfo *MI, SourceLocation Loc)\n      : MacroDirective(MD_Define, Loc), Info(MI) {\n    assert(MI && \"MacroInfo is null\");\n  }\n  explicit DefMacroDirective(MacroInfo *MI)\n      : DefMacroDirective(MI, MI->getDefinitionLoc()) {}\n\n  /// The data for the macro definition.\n  const MacroInfo *getInfo() const { return Info; }\n  MacroInfo *getInfo() { return Info; }\n\n  static bool classof(const MacroDirective *MD) {\n    return MD->getKind() == MD_Define;\n  }\n\n  static bool classof(const DefMacroDirective *) { return true; }\n}",
-  "id": "BLOCK-CPP-18761",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MacroInfo.h",
-  "source_line": 429,
-  "validation_status": "validated"
-}

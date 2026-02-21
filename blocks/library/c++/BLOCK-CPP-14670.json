@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ASTMatchers/ASTMatchers.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/Timer.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace ast_matchers;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14670_execute() {\n    {\n  internal::CollectMatchesCallback Callback;\n  MatchFinder Finder;\n  Finder.addMatcher(Matcher, &Callback);\n  Finder.matchAST(Context);\n  return std::move(Callback.Nodes);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-14670",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchFinder.h",
-  "source_line": 317,
-  "validation_status": "validated"
-}

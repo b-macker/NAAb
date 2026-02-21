@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename CHECKER>\n  static void _checkBind(void *checker,\n                         const SVal &location, const SVal &val, const Stmt *S,\n                         CheckerContext &C) {\n    ((const CHECKER *)checker)->checkBind(location, val, S, C);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForBind(\n           CheckerManager::CheckBindFunc(checker, _checkBind<CHECKER>));\n  }\n}",
-  "id": "BLOCK-CPP-22306",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 210,
-  "validation_status": "validated"
-}

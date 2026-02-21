@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/tweakme.h>\n#include <atomic>\n#include <chrono>\n#include <cstdio>\n#include <exception>\n#include <functional>\n#include <initializer_list>\n#include <memory>\n#include <string>\n#include <type_traits>\n    #include <version>\n        #include <format>\n        #include <string_view>\n#include <spdlog/fmt/fmt.h>\n        #include <spdlog/fmt/xchar.h>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace fmt_lib;\nusing namespace fmt_lib;\nusing namespace level;\nusing namespace level;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00019_execute() {\n    {\n    return value;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00019",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/common.h",
-  "source_line": 402,
-  "validation_status": "validated"
-}

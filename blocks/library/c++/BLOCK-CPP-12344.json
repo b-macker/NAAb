@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/CommentOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <map>\n\nusing namespace clang;\nusing namespace comments;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12344_execute() {\n    {\n    std::string Text;\n    PresumedLoc Begin;\n    PresumedLoc End;\n\n    CommentLine(StringRef Text, PresumedLoc Begin, PresumedLoc End)\n        : Text(Text), Begin(Begin), End(End) {}\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12344",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/RawCommentList.h",
-  "source_line": 153,
-  "validation_status": "validated"
-}

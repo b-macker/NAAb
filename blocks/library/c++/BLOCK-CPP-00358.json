@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/details/fmt_helper.h>\n    #include <spdlog/details/null_mutex.h>\n    #include <spdlog/details/os.h>\n    #include <spdlog/details/synchronous_factory.h>\n    #include <spdlog/sinks/base_sink.h>\n    #include <android/log.h>\n    #include <chrono>\n    #include <mutex>\n    #include <string>\n    #include <thread>\n    #include <type_traits>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00358_execute() {\n    {\n        switch (level) {\n            case spdlog::level::trace:\n                return ANDROID_LOG_VERBOSE;\n            case spdlog::level::debug:\n                return ANDROID_LOG_DEBUG;\n            case spdlog::level::info:\n                return ANDROID_LOG_INFO;\n            case spdlog::level::warn:\n                return ANDROID_LOG_WARN;\n            case spdlog::level::err:\n                return ANDROID_LOG_ERROR;\n            case spdlog::level::critical:\n                return ANDROID_LOG_FATAL;\n            default:\n                return ANDROID_LOG_DEFAULT;\n        }\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00358",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/android_sink.h",
-  "source_line": 88,
-  "validation_status": "validated"
-}

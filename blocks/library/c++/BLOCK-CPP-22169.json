@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include <memory>\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22169_execute() {\n    {\n\nclass ASTConsumer;\nclass DiagnosticsEngine;\nclass LangOptions;\nclass Preprocessor;\n\n// ObjC rewriter: attempts to rewrite ObjC constructs into pure C code.\n// This is considered experimental, and only works with Apple's ObjC runtime.\nstd::unique_ptr<ASTConsumer>\nCreateObjCRewriter(const std::string &InFile, std::unique_ptr<raw_ostream> OS,\n                   DiagnosticsEngine &Diags, const LangOptions &LOpts,\n                   bool SilenceRewriteMacroWarning);\nstd::unique_ptr<ASTConsumer>\nCreateModernObjCRewriter(const std::string &InFile,\n                         std::unique_ptr<raw_ostream> OS,\n                         DiagnosticsEngine &Diags, const LangOptions &LOpts,\n                         bool SilenceRewriteMacroWarning, bool LineInfo);\n\n/// CreateHTMLPrinter - Create an AST consumer which rewrites source code to\n/// HTML with syntax highlighting suitable for viewing in a web-browser.\nstd::unique_ptr<ASTConsumer> CreateHTMLPrinter(std::unique_ptr<raw_ostream> OS,\n                                               Preprocessor &PP,\n                                               bool SyntaxHighlight = true,\n                                               bool HighlightMacros = true);\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22169",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Frontend/ASTConsumers.h",
-  "source_line": 20,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/OperatorKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Bitstream/BitCodes.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20780_execute() {\n    {\n    if (ID == TypeID(-1))\n      return TypeIdx(-1);\n\n    return TypeIdx(ID >> Qualifiers::FastWidth);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20780",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTBitCodes.h",
-  "source_line": 104,
-  "validation_status": "validated"
-}

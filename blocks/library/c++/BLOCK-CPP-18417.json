@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Bitstream/BitstreamReader.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorOr.h\"\n#include <system_error>\n\nusing namespace clang;\nusing namespace serialized_diags;\nusing namespace serialized_diags;\nusing namespace clang;\nusing namespace std;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18417_execute() {\n    {\n\ntemplate <>\nstruct is_error_code_enum<clang::serialized_diags::SDError> : std::true_type {};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18417",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/SerializedDiagnosticReader.h",
-  "source_line": 131,
-  "validation_status": "validated"
-}

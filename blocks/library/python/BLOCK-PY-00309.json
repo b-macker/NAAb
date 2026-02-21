@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00309_execute() {\n    def return_buffer_contents(\n        self, frame: Frame, force_unescaped: bool = False\n    ) -> None:\n        \"\"\"Return the buffer contents of the frame.\"\"\"\n        if not force_unescaped:\n            if frame.eval_ctx.volatile:\n                self.writeline(\"if context.eval_ctx.autoescape:\")\n                self.indent()\n                self.writeline(f\"return Markup(concat({frame.buffer}))\")\n                self.outdent()\n                self.writeline(\"else:\")\n                self.indent()\n                self.writeline(f\"return concat({frame.buffer})\")\n                self.outdent()\n                return\n            elif frame.eval_ctx.autoescape:\n                self.writeline(f\"return Markup(concat({frame.buffer}))\")\n                return\n        self.writeline(f\"return concat({frame.buffer})\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00309",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 392,
-  "validation_status": "validated"
-}

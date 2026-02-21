@@ -1,8 +1,0 @@
-{
-  "code": "{\n    Parser *Self = nullptr;\n    AccessSpecifier AS = AS_none;\n    CachedTokens Toks;\n\n  public:\n    explicit LateParsedPragma(Parser *P, AccessSpecifier AS)\n        : Self(P), AS(AS) {}\n\n    void takeToks(CachedTokens &Cached) { Toks.swap(Cached); }\n    const CachedTokens &toks() const { return Toks; }\n    AccessSpecifier getAccessSpecifier() const { return AS; }\n\n    void ParseLexedPragmas() override;\n  }",
-  "id": "BLOCK-CPP-19345",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
-  "source_line": 1336,
-  "validation_status": "validated"
-}

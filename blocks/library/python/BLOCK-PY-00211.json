@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00211_execute() {\n    def _initialize_generators(self) -> Dict[str, callable]:\n        \"\"\"Initialize DevOps generator methods\"\"\"\n        return {\n            'dockerfile': self._generate_dockerfile,\n            'docker_compose': self._generate_docker_compose,\n            'k8s_deployment': self._generate_k8s_deployment,\n            'github_actions': self._generate_github_actions,\n            'default': self._generate_basic_devops\n        }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00211",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

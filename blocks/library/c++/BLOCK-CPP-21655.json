@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Code(SExpr *T, SExpr *B) : SExpr(COP_Code), ReturnType(T), Body(B) {}\n  Code(const Code &C, SExpr *T, SExpr *B) // rewrite constructor\n      : SExpr(C), ReturnType(T), Body(B) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Code; }\n\n  SExpr *returnType() { return ReturnType; }\n  const SExpr *returnType() const { return ReturnType; }\n\n  SExpr *body() { return Body; }\n  const SExpr *body() const { return Body; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Nt = Vs.traverse(ReturnType, Vs.typeCtx(Ctx));\n    auto Nb = Vs.traverse(Body,       Vs.lazyCtx(Ctx));\n    return Vs.reduceCode(*this, Nt, Nb);\n  }\n\n  template <class C>\n  typename C::CType compare(const Code* E, C& Cmp) const {\n    typename C::CType Ct = Cmp.compare(returnType(), E->returnType());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.compare(body(), E->body());\n  }\n\nprivate:\n  SExpr* ReturnType;\n  SExpr* Body;\n}",
-  "id": "BLOCK-CPP-21655",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 774,
-  "validation_status": "validated"
-}

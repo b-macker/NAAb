@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00213_execute() {\n    def _initialize_templates(self) -> Dict[str, str]:\n        \"\"\"Initialize DevOps templates\"\"\"\n        return {\n            'basic_dockerfile': '''FROM node:18-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm install\nCOPY . .\nEXPOSE 3000\nCMD [\"npm\", \"start\"]'''\n        }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00213",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

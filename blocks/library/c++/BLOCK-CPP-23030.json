@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTFwd.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/LambdaCapture.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/AST/TypeLoc.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/AlignOf.h\"\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23030_execute() {\n    {\nclass raw_ostream;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23030",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTTypeTraits.h",
-  "source_line": 28,
-  "validation_status": "validated"
-}

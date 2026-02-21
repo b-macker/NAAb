@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23388_execute() {\n    {\n    friend class TextComment;\n\n    unsigned : NumInlineContentCommentBits;\n\n    /// True if \\c IsWhitespace field contains a valid value.\n    mutable unsigned IsWhitespaceValid : 1;\n\n    /// True if this comment AST node contains only whitespace.\n    mutable unsigned IsWhitespace : 1;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23388",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
-  "source_line": 79,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename CHECKER>\n  static ProgramStateRef\n  _checkConstPointerEscape(void *Checker,\n                      ProgramStateRef State,\n                      const InvalidatedSymbols &Escaped,\n                      const CallEvent *Call,\n                      PointerEscapeKind Kind,\n                      RegionAndSymbolInvalidationTraits *ETraits) {\n\n    if (!ETraits)\n      return State;\n\n    InvalidatedSymbols ConstEscape;\n    for (SymbolRef Sym : Escaped) {\n      if (ETraits->hasTrait(\n              Sym, RegionAndSymbolInvalidationTraits::TK_PreserveContents) &&\n          !ETraits->hasTrait(\n              Sym, RegionAndSymbolInvalidationTraits::TK_SuppressEscape))\n        ConstEscape.insert(Sym);\n    }\n\n    if (ConstEscape.empty())\n      return State;\n\n    return ((const CHECKER *)Checker)->checkConstPointerEscape(State,\n                                                               ConstEscape,\n                                                               Call,\n                                                               Kind);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForPointerEscape(\n      CheckerManager::CheckPointerEscapeFunc(checker,\n                                            _checkConstPointerEscape<CHECKER>));\n  }\n}",
-  "id": "BLOCK-CPP-22316",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 398,
-  "validation_status": "validated"
-}

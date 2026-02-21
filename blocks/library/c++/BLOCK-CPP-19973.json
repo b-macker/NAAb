@@ -1,8 +1,0 @@
-{
-  "code": "{\n  // NOTE: If you add any members to this struct, make sure to serialize them.\n  /// If there is more than one decl with this signature.\n  llvm::PointerIntPair<ObjCMethodDecl *, 1> MethodAndHasMoreThanOneDecl;\n  /// The next list object and 2 bits for extra info.\n  llvm::PointerIntPair<ObjCMethodList *, 2> NextAndExtraBits;\n\n  ObjCMethodList() { }\n  ObjCMethodList(ObjCMethodDecl *M)\n      : MethodAndHasMoreThanOneDecl(M, 0) {}\n  ObjCMethodList(const ObjCMethodList &L)\n      : MethodAndHasMoreThanOneDecl(L.MethodAndHasMoreThanOneDecl),\n        NextAndExtraBits(L.NextAndExtraBits) {}\n\n  ObjCMethodList &operator=(const ObjCMethodList &L) {\n    MethodAndHasMoreThanOneDecl = L.MethodAndHasMoreThanOneDecl;\n    NextAndExtraBits = L.NextAndExtraBits;\n    return *this;\n  }\n\n  ObjCMethodList *getNext() const { return NextAndExtraBits.getPointer(); }\n  unsigned getBits() const { return NextAndExtraBits.getInt(); }\n  void setNext(ObjCMethodList *L) { NextAndExtraBits.setPointer(L); }\n  void setBits(unsigned B) { NextAndExtraBits.setInt(B); }\n\n  ObjCMethodDecl *getMethod() const {\n    return MethodAndHasMoreThanOneDecl.getPointer();\n  }\n  void setMethod(ObjCMethodDecl *M) {\n    return MethodAndHasMoreThanOneDecl.setPointer(M);\n  }\n\n  bool hasMoreThanOneDecl() const {\n    return MethodAndHasMoreThanOneDecl.getInt();\n  }\n  void setHasMoreThanOneDecl(bool B) {\n    return MethodAndHasMoreThanOneDecl.setInt(B);\n  }\n}",
-  "id": "BLOCK-CPP-19973",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ObjCMethodList.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

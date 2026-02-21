@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n    // condition could evaluate differently when subsequently #included.  Reject\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18819_execute() {\n    {\n    // If we have a macro, that means the top of the file was ok.  Set our state\n    // back to \"not having read any tokens\" so we can detect anything after the\n    // #endif.\n    if (!TheMacro) return Invalidate();\n\n    // At this point, we haven't \"read any tokens\" but we do have a controlling\n    // macro.\n    ReadAnyTokens = false;\n    ImmediatelyAfterTopLevelIfndef = false;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18819",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MultipleIncludeOpt.h",
-  "source_line": 155,
-  "validation_status": "validated"
-}

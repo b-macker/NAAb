@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <functional>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03709_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03709",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/meta/type_traits.h",
-  "source_line": 366,
-  "validation_status": "validated"
-}

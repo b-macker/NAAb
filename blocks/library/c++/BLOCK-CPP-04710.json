@@ -1,8 +1,0 @@
-{
-  "code": "#include <atomic>\n#include <cstdint>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/low_level_scheduling.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/scheduling_mode.h\"\n#include \"absl/base/internal/tsan_mutex_interface.h\"\n#include \"absl/base/thread_annotations.h\"\n\nusing namespace tcmalloc;\nusing namespace tcmalloc_internal;\nusing namespace tcmalloc_internal;\nusing namespace tcmalloc;\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04710_execute() {\n    {\n    ABSL_TSAN_MUTEX_CREATE(this, __tsan_mutex_not_static);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04710",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/spinlock.h",
-  "source_line": 58,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/log/internal/proto.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02749_execute() {\n    {\n  const uint64_t tag_type = MakeTagType(tag, WireType::kLengthDelimited);\n  const size_t tag_type_size = VarintSize(tag_type);\n  uint64_t length = value.size();\n  const size_t length_size = VarintSize(length);\n  if (tag_type_size + length_size + value.size() > buf->size()) {\n    buf->remove_suffix(buf->size());\n    return false;\n  }\n  EncodeRawVarint(tag_type, tag_type_size, buf);\n  EncodeRawVarint(length, length_size, buf);\n  memcpy(buf->data(), value.data(), value.size());\n  buf->remove_prefix(value.size());\n  return true;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02749",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/proto.cc",
-  "source_line": 88,
-  "validation_status": "validated"
-}

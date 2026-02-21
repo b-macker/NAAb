@@ -1,8 +1,0 @@
-{
-  "code": "{\n  uint32_t Idx = 0;\n\npublic:\n  TypeIdx() = default;\n  explicit TypeIdx(uint32_t index) : Idx(index) {}\n\n  uint32_t getIndex() const { return Idx; }\n\n  TypeID asTypeID(unsigned FastQuals) const {\n    if (Idx == uint32_t(-1))\n      return TypeID(-1);\n\n    return (Idx << Qualifiers::FastWidth) | FastQuals;\n  }\n\n  static TypeIdx fromTypeID(TypeID ID) {\n    if (ID == TypeID(-1))\n      return TypeIdx(-1);\n\n    return TypeIdx(ID >> Qualifiers::FastWidth);\n  }\n}",
-  "id": "BLOCK-CPP-20802",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTBitCodes.h",
-  "source_line": 88,
-  "validation_status": "validated"
-}

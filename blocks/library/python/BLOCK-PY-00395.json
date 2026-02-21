@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00395_execute() {\n    def visit_OverlayScope(self, node: nodes.OverlayScope, frame: Frame) -> None:\n        ctx = self.temporary_identifier()\n        self.writeline(f\"{ctx} = {self.derive_context(frame)}\")\n        self.writeline(f\"{ctx}.vars = \")\n        self.visit(node.context, frame)\n        self.push_context_reference(ctx)\n\n        scope_frame = frame.inner(isolated=True)\n        scope_frame.symbols.analyze_node(node)\n        self.enter_frame(scope_frame)\n        self.blockvisit(node.body, scope_frame)\n        self.leave_frame(scope_frame)\n        self.pop_context_reference()\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00395",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1955,
-  "validation_status": "validated"
-}

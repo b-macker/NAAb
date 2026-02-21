@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-JSON_execute() {\n    \n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-JSON",
-  "language": "cpp",
-  "source_file": "/storage/emulated/0/Download/.naab/naab_language/blocks/json/json_block.cpp",
-  "source_line": 1,
-  "validation_status": "validated"
-}

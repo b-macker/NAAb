@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15339_execute() {\n    {\n    if (E)\n      E->dump();\n    if (D)\n      D->dump();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15339",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/AnyCall.h",
-  "source_line": 209,
-  "validation_status": "validated"
-}

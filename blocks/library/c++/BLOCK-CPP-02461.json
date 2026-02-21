@@ -1,8 +1,0 @@
-{
-  "code": "{  // fill in entries for powers of 2\n      if (j == 0 && i == 128) {\n        t[j][i] = last;  // top bit in last byte is given\n      } else {\n        // each successive power of two is derived from the previous\n        // one, either in this table, or the last table\n        uint32_t pred;\n        if (i == 128) {\n          pred = t[j - 1][1];\n        } else {\n          pred = t[j][i << 1];\n        }\n        // Advance the CRC by one bit (multiply by X, and take remainder\n        // through one step of polynomial long division)\n        if (pred & 1) {\n          t[j][i] = (pred >> 1) ^ poly;\n        } else {\n          t[j][i] = pred >> 1;\n        }\n      }\n    }",
-  "id": "BLOCK-CPP-02461",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc.cc",
-  "source_line": 104,
-  "validation_status": "validated"
-}

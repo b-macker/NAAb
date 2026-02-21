@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>\n#include <iostream>\n#include <limits>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/int128.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05879_execute() {\n    {\n  static_assert(std::is_floating_point<FloatType>::value, \"\");\n  FloatType dest;\n  is >> dest;\n  // Parsing a double value may report a subnormal value as an error\n  // despite being able to represent it.\n  // See https://stackoverflow.com/q/52410931/3286653\n  // It may also report an underflow when parsing DOUBLE_MIN as an\n  // ERANGE error, as the parsed value may be smaller than DOUBLE_MIN\n  // and rounded up.\n  // See: https://stackoverflow.com/q/42005462\n  if (is.fail() &&\n      (std::fabs(dest) == (std::numeric_limits<FloatType>::min)() ||\n       std::fpclassify(dest) == FP_SUBNORMAL)) {\n    is.clear(is.rdstate() & (~std::ios_base::failbit));\n  }\n  return dest;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05879",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/iostream_state_saver.h",
-  "source_line": 221,
-  "validation_status": "validated"
-}

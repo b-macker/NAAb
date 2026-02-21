@@ -1,8 +1,0 @@
-{
-  "code": "#include <atomic>\n#include <functional>\n#include <memory>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/per_thread_tls.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/profiling/internal/sample_recorder.h\"\n#include \"absl/synchronization/mutex.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05022_execute() {\n    {\n    if (ABSL_PREDICT_TRUE(info_ == nullptr)) return;\n    RecordClearedReservationSlow(info_);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05022",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hashtablez_sampler.h",
-  "source_line": 157,
-  "validation_status": "validated"
-}

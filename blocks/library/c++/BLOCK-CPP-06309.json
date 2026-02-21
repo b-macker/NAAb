@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename Arg>\n  static bool ToInt(Arg arg, int* out) {\n    // A value initialized FormatConversionSpecImpl has a `none` conv, which\n    // tells the dispatcher to run the `int` conversion.\n    return arg.dispatcher_(arg.data_, {}, out);\n  }\n\n  template <typename Arg>\n  static bool Convert(Arg arg, FormatConversionSpecImpl conv,\n                      FormatSinkImpl* out) {\n    return arg.dispatcher_(arg.data_, conv, out);\n  }\n\n  template <typename Arg>\n  static typename Arg::Dispatcher GetVTablePtrForTest(Arg arg) {\n    return arg.dispatcher_;\n  }\n}",
-  "id": "BLOCK-CPP-06309",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/arg.h",
-  "source_line": 409,
-  "validation_status": "validated"
-}

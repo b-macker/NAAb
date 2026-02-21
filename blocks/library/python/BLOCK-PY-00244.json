@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00244_execute() {\n    def increment_lineno(node, n=1):\n    \"\"\"\n    Increment the line number and end line number of each node in the tree\n    starting at *node* by *n*. This is useful to \"move code\" to a different\n    location in a file.\n    \"\"\"\n    for child in walk(node):\n        # TypeIgnore is a special case where lineno is not an attribute\n        # but rather a field of the node itself.\n        if isinstance(child, TypeIgnore):\n            child.lineno = getattr(child, 'lineno', 0) + n\n            continue\n\n        if 'lineno' in child._attributes:\n            child.lineno = getattr(child, 'lineno', 0) + n\n        if (\n            \"end_lineno\" in child._attributes\n            and (end_lineno := getattr(child, \"end_lineno\", 0)) is not None\n        ):\n            child.end_lineno = end_lineno + n\n    return node\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00244",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
-  "source_line": 259,
-  "validation_status": "validated"
-}

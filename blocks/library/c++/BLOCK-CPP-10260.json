@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  explicit ImplicitValueInitExpr(QualType ty)\n      : Expr(ImplicitValueInitExprClass, ty, VK_PRValue, OK_Ordinary) {\n    setDependence(computeDependence(this));\n  }\n\n  /// Construct an empty implicit value initialization.\n  explicit ImplicitValueInitExpr(EmptyShell Empty)\n    : Expr(ImplicitValueInitExprClass, Empty) { }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ImplicitValueInitExprClass;\n  }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return SourceLocation(); }\n  SourceLocation getEndLoc() const LLVM_READONLY { return SourceLocation(); }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
-  "id": "BLOCK-CPP-10260",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
-  "source_line": 5581,
-  "validation_status": "validated"
-}

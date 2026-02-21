@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Rewrite/Core/RewriteBuffer.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <map>\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22152_execute() {\n    {\n    return InsertText(Loc, Str);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22152",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/Rewriter.h",
-  "source_line": 123,
-  "validation_status": "validated"
-}

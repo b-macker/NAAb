@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00408_execute() {\n    class Helper(Node):\n    \"\"\"Nodes that exist in a specific context only.\"\"\"\n\n    abstract = True\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00408",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 288,
-  "validation_status": "validated"
-}

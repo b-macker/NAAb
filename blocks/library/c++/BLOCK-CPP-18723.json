@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Lex/Token.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <algorithm>\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18723_execute() {\n    { UsedForHeaderGuard = Val; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18723",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MacroInfo.h",
-  "source_line": 296,
-  "validation_status": "validated"
-}

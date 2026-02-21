@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/AST/StmtCXX.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13096_execute() {\n    {\n    auto **Storage = reinterpret_cast<Expr **>(\n        &Data->getChildren()[getArraysOffset(getDirectiveKind()) +\n                             getLoopsNumber()]);\n    return llvm::MutableArrayRef(Storage, getLoopsNumber());\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-13096",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtOpenMP.h",
-  "source_line": 1074,
-  "validation_status": "validated"
-}

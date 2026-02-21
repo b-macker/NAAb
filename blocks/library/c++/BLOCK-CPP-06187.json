@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  class Iterator {\n   public:\n    using iterator_category = std::input_iterator_tag;\n    using value_type = const CordzInfo&;\n    using difference_type = ptrdiff_t;\n    using pointer = const CordzInfo*;\n    using reference = value_type;\n\n    Iterator() = default;\n\n    Iterator& operator++();\n    Iterator operator++(int);\n    friend bool operator==(const Iterator& lhs, const Iterator& rhs);\n    friend bool operator!=(const Iterator& lhs, const Iterator& rhs);\n    reference operator*() const;\n    pointer operator->() const;\n\n   private:\n    friend class CordzSampleToken;\n    explicit Iterator(const CordzSampleToken* token);\n\n    const CordzSampleToken* token_ = nullptr;\n    pointer current_ = nullptr;\n  };\n\n  CordzSampleToken() = default;\n  CordzSampleToken(const CordzSampleToken&) = delete;\n  CordzSampleToken& operator=(const CordzSampleToken&) = delete;\n\n  Iterator begin() { return Iterator(this); }\n  Iterator end() { return Iterator(); }\n}",
-  "id": "BLOCK-CPP-06187",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_sample_token.h",
-  "source_line": 58,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18811_execute() {\n    {\n    // If we have read tokens but have no controlling macro, the state-machine\n    // below can never \"accept\".\n    ReadAnyTokens = true;\n    ImmediatelyAfterTopLevelIfndef = false;\n    DefinedMacro = nullptr;\n    TheMacro = nullptr;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18811",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MultipleIncludeOpt.h",
-  "source_line": 85,
-  "validation_status": "validated"
-}

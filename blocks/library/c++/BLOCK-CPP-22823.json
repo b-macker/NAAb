@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/Error.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22823_execute() {\n    {\n\nclass ASTImportError : public llvm::ErrorInfo<ASTImportError> {\npublic:\n  /// \\brief Kind of error when importing an AST component.\n  enum ErrorKind {\n    NameConflict,         /// Naming ambiguity (likely ODR violation).\n    UnsupportedConstruct, /// Not supported node or case.\n    Unknown               /// Other error.\n  };\n\n  ErrorKind Error;\n\n  static char ID;\n\n  ASTImportError() : Error(Unknown) {}\n  ASTImportError(const ASTImportError &Other) : Error(Other.Error) {}\n  ASTImportError &operator=(const ASTImportError &Other) {\n    Error = Other.Error;\n    return *this;\n  }\n  ASTImportError(ErrorKind Error) : Error(Error) {}\n\n  std::string toString() const;\n\n  void log(llvm::raw_ostream &OS) const override;\n  std::error_code convertToErrorCode() const override;\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22823",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTImportError.h",
-  "source_line": 19,
-  "validation_status": "validated"
-}

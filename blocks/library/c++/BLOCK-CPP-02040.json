@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/string_view.h\"\n#include <algorithm>\n#include <climits>\n#include <cstring>\n#include <ostream>\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02040_execute() {\n    {\n  if (0 == neelen) {\n    return phaystack;  // even if haylen is 0\n  }\n  if (haylen < neelen) return nullptr;\n\n  const char* match;\n  const char* hayend = phaystack + haylen - neelen + 1;\n  // A static cast is used here as memchr returns a const void *, and pointer\n  // arithmetic is not allowed on pointers to void.\n  while (\n      (match = static_cast<const char*>(memchr(\n           phaystack, pneedle[0], static_cast<size_t>(hayend - phaystack))))) {\n    if (memcmp(match, pneedle, neelen) == 0)\n      return match;\n    else\n      phaystack = match + 1;\n  }\n  return nullptr;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02040",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/string_view.cc",
-  "source_line": 33,
-  "validation_status": "validated"
-}

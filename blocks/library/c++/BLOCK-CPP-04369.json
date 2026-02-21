@@ -1,8 +1,0 @@
-{
-  "code": "#include <sys/time.h>\n#include <chrono>  // NOLINT(build/c++11)\n#include <cmath>\n#include <cstdint>\n#include <ctime>\n#include <limits>\n#include <ostream>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04369_execute() {\n    {\n  // 719162 is the number of days from 0001-01-01 to 1970-01-01,\n  // assuming the Gregorian calendar.\n  return Time(\n      time_internal::MakeDuration(-24 * 719162 * int64_t{3600}, uint32_t{0}));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04369",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.h",
-  "source_line": 897,
-  "validation_status": "validated"
-}

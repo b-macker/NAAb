@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/cordz_functions.h\"\n#include <atomic>\n#include <cmath>\n#include <limits>\n#include <random>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/profiling/internal/exponential_biased.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02904_execute() {\n    {\n\n  thread_local absl::profiling_internal::ExponentialBiased\n      exponential_biased_generator;\n  int32_t mean_interval = get_cordz_mean_interval();\n\n  // Check if we disabled profiling. If so, set the next sample to a \"large\"\n  // number to minimize the overhead of the should_profile codepath.\n  if (mean_interval <= 0) {\n    cordz_next_sample = kIntervalIfDisabled;\n    return false;\n  }\n\n  // Check if we're always sampling.\n  if (mean_interval == 1) {\n    cordz_next_sample = 1;\n    return true;\n  }\n\n  if (cordz_next_sample <= 0) {\n    // If first check on current thread, check cordz_should_profile()\n    // again using the created (initial) stride in cordz_next_sample.\n    const bool initialized = cordz_next_sample != kInitCordzNextSample;\n    cordz_next_sample = exponential_biased_generator.GetStride(mean_interval);\n    return initialized || cordz_should_profile();\n  }\n\n  --cordz_next_sample;\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02904",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_functions.cc",
-  "source_line": 49,
-  "validation_status": "validated"
-}

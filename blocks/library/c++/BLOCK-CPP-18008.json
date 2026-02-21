@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18008_execute() {\n    {\n  /// The domain for which this availability info item applies\n  std::string Domain;\n  VersionTuple Introduced;\n  VersionTuple Deprecated;\n  VersionTuple Obsoleted;\n  bool Unavailable;\n\n  AvailabilityInfo() = default;\n\n  AvailabilityInfo(StringRef Domain, VersionTuple I, VersionTuple D,\n                   VersionTuple O, bool U)\n      : Domain(Domain), Introduced(I), Deprecated(D), Obsoleted(O),\n        Unavailable(U) {}\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18008",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/AvailabilityInfo.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

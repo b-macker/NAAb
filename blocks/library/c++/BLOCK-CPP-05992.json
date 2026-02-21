@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include <intrin.h>  // NOLINT(build/include_order)\n#include \"absl/base/config.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/traits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05992_execute() {\n    {\n    return MultiplyU128ToU256(a, b);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05992",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/wide_multiply.h",
-  "source_line": 84,
-  "validation_status": "validated"
-}

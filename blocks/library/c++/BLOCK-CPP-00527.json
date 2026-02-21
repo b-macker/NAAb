@@ -1,8 +1,0 @@
-{
-  "code": "#include <functional>  // std::reference_wrapper\n#include <memory>      // std::unique_ptr\n#include <vector>\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00527_execute() {\n    {\n    data_.clear();\n    named_info_.clear();\n    dynamic_args_ = detail::dynamic_arg_list();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00527",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/args.h",
-  "source_line": 212,
-  "validation_status": "validated"
-}

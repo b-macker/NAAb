@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/internal/randen_detect.h\"\n#include <cstdint>\n#include <cstring>\n#include \"absl/random/internal/platform.h\"\n#include <intrin.h>  // NOLINT(build/include_order)\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02793_execute() {\n    {\n  return static_cast<uint32_t>(getauxval(hwcap_type));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02793",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_detect.cc",
-  "source_line": 68,
-  "validation_status": "validated"
-}

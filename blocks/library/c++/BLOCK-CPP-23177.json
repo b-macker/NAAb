@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  HLSLAnnotationAttr(ASTContext &Context, const AttributeCommonInfo &CommonInfo,\n                     attr::Kind AK, bool IsLateParsed,\n                     bool InheritEvenIfAlreadyPresent)\n      : InheritableAttr(Context, CommonInfo, AK, IsLateParsed,\n                        InheritEvenIfAlreadyPresent) {}\n\npublic:\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Attr *A) {\n    return A->getKind() >= attr::FirstHLSLAnnotationAttr &&\n           A->getKind() <= attr::LastHLSLAnnotationAttr;\n  }\n}",
-  "id": "BLOCK-CPP-23177",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Attr.h",
-  "source_line": 192,
-  "validation_status": "validated"
-}

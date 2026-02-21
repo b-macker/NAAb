@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/PathDiagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <string>\n#include <utility>\n#include <vector>\n#include \"clang/StaticAnalyzer/Core/Analyses.def\"\n#include \"clang/StaticAnalyzer/Core/Analyses.def\"\n#include \"clang/StaticAnalyzer/Core/Analyses.def\"\n#include \"clang/StaticAnalyzer/Core/Analyses.def\"\n#include \"clang/StaticAnalyzer/Core/AnalyzerOptions.def\"\n#include \"clang/StaticAnalyzer/Core/AnalyzerOptions.def\"\n\nusing namespace clang;\nusing namespace ento;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22231_execute() {\n    {\n    return {FullCompilerInvocation,\n            ShouldDisplayMacroExpansions,\n            ShouldSerializeStats,\n            // The stable report filename option is deprecated because\n            // file names are now always stable. Now the old option acts as\n            // an alias to the new verbose filename option because this\n            // closely mimics the behavior under the old option.\n            ShouldWriteStableReportFilename || ShouldWriteVerboseReportFilename,\n            AnalyzerWerror,\n            ShouldApplyFixIts,\n            ShouldDisplayCheckerNameForText};\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22231",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/AnalyzerOptions.h",
-  "source_line": 375,
-  "validation_status": "validated"
-}

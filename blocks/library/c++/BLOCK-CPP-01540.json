@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>  // std::max\n#include <limits>     // std::numeric_limits\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01540_execute() {\n    {\n public:\n  template <typename T, FMT_ENABLE_IF(std::is_integral<T>::value)>\n  bool operator()(T value) {\n    return value == 0;\n  }\n\n  template <typename T, FMT_ENABLE_IF(!std::is_integral<T>::value)>\n  bool operator()(T) {\n    return false;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01540",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
-  "source_line": 96,
-  "validation_status": "validated"
-}

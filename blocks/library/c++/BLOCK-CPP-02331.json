@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace base_internal {\n\nnamespace {\n\n#ifdef _WIN32\nconst int kMaxEnvVarValueSize = 1024;\n#endif\n\nvoid SetEnvVar(const char* name, const char* value) {\n#ifdef _WIN32\n  SetEnvironmentVariableA(name, value);\n#else\n  if (value == nullptr) {\n    ::unsetenv(name);\n  } else {\n    ::setenv(name, value, 1);\n  }\n#endif\n}\n\n}  // namespace\n\nScopedSetEnv::ScopedSetEnv(const char* var_name, const char* new_value)\n    : var_name_(var_name), was_unset_(false) {\n#ifdef _WIN32\n  char buf[kMaxEnvVarValueSize];\n  auto get_res = GetEnvironmentVariableA(var_name_.c_str(), buf, sizeof(buf));\n  ABSL_INTERNAL_CHECK(get_res < sizeof(buf), \"value exceeds buffer size\");\n\n  if (get_res == 0) {\n    was_unset_ = (GetLastError() == ERROR_ENVVAR_NOT_FOUND);\n  } else {\n    old_value_.assign(buf, get_res);\n  }\n\n  SetEnvironmentVariableA(var_name_.c_str(), new_value);\n#else\n  const char* val = ::getenv(var_name_.c_str());\n  if (val == nullptr) {\n    was_unset_ = true;\n  } else {\n    old_value_ = val;\n  }\n#endif\n\n  SetEnvVar(var_name_.c_str(), new_value);\n}\n\nScopedSetEnv::~ScopedSetEnv() {\n  SetEnvVar(var_name_.c_str(), was_unset_ ? nullptr : old_value_.c_str());\n}\n\n}  // namespace base_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-02331",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/scoped_set_env.cc",
-  "source_line": 25,
-  "validation_status": "validated"
-}

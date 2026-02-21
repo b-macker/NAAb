@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00836_execute() {\n    {\n  auto reset_color = string_view(\"\\x1b[0m\");\n  buffer.append(reset_color.begin(), reset_color.end());\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00836",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 446,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <memory>\n\nusing namespace clang;\nusing namespace sema;\nusing namespace sema;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19402_execute() {\n    { enableCheckFallThrough = 0; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19402",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/AnalysisBasedWarnings.h",
-  "source_line": 43,
-  "validation_status": "validated"
-}

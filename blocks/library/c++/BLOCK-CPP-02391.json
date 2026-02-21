@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/internal/throw_delegate.h\"\n#include <cstdlib>\n#include <functional>\n#include <new>\n#include <stdexcept>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02391_execute() {\n    {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw std::range_error(what_arg);\n#else\n  ABSL_RAW_LOG(FATAL, \"%s\", what_arg);\n  std::abort();\n#endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02391",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/throw_delegate.cc",
-  "source_line": 142,
-  "validation_status": "validated"
-}

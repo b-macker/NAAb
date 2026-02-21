@@ -1,8 +1,0 @@
-{
-  "code": "def _generate_api_client(self, request) -> str:\n        \"\"\"Generate API client implementation\"\"\"\n        return '''\n// API Client Implementation\nclass ApiClient {\n    constructor(baseURL, options = {}) {\n        this.baseURL = baseURL;\n        this.defaultHeaders = options.headers || {};\n        this.timeout = options.timeout || 10000;\n    }\n\n    async request(endpoint, options = {}) {\n        const url = `${this.baseURL}${endpoint}`;\n        const config = {\n            headers: { ...this.defaultHeaders, ...options.headers },\n            ...options\n        };\n\n        try {\n            const response = await fetch(url, config);\n            if (!response.ok) {\n                throw new Error(`HTTP ${response.status}: ${response.statusText}`);\n            }\n            return await response.json();\n        } catch (error) {\n            console.error('API request failed:', error);\n            throw error;\n        }\n    }\n\n    get(endpoint, params) {\n        const url = params ? `${endpoint}?${new URLSearchParams(params)}` : endpoint;\n        return this.request(url, { method: 'GET' });\n    }\n\n    post(endpoint, data) {\n        return this.request(endpoint, {\n            method: 'POST',\n            headers: { 'Content-Type': 'application/json' },\n            body: JSON.stringify(data)\n        });\n    }\n}\n\nexport { ApiClient };\n'''",
-  "id": "BLOCK-PY-00148",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/javascript_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n private:\n  detail::type arg_type_;\n\n  FMT_CONSTEXPR void require_numeric_argument() {\n    if (!is_arithmetic_type(arg_type_))\n      this->on_error(\"format specifier requires numeric argument\");\n  }\n\n public:\n  FMT_CONSTEXPR specs_checker(const Handler& handler, detail::type arg_type)\n      : Handler(handler), arg_type_(arg_type) {}\n\n  FMT_CONSTEXPR void on_align(align_t align) {\n    if (align == align::numeric) require_numeric_argument();\n    Handler::on_align(align);\n  }\n\n  FMT_CONSTEXPR void on_sign(sign_t s) {\n    require_numeric_argument();\n    if (is_integral_type(arg_type_) && arg_type_ != type::int_type &&\n        arg_type_ != type::long_long_type && arg_type_ != type::int128_type &&\n        arg_type_ != type::char_type) {\n      this->on_error(\"format specifier requires signed argument\");\n    }\n    Handler::on_sign(s);\n  }\n\n  FMT_CONSTEXPR void on_hash() {\n    require_numeric_argument();\n    Handler::on_hash();\n  }\n\n  FMT_CONSTEXPR void on_localized() {\n    require_numeric_argument();\n    Handler::on_localized();\n  }\n\n  FMT_CONSTEXPR void on_zero() {\n    require_numeric_argument();\n    Handler::on_zero();\n  }\n\n  FMT_CONSTEXPR void end_precision() {\n    if (is_integral_type(arg_type_) || arg_type_ == type::pointer_type)\n      this->on_error(\"precision not allowed for this argument type\");\n  }\n}",
-  "id": "BLOCK-CPP-01122",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 2860,
-  "validation_status": "validated"
-}

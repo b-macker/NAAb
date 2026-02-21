@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyUtil.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <iterator>\n#include <optional>\n#include <string>\n#include <utility>\n#include \"ThreadSafetyOps.def\"\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace til;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21679_execute() {\n    {\n  enum BaseType : unsigned char {\n    BT_Void = 0,\n    BT_Bool,\n    BT_Int,\n    BT_Float,\n    BT_String,    // String literals\n    BT_Pointer,\n    BT_ValueRef\n  };\n\n  enum SizeType : unsigned char {\n    ST_0 = 0,\n    ST_1,\n    ST_8,\n    ST_16,\n    ST_32,\n    ST_64,\n    ST_128\n  };\n\n  ValueType(BaseType B, SizeType Sz, bool S, unsigned char VS)\n      : Base(B), Size(Sz), Signed(S), VectSize(VS) {}\n\n  inline static SizeType getSizeType(unsigned nbytes);\n\n  template <class T>\n  inline static ValueType getValueType();\n\n  BaseType Base;\n  SizeType Size;\n  bool Signed;\n\n  // 0 for scalar, otherwise num elements in vector\n  unsigned char VectSize;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21679",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 152,
-  "validation_status": "validated"
-}

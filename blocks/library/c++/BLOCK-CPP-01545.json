@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename T> static bool fits_in_int(T value) {\n    unsigned max = max_value<int>();\n    return value <= max;\n  }\n  static bool fits_in_int(bool) { return true; }\n}",
-  "id": "BLOCK-CPP-01545",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
-  "source_line": 63,
-  "validation_status": "validated"
-}

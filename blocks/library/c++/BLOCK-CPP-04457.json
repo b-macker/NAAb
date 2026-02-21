@@ -1,8 +1,0 @@
-{
-  "code": "#include <stdexcept>\n#include \"absl/base/config.h\"\n#include <variant>\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04457_execute() {\n    {\n public:\n  bad_variant_access() noexcept = default;\n  ~bad_variant_access() override;\n  const char* what() const noexcept override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04457",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_variant_access.h",
-  "source_line": 64,
-  "validation_status": "validated"
-}

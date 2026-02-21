@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01424_execute() {\n    {\n private:\n  basic_memory_buffer<wchar_t> buffer_;\n\n public:\n  FMT_API explicit utf8_to_utf16(string_view s);\n  operator basic_string_view<wchar_t>() const { return {&buffer_[0], size()}; }\n  auto size() const -> size_t { return buffer_.size() - 1; }\n  auto c_str() const -> const wchar_t* { return &buffer_[0]; }\n  auto str() const -> std::wstring { return {&buffer_[0], size()}; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01424",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 1274,
-  "validation_status": "validated"
-}

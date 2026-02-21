@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Sanitizers.h\"\n#include \"clang/Basic/XRayInstr.h\"\n#include \"llvm/ADT/FloatingPointMode.h\"\n#include \"llvm/Frontend/Debug/Options.h\"\n#include \"llvm/Support/CodeGen.h\"\n#include \"llvm/Support/Regex.h\"\n#include \"llvm/Target/TargetOptions.h\"\n#include \"llvm/Transforms/Instrumentation/AddressSanitizerOptions.h\"\n#include <map>\n#include <memory>\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16082_execute() {\n    {\n  friend class CompilerInvocation;\n\npublic:\n#define CODEGENOPT(Name, Bits, Default) unsigned Name : Bits;\n#define ENUM_CODEGENOPT(Name, Type, Bits, Default)\n#include \"clang/Basic/CodeGenOptions.def\"\n\nprotected:\n#define CODEGENOPT(Name, Bits, Default)\n#define ENUM_CODEGENOPT(Name, Type, Bits, Default) unsigned Name : Bits;\n#include \"clang/Basic/CodeGenOptions.def\"\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16082",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CodeGenOptions.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  CheckerManager *Mgr;\npublic:\n  EventDispatcher() : Mgr(nullptr) { }\n\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerDispatcherForEvent<EVENT>();\n    static_cast<EventDispatcher<EVENT> *>(checker)->Mgr = &mgr;\n  }\n\n  void dispatchEvent(const EVENT &event) const {\n    Mgr->_dispatchEvent(event);\n  }\n}",
-  "id": "BLOCK-CPP-22322",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 534,
-  "validation_status": "validated"
-}

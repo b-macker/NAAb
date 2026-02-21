@@ -1,8 +1,0 @@
-{
-  "code": "{\n  bool Value;\n  SourceLocation Loc;\n\npublic:\n  ObjCBoolLiteralExpr(bool val, QualType Ty, SourceLocation l)\n      : Expr(ObjCBoolLiteralExprClass, Ty, VK_PRValue, OK_Ordinary), Value(val),\n        Loc(l) {\n    setDependence(ExprDependence::None);\n  }\n  explicit ObjCBoolLiteralExpr(EmptyShell Empty)\n      : Expr(ObjCBoolLiteralExprClass, Empty) {}\n\n  bool getValue() const { return Value; }\n  void setValue(bool V) { Value = V; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return Loc; }\n  SourceLocation getEndLoc() const LLVM_READONLY { return Loc; }\n\n  SourceLocation getLocation() const { return Loc; }\n  void setLocation(SourceLocation L) { Loc = L; }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ObjCBoolLiteralExprClass;\n  }\n}",
-  "id": "BLOCK-CPP-11048",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprObjC.h",
-  "source_line": 87,
-  "validation_status": "validated"
-}

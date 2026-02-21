@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/TokenKinds.h\"\n\nusing namespace clang;\nusing namespace prec;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16703_execute() {\n    {\n  enum Level {\n    Unknown         = 0,    // Not binary operator.\n    Comma           = 1,    // ,\n    Assignment      = 2,    // =, *=, /=, %=, +=, -=, <<=, >>=, &=, ^=, |=\n    Conditional     = 3,    // ?\n    LogicalOr       = 4,    // ||\n    LogicalAnd      = 5,    // &&\n    InclusiveOr     = 6,    // |\n    ExclusiveOr     = 7,    // ^\n    And             = 8,    // &\n    Equality        = 9,    // ==, !=\n    Relational      = 10,   //  >=, <=, >, <\n    Spaceship       = 11,   // <=>\n    Shift           = 12,   // <<, >>\n    Additive        = 13,   // -, +\n    Multiplicative  = 14,   // *, /, %\n    PointerToMember = 15    // .*, ->*\n  };\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16703",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/OperatorPrecedence.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

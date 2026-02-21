@@ -1,8 +1,0 @@
-{
-  "code": "{\n   public:\n    constexpr void set_value(int value) {\n      assert(value >= 0);\n      value_ = value;\n    }\n    constexpr int value() const { return value_; }\n\n    // Marks the value as \"from arg\". aka the '*' format.\n    // Requires `value >= 1`.\n    // When set, is_from_arg() return true and get_from_arg() returns the\n    // original value.\n    // `value()`'s return value is unspecified in this state.\n    constexpr void set_from_arg(int value) {\n      assert(value > 0);\n      value_ = -value - 1;\n    }\n    constexpr bool is_from_arg() const { return value_ < -1; }\n    constexpr int get_from_arg() const {\n      assert(is_from_arg());\n      return -value_ - 1;\n    }\n\n   private:\n    int value_ = -1;\n  }",
-  "id": "BLOCK-CPP-06352",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/constexpr_parser.h",
-  "source_line": 43,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/FunctionExtras.h\"\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/ParentMapContext.h\"\n#include \"clang/AST/RecursiveASTVisitor.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"clang/ExtractAPI/API.h\"\n#include \"clang/ExtractAPI/TypedefUnderlyingTypeResolver.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <type_traits>\n\nusing namespace clang;\nusing namespace extractapi;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18027_execute() {\n    {\n    if (const auto *TypedefDecl = Decl->getTypedefNameForAnonDecl())\n      return TypedefDecl->getName();\n\n    return {};\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18027",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/ExtractAPIVisitor.h",
-  "source_line": 92,
-  "validation_status": "validated"
-}

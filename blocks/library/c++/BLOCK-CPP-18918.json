@@ -1,8 +1,0 @@
-{
-  "code": "{\n    /// The definition of this macro or the name of the macro if it is\n    /// a builtin macro.\n    llvm::PointerUnion<IdentifierInfo *, MacroDefinitionRecord *> NameOrDef;\n\n  public:\n    MacroExpansion(IdentifierInfo *BuiltinName, SourceRange Range)\n        : PreprocessedEntity(MacroExpansionKind, Range),\n          NameOrDef(BuiltinName) {}\n\n    MacroExpansion(MacroDefinitionRecord *Definition, SourceRange Range)\n        : PreprocessedEntity(MacroExpansionKind, Range), NameOrDef(Definition) {\n    }\n\n    /// True if it is a builtin macro.\n    bool isBuiltinMacro() const { return NameOrDef.is<IdentifierInfo *>(); }\n\n    /// The name of the macro being expanded.\n    const IdentifierInfo *getName() const {\n      if (MacroDefinitionRecord *Def = getDefinition())\n        return Def->getName();\n      return NameOrDef.get<IdentifierInfo *>();\n    }\n\n    /// The definition of the macro being expanded. May return null if\n    /// this is a builtin macro.\n    MacroDefinitionRecord *getDefinition() const {\n      return NameOrDef.dyn_cast<MacroDefinitionRecord *>();\n    }\n\n    // Implement isa/cast/dyncast/etc.\n    static bool classof(const PreprocessedEntity *PE) {\n      return PE->getKind() == MacroExpansionKind;\n    }\n  }",
-  "id": "BLOCK-CPP-18918",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PreprocessingRecord.h",
-  "source_line": 168,
-  "validation_status": "validated"
-}

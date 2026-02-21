@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Identifier(StringRef Id): SExpr(COP_Identifier), Name(Id) {}\n  Identifier(const Identifier &) = default;\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Identifier; }\n\n  StringRef name() const { return Name; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    return Vs.reduceIdentifier(*this);\n  }\n\n  template <class C>\n  typename C::CType compare(const Identifier* E, C& Cmp) const {\n    return Cmp.compareStrings(name(), E->name());\n  }\n\nprivate:\n  StringRef Name;\n}",
-  "id": "BLOCK-CPP-21676",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1794,
-  "validation_status": "validated"
-}

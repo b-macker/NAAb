@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <exception>\n#include <functional>\n#include <initializer_list>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_any_invocable;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05575_execute() {\n    {\n    using DecayedT = RemoveCVRef<QualDecayedTRef>;\n\n    constexpr TargetType kTargetType =\n        (std::is_pointer<DecayedT>::value ||\n         std::is_member_pointer<DecayedT>::value)\n            ? TargetType::kPointer\n        : IsCompatibleAnyInvocable<DecayedT>::value\n            ? TargetType::kCompatibleAnyInvocable\n        : IsAnyInvocable<DecayedT>::value\n            ? TargetType::kIncompatibleAnyInvocable\n            : TargetType::kOther;\n    // NOTE: We only use integers instead of enums as template parameters in\n    // order to work around a bug on C++14 under MSVC 2017.\n    // See b/236131881.\n    Initialize<kTargetType, QualDecayedTRef>(std::forward<F>(f));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05575",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/internal/any_invocable.h",
-  "source_line": 453,
-  "validation_status": "validated"
-}

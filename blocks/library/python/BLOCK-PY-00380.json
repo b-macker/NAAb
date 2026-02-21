@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00380_execute() {\n    def visit_Test(self, node: nodes.Test, frame: Frame) -> None:\n        with self._filter_test_common(node, frame, False):\n            self.visit(node.node, frame)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00380",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1848,
-  "validation_status": "validated"
-}

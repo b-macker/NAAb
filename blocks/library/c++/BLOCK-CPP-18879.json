@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18879_execute() {\n    {\npublic:\n  explicit EmptyPragmaHandler(StringRef Name = StringRef());\n\n  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,\n                    Token &FirstToken) override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18879",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Pragma.h",
-  "source_line": 84,
-  "validation_status": "validated"
-}

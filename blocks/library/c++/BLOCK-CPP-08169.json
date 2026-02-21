@@ -1,8 +1,0 @@
-{
-  "code": "{\n  QualType DeclType;\n\n  void anchor() override;\n\nprotected:\n  ValueDecl(Kind DK, DeclContext *DC, SourceLocation L,\n            DeclarationName N, QualType T)\n    : NamedDecl(DK, DC, L, N), DeclType(T) {}\n\npublic:\n  QualType getType() const { return DeclType; }\n  void setType(QualType newType) { DeclType = newType; }\n\n  /// Determine whether this symbol is weakly-imported,\n  ///        or declared with the weak or weak-ref attr.\n  bool isWeak() const;\n\n  /// Whether this variable is the implicit variable for a lambda init-capture.\n  /// Only VarDecl can be init captures, but both VarDecl and BindingDecl\n  /// can be captured.\n  bool isInitCapture() const;\n\n  // If this is a VarDecl, or a BindindDecl with an\n  // associated decomposed VarDecl, return that VarDecl.\n  VarDecl *getPotentiallyDecomposedVarDecl();\n  const VarDecl *getPotentiallyDecomposedVarDecl() const {\n    return const_cast<ValueDecl *>(this)->getPotentiallyDecomposedVarDecl();\n  }\n\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K >= firstValue && K <= lastValue; }\n}",
-  "id": "BLOCK-CPP-08169",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Decl.h",
-  "source_line": 701,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/Module.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18774_execute() {\n    {\n    return BuildingModule;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18774",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/ModuleLoader.h",
-  "source_line": 93,
-  "validation_status": "validated"
-}

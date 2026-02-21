@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20177_execute() {\n    {\nclass LookupResult;\nclass IdentifierInfo;\nclass Preprocessor;\n\nnamespace sema {\nclass RISCVIntrinsicManager {\npublic:\n  enum class IntrinsicKind : uint8_t { RVV, SIFIVE_VECTOR };\n\n  virtual ~RISCVIntrinsicManager() = default;\n\n  virtual void InitIntrinsicList() = 0;\n\n  // Create RISC-V intrinsic and insert into symbol table and return true if\n  // found, otherwise return false.\n  virtual bool CreateIntrinsicIfFound(LookupResult &LR, IdentifierInfo *II,\n                                      Preprocessor &PP) = 0;\n};\n} // end namespace sema\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20177",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/RISCVIntrinsicManager.h",
-  "source_line": 19,
-  "validation_status": "validated"
-}

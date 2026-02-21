@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22887_execute() {\n    {\n    if (Traversal == TK_IgnoreUnlessSpelledInSource && D->isImplicit())\n      return;\n\n    getNodeDelegate().AddChild([=] {\n      getNodeDelegate().Visit(D);\n      if (!D)\n        return;\n\n      ConstDeclVisitor<Derived>::Visit(D);\n\n      for (const auto &A : D->attrs())\n        Visit(A);\n\n      if (const comments::FullComment *Comment =\n              D->getASTContext().getLocalCommentForDeclUncached(D))\n        Visit(Comment, Comment);\n\n      // Decls within functions are visited by the body.\n      if (!isa<FunctionDecl>(*D) && !isa<ObjCMethodDecl>(*D) &&\n          !isa<BlockDecl>(*D)) {\n        if (Traversal != TK_AsIs) {\n          if (const auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(D)) {\n            auto SK = CTSD->getSpecializationKind();\n            if (SK == TSK_ExplicitInstantiationDeclaration ||\n                SK == TSK_ExplicitInstantiationDefinition)\n              return;\n          }\n        }\n        if (const auto *DC = dyn_cast<DeclContext>(D))\n          dumpDeclContext(DC);\n      }\n    });\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22887",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
-  "source_line": 88,
-  "validation_status": "validated"
-}

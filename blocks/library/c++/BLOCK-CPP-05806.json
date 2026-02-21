@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include <intrin.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace numeric_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05806_execute() {\n    {\n#if ABSL_HAVE_BUILTIN(__builtin_clzs)\n  static_assert(sizeof(unsigned short) == sizeof(x),  // NOLINT(runtime/int)\n                \"__builtin_clzs does not take 16-bit arg\");\n  return x == 0 ? 16 : __builtin_clzs(x);\n#else\n  return CountLeadingZeroes32(x) - 16;\n#endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05806",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/internal/bits.h",
-  "source_line": 168,
-  "validation_status": "validated"
-}

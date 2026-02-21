@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07073_execute() {\n    {\n\nclass ASTContext;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07073",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTContextAllocate.h",
-  "source_line": 19,
-  "validation_status": "validated"
-}

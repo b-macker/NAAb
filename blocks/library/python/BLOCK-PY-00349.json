@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00349_execute() {\n    def visit_If(self, node: nodes.If, frame: Frame) -> None:\n        if_frame = frame.soft()\n        self.writeline(\"if \", node)\n        self.visit(node.test, if_frame)\n        self.write(\":\")\n        self.indent()\n        self.blockvisit(node.body, if_frame)\n        self.outdent()\n        for elif_ in node.elif_:\n            self.writeline(\"elif \", elif_)\n            self.visit(elif_.test, if_frame)\n            self.write(\":\")\n            self.indent()\n            self.blockvisit(elif_.body, if_frame)\n            self.outdent()\n        if node.else_:\n            self.writeline(\"else:\")\n            self.indent()\n            self.blockvisit(node.else_, if_frame)\n            self.outdent()\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00349",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1314,
-  "validation_status": "validated"
-}

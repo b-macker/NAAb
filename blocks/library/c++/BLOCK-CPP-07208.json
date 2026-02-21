@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07208_execute() {\n    {\n    for (const auto *RedeclWithBadType : D->redecls()) {\n      // FIXME: The redecls() range sometimes has elements of a less-specific\n      // type. (In particular, ClassTemplateSpecializationDecl::redecls() gives\n      // us TagDecls, and should give CXXRecordDecls).\n      auto *Redecl = dyn_cast<SpecializationDecl>(RedeclWithBadType);\n      if (!Redecl) {\n        // Found the injected-class-name for a class template. This will be\n        // dumped as part of its surrounding class so we don't need to dump it\n        // here.\n        assert(isa<CXXRecordDecl>(RedeclWithBadType) &&\n               \"expected an injected-class-name\");\n        continue;\n      }\n      Visit(Redecl);\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07208",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
-  "source_line": 512,
-  "validation_status": "validated"
-}

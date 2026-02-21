@@ -1,8 +1,0 @@
-{
-  "code": "#include <functional>\n#include \"absl/base/config.h\"\n#include \"absl/flags/commandlineflag.h\"\n#include \"absl/flags/internal/commandlineflag.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05544_execute() {\n    {\n    flags_internal::Retire(flag_name, base_internal::FastTypeId<T>(), buf_);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05544",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/registry.h",
-  "source_line": 85,
-  "validation_status": "validated"
-}

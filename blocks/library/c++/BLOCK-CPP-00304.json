@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/common.h>\n#include <spdlog/details/os.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string>\n#include <windows.h>\n#include <winsock2.h>\n#include <ws2tcpip.h>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00304_execute() {\n    { init_winsock_(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00304",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/tcp_client-windows.h",
-  "source_line": 44,
-  "validation_status": "validated"
-}

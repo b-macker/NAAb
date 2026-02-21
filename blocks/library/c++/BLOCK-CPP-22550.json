@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <climits>\n#include <optional>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace api_notes;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22550_execute() {\n    {\npublic:\n  std::optional<SwiftNewTypeKind> SwiftWrapper;\n\n  TypedefInfo() {}\n\n  TypedefInfo &operator|=(const TypedefInfo &RHS) {\n    static_cast<CommonTypeInfo &>(*this) |= RHS;\n    if (!SwiftWrapper)\n      SwiftWrapper = RHS.SwiftWrapper;\n    return *this;\n  }\n\n  friend bool operator==(const TypedefInfo &, const TypedefInfo &);\n\n  LLVM_DUMP_METHOD void dump(llvm::raw_ostream &OS) const;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22550",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/APINotes/Types.h",
-  "source_line": 704,
-  "validation_status": "validated"
-}

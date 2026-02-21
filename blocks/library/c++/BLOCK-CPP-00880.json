@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00880_execute() {\n    {\n    if constexpr (POS + 1 == str.size())\n      FMT_THROW(format_error(\"unmatched '}' in format string\"));\n    return parse_tail<Args, POS + 2, ID>(make_text(str, POS, 1), format_str);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00880",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 472,
-  "validation_status": "validated"
-}

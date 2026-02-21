@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include <cstdint>\n#include <sys/types.h>\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05729_execute() {\n    {\n\n#ifdef _WIN32\nusing Tid = uint32_t;\n#else\nusing Tid = pid_t;\n#endif\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05729",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/config.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

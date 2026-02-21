@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00384_execute() {\n    def visit_MarkSafe(self, node: nodes.MarkSafe, frame: Frame) -> None:\n        self.write(\"Markup(\")\n        self.visit(node.expr, frame)\n        self.write(\")\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00384",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1904,
-  "validation_status": "validated"
-}

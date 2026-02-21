@@ -1,8 +1,0 @@
-{
-  "code": "function index()\n    {\n        $users = User::orderBy('created_at', 'desc')->get();\n        return response()->json($users);\n    }",
-  "id": "BLOCK-PHP-00012",
-  "language": "php",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp2e515_rq.php",
-  "source_line": 20,
-  "validation_status": "validated"
-}

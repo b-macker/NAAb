@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00233_execute() {\n    def _generate_generic_dockerfile(self, complexity: str) -> str:\n        \"\"\"Generate generic Dockerfile\"\"\"\n        return \"\"\"# Generic Application Dockerfile\nFROM alpine:latest\n\n# Install basic utilities\nRUN apk add --no-cache ca-certificates curl\n\n# Create non-root user\nRUN adduser -D -s /bin/sh appuser\n\nWORKDIR /app\n\n# Copy application files\nCOPY . .\nRUN chown -R appuser:appuser /app\n\n# Switch to non-root user\nUSER appuser\n\n# Health check\nHEALTHCHECK --interval=30s --timeout=3s \\\n    CMD curl -f http://localhost:8080/health || exit 1\n\nEXPOSE 8080\nCMD [\"./start.sh\"]\"\"\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00233",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

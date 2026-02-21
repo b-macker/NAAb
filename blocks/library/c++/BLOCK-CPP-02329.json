@@ -1,8 +1,0 @@
-{
-  "code": "{\n#ifdef _WIN32\n  SetEnvironmentVariableA(name, value);\n#else\n  if (value == nullptr) {\n    ::unsetenv(name);\n  } else {\n    ::setenv(name, value, 1);\n  }\n#endif\n}",
-  "id": "BLOCK-CPP-02329",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/scoped_set_env.cc",
-  "source_line": 35,
-  "validation_status": "validated"
-}

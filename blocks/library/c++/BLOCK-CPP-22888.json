@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22888_execute() {\n    {\n    getNodeDelegate().AddChild(Label, [=] {\n      const Stmt *S = Node;\n\n      if (auto *E = dyn_cast_or_null<Expr>(S)) {\n        switch (Traversal) {\n        case TK_AsIs:\n          break;\n        case TK_IgnoreUnlessSpelledInSource:\n          S = E->IgnoreUnlessSpelledInSource();\n          break;\n        }\n      }\n\n      getNodeDelegate().Visit(S);\n\n      if (!S) {\n        return;\n      }\n\n      ConstStmtVisitor<Derived>::Visit(S);\n\n      // Some statements have custom mechanisms for dumping their children.\n      if (isa<DeclStmt>(S) || isa<GenericSelectionExpr>(S) ||\n          isa<RequiresExpr>(S))\n        return;\n\n      if (Traversal == TK_IgnoreUnlessSpelledInSource &&\n          isa<LambdaExpr, CXXForRangeStmt, CallExpr,\n              CXXRewrittenBinaryOperator>(S))\n        return;\n\n      for (const Stmt *SubStmt : S->children())\n        Visit(SubStmt);\n    });\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22888",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
-  "source_line": 123,
-  "validation_status": "validated"
-}

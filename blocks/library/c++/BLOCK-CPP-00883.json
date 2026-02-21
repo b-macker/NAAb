@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00883_execute() {\n    {\n  auto s = std::basic_string<Char>();\n  cf.format(std::back_inserter(s), args...);\n  return s;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00883",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 511,
-  "validation_status": "validated"
-}

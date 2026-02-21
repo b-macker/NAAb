@@ -1,8 +1,0 @@
-{
-  "code": "{\n  BlockVarCopyInit() = default;\n  BlockVarCopyInit(Expr *CopyExpr, bool CanThrow)\n      : ExprAndFlag(CopyExpr, CanThrow) {}\n  void setExprAndFlag(Expr *CopyExpr, bool CanThrow) {\n    ExprAndFlag.setPointerAndInt(CopyExpr, CanThrow);\n  }\n  Expr *getCopyExpr() const { return ExprAndFlag.getPointer(); }\n  bool canThrow() const { return ExprAndFlag.getInt(); }\n  llvm::PointerIntPair<Expr *, 1, bool> ExprAndFlag;\n}",
-  "id": "BLOCK-CPP-10279",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
-  "source_line": 6199,
-  "validation_status": "validated"
-}

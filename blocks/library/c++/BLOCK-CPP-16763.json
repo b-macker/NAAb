@@ -1,8 +1,0 @@
-{
-  "code": "{\n  /// Check if a certain (single) sanitizer is enabled.\n  bool has(SanitizerMask K) const {\n    assert(K.isPowerOf2() && \"Has to be a single sanitizer.\");\n    return static_cast<bool>(Mask & K);\n  }\n\n  /// Check if one or more sanitizers are enabled.\n  bool hasOneOf(SanitizerMask K) const { return static_cast<bool>(Mask & K); }\n\n  /// Enable or disable a certain (single) sanitizer.\n  void set(SanitizerMask K, bool Value) {\n    assert(K.isPowerOf2() && \"Has to be a single sanitizer.\");\n    Mask = Value ? (Mask | K) : (Mask & ~K);\n  }\n\n  /// Disable the sanitizers specified in \\p K.\n  void clear(SanitizerMask K = SanitizerKind::All) { Mask &= ~K; }\n\n  /// Returns true if no sanitizers are enabled.\n  bool empty() const { return !Mask; }\n\n  /// Bitmask of enabled sanitizers.\n  SanitizerMask Mask;\n}",
-  "id": "BLOCK-CPP-16763",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Sanitizers.h",
-  "source_line": 157,
-  "validation_status": "validated"
-}

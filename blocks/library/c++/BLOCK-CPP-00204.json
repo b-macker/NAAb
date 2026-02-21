@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <vector>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00204_execute() {\n    {\n            return ((tail_ + 1) % max_items_) == head_;\n        }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00204",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/circular_q.h",
-  "source_line": 86,
-  "validation_status": "validated"
-}

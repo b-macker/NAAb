@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace comments;\nusing namespace tok;\nusing namespace tok;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23437_execute() {\n    {\n    assert(Loc >= BufferStart && Loc <= BufferEnd &&\n           \"Location out of range for this buffer!\");\n\n    const unsigned CharNo = Loc - BufferStart;\n    return FileLoc.getLocWithOffset(CharNo);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23437",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CommentLexer.h",
-  "source_line": 308,
-  "validation_status": "validated"
-}

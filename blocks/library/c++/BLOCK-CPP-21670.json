@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  Terminator(TIL_Opcode Op) : SExpr(Op) {}\n  Terminator(const SExpr &E) : SExpr(E) {}\n\npublic:\n  static bool classof(const SExpr *E) {\n    return E->opcode() >= COP_Goto && E->opcode() <= COP_Return;\n  }\n\n  /// Return the list of basic blocks that this terminator can branch to.\n  ArrayRef<BasicBlock *> successors();\n\n  ArrayRef<BasicBlock *> successors() const {\n    return const_cast<Terminator*>(this)->successors();\n  }\n}",
-  "id": "BLOCK-CPP-21670",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1355,
-  "validation_status": "validated"
-}

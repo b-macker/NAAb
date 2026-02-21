@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/ExtractAPI/API.h\"\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18036_execute() {\n    {\nnamespace extractapi {\n\nstruct TypedefUnderlyingTypeResolver {\n  /// Gets the underlying type declaration.\n  const NamedDecl *getUnderlyingTypeDecl(QualType Type) const;\n\n  /// Get a SymbolReference for the given type.\n  SymbolReference getSymbolReferenceForType(QualType Type, APISet &API) const;\n\n  /// Get a USR for the given type.\n  std::string getUSRForType(QualType Type) const;\n\n  explicit TypedefUnderlyingTypeResolver(ASTContext &Context)\n      : Context(Context) {}\n\nprivate:\n  ASTContext &Context;\n};\n\n} // namespace extractapi\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18036",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/TypedefUnderlyingTypeResolver.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

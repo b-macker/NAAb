@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"llvm/ADT/StringMap.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16692_execute() {\n    {\n      return isAvailableIn(LO) && isOpenCLVersionContainedInMask(LO, Opt);\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16692",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/OpenCLOptions.h",
-  "source_line": 127,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace comments;\nusing namespace tok;\nusing namespace tok;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07692_execute() {\n    {\n    assert(is(tok::html_start_tag));\n    TextPtr = Name.data();\n    IntVal = Name.size();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07692",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CommentLexer.h",
-  "source_line": 177,
-  "validation_status": "validated"
-}

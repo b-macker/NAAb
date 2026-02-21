@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  BlockDecl *TheBlock;\npublic:\n  BlockExpr(BlockDecl *BD, QualType ty)\n      : Expr(BlockExprClass, ty, VK_PRValue, OK_Ordinary), TheBlock(BD) {\n    setDependence(computeDependence(this));\n  }\n\n  /// Build an empty block expression.\n  explicit BlockExpr(EmptyShell Empty) : Expr(BlockExprClass, Empty) { }\n\n  const BlockDecl *getBlockDecl() const { return TheBlock; }\n  BlockDecl *getBlockDecl() { return TheBlock; }\n  void setBlockDecl(BlockDecl *BD) { TheBlock = BD; }\n\n  // Convenience functions for probing the underlying BlockDecl.\n  SourceLocation getCaretLocation() const;\n  const Stmt *getBody() const;\n  Stmt *getBody();\n\n  SourceLocation getBeginLoc() const LLVM_READONLY {\n    return getCaretLocation();\n  }\n  SourceLocation getEndLoc() const LLVM_READONLY {\n    return getBody()->getEndLoc();\n  }\n\n  /// getFunctionType - Return the underlying function type for this block.\n  const FunctionProtoType *getFunctionType() const;\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == BlockExprClass;\n  }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
-  "id": "BLOCK-CPP-10263",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
-  "source_line": 6153,
-  "validation_status": "validated"
-}

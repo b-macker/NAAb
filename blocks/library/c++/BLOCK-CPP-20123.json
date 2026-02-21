@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/AttrSubjectMatchRules.h\"\n#include \"clang/Basic/AttributeCommonInfo.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/ParsedAttrInfo.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <utility>\n\nusing namespace clang;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20123_execute() {\n    {\n    switch (getKind()) {\n    case ParsedAttr::AT_OpenCLGlobalAddressSpace:\n      return LangAS::sycl_global;\n    case ParsedAttr::AT_OpenCLGlobalDeviceAddressSpace:\n      return LangAS::sycl_global_device;\n    case ParsedAttr::AT_OpenCLGlobalHostAddressSpace:\n      return LangAS::sycl_global_host;\n    case ParsedAttr::AT_OpenCLLocalAddressSpace:\n      return LangAS::sycl_local;\n    case ParsedAttr::AT_OpenCLPrivateAddressSpace:\n      return LangAS::sycl_private;\n    case ParsedAttr::AT_OpenCLGenericAddressSpace:\n    default:\n      return LangAS::Default;\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20123",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ParsedAttr.h",
-  "source_line": 577,
-  "validation_status": "validated"
-}

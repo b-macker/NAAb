@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename CHECKER>\n  static void _checkEndAnalysis(void *checker, ExplodedGraph &G,\n                                BugReporter &BR, ExprEngine &Eng) {\n    ((const CHECKER *)checker)->checkEndAnalysis(G, BR, Eng);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForEndAnalysis(\n     CheckerManager::CheckEndAnalysisFunc(checker, _checkEndAnalysis<CHECKER>));\n  }\n}",
-  "id": "BLOCK-CPP-22307",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 226,
-  "validation_status": "validated"
-}

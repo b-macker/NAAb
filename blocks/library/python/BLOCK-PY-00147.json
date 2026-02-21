@@ -1,8 +1,0 @@
-{
-  "code": "def _generate_error_handling(self, request) -> str:\n        \"\"\"Generate comprehensive error handling\"\"\"\n        return '''\n// Comprehensive Error Handling\nclass ApiError extends Error {\n    constructor(message, statusCode = 500, code = 'INTERNAL_ERROR') {\n        super(message);\n        this.name = 'ApiError';\n        this.statusCode = statusCode;\n        this.code = code;\n    }\n}\n\nfunction handleApiError(error) {\n    if (error instanceof ApiError) {\n        return { success: false, error: error.message, code: error.code };\n    }\n    return { success: false, error: 'Unexpected error occurred' };\n}\n\nexport { ApiError, handleApiError };\n'''",
-  "id": "BLOCK-PY-00147",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/javascript_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

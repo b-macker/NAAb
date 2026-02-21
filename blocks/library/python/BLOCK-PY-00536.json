@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00536_execute() {\n    def format_file_contents(\n    src_contents: str,\n    *,\n    fast: bool,\n    mode: Mode,\n    lines: Collection[tuple[int, int]] = (),\n) -> FileContent:\n    \"\"\"Reformat contents of a file and return new contents.\n\n    If `fast` is False, additionally confirm that the reformatted code is\n    valid by calling :func:`assert_equivalent` and :func:`assert_stable` on it.\n    `mode` is passed to :func:`format_str`.\n    \"\"\"\n    if mode.is_ipynb:\n        dst_contents = format_ipynb_string(src_contents, fast=fast, mode=mode)\n    else:\n        dst_contents = format_str(src_contents, mode=mode, lines=lines)\n    if src_contents == dst_contents:\n        raise NothingChanged\n\n    if not fast and not mode.is_ipynb:\n        # Jupyter notebooks will already have been checked above.\n        check_stability_and_equivalence(\n            src_contents, dst_contents, mode=mode, lines=lines\n        )\n    return dst_contents\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00536",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 1068,
-  "validation_status": "validated"
-}

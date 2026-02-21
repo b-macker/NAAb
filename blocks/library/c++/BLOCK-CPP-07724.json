@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/APSInt.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <array>\n#include <cassert>\n#include <optional>\n#include <vector>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07724_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07724",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ComparisonCategories.h",
-  "source_line": 217,
-  "validation_status": "validated"
-}

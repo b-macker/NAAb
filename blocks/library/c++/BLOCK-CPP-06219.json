@@ -1,8 +1,0 @@
-{
-  "code": "#include <vector>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06219_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace strings_internal {\n\n// Computes the precise value of 10^exp. (I.e. the nearest representable\n// double to the exact value, rounding to nearest-even in the (single) case of\n// being exactly halfway between.)\ndouble Pow10(int exp);\n\n}  // namespace strings_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06219",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/pow10_helper.h",
-  "source_line": 27,
-  "validation_status": "validated"
-}

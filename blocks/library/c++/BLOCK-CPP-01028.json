@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01028_execute() {\n    {\n    format_arg arg;\n    if (!is_packed()) {\n      if (id < max_size()) arg = args_[id];\n      return arg;\n    }\n    if (id >= detail::max_packed_args) return arg;\n    arg.type_ = type(id);\n    if (arg.type_ == detail::type::none_type) return arg;\n    arg.value_ = values_[id];\n    return arg;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01028",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 2022,
-  "validation_status": "validated"
-}

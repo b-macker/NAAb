@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Tooling/CommonOptionsParser.h\"\n#include \"clang/Tooling/Tooling.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/Registry.h\"\n#include \"llvm/Support/StringSaver.h\"\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21165_execute() {\n    {\npublic:\n  virtual ~ToolResults() = default;\n  virtual void addResult(StringRef Key, StringRef Value) = 0;\n  virtual std::vector<std::pair<llvm::StringRef, llvm::StringRef>>\n  AllKVResults() = 0;\n  virtual void forEachResult(\n      llvm::function_ref<void(StringRef Key, StringRef Value)> Callback) = 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21165",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/Execution.h",
-  "source_line": 46,
-  "validation_status": "validated"
-}

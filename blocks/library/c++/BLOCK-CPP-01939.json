@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/match.h\"\n#include <algorithm>\n#include <cstdint>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/memutil.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01939_execute() {\n    {\n  return (piece1.size() == piece2.size() &&\n          0 == absl::strings_internal::memcasecmp(piece1.data(), piece2.data(),\n                                                  piece1.size()));\n  // memcasecmp uses absl::ascii_tolower().\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01939",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/match.cc",
-  "source_line": 31,
-  "validation_status": "validated"
-}

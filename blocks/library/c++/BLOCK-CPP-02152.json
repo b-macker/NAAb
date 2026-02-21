@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/time/clock.h\"\n#include \"absl/base/attributes.h\"\n#include \"absl/base/optimization.h\"\n#include <windows.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstdint>\n#include <ctime>\n#include <limits>\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/unscaledcycleclock.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/base/thread_annotations.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02152_execute() {\n    {\n  // TODO(bww): Get a timespec instead so we don't have to divide.\n  int64_t n = absl::GetCurrentTimeNanos();\n  if (n >= 0) {\n    return time_internal::FromUnixDuration(\n        time_internal::MakeDuration(n / 1000000000, n % 1000000000 * 4));\n  }\n  return time_internal::FromUnixDuration(absl::Nanoseconds(n));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02152",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
-  "source_line": 39,
-  "validation_status": "validated"
-}

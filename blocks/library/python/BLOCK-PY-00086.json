@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00086_execute() {\n    def _initialize_templates(self) -> Dict[str, str]:\n        return {\n            'struct_definition': '''\n#[derive(Debug, Clone, PartialEq)]\npub struct {name} {{\n    // Fields here\n}}\n\nimpl {name} {{\n    pub fn new() -> Self {{\n        Self {{\n            // Initialize fields\n        }}\n    }}\n}}''',\n            'trait_definition': '''\npub trait {name} {{\n    type Output;\n    \n    fn execute(&self) -> Self::Output;\n}}'''\n        }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00086",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/rust_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

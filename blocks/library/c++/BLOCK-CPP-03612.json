@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03612_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\n// Sets the \"usage\" message to be used by help reporting routines.\n// For example:\n//  absl::SetProgramUsageMessage(\n//      absl::StrCat(\"This program does nothing.  Sample usage:\\n\", argv[0],\n//                   \" <uselessarg1> <uselessarg2>\"));\n// Do not include commandline flags in the usage: we do that for you!\n// Note: Calling SetProgramUsageMessage twice will trigger a call to std::exit.\nvoid SetProgramUsageMessage(absl::string_view new_usage_message);\n\n// Returns the usage message set by SetProgramUsageMessage().\nabsl::string_view ProgramUsageMessage();\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03612",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/usage.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

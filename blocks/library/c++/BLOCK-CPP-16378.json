@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/CustomizableOptional.h\"\n#include \"clang/Basic/DirectoryEntry.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/Hashing.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorOr.h\"\n#include \"llvm/Support/FileSystem/UniqueID.h\"\n#include <optional>\n#include <utility>\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\nusing namespace optional_detail;\nusing namespace optional_detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16378_execute() {\n    {\n    /// The pointer at another MapEntry is used when the FileManager should\n    /// silently forward from one name to another, which occurs in Redirecting\n    /// VFSs that use external names. In that case, the \\c FileEntryRef\n    /// returned by the \\c FileManager will have the external name, and not the\n    /// name that was used to lookup the file.\n    llvm::PointerUnion<FileEntry *, const MapEntry *> V;\n\n    /// Directory the file was found in.\n    DirectoryEntryRef Dir;\n\n    MapValue() = delete;\n    MapValue(FileEntry &FE, DirectoryEntryRef Dir) : V(&FE), Dir(Dir) {}\n    MapValue(MapEntry &ME, DirectoryEntryRef Dir) : V(&ME), Dir(Dir) {}\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16378",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/FileEntry.h",
-  "source_line": 115,
-  "validation_status": "validated"
-}

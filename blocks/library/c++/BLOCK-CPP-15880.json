@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  /// Construct the post store point.\n  /// \\param Loc can be used to store the information about the location\n  /// used in the form it was uttered in the code.\n  PostStore(const Stmt *S, const LocationContext *L, const void *Loc,\n            const ProgramPointTag *tag = nullptr)\n    : PostStmt(S, PostStoreKind, L, tag) {\n    assert(getData2() == nullptr);\n    setData2(Loc);\n  }\n\n  /// Returns the information about the location used in the store,\n  /// how it was uttered in the code.\n  const void *getLocationValue() const {\n    return getData2();\n  }\n\nprivate:\n  friend class ProgramPoint;\n  PostStore() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == PostStoreKind;\n  }\n}",
-  "id": "BLOCK-CPP-15880",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 426,
-  "validation_status": "validated"
-}

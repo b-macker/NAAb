@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/FlowSensitive/DataflowLattice.h\"\n#include <ostream>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21981_execute() {\n    {\n    return LatticeJoinEffect::Unchanged;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21981",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/NoopLattice.h",
-  "source_line": 29,
-  "validation_status": "validated"
-}

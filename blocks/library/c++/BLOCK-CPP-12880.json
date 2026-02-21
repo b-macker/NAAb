@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  using Stmt::Stmt;\n\npublic:\n  const Expr *getExprStmt() const;\n  Expr *getExprStmt() {\n    const ValueStmt *ConstThis = this;\n    return const_cast<Expr*>(ConstThis->getExprStmt());\n  }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() >= firstValueStmtConstant &&\n           T->getStmtClass() <= lastValueStmtConstant;\n  }\n}",
-  "id": "BLOCK-CPP-12880",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Stmt.h",
-  "source_line": 1833,
-  "validation_status": "validated"
-}

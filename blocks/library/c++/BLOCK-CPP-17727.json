@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/VirtualFileSystem.h\"\n#include \"llvm/TargetParser/Triple.h\"\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17727_execute() {\n    {\n    return DistroVal >= DebianLenny && DistroVal <= DebianTrixie;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17727",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Distro.h",
-  "source_line": 127,
-  "validation_status": "validated"
-}

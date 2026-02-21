@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include <string.h>\n#include <algorithm>\n#include <cassert>\n#include <cmath>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/functional/function_ref.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/numeric/internal/representation.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03040_execute() {\n    {\n  using BiggerInt = absl::conditional_t<sizeof(Int) == 4, uint64_t, uint128>;\n  BiggerInt tmp =\n      10 * static_cast<BiggerInt>(*v) + static_cast<BiggerInt>(carry);\n  *v = static_cast<Int>(tmp);\n  return static_cast<char>(tmp >> (sizeof(Int) * 8));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03040",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
-  "source_line": 96,
-  "validation_status": "validated"
-}

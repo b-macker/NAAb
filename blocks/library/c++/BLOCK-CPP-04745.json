@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <TargetConditionals.h>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/unscaledcycleclock_config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04745_execute() {\n    {\nclass UnscaledCycleClockWrapperForGetCurrentTime;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04745",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/unscaledcycleclock.h",
-  "source_line": 52,
-  "validation_status": "validated"
-}

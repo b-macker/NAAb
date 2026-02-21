@@ -1,8 +1,0 @@
-{
-  "code": "{ if constexpr(1 > 0) {} }",
-  "id": "BLOCK-CPP-14819",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchers.h",
-  "source_line": 5363,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h\"\n#include \"llvm/ADT/StringExtras.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22198_execute() {\n    {\n    const MemRegion *R = V.getRegion();\n    // Avoid the weird \"pointer to pointee of ...\".\n    if (auto SR = dyn_cast<SymbolicRegion>(R)) {\n      // However, \"pointer to 'this' object\" is fine.\n      if (!isThisObject(SR))\n        return Visit(SR->getSymbol());\n    }\n    return \"pointer to \" + Visit(R);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22198",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/SValExplainer.h",
-  "source_line": 68,
-  "validation_status": "validated"
-}

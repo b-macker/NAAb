@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00428_execute() {\n    class Name(Expr):\n    \"\"\"Looks up a name or stores a value in a name.\n    The `ctx` of the node can be one of the following values:\n\n    -   `store`: store a value in the name\n    -   `load`: load that name\n    -   `param`: like `store` but if the name was defined as function parameter.\n    \"\"\"\n\n    fields = (\"name\", \"ctx\")\n    name: str\n    ctx: str\n\n    def can_assign(self) -> bool:\n        return self.name not in {\"true\", \"false\", \"none\", \"True\", \"False\", \"None\"}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00428",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 539,
-  "validation_status": "validated"
-}

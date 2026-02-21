@@ -1,8 +1,0 @@
-{
-  "code": "#include <assert.h>\n#include <stddef.h>\n#include <stdint.h>\n#include <ostream>\n#include <string>\n#include <tuple>\n#include <type_traits>\n#include <typeinfo>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/debugging/internal/demangle.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/types/span.h\"\n#include \"absl/utility/utility.h\"\n#include <sanitizer/asan_interface.h>\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace internal_layout;\nusing namespace contains;\nusing namespace adl_barrier;\nusing namespace adl_barrier;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05122_execute() {\n    {\n    const auto offsets = Offsets();\n    const size_t sizes[] = {SizeOf<ElementType<OffsetSeq>>::value...};\n    const std::string types[] = {\n        adl_barrier::TypeName<ElementType<OffsetSeq>>()...};\n    std::string res = absl::StrCat(\"@0\", types[0], \"(\", sizes[0], \")\");\n    for (size_t i = 0; i != NumOffsets - 1; ++i) {\n      absl::StrAppend(&res, \"[\", size_[i], \"]; @\", offsets[i + 1], types[i + 1],\n                      \"(\", sizes[i + 1], \")\");\n    }\n    // NumSizes is a constant that may be zero. Some compilers cannot see that\n    // inside the if statement \"size_[NumSizes - 1]\" must be valid.\n    int last = static_cast<int>(NumSizes) - 1;\n    if (NumTypes == NumSizes && last >= 0) {\n      absl::StrAppend(&res, \"[\", size_[last], \"]\");\n    }\n    return res;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05122",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/layout.h",
-  "source_line": 631,
-  "validation_status": "validated"
-}

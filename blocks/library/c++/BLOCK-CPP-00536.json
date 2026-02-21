@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00536_execute() {\n    {\n  ec = 0;\n  using T = std::numeric_limits<To>;\n  static_assert(std::is_floating_point<From>::value, \"From must be floating\");\n  static_assert(std::is_floating_point<To>::value, \"To must be floating\");\n\n  // catch the only happy case\n  if (std::isfinite(from)) {\n    if (from >= T::lowest() && from <= (T::max)()) {\n      return static_cast<To>(from);\n    }\n    // not within range.\n    ec = 1;\n    return {};\n  }\n\n  // nan and inf will be preserved\n  return static_cast<To>(from);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00536",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
-  "source_line": 139,
-  "validation_status": "validated"
-}

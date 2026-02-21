@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/BitmaskEnum.h\"\n#include \"clang/Basic/FileEntry.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Lex/DependencyDirectivesScanner.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include <functional>\n#include <map>\n#include <memory>\n#include <optional>\n#include <set>\n#include <string>\n#include <utility>\n#include <vector>\n  /// If non-empty, the filename used in an #include directive in the primary\n  /// MSVC-style precompiled headers. When creating a PCH, after the #include\n  /// skipped until after an #include of this header is seen.\n  /// Disables #includes of other files and if there are unresolved identifiers\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19142_execute() {\n    {\n    Includes.clear();\n    MacroIncludes.clear();\n    ChainedIncludes.clear();\n    DumpDeserializedPCHDecls = false;\n    ImplicitPCHInclude.clear();\n    SingleFileParseMode = false;\n    LexEditorPlaceholders = true;\n    RetainRemappedFileBuffers = true;\n    PrecompiledPreambleBytes.first = 0;\n    PrecompiledPreambleBytes.second = false;\n    RetainExcludedConditionalBlocks = false;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19142",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PreprocessorOptions.h",
-  "source_line": 255,
-  "validation_status": "validated"
-}

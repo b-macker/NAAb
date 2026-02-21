@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdlib>\n#include <unistd.h>\n#include <ios>\n#include <ostream>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05752_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05752",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/nullstream.h",
-  "source_line": 103,
-  "validation_status": "validated"
-}

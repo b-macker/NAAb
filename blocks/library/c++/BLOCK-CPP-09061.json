@@ -1,8 +1,0 @@
-{
-  "code": "{\n  /// Class that this is an alias of.\n  ObjCInterfaceDecl *AliasedClass;\n\n  ObjCCompatibleAliasDecl(DeclContext *DC, SourceLocation L, IdentifierInfo *Id,\n                          ObjCInterfaceDecl* aliasedClass)\n      : NamedDecl(ObjCCompatibleAlias, DC, L, Id), AliasedClass(aliasedClass) {}\n\n  void anchor() override;\n\npublic:\n  static ObjCCompatibleAliasDecl *Create(ASTContext &C, DeclContext *DC,\n                                         SourceLocation L, IdentifierInfo *Id,\n                                         ObjCInterfaceDecl* aliasedClass);\n\n  static ObjCCompatibleAliasDecl *CreateDeserialized(ASTContext &C,\n                                                     unsigned ID);\n\n  const ObjCInterfaceDecl *getClassInterface() const { return AliasedClass; }\n  ObjCInterfaceDecl *getClassInterface() { return AliasedClass; }\n  void setClassInterface(ObjCInterfaceDecl *D) { AliasedClass = D; }\n\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == ObjCCompatibleAlias; }\n}",
-  "id": "BLOCK-CPP-09061",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclObjC.h",
-  "source_line": 2759,
-  "validation_status": "validated"
-}

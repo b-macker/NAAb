@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00279_execute() {\n    def generate(\n    node: nodes.Template,\n    environment: \"Environment\",\n    name: str | None,\n    filename: str | None,\n    stream: t.TextIO | None = None,\n    defer_init: bool = False,\n    optimized: bool = True,\n) -> str | None:\n    \"\"\"Generate the python source for a node tree.\"\"\"\n    if not isinstance(node, nodes.Template):\n        raise TypeError(\"Can't compile non template nodes\")\n\n    generator = environment.code_generator_class(\n        environment, name, filename, stream, defer_init, optimized\n    )\n    generator.visit(node)\n\n    if stream is None:\n        return generator.stream.getvalue()  # type: ignore\n\n    return None\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00279",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 101,
-  "validation_status": "validated"
-}

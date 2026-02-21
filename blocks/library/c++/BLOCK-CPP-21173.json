@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <memory>\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21173_execute() {\n    {\npublic:\n  FileMatchTrie();\n\n  /// Construct a new \\c FileMatchTrie with the given \\c PathComparator.\n  ///\n  /// The \\c FileMatchTrie takes ownership of 'Comparator'. Used for testing.\n  FileMatchTrie(PathComparator* Comparator);\n\n  ~FileMatchTrie();\n\n  /// Insert a new absolute path. Relative paths are ignored.\n  void insert(StringRef NewPath);\n\n  /// Finds the corresponding file in this trie.\n  ///\n  /// Returns file name stored in this trie that is equivalent to 'FileName'\n  /// according to 'Comparator', if it can be uniquely identified. If there\n  /// are no matches an empty \\c StringRef is returned. If there are ambiguous\n  /// matches, an empty \\c StringRef is returned and a corresponding message\n  /// written to 'Error'.\n  StringRef findEquivalent(StringRef FileName,\n                           raw_ostream &Error) const;\n\nprivate:\n  FileMatchTrieNode *Root;\n  std::unique_ptr<PathComparator> Comparator;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21173",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/FileMatchTrie.h",
-  "source_line": 56,
-  "validation_status": "validated"
-}

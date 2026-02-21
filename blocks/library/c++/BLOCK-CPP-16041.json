@@ -1,8 +1,0 @@
-{
-  "code": "#include <optional>\n\nusing namespace clang;\nusing namespace diag;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16041_execute() {\n    {\nenum class Group;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16041",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CLWarnings.h",
-  "source_line": 16,
-  "validation_status": "validated"
-}

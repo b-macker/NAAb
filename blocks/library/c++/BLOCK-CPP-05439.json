@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <memory>\n#include \"absl/base/config.h\"\n#include \"absl/crc/crc32c.h\"\n#include \"absl/crc/internal/crc32_x86_arm_combined_simd.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05439_execute() {\n    {\n    CrcMemcpyEngine* temporal;\n    CrcMemcpyEngine* non_temporal;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05439",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_memcpy.h",
-  "source_line": 65,
-  "validation_status": "validated"
-}

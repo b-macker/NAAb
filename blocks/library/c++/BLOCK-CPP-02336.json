@@ -1,8 +1,0 @@
-{
-  "code": "#include <atomic>\n#include <cstdint>\n#include \"absl/base/internal/spinlock_wait.h\"\n#include \"absl/base/internal/spinlock_win32.inc\"\n#include \"absl/base/internal/spinlock_linux.inc\"\n#include \"absl/base/internal/spinlock_akaros.inc\"\n#include \"absl/base/internal/spinlock_posix.inc\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02336_execute() {\n    {\n  // Weak pseudo-random number generator to get some spread between threads\n  // when many are spinning.\n  uint64_t r = delay_rand.load(std::memory_order_relaxed);\n  r = 0x5deece66dLL * r + 0xb;   // numbers from nrand48()\n  delay_rand.store(r, std::memory_order_relaxed);\n\n  if (loop < 0 || loop > 32) {   // limit loop to 0..32\n    loop = 32;\n  }\n  const int kMinDelay = 128 << 10;  // 128us\n  // Double delay every 8 iterations, up to 16x (2ms).\n  int delay = kMinDelay << (loop / 8);\n  // Randomize in delay..2*delay range, for resulting 128us..4ms range.\n  return delay | ((delay - 1) & static_cast<int>(r));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02336",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/spinlock_wait.cc",
-  "source_line": 62,
-  "validation_status": "validated"
-}

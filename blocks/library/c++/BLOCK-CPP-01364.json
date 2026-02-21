@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace digits;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01364_execute() {\n    {\n    size_t num_bigits = 0;\n    do {\n      bigits_[num_bigits++] = static_cast<bigit>(n);\n      n >>= bigit_bits;\n    } while (n != 0);\n    bigits_.resize(num_bigits);\n    exp_ = 0;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01364",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 2786,
-  "validation_status": "validated"
-}

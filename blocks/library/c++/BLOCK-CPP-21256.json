@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ASTMatchers/Dynamic/VariantValue.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/Twine.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\nusing namespace ast_matchers;\nusing namespace dynamic;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21256_execute() {\n    {\n  public:\n   OverloadContext(Diagnostics* Error);\n   ~OverloadContext();\n\n   /// Revert all errors that happened within this context.\n   void revertErrors();\n\n  private:\n    Diagnostics *const Error;\n    unsigned BeginIndex;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21256",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/Dynamic/Diagnostics.h",
-  "source_line": 126,
-  "validation_status": "validated"
-}

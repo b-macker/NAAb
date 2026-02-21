@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18389_execute() {\n    {\n    ShowCPP = 0;\n    ShowComments = 0;\n    ShowLineMarkers = 1;\n    UseLineDirectives = 0;\n    ShowMacroComments = 0;\n    ShowMacros = 0;\n    ShowIncludeDirectives = 0;\n    RewriteIncludes = 0;\n    RewriteImports = 0;\n    MinimizeWhitespace = 0;\n    DirectivesOnly = 0;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18389",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/PreprocessorOutputOptions.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

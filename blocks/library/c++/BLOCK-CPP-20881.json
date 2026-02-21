@@ -1,8 +1,0 @@
-{
-  "code": "{\n    Decl *D;\n    bool DeclHasPendingBody;\n\n  public:\n    InterestingDecl(Decl *D, bool HasBody)\n        : D(D), DeclHasPendingBody(HasBody) {}\n\n    Decl *getDecl() { return D; }\n\n    /// Whether the declaration has a pending body.\n    bool hasPendingBody() { return DeclHasPendingBody; }\n  }",
-  "id": "BLOCK-CPP-20881",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTReader.h",
-  "source_line": 1088,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00469_execute() {\n    class DerivedContextReference(Expr):\n    \"\"\"Return the current template context including locals. Behaves\n    exactly like :class:`ContextReference`, but includes local\n    variables, such as from a ``for`` loop.\n\n    .. versionadded:: 2.11\n    \"\"\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00469",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 1128,
-  "validation_status": "validated"
-}

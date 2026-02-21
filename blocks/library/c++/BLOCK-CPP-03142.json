@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/low_level_alloc.h\"\n#include \"absl/synchronization/internal/graphcycles.h\"\n#include <algorithm>\n#include <array>\n#include <cinttypes>\n#include <limits>\n#include \"absl/base/internal/hide_ptr.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03142_execute() {\n    {\n    while (capacity_ < n) {\n      capacity_ *= 2;\n    }\n    size_t request = static_cast<size_t>(capacity_) * sizeof(T);\n    T* copy = static_cast<T*>(\n        base_internal::LowLevelAlloc::AllocWithArena(request, arena));\n    std::copy_n(ptr_, size_, copy);\n    Discard();\n    ptr_ = copy;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03142",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/graphcycles.cc",
-  "source_line": 145,
-  "validation_status": "validated"
-}

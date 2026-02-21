@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01165_execute() {\n    {\n  size_t written = std::fwrite(ptr, size, count, stream);\n  if (written < count)\n    FMT_THROW(system_error(errno, FMT_STRING(\"cannot write to file\")));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01165",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
-  "source_line": 80,
-  "validation_status": "validated"
-}

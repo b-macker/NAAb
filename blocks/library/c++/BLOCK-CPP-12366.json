@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTVector.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12366_execute() {\n    { return RequiredAlignment; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12366",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/RecordLayout.h",
-  "source_line": 311,
-  "validation_status": "validated"
-}

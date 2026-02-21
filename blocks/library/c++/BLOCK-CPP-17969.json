@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17969_execute() {\n    {\n  class ObjCMessageExpr;\n  class ObjCMethodDecl;\n  class ObjCInterfaceDecl;\n  class ObjCProtocolDecl;\n  class NSAPI;\n  class EnumDecl;\n  class TypedefDecl;\n  class ParentMap;\n\nnamespace edit {\n  class Commit;\n\nbool rewriteObjCRedundantCallWithLiteral(const ObjCMessageExpr *Msg,\n                                         const NSAPI &NS, Commit &commit);\n\nbool rewriteToObjCLiteralSyntax(const ObjCMessageExpr *Msg,\n                                const NSAPI &NS, Commit &commit,\n                                const ParentMap *PMap);\n\nbool rewriteToObjCSubscriptSyntax(const ObjCMessageExpr *Msg,\n                                  const NSAPI &NS, Commit &commit);\n\n}\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17969",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Edit/Rewriters.h",
-  "source_line": 12,
-  "validation_status": "validated"
-}

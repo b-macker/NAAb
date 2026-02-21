@@ -1,8 +1,0 @@
-{
-  "code": "{\n    if (params_type::template can_have_multiple_equivalent_keys<K>()) {\n      MatchKind exact_match = MatchKind::kNe;\n      while (s != e) {\n        const size_type mid = (s + e) >> 1;\n        const absl::weak_ordering c = comp(key(mid), k);\n        if (c < 0) {\n          s = mid + 1;\n        } else {\n          e = mid;\n          if (c == 0) {\n            // Need to return the first value whose key is not less than k,\n            // which requires continuing the binary search if there could be\n            // multiple equivalent keys.\n            exact_match = MatchKind::kEq;\n          }\n        }\n      }\n      return {s, exact_match};\n    } else {  // Can't have multiple equivalent keys.\n      while (s != e) {\n        const size_type mid = (s + e) >> 1;\n        const absl::weak_ordering c = comp(key(mid), k);\n        if (c < 0) {\n          s = mid + 1;\n        } else if (c > 0) {\n          e = mid;\n        } else {\n          return {mid, MatchKind::kEq};\n        }\n      }\n      return {s, MatchKind::kNe};\n    }\n  }",
-  "id": "BLOCK-CPP-04811",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
-  "source_line": 859,
-  "validation_status": "validated"
-}

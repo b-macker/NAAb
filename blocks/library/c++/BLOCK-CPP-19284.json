@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Availability.h\"\n#include \"clang/Basic/BitmaskEnum.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/OperatorPrecedence.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Lex/CodeCompletionHandler.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Frontend/OpenMP/OMPContext.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/PrettyStackTrace.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n#include <memory>\n#include <optional>\n#include <stack>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19284_execute() {\n    {\n    return Diag(Tok, DiagID);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19284",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
-  "source_line": 1206,
-  "validation_status": "validated"
-}

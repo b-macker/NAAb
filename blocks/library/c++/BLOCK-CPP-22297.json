@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename CHECKER>\n  static void _checkEndOfTranslationUnit(void *checker,\n                                         const TranslationUnitDecl *TU,\n                                         AnalysisManager& mgr,\n                                         BugReporter &BR) {\n    ((const CHECKER *)checker)->checkEndOfTranslationUnit(TU, mgr, BR);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr){\n    mgr._registerForEndOfTranslationUnit(\n                              CheckerManager::CheckEndOfTranslationUnit(checker,\n                                          _checkEndOfTranslationUnit<CHECKER>));\n  }\n}",
-  "id": "BLOCK-CPP-22297",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 63,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h\"\n#include \"llvm/ADT/StringExtras.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22201_execute() {\n    {\n    const llvm::APSInt &I = V.getValue();\n    std::string Str;\n    llvm::raw_string_ostream OS(Str);\n    OS << (I.isSigned() ? \"signed \" : \"unsigned \") << I.getBitWidth()\n       << \"-bit integer '\" << I << \"'\";\n    return Str;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22201",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/SValExplainer.h",
-  "source_line": 91,
-  "validation_status": "validated"
-}

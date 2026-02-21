@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/Support/Debug.h\"\n#include <cassert>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22004_execute() {\n    {\npublic:\n  enum class Kind { Scalar, Aggregate };\n\n  StorageLocation(Kind LocKind, QualType Type) : LocKind(LocKind), Type(Type) {\n    assert(Type.isNull() || !Type->isReferenceType());\n  }\n\n  // Non-copyable because addresses of storage locations are used as their\n  // identities throughout framework and user code. The framework is responsible\n  // for construction and destruction of storage locations.\n  StorageLocation(const StorageLocation &) = delete;\n  StorageLocation &operator=(const StorageLocation &) = delete;\n\n  virtual ~StorageLocation() = default;\n\n  Kind getKind() const { return LocKind; }\n\n  QualType getType() const { return Type; }\n\nprivate:\n  Kind LocKind;\n  QualType Type;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22004",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/StorageLocation.h",
-  "source_line": 32,
-  "validation_status": "validated"
-}

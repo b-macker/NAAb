@@ -1,8 +1,0 @@
-{
-  "code": "{\n  SourceLocation AmpAmpLoc, LabelLoc;\n  LabelDecl *Label;\npublic:\n  AddrLabelExpr(SourceLocation AALoc, SourceLocation LLoc, LabelDecl *L,\n                QualType t)\n      : Expr(AddrLabelExprClass, t, VK_PRValue, OK_Ordinary), AmpAmpLoc(AALoc),\n        LabelLoc(LLoc), Label(L) {\n    setDependence(ExprDependence::None);\n  }\n\n  /// Build an empty address of a label expression.\n  explicit AddrLabelExpr(EmptyShell Empty)\n    : Expr(AddrLabelExprClass, Empty) { }\n\n  SourceLocation getAmpAmpLoc() const { return AmpAmpLoc; }\n  void setAmpAmpLoc(SourceLocation L) { AmpAmpLoc = L; }\n  SourceLocation getLabelLoc() const { return LabelLoc; }\n  void setLabelLoc(SourceLocation L) { LabelLoc = L; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return AmpAmpLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY { return LabelLoc; }\n\n  LabelDecl *getLabel() const { return Label; }\n  void setLabel(LabelDecl *L) { Label = L; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == AddrLabelExprClass;\n  }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
-  "id": "BLOCK-CPP-10247",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
-  "source_line": 4331,
-  "validation_status": "validated"
-}

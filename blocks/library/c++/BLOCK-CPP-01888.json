@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nvoid InitializeCordRepExternal(absl::string_view data,\n                               absl::Nonnull<CordRepExternal*> rep) {\n  assert(!data.empty());\n  rep->length = data.size();\n  rep->tag = EXTERNAL;\n  rep->base = data.data();\n  VerifyTree(rep);\n}\n\n}",
-  "id": "BLOCK-CPP-01888",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/cord.cc",
-  "source_line": 121,
-  "validation_status": "validated"
-}

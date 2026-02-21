@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19420_execute() {\n    {\n    ExprNeedsCleanups = false;\n    CleanupsHaveSideEffects = false;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19420",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/CleanupInfo.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

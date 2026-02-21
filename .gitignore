@@ -113,15 +113,18 @@ vscode-naab/*.vsix
 monitoring_data.jsonl
 baseline_test_results.txt
 
+# Block library (generated/downloaded - 24,500+ files, 132MB)
+blocks/library/
+blocks.db
+
 # Runtime caches
-blocks/library/.block_cache.json
 compile_commands.json
+.cache/
 
 # Test artifacts
 test_results.txt
 tmp_leak.txt
 
-# Generated block library files
-blocks/library/cpp/BLOCK-CPP-VECTOR.json
-blocks/library/javascript/BLOCK-JS-FORMAT.json
-blocks/library/javascript/BLOCK-JS-STRING.json
+# Data/output files
+output/
+check_failures.sh

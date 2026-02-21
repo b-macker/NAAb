@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <initializer_list>\n#include <iterator>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"    // TODO(strel): remove this include\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/internal/span.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04496_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04496",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/span.h",
-  "source_line": 191,
-  "validation_status": "validated"
-}

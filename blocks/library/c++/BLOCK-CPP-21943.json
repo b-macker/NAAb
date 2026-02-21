@@ -1,8 +1,0 @@
-{
-  "code": "{\ntemplate <> struct DenseMapInfo<clang::dataflow::Atom> {\n  using Atom = clang::dataflow::Atom;\n  using Underlying = std::underlying_type_t<Atom>;\n\n  static inline Atom getEmptyKey() { return Atom(Underlying(-1)); }\n  static inline Atom getTombstoneKey() { return Atom(Underlying(-2)); }\n  static unsigned getHashValue(const Atom &Val) {\n    return DenseMapInfo<Underlying>::getHashValue(Underlying(Val));\n  }\n  static bool isEqual(const Atom &LHS, const Atom &RHS) { return LHS == RHS; }\n};\n}",
-  "id": "BLOCK-CPP-21943",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Formula.h",
-  "source_line": 125,
-  "validation_status": "validated"
-}

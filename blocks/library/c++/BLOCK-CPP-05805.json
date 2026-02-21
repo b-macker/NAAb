@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include <intrin.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace numeric_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05805_execute() {\n    {\n#if ABSL_NUMERIC_INTERNAL_HAVE_BUILTIN_OR_GCC(__builtin_clz)\n  // Use __builtin_clz, which uses the following instructions:\n  //  x86: bsr, lzcnt\n  //  ARM64: clz\n  //  PPC: cntlzd\n\n  static_assert(sizeof(unsigned int) == sizeof(x),\n                \"__builtin_clz does not take 32-bit arg\");\n  // Handle 0 as a special case because __builtin_clz(0) is undefined.\n  return x == 0 ? 32 : __builtin_clz(x);\n#elif defined(_MSC_VER) && !defined(__clang__)\n  unsigned long result = 0;  // NOLINT(runtime/int)\n  if (_BitScanReverse(&result, x)) {\n    return 31 - result;\n  }\n  return 32;\n#else\n  int zeroes = 28;\n  if (x >> 16) {\n    zeroes -= 16;\n    x >>= 16;\n  }\n  if (x >> 8) {\n    zeroes -= 8;\n    x >>= 8;\n  }\n  if (x >> 4) {\n    zeroes -= 4;\n    x >>= 4;\n  }\n  return \"\\4\\3\\2\\2\\1\\1\\1\\1\\0\\0\\0\\0\\0\\0\\0\"[x] + zeroes;\n#endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05805",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/internal/bits.h",
-  "source_line": 132,
-  "validation_status": "validated"
-}

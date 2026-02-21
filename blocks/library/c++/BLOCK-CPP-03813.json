@@ -1,8 +1,0 @@
-{
-  "code": "#include <limits>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/fast_type_id.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/distribution_caller.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03813_execute() {\n    {\n    // Ensure that the return values from operator() fill the entire\n    // range promised by result_type, min() and max().\n    absl::random_internal::FastUniformBits<result_type> fast_uniform_bits;\n    return fast_uniform_bits(*reinterpret_cast<URBG*>(ptr));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03813",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/bit_gen_ref.h",
-  "source_line": 148,
-  "validation_status": "validated"
-}

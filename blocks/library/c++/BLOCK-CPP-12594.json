@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclGroup.h\"\n#include \"clang/AST/DependenceFlags.h\"\n#include \"clang/AST/StmtIterator.h\"\n#include \"clang/Basic/CapturedStmt.h\"\n#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/BitmaskEnum.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n#include <optional>\n#include <string>\n#include \"clang/AST/StmtNodes.inc\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12594_execute() {\n    { FirstCase = SC; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12594",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Stmt.h",
-  "source_line": 2348,
-  "validation_status": "validated"
-}

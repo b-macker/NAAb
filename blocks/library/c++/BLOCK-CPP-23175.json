@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  DeclOrStmtAttr(ASTContext &Context, const AttributeCommonInfo &CommonInfo,\n                 attr::Kind AK, bool IsLateParsed,\n                 bool InheritEvenIfAlreadyPresent)\n      : InheritableAttr(Context, CommonInfo, AK, IsLateParsed,\n                        InheritEvenIfAlreadyPresent) {}\n\npublic:\n  static bool classof(const Attr *A) {\n    return A->getKind() >= attr::FirstDeclOrStmtAttr &&\n           A->getKind() <= attr::LastDeclOrStmtAttr;\n  }\n}",
-  "id": "BLOCK-CPP-23175",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Attr.h",
-  "source_line": 161,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  int n = held_locks->n;\n  int i = 0;\n  while (i != n && held_locks->locks[i].id != id) {\n    i++;\n  }\n  if (i == n) {\n    if (!held_locks->overflow) {\n      // The deadlock id may have been reassigned after ForgetDeadlockInfo,\n      // but in that case mu should still be present.\n      i = 0;\n      while (i != n && held_locks->locks[i].mu != mu) {\n        i++;\n      }\n      if (i == n) {  // mu missing means releasing unheld lock\n        SynchEvent* mu_events = GetSynchEvent(mu);\n        ABSL_RAW_LOG(FATAL,\n                     \"thread releasing lock it does not hold: %p %s; \"\n                     ,\n                     static_cast<void*>(mu),\n                     mu_events == nullptr ? \"\" : mu_events->name);\n      }\n    }\n  } else if (held_locks->locks[i].count == 1) {\n    held_locks->n = n - 1;\n    held_locks->locks[i] = held_locks->locks[n - 1];\n    held_locks->locks[n - 1].id = InvalidGraphId();\n    held_locks->locks[n - 1].mu =\n        nullptr;  // clear mu to please the leak detector.\n  } else {\n    assert(held_locks->locks[i].count > 0);\n    held_locks->locks[i].count--;\n  }\n}",
-  "id": "BLOCK-CPP-02079",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/mutex.cc",
-  "source_line": 1252,
-  "validation_status": "validated"
-}

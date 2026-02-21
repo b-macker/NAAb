@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00659_execute() {\n    {\n    if (year >= 0 && year < 10000) {\n      write2(static_cast<int>(year / 100));\n      write2(static_cast<int>(year % 100));\n    } else {\n      write_year_extended(year);\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00659",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
-  "source_line": 1068,
-  "validation_status": "validated"
-}

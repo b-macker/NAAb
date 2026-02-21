@@ -1,8 +1,0 @@
-{
-  "code": "{\n    if (Decls.empty()) {\n      if (ResultKind != NotFoundInCurrentInstantiation)\n        ResultKind = NotFound;\n\n      if (Paths) {\n        deletePaths(Paths);\n        Paths = nullptr;\n      }\n    } else {\n      std::optional<AmbiguityKind> SavedAK;\n      bool WasAmbiguous = false;\n      if (ResultKind == Ambiguous) {\n        SavedAK = Ambiguity;\n        WasAmbiguous = true;\n      }\n      ResultKind = Found;\n      resolveKind();\n\n      // If we didn't make the lookup unambiguous, restore the old\n      // ambiguity kind.\n      if (ResultKind == Ambiguous) {\n        (void)WasAmbiguous;\n        assert(WasAmbiguous);\n        Ambiguity = *SavedAK;\n      } else if (Paths) {\n        deletePaths(Paths);\n        Paths = nullptr;\n      }\n    }\n  }",
-  "id": "BLOCK-CPP-19924",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Lookup.h",
-  "source_line": 500,
-  "validation_status": "validated"
-}

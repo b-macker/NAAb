@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include \"llvm/Support/Registry.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18366_execute() {\n    {\n\n/// The frontend plugin registry.\nusing FrontendPluginRegistry = llvm::Registry<PluginASTAction>;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18366",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendPluginRegistry.h",
-  "source_line": 19,
-  "validation_status": "validated"
-}

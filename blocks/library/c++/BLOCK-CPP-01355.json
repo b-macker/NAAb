@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01355_execute() {\n    {\n  FMT_ASSERT(remainder < divisor, \"\");  // divisor - remainder won't overflow.\n  FMT_ASSERT(error < divisor, \"\");      // divisor - error won't overflow.\n  FMT_ASSERT(error < divisor - error, \"\");  // error * 2 won't overflow.\n  // Round down if (remainder + error) * 2 <= divisor.\n  if (remainder <= divisor - remainder && error * 2 <= divisor - remainder * 2)\n    return round_direction::down;\n  // Round up if (remainder - error) * 2 >= divisor.\n  if (remainder >= error &&\n      remainder - error >= divisor - (remainder - error)) {\n    return round_direction::up;\n  }\n  return round_direction::unknown;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01355",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 2538,
-  "validation_status": "validated"
-}

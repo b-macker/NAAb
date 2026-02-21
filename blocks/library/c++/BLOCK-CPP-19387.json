@@ -1,8 +1,0 @@
-{
-  "code": "{\n    Sema &S;\n    sema::DelayedDiagnosticPool DiagnosticPool;\n    Sema::ParsingDeclState State;\n    bool Active;\n\n  public:\n    /// Begin suppressing access-like checks\n    SuppressAccessChecks(Parser &P, bool activate = true)\n        : S(P.getActions()), DiagnosticPool(nullptr) {\n      if (activate) {\n        State = S.PushParsingDeclaration(DiagnosticPool);\n        Active = true;\n      } else {\n        Active = false;\n      }\n    }\n    SuppressAccessChecks(SuppressAccessChecks &&Other)\n      : S(Other.S), DiagnosticPool(std::move(Other.DiagnosticPool)),\n        State(Other.State), Active(Other.Active) {\n      Other.Active = false;\n    }\n    void operator=(SuppressAccessChecks &&Other) = delete;\n\n    void done() {\n      assert(Active && \"trying to end an inactive suppression\");\n      S.PopParsingDeclaration(State, nullptr);\n      Active = false;\n    }\n\n    void redelay() {\n      assert(!Active && \"redelaying without having ended first\");\n      if (!DiagnosticPool.pool_empty())\n        S.redelayDiagnostics(DiagnosticPool);\n      assert(DiagnosticPool.pool_empty());\n    }\n\n    ~SuppressAccessChecks() {\n      if (Active) done();\n    }\n  }",
-  "id": "BLOCK-CPP-19387",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
-  "source_line": 44,
-  "validation_status": "validated"
-}

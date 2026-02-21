@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/internal/low_level_alloc.h\"\n#include \"absl/synchronization/internal/per_thread_sem.h\"\n#include <atomic>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/thread_identity.h\"\n#include \"absl/synchronization/internal/waiter.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03179_execute() {\n    {\n\nvoid PerThreadSem::SetThreadBlockedCounter(std::atomic<int> *counter) {\n  base_internal::ThreadIdentity *identity;\n  identity = GetOrCreateCurrentThreadIdentity();\n  identity->blocked_count_ptr = counter;\n}\n\nstd::atomic<int> *PerThreadSem::GetThreadBlockedCounter() {\n  base_internal::ThreadIdentity *identity;\n  identity = GetOrCreateCurrentThreadIdentity();\n  return identity->blocked_count_ptr;\n}\n\nvoid PerThreadSem::Tick(base_internal::ThreadIdentity *identity) {\n  const int ticker =\n      identity->ticker.fetch_add(1, std::memory_order_relaxed) + 1;\n  const int wait_start = identity->wait_start.load(std::memory_order_relaxed);\n  const bool is_idle = identity->is_idle.load(std::memory_order_relaxed);\n  if (wait_start && (ticker - wait_start > Waiter::kIdlePeriods) && !is_idle) {\n    // Wakeup the waiting thread since it is time for it to become idle.\n    ABSL_INTERNAL_C_SYMBOL(AbslInternalPerThreadSemPoke)(identity);\n  }\n}\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03179",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/per_thread_sem.cc",
-  "source_line": 29,
-  "validation_status": "validated"
-}

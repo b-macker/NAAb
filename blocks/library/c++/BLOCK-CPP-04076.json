@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <string>\n#include <vector>\n#include \"absl/base/macros.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/str_join.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04076_execute() {\n    {\n  return CUnescape(source, dest, nullptr);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04076",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/escaping.h",
-  "source_line": 75,
-  "validation_status": "validated"
-}

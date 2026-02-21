@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00345_execute() {\n    def _import_common(\n        self, node: nodes.Import | nodes.FromImport, frame: Frame\n    ) -> None:\n        self.write(f\"{self.choose_async('await ')}environment.get_template(\")\n        self.visit(node.template, frame)\n        self.write(f\", {self.name!r}).\")\n\n        if node.with_context:\n            f_name = f\"make_module{self.choose_async('_async')}\"\n            self.write(\n                f\"{f_name}(context.get_all(), True, {self.dump_local_context(frame)})\"\n            )\n        else:\n            self.write(f\"_get_default_module{self.choose_async('_async')}(context)\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00345",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1094,
-  "validation_status": "validated"
-}

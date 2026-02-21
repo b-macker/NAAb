@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTStmtReader;\n  friend class OMPExecutableDirective;\n  /// Build directive with the given start and end location.\n  ///\n  /// \\param StartLoc Starting location of the directive kind.\n  /// \\param EndLoc Ending location of the directive.\n  ///\n  OMPBarrierDirective(SourceLocation StartLoc, SourceLocation EndLoc)\n      : OMPExecutableDirective(OMPBarrierDirectiveClass,\n                               llvm::omp::OMPD_barrier, StartLoc, EndLoc) {}\n\n  /// Build an empty directive.\n  ///\n  explicit OMPBarrierDirective()\n      : OMPExecutableDirective(OMPBarrierDirectiveClass,\n                               llvm::omp::OMPD_barrier, SourceLocation(),\n                               SourceLocation()) {}\n\npublic:\n  /// Creates directive.\n  ///\n  /// \\param C AST context.\n  /// \\param StartLoc Starting location of the directive kind.\n  /// \\param EndLoc Ending Location of the directive.\n  ///\n  static OMPBarrierDirective *\n  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation EndLoc);\n\n  /// Creates an empty directive.\n  ///\n  /// \\param C AST context.\n  ///\n  static OMPBarrierDirective *CreateEmpty(const ASTContext &C, EmptyShell);\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == OMPBarrierDirectiveClass;\n  }\n}",
-  "id": "BLOCK-CPP-13378",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtOpenMP.h",
-  "source_line": 2573,
-  "validation_status": "validated"
-}

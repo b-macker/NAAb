@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/OperatorKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Bitstream/BitCodes.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20805_execute() {\n    {\n  /// Raw source location of beginning of range.\n  SourceLocation::UIntTy Begin;\n\n  /// Raw source location of end of range.\n  SourceLocation::UIntTy End;\n\n  /// Offset in the AST file relative to ModuleFile::MacroOffsetsBase.\n  uint32_t BitOffset;\n\n  PPEntityOffset(SourceRange R, uint32_t BitOffset)\n      : Begin(R.getBegin().getRawEncoding()), End(R.getEnd().getRawEncoding()),\n        BitOffset(BitOffset) {}\n\n  SourceLocation getBegin() const {\n    return SourceLocation::getFromRawEncoding(Begin);\n  }\n\n  SourceLocation getEnd() const {\n    return SourceLocation::getFromRawEncoding(End);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20805",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTBitCodes.h",
-  "source_line": 177,
-  "validation_status": "validated"
-}

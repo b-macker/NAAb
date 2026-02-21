@@ -1,8 +1,0 @@
-{
-  "code": "#include <ostream>\n#include \"absl/base/config.h\"\n#include \"absl/log/internal/structured.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03687_execute() {\n    {\n  return log_internal::AsLiteralImpl(s);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03687",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/structured.h",
-  "source_line": 63,
-  "validation_status": "validated"
-}

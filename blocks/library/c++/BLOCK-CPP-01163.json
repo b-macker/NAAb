@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01163_execute() {\n    {\n  // Report error code making sure that the output fits into\n  // inline_buffer_size to avoid dynamic memory allocation and potential\n  // bad_alloc.\n  out.try_resize(0);\n  static const char SEP[] = \": \";\n  static const char ERROR_STR[] = \"error \";\n  // Subtract 2 to account for terminating null characters in SEP and ERROR_STR.\n  size_t error_code_size = sizeof(SEP) + sizeof(ERROR_STR) - 2;\n  auto abs_value = static_cast<uint32_or_64_or_128_t<int>>(error_code);\n  if (detail::is_negative(error_code)) {\n    abs_value = 0 - abs_value;\n    ++error_code_size;\n  }\n  error_code_size += detail::to_unsigned(detail::count_digits(abs_value));\n  auto it = buffer_appender<char>(out);\n  if (message.size() <= inline_buffer_size - error_code_size)\n    format_to(it, FMT_STRING(\"{}{}\"), message, SEP);\n  format_to(it, FMT_STRING(\"{}{}\"), ERROR_STR, error_code);\n  FMT_ASSERT(out.size() <= inline_buffer_size, \"\");\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01163",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
-  "source_line": 47,
-  "validation_status": "validated"
-}

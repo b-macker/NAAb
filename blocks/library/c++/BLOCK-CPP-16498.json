@@ -1,8 +1,0 @@
-{
-  "code": "// Do not proliferate #includes here, require clients to #include their\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16498_execute() {\n    {\n  // Casting operators.\n  using llvm::isa;\n  using llvm::isa_and_nonnull;\n  using llvm::isa_and_present;\n  using llvm::cast;\n  using llvm::dyn_cast;\n  using llvm::dyn_cast_or_null;\n  using llvm::dyn_cast_if_present;\n  using llvm::cast_or_null;\n  using llvm::cast_if_present;\n\n  // ADT's.\n  using llvm::ArrayRef;\n  using llvm::MutableArrayRef;\n  using llvm::OwningArrayRef;\n  using llvm::SaveAndRestore;\n  using llvm::SmallString;\n  using llvm::SmallVector;\n  using llvm::SmallVectorImpl;\n  using llvm::StringRef;\n  using llvm::Twine;\n  using llvm::VersionTuple;\n\n  // Error handling.\n  using llvm::Expected;\n\n  // Reference counting.\n  using llvm::IntrusiveRefCntPtr;\n  using llvm::IntrusiveRefCntPtrInfo;\n  using llvm::RefCountedBase;\n\n  using llvm::raw_ostream;\n  using llvm::raw_pwrite_stream;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16498",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/LLVM.h",
-  "source_line": 53,
-  "validation_status": "validated"
-}

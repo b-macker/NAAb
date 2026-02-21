@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <limits>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/macros.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03689_execute() {\n    {\n  static_assert(!std::is_array<T>::value, \"array types are unsupported\");\n  static_assert(std::is_object<T>::value, \"non-object types are unsupported\");\n  return std::unique_ptr<T>(ptr);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03689",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/memory/memory.h",
-  "source_line": 71,
-  "validation_status": "validated"
-}

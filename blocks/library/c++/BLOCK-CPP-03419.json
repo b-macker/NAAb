@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstring>\n#include <memory>\n#include <type_traits>\n#include <utility>\n#include <bit>  // For std::bit_cast.\n#include \"absl/base/internal/identity.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03419_execute() {\n    {\n  Dest dest;\n  memcpy(static_cast<void*>(std::addressof(dest)),\n         static_cast<const void*>(std::addressof(source)), sizeof(dest));\n  return dest;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03419",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/casts.h",
-  "source_line": 167,
-  "validation_status": "validated"
-}

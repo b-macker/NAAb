@@ -1,8 +1,0 @@
-{
-  "code": "{\n   public:\n    StorageElement* data() { return nullptr; }\n    void AnnotateConstruct(size_type) {}\n    void AnnotateDestruct(size_type) {}\n  }",
-  "id": "BLOCK-CPP-03499",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/fixed_array.h",
-  "source_line": 453,
-  "validation_status": "validated"
-}

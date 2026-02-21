@@ -1,8 +1,0 @@
-{
-  "code": "#include <fstream>\n#include <ostream>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01498_execute() {\n    {\n#if FMT_MSC_VERSION\n  if (auto* buf = dynamic_cast<std::filebuf*>(os.rdbuf()))\n    if (FILE* f = get_file(*buf)) return write_console(f, data);\n#elif defined(_WIN32) && defined(__GLIBCXX__)\n  auto* rdbuf = os.rdbuf();\n  FILE* c_file;\n  if (auto* fbuf = dynamic_cast<__gnu_cxx::stdio_sync_filebuf<char>*>(rdbuf))\n    c_file = fbuf->file();\n  else if (auto* fbuf = dynamic_cast<__gnu_cxx::stdio_filebuf<char>*>(rdbuf))\n    c_file = fbuf->file();\n  else\n    return false;\n  if (c_file) return write_console(c_file, data);\n#elif defined(_WIN32) && defined(_LIBCPP_VERSION)\n  if (auto* buf = dynamic_cast<std::__stdoutbuf<char>*>(os.rdbuf()))\n    if (FILE* f = get_file(*buf)) return write_console(f, data);\n#else\n  ignore_unused(os, data);\n#endif\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01498",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ostream.h",
-  "source_line": 80,
-  "validation_status": "validated"
-}

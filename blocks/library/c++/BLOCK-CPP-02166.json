@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/time/clock.h\"\n#include \"absl/base/attributes.h\"\n#include \"absl/base/optimization.h\"\n#include <windows.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstdint>\n#include <ctime>\n#include <limits>\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/unscaledcycleclock.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/time/internal/get_current_time_chrono.inc\"\n#include \"absl/time/internal/get_current_time_posix.inc\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace time_internal;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02166_execute() {\n    {\n  uint64_t raw_ns = 0;                 // raw kernel time\n  uint64_t base_ns = 0;                // our estimate of time\n  uint64_t base_cycles = 0;            // cycle counter reading\n  uint64_t nsscaled_per_cycle = 0;     // cycle period\n  uint64_t min_cycles_per_sample = 0;  // approx cycles before next sample\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02166",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
-  "source_line": 163,
-  "validation_status": "validated"
-}

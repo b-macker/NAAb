@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08731_execute() {\n    {\n    RHS.Data.setPointer(nullptr);\n    RHS.Data.setInt(false);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08731",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclContextInternals.h",
-  "source_line": 91,
-  "validation_status": "validated"
-}

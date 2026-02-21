@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18566_execute() {\n    {\n\nenum {\n  HMAP_HeaderMagicNumber = ('h' << 24) | ('m' << 16) | ('a' << 8) | 'p',\n  HMAP_HeaderVersion = 1,\n  HMAP_EmptyBucketKey = 0\n};\n\nstruct HMapBucket {\n  uint32_t Key;    // Offset (into strings) of key.\n  uint32_t Prefix; // Offset (into strings) of value prefix.\n  uint32_t Suffix; // Offset (into strings) of value suffix.\n};\n\nstruct HMapHeader {\n  uint32_t Magic;          // Magic word, also indicates byte order.\n  uint16_t Version;        // Version number -- currently 1.\n  uint16_t Reserved;       // Reserved for future use - zero for now.\n  uint32_t StringsOffset;  // Offset to start of string pool.\n  uint32_t NumEntries;     // Number of entries in the string table.\n  uint32_t NumBuckets;     // Number of buckets (always a power of 2).\n  uint32_t MaxValueLength; // Length of longest result path (excluding nul).\n  // An array of 'NumBuckets' HMapBucket objects follows this header.\n  // Strings follow the buckets, at StringsOffset.\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18566",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/HeaderMapTypes.h",
-  "source_line": 14,
-  "validation_status": "validated"
-}

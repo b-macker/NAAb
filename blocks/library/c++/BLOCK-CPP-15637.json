@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/StmtVisitor.h\"\n#include \"llvm/Support/Regex.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15637_execute() {\n    {\n  void constrain(std::vector<CloneDetector::CloneGroup> &Result);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15637",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CloneDetection.h",
-  "source_line": 318,
-  "validation_status": "validated"
-}

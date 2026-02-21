@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/AbstractBasicReader.h\"\n#include \"clang/Lex/Token.h\"\n#include \"clang/Serialization/ASTReader.h\"\n#include \"clang/Serialization/SourceLocationEncoding.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/APInt.h\"\n#include \"llvm/ADT/APSInt.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20903_execute() {\n    {\n    auto Array = llvm::ArrayRef(Record).slice(Idx, Len);\n    Idx += Len;\n    return Array;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20903",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTRecordReader.h",
-  "source_line": 76,
-  "validation_status": "validated"
-}

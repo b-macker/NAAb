@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/str_split.h\"\n#include <algorithm>\n#include <cstddef>\n#include <cstdlib>\n#include <cstring>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02032_execute() {\n    {\n    return text.find_first_of(delimiter, pos);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02032",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_split.cc",
-  "source_line": 72,
-  "validation_status": "validated"
-}

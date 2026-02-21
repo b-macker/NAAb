@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Function(Variable *Vd, SExpr *Bd)\n      : SExpr(COP_Function), VarDecl(Vd), Body(Bd) {\n    Vd->setKind(Variable::VK_Fun);\n  }\n\n  Function(const Function &F, Variable *Vd, SExpr *Bd) // rewrite constructor\n      : SExpr(F), VarDecl(Vd), Body(Bd) {\n    Vd->setKind(Variable::VK_Fun);\n  }\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Function; }\n\n  Variable *variableDecl()  { return VarDecl; }\n  const Variable *variableDecl() const { return VarDecl; }\n\n  SExpr *body() { return Body; }\n  const SExpr *body() const { return Body; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    // This is a variable declaration, so traverse the definition.\n    auto E0 = Vs.traverse(VarDecl->Definition, Vs.typeCtx(Ctx));\n    // Tell the rewriter to enter the scope of the function.\n    Variable *Nvd = Vs.enterScope(*VarDecl, E0);\n    auto E1 = Vs.traverse(Body, Vs.declCtx(Ctx));\n    Vs.exitScope(*VarDecl);\n    return Vs.reduceFunction(*this, Nvd, E1);\n  }\n\n  template <class C>\n  typename C::CType compare(const Function* E, C& Cmp) const {\n    typename C::CType Ct =\n      Cmp.compare(VarDecl->definition(), E->VarDecl->definition());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    Cmp.enterScope(variableDecl(), E->variableDecl());\n    Ct = Cmp.compare(body(), E->body());\n    Cmp.leaveScope();\n    return Ct;\n  }\n\nprivate:\n  Variable *VarDecl;\n  SExpr* Body;\n}",
-  "id": "BLOCK-CPP-21653",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 673,
-  "validation_status": "validated"
-}

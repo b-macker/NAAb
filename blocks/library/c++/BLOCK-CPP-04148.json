@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <cstdio>\n#include <string>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/internal/str_format/arg.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/bind.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/checker.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/extension.h\"  // IWYU pragma: export\n#include \"absl/strings/internal/str_format/parser.h\"  // IWYU pragma: export\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace as;\nusing namespace of;\nusing namespace as;\nusing namespace of;\nusing namespace as;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04148_execute() {\n    { return impl_.precision(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04148",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_format.h",
-  "source_line": 771,
-  "validation_status": "validated"
-}

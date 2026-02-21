@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/BitmaskEnum.h\"\n#include \"llvm/ADT/BitmaskEnum.h\"\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09491_execute() {\n    {\n  enum TypeDependence : uint8_t {\n    /// Whether this type contains an unexpanded parameter pack\n    /// (for C++11 variadic templates)\n    UnexpandedPack = 1,\n    /// Whether this type somehow involves\n    ///   - a template parameter, even if the resolution of the type does not\n    ///     depend on a template parameter.\n    ///   - or an error.\n    Instantiation = 2,\n    /// Whether this type\n    ///   - is a dependent type (C++ [temp.dep.type])\n    ///   - or it somehow involves an error, e.g. decltype(recovery-expr)\n    Dependent = 4,\n    /// Whether this type is a variably-modified type (C99 6.7.5).\n    VariablyModified = 8,\n\n    /// Whether this type references an error, e.g. decltype(err-expression)\n    /// yields an error type.\n    Error = 16,\n\n    None = 0,\n    All = 31,\n\n    DependentInstantiation = Dependent | Instantiation,\n\n    LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/Error)\n  };\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-09491",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DependenceFlags.h",
-  "source_line": 51,
-  "validation_status": "validated"
-}

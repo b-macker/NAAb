@@ -1,8 +1,0 @@
-{
-  "code": "{\n  assert(IsDataEdge(rep.rep));\n\n  // Consume all substrings\n  if (rep.rep->tag == SUBSTRING) {\n    raw_usage.Add(sizeof(CordRepSubstring), rep);\n    rep = rep.Child(rep.rep->substring()->child);\n  }\n\n  // Consume FLAT / EXTERNAL\n  const size_t size =\n      rep.rep->tag >= FLAT\n          ? rep.rep->flat()->AllocatedSize()\n          : rep.rep->length + sizeof(CordRepExternalImpl<intptr_t>);\n  raw_usage.Add(size, rep);\n}",
-  "id": "BLOCK-CPP-01897",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/cord_analysis.cc",
-  "source_line": 118,
-  "validation_status": "validated"
-}

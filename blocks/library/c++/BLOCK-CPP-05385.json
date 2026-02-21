@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include \"absl/base/config.h\"\n#include <x86intrin.h>\n#include <intrin.h>\n#include <arm_acle.h>\n#include <arm_neon.h>\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05385_execute() {\n    {\n  return _mm_srli_si128(l, imm);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05385",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc32_x86_arm_combined_simd.h",
-  "source_line": 177,
-  "validation_status": "validated"
-}

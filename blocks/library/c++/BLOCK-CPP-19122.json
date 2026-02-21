@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/FileEntry.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Lex/MultipleIncludeOpt.h\"\n#include \"clang/Lex/Token.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n  /// True after \\#include; turns \\<xx> or \"xxx\" into a tok::header_name token.\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19122_execute() {\n    {\n    ConditionalStack.push_back(CI);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19122",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PreprocessorLexer.h",
-  "source_line": 102,
-  "validation_status": "validated"
-}

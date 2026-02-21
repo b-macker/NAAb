@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Path.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16494_execute() {\n    {\n  if (RawSR.empty())\n    return \"null\";\n\n  // Trim special characters.\n  std::string Str = RawSR.trim().str();\n  size_t Pos = 0;\n\n  // Escape backslashes.\n  while (true) {\n    Pos = Str.find('\\\\', Pos);\n    if (Pos == std::string::npos)\n      break;\n\n    // Prevent bad conversions.\n    size_t TempPos = (Pos != 0) ? Pos - 1 : 0;\n\n    // See whether the current backslash is not escaped.\n    if (TempPos != Str.find(\"\\\\\\\\\", Pos)) {\n      Str.insert(Pos, \"\\\\\");\n      ++Pos; // As we insert the backslash move plus one.\n    }\n\n    ++Pos;\n  }\n\n  // Escape double quotes.\n  Pos = 0;\n  while (true) {\n    Pos = Str.find('\\\"', Pos);\n    if (Pos == std::string::npos)\n      break;\n\n    // Prevent bad conversions.\n    size_t TempPos = (Pos != 0) ? Pos - 1 : 0;\n\n    // See whether the current double quote is not escaped.\n    if (TempPos != Str.find(\"\\\\\\\"\", Pos)) {\n      Str.insert(Pos, \"\\\\\");\n      ++Pos; // As we insert the escape-character move plus one.\n    }\n\n    ++Pos;\n  }\n\n  // Remove new-lines.\n  llvm::erase_value(Str, '\\n');\n\n  if (!AddQuotes)\n    return Str;\n\n  return '\\\"' + Str + '\\\"';\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16494",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/JsonSupport.h",
-  "source_line": 28,
-  "validation_status": "validated"
-}

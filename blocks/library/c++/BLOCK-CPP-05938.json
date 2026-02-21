@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05938_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace random_internal {\n\n// Returns whether the current CPU supports RandenHwAes implementation.\n// This typically involves supporting cryptographic extensions on whichever\n// platform is currently running.\nbool CPUSupportsRandenHwAes();\n\n}  // namespace random_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05938",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_detect.h",
-  "source_line": 20,
-  "validation_status": "validated"
-}

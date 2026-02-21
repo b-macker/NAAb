@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/sinks/base_sink.h>\n#include <mutex>\n#include <ostream>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00434_execute() {\n    {\ntemplate <typename Mutex>\nclass ostream_sink final : public base_sink<Mutex> {\npublic:\n    explicit ostream_sink(std::ostream &os, bool force_flush = false)\n        : ostream_(os),\n          force_flush_(force_flush) {}\n    ostream_sink(const ostream_sink &) = delete;\n    ostream_sink &operator=(const ostream_sink &) = delete;\n\nprotected:\n    void sink_it_(const details::log_msg &msg) override {\n        memory_buf_t formatted;\n        base_sink<Mutex>::formatter_->format(msg, formatted);\n        ostream_.write(formatted.data(), static_cast<std::streamsize>(formatted.size()));\n        if (force_flush_) {\n            ostream_.flush();\n        }\n    }\n\n    void flush_() override { ostream_.flush(); }\n\n    std::ostream &ostream_;\n    bool force_flush_;\n};\n\nusing ostream_sink_mt = ostream_sink<std::mutex>;\nusing ostream_sink_st = ostream_sink<details::null_mutex>;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00434",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/ostream_sink.h",
-  "source_line": 13,
-  "validation_status": "validated"
-}

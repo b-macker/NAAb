@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cstring>\n#include \"clang/Basic/BuiltinHeaders.def\"\n#include \"clang/Basic/Builtins.def\"\n\nusing namespace clang;\nusing namespace Builtin;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16014_execute() {\n    {\n    return strchr(getRecord(ID).Attributes, 'U') != nullptr;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16014",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Builtins.h",
-  "source_line": 116,
-  "validation_status": "validated"
-}

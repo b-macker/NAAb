@@ -1,8 +1,0 @@
-{
-  "code": "using namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16092_execute() {\n    {\n  UNKNOWN,\n  CUDA_70,\n  CUDA_75,\n  CUDA_80,\n  CUDA_90,\n  CUDA_91,\n  CUDA_92,\n  CUDA_100,\n  CUDA_101,\n  CUDA_102,\n  CUDA_110,\n  CUDA_111,\n  CUDA_112,\n  CUDA_113,\n  CUDA_114,\n  CUDA_115,\n  CUDA_116,\n  CUDA_117,\n  CUDA_118,\n  CUDA_120,\n  CUDA_121,\n  FULLY_SUPPORTED = CUDA_118,\n  PARTIALLY_SUPPORTED =\n      CUDA_121, // Partially supported. Proceed with a warning.\n  NEW = 10000,  // Too new. Issue a warning, but allow using it.\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16092",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Cuda.h",
-  "source_line": 20,
-  "validation_status": "validated"
-}

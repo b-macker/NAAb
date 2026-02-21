@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ExtractAPI/ExtractAPIActionBase.h\"\n#include \"clang/Frontend/FrontendAction.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18032_execute() {\n    { return \"<extract-api-includes>\"; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18032",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/FrontendActions.h",
-  "source_line": 51,
-  "validation_status": "validated"
-}

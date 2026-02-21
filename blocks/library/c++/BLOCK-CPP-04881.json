@@ -1,8 +1,0 @@
-{
-  "code": "{\n  using is_transparent = void;\n\n  StringBtreeDefaultLess() = default;\n\n  // Compatibility constructor.\n  StringBtreeDefaultLess(std::less<std::string>) {}        // NOLINT\n  StringBtreeDefaultLess(std::less<absl::string_view>) {}  // NOLINT\n\n  // Allow converting to std::less for use in key_comp()/value_comp().\n  explicit operator std::less<std::string>() const { return {}; }\n  explicit operator std::less<absl::string_view>() const { return {}; }\n  explicit operator std::less<absl::Cord>() const { return {}; }\n\n  absl::weak_ordering operator()(absl::string_view lhs,\n                                 absl::string_view rhs) const {\n    return compare_internal::compare_result_as_ordering(lhs.compare(rhs));\n  }\n  StringBtreeDefaultLess(std::less<absl::Cord>) {}  // NOLINT\n  absl::weak_ordering operator()(const absl::Cord &lhs,\n                                 const absl::Cord &rhs) const {\n    return compare_internal::compare_result_as_ordering(lhs.Compare(rhs));\n  }\n  absl::weak_ordering operator()(const absl::Cord &lhs,\n                                 absl::string_view rhs) const {\n    return compare_internal::compare_result_as_ordering(lhs.Compare(rhs));\n  }\n  absl::weak_ordering operator()(absl::string_view lhs,\n                                 const absl::Cord &rhs) const {\n    return compare_internal::compare_result_as_ordering(-rhs.Compare(lhs));\n  }\n}",
-  "id": "BLOCK-CPP-04881",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
-  "source_line": 105,
-  "validation_status": "validated"
-}

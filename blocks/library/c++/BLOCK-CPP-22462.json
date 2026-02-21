@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang-c/BuildSystem.h\"\n#include \"clang-c/CXDiagnostic.h\"\n#include \"clang-c/CXErrorCode.h\"\n#include \"clang-c/CXFile.h\"\n#include \"clang-c/CXSourceLocation.h\"\n#include \"clang-c/CXString.h\"\n#include \"clang-c/ExternC.h\"\n#include \"clang-c/Platform.h\"\n\nusing namespace pollution;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22462_execute() {\n    {\n *   const int ExcludeDeclarationsFromPCH = 1;\n *   const int DisplayDiagnostics = 1;\n *   CXIndex Idx;\n * #if CINDEX_VERSION_MINOR >= 64\n *   CXIndexOptions Opts;\n *   memset(&Opts, 0, sizeof(Opts));\n *   Opts.Size = sizeof(CXIndexOptions);\n *   Opts.ThreadBackgroundPriorityForIndexing = 1;\n *   Opts.ExcludeDeclarationsFromPCH = ExcludeDeclarationsFromPCH;\n *   Opts.DisplayDiagnostics = DisplayDiagnostics;\n *   Opts.PreambleStoragePath = ApplicationTemporaryPath;\n *   Idx = clang_createIndexWithOptions(&Opts);\n *   if (Idx)\n *     return Idx;\n *   fprintf(stderr,\n *           \"clang_createIndexWithOptions() failed. \"\n *           \"CINDEX_VERSION_MINOR = %d, sizeof(CXIndexOptions) = %u\\n\",\n *           CINDEX_VERSION_MINOR, Opts.Size);\n * #else\n *   (void)ApplicationTemporaryPath;\n * #endif\n *   Idx = clang_createIndex(ExcludeDeclarationsFromPCH, DisplayDiagnostics);\n *   clang_CXIndex_setGlobalOptions(\n *       Idx, clang_CXIndex_getGlobalOptions(Idx) |\n *                CXGlobalOpt_ThreadBackgroundPriorityForIndexing);\n *   return Idx;\n * }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22462",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang-c/Index.h",
-  "source_line": 414,
-  "validation_status": "validated"
-}

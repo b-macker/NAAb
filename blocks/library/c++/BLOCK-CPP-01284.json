@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01284_execute() {\n    {\n  FMT_ASSERT(-10000 < exp && exp < 10000, \"exponent out of range\");\n  if (exp < 0) {\n    *it++ = static_cast<Char>('-');\n    exp = -exp;\n  } else {\n    *it++ = static_cast<Char>('+');\n  }\n  if (exp >= 100) {\n    const char* top = digits2(to_unsigned(exp / 100));\n    if (exp >= 1000) *it++ = static_cast<Char>(top[0]);\n    *it++ = static_cast<Char>(top[1]);\n    exp %= 100;\n  }\n  const char* d = digits2(to_unsigned(exp));\n  *it++ = static_cast<Char>(d[0]);\n  *it++ = static_cast<Char>(d[1]);\n  return it;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01284",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 1369,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  const CXXBindTemporaryExpr *BTE;\n\n  friend class ConstructionContext; // Allows to create<>() itself.\n\n  explicit CXX17ElidedCopyReturnedValueConstructionContext(\n      const ReturnStmt *RS, const CXXBindTemporaryExpr *BTE)\n      : ReturnedValueConstructionContext(\n            ConstructionContext::CXX17ElidedCopyReturnedValueKind, RS),\n        BTE(BTE) {\n    assert(BTE);\n  }\n\npublic:\n  const CXXBindTemporaryExpr *getCXXBindTemporaryExpr() const { return BTE; }\n\n  static bool classof(const ConstructionContext *CC) {\n    return CC->getKind() == CXX17ElidedCopyReturnedValueKind;\n  }\n}",
-  "id": "BLOCK-CPP-15694",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 629,
-  "validation_status": "validated"
-}

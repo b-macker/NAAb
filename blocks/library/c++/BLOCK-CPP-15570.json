@@ -1,8 +1,0 @@
-{
-  "code": "{\n  private:\n    IMPL I, E;\n    const FilterOptions F;\n    const CFGBlock *From;\n\n  public:\n    explicit FilteredCFGBlockIterator(const IMPL &i, const IMPL &e,\n                                      const CFGBlock *from,\n                                      const FilterOptions &f)\n        : I(i), E(e), F(f), From(from) {\n      while (hasMore() && Filter(*I))\n        ++I;\n    }\n\n    bool hasMore() const { return I != E; }\n\n    FilteredCFGBlockIterator &operator++() {\n      do { ++I; } while (hasMore() && Filter(*I));\n      return *this;\n    }\n\n    const CFGBlock *operator*() const { return *I; }\n\n  private:\n    bool Filter(const CFGBlock *To) {\n      return IsPred ? FilterEdge(F, To, From) : FilterEdge(F, From, To);\n    }\n  }",
-  "id": "BLOCK-CPP-15570",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 992,
-  "validation_status": "validated"
-}

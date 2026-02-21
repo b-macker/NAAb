@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  SARIFDiagnosticPrinter(raw_ostream &OS, DiagnosticOptions *Diags);\n  ~SARIFDiagnosticPrinter() = default;\n\n  SARIFDiagnosticPrinter &operator=(const SARIFDiagnosticPrinter &&) = delete;\n  SARIFDiagnosticPrinter(SARIFDiagnosticPrinter &&) = delete;\n  SARIFDiagnosticPrinter &operator=(const SARIFDiagnosticPrinter &) = delete;\n  SARIFDiagnosticPrinter(const SARIFDiagnosticPrinter &) = delete;\n\n  /// setPrefix - Set the diagnostic printer prefix string, which will be\n  /// printed at the start of any diagnostics. If empty, no prefix string is\n  /// used.\n  void setPrefix(llvm::StringRef Value) { Prefix = Value; }\n\n  bool hasSarifWriter() const { return Writer != nullptr; }\n\n  SarifDocumentWriter &getSarifWriter() const {\n    assert(Writer && \"SarifWriter not set!\");\n    return *Writer;\n  }\n\n  void setSarifWriter(std::unique_ptr<SarifDocumentWriter> SarifWriter) {\n    Writer = std::move(SarifWriter);\n  }\n\n  void BeginSourceFile(const LangOptions &LO, const Preprocessor *PP) override;\n  void EndSourceFile() override;\n  void HandleDiagnostic(DiagnosticsEngine::Level Level,\n                        const Diagnostic &Info) override;\n\nprivate:\n  raw_ostream &OS;\n  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts;\n\n  /// Handle to the currently active SARIF diagnostic emitter.\n  std::unique_ptr<SARIFDiagnostic> SARIFDiag;\n\n  /// A string to prefix to error messages.\n  std::string Prefix;\n\n  std::unique_ptr<SarifDocumentWriter> Writer;\n}",
-  "id": "BLOCK-CPP-18397",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/SARIFDiagnosticPrinter.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

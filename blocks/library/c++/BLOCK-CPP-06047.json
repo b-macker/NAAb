@@ -1,8 +1,0 @@
-{
-  "code": "{\n  int limit = (std::max)(lhs.size(), rhs.size());\n  for (int i = limit - 1; i >= 0; --i) {\n    const uint32_t lhs_word = lhs.GetWord(i);\n    const uint32_t rhs_word = rhs.GetWord(i);\n    if (lhs_word < rhs_word) {\n      return -1;\n    } else if (lhs_word > rhs_word) {\n      return 1;\n    }\n  }\n  return 0;\n}",
-  "id": "BLOCK-CPP-06047",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_bigint.h",
-  "source_line": 352,
-  "validation_status": "validated"
-}

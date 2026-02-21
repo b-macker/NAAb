@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Wildcard() : SExpr(COP_Wildcard) {}\n  Wildcard(const Wildcard &) = default;\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Wildcard; }\n\n  template <class V> typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    return Vs.reduceWildcard(*this);\n  }\n\n  template <class C>\n  typename C::CType compare(const Wildcard* E, C& Cmp) const {\n    return Cmp.trueResult();\n  }\n}",
-  "id": "BLOCK-CPP-21649",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 513,
-  "validation_status": "validated"
-}

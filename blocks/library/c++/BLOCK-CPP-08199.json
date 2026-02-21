@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/Support/DataTypes.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08199_execute() {\n    {\n    set(getDecl(), AS);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08199",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclAccessPair.h",
-  "source_line": 51,
-  "validation_status": "validated"
-}

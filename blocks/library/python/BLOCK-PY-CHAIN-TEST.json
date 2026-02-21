@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid _execute() {\n    class Builder:\n    def __init__(self):\n        self.value = 0\n        self.messages = []\n    \n    def add(self, n):\n        self.value += n\n        self.messages.append(f'Added {n}')\n        return self\n    \n    def multiply(self, n):\n        self.value *= n\n        self.messages.append(f'Multiplied by {n}')\n        return self\n    \n    def get_value(self):\n        return self.value\n    \n    def get_messages(self):\n        return ', '.join(self.messages)\n}\n\n} // extern \"C\"\n",
-  "id": "",
-  "language": "python",
-  "source_file": "",
-  "source_line": 0,
-  "validation_status": "validated"
-}

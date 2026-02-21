@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  StringRef CloseName;\n  SourceLocation CloseNameLocBegin;\n  ArrayRef<VerbatimBlockLineComment *> Lines;\n\npublic:\n  VerbatimBlockComment(SourceLocation LocBegin,\n                       SourceLocation LocEnd,\n                       unsigned CommandID) :\n      BlockCommandComment(VerbatimBlockCommentKind,\n                          LocBegin, LocEnd, CommandID,\n                          CMK_At) // FIXME: improve source fidelity.\n  { }\n\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() == VerbatimBlockCommentKind;\n  }\n\n  child_iterator child_begin() const {\n    return reinterpret_cast<child_iterator>(Lines.begin());\n  }\n\n  child_iterator child_end() const {\n    return reinterpret_cast<child_iterator>(Lines.end());\n  }\n\n  void setCloseName(StringRef Name, SourceLocation LocBegin) {\n    CloseName = Name;\n    CloseNameLocBegin = LocBegin;\n  }\n\n  void setLines(ArrayRef<VerbatimBlockLineComment *> L) {\n    Lines = L;\n  }\n\n  StringRef getCloseName() const {\n    return CloseName;\n  }\n\n  unsigned getNumLines() const {\n    return Lines.size();\n  }\n\n  StringRef getText(unsigned LineIdx) const {\n    return Lines[LineIdx]->getText();\n  }\n}",
-  "id": "BLOCK-CPP-07668",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
-  "source_line": 874,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05977_execute() {\n    {\n    return !std::numeric_limits<T>::is_integer +\n           std::numeric_limits<T>::is_signed;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05977",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/traits.h",
-  "source_line": 49,
-  "validation_status": "validated"
-}

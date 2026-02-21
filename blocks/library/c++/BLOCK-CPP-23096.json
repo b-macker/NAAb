@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicReader.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23096_execute() {\n    {\n    bool isUnsigned = asImpl().readBool();\n    llvm::APInt value = asImpl().readAPInt();\n    return llvm::APSInt(std::move(value), isUnsigned);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23096",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
-  "source_line": 165,
-  "validation_status": "validated"
-}

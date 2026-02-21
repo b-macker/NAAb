@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01289_execute() {\n    {\n#if FMT_USE_INT128\n  auto product = static_cast<__uint128_t>(lhs) * rhs;\n  auto f = static_cast<uint64_t>(product >> 64);\n  return (static_cast<uint64_t>(product) & (1ULL << 63)) != 0 ? f + 1 : f;\n#else\n  // Multiply 32-bit parts of significands.\n  uint64_t mask = (1ULL << 32) - 1;\n  uint64_t a = lhs >> 32, b = lhs & mask;\n  uint64_t c = rhs >> 32, d = rhs & mask;\n  uint64_t ac = a * c, bc = b * c, ad = a * d, bd = b * d;\n  // Compute mid 64-bit of result and round.\n  uint64_t mid = (bd >> 32) + (ad & mask) + (bc & mask) + (1U << 31);\n  return ac + (ad >> 32) + (bc >> 32) + (mid >> 32);\n#endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01289",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 1457,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <type_traits>\n#include \"absl/algorithm/container.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/container/internal/hash_function_defaults.h\"  // IWYU pragma: export\n#include \"absl/container/internal/node_slot_policy.h\"\n#include \"absl/container/internal/raw_hash_set.h\"  // IWYU pragma: export\n#include \"absl/memory/memory.h\"\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace container_internal;\nusing namespace container_internal;\nusing namespace container_internal;\nusing namespace container_algorithm_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03564_execute() {\n    {\n\n// Specialization of trait in absl/algorithm/container.h\ntemplate <class Key, class Hash, class KeyEqual, class Allocator>\nstruct IsUnorderedContainer<absl::node_hash_set<Key, Hash, KeyEqual, Allocator>>\n    : std::true_type {};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03564",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/node_hash_set.h",
-  "source_line": 493,
-  "validation_status": "validated"
-}

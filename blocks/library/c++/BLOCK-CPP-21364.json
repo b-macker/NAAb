@@ -1,8 +1,0 @@
-{
-  "code": "#include <type_traits>\n#include \"clang/AST/AST.h\"\n#include \"clang/ASTMatchers/ASTMatchers.h\"\n#include \"llvm/ADT/DenseMap.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21364_execute() {\n    { return findMutation(Dec) != nullptr; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21364",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ExprMutationAnalyzer.h",
-  "source_line": 29,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  StringRef Text;\n\npublic:\n  VerbatimBlockLineComment(SourceLocation LocBegin,\n                           StringRef Text) :\n      Comment(VerbatimBlockLineCommentKind,\n              LocBegin,\n              LocBegin.getLocWithOffset(Text.size())),\n      Text(Text)\n  { }\n\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() == VerbatimBlockLineCommentKind;\n  }\n\n  child_iterator child_begin() const { return nullptr; }\n\n  child_iterator child_end() const { return nullptr; }\n\n  StringRef getText() const LLVM_READONLY {\n    return Text;\n  }\n}",
-  "id": "BLOCK-CPP-07667",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
-  "source_line": 846,
-  "validation_status": "validated"
-}

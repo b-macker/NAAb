@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <cassert>\n#include <map>\n#include <vector>\n  /// If this is 0 then there is no virtual \\#includer.\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16995_execute() {\n    { return LineEntries.end(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16995",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SourceManagerInternals.h",
-  "source_line": 124,
-  "validation_status": "validated"
-}

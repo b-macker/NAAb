@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/RawCommentList.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/ExtractAPI/AvailabilityInfo.h\"\n#include \"clang/ExtractAPI/DeclarationFragments.h\"\n#include \"llvm/ADT/MapVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <memory>\n#include <type_traits>\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17996_execute() {\n    {\n  StringRef Name;\n  StringRef USR;\n\n  /// The source project/module/product of the referred symbol.\n  StringRef Source;\n\n  SymbolReference() = default;\n  SymbolReference(StringRef Name, StringRef USR = \"\", StringRef Source = \"\")\n      : Name(Name), USR(USR), Source(Source) {}\n  SymbolReference(const APIRecord &Record)\n      : Name(Record.Name), USR(Record.USR) {}\n\n  /// Determine if this SymbolReference is empty.\n  ///\n  /// \\returns true if and only if all \\c Name, \\c USR, and \\c Source is empty.\n  bool empty() const { return Name.empty() && USR.empty() && Source.empty(); }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17996",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/API.h",
-  "source_line": 428,
-  "validation_status": "validated"
-}

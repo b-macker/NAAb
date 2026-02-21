@@ -1,8 +1,0 @@
-{
-  "code": "{\n    if (input.empty() || input.size() > 512) {\n        return;\n    }\n\n    auto key_vals = extract_key_vals_(input);\n    std::unordered_map<std::string, level::level_enum> levels;\n    level::level_enum global_level = level::info;\n    bool global_level_found = false;\n\n    for (auto &name_level : key_vals) {\n        auto &logger_name = name_level.first;\n        auto level_name = to_lower_(name_level.second);\n        auto level = level::from_str(level_name);\n        // ignore unrecognized level names\n        if (level == level::off && level_name != \"off\") {\n            continue;\n        }\n        if (logger_name.empty())  // no logger name indicate global level\n        {\n            global_level_found = true;\n            global_level = level;\n        } else {\n            levels[logger_name] = level;\n        }\n    }\n\n    details::registry::instance().set_levels(std::move(levels),\n                                             global_level_found ? &global_level : nullptr);\n}",
-  "id": "BLOCK-CPP-00187",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/cfg/helpers-inl.h",
-  "source_line": 74,
-  "validation_status": "validated"
-}

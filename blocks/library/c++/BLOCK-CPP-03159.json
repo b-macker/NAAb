@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/low_level_alloc.h\"\n#include \"absl/synchronization/internal/graphcycles.h\"\n#include <algorithm>\n#include <array>\n#include <cinttypes>\n#include <limits>\n#include \"absl/base/internal/hide_ptr.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03159_execute() {\n    {\n    auto masked = base_internal::HidePtr(ptr);\n    for (int32_t i = table_[Hash(ptr)]; i != -1;) {\n      Node* n = (*nodes_)[static_cast<uint32_t>(i)];\n      if (n->masked_ptr == masked) return i;\n      i = n->next_hash;\n    }\n    return -1;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03159",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/graphcycles.cc",
-  "source_line": 301,
-  "validation_status": "validated"
-}

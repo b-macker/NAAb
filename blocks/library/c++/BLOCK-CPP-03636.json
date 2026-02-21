@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace functional_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03636_execute() {\n    {\n  static_assert(functional_internal::kDependentFalse<Dependent>,\n                \"Overload is only usable with C++17 or above.\");\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03636",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/overload.h",
-  "source_line": 65,
-  "validation_status": "validated"
-}

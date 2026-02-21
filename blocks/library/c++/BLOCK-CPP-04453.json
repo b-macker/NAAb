@@ -1,8 +1,0 @@
-{
-  "code": "#include <stdexcept>\n#include \"absl/base/config.h\"\n#include <optional>\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04453_execute() {\n    {\n public:\n  bad_optional_access() = default;\n  ~bad_optional_access() override;\n  const char* what() const noexcept override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04453",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_optional_access.h",
-  "source_line": 60,
-  "validation_status": "validated"
-}

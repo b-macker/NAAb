@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <exception>\n#include <functional>\n#include <initializer_list>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_any_invocable;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05580_execute() {\n    {\n    // In this case we can \"steal the guts\" of the other AnyInvocable.\n    f.manager_(FunctionToCall::relocate_from_to, &f.state_, &state_);\n    manager_ = f.manager_;\n    invoker_ = f.invoker_;\n\n    f.manager_ = EmptyManager;\n    f.invoker_ = nullptr;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05580",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/internal/any_invocable.h",
-  "source_line": 548,
-  "validation_status": "validated"
-}

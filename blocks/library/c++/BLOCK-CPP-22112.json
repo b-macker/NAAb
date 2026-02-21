@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22112_execute() {\n    {\n\n  /// DeltaTree - a multiway search tree (BTree) structure with some fancy\n  /// features.  B-Trees are generally more memory and cache efficient than\n  /// binary trees, because they store multiple keys/values in each node.  This\n  /// implements a key/value mapping from index to delta, and allows fast lookup\n  /// on index.  However, an added (important) bonus is that it can also\n  /// efficiently tell us the full accumulated delta for a specific file offset\n  /// as well, without traversing the whole tree.\n  class DeltaTree {\n    void *Root;    // \"DeltaTreeNode *\"\n\n  public:\n    DeltaTree();\n\n    // Note: Currently we only support copying when the RHS is empty.\n    DeltaTree(const DeltaTree &RHS);\n\n    DeltaTree &operator=(const DeltaTree &) = delete;\n    ~DeltaTree();\n\n    /// getDeltaAt - Return the accumulated delta at the specified file offset.\n    /// This includes all insertions or delections that occurred *before* the\n    /// specified file index.\n    int getDeltaAt(unsigned FileIndex) const;\n\n    /// AddDelta - When a change is made that shifts around the text buffer,\n    /// this method is used to record that info.  It inserts a delta of 'Delta'\n    /// into the current DeltaTree at offset FileIndex.\n    void AddDelta(unsigned FileIndex, int Delta);\n  };\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22112",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/DeltaTree.h",
-  "source_line": 16,
-  "validation_status": "validated"
-}

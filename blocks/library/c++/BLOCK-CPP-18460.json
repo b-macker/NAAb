@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclBase.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Index/IndexSymbol.h\"\n#include \"clang/Lex/MacroInfo.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\nusing namespace index;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18460_execute() {\n    {\n  SymbolRoleSet Roles;\n  unsigned Offset;\n  llvm::PointerUnion<const Decl *, const MacroInfo *> DeclOrMacro;\n  const IdentifierInfo *MacroName = nullptr;\n  SmallVector<SymbolRelation, 3> Relations;\n\n  DeclOccurrence(SymbolRoleSet R, unsigned Offset, const Decl *D,\n                 ArrayRef<SymbolRelation> Relations)\n      : Roles(R), Offset(Offset), DeclOrMacro(D),\n        Relations(Relations.begin(), Relations.end()) {}\n  DeclOccurrence(SymbolRoleSet R, unsigned Offset, const IdentifierInfo *Name,\n                 const MacroInfo *MI)\n      : Roles(R), Offset(Offset), DeclOrMacro(MI), MacroName(Name) {}\n\n  friend bool operator<(const DeclOccurrence &LHS, const DeclOccurrence &RHS) {\n    return LHS.Offset < RHS.Offset;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18460",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Index/DeclOccurrence.h",
-  "source_line": 23,
-  "validation_status": "validated"
-}

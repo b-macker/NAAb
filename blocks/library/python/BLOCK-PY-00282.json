@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00282_execute() {\n    class MacroRef:\n    def __init__(self, node: nodes.Macro | nodes.CallBlock) -> None:\n        self.node = node\n        self.accesses_caller = False\n        self.accesses_kwargs = False\n        self.accesses_varargs = False\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00282",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 155,
-  "validation_status": "validated"
-}

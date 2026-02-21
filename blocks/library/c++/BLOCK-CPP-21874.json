@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/IdentifierTable.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21874_execute() {\n    {\n\nclass ASTContext;\nclass ObjCMessageExpr;\n\nclass ObjCNoReturn {\n  /// Cached \"raise\" selector.\n  Selector RaiseSel;\n\n  /// Cached identifier for \"NSException\".\n  IdentifierInfo *NSExceptionII;\n\n  enum { NUM_RAISE_SELECTORS = 2 };\n\n  /// Cached set of selectors in NSException that are 'noreturn'.\n  Selector NSExceptionInstanceRaiseSelectors[NUM_RAISE_SELECTORS];\n\npublic:\n  ObjCNoReturn(ASTContext &C);\n\n  /// Return true if the given message expression is known to never\n  /// return.\n  bool isImplicitNoReturn(const ObjCMessageExpr *ME);\n};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21874",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/DomainSpecific/ObjCNoReturn.h",
-  "source_line": 19,
-  "validation_status": "validated"
-}

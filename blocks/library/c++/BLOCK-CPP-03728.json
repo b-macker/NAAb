@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cmath>\n#include <cstdint>\n#include <cstring>\n#include <iosfwd>\n#include <limits>\n#include <string>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include <intrin.h>\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03728_execute() {\n    {\n    return H::combine(std::move(h), Uint128High64(v), Uint128Low64(v));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03728",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/int128.h",
-  "source_line": 217,
-  "validation_status": "validated"
-}

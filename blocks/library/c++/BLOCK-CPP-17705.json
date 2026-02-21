@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Driver/Types.h\"\n#include \"clang/Driver/Util.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <string>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17705_execute() {\n    {\nnamespace opt {\n\nclass Arg;\n\n} // namespace opt\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17705",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

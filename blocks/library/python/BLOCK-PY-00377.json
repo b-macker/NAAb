@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00377_execute() {\n    def visit_Slice(self, node: nodes.Slice, frame: Frame) -> None:\n        if node.start is not None:\n            self.visit(node.start, frame)\n        self.write(\":\")\n        if node.stop is not None:\n            self.visit(node.stop, frame)\n        if node.step is not None:\n            self.write(\":\")\n            self.visit(node.step, frame)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00377",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1778,
-  "validation_status": "validated"
-}

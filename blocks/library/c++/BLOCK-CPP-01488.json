@@ -1,8 +1,0 @@
-{
-  "code": "#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <system_error>  // std::system_error\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01488_execute() {\n    {\n    set(new char[params.buffer_size], params.buffer_size);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01488",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/os.h",
-  "source_line": 414,
-  "validation_status": "validated"
-}

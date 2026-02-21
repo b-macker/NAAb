@@ -1,8 +1,0 @@
-{
-  "code": "{\n  // (Successfully unrolled; the first iteration jumps into the second half)\n#ifdef __clang__\n#pragma clang loop unroll_count(2)\n#endif\n  for (size_t round = 0; round < RandenTraits::kFeistelRounds; ++round) {\n    keys = FeistelRound(state, keys);\n    BlockShuffle(state);\n  }\n}",
-  "id": "BLOCK-CPP-02819",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_hwaes.cc",
-  "source_line": 389,
-  "validation_status": "validated"
-}

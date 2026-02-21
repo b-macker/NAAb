@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <cstring>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04950_execute() {\n    {\n    construct(alloc, new_slot, std::move(element(old_slot)));\n    destroy(alloc, old_slot);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04950",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/common_policy_traits.h",
-  "source_line": 122,
-  "validation_status": "validated"
-}

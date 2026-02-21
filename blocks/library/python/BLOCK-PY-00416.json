@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00416_execute() {\n    class FilterBlock(Stmt):\n    \"\"\"Node for filter sections.\"\"\"\n\n    fields = (\"body\", \"filter\")\n    body: list[Node]\n    filter: \"Filter\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00416",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 372,
-  "validation_status": "validated"
-}

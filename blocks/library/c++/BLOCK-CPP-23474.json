@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n\nusing namespace clang;\nusing namespace data_collection;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23474_execute() {\n    {\n  DataConsumer.update(Str);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23474",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DataCollection.h",
-  "source_line": 43,
-  "validation_status": "validated"
-}

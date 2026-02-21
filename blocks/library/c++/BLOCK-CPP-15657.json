@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/Support/BumpVector.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15657_execute() {\n    {\n    return CC->getKind() >= VARIABLE_BEGIN &&\n           CC->getKind() <= VARIABLE_END;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15657",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 335,
-  "validation_status": "validated"
-}

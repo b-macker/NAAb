@@ -1,8 +1,0 @@
-{
-  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01569_execute() {\n    {\n    underlying_.set_brackets(detail::string_literal<Char, '{'>{},\n                             detail::string_literal<Char, '}'>{});\n    underlying_.underlying().set_brackets({}, {});\n    underlying_.underlying().set_separator(\n        detail::string_literal<Char, ':', ' '>{});\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01569",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
-  "source_line": 552,
-  "validation_status": "validated"
-}

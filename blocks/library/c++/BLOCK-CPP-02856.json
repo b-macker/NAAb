@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/charconv_bigint.h\"\n#include <algorithm>\n#include <cassert>\n#include <string>\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02856_execute() {\n    {\n      size_ = 1;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02856",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_bigint.cc",
-  "source_line": 182,
-  "validation_status": "validated"
-}

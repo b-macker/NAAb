@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00393_execute() {\n    def visit_Break(self, node: nodes.Break, frame: Frame) -> None:\n        self.writeline(\"break\", node)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00393",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1945,
-  "validation_status": "validated"
-}

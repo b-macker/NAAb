@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/low_level_alloc.h\"\n#include \"absl/synchronization/internal/graphcycles.h\"\n#include <algorithm>\n#include <array>\n#include <cinttypes>\n#include <limits>\n#include \"absl/base/internal/hide_ptr.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03173_execute() {\n    {\n  int32_t rank;               // rank number assigned by Pearce-Kelly algorithm\n  uint32_t version;           // Current version number\n  int32_t next_hash;          // Next entry in hash table\n  bool visited;               // Temporary marker used by depth-first-search\n  uintptr_t masked_ptr;       // User-supplied pointer\n  NodeSet in;                 // List of immediate predecessor nodes in graph\n  NodeSet out;                // List of immediate successor nodes in graph\n  int priority;               // Priority of recorded stack trace.\n  int nstack;                 // Depth of recorded stack trace.\n  void* stack[40];            // stack[0,nstack-1] holds stack trace for node.\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03173",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/graphcycles.cc",
-  "source_line": 281,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00859_execute() {\n    {\n    bool found = (try_format_argument(out, name, args) || ...);\n    if (!found) {\n      FMT_THROW(format_error(\"argument with specified name is not found\"));\n    }\n    return out;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00859",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 249,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00443_execute() {\n    class Call(Expr):\n    \"\"\"Calls an expression.  `args` is a list of arguments, `kwargs` a list\n    of keyword arguments (list of :class:`Keyword` nodes), and `dyn_args`\n    and `dyn_kwargs` has to be either `None` or a node that is used as\n    node for dynamic positional (``*args``) or keyword (``**kwargs``)\n    arguments.\n    \"\"\"\n\n    fields = (\"node\", \"args\", \"kwargs\", \"dyn_args\", \"dyn_kwargs\")\n    node: Expr\n    args: list[Expr]\n    kwargs: list[Keyword]\n    dyn_args: Expr | None\n    dyn_kwargs: Expr | None\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00443",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 813,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Driver/OptionUtils.h\"\n#include \"clang/Frontend/DependencyOutputOptions.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include \"llvm/Support/FileCollector.h\"\n#include \"llvm/Support/VirtualFileSystem.h\"\n#include <cstdint>\n#include <memory>\n#include <string>\n#include <system_error>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18439_execute() {\n    { return Seen.insert(Filename).second; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18439",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/Utils.h",
-  "source_line": 149,
-  "validation_status": "validated"
-}

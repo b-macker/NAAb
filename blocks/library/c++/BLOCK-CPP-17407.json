@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nusing XRayInstrMask = uint32_t;\n\nnamespace XRayInstrKind {\n\n// TODO: Auto-generate these as we add more instrumentation kinds.\nenum XRayInstrOrdinal : XRayInstrMask {\n  XRIO_FunctionEntry,\n  XRIO_FunctionExit,\n  XRIO_Custom,\n  XRIO_Typed,\n  XRIO_Count\n};\n\nconstexpr XRayInstrMask None = 0;\nconstexpr XRayInstrMask FunctionEntry = 1U << XRIO_FunctionEntry;\nconstexpr XRayInstrMask FunctionExit = 1U << XRIO_FunctionExit;\nconstexpr XRayInstrMask Custom = 1U << XRIO_Custom;\nconstexpr XRayInstrMask Typed = 1U << XRIO_Typed;\nconstexpr XRayInstrMask All = FunctionEntry | FunctionExit | Custom | Typed;\n\n} // namespace XRayInstrKind\n\nstruct XRayInstrSet {\n  bool has(XRayInstrMask K) const {\n    assert(llvm::isPowerOf2_32(K));\n    return Mask & K;\n  }\n\n  bool hasOneOf(XRayInstrMask K) const { return Mask & K; }\n\n  void set(XRayInstrMask K, bool Value) {\n    Mask = Value ? (Mask | K) : (Mask & ~K);\n  }\n\n  void clear(XRayInstrMask K = XRayInstrKind::All) { Mask &= ~K; }\n\n  bool empty() const { return Mask == 0; }\n\n  bool full() const { return Mask == XRayInstrKind::All; }\n\n  XRayInstrMask Mask = 0;\n};\n\n/// Parses a command line argument into a mask.\nXRayInstrMask parseXRayInstrValue(StringRef Value);\n\n/// Serializes a set into a list of command line arguments.\nvoid serializeXRayInstrValue(XRayInstrSet Set,\n                             SmallVectorImpl<StringRef> &Values);\n\n}",
-  "id": "BLOCK-CPP-17407",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/XRayInstr.h",
-  "source_line": 23,
-  "validation_status": "validated"
-}

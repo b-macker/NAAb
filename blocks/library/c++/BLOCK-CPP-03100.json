@@ -1,8 +1,0 @@
-{
-  "code": "{\n  using Func = absl::FunctionRef<void(absl::Span<uint32_t>)>;\n  static constexpr size_t kStep = 512 / sizeof(uint32_t);\n  // 5 steps is 2560 bytes, which is enough to hold a long double with the\n  // largest/smallest exponents.\n  // The operations below will static_assert their particular maximum.\n  static constexpr size_t kNumSteps = 5;\n\n  // We do not want this function to be inlined.\n  // Otherwise the caller will allocate the stack space unnecessarily for all\n  // the variants even though it only calls one.\n  template <size_t steps>\n  ABSL_ATTRIBUTE_NOINLINE static void RunWithCapacityImpl(Func f) {\n    uint32_t values[steps * kStep]{};\n    f(absl::MakeSpan(values));\n  }\n\n public:\n  static constexpr size_t kMaxCapacity = kStep * kNumSteps;\n\n  static void RunWithCapacity(size_t capacity, Func f) {\n    assert(capacity <= kMaxCapacity);\n    const size_t step = (capacity + kStep - 1) / kStep;\n    assert(step <= kNumSteps);\n    switch (step) {\n      case 1:\n        return RunWithCapacityImpl<1>(f);\n      case 2:\n        return RunWithCapacityImpl<2>(f);\n      case 3:\n        return RunWithCapacityImpl<3>(f);\n      case 4:\n        return RunWithCapacityImpl<4>(f);\n      case 5:\n        return RunWithCapacityImpl<5>(f);\n    }\n\n    assert(false && \"Invalid capacity\");\n  }\n}",
-  "id": "BLOCK-CPP-03100",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
-  "source_line": 52,
-  "validation_status": "validated"
-}

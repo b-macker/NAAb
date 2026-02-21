@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\n\n// LogAsLiteral()\n//\n// Annotates its argument as a string literal so that structured logging\n// captures it as a `literal` field instead of a `str` field (the default).\n// This does not affect the text representation, only the structure.\n//\n// Streaming `LogAsLiteral(s)` into a `std::ostream` behaves just like streaming\n// `s` directly.\n//\n// Using `LogAsLiteral()` is occasionally appropriate and useful when proxying\n// data logged from another system or another language.  For example:\n//\n//   void Logger::LogString(absl::string_view str, absl::LogSeverity severity,\n//                          const char *file, int line) {\n//     LOG(LEVEL(severity)).AtLocation(file, line) << str;\n//   }\n//   void Logger::LogStringLiteral(absl::string_view str,\n//                                 absl::LogSeverity severity, const char *file,\n//                                 int line) {\n//     LOG(LEVEL(severity)).AtLocation(file, line) << absl::LogAsLiteral(str);\n//   }\ninline log_internal::AsLiteralImpl LogAsLiteral(absl::string_view s) {\n  return log_internal::AsLiteralImpl(s);\n}\n\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-03688",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/structured.h",
-  "source_line": 39,
-  "validation_status": "validated"
-}

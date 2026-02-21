@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/crc/internal/crc_cord_state.h\"\n#include <cassert>\n#include \"absl/base/config.h\"\n#include \"absl/numeric/bits.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02470_execute() {\n    {\n  // Make `other` valid for use after move.\n  other.refcounted_rep_ = RefSharedEmptyRep();\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02470",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_cord_state.cc",
-  "source_line": 45,
-  "validation_status": "validated"
-}

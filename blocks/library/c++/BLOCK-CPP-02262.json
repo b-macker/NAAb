@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/time/time.h\"\n#include <winsock2.h>  // for timeval\n#include <cstring>\n#include <ctime>\n#include <limits>\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02262_execute() {\n    {\n  if (time_internal::GetRepHi(time_internal::ToUnixDuration(t)) >= 0 &&\n      time_internal::GetRepHi(time_internal::ToUnixDuration(t)) >> 53 == 0) {\n    return (time_internal::GetRepHi(time_internal::ToUnixDuration(t)) * 1000) +\n           (time_internal::GetRepLo(time_internal::ToUnixDuration(t)) /\n            (4000 * 1000));\n  }\n  return FloorToUnit(time_internal::ToUnixDuration(t), absl::Milliseconds(1));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02262",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.cc",
-  "source_line": 269,
-  "validation_status": "validated"
-}

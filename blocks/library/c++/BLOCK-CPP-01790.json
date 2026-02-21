@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/numeric/int128.h\"\n#include <stddef.h>\n#include <cassert>\n#include <iomanip>\n#include <ostream>  // NOLINT(readability/streams)\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01790_execute() {\n    {\n  if (uint64_t hi = Uint128High64(n)) {\n    ABSL_ASSUME(hi != 0);\n    return 127 - countl_zero(hi);\n  }\n  const uint64_t low = Uint128Low64(n);\n  ABSL_ASSUME(low != 0);\n  return 63 - countl_zero(low);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01790",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/int128.cc",
-  "source_line": 43,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n    // RandomAccessIterator must be assignable from uint32_t\n    if (begin != end) {\n      using U = typename std::iterator_traits<RandomAccessIterator>::value_type;\n      // ContiguousTag indicates the common case of a known contiguous buffer,\n      // which allows directly filling the buffer. In C++20,\n      // std::contiguous_iterator_tag provides a mechanism for testing this\n      // capability, however until Abseil's support requirements allow us to\n      // assume C++20, limit checks to a few common cases.\n      using TagType = absl::conditional_t<\n          (std::is_pointer<RandomAccessIterator>::value ||\n           std::is_same<RandomAccessIterator,\n                        typename std::vector<U>::iterator>::value),\n          ContiguousTag, BufferTag>;\n\n      generate_impl(TagType{}, begin, end);\n    }\n  }",
-  "id": "BLOCK-CPP-05898",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/nonsecure_base.h",
-  "source_line": 72,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16585_execute() {\n    {\n  return L <= GVA_DiscardableODR;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16585",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Linkage.h",
-  "source_line": 76,
-  "validation_status": "validated"
-}

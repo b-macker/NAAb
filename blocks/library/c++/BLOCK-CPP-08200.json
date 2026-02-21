@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/Support/DataTypes.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08200_execute() {\n    {\n    Ptr = uintptr_t(AS) | reinterpret_cast<uintptr_t>(D);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08200",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclAccessPair.h",
-  "source_line": 54,
-  "validation_status": "validated"
-}

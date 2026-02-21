@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyUtil.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <iterator>\n#include <optional>\n#include <string>\n#include <utility>\n#include \"ThreadSafetyOps.def\"\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace til;\nusing namespace ThreadSafetyTIL;\nusing namespace ThreadSafetyTIL;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21615_execute() {\n    {\n    typename V::template Container<SExpr*> Nas(Vs, Args.size());\n    typename V::template Container<SExpr*> Nis(Vs, Instrs.size());\n\n    // Entering the basic block should do any scope initialization.\n    Vs.enterBasicBlock(*this);\n\n    for (const auto *E : Args) {\n      auto Ne = Vs.traverse(E, Vs.subExprCtx(Ctx));\n      Nas.push_back(Ne);\n    }\n    for (const auto *E : Instrs) {\n      auto Ne = Vs.traverse(E, Vs.subExprCtx(Ctx));\n      Nis.push_back(Ne);\n    }\n    auto Nt = Vs.traverse(TermInstr, Ctx);\n\n    // Exiting the basic block should handle any scope cleanup.\n    Vs.exitBasicBlock(*this);\n\n    return Vs.reduceBasicBlock(*this, Nas, Nis, Nt);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21615",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1621,
-  "validation_status": "validated"
-}

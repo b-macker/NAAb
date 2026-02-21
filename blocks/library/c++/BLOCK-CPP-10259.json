@@ -1,8 +1,0 @@
-{
-  "code": "{\n  explicit ArrayInitIndexExpr(EmptyShell Empty)\n      : Expr(ArrayInitIndexExprClass, Empty) {}\n\npublic:\n  explicit ArrayInitIndexExpr(QualType T)\n      : Expr(ArrayInitIndexExprClass, T, VK_PRValue, OK_Ordinary) {\n    setDependence(ExprDependence::None);\n  }\n\n  static bool classof(const Stmt *S) {\n    return S->getStmtClass() == ArrayInitIndexExprClass;\n  }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return SourceLocation(); }\n  SourceLocation getEndLoc() const LLVM_READONLY { return SourceLocation(); }\n\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n\n  friend class ASTReader;\n  friend class ASTStmtReader;\n}",
-  "id": "BLOCK-CPP-10259",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
-  "source_line": 5545,
-  "validation_status": "validated"
-}

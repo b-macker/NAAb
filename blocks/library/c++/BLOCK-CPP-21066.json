@@ -1,8 +1,0 @@
-{
-  "code": "#include <climits>\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21066_execute() {\n    { return (V >> 1) ^ -(V & 1); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21066",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/SourceLocationEncoding.h",
-  "source_line": 102,
-  "validation_status": "validated"
-}

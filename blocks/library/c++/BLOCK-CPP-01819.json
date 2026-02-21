@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nvoid Helper::HandleInvalidStatusCtorArg(absl::Nonnull<absl::Status*> status) {\n  const char* kMessage =\n      \"An OK status is not a valid constructor argument to StatusOr<T>\";\n#ifdef NDEBUG\n  ABSL_INTERNAL_LOG(ERROR, kMessage);\n#else\n  ABSL_INTERNAL_LOG(FATAL, kMessage);\n#endif\n  // In optimized builds, we will fall back to InternalError.\n  *status = absl::InternalError(kMessage);\n}\n\nvoid Helper::Crash(const absl::Status& status) {\n  ABSL_INTERNAL_LOG(\n      FATAL,\n      absl::StrCat(\"Attempting to fetch value instead of handling error \",\n                   status.ToString()));\n}\n\nvoid ThrowBadStatusOrAccess(absl::Status status) {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw absl::BadStatusOrAccess(std::move(status));\n#else\n  ABSL_INTERNAL_LOG(\n      FATAL,\n      absl::StrCat(\"Attempting to fetch value instead of handling error \",\n                   status.ToString()));\n  std::abort();\n#endif\n}\n\n}",
-  "id": "BLOCK-CPP-01819",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/statusor.cc",
-  "source_line": 71,
-  "validation_status": "validated"
-}

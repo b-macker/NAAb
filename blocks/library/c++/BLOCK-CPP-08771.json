@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n  // DeclGroupRef is \"like a pointer\", implement PointerLikeTypeTraits.\n  template <typename T>\n  struct PointerLikeTypeTraits;\n  template <>\n  struct PointerLikeTypeTraits<clang::DeclGroupRef> {\n    static inline void *getAsVoidPointer(clang::DeclGroupRef P) {\n      return P.getAsOpaquePtr();\n    }\n\n    static inline clang::DeclGroupRef getFromVoidPointer(void *P) {\n      return clang::DeclGroupRef::getFromOpaquePtr(P);\n    }\n\n    static constexpr int NumLowBitsAvailable = 0;\n  };\n\n}",
-  "id": "BLOCK-CPP-08771",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclGroup.h",
-  "source_line": 135,
-  "validation_status": "validated"
-}

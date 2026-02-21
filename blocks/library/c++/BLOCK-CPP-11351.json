@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LangOptions.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11351_execute() {\n    {\n    const Decl *FirstDecl = nullptr, *SecondDecl = nullptr;\n    ODRMismatchDecl FirstDiffType = Other, SecondDiffType = Other;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11351",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ODRDiagsEmitter.h",
-  "source_line": 121,
-  "validation_status": "validated"
-}

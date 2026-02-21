@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/FileManager.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <memory>\n#include <system_error>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17997_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17997",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/APIIgnoresList.h",
-  "source_line": 37,
-  "validation_status": "validated"
-}

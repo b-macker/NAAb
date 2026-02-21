@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nusing FixedMapping =\n    std::initializer_list<std::pair<absl::string_view, absl::string_view>>;\n\n// Applies the ViableSubstitutions in subs_ptr to the absl::string_view s, and\n// stores the result in *result_ptr. Returns the number of substitutions that\n// occurred.\nint ApplySubstitutions(\n    absl::string_view s,\n    absl::Nonnull<std::vector<strings_internal::ViableSubstitution>*> subs_ptr,\n    absl::Nonnull<std::string*> result_ptr) {\n  auto& subs = *subs_ptr;\n  int substitutions = 0;\n  size_t pos = 0;\n  while (!subs.empty()) {\n    auto& sub = subs.back();\n    if (sub.offset >= pos) {\n      if (pos <= s.size()) {\n        StrAppend(result_ptr, s.substr(pos, sub.offset - pos), sub.replacement);\n      }\n      pos = sub.offset + sub.old.size();\n      substitutions += 1;\n    }\n    sub.offset = s.find(sub.old, pos);\n    if (sub.offset == s.npos) {\n      subs.pop_back();\n    } else {\n      // Insertion sort to ensure the last ViableSubstitution continues to be\n      // before all the others.\n      size_t index = subs.size();\n      while (--index && subs[index - 1].OccursBefore(subs[index])) {\n        std::swap(subs[index], subs[index - 1]);\n      }\n    }\n  }\n  result_ptr->append(s.data() + pos, s.size() - pos);\n  return substitutions;\n}\n\n}",
-  "id": "BLOCK-CPP-02028",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_replace.cc",
-  "source_line": 30,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  if (calculated.exponent == kOverflow) {\n    result->ec = std::errc::result_out_of_range;\n    *value = negative ? -std::numeric_limits<FloatType>::max()\n                      : std::numeric_limits<FloatType>::max();\n    return;\n  } else if (calculated.mantissa == 0 || calculated.exponent == kUnderflow) {\n    result->ec = std::errc::result_out_of_range;\n    *value = negative ? -0.0 : 0.0;\n    return;\n  }\n  *value = FloatTraits<FloatType>::Make(\n      static_cast<typename FloatTraits<FloatType>::mantissa_t>(\n          calculated.mantissa),\n      calculated.exponent, negative);\n}",
-  "id": "BLOCK-CPP-01843",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/charconv.cc",
-  "source_line": 407,
-  "validation_status": "validated"
-}

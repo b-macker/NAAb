@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/Bitstream/BitstreamReader.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorOr.h\"\n#include <system_error>\n\nusing namespace clang;\nusing namespace serialized_diags;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18414_execute() {\n    {\n  unsigned FileID;\n  unsigned Line;\n  unsigned Col;\n  unsigned Offset;\n\n  Location(unsigned FileID, unsigned Line, unsigned Col, unsigned Offset)\n      : FileID(FileID), Line(Line), Col(Col), Offset(Offset) {}\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18414",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/SerializedDiagnosticReader.h",
-  "source_line": 46,
-  "validation_status": "validated"
-}

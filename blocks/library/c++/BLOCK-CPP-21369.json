@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  FunctionParmMutationAnalyzer(const FunctionDecl &Func, ASTContext &Context);\n\n  bool isMutated(const ParmVarDecl *Parm) {\n    return findMutation(Parm) != nullptr;\n  }\n  const Stmt *findMutation(const ParmVarDecl *Parm);\n\nprivate:\n  ExprMutationAnalyzer BodyAnalyzer;\n  llvm::DenseMap<const ParmVarDecl *, const Stmt *> Results;\n}",
-  "id": "BLOCK-CPP-21369",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ExprMutationAnalyzer.h",
-  "source_line": 81,
-  "validation_status": "validated"
-}

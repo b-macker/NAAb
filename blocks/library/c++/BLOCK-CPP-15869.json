@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  BlockEntrance(const CFGBlock *B, const LocationContext *L,\n                const ProgramPointTag *tag = nullptr)\n    : ProgramPoint(B, BlockEntranceKind, L, tag) {\n    assert(B && \"BlockEntrance requires non-null block\");\n  }\n\n  const CFGBlock *getBlock() const {\n    return reinterpret_cast<const CFGBlock*>(getData1());\n  }\n\n  std::optional<CFGElement> getFirstElement() const {\n    const CFGBlock *B = getBlock();\n    return B->empty() ? std::optional<CFGElement>() : B->front();\n  }\n\nprivate:\n  friend class ProgramPoint;\n  BlockEntrance() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == BlockEntranceKind;\n  }\n}",
-  "id": "BLOCK-CPP-15869",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 219,
-  "validation_status": "validated"
-}

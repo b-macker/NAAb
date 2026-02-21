@@ -1,8 +1,0 @@
-{
-  "code": "{\n    /// The name of the macro being defined.\n    const IdentifierInfo *Name;\n\n  public:\n    explicit MacroDefinitionRecord(const IdentifierInfo *Name,\n                                   SourceRange Range)\n        : PreprocessingDirective(MacroDefinitionKind, Range), Name(Name) {}\n\n    /// Retrieve the name of the macro being defined.\n    const IdentifierInfo *getName() const { return Name; }\n\n    /// Retrieve the location of the macro name in the definition.\n    SourceLocation getLocation() const { return getSourceRange().getBegin(); }\n\n    // Implement isa/cast/dyncast/etc.\n    static bool classof(const PreprocessedEntity *PE) {\n      return PE->getKind() == MacroDefinitionKind;\n    }\n  }",
-  "id": "BLOCK-CPP-18917",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PreprocessingRecord.h",
-  "source_line": 146,
-  "validation_status": "validated"
-}

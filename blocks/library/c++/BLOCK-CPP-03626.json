@@ -1,8 +1,0 @@
-{
-  "code": "#include <functional>  // For std::bind_front.\n#include \"absl/functional/internal/front_binder.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03626_execute() {\n    {\n//     std::cerr << a << b;\n//   }\n//\n//   std::string hi = \"Hello, \";\n//   // Copies \"hi\".\n//   absl::bind_front(Print, hi)(\"Chuk\");\n//\n//   // Compile error: std::reference_wrapper<const string> is not implicitly\n//   // convertible to string_view.\n//   // absl::bind_front(Print, std::cref(hi))(\"Chuk\");\n//\n//   // Doesn't copy \"hi\".\n//   absl::bind_front(Print, absl::string_view(hi))(\"Chuk\");\n//\n#if defined(__cpp_lib_bind_front) && __cpp_lib_bind_front >= 201907L\nusing std::bind_front;\n#else   // defined(__cpp_lib_bind_front) && __cpp_lib_bind_front >= 201907L\ntemplate <class F, class... BoundArgs>\nconstexpr functional_internal::bind_front_t<F, BoundArgs...> bind_front(\n    F&& func, BoundArgs&&... args) {\n  return functional_internal::bind_front_t<F, BoundArgs...>(\n      absl::in_place, absl::forward<F>(func),\n      absl::forward<BoundArgs>(args)...);\n}\n#endif  // defined(__cpp_lib_bind_front) && __cpp_lib_bind_front >= 201907L\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03626",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/bind_front.h",
-  "source_line": 163,
-  "validation_status": "validated"
-}

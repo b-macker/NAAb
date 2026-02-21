@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/failure_signal_handler.h\"\n#include \"absl/base/config.h\"\n#include <windows.h>\n#include <sched.h>\n#include <unistd.h>\n#include <TargetConditionals.h>\n#include <sys/mman.h>\n#include <sys/prctl.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <csignal>\n#include <cstdio>\n#include <cstring>\n#include <ctime>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/sysinfo.h\"\n#include \"absl/debugging/internal/examine_stack.h\"\n#include \"absl/debugging/stacktrace.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01625_execute() {\n    {\n  static_cast<WriterFnStruct*>(arg)->writerfn(data);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01625",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/failure_signal_handler.cc",
-  "source_line": 270,
-  "validation_status": "validated"
-}

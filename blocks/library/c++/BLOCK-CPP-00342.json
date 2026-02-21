@@ -1,8 +1,0 @@
-{
-  "code": "#include <arpa/inet.h>\n#include <cstring>\n#include <netdb.h>\n#include <netinet/in.h>\n#include <netinet/udp.h>\n#include <spdlog/common.h>\n#include <spdlog/details/os.h>\n#include <sys/socket.h>\n#include <unistd.h>\n#include <string>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00342_execute() {\n    {\n        ssize_t toslen = 0;\n        socklen_t tolen = sizeof(struct sockaddr);\n        if ((toslen = ::sendto(socket_, data, n_bytes, 0, (struct sockaddr *)&sockAddr_, tolen)) ==\n            -1) {\n            throw_spdlog_ex(\"sendto(2) failed\", errno);\n        }\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00342",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/udp_client.h",
-  "source_line": 71,
-  "validation_status": "validated"
-}

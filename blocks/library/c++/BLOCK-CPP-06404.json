@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  explicit FormatSinkImpl(FormatRawSinkImpl raw) : raw_(raw) {}\n\n  ~FormatSinkImpl() { Flush(); }\n\n  void Flush() {\n    raw_.Write(string_view(buf_, static_cast<size_t>(pos_ - buf_)));\n    pos_ = buf_;\n  }\n\n  void Append(size_t n, char c) {\n    if (n == 0) return;\n    size_ += n;\n    auto raw_append = [&](size_t count) {\n      memset(pos_, c, count);\n      pos_ += count;\n    };\n    while (n > Avail()) {\n      n -= Avail();\n      if (Avail() > 0) {\n        raw_append(Avail());\n      }\n      Flush();\n    }\n    raw_append(n);\n  }\n\n  void Append(string_view v) {\n    size_t n = v.size();\n    if (n == 0) return;\n    size_ += n;\n    if (n >= Avail()) {\n      Flush();\n      raw_.Write(v);\n      return;\n    }\n    memcpy(pos_, v.data(), n);\n    pos_ += n;\n  }\n\n  size_t size() const { return size_; }\n\n  // Put 'v' to 'sink' with specified width, precision, and left flag.\n  bool PutPaddedString(string_view v, int width, int precision, bool left);\n\n  template <typename T>\n  T Wrap() {\n    return T(this);\n  }\n\n  template <typename T>\n  static FormatSinkImpl* Extract(T* s) {\n    return s->sink_;\n  }\n\n private:\n  size_t Avail() const {\n    return static_cast<size_t>(buf_ + sizeof(buf_) - pos_);\n  }\n\n  FormatRawSinkImpl raw_;\n  size_t size_ = 0;\n  char* pos_ = buf_;\n  char buf_[1024];\n}",
-  "id": "BLOCK-CPP-06404",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/extension.h",
-  "source_line": 66,
-  "validation_status": "validated"
-}

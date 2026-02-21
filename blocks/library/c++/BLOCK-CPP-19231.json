@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LangOptions.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19231_execute() {\n    {\n  class Preprocessor;\n  class ASTConsumer;\n  class ASTContext;\n  class CodeCompleteConsumer;\n  class Sema;\n\n  /// Parse the entire file specified, notifying the ASTConsumer as\n  /// the file is parsed.\n  ///\n  /// This operation inserts the parsed decls into the translation\n  /// unit held by Ctx.\n  ///\n  /// \\param PrintStats Whether to print LLVM statistics related to parsing.\n  /// \\param TUKind The kind of translation unit being parsed.\n  /// \\param CompletionConsumer If given, an object to consume code completion\n  /// results.\n  /// \\param SkipFunctionBodies Whether to skip parsing of function bodies.\n  /// This option can be used, for example, to speed up searches for\n  /// declarations/definitions when indexing.\n  void ParseAST(Preprocessor &pp, ASTConsumer *C,\n                ASTContext &Ctx, bool PrintStats = false,\n                TranslationUnitKind TUKind = TU_Complete,\n                CodeCompleteConsumer *CompletionConsumer = nullptr,\n                bool SkipFunctionBodies = false);\n\n  /// Parse the main file known to the preprocessor, producing an\n  /// abstract syntax tree.\n  void ParseAST(Sema &S, bool PrintStats = false,\n                bool SkipFunctionBodies = false);\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19231",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/ParseAST.h",
-  "source_line": 18,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00291_execute() {\n    def visitor(self: \"CodeGenerator\", node: nodes.UnaryExpr, frame: Frame) -> None:\n        if (\n            self.environment.sandboxed and op in self.environment.intercepted_unops  # type: ignore\n        ):\n            self.write(f\"environment.call_unop(context, {op!r}, \")\n            self.visit(node.node, frame)\n        else:\n            self.write(\"(\" + op)\n            self.visit(node.node, frame)\n\n        self.write(\")\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00291",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 86,
-  "validation_status": "validated"
-}

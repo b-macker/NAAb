@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace random_internal {\n\n// Compute log2(n) using integer operations.\n// While std::log2 is more accurate than std::log(n) / std::log(2), for\n// very large numbers--those close to std::numeric_limits<uint64_t>::max() - 2,\n// for instance--std::log2 rounds up rather than down, which introduces\n// definite skew in the results.\ninline int IntLog2Floor(uint64_t n) {\n  return (n <= 1) ? 0 : (63 - countl_zero(n));\n}\ninline int IntLog2Ceil(uint64_t n) {\n  return (n <= 1) ? 0 : (64 - countl_zero(n - 1));\n}\n\ninline double StirlingLogFactorial(double n) {\n  assert(n >= 1);\n  // Using Stirling's approximation.\n  constexpr double kLog2PI = 1.83787706640934548356;\n  const double logn = std::log(n);\n  const double ninv = 1.0 / static_cast<double>(n);\n  return n * logn - n + 0.5 * (kLog2PI + logn) + (1.0 / 12.0) * ninv -\n         (1.0 / 360.0) * ninv * ninv * ninv;\n}\n\n}  // namespace random_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-05867",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/fastmath.h",
-  "source_line": 27,
-  "validation_status": "validated"
-}

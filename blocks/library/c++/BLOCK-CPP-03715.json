@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <functional>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace type_traits_internal;\nusing namespace that;\nusing namespace swap_internal;\nusing namespace where;\nusing namespace swap_internal;\nusing namespace type_traits_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03715_execute() {\n    {\n\n// Make the swap-related traits/function accessible from this namespace.\nusing swap_internal::IsNothrowSwappable;\nusing swap_internal::IsSwappable;\nusing swap_internal::Swap;\nusing swap_internal::StdSwapIsUnconstrained;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03715",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/meta/type_traits.h",
-  "source_line": 461,
-  "validation_status": "validated"
-}

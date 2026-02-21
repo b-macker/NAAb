@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <istream>\n#include <limits>\n#include \"absl/base/optimization.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03786_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03786",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/bernoulli_distribution.h",
-  "source_line": 60,
-  "validation_status": "validated"
-}

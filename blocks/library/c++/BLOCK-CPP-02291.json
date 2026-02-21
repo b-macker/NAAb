@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nvoid ThrowBadVariantAccess() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw bad_variant_access();\n#else\n  ABSL_RAW_LOG(FATAL, \"Bad variant access\");\n  abort();  // TODO(calabrese) Remove once RAW_LOG FATAL is noreturn.\n#endif\n}\n\nvoid Rethrow() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw;\n#else\n  ABSL_RAW_LOG(FATAL,\n               \"Internal error in absl::variant implementation. Attempted to \"\n               \"rethrow an exception when building with exceptions disabled.\");\n  abort();  // TODO(calabrese) Remove once RAW_LOG FATAL is noreturn.\n#endif\n}\n\n}",
-  "id": "BLOCK-CPP-02291",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_variant_access.cc",
-  "source_line": 38,
-  "validation_status": "validated"
-}

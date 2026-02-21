@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cassert>\n#include <cmath>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <initializer_list>\n#include <iterator>\n#include <limits>\n#include <memory>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/options.h\"\n#include \"absl/base/port.h\"\n#include \"absl/base/prefetch.h\"\n#include \"absl/container/internal/common.h\"  // IWYU pragma: export // for node_handle\n#include \"absl/container/internal/compressed_tuple.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/container/internal/hash_policy_traits.h\"\n#include \"absl/container/internal/hashtable_debug_hooks.h\"\n#include \"absl/container/internal/hashtablez_sampler.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/utility/utility.h\"\n#include <emmintrin.h>\n#include <tmmintrin.h>\n#include <intrin.h>\n#include <arm_neon.h>\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05207_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05207",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.h",
-  "source_line": 934,
-  "validation_status": "validated"
-}

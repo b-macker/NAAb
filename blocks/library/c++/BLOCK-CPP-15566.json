@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n    template <bool IsOtherConst> friend class ElementRefImpl;\n\n    using CFGBlockPtr =\n        std::conditional_t<IsConst, const CFGBlock *, CFGBlock *>;\n\n    using CFGElementPtr =\n        std::conditional_t<IsConst, const CFGElement *, CFGElement *>;\n\n  protected:\n    CFGBlockPtr Parent;\n    size_t Index;\n\n  public:\n    ElementRefImpl(CFGBlockPtr Parent, size_t Index)\n        : Parent(Parent), Index(Index) {}\n\n    template <bool IsOtherConst>\n    ElementRefImpl(ElementRefImpl<IsOtherConst> Other)\n        : ElementRefImpl(Other.Parent, Other.Index) {}\n\n    size_t getIndexInBlock() const { return Index; }\n\n    CFGBlockPtr getParent() { return Parent; }\n    CFGBlockPtr getParent() const { return Parent; }\n\n    bool operator<(ElementRefImpl Other) const {\n      return std::make_pair(Parent, Index) <\n             std::make_pair(Other.Parent, Other.Index);\n    }\n\n    bool operator==(ElementRefImpl Other) const {\n      return Parent == Other.Parent && Index == Other.Index;\n    }\n\n    bool operator!=(ElementRefImpl Other) const { return !(*this == Other); }\n    CFGElement operator*() const { return (*Parent)[Index]; }\n    CFGElementPtr operator->() const { return &*(Parent->begin() + Index); }\n\n    void dumpToStream(llvm::raw_ostream &OS) const {\n      OS << getIndexInBlock() + 1 << \": \";\n      (*this)->dumpToStream(OS);\n    }\n\n    void dump() const {\n      dumpToStream(llvm::errs());\n    }\n  }",
-  "id": "BLOCK-CPP-15566",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 622,
-  "validation_status": "validated"
-}

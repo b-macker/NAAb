@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/escaping.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02939_execute() {\n    {\n    // (from https://tools.ietf.org/html/rfc3548)\n    // (2) the final quantum of encoding input is exactly 8 bits; here, the\n    // final unit of encoded output will be two characters followed by two\n    // \"=\" padding characters, or\n    len += 2;\n    if (do_padding) {\n      len += 2;\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02939",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/escaping.cc",
-  "source_line": 49,
-  "validation_status": "validated"
-}

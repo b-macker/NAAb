@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h\"\n#include \"llvm/ADT/StringExtras.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22211_execute() {\n    {\n    // Explain 'this' object here - if it's not wrapped by an ElementRegion.\n    // TODO: Explain CXXThisRegion itself, find a way to test it.\n    if (isThisObject(R))\n      return \"'this' object\";\n    // Objective-C objects are not normal symbolic regions. At least,\n    // they're always on the heap.\n    if (R->getSymbol()->getType()\n            .getCanonicalType()->getAs<ObjCObjectPointerType>())\n      return \"object at \" + Visit(R->getSymbol());\n    // Other heap-based symbolic regions are also special.\n    if (isa<HeapSpaceRegion>(R->getMemorySpace()))\n      return \"heap segment that starts at \" + Visit(R->getSymbol());\n    return \"pointee of \" + Visit(R->getSymbol());\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22211",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/SValExplainer.h",
-  "source_line": 158,
-  "validation_status": "validated"
-}

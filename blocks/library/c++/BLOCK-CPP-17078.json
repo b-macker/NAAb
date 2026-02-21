@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <stdint.h>\n#include \"clang/Basic/Builtins.h\"\n#include \"llvm/Support/MathExtras.h\"\n#include \"clang/Basic/BuiltinsNEON.def\"\n#include \"clang/Basic/BuiltinsARM.def\"\n#include \"clang/Basic/BuiltinsSVE.def\"\n#include \"clang/Basic/BuiltinsSME.def\"\n  #include \"clang/Basic/BuiltinsAArch64.def\"\n  #include \"clang/Basic/BuiltinsBPF.def\"\n#include \"clang/Basic/BuiltinsPPC.def\"\n#include \"clang/Basic/BuiltinsNVPTX.def\"\n  #include \"clang/Basic/BuiltinsAMDGPU.def\"\n#include \"clang/Basic/BuiltinsX86.def\"\n#include \"clang/Basic/BuiltinsX86_64.def\"\n#include \"clang/Basic/BuiltinsVE.def\"\n\nusing namespace clang;\nusing namespace NEON;\nusing namespace ARM;\nusing namespace SVE;\nusing namespace SME;\nusing namespace AArch64;\nusing namespace BPF;\nusing namespace PPC;\nusing namespace NVPTX;\nusing namespace AMDGPU;\nusing namespace X86;\nusing namespace VE;\nusing namespace RISCVVector;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17078_execute() {\n    {\n  enum {\n    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,\n#define BUILTIN(ID, TYPE, ATTRS) BI##ID,\n#include \"clang/Basic/BuiltinsRISCVVector.def\"\n    FirstTSBuiltin,\n  };\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17078",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TargetBuiltins.h",
-  "source_line": 146,
-  "validation_status": "validated"
-}

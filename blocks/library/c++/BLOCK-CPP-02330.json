@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/internal/scoped_set_env.h\"\n#include <windows.h>\n#include <cstdlib>\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02330_execute() {\n    {\n    ::unsetenv(name);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02330",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/scoped_set_env.cc",
-  "source_line": 38,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00476_execute() {\n    def _failing_new(*args: t.Any, **kwargs: t.Any) -> \"te.NoReturn\":\n    raise TypeError(\"can't create custom node types\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00476",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 1195,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n    ExceptionSpecInfo Result;\n    Result.Type = getExceptionSpecType();\n    if (Result.Type == EST_Dynamic) {\n      Result.Exceptions = exceptions();\n    } else if (isComputedNoexcept(Result.Type)) {\n      Result.NoexceptExpr = getNoexceptExpr();\n    } else if (Result.Type == EST_Uninstantiated) {\n      Result.SourceDecl = getExceptionSpecDecl();\n      Result.SourceTemplate = getExceptionSpecTemplate();\n    } else if (Result.Type == EST_Unevaluated) {\n      Result.SourceDecl = getExceptionSpecDecl();\n    }\n    return Result;\n  }",
-  "id": "BLOCK-CPP-13849",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 4332,
-  "validation_status": "validated"
-}

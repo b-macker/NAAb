@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07445_execute() {\n    {\n  return specific_attr_iterator<SpecificAttr, Container>(container.end());\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07445",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AttrIterator.h",
-  "source_line": 104,
-  "validation_status": "validated"
-}

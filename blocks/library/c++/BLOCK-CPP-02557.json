@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02557_execute() {\n    {\n  ComplexityGuard guard(state);\n  if (guard.IsTooComplex()) return false;\n  ParseState copy = state->parse_state;\n  if (ParseOneCharToken(state, 'C')) {\n    if (ParseCharClass(state, \"1234\")) {\n      const char *const prev_name =\n          state->out + state->parse_state.prev_name_idx;\n      MaybeAppendWithLength(state, prev_name,\n                            state->parse_state.prev_name_length);\n      return true;\n    } else if (ParseOneCharToken(state, 'I') && ParseCharClass(state, \"12\") &&\n               ParseClassEnumType(state)) {\n      return true;\n    }\n  }\n  state->parse_state = copy;\n\n  if (ParseOneCharToken(state, 'D') && ParseCharClass(state, \"0124\")) {\n    const char *const prev_name = state->out + state->parse_state.prev_name_idx;\n    MaybeAppend(state, \"~\");\n    MaybeAppendWithLength(state, prev_name,\n                          state->parse_state.prev_name_length);\n    return true;\n  }\n  state->parse_state = copy;\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02557",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
-  "source_line": 1133,
-  "validation_status": "validated"
-}

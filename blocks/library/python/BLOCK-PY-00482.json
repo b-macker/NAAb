@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00482_execute() {\n    def iter_fields(\n        self,\n        exclude: t.Container[str] | None = None,\n        only: t.Container[str] | None = None,\n    ) -> t.Iterator[tuple[str, t.Any]]:\n        \"\"\"This method iterates over all fields that are defined and yields\n        ``(key, value)`` tuples.  Per default all fields are returned, but\n        it's possible to limit that to some fields by providing the `only`\n        parameter or to exclude some using the `exclude` parameter.  Both\n        should be sets or tuples of field names.\n        \"\"\"\n        for name in self.fields:\n            if (\n                (exclude is None and only is None)\n                or (exclude is not None and name not in exclude)\n                or (only is not None and name in only)\n            ):\n                try:\n                    yield name, getattr(self, name)\n                except AttributeError:\n                    pass\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00482",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 147,
-  "validation_status": "validated"
-}

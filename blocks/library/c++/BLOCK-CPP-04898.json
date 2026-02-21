@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <initializer_list>\n#include <iterator>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/container/internal/btree.h\"  // IWYU pragma: export\n#include \"absl/container/internal/common.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04898_execute() {\n    { tree_.verify(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04898",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree_container.h",
-  "source_line": 224,
-  "validation_status": "validated"
-}

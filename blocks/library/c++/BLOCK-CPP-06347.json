@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstdint>\n#include <cstdio>\n#include <limits>\n#include \"absl/base/config.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06347_execute() {\n    {\n  bool width_precision_needed =\n      conv.width.value() >= 0 || conv.precision.value() >= 0;\n  if (width_precision_needed && conv.flags == Flags::kBasic) {\n#if defined(__clang__)\n    // Some compilers complain about this in constexpr even when not executed,\n    // so only enable the error dump in clang.\n    fprintf(stderr,\n            \"basic=%d left=%d show_pos=%d sign_col=%d alt=%d zero=%d \"\n            \"width=%d precision=%d\\n\",\n            conv.flags == Flags::kBasic ? 1 : 0,\n            FlagsContains(conv.flags, Flags::kLeft) ? 1 : 0,\n            FlagsContains(conv.flags, Flags::kShowPos) ? 1 : 0,\n            FlagsContains(conv.flags, Flags::kSignCol) ? 1 : 0,\n            FlagsContains(conv.flags, Flags::kAlt) ? 1 : 0,\n            FlagsContains(conv.flags, Flags::kZero) ? 1 : 0, conv.width.value(),\n            conv.precision.value());\n#endif  // defined(__clang__)\n    return false;\n  }\n  return true;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06347",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/constexpr_parser.h",
-  "source_line": 173,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00544_execute() {\n    def _contains_asexpr(node: Node | Leaf) -> bool:\n    \"\"\"Return True if `node` contains an as-pattern.\"\"\"\n    if node.type == syms.asexpr_test:\n        return True\n    elif node.type == syms.atom:\n        if (\n            len(node.children) == 3\n            and node.children[0].type == token.LPAR\n            and node.children[2].type == token.RPAR\n        ):\n            return _contains_asexpr(node.children[1])\n    elif node.type == syms.testlist_gexp:\n        return any(_contains_asexpr(child) for child in node.children)\n    return False\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00544",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 1498,
-  "validation_status": "validated"
-}

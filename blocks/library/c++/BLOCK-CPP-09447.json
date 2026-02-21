@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Type.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/OperatorKinds.h\"\n#include \"clang/Basic/PartialDiagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <cstdint>\n#include <cstring>\n#include <string>\n\nusing namespace clang;\nusing namespace detail;\nusing namespace detail;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09447_execute() {\n    {\n    return clang::DeclarationName::getTombstoneMarker();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-09447",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclarationName.h",
-  "source_line": 908,
-  "validation_status": "validated"
-}

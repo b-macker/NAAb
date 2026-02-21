@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include <string.h>\n#include <algorithm>\n#include <cassert>\n#include <cmath>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/functional/function_ref.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/numeric/internal/representation.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03039_execute() {\n    {\n    assert(capacity <= kMaxCapacity);\n    const size_t step = (capacity + kStep - 1) / kStep;\n    assert(step <= kNumSteps);\n    switch (step) {\n      case 1:\n        return RunWithCapacityImpl<1>(f);\n      case 2:\n        return RunWithCapacityImpl<2>(f);\n      case 3:\n        return RunWithCapacityImpl<3>(f);\n      case 4:\n        return RunWithCapacityImpl<4>(f);\n      case 5:\n        return RunWithCapacityImpl<5>(f);\n    }\n\n    assert(false && \"Invalid capacity\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03039",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
-  "source_line": 72,
-  "validation_status": "validated"
-}

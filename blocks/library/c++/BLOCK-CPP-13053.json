@@ -1,8 +1,0 @@
-{
-  "code": "{\n  SourceLocation AtLoc;\n  Stmt *SubStmt;\n\npublic:\n  ObjCAutoreleasePoolStmt(SourceLocation atLoc, Stmt *subStmt)\n      : Stmt(ObjCAutoreleasePoolStmtClass), AtLoc(atLoc), SubStmt(subStmt) {}\n\n  explicit ObjCAutoreleasePoolStmt(EmptyShell Empty) :\n    Stmt(ObjCAutoreleasePoolStmtClass, Empty) { }\n\n  const Stmt *getSubStmt() const { return SubStmt; }\n  Stmt *getSubStmt() { return SubStmt; }\n  void setSubStmt(Stmt *S) { SubStmt = S; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return AtLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY {\n    return SubStmt->getEndLoc();\n  }\n\n  SourceLocation getAtLoc() const { return AtLoc; }\n  void setAtLoc(SourceLocation Loc) { AtLoc = Loc; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ObjCAutoreleasePoolStmtClass;\n  }\n\n  child_range children() { return child_range(&SubStmt, &SubStmt + 1); }\n\n  const_child_range children() const {\n    return const_child_range(&SubStmt, &SubStmt + 1);\n  }\n}",
-  "id": "BLOCK-CPP-13053",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtObjC.h",
-  "source_line": 393,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00927_execute() {\n    {\n    if (next_arg_id_ > 0) {\n      on_error(\"cannot switch from automatic to manual argument indexing\");\n      return;\n    }\n    next_arg_id_ = -1;\n    do_check_arg_id(id);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00927",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 706,
-  "validation_status": "validated"
-}

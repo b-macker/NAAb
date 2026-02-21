@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/details/fmt_helper.h>\n    #include <spdlog/details/null_mutex.h>\n    #include <spdlog/details/os.h>\n    #include <spdlog/details/synchronous_factory.h>\n    #include <spdlog/sinks/base_sink.h>\n    #include <android/log.h>\n    #include <chrono>\n    #include <mutex>\n    #include <string>\n    #include <thread>\n    #include <type_traits>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00356_execute() {\n    {\n        return __android_log_write(prio, tag, text);\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00356",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/android_sink.h",
-  "source_line": 77,
-  "validation_status": "validated"
-}

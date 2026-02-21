@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00366_execute() {\n    def visit_NSRef(self, node: nodes.NSRef, frame: Frame) -> None:\n        # NSRef is a dotted assignment target a.b=c, but uses a[b]=c internally.\n        # visit_Assign emits code to validate that each ref is to a Namespace\n        # object only. That can't be emitted here as the ref could be in the\n        # middle of a tuple assignment.\n        ref = frame.symbols.ref(node.name)\n        self.writeline(f\"{ref}[{node.attr!r}]\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00366",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1656,
-  "validation_status": "validated"
-}

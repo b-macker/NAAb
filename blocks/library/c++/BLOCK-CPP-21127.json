@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/BitmaskEnum.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cstdint>\n#include <optional>\n#include <set>\n#include <string>\n#include <unordered_map>\n#include <vector>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21127_execute() {\n    {\nclass raw_ostream;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21127",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Support/RISCVVIntrinsicUtils.h",
-  "source_line": 23,
-  "validation_status": "validated"
-}

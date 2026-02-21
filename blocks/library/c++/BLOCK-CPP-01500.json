@@ -1,8 +1,0 @@
-{
-  "code": "#include <fstream>\n#include <ostream>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01500_execute() {\n    {\n  const Char* buf_data = buf.data();\n  using unsigned_streamsize = std::make_unsigned<std::streamsize>::type;\n  unsigned_streamsize size = buf.size();\n  unsigned_streamsize max_size = to_unsigned(max_value<std::streamsize>());\n  do {\n    unsigned_streamsize n = size <= max_size ? size : max_size;\n    os.write(buf_data, static_cast<std::streamsize>(n));\n    buf_data += n;\n    size -= n;\n  } while (size != 0);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01500",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ostream.h",
-  "source_line": 109,
-  "validation_status": "validated"
-}

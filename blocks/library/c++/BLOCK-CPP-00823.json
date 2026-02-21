@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00823_execute() {\n    {\n    FMT_ASSERT(has_background(), \"no background specified for this style\");\n    return background_color;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00823",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 279,
-  "validation_status": "validated"
-}

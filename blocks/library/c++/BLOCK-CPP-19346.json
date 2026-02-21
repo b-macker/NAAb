@@ -1,8 +1,0 @@
-{
-  "code": "{\n    Parser &P;\n    bool Popped;\n    Sema::ParsingClassState State;\n\n  public:\n    ParsingClassDefinition(Parser &P, Decl *TagOrTemplate, bool TopLevelClass,\n                           bool IsInterface)\n      : P(P), Popped(false),\n        State(P.PushParsingClass(TagOrTemplate, TopLevelClass, IsInterface)) {\n    }\n\n    /// Pop this class of the stack.\n    void Pop() {\n      assert(!Popped && \"Nested class has already been popped\");\n      Popped = true;\n      P.PopParsingClass(State);\n    }\n\n    ~ParsingClassDefinition() {\n      if (!Popped)\n        P.PopParsingClass(State);\n    }\n  }",
-  "id": "BLOCK-CPP-19346",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
-  "source_line": 1484,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00281_execute() {\n    def find_undeclared(nodes: t.Iterable[nodes.Node], names: t.Iterable[str]) -> set[str]:\n    \"\"\"Check if the names passed are accessed undeclared.  The return value\n    is a set of all the undeclared names from the sequence of names found.\n    \"\"\"\n    visitor = UndeclaredNameVisitor(names)\n    try:\n        for node in nodes:\n            visitor.visit(node)\n    except VisitorExit:\n        pass\n    return visitor.undeclared\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00281",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 142,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <initializer_list>\n#include <iterator>\n#include <limits>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include \"absl/algorithm/algorithm.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"\n#include \"absl/container/internal/compressed_tuple.h\"\n#include \"absl/memory/memory.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03498_execute() {\n    {\n   public:\n    StorageElement* data() { return reinterpret_cast<StorageElement*>(buff_); }\n    void AnnotateConstruct(size_type n);\n    void AnnotateDestruct(size_type n);\n\n#ifdef ABSL_HAVE_ADDRESS_SANITIZER\n    void* RedzoneBegin() { return &redzone_begin_; }\n    void* RedzoneEnd() { return &redzone_end_ + 1; }\n#endif  // ABSL_HAVE_ADDRESS_SANITIZER\n\n   private:\n    ABSL_ADDRESS_SANITIZER_REDZONE(redzone_begin_);\n    alignas(StorageElement) char buff_[sizeof(StorageElement[inline_elements])];\n    ABSL_ADDRESS_SANITIZER_REDZONE(redzone_end_);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03498",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/fixed_array.h",
-  "source_line": 436,
-  "validation_status": "validated"
-}

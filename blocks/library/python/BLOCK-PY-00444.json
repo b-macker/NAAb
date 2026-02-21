@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00444_execute() {\n    class Getitem(Expr):\n    \"\"\"Get an attribute or item from an expression and prefer the item.\"\"\"\n\n    fields = (\"node\", \"arg\", \"ctx\")\n    node: Expr\n    arg: Expr\n    ctx: str\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        if self.ctx != \"load\":\n            raise Impossible()\n\n        eval_ctx = get_eval_context(self, eval_ctx)\n\n        try:\n            return eval_ctx.environment.getitem(\n                self.node.as_const(eval_ctx), self.arg.as_const(eval_ctx)\n            )\n        except Exception as e:\n            raise Impossible() from e\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00444",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 829,
-  "validation_status": "validated"
-}

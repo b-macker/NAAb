@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00882_execute() {\n    {\n  constexpr auto str = basic_string_view<typename S::char_type>(format_str);\n  if constexpr (str.size() == 0) {\n    return detail::make_text(str, 0, 0);\n  } else {\n    constexpr auto result =\n        detail::compile_format_string<detail::type_list<Args...>, 0, 0>(\n            format_str);\n    return result;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00882",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 490,
-  "validation_status": "validated"
-}

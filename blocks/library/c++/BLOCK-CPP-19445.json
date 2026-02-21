@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang-c/Index.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Lex/MacroInfo.h\"\n#include \"clang/Sema/CodeCompleteOptions.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <memory>\n#include <optional>\n#include <string>\n#include <utility>\n    /// Code completion inside the filename part of a #include directive.\n\nusing namespace clang;\nusing namespace or;\nusing namespace or;\nusing namespace clang;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19445_execute() {\n    { return Kind; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19445",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/CodeCompleteConsumer.h",
-  "source_line": 1102,
-  "validation_status": "validated"
-}

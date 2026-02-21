@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  explicit AllocationTransaction(A& allocator)\n      : allocator_data_(allocator, nullptr), capacity_(0) {}\n\n  ~AllocationTransaction() {\n    if (DidAllocate()) {\n      MallocAdapter<A>::Deallocate(GetAllocator(), GetData(), GetCapacity());\n    }\n  }\n\n  AllocationTransaction(const AllocationTransaction&) = delete;\n  void operator=(const AllocationTransaction&) = delete;\n\n  A& GetAllocator() { return allocator_data_.template get<0>(); }\n  Pointer<A>& GetData() { return allocator_data_.template get<1>(); }\n  SizeType<A>& GetCapacity() { return capacity_; }\n\n  bool DidAllocate() { return GetData() != nullptr; }\n\n  Pointer<A> Allocate(SizeType<A> requested_capacity) {\n    Allocation<A> result =\n        MallocAdapter<A>::Allocate(GetAllocator(), requested_capacity);\n    GetData() = result.data;\n    GetCapacity() = result.capacity;\n    return result.data;\n  }\n\n  ABSL_MUST_USE_RESULT Allocation<A> Release() && {\n    Allocation<A> result = {GetData(), GetCapacity()};\n    Reset();\n    return result;\n  }\n\n private:\n  void Reset() {\n    GetData() = nullptr;\n    GetCapacity() = 0;\n  }\n\n  container_internal::CompressedTuple<A, Pointer<A>> allocator_data_;\n  SizeType<A> capacity_;\n}",
-  "id": "BLOCK-CPP-05089",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/inlined_vector.h",
-  "source_line": 215,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Lex/Token.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <algorithm>\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18694_execute() {\n    {\n    assert(ParameterList == nullptr && NumParameters == 0 &&\n           \"Parameter list already set!\");\n    if (List.empty())\n      return;\n\n    NumParameters = List.size();\n    ParameterList = PPAllocator.Allocate<IdentifierInfo *>(List.size());\n    std::copy(List.begin(), List.end(), ParameterList);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18694",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MacroInfo.h",
-  "source_line": 166,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n    #include <fmt/format.h>\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace digits;\nusing namespace enums;\nusing namespace enums;\nusing namespace literals;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01467_execute() {\n    {\n/**\n  \\rst\n  User-defined literal equivalent of :func:`fmt::arg`.\n\n  **Example**::\n\n    using namespace fmt::literals;\n    fmt::print(\"Elapsed time: {s:.2f} seconds\", \"s\"_a=1.23);\n  \\endrst\n */\n#  if FMT_USE_NONTYPE_TEMPLATE_ARGS\ntemplate <detail_exported::fixed_string Str> constexpr auto operator\"\"_a() {\n  using char_t = remove_cvref_t<decltype(Str.data[0])>;\n  return detail::udl_arg<char_t, sizeof(Str.data) / sizeof(char_t), Str>();\n}\n#  else\nconstexpr auto operator\"\" _a(const char* s, size_t) -> detail::udl_arg<char> {\n  return {s};\n}\n#  endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01467",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 4151,
-  "validation_status": "validated"
-}

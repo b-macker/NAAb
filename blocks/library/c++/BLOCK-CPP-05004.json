@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <algorithm>\n#include <type_traits>\n#include <vector>\n#include \"absl/container/internal/hashtable_debug_hooks.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05004_execute() {\n    {\n  std::vector<size_t> v;\n  for (auto it = container.begin(); it != container.end(); ++it) {\n    size_t num_probes = GetHashtableDebugNumProbes(\n        container,\n        absl::container_internal::hashtable_debug_internal::GetKey<C>(*it, 0));\n    v.resize((std::max)(v.size(), num_probes + 1));\n    v[num_probes]++;\n  }\n  return v;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05004",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hashtable_debug.h",
-  "source_line": 57,
-  "validation_status": "validated"
-}

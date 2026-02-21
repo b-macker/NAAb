@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00378_execute() {\n    def _filter_test_common(\n        self, node: nodes.Filter | nodes.Test, frame: Frame, is_filter: bool\n    ) -> t.Iterator[None]:\n        if self.environment.is_async:\n            self.write(\"(await auto_await(\")\n\n        if is_filter:\n            self.write(f\"{self.filters[node.name]}(\")\n            func = self.environment.filters.get(node.name)\n        else:\n            self.write(f\"{self.tests[node.name]}(\")\n            func = self.environment.tests.get(node.name)\n\n        # When inside an If or CondExpr frame, allow the filter to be\n        # undefined at compile time and only raise an error if it's\n        # actually called at runtime. See pull_dependencies.\n        if func is None and not frame.soft_frame:\n            type_name = \"filter\" if is_filter else \"test\"\n            self.fail(f\"No {type_name} named {node.name!r}.\", node.lineno)\n\n        pass_arg = {\n            _PassArg.context: \"context\",\n            _PassArg.eval_context: \"context.eval_ctx\",\n            _PassArg.environment: \"environment\",\n        }.get(\n            _PassArg.from_obj(func)  # type: ignore\n        )\n\n        if pass_arg is not None:\n            self.write(f\"{pass_arg}, \")\n\n        # Back to the visitor function to handle visiting the target of\n        # the filter or test.\n        yield\n\n        self.signature(node, frame)\n        self.write(\")\")\n\n        if self.environment.is_async:\n            self.write(\"))\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00378",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1789,
-  "validation_status": "validated"
-}

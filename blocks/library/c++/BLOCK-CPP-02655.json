@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/hash/internal/city.h\"\n#include <string.h>  // for memcpy and memset\n#include <algorithm>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02655_execute() {\n    {\n  h ^= h >> 16;\n  h *= 0x85ebca6b;\n  h ^= h >> 13;\n  h *= 0xc2b2ae35;\n  h ^= h >> 16;\n  return h;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02655",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/city.cc",
-  "source_line": 62,
-  "validation_status": "validated"
-}

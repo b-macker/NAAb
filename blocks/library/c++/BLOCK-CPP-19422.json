@@ -1,8 +1,0 @@
-{
-  "code": "{\n  bool ExprNeedsCleanups = false;\n  bool CleanupsHaveSideEffects = false;\n\npublic:\n  bool exprNeedsCleanups() const { return ExprNeedsCleanups; }\n\n  bool cleanupsHaveSideEffects() const { return CleanupsHaveSideEffects; }\n\n  void setExprNeedsCleanups(bool SideEffects) {\n    ExprNeedsCleanups = true;\n    CleanupsHaveSideEffects |= SideEffects;\n  }\n\n  void reset() {\n    ExprNeedsCleanups = false;\n    CleanupsHaveSideEffects = false;\n  }\n\n  void mergeFrom(CleanupInfo Rhs) {\n    ExprNeedsCleanups |= Rhs.ExprNeedsCleanups;\n    CleanupsHaveSideEffects |= Rhs.CleanupsHaveSideEffects;\n  }\n}",
-  "id": "BLOCK-CPP-19422",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/CleanupInfo.h",
-  "source_line": 19,
-  "validation_status": "validated"
-}

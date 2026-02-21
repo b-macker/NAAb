@@ -1,8 +1,0 @@
-{
-  "code": "{\nbool FNMatch(absl::string_view pattern, absl::string_view str) {\n  bool in_wildcard_match = false;\n  while (true) {\n    if (pattern.empty()) {\n      // `pattern` is exhausted; succeed if all of `str` was consumed matching\n      // it.\n      return in_wildcard_match || str.empty();\n    }\n    if (str.empty()) {\n      // `str` is exhausted; succeed if `pattern` is empty or all '*'s.\n      return pattern.find_first_not_of('*') == pattern.npos;\n    }\n    switch (pattern.front()) {\n      case '*':\n        pattern.remove_prefix(1);\n        in_wildcard_match = true;\n        break;\n      case '?':\n        pattern.remove_prefix(1);\n        str.remove_prefix(1);\n        break;\n      default:\n        if (in_wildcard_match) {\n          absl::string_view fixed_portion = pattern;\n          const size_t end = fixed_portion.find_first_of(\"*?\");\n          if (end != fixed_portion.npos) {\n            fixed_portion = fixed_portion.substr(0, end);\n          }\n          const size_t match = str.find(fixed_portion);\n          if (match == str.npos) {\n            return false;\n          }\n          pattern.remove_prefix(fixed_portion.size());\n          str.remove_prefix(match + fixed_portion.size());\n          in_wildcard_match = false;\n        } else {\n          if (pattern.front() != str.front()) {\n            return false;\n          }\n          pattern.remove_prefix(1);\n          str.remove_prefix(1);\n        }\n        break;\n    }\n  }\n}\n}",
-  "id": "BLOCK-CPP-02698",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/fnmatch.cc",
-  "source_line": 24,
-  "validation_status": "validated"
-}

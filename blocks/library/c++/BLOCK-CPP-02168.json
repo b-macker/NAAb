@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nint64_t GetCurrentTimeNanos() { return GET_CURRENT_TIME_NANOS_FROM_SYSTEM(); }\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-02168",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
-  "source_line": 75,
-  "validation_status": "validated"
-}

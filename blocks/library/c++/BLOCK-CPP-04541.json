@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace variant_internal {\n\n// Helper visitor for converting a variant<Ts...>` into another type (mostly\n// variant) that can be constructed from any type.\ntemplate <typename To>\nstruct ConversionVisitor {\n  template <typename T>\n  To operator()(T&& v) const {\n    return To(std::forward<T>(v));\n  }\n};\n\n}  // namespace variant_internal\n\n// ConvertVariantTo()\n//\n// Helper functions to convert an `absl::variant` to a variant of another set of\n// types, provided that the alternative type of the new variant type can be\n// converted from any type in the source variant.\n//\n// Example:\n//\n//   absl::variant<name1, name2, float> InternalReq(const Req&);\n//\n//   // name1 and name2 are convertible to name\n//   absl::variant<name, float> ExternalReq(const Req& req) {\n//     return absl::ConvertVariantTo<absl::variant<name, float>>(\n//              InternalReq(req));\n//   }\ntemplate <typename To, typename Variant>\nTo ConvertVariantTo(Variant&& variant) {\n  return absl::visit(variant_internal::ConversionVisitor<To>{},\n                     std::forward<Variant>(variant));\n}\n\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-04541",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/variant.h",
-  "source_line": 826,
-  "validation_status": "validated"
-}

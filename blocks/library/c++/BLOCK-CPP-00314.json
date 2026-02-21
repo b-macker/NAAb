@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/common.h>\n#include <spdlog/details/os.h>\n#include <arpa/inet.h>\n#include <netdb.h>\n#include <netinet/in.h>\n#include <netinet/tcp.h>\n#include <sys/socket.h>\n#include <unistd.h>\n#include <string>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00314_execute() {\n    {\n        if (is_connected()) {\n            ::close(socket_);\n            socket_ = -1;\n        }\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00314",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/tcp_client.h",
-  "source_line": 31,
-  "validation_status": "validated"
-}

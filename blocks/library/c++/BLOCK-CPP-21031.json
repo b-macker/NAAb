@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/Support/ExtensibleRTTI.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include \"llvm/Support/MD5.h\"\n#include <memory>\n#include <string>\n\nusing namespace llvm;\nusing namespace clang;\nusing namespace serialization;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21031_execute() {\n    { }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21031",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ModuleFileExtension.h",
-  "source_line": 145,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\n\nnamespace strings_internal {\nclass StringifySink {\n public:\n  void Append(size_t count, char ch);\n\n  void Append(string_view v);\n\n  // Support `absl::Format(&sink, format, args...)`.\n  friend void AbslFormatFlush(StringifySink* sink, absl::string_view v) {\n    sink->Append(v);\n  }\n\n private:\n  template <typename T>\n  friend string_view ExtractStringification(StringifySink& sink, const T& v);\n\n  std::string buffer_;\n};\n\ntemplate <typename T>\nstring_view ExtractStringification(StringifySink& sink, const T& v) {\n  AbslStringify(sink, v);\n  return sink.buffer_;\n}\n\n}  // namespace strings_internal\n\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-06278",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/stringify_sink.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

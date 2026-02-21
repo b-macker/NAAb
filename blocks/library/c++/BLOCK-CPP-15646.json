@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/Support/BumpVector.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15646_execute() {\n    {\n    switch (K) {\n      case VariableKind:            return \"construct into local variable\";\n      case NewAllocatorKind:        return \"construct into new-allocator\";\n      case ReturnKind:              return \"construct into return address\";\n      case MaterializationKind:     return \"materialize temporary\";\n      case TemporaryDestructorKind: return \"destroy temporary\";\n      case ElidedDestructorKind:    return \"elide destructor\";\n      case ElidableConstructorKind: return \"elide constructor\";\n      case ArgumentKind:            return \"construct into argument\";\n      case LambdaCaptureKind:\n        return \"construct into lambda captured variable\";\n      case InitializerKind:         return \"construct into member variable\";\n    };\n    llvm_unreachable(\"Unknown ItemKind\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15646",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 49,
-  "validation_status": "validated"
-}

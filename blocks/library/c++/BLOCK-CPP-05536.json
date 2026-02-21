@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05536_execute() {\n    {\n  auto last_slash_pos = filename.find_last_of(\"/\\\\\");\n\n  return last_slash_pos == absl::string_view::npos\n             ? absl::string_view()\n             : filename.substr(0, last_slash_pos + 1);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05536",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/path_util.h",
-  "source_line": 50,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Tooling/Core/Replacement.h\"\n#include \"clang/Tooling/Inclusions/IncludeStyle.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/Regex.h\"\n#include \"llvm/Support/SourceMgr.h\"\n#include <optional>\n#include <system_error>\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\nusing namespace format;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18051_execute() {\n    { return 0; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18051",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
-  "source_line": 864,
-  "validation_status": "validated"
-}

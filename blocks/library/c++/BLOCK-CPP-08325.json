@@ -1,8 +1,0 @@
-{
-  "code": "{\n  using Decls = DeclListNode::Decls;\n\n  /// When in collection form, this is what the Data pointer points to.\n  Decls Result;\n\npublic:\n  DeclContextLookupResult() = default;\n  DeclContextLookupResult(Decls Result) : Result(Result) {}\n\n  using iterator = DeclListNode::iterator;\n  using const_iterator = iterator;\n  using reference = iterator::reference;\n\n  iterator begin() { return iterator(Result); }\n  iterator end() { return iterator(); }\n  const_iterator begin() const {\n    return const_cast<DeclContextLookupResult*>(this)->begin();\n  }\n  const_iterator end() const { return iterator(); }\n\n  bool empty() const { return Result.isNull();  }\n  bool isSingleResult() const { return Result.dyn_cast<NamedDecl*>(); }\n  reference front() const { return *begin(); }\n\n  // Find the first declaration of the given type in the list. Note that this\n  // is not in general the earliest-declared declaration, and should only be\n  // used when it's not possible for there to be more than one match or where\n  // it doesn't matter which one is found.\n  template<class T> T *find_first() const {\n    for (auto *D : *this)\n      if (T *Decl = dyn_cast<T>(D))\n        return Decl;\n\n    return nullptr;\n  }\n}",
-  "id": "BLOCK-CPP-08325",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclBase.h",
-  "source_line": 1347,
-  "validation_status": "validated"
-}

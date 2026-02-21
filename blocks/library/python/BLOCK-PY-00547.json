@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00547_execute() {\n    def _black_info() -> str:\n    return (\n        f\"Black {__version__} on \"\n        f\"Python ({platform.python_implementation()}) {platform.python_version()}\"\n    )\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00547",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 1574,
-  "validation_status": "validated"
-}

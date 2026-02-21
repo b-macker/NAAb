@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ExternalASTSource.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12422_execute() {\n    {\npublic:\n  CanonicalDeclPtr() = default;\n  CanonicalDeclPtr(decl_type *Ptr)\n      : Ptr(Ptr ? Ptr->getCanonicalDecl() : nullptr) {}\n  CanonicalDeclPtr(const CanonicalDeclPtr &) = default;\n  CanonicalDeclPtr &operator=(const CanonicalDeclPtr &) = default;\n\n  operator decl_type *() { return Ptr; }\n  operator const decl_type *() const { return Ptr; }\n\n  decl_type *operator->() { return Ptr; }\n  const decl_type *operator->() const { return Ptr; }\n\n  decl_type &operator*() { return *Ptr; }\n  const decl_type &operator*() const { return *Ptr; }\n\n  friend bool operator==(CanonicalDeclPtr LHS, CanonicalDeclPtr RHS) {\n    return LHS.Ptr == RHS.Ptr;\n  }\n  friend bool operator!=(CanonicalDeclPtr LHS, CanonicalDeclPtr RHS) {\n    return LHS.Ptr != RHS.Ptr;\n  }\n\nprivate:\n  friend struct llvm::DenseMapInfo<CanonicalDeclPtr<decl_type>>;\n  friend struct llvm::PointerLikeTypeTraits<CanonicalDeclPtr<decl_type>>;\n\n  decl_type *Ptr = nullptr;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12422",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Redeclarable.h",
-  "source_line": 349,
-  "validation_status": "validated"
-}

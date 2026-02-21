@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/FlowSensitive/Formula.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <optional>\n#include <vector>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21990_execute() {\n    { return Result(Status::TimedOut, {}); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21990",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Solver.h",
-  "source_line": 60,
-  "validation_status": "validated"
-}

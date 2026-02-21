@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18565_execute() {\n    {\n  uint32_t Magic;          // Magic word, also indicates byte order.\n  uint16_t Version;        // Version number -- currently 1.\n  uint16_t Reserved;       // Reserved for future use - zero for now.\n  uint32_t StringsOffset;  // Offset to start of string pool.\n  uint32_t NumEntries;     // Number of entries in the string table.\n  uint32_t NumBuckets;     // Number of buckets (always a power of 2).\n  uint32_t MaxValueLength; // Length of longest result path (excluding nul).\n  // An array of 'NumBuckets' HMapBucket objects follows this header.\n  // Strings follow the buckets, at StringsOffset.\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18565",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/HeaderMapTypes.h",
-  "source_line": 28,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05949_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace random_internal {\n\n// RANDen = RANDom generator or beetroots in Swiss High German.\n// 'Strong' (well-distributed, unpredictable, backtracking-resistant) random\n// generator, faster in some benchmarks than std::mt19937_64 and pcg64_c32.\n//\n// RandenHwAes implements the basic state manipulation methods.\nclass RandenHwAes {\n public:\n  static void Generate(const void* keys, void* state_void);\n  static void Absorb(const void* seed_void, void* state_void);\n  static const void* GetKeys();\n};\n\n// HasRandenHwAesImplementation returns true when there is an accelerated\n// implementation, and false otherwise.  If there is no implementation,\n// then attempting to use it will abort the program.\nbool HasRandenHwAesImplementation();\n\n}  // namespace random_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05949",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_hwaes.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

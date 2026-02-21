@@ -1,8 +1,0 @@
-{
-  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01583_execute() {\n    {\n  static constexpr const bool value =\n      detail::is_range_<T>::value && !detail::is_std_string_like<T>::value &&\n      !std::is_convertible<T, std::basic_string<Char>>::value &&\n      !std::is_convertible<T, detail::std_string_view<Char>>::value;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01583",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
-  "source_line": 376,
-  "validation_status": "validated"
-}

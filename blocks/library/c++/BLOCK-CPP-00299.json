@@ -1,8 +1,0 @@
-{
-  "code": "#include \"registry.h\"\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00299_execute() {\n    {\n        auto sink = std::make_shared<Sink>(std::forward<SinkArgs>(args)...);\n        auto new_logger = std::make_shared<spdlog::logger>(std::move(logger_name), std::move(sink));\n        details::registry::instance().initialize_logger(new_logger);\n        return new_logger;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00299",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/synchronous_factory.h",
-  "source_line": 14,
-  "validation_status": "validated"
-}

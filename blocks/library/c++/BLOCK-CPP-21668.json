@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Cast(TIL_CastOpcode Op, SExpr *E) : SExpr(COP_Cast), Expr0(E) { Flags = Op; }\n  Cast(const Cast &C, SExpr *E) : SExpr(C), Expr0(E) { Flags = C.Flags; }\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Cast; }\n\n  TIL_CastOpcode castOpcode() const {\n    return static_cast<TIL_CastOpcode>(Flags);\n  }\n\n  SExpr *expr() { return Expr0; }\n  const SExpr *expr() const { return Expr0; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Ne = Vs.traverse(Expr0, Vs.subExprCtx(Ctx));\n    return Vs.reduceCast(*this, Ne);\n  }\n\n  template <class C>\n  typename C::CType compare(const Cast* E, C& Cmp) const {\n    typename C::CType Ct =\n      Cmp.compareIntegers(castOpcode(), E->castOpcode());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.compare(expr(), E->expr());\n  }\n\nprivate:\n  SExpr* Expr0;\n}",
-  "id": "BLOCK-CPP-21668",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1264,
-  "validation_status": "validated"
-}

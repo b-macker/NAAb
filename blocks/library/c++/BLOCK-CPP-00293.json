@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/details/registry.h>\n#include <spdlog/common.h>\n#include <spdlog/details/periodic_worker.h>\n#include <spdlog/logger.h>\n#include <spdlog/pattern_formatter.h>\n        #include <spdlog/sinks/wincolor_sink.h>\n        #include <spdlog/sinks/ansicolor_sink.h>\n#include <chrono>\n#include <functional>\n#include <memory>\n#include <string>\n#include <unordered_map>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00293_execute() {\n    {\n            logger.second->set_level(*global_level);\n        }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00293",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/registry-inl.h",
-  "source_line": 234,
-  "validation_status": "validated"
-}

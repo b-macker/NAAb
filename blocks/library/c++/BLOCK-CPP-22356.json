@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22356_execute() {\n    {\n  StringRef FullName;\n  CmdLineOptionList CmdLineOptions;\n\n  // Since each package must have a different full name, we can identify\n  // CheckerInfo objects by them.\n  bool operator==(const PackageInfo &Rhs) const {\n    return FullName == Rhs.FullName;\n  }\n\n  explicit PackageInfo(StringRef FullName) : FullName(FullName) {}\n\n  LLVM_DUMP_METHOD void dump() const;\n  LLVM_DUMP_METHOD void dumpToStream(llvm::raw_ostream &Out) const;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22356",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/CheckerRegistryData.h",
-  "source_line": 146,
-  "validation_status": "validated"
-}

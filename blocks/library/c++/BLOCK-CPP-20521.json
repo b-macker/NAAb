@@ -1,8 +1,0 @@
-{
-  "code": "{\n  public:\n    using Lists = std::pair<ObjCMethodList, ObjCMethodList>;\n    using iterator = llvm::DenseMap<Selector, Lists>::iterator;\n    iterator begin() { return Methods.begin(); }\n    iterator end() { return Methods.end(); }\n    iterator find(Selector Sel) { return Methods.find(Sel); }\n    std::pair<iterator, bool> insert(std::pair<Selector, Lists> &&Val) {\n      return Methods.insert(Val);\n    }\n    int count(Selector Sel) const { return Methods.count(Sel); }\n    bool empty() const { return Methods.empty(); }\n\n  private:\n    llvm::DenseMap<Selector, Lists> Methods;\n  }",
-  "id": "BLOCK-CPP-20521",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
-  "source_line": 1532,
-  "validation_status": "validated"
-}

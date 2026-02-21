@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/ProgramState_Fwd.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/Store.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <vector>\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22332_execute() {\n    {\n    runCheckersForStmt(/*isPreVisit=*/true, Dst, Src, S, Eng);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22332",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/CheckerManager.h",
-  "source_line": 248,
-  "validation_status": "validated"
-}

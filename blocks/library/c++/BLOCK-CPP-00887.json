@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00887_execute() {\n    {\n  constexpr auto compiled = detail::compile<Args...>(S());\n  if constexpr (std::is_same<remove_cvref_t<decltype(compiled)>,\n                             detail::unknown_format>()) {\n    return fmt::format_to(\n        out, static_cast<basic_string_view<typename S::char_type>>(S()),\n        std::forward<Args>(args)...);\n  } else {\n    return fmt::format_to(out, compiled, std::forward<Args>(args)...);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00887",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 554,
-  "validation_status": "validated"
-}

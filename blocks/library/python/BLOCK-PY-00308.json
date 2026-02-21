@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00308_execute() {\n    def buffer(self, frame: Frame) -> None:\n        \"\"\"Enable buffering for the frame from that point onwards.\"\"\"\n        frame.buffer = self.temporary_identifier()\n        self.writeline(f\"{frame.buffer} = []\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00308",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 387,
-  "validation_status": "validated"
-}

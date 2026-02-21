@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Edit/EditedSource.h\"\n#include \"clang/Rewrite/Core/Rewriter.h\"\n#include <memory>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22170_execute() {\n    {\n    return Rewrite.getRewriteBufferFor(ID) != nullptr;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22170",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Frontend/FixItRewriter.h",
-  "source_line": 96,
-  "validation_status": "validated"
-}

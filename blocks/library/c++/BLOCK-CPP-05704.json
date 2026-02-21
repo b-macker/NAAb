@@ -1,8 +1,0 @@
-{
-  "code": "#include <stdint.h>\n#include <ostream>\n#include <sstream>\n#include <string>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/log/internal/nullguard.h\"\n#include \"absl/log/internal/nullstream.h\"\n#include \"absl/log/internal/strip.h\"\n// * We don't want this file to depend on `absl::Status` `#include`s or linkage,\n//   `Status` and the necessary `#include`s and linkage.\n\nusing namespace absl;\nusing namespace status_internal;\nusing namespace status_internal;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05704_execute() {\n    {\n  os << log_internal::NullGuard<T>::Guard(v);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05704",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/check_op.h",
-  "source_line": 200,
-  "validation_status": "validated"
-}

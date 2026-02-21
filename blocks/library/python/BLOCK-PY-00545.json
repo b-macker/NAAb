@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00545_execute() {\n    def detect_target_versions(\n    node: Node, *, future_imports: set[str] | None = None\n) -> set[TargetVersion]:\n    \"\"\"Detect the version to target based on the nodes used.\"\"\"\n    features = get_features_used(node, future_imports=future_imports)\n    return {\n        version for version in TargetVersion if features <= VERSION_TO_FEATURES[version]\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00545",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 1514,
-  "validation_status": "validated"
-}

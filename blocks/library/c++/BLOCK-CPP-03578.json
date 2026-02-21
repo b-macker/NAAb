@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03578_execute() {\n    {\n// Returns true for platforms which are expected to have functioning stack trace\n// implementations. Intended to be used for tests which want to exclude\n// verification of logic known to be broken because stack traces are not\n// working.\nextern bool StackTraceWorksForTest();\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03578",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/stacktrace.h",
-  "source_line": 221,
-  "validation_status": "validated"
-}

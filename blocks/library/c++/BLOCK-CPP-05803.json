@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include <intrin.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace numeric_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05803_execute() {\n    {\n#if ABSL_NUMERIC_INTERNAL_HAVE_BUILTIN_OR_GCC(__builtin_popcountll)\n  static_assert(sizeof(unsigned long long) == sizeof(x),  // NOLINT(runtime/int)\n                \"__builtin_popcount does not take 64-bit arg\");\n  return __builtin_popcountll(x);\n#else\n  x -= (x >> 1) & 0x5555555555555555ULL;\n  x = ((x >> 2) & 0x3333333333333333ULL) + (x & 0x3333333333333333ULL);\n  return static_cast<int>(\n      (((x + (x >> 4)) & 0xF0F0F0F0F0F0F0FULL) * 0x101010101010101ULL) >> 56);\n#endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05803",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/internal/bits.h",
-  "source_line": 108,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/crc/internal/cpu_detect.h\"\n#include <cstdint>\n#include <string>\n#include \"absl/base/config.h\"\n#include <asm/hwcap.h>\n#include <sys/auxv.h>\n#include <intrin.h>\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02453_execute() {\n    {\n  uint64_t hwcaps = getauxval(AT_HWCAP);\n  return (hwcaps & HWCAP_CRC32) && (hwcaps & HWCAP_PMULL);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02453",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/cpu_detect.cc",
-  "source_line": 271,
-  "validation_status": "validated"
-}

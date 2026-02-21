@@ -1,8 +1,0 @@
-{
-  "code": "{\n  // The call of which the context is an argument.\n  const Expr *CE;\n\n  // Which argument we're constructing. Note that when numbering between\n  // arguments and parameters is inconsistent (eg., operator calls),\n  // this is the index of the argument, not of the parameter.\n  unsigned Index;\n\n  // Whether the object needs to be destroyed.\n  const CXXBindTemporaryExpr *BTE;\n\n  friend class ConstructionContext; // Allows to create<>() itself.\n\n  explicit ArgumentConstructionContext(const Expr *CE, unsigned Index,\n                                       const CXXBindTemporaryExpr *BTE)\n      : ConstructionContext(ArgumentKind), CE(CE),\n        Index(Index), BTE(BTE) {\n    assert(isa<CallExpr>(CE) || isa<CXXConstructExpr>(CE) ||\n           isa<ObjCMessageExpr>(CE));\n    // BTE is optional.\n  }\n\npublic:\n  const Expr *getCallLikeExpr() const { return CE; }\n  unsigned getIndex() const { return Index; }\n  const CXXBindTemporaryExpr *getCXXBindTemporaryExpr() const { return BTE; }\n\n  static bool classof(const ConstructionContext *CC) {\n    return CC->getKind() == ArgumentKind;\n  }\n}",
-  "id": "BLOCK-CPP-15695",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 651,
-  "validation_status": "validated"
-}

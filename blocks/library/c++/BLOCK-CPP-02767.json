@@ -1,8 +1,0 @@
-{
-  "code": "{\n  static constexpr double kP1[] = {\n      0.797884560593,  -0.531923007300, 0.319152932694,\n      -0.151968751364, 0.059054035642,  -0.019198292004,\n      0.005198775019,  -0.001075204047, 0.000124818987,\n  };\n  static constexpr double kP2[] = {\n      0.999936657524,  0.000535310849,  -0.002141268741, 0.005353579108,\n      -0.009279453341, 0.011630447319,  -0.010557625006, 0.006549791214,\n      -0.002034254874, -0.000794620820, 0.001390604284,  -0.000676904986,\n      -0.000019538132, 0.000152529290,  -0.000045255659,\n  };\n\n  const double kZMax = 6.0;  // Maximum meaningful z-value.\n  if (z == 0.0) {\n    return 0.5;\n  }\n  double x;\n  double y = 0.5 * std::fabs(z);\n  if (y >= (kZMax * 0.5)) {\n    x = 1.0;\n  } else if (y < 1.0) {\n    double w = y * y;\n    x = EvaluatePolynomial(w, kP1) * y * 2.0;\n  } else {\n    y -= 2.0;\n    x = EvaluatePolynomial(y, kP2);\n  }\n  return z > 0.0 ? ((x + 1.0) * 0.5) : ((1.0 - x) * 0.5);\n}",
-  "id": "BLOCK-CPP-02767",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/chi_square.cc",
-  "source_line": 54,
-  "validation_status": "validated"
-}

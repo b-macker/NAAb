@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTVector.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/UnresolvedSet.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07301_execute() {\n    {\n    if (I == Decls.size() - 1)\n      Decls.pop_back();\n    else\n      Decls[I] = Decls.pop_back_val();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07301",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTUnresolvedSet.h",
-  "source_line": 72,
-  "validation_status": "validated"
-}

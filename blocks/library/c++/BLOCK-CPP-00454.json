@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/sinks/rotating_file_sink.h>\n#include <spdlog/common.h>\n#include <spdlog/details/file_helper.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/fmt/fmt.h>\n#include <cerrno>\n#include <chrono>\n#include <ctime>\n#include <mutex>\n#include <string>\n#include <tuple>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00454_execute() {\n    {\n        rotate_();\n        current_size_ = 0;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00454",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/rotating_file_sink-inl.h",
-  "source_line": 45,
-  "validation_status": "validated"
-}

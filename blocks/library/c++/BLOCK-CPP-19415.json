@@ -1,8 +1,0 @@
-{
-  "code": "{\n  //     int q;\n  //     // At this point, Fields contains [x,y,q] decls and FieldCount contains\n  //     // [2,1].\n  //   };\n  //   int z;\n  //   // At this point, Fields contains [x,y,z] decls and FieldCount contains\n  //   // [3].\n  // };\n\npublic:\n  /// StartClass - Called by Sema::ActOnStartCXXClassDef.\n  void StartClass() { FieldCount.push_back(0); }\n\n  /// Add - Called by Sema::ActOnCXXMemberDeclarator.\n  void Add(FieldDecl *D) {\n    Fields.push_back(D);\n    ++FieldCount.back();\n  }\n\n  /// getCurNumField - The number of fields added to the currently parsed class.\n  size_t getCurNumFields() const {\n    assert(!FieldCount.empty() && \"no currently-parsed class\");\n    return FieldCount.back();\n  }\n\n  /// getCurFields - Pointer to array of fields added to the currently parsed\n  /// class.\n  FieldDecl **getCurFields() { return &*(Fields.end() - getCurNumFields()); }\n\n  /// FinishClass - Called by Sema::ActOnFinishCXXClassDef.\n  void FinishClass() {\n    Fields.resize(Fields.size() - getCurNumFields());\n    FieldCount.pop_back();\n  }\n}",
-  "id": "BLOCK-CPP-19415",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/CXXFieldCollector.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

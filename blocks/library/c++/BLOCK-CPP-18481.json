@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/FrontendOptions.h\"\n#include <memory>\n#include <string>\n\nusing namespace clang;\nusing namespace index;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18481_execute() {\n    {\n  enum class SystemSymbolFilterKind {\n    None,\n    DeclarationsOnly,\n    All,\n  };\n\n  SystemSymbolFilterKind SystemSymbolFilter =\n      SystemSymbolFilterKind::DeclarationsOnly;\n  bool IndexFunctionLocals = false;\n  bool IndexImplicitInstantiation = false;\n  bool IndexMacros = true;\n  // Whether to index macro definitions in the Preprocessor when preprocessor\n  // callback is not available (e.g. after parsing has finished). Note that\n  // macro references are not available in Preprocessor.\n  bool IndexMacrosInPreprocessor = false;\n  // Has no effect if IndexFunctionLocals are false.\n  bool IndexParametersInDeclarations = false;\n  bool IndexTemplateParameters = false;\n\n  // If set, skip indexing inside some declarations for performance.\n  // This prevents traversal, so skipping a struct means its declaration an\n  // members won't be indexed, but references elsewhere to that struct will be.\n  // Currently this is only checked for top-level declarations.\n  std::function<bool(const Decl *)> ShouldTraverseDecl;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18481",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Index/IndexingOptions.h",
-  "source_line": 20,
-  "validation_status": "validated"
-}

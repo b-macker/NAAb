@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\n\nbad_any_cast::~bad_any_cast() = default;\n\nconst char* bad_any_cast::what() const noexcept { return \"Bad any cast\"; }\n\nnamespace any_internal {\n\nvoid ThrowBadAnyCast() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw bad_any_cast();\n#else\n  ABSL_RAW_LOG(FATAL, \"Bad any cast\");\n  std::abort();\n#endif\n}\n\n}  // namespace any_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-02279",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_any_cast.cc",
-  "source_line": 24,
-  "validation_status": "validated"
-}

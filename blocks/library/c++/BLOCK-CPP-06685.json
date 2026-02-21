@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstddef>\n#include <cstdlib>\n#include <memory>\n#include <stdexcept>\n#include <tuple>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/identity.h\"\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/bad_variant_access.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace variant_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06685_execute() {\n    {\n  template <class Op>\n  [[noreturn]] static VisitIndicesResultT<Op, std::size_t> Run(\n      Op&& /*ignored*/) {\n#if ABSL_HAVE_BUILTIN(__builtin_unreachable) || \\\n    (defined(__GNUC__) && !defined(__clang__))\n    __builtin_unreachable();\n#elif defined(_MSC_VER)\n    __assume(false);\n#else\n    // Try to use assert of false being identified as an unreachable intrinsic.\n    // NOTE: We use assert directly to increase chances of exploiting an assume\n    //       intrinsic.\n    assert(false);  // NOLINT\n\n    // Hack to silence potential no return warning -- cause an infinite loop.\n    return Run(absl::forward<Op>(op));\n#endif  // Checks for __builtin_unreachable\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06685",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/variant.h",
-  "source_line": 271,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Comment.h\"\n#include \"clang/AST/CommentLexer.h\"\n#include \"clang/AST/CommentSema.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"llvm/Support/Allocator.h\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07707_execute() {\n    {\n    if (Toks.empty())\n      return;\n\n    MoreLATokens.push_back(Tok);\n    MoreLATokens.append(Toks.rbegin(), std::prev(Toks.rend()));\n\n    Tok = Toks[0];\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07707",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CommentParser.h",
-  "source_line": 72,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01136_execute() {\n    {\n  // args_[0].named_args points to named_args_ to avoid bloating format_args.\n  // +1 to workaround a bug in gcc 7.5 that causes duplicated-branches warning.\n  T args_[1 + (NUM_ARGS != 0 ? NUM_ARGS : +1)];\n  named_arg_info<Char> named_args_[NUM_NAMED_ARGS];\n\n  template <typename... U>\n  arg_data(const U&... init) : args_{T(named_args_, NUM_NAMED_ARGS), init...} {}\n  arg_data(const arg_data& other) = delete;\n  auto args() const -> const T* { return args_ + 1; }\n  auto named_args() -> named_arg_info<Char>* { return named_args_; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01136",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 1149,
-  "validation_status": "validated"
-}

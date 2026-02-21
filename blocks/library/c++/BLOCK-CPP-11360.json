@@ -1,8 +1,0 @@
-{
-  "code": "{\n    CharUnits result;\n    result += CharUnits::fromQuantity(2); // summary byte, num-args byte\n    for (auto &item : Items) {\n      // descriptor byte, size byte\n      result += item.size() + CharUnits::fromQuantity(2);\n    }\n    return result;\n  }",
-  "id": "BLOCK-CPP-11360",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/OSLog.h",
-  "source_line": 117,
-  "validation_status": "validated"
-}

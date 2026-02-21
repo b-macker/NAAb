@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ComputeDependence.h\"\n#include \"clang/AST/Expr.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11104_execute() {\n    {\n    Begin = 0,\n    End = 1,\n    Step = 2,\n    Total = 3,\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11104",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprOpenMP.h",
-  "source_line": 297,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/crc/internal/cpu_detect.h\"\n#include <cstdint>\n#include <string>\n#include \"absl/base/config.h\"\n#include <asm/hwcap.h>\n#include <sys/auxv.h>\n#include <intrin.h>\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02447_execute() {\n    {\n        case 0x0:  // Stepping Ax\n        case 0x1:  // Stepping B0\n          return CpuType::kAmdMilan;\n        case 0x10:  // Stepping A0\n        case 0x11:  // Stepping B0\n          return CpuType::kAmdGenoa;\n        case 0x44:  // Stepping A0\n          return CpuType::kAmdRyzenV3000;\n        default:\n          return CpuType::kUnknown;\n      }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02447",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/cpu_detect.cc",
-  "source_line": 190,
-  "validation_status": "validated"
-}

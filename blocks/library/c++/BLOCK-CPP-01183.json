@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01183_execute() {\n    {\n  // 1374389535 = ceil(2^37/100)\n  return static_cast<uint32_t>((static_cast<uint64_t>(n) * 1374389535) >> 37);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01183",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
-  "source_line": 280,
-  "validation_status": "validated"
-}

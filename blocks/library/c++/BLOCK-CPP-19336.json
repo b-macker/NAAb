@@ -1,8 +1,0 @@
-{
-  "code": "{\n    Parser &P;\n    PreferredTypeBuilder PrevPreferredType;\n    Token PrevTok;\n    size_t PrevTentativelyDeclaredIdentifierCount;\n    unsigned short PrevParenCount, PrevBracketCount, PrevBraceCount;\n    bool isActive;\n\n  public:\n    explicit TentativeParsingAction(Parser &p)\n        : P(p), PrevPreferredType(P.PreferredType) {\n      PrevTok = P.Tok;\n      PrevTentativelyDeclaredIdentifierCount =\n          P.TentativelyDeclaredIdentifiers.size();\n      PrevParenCount = P.ParenCount;\n      PrevBracketCount = P.BracketCount;\n      PrevBraceCount = P.BraceCount;\n      P.PP.EnableBacktrackAtThisPos();\n      isActive = true;\n    }\n    void Commit() {\n      assert(isActive && \"Parsing action was finished!\");\n      P.TentativelyDeclaredIdentifiers.resize(\n          PrevTentativelyDeclaredIdentifierCount);\n      P.PP.CommitBacktrackedTokens();\n      isActive = false;\n    }\n    void Revert() {\n      assert(isActive && \"Parsing action was finished!\");\n      P.PP.Backtrack();\n      P.PreferredType = PrevPreferredType;\n      P.Tok = PrevTok;\n      P.TentativelyDeclaredIdentifiers.resize(\n          PrevTentativelyDeclaredIdentifierCount);\n      P.ParenCount = PrevParenCount;\n      P.BracketCount = PrevBracketCount;\n      P.BraceCount = PrevBraceCount;\n      isActive = false;\n    }\n    ~TentativeParsingAction() {\n      assert(!isActive && \"Forgot to call Commit or Revert!\");\n    }\n  }",
-  "id": "BLOCK-CPP-19336",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
-  "source_line": 975,
-  "validation_status": "validated"
-}

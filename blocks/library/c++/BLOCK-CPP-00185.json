@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/cfg/helpers.h>\n#include <spdlog/details/os.h>\n#include <spdlog/details/registry.h>\n#include <spdlog/spdlog.h>\n#include <algorithm>\n#include <sstream>\n#include <string>\n#include <utility>\n\nusing namespace spdlog;\nusing namespace cfg;\nusing namespace helpers;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00185_execute() {\n    {\n    auto n = str.find(sep);\n    std::string k, v;\n    if (n == std::string::npos) {\n        v = str;\n    } else {\n        k = str.substr(0, n);\n        v = str.substr(n + 1);\n    }\n    return std::make_pair(trim_(k), trim_(v));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00185",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/cfg/helpers-inl.h",
-  "source_line": 46,
-  "validation_status": "validated"
-}

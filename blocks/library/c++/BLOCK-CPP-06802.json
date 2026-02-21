@@ -1,8 +1,0 @@
-{
-  "code": "{\n  unsigned SwiftImportAsAccessorsSpecified : 1;\n  unsigned SwiftImportAsAccessors : 1;\n\npublic:\n  ObjCPropertyInfo()\n      : SwiftImportAsAccessorsSpecified(false), SwiftImportAsAccessors(false) {}\n\n  std::optional<bool> getSwiftImportAsAccessors() const {\n    return SwiftImportAsAccessorsSpecified\n               ? std::optional<bool>(SwiftImportAsAccessors)\n               : std::nullopt;\n  }\n  void setSwiftImportAsAccessors(std::optional<bool> Value) {\n    SwiftImportAsAccessorsSpecified = Value.has_value();\n    SwiftImportAsAccessors = Value.value_or(false);\n  }\n\n  friend bool operator==(const ObjCPropertyInfo &, const ObjCPropertyInfo &);\n\n  /// Merge class-wide information into the given property.\n  ObjCPropertyInfo &operator|=(const ObjCContextInfo &RHS) {\n    static_cast<CommonEntityInfo &>(*this) |= RHS;\n\n    // Merge nullability.\n    if (!getNullability())\n      if (auto Nullable = RHS.getDefaultNullability())\n        setNullabilityAudited(*Nullable);\n\n    return *this;\n  }\n\n  ObjCPropertyInfo &operator|=(const ObjCPropertyInfo &RHS) {\n    static_cast<VariableInfo &>(*this) |= RHS;\n\n    if (!SwiftImportAsAccessorsSpecified)\n      setSwiftImportAsAccessors(RHS.getSwiftImportAsAccessors());\n\n    return *this;\n  }\n\n  LLVM_DUMP_METHOD void dump(llvm::raw_ostream &OS) const;\n}",
-  "id": "BLOCK-CPP-06802",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/APINotes/Types.h",
-  "source_line": 359,
-  "validation_status": "validated"
-}

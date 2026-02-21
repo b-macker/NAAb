@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/string_view.h\"\n#include <algorithm>\n#include <climits>\n#include <cstring>\n#include <ostream>\n#include \"absl/base/nullability.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02047_execute() {\n    {\nextern const char kAvoidEmptyStringViewLibraryWarning;\nconst char kAvoidEmptyStringViewLibraryWarning = 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02047",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/string_view.cc",
-  "source_line": 254,
-  "validation_status": "validated"
-}

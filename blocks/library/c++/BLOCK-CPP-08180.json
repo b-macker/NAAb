@@ -1,8 +1,0 @@
-{
-  "code": "{\n  /// The template for which this is the pattern, if any.\n  TypeAliasTemplateDecl *Template;\n\n  TypeAliasDecl(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,\n                SourceLocation IdLoc, IdentifierInfo *Id, TypeSourceInfo *TInfo)\n      : TypedefNameDecl(TypeAlias, C, DC, StartLoc, IdLoc, Id, TInfo),\n        Template(nullptr) {}\n\npublic:\n  static TypeAliasDecl *Create(ASTContext &C, DeclContext *DC,\n                               SourceLocation StartLoc, SourceLocation IdLoc,\n                               IdentifierInfo *Id, TypeSourceInfo *TInfo);\n  static TypeAliasDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  SourceRange getSourceRange() const override LLVM_READONLY;\n\n  TypeAliasTemplateDecl *getDescribedAliasTemplate() const { return Template; }\n  void setDescribedAliasTemplate(TypeAliasTemplateDecl *TAT) { Template = TAT; }\n\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == TypeAlias; }\n}",
-  "id": "BLOCK-CPP-08180",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Decl.h",
-  "source_line": 3441,
-  "validation_status": "validated"
-}

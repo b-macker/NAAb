@@ -1,8 +1,0 @@
-{
-  "code": "{\n  void anchor() override;\n\nprotected:\n  PrecompileJobAction(ActionClass Kind, Action *Input, types::ID OutputType);\n\npublic:\n  PrecompileJobAction(Action *Input, types::ID OutputType);\n\n  static bool classof(const Action *A) {\n    return A->getKind() == PrecompileJobClass;\n  }\n}",
-  "id": "BLOCK-CPP-17686",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 424,
-  "validation_status": "validated"
-}

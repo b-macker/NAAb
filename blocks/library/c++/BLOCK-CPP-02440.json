@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/crc/internal/cpu_detect.h\"\n#include <cstdint>\n#include <string>\n#include \"absl/base/config.h\"\n#include <asm/hwcap.h>\n#include <sys/auxv.h>\n#include <intrin.h>\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02440_execute() {\n    {\n    return Vendor::kAmd;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02440",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/cpu_detect.cc",
-  "source_line": 73,
-  "validation_status": "validated"
-}

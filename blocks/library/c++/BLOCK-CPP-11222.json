@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/DeclOpenMP.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/Basic/ABI.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11222_execute() {\n    {\n    assert(isa<FunctionDecl>(\n               getDecl()) &&\n               !cast<FunctionDecl>(getDecl())->hasAttr<CUDAGlobalAttr>() &&\n           !isa<CXXConstructorDecl>(getDecl()) &&\n           !isa<CXXDestructorDecl>(getDecl()) &&\n           \"Decl is not a plain FunctionDecl!\");\n    return MultiVersionIndex;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11222",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/GlobalDecl.h",
-  "source_line": 122,
-  "validation_status": "validated"
-}

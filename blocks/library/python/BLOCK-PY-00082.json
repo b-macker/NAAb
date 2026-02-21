@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00082_execute() {\n    class TerminalCommandGenerator:\n    def __init__(self):\n        self.commands = []\n        \n    def add_command(self, cmd):\n        \"\"\"Add a single bash command to the sequence\"\"\"\n        self.commands.append(cmd)\n        \n    def create_file_heredoc(self, filename, content):\n        \"\"\"Create file using heredoc syntax\"\"\"\n        cmd = f\"cat << 'EOF' > {filename}\\n{content}\\nEOF\"\n        self.commands.append(cmd)\n        \n    def create_directory(self, dirname):\n        \"\"\"Create directory with parents\"\"\"\n        self.commands.append(f\"mkdir -p {dirname}\")\n        \n    def show_directory(self):\n        \"\"\"Show current working directory\"\"\"\n        self.commands.append(\"pwd\")\n        \n    def git_operations(self, commit_msg=\"Update project\"):\n        \"\"\"Add standard git operations\"\"\"\n        self.commands.extend([\n            \"git add .\",\n            f'git commit -m \"{commit_msg}\"',\n            \"git push\"\n        ])\n        \n    def reset_project(self):\n        \"\"\"Emergency reset protocol\"\"\"\n        self.commands.extend([\n            \"rm -rf ./*\",\n            \"rm -rf ./.*\",\n            \"pwd\"\n        ])\n        \n    def generate_bash_output(self):\n        \"\"\"Generate final bash command sequence\"\"\"\n        return \"\\n\".join(self.commands)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00082",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/terminal_command_generator.py",
-  "source_line": 10,
-  "validation_status": "validated"
-}

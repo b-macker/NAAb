@@ -1,8 +1,0 @@
-{
-  "code": "#include <ostream>\n#include \"absl/base/config.h\"\n#include \"absl/log/internal/log_message.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05791_execute() {\n    {\n    m.CopyToEncodedBuffer<log_internal::LogMessage::StringType::kLiteral>(str_);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05791",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/structured.h",
-  "source_line": 44,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/arg.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <cwchar>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/container/fixed_array.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/string_view.h\"\n#include <string_view>\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03001_execute() {\n    {\n  return {ConvertIntArg(v, conv, sink)};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03001",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/arg.cc",
-  "source_line": 623,
-  "validation_status": "validated"
-}

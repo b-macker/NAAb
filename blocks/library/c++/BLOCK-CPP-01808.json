@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\n\nSeedSeq MakeSeedSeq() {\n  SeedSeq::result_type seed_material[8];\n  random_internal::RandenPool<uint32_t>::Fill(absl::MakeSpan(seed_material));\n  return SeedSeq(std::begin(seed_material), std::end(seed_material));\n}\n\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-01808",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/seed_sequences.cc",
-  "source_line": 19,
-  "validation_status": "validated"
-}

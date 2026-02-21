@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>\n#include <iostream>\n#include <limits>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/int128.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05882_execute() {\n    {\n public:\n  using istream_type = IStream;\n  using flags_type = std::ios_base::fmtflags;\n\n  istream_state_saver(istream_type& is,  // NOLINT(runtime/references)\n                      flags_type flags)\n      : is_(is), flags_(is.flags(flags)) {}\n\n  ~istream_state_saver() { is_.flags(flags_); }\n\n private:\n  istream_type& is_;\n  flags_type flags_;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05882",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/iostream_state_saver.h",
-  "source_line": 131,
-  "validation_status": "validated"
-}

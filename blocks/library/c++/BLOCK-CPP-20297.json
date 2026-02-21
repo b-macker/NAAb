@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  /// Whether this compound stamement contains `for' or `while' loops\n  /// with empty bodies.\n  bool HasEmptyLoopBodies = false;\n\n  /// Whether this compound statement corresponds to a GNU statement\n  /// expression.\n  bool IsStmtExpr;\n\n  /// FP options at the beginning of the compound statement, prior to\n  /// any pragma.\n  FPOptions InitialFPFeatures;\n\n  CompoundScopeInfo(bool IsStmtExpr, FPOptions FPO)\n      : IsStmtExpr(IsStmtExpr), InitialFPFeatures(FPO) {}\n\n  void setHasEmptyLoopBodies() {\n    HasEmptyLoopBodies = true;\n  }\n}",
-  "id": "BLOCK-CPP-20297",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ScopeInfo.h",
-  "source_line": 67,
-  "validation_status": "validated"
-}

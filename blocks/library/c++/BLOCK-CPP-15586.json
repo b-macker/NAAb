@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/RecursiveASTVisitor.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/GraphTraits.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15586_execute() {\n    { return false; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15586",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CallGraph.h",
-  "source_line": 138,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\n\n// ClippedSubstr()\n//\n// Like `s.substr(pos, n)`, but clips `pos` to an upper bound of `s.size()`.\n// Provided because std::string_view::substr throws if `pos > size()`\ninline string_view ClippedSubstr(string_view s, size_t pos,\n                                 size_t n = string_view::npos) {\n  pos = (std::min)(pos, static_cast<size_t>(s.size()));\n  return s.substr(pos, n);\n}\n\n// NullSafeStringView()\n//\n// Creates an `absl::string_view` from a pointer `p` even if it's null-valued.\n// This function should be used where an `absl::string_view` can be created from\n// a possibly-null pointer.\nconstexpr string_view NullSafeStringView(absl::Nullable<const char*> p) {\n  return p ? string_view(p) : string_view();\n}\n\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-04257",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/string_view.h",
-  "source_line": 744,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ComputeDependence.h\"\n#include \"clang/AST/Expr.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11064_execute() {\n    { SubExprs[BASE] = E; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11064",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprOpenMP.h",
-  "source_line": 88,
-  "validation_status": "validated"
-}

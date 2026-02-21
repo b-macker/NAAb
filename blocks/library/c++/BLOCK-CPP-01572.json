@@ -1,8 +1,0 @@
-{
-  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01572_execute() {\n    {\n  template <typename U> static auto check(U*) -> typename U::mapped_type;\n  template <typename> static void check(...);\n\n public:\n#ifdef FMT_FORMAT_MAP_AS_LIST\n  static constexpr const bool value = false;\n#else\n  static constexpr const bool value =\n      !std::is_void<decltype(check<T>(nullptr))>::value;\n#endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01572",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
-  "source_line": 67,
-  "validation_status": "validated"
-}

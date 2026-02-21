@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05836_execute() {\n    {\n  // Compute the sum and the number of buckets.\n  assert(expected >= 10);  // require at least 10 samples per bucket.\n  double chi_square = 0;\n  for (auto it = begin; it != end; it++) {\n    double d = static_cast<double>(*it) - expected;\n    chi_square += d * d;\n  }\n  chi_square = chi_square / expected;\n  return chi_square;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05836",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/chi_square.h",
-  "source_line": 39,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Type.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include <cassert>\n#include <iterator>\n#include <type_traits>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23260_execute() {\n    {\n    return CanQualType::CreateUnsafe(this->getTypePtr()->getParamType(i));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23260",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CanonicalType.h",
-  "source_line": 508,
-  "validation_status": "validated"
-}

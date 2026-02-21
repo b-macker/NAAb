@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/bind.h\"\n#include <algorithm>\n#include <cassert>\n#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <ios>\n#include <limits>\n#include <ostream>\n#include <sstream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/strings/internal/str_format/arg.h\"\n#include \"absl/strings/internal/str_format/constexpr_parser.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/internal/str_format/output.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03019_execute() {\n    {\n    return FormatArgImplFriend::Convert(*bound.arg(), bound, sink_);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03019",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/bind.cc",
-  "source_line": 158,
-  "validation_status": "validated"
-}

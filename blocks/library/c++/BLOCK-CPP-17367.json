@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"clang/Basic/TokenKinds.def\"\n#include \"clang/Basic/TokenKinds.def\"\n#include \"clang/Basic/TokenKinds.def\"\n#include \"clang/Basic/TokenKinds.def\"\n\nusing namespace clang;\nusing namespace tok;\nusing namespace for;\nusing namespace for;\nusing namespace for;\nusing namespace for;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17367_execute() {\n    {\n  return K == tok::string_literal || K == tok::wide_string_literal ||\n         K == tok::utf8_string_literal || K == tok::utf16_string_literal ||\n         K == tok::utf32_string_literal;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17367",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TokenKinds.h",
-  "source_line": 89,
-  "validation_status": "validated"
-}

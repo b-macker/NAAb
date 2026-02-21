@@ -1,8 +1,0 @@
-{
-  "code": "{\n  ArgEffectKind K;\n  ObjKind O;\npublic:\n  explicit ArgEffect(ArgEffectKind K = DoNothing, ObjKind O = ObjKind::AnyObj)\n      : K(K), O(O) {}\n\n  ArgEffectKind getKind() const { return K; }\n  ObjKind getObjKind() const { return O; }\n\n  ArgEffect withKind(ArgEffectKind NewK) {\n    return ArgEffect(NewK, O);\n  }\n\n  bool operator==(const ArgEffect &Other) const {\n    return K == Other.K && O == Other.O;\n  }\n}",
-  "id": "BLOCK-CPP-15941",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/RetainSummaryManager.h",
-  "source_line": 119,
-  "validation_status": "validated"
-}

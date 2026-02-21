@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  // CallExitEnd uses the caller's location context.\n  CallExitEnd(const StackFrameContext *CalleeCtx,\n              const LocationContext *CallerCtx)\n    : ProgramPoint(CalleeCtx, CallExitEndKind, CallerCtx, nullptr) {}\n\n  const StackFrameContext *getCalleeContext() const {\n    return static_cast<const StackFrameContext *>(getData1());\n  }\n\nprivate:\n  friend class ProgramPoint;\n  CallExitEnd() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == CallExitEndKind;\n  }\n}",
-  "id": "BLOCK-CPP-15892",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 686,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h\"\n#include \"llvm/ADT/StringExtras.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22219_execute() {\n    {\n    return \"temporary object constructed at statement '\" +\n           printStmt(R->getExpr()) + \"'\";\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22219",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/SValExplainer.h",
-  "source_line": 233,
-  "validation_status": "validated"
-}

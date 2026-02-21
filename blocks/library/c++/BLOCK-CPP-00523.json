@@ -1,8 +1,0 @@
-{
-  "code": "#include <functional>  // std::reference_wrapper\n#include <memory>      // std::unique_ptr\n#include <vector>\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00523_execute() {\n    {\n    if (named_info_.empty()) {\n      constexpr const detail::named_arg_info<char_type>* zero_ptr{nullptr};\n      data_.insert(data_.begin(), {zero_ptr, 0});\n    }\n    data_.emplace_back(detail::make_arg<Context>(detail::unwrap(arg.value)));\n    auto pop_one = [](std::vector<basic_format_arg<Context>>* data) {\n      data->pop_back();\n    };\n    std::unique_ptr<std::vector<basic_format_arg<Context>>, decltype(pop_one)>\n        guard{&data_, pop_one};\n    named_info_.push_back({arg.name, static_cast<int>(data_.size() - 2u)});\n    data_[0].value_.named_args = {named_info_.data(), named_info_.size()};\n    guard.release();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00523",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/args.h",
-  "source_line": 128,
-  "validation_status": "validated"
-}

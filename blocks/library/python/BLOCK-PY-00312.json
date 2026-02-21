@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00312_execute() {\n    def start_write(self, frame: Frame, node: nodes.Node | None = None) -> None:\n        \"\"\"Yield or write into the frame buffer.\"\"\"\n        if frame.buffer is None:\n            self.writeline(\"yield \", node)\n        else:\n            self.writeline(f\"{frame.buffer}.append(\", node)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00312",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 420,
-  "validation_status": "validated"
-}

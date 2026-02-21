@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ComputeDependence.h\"\n#include \"clang/AST/Expr.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11101_execute() {\n    {\n    Stmt **Begin = reinterpret_cast<Stmt **>(getTrailingObjects<Expr *>());\n    return child_range(\n        Begin, Begin + NumIterators * static_cast<int>(RangeExprOffset::Total));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11101",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprOpenMP.h",
-  "source_line": 410,
-  "validation_status": "validated"
-}

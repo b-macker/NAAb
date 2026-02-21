@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/Hashing.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <new>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace optional_detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16106_execute() {\n    {\ntemplate <typename> class OptionalStorage;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16106",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/CustomizableOptional.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

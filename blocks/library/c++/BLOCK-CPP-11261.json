@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Basic/Lambda.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11261_execute() {\n    { return Loc; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11261",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LambdaCapture.h",
-  "source_line": 125,
-  "validation_status": "validated"
-}

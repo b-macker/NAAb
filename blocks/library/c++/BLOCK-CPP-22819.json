@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22819_execute() {\n    {\n\nclass Decl;\n#define DECL(DERIVED, BASE) class DERIVED##Decl;\n#include \"clang/AST/DeclNodes.inc\"\nclass Stmt;\n#define STMT(DERIVED, BASE) class DERIVED;\n#include \"clang/AST/StmtNodes.inc\"\nclass Type;\n#define TYPE(DERIVED, BASE) class DERIVED##Type;\n#include \"clang/AST/TypeNodes.inc\"\nclass CXXCtorInitializer;\nclass OMPClause;\n#define GEN_CLANG_CLAUSE_CLASS\n#define CLAUSE_CLASS(Enum, Str, Class) class Class;\n#include \"llvm/Frontend/OpenMP/OMP.inc\"\nclass Attr;\n#define ATTR(A) class A##Attr;\n#include \"clang/Basic/AttrList.inc\"\nclass ObjCProtocolLoc;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22819",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTFwd.h",
-  "source_line": 17,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"clang/Basic/TransformTypeTraits.def\"\n#include \"clang/Basic/OpenCLImageTypes.def\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17000_execute() {\n    {\n    switch (Kind) {\n    case TSK_ExplicitSpecialization:\n    case TSK_ExplicitInstantiationDeclaration:\n    case TSK_ExplicitInstantiationDefinition:\n      return true;\n\n    case TSK_Undeclared:\n    case TSK_ImplicitInstantiation:\n      return false;\n    }\n    llvm_unreachable(\"bad template specialization kind\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17000",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Specifiers.h",
-  "source_line": 210,
-  "validation_status": "validated"
-}

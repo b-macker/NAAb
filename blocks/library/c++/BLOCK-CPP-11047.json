@@ -1,8 +1,0 @@
-{
-  "code": "{\n  Stmt *String;\n  SourceLocation AtLoc;\n\npublic:\n  ObjCStringLiteral(StringLiteral *SL, QualType T, SourceLocation L)\n      : Expr(ObjCStringLiteralClass, T, VK_PRValue, OK_Ordinary), String(SL),\n        AtLoc(L) {\n    setDependence(ExprDependence::None);\n  }\n  explicit ObjCStringLiteral(EmptyShell Empty)\n      : Expr(ObjCStringLiteralClass, Empty) {}\n\n  StringLiteral *getString() { return cast<StringLiteral>(String); }\n  const StringLiteral *getString() const { return cast<StringLiteral>(String); }\n  void setString(StringLiteral *S) { String = S; }\n\n  SourceLocation getAtLoc() const { return AtLoc; }\n  void setAtLoc(SourceLocation L) { AtLoc = L; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return AtLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY { return String->getEndLoc(); }\n\n  // Iterators\n  child_range children() { return child_range(&String, &String+1); }\n\n  const_child_range children() const {\n    return const_child_range(&String, &String + 1);\n  }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ObjCStringLiteralClass;\n  }\n}",
-  "id": "BLOCK-CPP-11047",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprObjC.h",
-  "source_line": 51,
-  "validation_status": "validated"
-}

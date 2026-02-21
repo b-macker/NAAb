@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04670_execute() {\n    {\n  constexpr static char dummy_var = 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04670",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/fast_type_id.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

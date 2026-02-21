@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include <set>\n\nusing namespace clang;\nusing namespace tooling;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21200_execute() {\n    {\nstruct RangeLessThan {\n  bool operator()(std::pair<SourceRange, SharedLocationCall> const &LHS,\n                  std::pair<SourceRange, SharedLocationCall> const &RHS) const;\n  bool\n  operator()(std::pair<SourceLocation, SharedLocationCall> const &LHS,\n             std::pair<SourceLocation, SharedLocationCall> const &RHS) const;\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21200",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/NodeIntrospection.h",
-  "source_line": 60,
-  "validation_status": "validated"
-}

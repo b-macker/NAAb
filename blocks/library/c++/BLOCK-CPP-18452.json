@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/FileManager.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <limits>\n#include <memory>\n#include <string>\n#include <vector>\n/// as for #include directives.  The line number in an external file may be\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18452_execute() {\n    {\n    llvm::PointerIntPair<const FileEntry *, 1, bool> Data;\n\n  public:\n    UnparsedFileStatus(const FileEntry *File, bool FoundDirectives)\n        : Data(File, FoundDirectives) {}\n\n    const FileEntry *getFile() const { return Data.getPointer(); }\n    bool foundDirectives() const { return Data.getInt(); }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18452",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/VerifyDiagnosticConsumer.h",
-  "source_line": 280,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  CFGDeleteDtor(const CXXRecordDecl *RD, const CXXDeleteExpr *DE)\n      : CFGImplicitDtor(DeleteDtor, RD, DE) {}\n\n  const CXXRecordDecl *getCXXRecordDecl() const {\n    return static_cast<CXXRecordDecl*>(Data1.getPointer());\n  }\n\n  // Get Delete expression which triggered the destructor call.\n  const CXXDeleteExpr *getDeleteExpr() const {\n    return static_cast<CXXDeleteExpr *>(Data2.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n\n  CFGDeleteDtor() = default;\n\n  static bool isKind(const CFGElement &elem) {\n    return elem.getKind() == DeleteDtor;\n  }\n}",
-  "id": "BLOCK-CPP-15559",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 414,
-  "validation_status": "validated"
-}

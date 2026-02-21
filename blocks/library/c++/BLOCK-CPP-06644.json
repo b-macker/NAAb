@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cstddef>\n#include <string>\n#include <type_traits>\n#include \"absl/algorithm/algorithm.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace span_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06644_execute() {\n    {\n  using type = typename absl::remove_reference_t<C>::value_type;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06644",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/span.h",
-  "source_line": 71,
-  "validation_status": "validated"
-}

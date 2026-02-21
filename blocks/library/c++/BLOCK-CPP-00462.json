@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/details/log_msg.h>\n#include <spdlog/formatter.h>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00462_execute() {\n    {\nclass SPDLOG_API sink {\npublic:\n    virtual ~sink() = default;\n    virtual void log(const details::log_msg &msg) = 0;\n    virtual void flush() = 0;\n    virtual void set_pattern(const std::string &pattern) = 0;\n    virtual void set_formatter(std::unique_ptr<spdlog::formatter> sink_formatter) = 0;\n\n    void set_level(level::level_enum log_level);\n    level::level_enum level() const;\n    bool should_log(level::level_enum msg_level) const;\n\nprotected:\n    // sink log level - default is all\n    level_t level_{level::trace};\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00462",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/sink.h",
-  "source_line": 11,
-  "validation_status": "validated"
-}

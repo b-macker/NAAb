@@ -1,8 +1,0 @@
-{
-  "code": "{\n  *out = 0.0;\n  str = StripAsciiWhitespace(str);\n  // std::from_chars doesn't accept an initial +, but SimpleAtof does, so if one\n  // is present, skip it, while avoiding accepting \"+-0\" as valid.\n  if (!str.empty() && str[0] == '+') {\n    str.remove_prefix(1);\n    if (!str.empty() && str[0] == '-') {\n      return false;\n    }\n  }\n  auto result = absl::from_chars(str.data(), str.data() + str.size(), *out);\n  if (result.ec == std::errc::invalid_argument) {\n    return false;\n  }\n  if (result.ptr != str.data() + str.size()) {\n    // not all non-whitespace characters consumed\n    return false;\n  }\n  // from_chars() with DR 3081's current wording will return max() on\n  // overflow.  SimpleAtof returns infinity instead.\n  if (result.ec == std::errc::result_out_of_range) {\n    if (*out > 1.0) {\n      *out = std::numeric_limits<float>::infinity();\n    } else if (*out < -1.0) {\n      *out = -std::numeric_limits<float>::infinity();\n    }\n  }\n  return true;\n}",
-  "id": "BLOCK-CPP-01947",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/numbers.cc",
-  "source_line": 52,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include <intrin.h>  // NOLINT(build/include_order)\n#include \"absl/base/config.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/traits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05989_execute() {\n    {\n    return static_cast<input_type>(r >> kN);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05989",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/wide_multiply.h",
-  "source_line": 48,
-  "validation_status": "validated"
-}

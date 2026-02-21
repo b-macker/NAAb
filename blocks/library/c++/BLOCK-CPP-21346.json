@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/DepthFirstIterator.h\"\n#include \"llvm/ADT/GraphTraits.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/Support/GenericIteratedDominanceFrontier.h\"\n#include \"llvm/Support/GenericDomTree.h\"\n#include \"llvm/Support/GenericDomTreeConstruction.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\nusing namespace IDFCalculatorDetail;\nusing namespace IDFCalculatorDetail;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21346_execute() {\n    {\n    CFG *cfg = PostDomTree.getCFG();\n    llvm::errs() << \"Control dependencies (Node#,Dependency#):\\n\";\n    for (CFGBlock *BB : *cfg) {\n\n      assert(BB &&\n             \"LLVM's Dominator tree builder uses nullpointers to signify the \"\n             \"virtual root!\");\n\n      for (CFGBlock *isControlDependency : getControlDependencies(BB))\n        llvm::errs() << \"(\" << BB->getBlockID()\n                     << \",\"\n                     << isControlDependency->getBlockID()\n                     << \")\\n\";\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21346",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/Dominators.h",
-  "source_line": 254,
-  "validation_status": "validated"
-}

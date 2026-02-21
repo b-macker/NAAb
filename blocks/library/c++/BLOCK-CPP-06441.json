@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/internal/thread_identity.h\"\n#include \"absl/base/port.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06441_execute() {\n    {\n\n// Allocates and attaches a ThreadIdentity object for the calling thread.\n// For private use only.\nbase_internal::ThreadIdentity* CreateThreadIdentity();\n\n// Returns the ThreadIdentity object representing the calling thread; guaranteed\n// to be unique for its lifetime.  The returned object will remain valid for the\n// program's lifetime; although it may be re-assigned to a subsequent thread.\n// If one does not exist for the calling thread, allocate it now.\ninline base_internal::ThreadIdentity* GetOrCreateCurrentThreadIdentity() {\n  base_internal::ThreadIdentity* identity =\n      base_internal::CurrentThreadIdentityIfPresent();\n  if (ABSL_PREDICT_FALSE(identity == nullptr)) {\n    return CreateThreadIdentity();\n  }\n  return identity;\n}\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06441",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/create_thread_identity.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

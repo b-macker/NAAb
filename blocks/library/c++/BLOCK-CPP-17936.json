@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/XRayInstr.h\"\n#include \"clang/Driver/Types.h\"\n#include \"llvm/Option/Arg.h\"\n#include \"llvm/Option/ArgList.h\"\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17936_execute() {\n    {\n  std::vector<std::string> AlwaysInstrumentFiles;\n  std::vector<std::string> NeverInstrumentFiles;\n  std::vector<std::string> AttrListFiles;\n  std::vector<std::string> ExtraDeps;\n  std::vector<std::string> Modes;\n  XRayInstrSet InstrumentationBundle;\n  llvm::opt::Arg *XRayInstrument = nullptr;\n  bool XRayRT = true;\n\npublic:\n  /// Parses the XRay arguments from an argument list.\n  XRayArgs(const ToolChain &TC, const llvm::opt::ArgList &Args);\n  void addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,\n               llvm::opt::ArgStringList &CmdArgs, types::ID InputType) const;\n\n  bool needsXRayRt() const { return XRayInstrument && XRayRT; }\n  llvm::ArrayRef<std::string> modeList() const { return Modes; }\n  XRayInstrSet instrumentationBundle() const { return InstrumentationBundle; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17936",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/XRayArgs.h",
-  "source_line": 21,
-  "validation_status": "validated"
-}

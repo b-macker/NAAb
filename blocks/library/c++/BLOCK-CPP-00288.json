@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/details/periodic_worker.h>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00288_execute() {\n    {\nnamespace details {\n\n// stop the worker thread and join it\nSPDLOG_INLINE periodic_worker::~periodic_worker() {\n    if (worker_thread_.joinable()) {\n        {\n            std::lock_guard<std::mutex> lock(mutex_);\n            active_ = false;\n        }\n        cv_.notify_one();\n        worker_thread_.join();\n    }\n}\n\n}  // namespace details\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00288",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/periodic_worker-inl.h",
-  "source_line": 10,
-  "validation_status": "validated"
-}

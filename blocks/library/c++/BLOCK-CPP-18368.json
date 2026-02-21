@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ExternalASTSource.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18368_execute() {\n    {\n      /// The size of the record.\n      uint64_t Size;\n\n      /// The alignment of the record.\n      uint64_t Align;\n\n      /// The offsets of non-virtual base classes in the record.\n      SmallVector<CharUnits, 8> BaseOffsets;\n\n      /// The offsets of virtual base classes in the record.\n      SmallVector<CharUnits, 8> VBaseOffsets;\n\n      /// The offsets of the fields, in source order.\n      SmallVector<uint64_t, 8> FieldOffsets;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18368",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/LayoutOverrideSource.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

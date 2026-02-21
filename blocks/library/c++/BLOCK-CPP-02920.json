@@ -1,8 +1,0 @@
-{
-  "code": "{\n    statistics_.node_count++;\n    statistics_.node_counts.flat++;\n    if (size <= 64) {\n      statistics_.node_counts.flat_64++;\n    } else if (size <= 128) {\n      statistics_.node_counts.flat_128++;\n    } else if (size <= 256) {\n      statistics_.node_counts.flat_256++;\n    } else if (size <= 512) {\n      statistics_.node_counts.flat_512++;\n    } else if (size <= 1024) {\n      statistics_.node_counts.flat_1k++;\n    }\n  }",
-  "id": "BLOCK-CPP-02920",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_info.cc",
-  "source_line": 152,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTFwd.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/AST/StmtIterator.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/MapVector.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Frontend/OpenMP/OMPAssume.h\"\n#include \"llvm/Frontend/OpenMP/OMPConstants.h\"\n#include \"llvm/Frontend/OpenMP/OMPContext.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11614_execute() {\n    { return IsExtended; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11614",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/OpenMPClause.h",
-  "source_line": 2189,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/APSInt.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <array>\n#include <cassert>\n#include <optional>\n#include <vector>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07727_execute() {\n    {\n    ComparisonCategoryResult Kind;\n    VarDecl *VD;\n\n    ValueInfo(ComparisonCategoryResult Kind, VarDecl *VD)\n        : Kind(Kind), VD(VD) {}\n\n    /// True iff we've successfully evaluated the variable as a constant\n    /// expression and extracted its integer value.\n    bool hasValidIntValue() const;\n\n    /// Get the constant integer value used by this variable to represent\n    /// the comparison category result type.\n    llvm::APSInt getIntValue() const;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07727",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ComparisonCategories.h",
-  "source_line": 85,
-  "validation_status": "validated"
-}

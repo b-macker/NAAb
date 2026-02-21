@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include <cstddef>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18425_execute() {\n    { return Warnings.end(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18425",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/TextDiagnosticBuffer.h",
-  "source_line": 45,
-  "validation_status": "validated"
-}

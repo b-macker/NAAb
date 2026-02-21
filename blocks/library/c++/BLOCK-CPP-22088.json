@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ExtractAPI/API.h\"\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22088_execute() {\n    {\n    getDerived()->traverseGlobalVariableRecords();\n\n    getDerived()->traverseGlobalFunctionRecords();\n\n    getDerived()->traverseEnumRecords();\n\n    getDerived()->traverseStructRecords();\n\n    getDerived()->traverseObjCInterfaces();\n\n    getDerived()->traverseObjCProtocols();\n\n    getDerived()->traverseMacroDefinitionRecords();\n\n    getDerived()->traverseTypedefRecords();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22088",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/Serialization/SerializerBase.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

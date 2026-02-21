@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DependenceFlags.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include <cassert>\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13487_execute() {\n    {\n  friend class ASTContext;\n\n  OverloadedTemplateStorage(unsigned size)\n      : UncommonTemplateNameStorage(Overloaded, 0, size) {}\n\n  NamedDecl **getStorage() {\n    return reinterpret_cast<NamedDecl **>(this + 1);\n  }\n  NamedDecl * const *getStorage() const {\n    return reinterpret_cast<NamedDecl *const *>(this + 1);\n  }\n\npublic:\n  unsigned size() const { return Bits.Data; }\n\n  using iterator = NamedDecl *const *;\n\n  iterator begin() const { return getStorage(); }\n  iterator end() const { return getStorage() + Bits.Data; }\n\n  llvm::ArrayRef<NamedDecl*> decls() const {\n    return llvm::ArrayRef(begin(), end());\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-13487",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TemplateName.h",
-  "source_line": 108,
-  "validation_status": "validated"
-}

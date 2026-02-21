@@ -1,8 +1,0 @@
-{
-  "code": "{\n\ntemplate <> struct DenseMapInfo<clang::serialization::DeclarationNameKey> {\n  static clang::serialization::DeclarationNameKey getEmptyKey() {\n    return clang::serialization::DeclarationNameKey(-1, 1);\n  }\n\n  static clang::serialization::DeclarationNameKey getTombstoneKey() {\n    return clang::serialization::DeclarationNameKey(-1, 2);\n  }\n\n  static unsigned\n  getHashValue(const clang::serialization::DeclarationNameKey &Key) {\n    return Key.getHash();\n  }\n\n  static bool isEqual(const clang::serialization::DeclarationNameKey &L,\n                      const clang::serialization::DeclarationNameKey &R) {\n    return L == R;\n  }\n};\n\n}",
-  "id": "BLOCK-CPP-20811",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTBitCodes.h",
-  "source_line": 2166,
-  "validation_status": "validated"
-}

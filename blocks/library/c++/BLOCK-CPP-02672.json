@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/hash/internal/city.h\"\n#include <string.h>  // for memcpy and memset\n#include <algorithm>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02672_execute() {\n    {\n    return HashLen33to64(s, len);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02672",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/city.cc",
-  "source_line": 305,
-  "validation_status": "validated"
-}

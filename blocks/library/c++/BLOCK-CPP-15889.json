@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  PostAllocatorCall(const Stmt *S, const LocationContext *L,\n                    const ProgramPointTag *Tag = nullptr)\n      : StmtPoint(S, nullptr, PostAllocatorCallKind, L, Tag) {}\n\nprivate:\n  friend class ProgramPoint;\n  PostAllocatorCall() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == PostAllocatorCallKind;\n  }\n}",
-  "id": "BLOCK-CPP-15889",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 612,
-  "validation_status": "validated"
-}

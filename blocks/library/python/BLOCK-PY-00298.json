@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00298_execute() {\n    def visit_Filter(self, node: nodes.Filter) -> None:\n        self.generic_visit(node)\n        self.filters.add(node.name)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00298",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 257,
-  "validation_status": "validated"
-}

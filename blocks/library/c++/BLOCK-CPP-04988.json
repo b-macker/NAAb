@@ -1,8 +1,0 @@
-{
-  "code": "#include <stdint.h>\n#include <cstddef>\n#include <memory>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/hash/hash.h\"\n#include \"absl/strings/cord.h\"\n#include \"absl/strings/string_view.h\"\n#include <string_view>\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04988_execute() {\n    {\n  using is_transparent = void;\n\n  size_t operator()(absl::string_view v) const {\n    return absl::Hash<absl::string_view>{}(v);\n  }\n  size_t operator()(const absl::Cord& v) const {\n    return absl::Hash<absl::Cord>{}(v);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04988",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hash_function_defaults.h",
-  "source_line": 74,
-  "validation_status": "validated"
-}

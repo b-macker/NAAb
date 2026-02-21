@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTConsumer.h\"\n#include \"clang/Basic/FileManager.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Frontend/FrontendAction.h\"\n#include \"clang/Frontend/PCHContainerOperations.h\"\n#include \"clang/Tooling/ArgumentsAdjusters.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include \"llvm/ADT/Twine.h\"\n#include \"llvm/Option/Option.h\"\n#include \"llvm/Support/VirtualFileSystem.h\"\n#include <memory>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace driver;\nusing namespace driver;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21241_execute() {\n    {\n  public:\n    std::unique_ptr<FrontendAction> create() override {\n      return std::make_unique<T>();\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21241",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/Tooling.h",
-  "source_line": 398,
-  "validation_status": "validated"
-}

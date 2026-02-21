@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/AST/StmtCXX.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13405_execute() {\n    {\n    /// 'x' part of the associated expression/statement.\n    Expr *X = nullptr;\n    /// 'v' part of the associated expression/statement.\n    Expr *V = nullptr;\n    // 'r' part of the associated expression/statement.\n    Expr *R = nullptr;\n    /// 'expr' part of the associated expression/statement.\n    Expr *E = nullptr;\n    /// UE Helper expression of the form:\n    /// 'OpaqueValueExpr(x) binop OpaqueValueExpr(expr)' or\n    /// 'OpaqueValueExpr(expr) binop OpaqueValueExpr(x)'.\n    Expr *UE = nullptr;\n    /// 'd' part of the associated expression/statement.\n    Expr *D = nullptr;\n    /// Conditional expression in `atomic compare` construct.\n    Expr *Cond = nullptr;\n    /// True if UE has the first form and false if the second.\n    bool IsXLHSInRHSPart;\n    /// True if original value of 'x' must be stored in 'v', not an updated one.\n    bool IsPostfixUpdate;\n    /// True if 'v' is updated only when the condition is false (compare capture\n    /// only).\n    bool IsFailOnly;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-13405",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtOpenMP.h",
-  "source_line": 2969,
-  "validation_status": "validated"
-}

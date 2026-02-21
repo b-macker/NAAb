@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00329_execute() {\n    def write_commons(self) -> None:\n        \"\"\"Writes a common preamble that is used by root and block functions.\n        Primarily this sets up common local helpers and enforces a generator\n        through a dead branch.\n        \"\"\"\n        self.writeline(\"resolve = context.resolve_or_missing\")\n        self.writeline(\"undefined = environment.undefined\")\n        self.writeline(\"concat = environment.concat\")\n        # always use the standard Undefined class for the implicit else of\n        # conditional expressions\n        self.writeline(\"cond_expr_undefined = Undefined\")\n        self.writeline(\"if 0: yield None\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00329",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 719,
-  "validation_status": "validated"
-}

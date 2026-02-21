@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/flags/parse.h\"\n#include <stdlib.h>\n#include <algorithm>\n#include <cstdint>\n#include <cstdlib>\n#include <fstream>\n#include <iostream>\n#include <ostream>\n#include <string>\n#include <tuple>\n#include <utility>\n#include <vector>\n#include <windows.h>\n#include \"absl/algorithm/container.h\"\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/const_init.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/flags/commandlineflag.h\"\n#include \"absl/flags/config.h\"\n#include \"absl/flags/flag.h\"\n#include \"absl/flags/internal/commandlineflag.h\"\n#include \"absl/flags/internal/flag.h\"\n#include \"absl/flags/internal/parse.h\"\n#include \"absl/flags/internal/private_handle_accessor.h\"\n#include \"absl/flags/internal/program_name.h\"\n#include \"absl/flags/internal/usage.h\"\n#include \"absl/flags/reflection.h\"\n#include \"absl/flags/usage.h\"\n#include \"absl/flags/usage_config.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/damerau_levenshtein_distance.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/str_join.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\nusing namespace flags_internal;\nusing namespace absl;\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01697_execute() {\n    { return args_[next_arg_]; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01697",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/parse.cc",
-  "source_line": 178,
-  "validation_status": "validated"
-}

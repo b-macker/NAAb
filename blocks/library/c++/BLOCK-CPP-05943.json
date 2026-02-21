@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cinttypes>\n#include <cstdlib>\n#include <iostream>\n#include <iterator>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/internal/endian.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n#include \"absl/random/internal/randen.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05943_execute() {\n    {\n    next_ = kStateSizeT;\n    // Zeroes the inner state and fills the outer state with seed_value to\n    // mimic the behaviour of reseed\n    auto* begin = state();\n    std::fill(begin, begin + kCapacityT, 0);\n    std::fill(begin + kCapacityT, begin + kStateSizeT, seed_value);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05943",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_engine.h",
-  "source_line": 103,
-  "validation_status": "validated"
-}

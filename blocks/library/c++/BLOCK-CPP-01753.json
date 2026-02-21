@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/log/die_if_null.h\"\n#include \"absl/base/config.h\"\n#include \"absl/log/log.h\"\n#include \"absl/strings/str_cat.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01753_execute() {\n    {\n  LOG(FATAL).AtLocation(file, line)\n      << absl::StrCat(\"Check failed: '\", exprtext, \"' Must be non-null\");\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01753",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/die_if_null.cc",
-  "source_line": 25,
-  "validation_status": "validated"
-}

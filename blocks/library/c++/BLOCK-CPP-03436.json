@@ -1,8 +1,0 @@
-{
-  "code": "#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace scope;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03436_execute() {\n    {\n      new (&space_) T(std::forward<Args>(args)...);\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03436",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/no_destructor.h",
-  "source_line": 164,
-  "validation_status": "validated"
-}

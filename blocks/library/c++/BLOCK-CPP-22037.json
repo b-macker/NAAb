@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  enum class Kind {\n    Integer,\n    Reference,\n    Pointer,\n    Struct,\n\n    // TODO: Top values should not be need to be type-specific.\n    TopBool,\n    AtomicBool,\n    FormulaBool,\n  };\n\n  explicit Value(Kind ValKind) : ValKind(ValKind) {}\n\n  // Non-copyable because addresses of values are used as their identities\n  // throughout framework and user code. The framework is responsible for\n  // construction and destruction of values.\n  Value(const Value &) = delete;\n  Value &operator=(const Value &) = delete;\n\n  virtual ~Value() = default;\n\n  Kind getKind() const { return ValKind; }\n\n  /// Returns the value of the synthetic property with the given `Name` or null\n  /// if the property isn't assigned a value.\n  Value *getProperty(llvm::StringRef Name) const {\n    return Properties.lookup(Name);\n  }\n\n  /// Assigns `Val` as the value of the synthetic property with the given\n  /// `Name`.\n  void setProperty(llvm::StringRef Name, Value &Val) {\n    Properties.insert_or_assign(Name, &Val);\n  }\n\n  llvm::iterator_range<llvm::StringMap<Value *>::const_iterator>\n  properties() const {\n    return {Properties.begin(), Properties.end()};\n  }\n\nprivate:\n  Kind ValKind;\n  llvm::StringMap<Value *> Properties;\n}",
-  "id": "BLOCK-CPP-22037",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Value.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

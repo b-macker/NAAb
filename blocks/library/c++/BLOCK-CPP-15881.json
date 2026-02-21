@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  PostLValue(const Stmt *S, const LocationContext *L,\n             const ProgramPointTag *tag = nullptr)\n    : PostStmt(S, PostLValueKind, L, tag) {}\n\nprivate:\n  friend class ProgramPoint;\n  PostLValue() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == PostLValueKind;\n  }\n}",
-  "id": "BLOCK-CPP-15881",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 452,
-  "validation_status": "validated"
-}

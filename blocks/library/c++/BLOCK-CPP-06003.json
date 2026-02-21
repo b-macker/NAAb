@@ -1,8 +1,0 @@
-{
-  "code": "#include <atomic>\n#include <cstdint>\n#include <memory>\n#include <string>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/strings/cord.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/optional.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06003_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n// Returned Status objects may not be ignored. Codesearch doesn't handle ifdefs\n// as part of a class definitions (b/6995610), so we use a forward declaration.\n//\n// TODO(b/176172494): ABSL_MUST_USE_RESULT should expand to the more strict\n// [[nodiscard]]. For now, just use [[nodiscard]] directly when it is available.\n#if ABSL_HAVE_CPP_ATTRIBUTE(nodiscard)\nclass [[nodiscard]] ABSL_ATTRIBUTE_TRIVIAL_ABI Status;\n#else\nclass ABSL_MUST_USE_RESULT ABSL_ATTRIBUTE_TRIVIAL_ABI Status;\n#endif\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06003",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/internal/status_internal.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

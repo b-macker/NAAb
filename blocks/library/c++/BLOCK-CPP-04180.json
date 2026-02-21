@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04180_execute() {\n    {\n  auto subs = strings_internal::FindSubstitutions(s, replacements);\n  std::string result;\n  result.reserve(s.size());\n  strings_internal::ApplySubstitutions(s, &subs, &result);\n  return result;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04180",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_replace.h",
-  "source_line": 195,
-  "validation_status": "validated"
-}

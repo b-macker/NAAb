@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Lex/PPCallbacks.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/Compiler.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n#include <optional>\n#include <utility>\n#include <vector>\n      /// An inclusion directive, such as \\c \\#include, \\c\n      /// \\#import, or \\c \\#include_next.\n\nusing namespace clang;\nusing namespace clang;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18886_execute() {\n    { return mem; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18886",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PreprocessingRecord.h",
-  "source_line": 116,
-  "validation_status": "validated"
-}

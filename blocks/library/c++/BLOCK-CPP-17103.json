@@ -1,8 +1,0 @@
-{
-  "code": "#include <map>\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include \"TargetCXXABI.def\"\n#include \"TargetCXXABI.def\"\n#include \"TargetCXXABI.def\"\n#include \"TargetCXXABI.def\"\n#include \"TargetCXXABI.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17103_execute() {\n    {\n    switch (getKind()) {\n    case AppleARM64:\n    case Fuchsia:\n    case GenericARM:\n    case WebAssembly:\n    case WatchOS:\n      return false;\n\n    case GenericAArch64:\n    case GenericItanium:\n    case iOS:   // old iOS compilers did not follow this rule\n    case Microsoft:\n    case GenericMIPS:\n    case XL:\n      return true;\n    }\n    llvm_unreachable(\"bad ABI kind\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17103",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TargetCXXABI.h",
-  "source_line": 238,
-  "validation_status": "validated"
-}

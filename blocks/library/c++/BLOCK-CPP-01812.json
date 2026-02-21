@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/status/status_payload_printer.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/atomic_hook.h\"\n\nusing namespace absl;\nusing namespace status_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01812_execute() {\n    {\n  storage.Store(printer);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01812",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/status_payload_printer.cc",
-  "source_line": 26,
-  "validation_status": "validated"
-}

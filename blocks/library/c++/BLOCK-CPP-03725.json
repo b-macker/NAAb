@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include <bit>\n#include \"absl/base/attributes.h\"\n#include \"absl/numeric/internal/bits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03725_execute() {\n    {\n  return x == 0 ? 0 : T{1} << (bit_width(x) - 1);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03725",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/bits.h",
-  "source_line": 168,
-  "validation_status": "validated"
-}

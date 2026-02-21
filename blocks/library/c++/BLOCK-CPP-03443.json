@@ -1,8 +1,0 @@
-{
-  "code": "{\n//   Pay(*employee); // Potentially dangerous. API provider should investigate.\n// }\n//\n// Note that a pointer without an annotation, by default, is assumed to have the\n// annotation `NullabilityUnknown`.\n//\n// // `employee`s nullability state is unknown.\n// void PaySalary(Employee* employee) {\n//   Pay(*employee); // Potentially dangerous. API provider should investigate.\n// }\ntemplate <typename T>\nusing NullabilityUnknown = nullability_internal::NullabilityUnknownImpl<T>;\n\n}",
-  "id": "BLOCK-CPP-03443",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/nullability.h",
-  "source_line": 208,
-  "validation_status": "validated"
-}

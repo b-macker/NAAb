@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/PartialDiagnostic.h\"\n#include \"llvm/Support/Error.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16275_execute() {\n    {\n    return llvm::make_error<DiagnosticError>(\n        PartialDiagnosticAt(Loc, std::move(Diag)));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16275",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticError.h",
-  "source_line": 32,
-  "validation_status": "validated"
-}

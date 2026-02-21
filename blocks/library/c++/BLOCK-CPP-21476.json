@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/Analyses/ThreadSafetyTIL.h\"\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace lexpr;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21476_execute() {\n    {\n  LExpr *LHS, *RHS;\n\nprotected:\n  BinOp(LExpr *LHS, LExpr *RHS, Opcode Code) : LExpr(Code), LHS(LHS), RHS(RHS) {}\n\npublic:\n  const LExpr *left() const { return LHS; }\n  LExpr *left() { return LHS; }\n\n  const LExpr *right() const { return RHS; }\n  LExpr *right() { return RHS; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21476",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyLogical.h",
-  "source_line": 54,
-  "validation_status": "validated"
-}

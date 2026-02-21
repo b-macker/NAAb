@@ -1,8 +1,0 @@
-{
-  "code": "{\nnamespace cfg {\n\n// search for SPDLOG_LEVEL= in the args and use it to init the levels\ninline void load_argv_levels(int argc, const char **argv) {\n    const std::string spdlog_level_prefix = \"SPDLOG_LEVEL=\";\n    for (int i = 1; i < argc; i++) {\n        std::string arg = argv[i];\n        if (arg.find(spdlog_level_prefix) == 0) {\n            auto levels_string = arg.substr(spdlog_level_prefix.size());\n            helpers::load_levels(levels_string);\n        }\n    }\n}\n\ninline void load_argv_levels(int argc, char **argv) {\n    load_argv_levels(argc, const_cast<const char **>(argv));\n}\n\n}  // namespace cfg\n}",
-  "id": "BLOCK-CPP-00180",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/cfg/argv.h",
-  "source_line": 20,
-  "validation_status": "validated"
-}

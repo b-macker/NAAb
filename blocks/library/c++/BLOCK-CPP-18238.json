@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTConsumer.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"clang/Basic/TargetInfo.h\"\n#include \"clang/Frontend/CompilerInvocation.h\"\n#include \"clang/Frontend/PCHContainerOperations.h\"\n#include \"clang/Frontend/Utils.h\"\n#include \"clang/Lex/HeaderSearchOptions.h\"\n#include \"clang/Lex/ModuleLoader.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/BuryPointer.h\"\n#include \"llvm/Support/FileSystem.h\"\n#include <cassert>\n#include <list>\n#include <memory>\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18238_execute() {\n    {\n    assert(Diagnostics && \"Compiler instance has no diagnostics!\");\n    return Diagnostics;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18238",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/CompilerInstance.h",
-  "source_line": 344,
-  "validation_status": "validated"
-}

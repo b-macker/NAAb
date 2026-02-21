@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01199_execute() {\n    {\n  const int case_shorter_interval_left_endpoint_lower_threshold = 2;\n  const int case_shorter_interval_left_endpoint_upper_threshold = 3;\n  return exponent >= case_shorter_interval_left_endpoint_lower_threshold &&\n         exponent <= case_shorter_interval_left_endpoint_upper_threshold;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01199",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
-  "source_line": 1142,
-  "validation_status": "validated"
-}

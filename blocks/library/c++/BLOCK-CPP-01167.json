@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01167_execute() {\n    {\n  return std::use_facet<std::numpunct<Char>>(loc.get<std::locale>())\n      .decimal_point();\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01167",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
-  "source_line": 105,
-  "validation_status": "validated"
-}

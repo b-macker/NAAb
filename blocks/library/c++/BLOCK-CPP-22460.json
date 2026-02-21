@@ -1,8 +1,0 @@
-{
-  "code": "{\n    /// Usually it means that the tracker added visitors.\n    bool FoundSomethingToTrack = false;\n    /// Signifies that the tracking was interrupted at some point.\n    /// Usually this information is important only for sub-trackers.\n    bool WasInterrupted = false;\n\n    /// Combines the current result with the given result.\n    void combineWith(const Result &Other) {\n      // If we found something in one of the cases, we can\n      // say we found something overall.\n      FoundSomethingToTrack |= Other.FoundSomethingToTrack;\n      // The same goes to the interruption.\n      WasInterrupted |= Other.WasInterrupted;\n    }\n  }",
-  "id": "BLOCK-CPP-22460",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/BugReporter/BugReporterVisitors.h",
-  "source_line": 197,
-  "validation_status": "validated"
-}

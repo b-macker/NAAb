@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06587_execute() {\n    {\n  CONSTEXPR_D int k_month_offsets[1 + 12] = {\n      -1, 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334,\n  };\n  const int feb29 = (cs.month() > 2 && impl::is_leap_year(cs.year()));\n  return k_month_offsets[cs.month()] + feb29 + cs.day();\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06587",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
-  "source_line": 604,
-  "validation_status": "validated"
-}

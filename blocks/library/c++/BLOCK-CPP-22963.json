@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22963_execute() {\n    {\n    if (const auto *E = D->getPlaceholderTypeConstraint())\n      Visit(E);\n    if (D->hasDefaultArgument())\n      Visit(D->getDefaultArgument(), SourceRange(),\n            D->getDefaultArgStorage().getInheritedFrom(),\n            D->defaultArgumentWasInherited() ? \"inherited from\" : \"previous\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22963",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
-  "source_line": 608,
-  "validation_status": "validated"
-}

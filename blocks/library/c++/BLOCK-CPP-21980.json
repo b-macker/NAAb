@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nclass NoopAnalysis : public DataflowAnalysis<NoopAnalysis, NoopLattice> {\npublic:\n  /// Deprecated. Use the `DataflowAnalysisOptions` constructor instead.\n  NoopAnalysis(ASTContext &Context, bool ApplyBuiltinTransfer)\n      : DataflowAnalysis<NoopAnalysis, NoopLattice>(Context,\n                                                    ApplyBuiltinTransfer) {}\n\n  /// `ApplyBuiltinTransfer` controls whether to run the built-in transfer\n  /// functions that model memory during the analysis. Their results are not\n  /// used by `NoopAnalysis`, but tests that need to inspect the environment\n  /// should enable them.\n  NoopAnalysis(ASTContext &Context, DataflowAnalysisOptions Options)\n      : DataflowAnalysis<NoopAnalysis, NoopLattice>(Context, Options) {}\n\n  static NoopLattice initialElement() { return {}; }\n\n  void transfer(const CFGElement &E, NoopLattice &L, Environment &Env) {}\n};\n\n}",
-  "id": "BLOCK-CPP-21980",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/NoopAnalysis.h",
-  "source_line": 23,
-  "validation_status": "validated"
-}

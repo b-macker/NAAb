@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclContextInternals.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/PartialDiagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include <cassert>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09499_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-09499",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DependentDiagnostic.h",
-  "source_line": 128,
-  "validation_status": "validated"
-}

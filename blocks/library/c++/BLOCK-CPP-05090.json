@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  explicit ConstructionTransaction(A& allocator)\n      : allocator_data_(allocator, nullptr), size_(0) {}\n\n  ~ConstructionTransaction() {\n    if (DidConstruct()) {\n      DestroyAdapter<A>::DestroyElements(GetAllocator(), GetData(), GetSize());\n    }\n  }\n\n  ConstructionTransaction(const ConstructionTransaction&) = delete;\n  void operator=(const ConstructionTransaction&) = delete;\n\n  A& GetAllocator() { return allocator_data_.template get<0>(); }\n  Pointer<A>& GetData() { return allocator_data_.template get<1>(); }\n  SizeType<A>& GetSize() { return size_; }\n\n  bool DidConstruct() { return GetData() != nullptr; }\n  template <typename ValueAdapter>\n  void Construct(Pointer<A> data, ValueAdapter& values, SizeType<A> size) {\n    ConstructElements<A>(GetAllocator(), data, values, size);\n    GetData() = data;\n    GetSize() = size;\n  }\n  void Commit() && {\n    GetData() = nullptr;\n    GetSize() = 0;\n  }\n\n private:\n  container_internal::CompressedTuple<A, Pointer<A>> allocator_data_;\n  SizeType<A> size_;\n}",
-  "id": "BLOCK-CPP-05090",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/inlined_vector.h",
-  "source_line": 260,
-  "validation_status": "validated"
-}

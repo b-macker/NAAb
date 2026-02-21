@@ -1,8 +1,0 @@
-{
-  "code": "{\n    enum {\n      flag_isByRef = 0x1,\n      flag_isNested = 0x2\n    };\n\n    /// The variable being captured.\n    llvm::PointerIntPair<VarDecl*, 2> VariableAndFlags;\n\n    /// The copy expression, expressed in terms of a DeclRef (or\n    /// BlockDeclRef) to the captured variable.  Only required if the\n    /// variable has a C++ class type.\n    Expr *CopyExpr;\n\n  public:\n    Capture(VarDecl *variable, bool byRef, bool nested, Expr *copy)\n      : VariableAndFlags(variable,\n                  (byRef ? flag_isByRef : 0) | (nested ? flag_isNested : 0)),\n        CopyExpr(copy) {}\n\n    /// The variable being captured.\n    VarDecl *getVariable() const { return VariableAndFlags.getPointer(); }\n\n    /// Whether this is a \"by ref\" capture, i.e. a capture of a __block\n    /// variable.\n    bool isByRef() const { return VariableAndFlags.getInt() & flag_isByRef; }\n\n    bool isEscapingByref() const {\n      return getVariable()->isEscapingByref();\n    }\n\n    bool isNonEscapingByref() const {\n      return getVariable()->isNonEscapingByref();\n    }\n\n    /// Whether this is a nested capture, i.e. the variable captured\n    /// is not from outside the immediately enclosing function/block.\n    bool isNested() const { return VariableAndFlags.getInt() & flag_isNested; }\n\n    bool hasCopyExpr() const { return CopyExpr != nullptr; }\n    Expr *getCopyExpr() const { return CopyExpr; }\n    void setCopyExpr(Expr *e) { CopyExpr = e; }\n  }",
-  "id": "BLOCK-CPP-08185",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Decl.h",
-  "source_line": 4377,
-  "validation_status": "validated"
-}

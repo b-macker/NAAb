@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cassert>\n#include <iterator>\n#include <numeric>\n#include <type_traits>\n#include <unordered_map>\n#include <unordered_set>\n#include <utility>\n#include <vector>\n#include \"absl/algorithm/algorithm.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace container_algorithm_internal;\nusing namespace container_algorithm_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03300_execute() {\n    {\n  return std::search(container_algorithm_internal::c_begin(sequence),\n                     container_algorithm_internal::c_end(sequence),\n                     container_algorithm_internal::c_begin(subsequence),\n                     container_algorithm_internal::c_end(subsequence),\n                     std::forward<BinaryPredicate>(pred));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03300",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/algorithm/container.h",
-  "source_line": 419,
-  "validation_status": "validated"
-}

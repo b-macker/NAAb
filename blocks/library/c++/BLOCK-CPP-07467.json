@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeOrdering.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/MapVector.h\"\n#include \"llvm/ADT/SmallSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <list>\n#include <memory>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07467_execute() {\n    {\n    SmallVectorImpl<CXXBasePathElement>::clear();\n    Access = AS_public;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07467",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CXXInheritance.h",
-  "source_line": 82,
-  "validation_status": "validated"
-}

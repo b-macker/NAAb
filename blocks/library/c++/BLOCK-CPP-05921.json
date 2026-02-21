@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  using state_type = absl::uint128;\n  static inline constexpr state_type multiplier() {\n    return absl::MakeUint128(kMultA, kMultB);\n  }\n  static inline constexpr state_type increment() {\n    return absl::MakeUint128(kIncA, kIncB);\n  }\n}",
-  "id": "BLOCK-CPP-05921",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pcg_engine.h",
-  "source_line": 221,
-  "validation_status": "validated"
-}

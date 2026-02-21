@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/log/internal/globals.h\"\n#include <atomic>\n#include <cstdio>\n#include <emscripten/console.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02710_execute() {\n    {\n  return suppress_sigabort_trace.load(std::memory_order_acquire);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02710",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/globals.cc",
-  "source_line": 135,
-  "validation_status": "validated"
-}

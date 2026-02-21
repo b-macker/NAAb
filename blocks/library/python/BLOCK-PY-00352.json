@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00352_execute() {\n    def visit_FilterBlock(self, node: nodes.FilterBlock, frame: Frame) -> None:\n        filter_frame = frame.inner()\n        filter_frame.symbols.analyze_node(node)\n        self.enter_frame(filter_frame)\n        self.buffer(filter_frame)\n        self.blockvisit(node.body, filter_frame)\n        self.start_write(frame, node)\n        self.visit_Filter(node.filter, filter_frame)\n        self.end_write(frame)\n        self.leave_frame(filter_frame)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00352",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1353,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  using Callback = std::function<std::string(BugReporterContext &,\n                                             PathSensitiveBugReport &)>;\n\nprivate:\n  static int Kind;\n\n  const Callback Cb;\n  const bool IsPrunable;\n\n  NoteTag(Callback &&Cb, bool IsPrunable)\n      : DataTag(&Kind), Cb(std::move(Cb)), IsPrunable(IsPrunable) {}\n\npublic:\n  static bool classof(const ProgramPointTag *T) {\n    return T->getTagKind() == &Kind;\n  }\n\n  std::optional<std::string> generateMessage(BugReporterContext &BRC,\n                                             PathSensitiveBugReport &R) const {\n    std::string Msg = Cb(BRC, R);\n    if (Msg.empty())\n      return std::nullopt;\n\n    return std::move(Msg);\n  }\n\n  StringRef getTagDescription() const override {\n    // TODO: Remember a few examples of generated messages\n    // and display them in the ExplodedGraph dump by\n    // returning them from this function.\n    return \"Note Tag\";\n  }\n\n  bool isPrunable() const { return IsPrunable; }\n\n  friend class Factory;\n  friend class TagVisitor;\n}",
-  "id": "BLOCK-CPP-22435",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/BugReporter/BugReporter.h",
-  "source_line": 764,
-  "validation_status": "validated"
-}

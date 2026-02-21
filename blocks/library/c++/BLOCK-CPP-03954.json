@@ -1,8 +1,0 @@
-{
-  "code": "#include <exception>\n#include <initializer_list>\n#include <new>\n#include <ostream>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/call_once.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/status/internal/statusor_internal.h\"\n#include \"absl/status/status.h\"\n#include \"absl/strings/has_absl_stringify.h\"\n#include \"absl/strings/has_ostream_operator.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/types/variant.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03954_execute() {\n    {\n  if (status_or.ok()) {\n    absl::Format(&sink, \"%v\", status_or.value());\n  } else {\n    absl::Format(&sink, \"%s%v%s\",\n                 internal_statusor::StringifyRandom::OpenBrackets(),\n                 status_or.status(),\n                 internal_statusor::StringifyRandom::CloseBrackets());\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03954",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/statusor.h",
-  "source_line": 682,
-  "validation_status": "validated"
-}

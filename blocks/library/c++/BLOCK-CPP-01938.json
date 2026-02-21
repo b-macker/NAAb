@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/escaping.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/charset.h\"\n#include \"absl/strings/internal/escaping.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/internal/utf8.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n// #include <sys/time.h>\n// #include <stdlib.h>\n// #include <string.h>\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01938_execute() {\n    {\n  std::string result;\n  strings_internal::STLStringResizeUninitialized(&result, 2 * from.size());\n  absl::BytesToHexStringInternal<std::string&>(\n      reinterpret_cast<const unsigned char*>(from.data()), result, from.size());\n  return result;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01938",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/escaping.cc",
-  "source_line": 930,
-  "validation_status": "validated"
-}

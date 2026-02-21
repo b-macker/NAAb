@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace strings_internal {\n\nABSL_CONST_INIT extern const char kBase64Chars[];\nABSL_CONST_INIT extern const char kWebSafeBase64Chars[];\n\n// Calculates the length of a Base64 encoding (RFC 4648) of a string of length\n// `input_len`, with or without padding per `do_padding`. Note that 'web-safe'\n// encoding (section 5 of the RFC) does not change this length.\nsize_t CalculateBase64EscapedLenInternal(size_t input_len, bool do_padding);\n\n// Base64-encodes `src` using the alphabet provided in `base64` (which\n// determines whether to do web-safe encoding or not) and writes the result to\n// `dest`. If `do_padding` is true, `dest` is padded with '=' chars until its\n// length is a multiple of 3. Returns the length of `dest`.\nsize_t Base64EscapeInternal(const unsigned char* src, size_t szsrc, char* dest,\n                            size_t szdest, const char* base64, bool do_padding);\ntemplate <typename String>\nvoid Base64EscapeInternal(const unsigned char* src, size_t szsrc, String* dest,\n                          bool do_padding, const char* base64_chars) {\n  const size_t calc_escaped_size =\n      CalculateBase64EscapedLenInternal(szsrc, do_padding);\n  STLStringResizeUninitialized(dest, calc_escaped_size);\n\n  const size_t escaped_len = Base64EscapeInternal(\n      src, szsrc, &(*dest)[0], dest->size(), base64_chars, do_padding);\n  assert(calc_escaped_size == escaped_len);\n  dest->erase(escaped_len);\n}\n\n}  // namespace strings_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-06208",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/escaping.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

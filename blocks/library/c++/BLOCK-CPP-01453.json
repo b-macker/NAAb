@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace digits;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01453_execute() {\n    {\n  using iterator = buffer_appender<Char>;\n  using context = buffer_context<Char>;\n\n  iterator out;\n  basic_format_args<context> args;\n  locale_ref loc;\n\n  template <typename T> auto operator()(T value) -> iterator {\n    return write<Char>(out, value);\n  }\n  auto operator()(typename basic_format_arg<context>::handle h) -> iterator {\n    basic_format_parse_context<Char> parse_ctx({});\n    context format_ctx(out, args, loc);\n    h.format(parse_ctx, format_ctx);\n    return format_ctx.out();\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01453",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 3365,
-  "validation_status": "validated"
-}

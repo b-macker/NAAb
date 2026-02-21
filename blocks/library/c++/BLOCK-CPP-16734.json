@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace markup;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16734_execute() {\n    {\n  if (L.isInvalid()) return;\n\n  FullSourceLoc Loc(SM.getExpansionLoc(L), const_cast<SourceManager &>(SM));\n\n  Indent(o, indent) << \"<dict>\\n\";\n  Indent(o, indent) << \" <key>line</key>\";\n  EmitInteger(o, Loc.getExpansionLineNumber()) << '\\n';\n  Indent(o, indent) << \" <key>col</key>\";\n  EmitInteger(o, Loc.getExpansionColumnNumber()) << '\\n';\n  Indent(o, indent) << \" <key>file</key>\";\n  EmitInteger(o, GetFID(FM, SM, Loc)) << '\\n';\n  Indent(o, indent) << \"</dict>\\n\";\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16734",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/PlistSupport.h",
-  "source_line": 107,
-  "validation_status": "validated"
-}

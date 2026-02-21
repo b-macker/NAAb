@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/StmtVisitor.h\"\n#include \"llvm/Support/Regex.h\"\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15639_execute() {\n    {\n    /// The index of the associated VarDecl in the Variables vector.\n    size_t KindID;\n    /// The statement in the code where the variable was referenced.\n    const Stmt *Mention;\n\n    VariableOccurence(size_t KindID, const Stmt *Mention)\n        : KindID(KindID), Mention(Mention) {}\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15639",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CloneDetection.h",
-  "source_line": 346,
-  "validation_status": "validated"
-}

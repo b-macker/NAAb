@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicReader.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07353_execute() {\n    {\n    return T(asImpl().readUInt32());\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07353",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
-  "source_line": 137,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n    if (direct_absl_hash_value_error_) {\n      *s.error_ = \"AbslHashValue should not be invoked directly.\";\n    } else if (s.moved_from_) {\n      *s.error_ = \"Used moved-from instance of the hash state object.\";\n    }\n    return s;\n  }",
-  "id": "BLOCK-CPP-05686",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/spy_hash_state.h",
-  "source_line": 82,
-  "validation_status": "validated"
-}

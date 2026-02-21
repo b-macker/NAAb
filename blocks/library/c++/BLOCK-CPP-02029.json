@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/str_split.h\"\n#include <algorithm>\n#include <cstddef>\n#include <cstdlib>\n#include <cstring>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02029_execute() {\n    {\n  if (delimiter.empty() && text.length() > 0) {\n    // Special case for empty string delimiters: always return a zero-length\n    // absl::string_view referring to the item at position 1 past pos.\n    return absl::string_view(text.data() + pos + 1, 0);\n  }\n  size_t found_pos = absl::string_view::npos;\n  absl::string_view found(text.data() + text.size(),\n                          0);  // By default, not found\n  found_pos = find_policy.Find(text, delimiter, pos);\n  if (found_pos != absl::string_view::npos) {\n    found = absl::string_view(text.data() + found_pos,\n                              find_policy.Length(delimiter));\n  }\n  return found;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02029",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_split.cc",
-  "source_line": 37,
-  "validation_status": "validated"
-}

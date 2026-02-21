@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTConsumer.h\"\n#include \"clang/Basic/LLVM.h\"\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17599_execute() {\n    {\n  class CodeGenModule;\n  class CGDebugInfo;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17599",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ModuleBuilder.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

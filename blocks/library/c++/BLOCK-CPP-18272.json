@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/CodeGenOptions.h\"\n#include \"clang/Basic/DiagnosticOptions.h\"\n#include \"clang/Basic/FileSystemOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/LangStandard.h\"\n#include \"clang/Frontend/DependencyOutputOptions.h\"\n#include \"clang/Frontend/FrontendOptions.h\"\n#include \"clang/Frontend/MigratorOptions.h\"\n#include \"clang/Frontend/PreprocessorOutputOptions.h\"\n#include \"clang/StaticAnalyzer/Core/AnalyzerOptions.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include <memory>\n#include <string>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18272_execute() {\n    {\n\nclass Triple;\n\nnamespace opt {\n\nclass ArgList;\n\n} // namespace opt\n\nnamespace vfs {\n\nclass FileSystem;\n\n} // namespace vfs\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18272",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/CompilerInvocation.h",
-  "source_line": 28,
-  "validation_status": "validated"
-}

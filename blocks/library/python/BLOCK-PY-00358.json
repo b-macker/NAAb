@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00358_execute() {\n    def _output_const_repr(self, group: t.Iterable[t.Any]) -> str:\n        \"\"\"Given a group of constant values converted from ``Output``\n        child nodes, produce a string to write to the template module\n        source.\n        \"\"\"\n        return repr(concat(group))\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00358",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1442,
-  "validation_status": "validated"
-}

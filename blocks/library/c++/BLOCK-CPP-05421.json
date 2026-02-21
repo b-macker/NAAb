@@ -1,8 +1,0 @@
-{
-  "code": "#include <atomic>\n#include <cstddef>\n#include <deque>\n#include \"absl/base/config.h\"\n#include \"absl/crc/crc32c.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05421_execute() {\n    {\n    PrefixCrc() = default;\n    PrefixCrc(size_t length_arg, absl::crc32c_t crc_arg)\n        : length(length_arg), crc(crc_arg) {}\n\n    size_t length = 0;\n\n    // TODO(absl-team): Memory stomping often zeros out memory. If this struct\n    // gets overwritten, we could end up with {0, 0}, which is the correct CRC\n    // for a string of length 0. Consider storing a scrambled value and\n    // unscrambling it before verifying it.\n    absl::crc32c_t crc = absl::crc32c_t{0};\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05421",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_cord_state.h",
-  "source_line": 56,
-  "validation_status": "validated"
-}

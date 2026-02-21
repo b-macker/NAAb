@@ -1,8 +1,0 @@
-{
-  "code": "#include <pthread.h>\n#include <unistd.h>\n#include <atomic>\n#include <cstdint>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/per_thread_tls.h\"\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04729_execute() {\n    {\n  // Must be the first member.  The Mutex implementation requires that\n  // the PerThreadSynch object associated with each thread is\n  // PerThreadSynch::kAlignment aligned.  We provide this alignment on\n  // ThreadIdentity itself.\n  PerThreadSynch per_thread_synch;\n\n  // Private: Reserved for absl::synchronization_internal::Waiter.\n  struct WaiterState {\n    alignas(void*) char data[256];\n  } waiter_state;\n\n  // Used by PerThreadSem::{Get,Set}ThreadBlockedCounter().\n  std::atomic<int>* blocked_count_ptr;\n\n  // The following variables are mostly read/written just by the\n  // thread itself.  The only exception is that these are read by\n  // a ticker thread as a hint.\n  std::atomic<int> ticker;      // Tick counter, incremented once per second.\n  std::atomic<int> wait_start;  // Ticker value when thread started waiting.\n  std::atomic<bool> is_idle;    // Has thread become idle yet?\n\n  ThreadIdentity* next;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04729",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/thread_identity.h",
-  "source_line": 138,
-  "validation_status": "validated"
-}

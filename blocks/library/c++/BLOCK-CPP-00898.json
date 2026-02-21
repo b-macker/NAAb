@@ -1,8 +1,0 @@
-{
-  "code": "{\n  using char_type = Char;\n  basic_string_view<Char> name;\n\n  template <typename OutputIt, typename T>\n  constexpr static bool try_format_argument(\n      OutputIt& out,\n      // [[maybe_unused]] due to unused-but-set-parameter warning in GCC 7,8,9\n      [[maybe_unused]] basic_string_view<Char> arg_name, const T& arg) {\n    if constexpr (is_named_arg<typename std::remove_cv<T>::type>::value) {\n      if (arg_name == arg.name) {\n        out = write<Char>(out, arg.value);\n        return true;\n      }\n    }\n    return false;\n  }\n\n  template <typename OutputIt, typename... Args>\n  constexpr OutputIt format(OutputIt out, const Args&... args) const {\n    bool found = (try_format_argument(out, name, args) || ...);\n    if (!found) {\n      FMT_THROW(format_error(\"argument with specified name is not found\"));\n    }\n    return out;\n  }\n}",
-  "id": "BLOCK-CPP-00898",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 231,
-  "validation_status": "validated"
-}

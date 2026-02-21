@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00405_execute() {\n    def get_eval_context(node: \"Node\", ctx: EvalContext | None) -> EvalContext:\n    if ctx is None:\n        if node.environment is None:\n            raise RuntimeError(\n                \"if no eval context is passed, the node must have an\"\n                \" attached environment.\"\n            )\n        return EvalContext(node.environment)\n    return ctx\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00405",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 94,
-  "validation_status": "validated"
-}

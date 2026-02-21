@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/TypeLoc.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"clang/AST/TypeLocNodes.def\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14565_execute() {\n    {\n    switch (TyLoc.getTypeLocClass()) {\n#define ABSTRACT_TYPELOC(CLASS, PARENT)\n#define TYPELOC(CLASS, PARENT) \\\n    case TypeLoc::CLASS: DISPATCH(CLASS##TypeLoc);\n#include \"clang/AST/TypeLocNodes.def\"\n    }\n    llvm_unreachable(\"unexpected type loc class!\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-14565",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeLocVisitor.h",
-  "source_line": 37,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/numeric/int128.h\"\n#include <stddef.h>\n#include <cassert>\n#include <iomanip>\n#include <ostream>  // NOLINT(readability/streams)\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01791_execute() {\n    {\n  assert(divisor != 0);\n\n  if (divisor > dividend) {\n    *quotient_ret = 0;\n    *remainder_ret = dividend;\n    return;\n  }\n\n  if (divisor == dividend) {\n    *quotient_ret = 1;\n    *remainder_ret = 0;\n    return;\n  }\n\n  uint128 denominator = divisor;\n  uint128 quotient = 0;\n\n  // Left aligns the MSB of the denominator and the dividend.\n  const int shift = Fls128(dividend) - Fls128(denominator);\n  denominator <<= shift;\n\n  // Uses shift-subtract algorithm to divide dividend by denominator. The\n  // remainder will be left in dividend.\n  for (int i = 0; i <= shift; ++i) {\n    quotient <<= 1;\n    if (dividend >= denominator) {\n      dividend -= denominator;\n      quotient |= 1;\n    }\n    denominator >>= 1;\n  }\n\n  *quotient_ret = quotient;\n  *remainder_ret = dividend;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01791",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/int128.cc",
-  "source_line": 56,
-  "validation_status": "validated"
-}

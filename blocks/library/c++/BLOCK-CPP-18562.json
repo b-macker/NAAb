@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/FileManager.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Lex/HeaderMapTypes.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/MemoryBuffer.h\"\n#include <memory>\n#include <optional>\n/// \\#include file resolution process, it basically acts like a directory of\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18562_execute() {\n    {\n  HeaderMap(std::unique_ptr<const llvm::MemoryBuffer> File, bool BSwap)\n      : HeaderMapImpl(std::move(File), BSwap) {}\n\npublic:\n  /// This attempts to load the specified file as a header map.  If it doesn't\n  /// look like a HeaderMap, it gives up and returns null.\n  static std::unique_ptr<HeaderMap> Create(const FileEntry *FE,\n                                           FileManager &FM);\n\n  using HeaderMapImpl::dump;\n  using HeaderMapImpl::forEachKey;\n  using HeaderMapImpl::getFileName;\n  using HeaderMapImpl::lookupFilename;\n  using HeaderMapImpl::reverseLookupFilename;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18562",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/HeaderMap.h",
-  "source_line": 84,
-  "validation_status": "validated"
-}

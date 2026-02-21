@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12327_execute() {\n    {\npublic:\n  virtual ~PrinterHelper();\n  virtual bool handledStmt(Stmt* E, raw_ostream& OS) = 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12327",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/PrettyPrinter.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/numbers.h\"\n#include <algorithm>\n#include <cassert>\n#include <cfloat>  // for DBL_DIG and FLT_DIG\n#include <climits>\n#include <cmath>   // for HUGE_VAL\n#include <cstddef>\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <cstring>\n#include <iterator>\n#include <limits>\n#include <system_error>  // NOLINT(build/c++11)\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/charconv.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01955_execute() {\n    {\n  return PrepareTwoDigitsImpl(i, false);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01955",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/numbers.cc",
-  "source_line": 221,
-  "validation_status": "validated"
-}

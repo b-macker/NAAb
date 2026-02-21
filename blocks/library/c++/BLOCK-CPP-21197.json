@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include <set>\n\nusing namespace clang;\nusing namespace tooling;\nusing namespace internal;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21197_execute() {\n    {\n  SourceLocationMap LocationAccessors;\n  SourceRangeMap RangeAccessors;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21197",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/NodeIntrospection.h",
-  "source_line": 82,
-  "validation_status": "validated"
-}

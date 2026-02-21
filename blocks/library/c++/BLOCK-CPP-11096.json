@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ComputeDependence.h\"\n#include \"clang/AST/Expr.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11096_execute() {\n    { return IteratorKwLoc; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11096",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprOpenMP.h",
-  "source_line": 372,
-  "validation_status": "validated"
-}

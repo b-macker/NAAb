@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/cord_buffer.h\"\n#include <cstddef>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01910_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\n#ifdef ABSL_INTERNAL_NEED_REDUNDANT_CONSTEXPR_DECL\nconstexpr size_t CordBuffer::kDefaultLimit;\nconstexpr size_t CordBuffer::kCustomLimit;\n#endif\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01910",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/cord_buffer.cc",
-  "source_line": 21,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00277_execute() {\n    def _make_binop(op: str) -> t.Callable[[\"CodeGenerator\", nodes.BinExpr, \"Frame\"], None]:\n    @optimizeconst\n    def visitor(self: \"CodeGenerator\", node: nodes.BinExpr, frame: Frame) -> None:\n        if (\n            self.environment.sandboxed and op in self.environment.intercepted_binops  # type: ignore\n        ):\n            self.write(f\"environment.call_binop(context, {op!r}, \")\n            self.visit(node.left, frame)\n            self.write(\", \")\n            self.visit(node.right, frame)\n        else:\n            self.write(\"(\")\n            self.visit(node.left, frame)\n            self.write(f\" {op} \")\n            self.visit(node.right, frame)\n\n        self.write(\")\")\n\n    return visitor\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00277",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 61,
-  "validation_status": "validated"
-}

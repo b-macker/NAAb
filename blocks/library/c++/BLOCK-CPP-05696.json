@@ -1,8 +1,0 @@
-{
-  "code": "{\n  constexpr OdrUse() {}\n  bool& b = B;\n}",
-  "id": "BLOCK-CPP-05696",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/spy_hash_state.h",
-  "source_line": 232,
-  "validation_status": "validated"
-}

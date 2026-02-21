@@ -1,8 +1,0 @@
-{
-  "code": "{\n  // BaseAndUpdaterExprs[0] is the base expression;\n  // BaseAndUpdaterExprs[1] is an InitListExpr overwriting part of the base.\n  Stmt *BaseAndUpdaterExprs[2];\n\npublic:\n  DesignatedInitUpdateExpr(const ASTContext &C, SourceLocation lBraceLoc,\n                           Expr *baseExprs, SourceLocation rBraceLoc);\n\n  explicit DesignatedInitUpdateExpr(EmptyShell Empty)\n    : Expr(DesignatedInitUpdateExprClass, Empty) { }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY;\n  SourceLocation getEndLoc() const LLVM_READONLY;\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == DesignatedInitUpdateExprClass;\n  }\n\n  Expr *getBase() const { return cast<Expr>(BaseAndUpdaterExprs[0]); }\n  void setBase(Expr *Base) { BaseAndUpdaterExprs[0] = Base; }\n\n  InitListExpr *getUpdater() const {\n    return cast<InitListExpr>(BaseAndUpdaterExprs[1]);\n  }\n  void setUpdater(Expr *Updater) { BaseAndUpdaterExprs[1] = Updater; }\n\n  // Iterators\n  // children = the base and the updater\n  child_range children() {\n    return child_range(&BaseAndUpdaterExprs[0], &BaseAndUpdaterExprs[0] + 2);\n  }\n  const_child_range children() const {\n    return const_child_range(&BaseAndUpdaterExprs[0],\n                             &BaseAndUpdaterExprs[0] + 2);\n  }\n}",
-  "id": "BLOCK-CPP-10257",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
-  "source_line": 5438,
-  "validation_status": "validated"
-}

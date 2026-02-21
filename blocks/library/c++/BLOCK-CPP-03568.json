@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <ostream>\n#include \"absl/crc/internal/crc32c_inline.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03568_execute() {\n    {\n  // Approximately 75% of calls have size <= 64.\n  if (buf_to_add.size() <= 64) {\n    uint32_t crc = static_cast<uint32_t>(initial_crc);\n    if (crc_internal::ExtendCrc32cInline(&crc, buf_to_add.data(),\n                                         buf_to_add.size())) {\n      return crc32c_t{crc};\n    }\n  }\n  return crc_internal::ExtendCrc32cInternal(initial_crc, buf_to_add);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03568",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/crc32c.h",
-  "source_line": 102,
-  "validation_status": "validated"
-}

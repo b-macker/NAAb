@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07246_execute() {\n    {\n    if (Traversal == TK_IgnoreUnlessSpelledInSource) {\n      for (unsigned I = 0, N = Node->capture_size(); I != N; ++I) {\n        const auto *C = Node->capture_begin() + I;\n        if (!C->isExplicit())\n          continue;\n        if (Node->isInitCapture(C))\n          Visit(C->getCapturedVar());\n        else\n          Visit(Node->capture_init_begin()[I]);\n      }\n      dumpTemplateParameters(Node->getTemplateParameterList());\n      for (const auto *P : Node->getCallOperator()->parameters())\n        Visit(P);\n      Visit(Node->getBody());\n    } else {\n      return Visit(Node->getLambdaClass());\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07246",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
-  "source_line": 754,
-  "validation_status": "validated"
-}

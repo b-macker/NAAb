@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  enum { DepthWidth = 20, PositionWidth = 12 };\n  unsigned Depth : DepthWidth;\n  unsigned Position : PositionWidth;\n\n  static constexpr unsigned MaxDepth = (1U << DepthWidth) - 1;\n  static constexpr unsigned MaxPosition = (1U << PositionWidth) - 1;\n\n  TemplateParmPosition(unsigned D, unsigned P) : Depth(D), Position(P) {\n    // The input may fill maximum values to show that it is invalid.\n    // Add one here to convert it to zero.\n    assert((D + 1) <= MaxDepth &&\n           \"The depth of template parmeter position is more than 2^20!\");\n    assert((P + 1) <= MaxPosition &&\n           \"The position of template parmeter position is more than 2^12!\");\n  }\n\npublic:\n  TemplateParmPosition() = delete;\n\n  /// Get the nesting depth of the template parameter.\n  unsigned getDepth() const { return Depth; }\n  void setDepth(unsigned D) {\n    assert((D + 1) <= MaxDepth &&\n           \"The depth of template parmeter position is more than 2^20!\");\n    Depth = D;\n  }\n\n  /// Get the position of the template parameter within its parameter list.\n  unsigned getPosition() const { return Position; }\n  void setPosition(unsigned P) {\n    assert((P + 1) <= MaxPosition &&\n           \"The position of template parmeter position is more than 2^12!\");\n    Position = P;\n  }\n\n  /// Get the index of the template parameter within its parameter list.\n  unsigned getIndex() const { return Position; }\n}",
-  "id": "BLOCK-CPP-09361",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclTemplate.h",
-  "source_line": 1159,
-  "validation_status": "validated"
-}

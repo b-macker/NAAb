@@ -1,8 +1,0 @@
-{
-  "code": "{\n    /// For now, sema will catch these as invalid.\n    /// The type qualifiers: const/volatile/restrict/__unaligned/_Atomic.\n    unsigned TypeQuals : 5;\n\n    void destroy() {\n    }\n  }",
-  "id": "BLOCK-CPP-19726",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
-  "source_line": 1552,
-  "validation_status": "validated"
-}

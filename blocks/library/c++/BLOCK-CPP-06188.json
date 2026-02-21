@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/strings/internal/cordz_handle.h\"\n#include \"absl/strings/internal/cordz_info.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06188_execute() {\n    {\n   public:\n    using iterator_category = std::input_iterator_tag;\n    using value_type = const CordzInfo&;\n    using difference_type = ptrdiff_t;\n    using pointer = const CordzInfo*;\n    using reference = value_type;\n\n    Iterator() = default;\n\n    Iterator& operator++();\n    Iterator operator++(int);\n    friend bool operator==(const Iterator& lhs, const Iterator& rhs);\n    friend bool operator!=(const Iterator& lhs, const Iterator& rhs);\n    reference operator*() const;\n    pointer operator->() const;\n\n   private:\n    friend class CordzSampleToken;\n    explicit Iterator(const CordzSampleToken* token);\n\n    const CordzSampleToken* token_ = nullptr;\n    pointer current_ = nullptr;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06188",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_sample_token.h",
-  "source_line": 60,
-  "validation_status": "validated"
-}

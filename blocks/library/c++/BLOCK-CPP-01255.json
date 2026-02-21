@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01255_execute() {\n    {\n    alloc_ = std::move(other.alloc_);\n    T* data = other.data();\n    size_t size = other.size(), capacity = other.capacity();\n    if (data == other.store_) {\n      this->set(store_, capacity);\n      detail::copy_str<T>(other.store_, other.store_ + size,\n                          detail::make_checked(store_, capacity));\n    } else {\n      this->set(data, capacity);\n      // Set pointer to the inline array so that delete is not called\n      // when deallocating.\n      other.set(other.store_, 0);\n      other.clear();\n    }\n    this->resize(size);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01255",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 849,
-  "validation_status": "validated"
-}

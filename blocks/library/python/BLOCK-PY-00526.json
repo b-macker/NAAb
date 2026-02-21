@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00526_execute() {\n    def enable_unstable_feature_callback(\n    c: click.Context, p: click.Option | click.Parameter, v: tuple[str, ...]\n) -> list[Preview]:\n    \"\"\"Compute the features from an --enable-unstable-feature flag.\"\"\"\n    return [Preview[val] for val in v]\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00526",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 205,
-  "validation_status": "validated"
-}

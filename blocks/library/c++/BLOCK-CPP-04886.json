@@ -1,8 +1,0 @@
-{
-  "code": "{\n  V value;\n  MatchKind match;\n\n  static constexpr bool HasMatch() { return true; }\n  bool IsEq() const { return match == MatchKind::kEq; }\n}",
-  "id": "BLOCK-CPP-04886",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/btree.h",
-  "source_line": 464,
-  "validation_status": "validated"
-}

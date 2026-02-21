@@ -1,8 +1,0 @@
-{
-  "code": "#include <stdint.h>\n#include <new>\n#include \"absl/base/internal/low_level_alloc.h\"\n#include \"absl/synchronization/internal/waiter.h\"\n#include <string.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/thread_identity.h\"\n#include \"absl/synchronization/internal/per_thread_sem.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03123_execute() {\n    {\n  PerThreadSem::Init(identity);\n  identity->ticker.store(0, std::memory_order_relaxed);\n  identity->wait_start.store(0, std::memory_order_relaxed);\n  identity->is_idle.store(false, std::memory_order_relaxed);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03123",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/create_thread_identity.cc",
-  "source_line": 74,
-  "validation_status": "validated"
-}

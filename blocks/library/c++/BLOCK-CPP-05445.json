@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include <arm_neon.h>\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05445_execute() {\n    {\n  int8_t __attribute__((aligned(16)))\n  data[16] = {(int8_t)b0,  (int8_t)b1,  (int8_t)b2,  (int8_t)b3,\n              (int8_t)b4,  (int8_t)b5,  (int8_t)b6,  (int8_t)b7,\n              (int8_t)b8,  (int8_t)b9,  (int8_t)b10, (int8_t)b11,\n              (int8_t)b12, (int8_t)b13, (int8_t)b14, (int8_t)b15};\n  return (__m128i)vld1q_s8(data);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05445",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/non_temporal_arm_intrinsics.h",
-  "source_line": 65,
-  "validation_status": "validated"
-}

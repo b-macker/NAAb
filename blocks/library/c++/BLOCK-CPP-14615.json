@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/BaseSubobject.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14615_execute() {\n    {\n  llvm::PointerIntPair<const CXXRecordDecl *, 1, bool> BaseAndIsVirtual;\n  CharUnits BaseOffset;\n\npublic:\n  VTTVTable() = default;\n  VTTVTable(const CXXRecordDecl *Base, CharUnits BaseOffset, bool BaseIsVirtual)\n      : BaseAndIsVirtual(Base, BaseIsVirtual), BaseOffset(BaseOffset) {}\n  VTTVTable(BaseSubobject Base, bool BaseIsVirtual)\n      : BaseAndIsVirtual(Base.getBase(), BaseIsVirtual),\n        BaseOffset(Base.getBaseOffset()) {}\n\n  const CXXRecordDecl *getBase() const {\n    return BaseAndIsVirtual.getPointer();\n  }\n\n  CharUnits getBaseOffset() const {\n    return BaseOffset;\n  }\n\n  bool isVirtual() const {\n    return BaseAndIsVirtual.getInt();\n  }\n\n  BaseSubobject getBaseSubobject() const {\n    return BaseSubobject(getBase(), getBaseOffset());\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-14615",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/VTTBuilder.h",
-  "source_line": 32,
-  "validation_status": "validated"
-}

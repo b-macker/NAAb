@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <climits>\n#include <optional>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace api_notes;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22548_execute() {\n    {\npublic:\n  EnumConstantInfo() {}\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22548",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/APINotes/Types.h",
-  "source_line": 651,
-  "validation_status": "validated"
-}

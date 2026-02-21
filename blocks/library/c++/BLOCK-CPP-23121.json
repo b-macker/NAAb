@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicWriter.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23121_execute() {\n    {\n      asImpl().writeDeclRef(esi.SourceDecl);\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23121",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicWriter.h",
-  "source_line": 214,
-  "validation_status": "validated"
-}

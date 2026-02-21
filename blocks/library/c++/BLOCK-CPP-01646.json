@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nbool HaveLeakSanitizer() { return true; }\n\n#if ABSL_HAVE_ATTRIBUTE_WEAK\nbool LeakCheckerIsActive() {\n  return !(&__lsan_is_turned_off && __lsan_is_turned_off());\n}\n#else\nbool LeakCheckerIsActive() { return true; }\n#endif\n\nbool FindAndReportLeaks() { return __lsan_do_recoverable_leak_check(); }\nvoid DoIgnoreLeak(const void* ptr) { __lsan_ignore_object(ptr); }\nvoid RegisterLivePointers(const void* ptr, size_t size) {\n  __lsan_register_root_region(ptr, size);\n}\nvoid UnRegisterLivePointers(const void* ptr, size_t size) {\n  __lsan_unregister_root_region(ptr, size);\n}\nLeakCheckDisabler::LeakCheckDisabler() { __lsan_disable(); }\nLeakCheckDisabler::~LeakCheckDisabler() { __lsan_enable(); }\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-01646",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/leak_check.cc",
-  "source_line": 34,
-  "validation_status": "validated"
-}

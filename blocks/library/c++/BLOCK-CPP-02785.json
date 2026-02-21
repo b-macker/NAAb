@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  static constexpr size_t kState = RandenTraits::kStateBytes / sizeof(uint32_t);\n  static constexpr size_t kCapacity =\n      RandenTraits::kCapacityBytes / sizeof(uint32_t);\n\n  void Init(absl::Span<const uint32_t> data) {\n    SpinLockHolder l(&mu_);  // Always uncontested.\n    std::copy(data.begin(), data.end(), std::begin(state_));\n    next_ = kState;\n  }\n\n  // Copy bytes into out.\n  void Fill(uint8_t* out, size_t bytes) ABSL_LOCKS_EXCLUDED(mu_);\n\n  // Returns random bits from the buffer in units of T.\n  template <typename T>\n  inline T Generate() ABSL_LOCKS_EXCLUDED(mu_);\n\n  inline void MaybeRefill() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {\n    if (next_ >= kState) {\n      next_ = kCapacity;\n      impl_.Generate(state_);\n    }\n  }\n\n private:\n  // Randen URBG state.\n  uint32_t state_[kState] ABSL_GUARDED_BY(mu_);  // First to satisfy alignment.\n  SpinLock mu_;\n  const Randen impl_;\n  size_t next_ ABSL_GUARDED_BY(mu_);\n}",
-  "id": "BLOCK-CPP-02785",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pool_urbg.cc",
-  "source_line": 50,
-  "validation_status": "validated"
-}

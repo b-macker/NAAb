@@ -1,8 +1,0 @@
-{
-  "code": "{\ntemplate <typename Set>\nstruct HashtableDebugAccess<Set, absl::void_t<typename Set::raw_hash_set>> {\n  using Traits = typename Set::PolicyTraits;\n  using Slot = typename Traits::slot_type;\n\n  static size_t GetNumProbes(const Set& set,\n                             const typename Set::key_type& key) {\n    size_t num_probes = 0;\n    size_t hash = set.hash_ref()(key);\n    auto seq = probe(set.common(), hash);\n    const ctrl_t* ctrl = set.control();\n    while (true) {\n      container_internal::Group g{ctrl + seq.offset()};\n      for (uint32_t i : g.Match(container_internal::H2(hash))) {\n        if (Traits::apply(\n                typename Set::template EqualElement<typename Set::key_type>{\n                    key, set.eq_ref()},\n                Traits::element(set.slot_array() + seq.offset(i))))\n          return num_probes;\n        ++num_probes;\n      }\n      if (g.MaskEmpty()) return num_probes;\n      seq.next();\n      ++num_probes;\n    }\n  }\n\n  static size_t AllocatedByteSize(const Set& c) {\n    size_t capacity = c.capacity();\n    if (capacity == 0) return 0;\n    size_t m = c.common().alloc_size(sizeof(Slot), alignof(Slot));\n\n    size_t per_slot = Traits::space_used(static_cast<const Slot*>(nullptr));\n    if (per_slot != ~size_t{}) {\n      m += per_slot * c.size();\n    } else {\n      for (auto it = c.begin(); it != c.end(); ++it) {\n        m += Traits::space_used(it.slot());\n      }\n    }\n    return m;\n  }\n};\n\n}",
-  "id": "BLOCK-CPP-05357",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.h",
-  "source_line": 3273,
-  "validation_status": "validated"
-}

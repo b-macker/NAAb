@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cmath>\n#include <istream>\n#include <limits>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n#include \"absl/random/internal/generate_real.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03845_execute() {\n    {\n   public:\n    using distribution_type = exponential_distribution;\n\n    explicit param_type(result_type lambda = 1) : lambda_(lambda) {\n      assert(lambda > 0);\n      neg_inv_lambda_ = -result_type(1) / lambda_;\n    }\n\n    result_type lambda() const { return lambda_; }\n\n    friend bool operator==(const param_type& a, const param_type& b) {\n      return a.lambda_ == b.lambda_;\n    }\n\n    friend bool operator!=(const param_type& a, const param_type& b) {\n      return !(a == b);\n    }\n\n   private:\n    friend class exponential_distribution;\n\n    result_type lambda_;\n    result_type neg_inv_lambda_;\n\n    static_assert(\n        std::is_floating_point<RealType>::value,\n        \"Class-template absl::exponential_distribution<> must be parameterized \"\n        \"using a floating-point type.\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03845",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/exponential_distribution.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

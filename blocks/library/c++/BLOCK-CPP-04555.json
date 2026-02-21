@@ -1,8 +1,0 @@
-{
-  "code": "{\ntemplate <typename T, typename Tuple, size_t... I>\nT make_from_tuple_impl(Tuple&& tup, absl::index_sequence<I...>) {\n  return T(std::get<I>(std::forward<Tuple>(tup))...);\n}\n}",
-  "id": "BLOCK-CPP-04555",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/utility/utility.h",
-  "source_line": 238,
-  "validation_status": "validated"
-}

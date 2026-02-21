@@ -1,8 +1,0 @@
-{
-  "code": "{\n  ArrayRef<BlockContentComment *> Blocks;\n  DeclInfo *ThisDeclInfo;\n\npublic:\n  FullComment(ArrayRef<BlockContentComment *> Blocks, DeclInfo *D) :\n      Comment(FullCommentKind, SourceLocation(), SourceLocation()),\n      Blocks(Blocks), ThisDeclInfo(D) {\n    if (Blocks.empty())\n      return;\n\n    setSourceRange(\n        SourceRange(Blocks.front()->getBeginLoc(), Blocks.back()->getEndLoc()));\n    setLocation(Blocks.front()->getBeginLoc());\n  }\n\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() == FullCommentKind;\n  }\n\n  child_iterator child_begin() const {\n    return reinterpret_cast<child_iterator>(Blocks.begin());\n  }\n\n  child_iterator child_end() const {\n    return reinterpret_cast<child_iterator>(Blocks.end());\n  }\n\n  const Decl *getDecl() const LLVM_READONLY {\n    return ThisDeclInfo->CommentDecl;\n  }\n\n  const DeclInfo *getDeclInfo() const LLVM_READONLY {\n    if (!ThisDeclInfo->IsFilled)\n      ThisDeclInfo->fill();\n    return ThisDeclInfo;\n  }\n\n  ArrayRef<BlockContentComment *> getBlocks() const { return Blocks; }\n\n}",
-  "id": "BLOCK-CPP-23410",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
-  "source_line": 1077,
-  "validation_status": "validated"
-}

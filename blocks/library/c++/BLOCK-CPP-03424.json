@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace base_internal {\n\ntemplate <typename T>\ninline T AnnotateUnprotectedRead(const volatile T& x) {  // NOLINT\n  ABSL_ANNOTATE_IGNORE_READS_BEGIN();\n  T res = x;\n  ABSL_ANNOTATE_IGNORE_READS_END();\n  return res;\n}\n\n}  // namespace base_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-03424",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/dynamic_annotations.h",
-  "source_line": 416,
-  "validation_status": "validated"
-}

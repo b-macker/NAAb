@@ -1,8 +1,0 @@
-{
-  "code": "#include <tuple>\n#include <utility>\n#include \"absl/functional/function_ref.h\"\n#include \"absl/hash/internal/hash.h\"\n\nusing namespace absl;\nusing namespace as;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03642_execute() {\n    {\n    HashState s;\n    s.Init(state);\n    return s;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03642",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/hash.h",
-  "source_line": 323,
-  "validation_status": "validated"
-}

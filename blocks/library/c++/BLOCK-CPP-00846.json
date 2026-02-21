@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00846_execute() {\n    {\n  FMT_CONSTEXPR color_type() noexcept : is_rgb(), value{} {}\n  FMT_CONSTEXPR color_type(color rgb_color) noexcept : is_rgb(true), value{} {\n    value.rgb_color = static_cast<uint32_t>(rgb_color);\n  }\n  FMT_CONSTEXPR color_type(rgb rgb_color) noexcept : is_rgb(true), value{} {\n    value.rgb_color = (static_cast<uint32_t>(rgb_color.r) << 16) |\n                      (static_cast<uint32_t>(rgb_color.g) << 8) | rgb_color.b;\n  }\n  FMT_CONSTEXPR color_type(terminal_color term_color) noexcept\n      : is_rgb(), value{} {\n    value.term_color = static_cast<uint8_t>(term_color);\n  }\n  bool is_rgb;\n  union color_union {\n    uint8_t term_color;\n    uint32_t rgb_color;\n  } value;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00846",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 209,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/HeaderInclude.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18277_execute() {\n    { Make, NMake }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18277",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/DependencyOutputOptions.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

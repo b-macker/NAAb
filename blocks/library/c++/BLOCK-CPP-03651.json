@@ -1,8 +1,0 @@
-{
-  "code": "#include <stdint.h>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03651_execute() {\n    {\n  if (ABSL_PREDICT_FALSE(t == nullptr)) {\n    // Call a non-inline helper function for a small code size improvement.\n    DieBecauseNull(file, line, exprtext);\n  }\n  return std::forward<T>(t);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03651",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/die_if_null.h",
-  "source_line": 63,
-  "validation_status": "validated"
-}

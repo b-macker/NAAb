@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/charconv_parse.h\"\n#include \"absl/strings/charconv.h\"\n#include <cassert>\n#include <cstdint>\n#include <limits>\n#include \"absl/strings/internal/memutil.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02865_execute() {\n    {\n  return (v == '_') || (v >= '0' && v <= '9') || (v >= 'a' && v <= 'z') ||\n         (v >= 'A' && v <= 'Z');\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02865",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_parse.cc",
-  "source_line": 290,
-  "validation_status": "validated"
-}

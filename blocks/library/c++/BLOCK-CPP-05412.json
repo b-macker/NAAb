@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/crc/crc32c.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05412_execute() {\n    {\n\n// Modifies a CRC32 value by removing `length` bytes with a value of 0 from\n// the end of the string.\n//\n// This is the inverse operation of ExtendCrc32cByZeroes().\n//\n// This operation has a runtime cost of O(log(`length`))\n//\n// Internal implementation detail, exposed for testing only.\ncrc32c_t UnextendCrc32cByZeroes(crc32c_t initial_crc, size_t length);\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05412",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc32c.h",
-  "source_line": 23,
-  "validation_status": "validated"
-}

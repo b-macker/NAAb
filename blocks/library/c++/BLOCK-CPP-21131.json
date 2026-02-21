@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <functional>\n#include <string>\n#include <vector>\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21131_execute() {\n    { BEGIN, END }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21131",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/ArgumentsAdjusters.h",
-  "source_line": 50,
-  "validation_status": "validated"
-}

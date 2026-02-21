@@ -1,8 +1,0 @@
-{
-  "code": "#include <tuple>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/fast_type_id.h\"\n#include \"absl/types/optional.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05887_execute() {\n    {\n    ArgTupleT arg_tuple(std::forward<Args>(args)...);\n    ReturnT result;\n    if (urbg->InvokeMock(::absl::base_internal::FastTypeId<KeyT>(), &arg_tuple,\n                         &result)) {\n      return result;\n    }\n    return absl::nullopt;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05887",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/mock_helpers.h",
-  "source_line": 72,
-  "validation_status": "validated"
-}

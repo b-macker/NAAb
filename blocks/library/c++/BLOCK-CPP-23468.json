@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/APSInt.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <array>\n#include <cassert>\n#include <optional>\n#include <vector>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23468_execute() {\n    {\n  class StringRef;\n  class APSInt;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23468",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ComparisonCategories.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

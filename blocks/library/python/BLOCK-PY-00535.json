@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00535_execute() {\n    def check_stability_and_equivalence(\n    src_contents: str,\n    dst_contents: str,\n    *,\n    mode: Mode,\n    lines: Collection[tuple[int, int]] = (),\n) -> None:\n    \"\"\"Perform stability and equivalence checks.\n\n    Raise AssertionError if source and destination contents are not\n    equivalent, or if a second pass of the formatter would format the\n    content differently.\n    \"\"\"\n    assert_equivalent(src_contents, dst_contents)\n    assert_stable(src_contents, dst_contents, mode=mode, lines=lines)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00535",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 1051,
-  "validation_status": "validated"
-}

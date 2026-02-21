@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace base_internal {\n\ninline void* DirectMmap(void* start, size_t length, int prot, int flags, int fd,\n                        off_t offset) {\n  return mmap(start, length, prot, flags, fd, offset);\n}\n\ninline int DirectMunmap(void* start, size_t length) {\n  return munmap(start, length);\n}\n\n}  // namespace base_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-04576",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/direct_mmap.h",
-  "source_line": 149,
-  "validation_status": "validated"
-}

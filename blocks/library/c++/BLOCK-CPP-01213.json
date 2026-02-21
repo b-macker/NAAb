@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01213_execute() {\n    {\n  auto fd = _fileno(f);\n  if (_isatty(fd)) {\n    detail::utf8_to_utf16 u16(string_view(text.data(), text.size()));\n    auto written = detail::dword();\n    if (detail::WriteConsoleW(reinterpret_cast<void*>(_get_osfhandle(fd)),\n                              u16.c_str(), static_cast<uint32_t>(u16.size()),\n                              &written, nullptr)) {\n      return true;\n    }\n  }\n  // We return false if the file descriptor was not TTY, or it was but\n  // SetConsoleW failed which can happen if the output has been redirected to\n  // NUL. In both cases when we return false, we should attempt to do regular\n  // write via fwrite or std::ostream::write.\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01213",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
-  "source_line": 1482,
-  "validation_status": "validated"
-}

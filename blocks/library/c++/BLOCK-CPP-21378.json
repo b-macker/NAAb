@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"llvm/ADT/ImmutableSet.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21378_execute() {\n    {\n  public:\n\n    llvm::ImmutableSet<const Expr *> liveExprs;\n    llvm::ImmutableSet<const VarDecl *> liveDecls;\n    llvm::ImmutableSet<const BindingDecl *> liveBindings;\n\n    bool equals(const LivenessValues &V) const;\n\n    LivenessValues()\n      : liveExprs(nullptr), liveDecls(nullptr), liveBindings(nullptr) {}\n\n    LivenessValues(llvm::ImmutableSet<const Expr *> liveExprs,\n                   llvm::ImmutableSet<const VarDecl *> LiveDecls,\n                   llvm::ImmutableSet<const BindingDecl *> LiveBindings)\n        : liveExprs(liveExprs), liveDecls(LiveDecls),\n          liveBindings(LiveBindings) {}\n\n    bool isLive(const Expr *E) const;\n    bool isLive(const VarDecl *D) const;\n\n    friend class LiveVariables;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21378",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/LiveVariables.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

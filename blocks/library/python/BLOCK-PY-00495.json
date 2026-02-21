@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00495_execute() {\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        eval_ctx = get_eval_context(self, eval_ctx)\n\n        # intercepted operators cannot be folded at compile time\n        if (\n            eval_ctx.environment.sandboxed\n            and self.operator in eval_ctx.environment.intercepted_unops  # type: ignore\n        ):\n            raise Impossible()\n        f = _uaop_to_func[self.operator]\n        try:\n            return f(self.node.as_const(eval_ctx))\n        except Exception as e:\n            raise Impossible() from e\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00495",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 523,
-  "validation_status": "validated"
-}

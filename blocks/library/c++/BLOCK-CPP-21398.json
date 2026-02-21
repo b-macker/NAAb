@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21398_execute() {\n    {\n  class AnalysisDeclContext;\n  class CFGBlock;\n  class Preprocessor;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21398",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ReachableCode.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

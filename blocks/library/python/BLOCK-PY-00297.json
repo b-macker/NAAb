@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00297_execute() {\n    def __init__(self) -> None:\n        self.filters: set[str] = set()\n        self.tests: set[str] = set()\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00297",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 253,
-  "validation_status": "validated"
-}

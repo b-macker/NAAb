@@ -1,8 +1,0 @@
-{
-  "code": "{\n  /// Whether this property has been audited for nullability.\n  unsigned NullabilityAudited : 1;\n\n  /// The kind of nullability for this property. Only valid if the nullability\n  /// has been audited.\n  unsigned Nullable : 2;\n\n  /// The C type of the variable, as a string.\n  std::string Type;\n\npublic:\n  VariableInfo() : NullabilityAudited(false), Nullable(0) {}\n\n  std::optional<NullabilityKind> getNullability() const {\n    return NullabilityAudited ? std::optional<NullabilityKind>(\n                                    static_cast<NullabilityKind>(Nullable))\n                              : std::nullopt;\n  }\n\n  void setNullabilityAudited(NullabilityKind kind) {\n    NullabilityAudited = true;\n    Nullable = static_cast<unsigned>(kind);\n  }\n\n  const std::string &getType() const { return Type; }\n  void setType(const std::string &type) { Type = type; }\n\n  friend bool operator==(const VariableInfo &, const VariableInfo &);\n\n  VariableInfo &operator|=(const VariableInfo &RHS) {\n    static_cast<CommonEntityInfo &>(*this) |= RHS;\n\n    if (!NullabilityAudited && RHS.NullabilityAudited)\n      setNullabilityAudited(*RHS.getNullability());\n    if (Type.empty())\n      Type = RHS.Type;\n\n    return *this;\n  }\n\n  LLVM_DUMP_METHOD void dump(llvm::raw_ostream &OS) const;\n}",
-  "id": "BLOCK-CPP-06801",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/APINotes/Types.h",
-  "source_line": 304,
-  "validation_status": "validated"
-}

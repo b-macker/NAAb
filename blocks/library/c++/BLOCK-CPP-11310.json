@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/IdentifierTable.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11310_execute() {\n    {\n    return Sel == getNSNumberLiteralSelector(MK, false) ||\n           Sel == getNSNumberLiteralSelector(MK, true);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11310",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/NSAPI.h",
-  "source_line": 199,
-  "validation_status": "validated"
-}

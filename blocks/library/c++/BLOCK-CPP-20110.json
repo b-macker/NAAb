@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/AttrSubjectMatchRules.h\"\n#include \"clang/Basic/AttributeCommonInfo.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/ParsedAttrInfo.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <utility>\n\nusing namespace clang;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20110_execute() {\n    { return NumArgs; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20110",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ParsedAttr.h",
-  "source_line": 371,
-  "validation_status": "validated"
-}

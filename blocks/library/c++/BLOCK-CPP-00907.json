@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace literals;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00907_execute() {\n    {\ntemplate <detail_exported::fixed_string Str> constexpr auto operator\"\"_cf() {\n  using char_t = remove_cvref_t<decltype(Str.data[0])>;\n  return detail::udl_compiled_string<char_t, sizeof(Str.data) / sizeof(char_t),\n                                     Str>();\n}\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00907",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 599,
-  "validation_status": "validated"
-}

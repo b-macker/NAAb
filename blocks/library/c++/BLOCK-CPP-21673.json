@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Return(SExpr* Rval) : Terminator(COP_Return), Retval(Rval) {}\n  Return(const Return &R, SExpr* Rval) : Terminator(R), Retval(Rval) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Return; }\n\n  /// Return an empty list.\n  ArrayRef<BasicBlock *> successors() { return std::nullopt; }\n\n  SExpr *returnValue() { return Retval; }\n  const SExpr *returnValue() const { return Retval; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Ne = Vs.traverse(Retval, Vs.subExprCtx(Ctx));\n    return Vs.reduceReturn(*this, Ne);\n  }\n\n  template <class C>\n  typename C::CType compare(const Return *E, C &Cmp) const {\n    return Cmp.compare(Retval, E->Retval);\n  }\n\nprivate:\n  SExpr* Retval;\n}",
-  "id": "BLOCK-CPP-21673",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1465,
-  "validation_status": "validated"
-}

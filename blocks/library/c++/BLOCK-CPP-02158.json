@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/time/clock.h\"\n#include \"absl/base/attributes.h\"\n#include \"absl/base/optimization.h\"\n#include <windows.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstdint>\n#include <ctime>\n#include <limits>\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/unscaledcycleclock.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/time/internal/get_current_time_chrono.inc\"\n#include \"absl/time/internal/get_current_time_posix.inc\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace time_internal;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02158_execute() {\n    {\n  sample->base_ns = atomic->base_ns.load(std::memory_order_relaxed);\n  sample->base_cycles = atomic->base_cycles.load(std::memory_order_relaxed);\n  sample->nsscaled_per_cycle =\n      atomic->nsscaled_per_cycle.load(std::memory_order_relaxed);\n  sample->min_cycles_per_sample =\n      atomic->min_cycles_per_sample.load(std::memory_order_relaxed);\n  sample->raw_ns = atomic->raw_ns.load(std::memory_order_relaxed);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02158",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
-  "source_line": 264,
-  "validation_status": "validated"
-}

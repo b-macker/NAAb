@@ -1,8 +1,0 @@
-{
-  "code": "#include <stdexcept>\n#include \"absl/base/config.h\"\n#include <variant>\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04459_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\n// -----------------------------------------------------------------------------\n// bad_variant_access\n// -----------------------------------------------------------------------------\n//\n// An `absl::bad_variant_access` type is an exception type that is thrown in\n// the following cases:\n//\n//   * Calling `absl::get(absl::variant) with an index or type that does not\n//     match the currently selected alternative type\n//   * Calling `absl::visit on an `absl::variant` that is in the\n//     `variant::valueless_by_exception` state.\n//\n// Example:\n//\n//   absl::variant<int, std::string> v;\n//   v = 1;\n//   try {\n//     absl::get<std::string>(v);\n//   } catch(const absl::bad_variant_access& e) {\n//     std::cout << \"Bad variant access: \" << e.what() << '\\n';\n//   }\nclass bad_variant_access : public std::exception {\n public:\n  bad_variant_access() noexcept = default;\n  ~bad_variant_access() override;\n  const char* what() const noexcept override;\n};\n\nnamespace variant_internal {\n\n[[noreturn]] ABSL_DLL void ThrowBadVariantAccess();\n[[noreturn]] ABSL_DLL void Rethrow();\n\n}  // namespace variant_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04459",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_variant_access.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

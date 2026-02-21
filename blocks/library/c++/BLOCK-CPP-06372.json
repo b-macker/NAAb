@@ -1,8 +1,0 @@
-{
-  "code": "{\n  if (c == FormatConversionCharInternal::kNone) {\n    return '\\0';\n\n#define ABSL_INTERNAL_X_VAL(e)                       \\\n  } else if (c == FormatConversionCharInternal::e) { \\\n    return #e[0];\n#define ABSL_INTERNAL_X_SEP\n  ABSL_INTERNAL_CONVERSION_CHARS_EXPAND_(ABSL_INTERNAL_X_VAL,\n                                         ABSL_INTERNAL_X_SEP)\n  } else {\n    return '\\0';\n  }\n\n#undef ABSL_INTERNAL_X_VAL\n#undef ABSL_INTERNAL_X_SEP\n}",
-  "id": "BLOCK-CPP-06372",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/extension.h",
-  "source_line": 247,
-  "validation_status": "validated"
-}

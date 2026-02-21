@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace digits;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01369_execute() {\n    {\n    int num_lhs_bigits = lhs.num_bigits(), num_rhs_bigits = rhs.num_bigits();\n    if (num_lhs_bigits != num_rhs_bigits)\n      return num_lhs_bigits > num_rhs_bigits ? 1 : -1;\n    int i = static_cast<int>(lhs.bigits_.size()) - 1;\n    int j = static_cast<int>(rhs.bigits_.size()) - 1;\n    int end = i - j;\n    if (end < 0) end = 0;\n    for (; i >= end; --i, --j) {\n      bigit lhs_bigit = lhs[i], rhs_bigit = rhs[j];\n      if (lhs_bigit != rhs_bigit) return lhs_bigit > rhs_bigit ? 1 : -1;\n    }\n    if (i != j) return i > j ? 1 : -1;\n    return 0;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01369",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 2841,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/utility/utility.h\"\n#include <any>  // IWYU pragma: export\n#include <algorithm>\n#include <cstddef>\n#include <initializer_list>\n#include <memory>\n#include <stdexcept>\n#include <type_traits>\n#include <typeinfo>\n#include <utility>\n#include \"absl/base/internal/fast_type_id.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/bad_any_cast.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04442_execute() {\n    {  // NOLINT(runtime/references)\n  using U = typename std::remove_cv<\n      typename std::remove_reference<ValueType>::type>::type;\n  static_assert(std::is_constructible<ValueType, U&>::value,\n                \"Invalid ValueType\");\n  auto* result = (any_cast<U>)(&operand);\n  if (result == nullptr) {\n    any_internal::ThrowBadAnyCast();\n  }\n  return static_cast<ValueType>(*result);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04442",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/any.h",
-  "source_line": 469,
-  "validation_status": "validated"
-}

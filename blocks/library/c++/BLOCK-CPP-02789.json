@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/internal/randen.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/random/internal/randen_detect.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02789_execute() {\n    {\n  const void* keys;\n  bool has_crypto;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02789",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen.cc",
-  "source_line": 48,
-  "validation_status": "validated"
-}

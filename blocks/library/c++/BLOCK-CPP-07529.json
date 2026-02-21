@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/Alignment.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/MathExtras.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07529_execute() {\n    {\n        return CharUnits(0);\n      }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07529",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CharUnits.h",
-  "source_line": 53,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00537_execute() {\n    def format_cell(src: str, *, fast: bool, mode: Mode) -> str:\n    \"\"\"Format code in given cell of Jupyter notebook.\n\n    General idea is:\n\n      - if cell has trailing semicolon, remove it;\n      - if cell has IPython magics, mask them;\n      - format cell;\n      - reinstate IPython magics;\n      - reinstate trailing semicolon (if originally present);\n      - strip trailing newlines.\n\n    Cells with syntax errors will not be processed, as they\n    could potentially be automagics or multi-line magics, which\n    are currently not supported.\n    \"\"\"\n    validate_cell(src, mode)\n    src_without_trailing_semicolon, has_trailing_semicolon = remove_trailing_semicolon(\n        src\n    )\n    try:\n        masked_src, replacements = mask_cell(src_without_trailing_semicolon)\n    except SyntaxError:\n        raise NothingChanged from None\n    masked_dst = format_str(masked_src, mode=mode)\n    if not fast:\n        check_stability_and_equivalence(masked_src, masked_dst, mode=mode)\n    dst_without_trailing_semicolon = unmask_cell(masked_dst, replacements)\n    dst = put_trailing_semicolon_back(\n        dst_without_trailing_semicolon, has_trailing_semicolon\n    )\n    dst = dst.rstrip(\"\\n\")\n    if dst == src:\n        raise NothingChanged from None\n    return dst\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00537",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 1096,
-  "validation_status": "validated"
-}

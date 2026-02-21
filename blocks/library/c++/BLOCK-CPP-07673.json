@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CommentLexer.h\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07673_execute() {\n    {\n    SourceLocation Loc = Tok.getLocation();\n    L.lex(Tok);\n    return Loc;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07673",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CommentBriefParser.h",
-  "source_line": 37,
-  "validation_status": "validated"
-}

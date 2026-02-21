@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/numeric/int128.h\"\n#include <stddef.h>\n#include <cassert>\n#include <iomanip>\n#include <ostream>  // NOLINT(readability/streams)\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01792_execute() {\n    {\n  static_assert(std::is_floating_point<T>::value, \"\");\n\n  // Rounding behavior is towards zero, same as for built-in types.\n\n  // Undefined behavior if v is NaN or cannot fit into uint128.\n  assert(std::isfinite(v) && v > -1 &&\n         (std::numeric_limits<T>::max_exponent <= 128 ||\n          v < std::ldexp(static_cast<T>(1), 128)));\n\n  if (v >= std::ldexp(static_cast<T>(1), 64)) {\n    uint64_t hi = static_cast<uint64_t>(std::ldexp(v, -64));\n    uint64_t lo = static_cast<uint64_t>(v - std::ldexp(static_cast<T>(hi), 64));\n    return MakeUint128(hi, lo);\n  }\n\n  return MakeUint128(0, static_cast<uint64_t>(v));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01792",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/int128.cc",
-  "source_line": 94,
-  "validation_status": "validated"
-}

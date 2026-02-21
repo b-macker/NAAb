@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/PathDiagnostic.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\nusing namespace cross_tu;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22363_execute() {\n    {\nclass CrossTranslationUnitContext;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22363",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/PathDiagnosticConsumers.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

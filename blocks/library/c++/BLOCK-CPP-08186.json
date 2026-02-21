@@ -1,8 +1,0 @@
-{
-  "code": "{\n  EmptyDecl(DeclContext *DC, SourceLocation L) : Decl(Empty, DC, L) {}\n\n  virtual void anchor();\n\npublic:\n  static EmptyDecl *Create(ASTContext &C, DeclContext *DC,\n                           SourceLocation L);\n  static EmptyDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == Empty; }\n}",
-  "id": "BLOCK-CPP-08186",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Decl.h",
-  "source_line": 4802,
-  "validation_status": "validated"
-}

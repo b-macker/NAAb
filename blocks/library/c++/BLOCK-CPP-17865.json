@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n\nusing namespace llvm;\nusing namespace opt;\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17865_execute() {\n    { return false; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17865",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Tool.h",
-  "source_line": 59,
-  "validation_status": "validated"
-}

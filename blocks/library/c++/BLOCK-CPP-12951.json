@@ -1,8 +1,0 @@
-{
-  "code": "{\n  SourceLocation CatchLoc;\n  /// The exception-declaration of the type.\n  VarDecl *ExceptionDecl;\n  /// The handler block.\n  Stmt *HandlerBlock;\n\npublic:\n  CXXCatchStmt(SourceLocation catchLoc, VarDecl *exDecl, Stmt *handlerBlock)\n  : Stmt(CXXCatchStmtClass), CatchLoc(catchLoc), ExceptionDecl(exDecl),\n    HandlerBlock(handlerBlock) {}\n\n  CXXCatchStmt(EmptyShell Empty)\n  : Stmt(CXXCatchStmtClass), ExceptionDecl(nullptr), HandlerBlock(nullptr) {}\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return CatchLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY {\n    return HandlerBlock->getEndLoc();\n  }\n\n  SourceLocation getCatchLoc() const { return CatchLoc; }\n  VarDecl *getExceptionDecl() const { return ExceptionDecl; }\n  QualType getCaughtType() const;\n  Stmt *getHandlerBlock() const { return HandlerBlock; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == CXXCatchStmtClass;\n  }\n\n  child_range children() { return child_range(&HandlerBlock, &HandlerBlock+1); }\n\n  const_child_range children() const {\n    return const_child_range(&HandlerBlock, &HandlerBlock + 1);\n  }\n\n  friend class ASTStmtReader;\n}",
-  "id": "BLOCK-CPP-12951",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtCXX.h",
-  "source_line": 28,
-  "validation_status": "validated"
-}

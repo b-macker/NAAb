@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08762_execute() {\n    { return getKind() == DeclGroupKind; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08762",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclGroup.h",
-  "source_line": 81,
-  "validation_status": "validated"
-}

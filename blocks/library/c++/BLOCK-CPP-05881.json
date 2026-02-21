@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>\n#include <iostream>\n#include <limits>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/int128.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05881_execute() {\n    {\n public:\n  using ostream_type = OStream;\n  using flags_type = std::ios_base::fmtflags;\n  using fill_type = typename ostream_type::char_type;\n  using precision_type = std::streamsize;\n\n  ostream_state_saver(ostream_type& os,  // NOLINT(runtime/references)\n                      flags_type flags, fill_type fill)\n      : os_(os),\n        flags_(os.flags(flags)),\n        fill_(os.fill(fill)),\n        precision_(os.precision()) {\n    // Save state in initialized variables.\n  }\n\n  ~ostream_state_saver() {\n    // Restore saved state.\n    os_.precision(precision_);\n    os_.fill(fill_);\n    os_.flags(flags_);\n  }\n\n private:\n  ostream_type& os_;\n  const flags_type flags_;\n  const fill_type fill_;\n  const precision_type precision_;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05881",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/iostream_state_saver.h",
-  "source_line": 44,
-  "validation_status": "validated"
-}

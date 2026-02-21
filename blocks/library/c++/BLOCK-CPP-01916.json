@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/escaping.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/charset.h\"\n#include \"absl/strings/internal/escaping.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/internal/utf8.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01916_execute() {\n    {\n  strings_internal::STLStringResizeUninitialized(dest, source.size());\n\n  ptrdiff_t dest_size;\n  if (!CUnescapeInternal(source,\n                         leave_nulls_escaped,\n                         &(*dest)[0],\n                         &dest_size,\n                         error)) {\n    return false;\n  }\n  dest->erase(static_cast<size_t>(dest_size));\n  return true;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01916",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/escaping.cc",
-  "source_line": 292,
-  "validation_status": "validated"
-}

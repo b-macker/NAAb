@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/status/status.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_statusor;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06025_execute() {\n    {\n  CopyCtorBase() = default;\n  CopyCtorBase(const CopyCtorBase&) = default;\n  CopyCtorBase(CopyCtorBase&&) = default;\n  CopyCtorBase& operator=(const CopyCtorBase&) = default;\n  CopyCtorBase& operator=(CopyCtorBase&&) = default;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06025",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/internal/statusor_internal.h",
-  "source_line": 309,
-  "validation_status": "validated"
-}

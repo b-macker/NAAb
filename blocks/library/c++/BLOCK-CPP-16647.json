@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/DirectoryEntry.h\"\n#include \"clang/Basic/FileEntry.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <array>\n#include <cassert>\n#include <cstdint>\n#include <ctime>\n#include <iterator>\n#include <optional>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16647_execute() {\n    {\n    /// The location of the 'export' keyword in the module map file.\n    SourceLocation ExportLoc;\n\n    /// The name of the module.\n    ModuleId Id;\n\n    /// Whether this export declaration ends in a wildcard, indicating\n    /// that all of its submodules should be exported (rather than the named\n    /// module itself).\n    bool Wildcard;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16647",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Module.h",
-  "source_line": 389,
-  "validation_status": "validated"
-}

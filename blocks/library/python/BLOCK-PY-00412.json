@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00412_execute() {\n    class For(Stmt):\n    \"\"\"The for loop.  `target` is the target for the iteration (usually a\n    :class:`Name` or :class:`Tuple`), `iter` the iterable.  `body` is a list\n    of nodes that are used as loop-body, and `else_` a list of nodes for the\n    `else` block.  If no else node exists it has to be an empty list.\n\n    For filtered nodes an expression can be stored as `test`, otherwise `None`.\n    \"\"\"\n\n    fields = (\"target\", \"iter\", \"body\", \"else_\", \"test\", \"recursive\")\n    target: Node\n    iter: Node\n    body: list[Node]\n    else_: list[Node]\n    test: Node | None\n    recursive: bool\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00412",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 319,
-  "validation_status": "validated"
-}

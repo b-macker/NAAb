@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTContext; // ASTContext creates these.\n\n  UnresolvedUsingTypenameDecl *Decl;\n\n  UnresolvedUsingType(const UnresolvedUsingTypenameDecl *D)\n      : Type(UnresolvedUsing, QualType(),\n             TypeDependence::DependentInstantiation),\n        Decl(const_cast<UnresolvedUsingTypenameDecl *>(D)) {}\n\npublic:\n  UnresolvedUsingTypenameDecl *getDecl() const { return Decl; }\n\n  bool isSugared() const { return false; }\n  QualType desugar() const { return QualType(this, 0); }\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == UnresolvedUsing;\n  }\n\n  void Profile(llvm::FoldingSetNodeID &ID) {\n    return Profile(ID, Decl);\n  }\n\n  static void Profile(llvm::FoldingSetNodeID &ID,\n                      UnresolvedUsingTypenameDecl *D) {\n    ID.AddPointer(D);\n  }\n}",
-  "id": "BLOCK-CPP-14141",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 4526,
-  "validation_status": "validated"
-}

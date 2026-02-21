@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00498_execute() {\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        return self.value\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00498",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 587,
-  "validation_status": "validated"
-}

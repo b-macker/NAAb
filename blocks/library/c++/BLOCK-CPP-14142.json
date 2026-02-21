@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTContext; // ASTContext creates these.\n\n  QualType UnderlyingTy;\n  const IdentifierInfo *MacroII;\n\n  MacroQualifiedType(QualType UnderlyingTy, QualType CanonTy,\n                     const IdentifierInfo *MacroII)\n      : Type(MacroQualified, CanonTy, UnderlyingTy->getDependence()),\n        UnderlyingTy(UnderlyingTy), MacroII(MacroII) {\n    assert(isa<AttributedType>(UnderlyingTy) &&\n           \"Expected a macro qualified type to only wrap attributed types.\");\n  }\n\npublic:\n  const IdentifierInfo *getMacroIdentifier() const { return MacroII; }\n  QualType getUnderlyingType() const { return UnderlyingTy; }\n\n  /// Return this attributed type's modified type with no qualifiers attached to\n  /// it.\n  QualType getModifiedType() const;\n\n  bool isSugared() const { return true; }\n  QualType desugar() const;\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == MacroQualified;\n  }\n}",
-  "id": "BLOCK-CPP-14142",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 4625,
-  "validation_status": "validated"
-}

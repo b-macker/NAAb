@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/Support/ExtensibleRTTI.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include \"llvm/Support/MD5.h\"\n#include <memory>\n#include <string>\n\nusing namespace llvm;\nusing namespace clang;\nusing namespace serialization;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21032_execute() {\n    {\n  ModuleFileExtension *Extension;\n\nprotected:\n  ModuleFileExtensionWriter(ModuleFileExtension *Extension)\n    : Extension(Extension) { }\n\npublic:\n  virtual ~ModuleFileExtensionWriter();\n\n  /// Retrieve the module file extension with which this writer is\n  /// associated.\n  ModuleFileExtension *getExtension() const { return Extension; }\n\n  /// Write the contents of the extension block into the given bitstream.\n  ///\n  /// Responsible for writing the contents of the extension into the\n  /// given stream. All of the contents should be written into custom\n  /// records with IDs >= FIRST_EXTENSION_RECORD_ID.\n  virtual void writeExtensionContents(Sema &SemaRef,\n                                      llvm::BitstreamWriter &Stream) = 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21032",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ModuleFileExtension.h",
-  "source_line": 113,
-  "validation_status": "validated"
-}

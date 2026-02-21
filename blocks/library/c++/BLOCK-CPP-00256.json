@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/details/circular_q.h>\n#include <atomic>\n#include <condition_variable>\n#include <mutex>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00256_execute() {\n    { discard_counter_.store(0, std::memory_order_relaxed); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00256",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/mpmc_blocking_q.h",
-  "source_line": 167,
-  "validation_status": "validated"
-}

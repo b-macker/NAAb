@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <exception>\n#include <functional>\n#include <initializer_list>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace internal_any_invocable;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05568_execute() {\n    {\n  static_assert(IsStoredLocally<T>::value,\n                \"Local storage must only be used for supported types.\");\n  static_assert(!std::is_trivially_copyable<T>::value,\n                \"Locally stored types must be trivially copyable.\");\n\n  T& from_object = (ObjectInLocalStorage<T>)(from);\n\n  switch (operation) {\n    case FunctionToCall::relocate_from_to:\n      // NOTE: Requires that the left-hand operand is already empty.\n      ::new (static_cast<void*>(&to->storage)) T(std::move(from_object));\n      ABSL_FALLTHROUGH_INTENDED;\n    case FunctionToCall::dispose:\n      from_object.~T();  // Must not throw. // NOLINT\n      return;\n  }\n  ABSL_UNREACHABLE();\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05568",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/internal/any_invocable.h",
-  "source_line": 274,
-  "validation_status": "validated"
-}

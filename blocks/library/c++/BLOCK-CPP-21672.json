@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Branch(SExpr *C, BasicBlock *T, BasicBlock *E)\n      : Terminator(COP_Branch), Condition(C) {\n    Branches[0] = T;\n    Branches[1] = E;\n  }\n\n  Branch(const Branch &Br, SExpr *C, BasicBlock *T, BasicBlock *E)\n      : Terminator(Br), Condition(C) {\n    Branches[0] = T;\n    Branches[1] = E;\n  }\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Branch; }\n\n  const SExpr *condition() const { return Condition; }\n  SExpr *condition() { return Condition; }\n\n  const BasicBlock *thenBlock() const { return Branches[0]; }\n  BasicBlock *thenBlock() { return Branches[0]; }\n\n  const BasicBlock *elseBlock() const { return Branches[1]; }\n  BasicBlock *elseBlock() { return Branches[1]; }\n\n  /// Return the list of basic blocks that this terminator can branch to.\n  ArrayRef<BasicBlock *> successors() { return llvm::ArrayRef(Branches); }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Nc = Vs.traverse(Condition, Vs.subExprCtx(Ctx));\n    BasicBlock *Ntb = Vs.reduceBasicBlockRef(Branches[0]);\n    BasicBlock *Nte = Vs.reduceBasicBlockRef(Branches[1]);\n    return Vs.reduceBranch(*this, Nc, Ntb, Nte);\n  }\n\n  template <class C>\n  typename C::CType compare(const Branch *E, C &Cmp) const {\n    // TODO: implement CFG comparisons\n    return Cmp.comparePointers(this, E);\n  }\n\nprivate:\n  SExpr *Condition;\n  BasicBlock *Branches[2];\n}",
-  "id": "BLOCK-CPP-21672",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1416,
-  "validation_status": "validated"
-}

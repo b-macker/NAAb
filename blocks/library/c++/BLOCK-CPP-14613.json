@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/BaseSubobject.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14613_execute() {\n    {\n    return BaseAndIsVirtual.getInt();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-14613",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/VTTBuilder.h",
-  "source_line": 52,
-  "validation_status": "validated"
-}

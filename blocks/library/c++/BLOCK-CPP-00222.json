@@ -1,8 +1,0 @@
-{
-  "code": "#include <chrono>\n#include <iterator>\n#include <spdlog/common.h>\n#include <spdlog/fmt/fmt.h>\n#include <type_traits>\n    #include <charconv>\n    #include <limits>\n\nusing namespace spdlog;\nusing namespace details;\nusing namespace fmt_helper;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00222_execute() {\n    {\n    // taken from fmt: https://github.com/fmtlib/fmt/blob/8.0.1/include/fmt/format.h#L899-L912\n    unsigned int count = 1;\n    for (;;) {\n        // Integer division is slow so do it for a group of four digits instead\n        // of for every digit. The idea comes from the talk by Alexandrescu\n        // \"Three Optimization Tips for C++\". See speed-test for a comparison.\n        if (n < 10) return count;\n        if (n < 100) return count + 1;\n        if (n < 1000) return count + 2;\n        if (n < 10000) return count + 3;\n        n /= 10000u;\n        count += 4;\n    }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00222",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/fmt_helper.h",
-  "source_line": 49,
-  "validation_status": "validated"
-}

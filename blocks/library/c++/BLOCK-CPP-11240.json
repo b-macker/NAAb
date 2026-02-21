@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Expr.h\"\n#include \"clang/AST/ExprCXX.h\"\n\nusing namespace clang;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11240_execute() {\n    {\n/// Given an expression E and functions Fn_1,...,Fn_n : Expr * -> Expr *,\n/// Return Fn_n(...(Fn_1(E)))\ninline Expr *IgnoreExprNodesImpl(Expr *E) { return E; }\ntemplate <typename FnTy, typename... FnTys>\nExpr *IgnoreExprNodesImpl(Expr *E, FnTy &&Fn, FnTys &&... Fns) {\n  return IgnoreExprNodesImpl(std::forward<FnTy>(Fn)(E),\n                             std::forward<FnTys>(Fns)...);\n}\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11240",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/IgnoreExpr.h",
-  "source_line": 20,
-  "validation_status": "validated"
-}

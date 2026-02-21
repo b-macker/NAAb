@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/MemoryBuffer.h\"\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21015_execute() {\n    {\n    std::unique_ptr<llvm::MemoryBuffer> Buffer;\n\n    /// Track whether this PCM is known to be good (either built or\n    /// successfully imported by a CompilerInstance/ASTReader using this\n    /// cache).\n    bool IsFinal = false;\n\n    PCM() = default;\n    PCM(std::unique_ptr<llvm::MemoryBuffer> Buffer)\n        : Buffer(std::move(Buffer)) {}\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21015",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/InMemoryModuleCache.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

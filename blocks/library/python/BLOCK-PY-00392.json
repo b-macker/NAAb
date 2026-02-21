@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00392_execute() {\n    def visit_Continue(self, node: nodes.Continue, frame: Frame) -> None:\n        self.writeline(\"continue\", node)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00392",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1942,
-  "validation_status": "validated"
-}

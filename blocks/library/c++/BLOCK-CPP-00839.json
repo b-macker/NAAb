@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00839_execute() {\n    {\n  vprint(f, ts, format_str,\n         fmt::make_format_args<buffer_context<char_t<S>>>(args...));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00839",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 508,
-  "validation_status": "validated"
-}

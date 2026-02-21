@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/SourceMgr.h\"\n#include <cassert>\n#include <functional>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17809_execute() {\n    {\n    std::string Match;\n    std::vector<std::string> Flags;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17809",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Multilib.h",
-  "source_line": 91,
-  "validation_status": "validated"
-}

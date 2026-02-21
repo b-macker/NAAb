@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <cstdint>\n#include <limits>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05773_execute() {\n    {\n  // tag_type + data + ...\n  return MaxVarintSize() +\n         (type == WireType::kVarint ? MaxVarintSize() :              //\n              type == WireType::k64Bit ? 8 :                         //\n                  type == WireType::k32Bit ? 4 : MaxVarintSize()) +  //\n         BufferSizeFor(tail...);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05773",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/proto.h",
-  "source_line": 211,
-  "validation_status": "validated"
-}

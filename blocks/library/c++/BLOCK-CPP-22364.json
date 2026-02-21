@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/PathDiagnostic.h\"\n#include <string>\n#include <vector>\n\nusing namespace clang;\nusing namespace cross_tu;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22364_execute() {\n    {\n\nclass PathDiagnosticConsumer;\ntypedef std::vector<PathDiagnosticConsumer*> PathDiagnosticConsumers;\n\n#define ANALYSIS_DIAGNOSTICS(NAME, CMDFLAG, DESC, CREATEFN)                    \\\n  void CREATEFN(PathDiagnosticConsumerOptions Diagopts,                        \\\n                PathDiagnosticConsumers &C, const std::string &Prefix,         \\\n                const Preprocessor &PP,                                        \\\n                const cross_tu::CrossTranslationUnitContext &CTU,              \\\n                const MacroExpansionContext &MacroExpansions);\n#include \"clang/StaticAnalyzer/Core/Analyses.def\"\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22364",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/PathDiagnosticConsumers.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

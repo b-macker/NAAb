@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstdint>\n#include <string>\n#include <utility>\n/// source file (MemoryBuffer) along with its \\#include path and \\#line data.\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16814_execute() {\n    { return get(-1); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16814",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/SourceLocation.h",
-  "source_line": 54,
-  "validation_status": "validated"
-}

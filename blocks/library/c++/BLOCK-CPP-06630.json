@@ -1,8 +1,0 @@
-{
-  "code": "#include <functional>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace optional_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06630_execute() {\n    {\n    if (this->engaged_) {\n      this->data_ = std::forward<U>(u);\n    } else {\n      construct(std::forward<U>(u));\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06630",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/optional.h",
-  "source_line": 129,
-  "validation_status": "validated"
-}

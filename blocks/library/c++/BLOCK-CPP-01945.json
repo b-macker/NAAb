@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/match.h\"\n#include <algorithm>\n#include <cstdint>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/memutil.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01945_execute() {\n    {\n  const absl::string_view::size_type limit = std::min(a.size(), b.size());\n  if (limit == 0) return absl::string_view();\n\n  const char* pa = a.data() + a.size() - 1;\n  const char* pb = b.data() + b.size() - 1;\n  absl::string_view::size_type count = (unsigned) 0;\n  while (count < limit && *pa == *pb) {\n    --pa;\n    --pb;\n    ++count;\n  }\n\n  return absl::string_view(++pa, count);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01945",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/match.cc",
-  "source_line": 115,
-  "validation_status": "validated"
-}

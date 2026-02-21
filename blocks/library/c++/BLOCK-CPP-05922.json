@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  using state_type = uint64_t;\n  static inline constexpr state_type multiplier() { return kMult; }\n  static inline constexpr state_type increment() { return kInc; }\n}",
-  "id": "BLOCK-CPP-05922",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pcg_engine.h",
-  "source_line": 250,
-  "validation_status": "validated"
-}

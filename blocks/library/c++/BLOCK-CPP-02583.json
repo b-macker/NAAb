@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02583_execute() {\n    {\n  ComplexityGuard guard(state);\n  if (guard.IsTooComplex()) return false;\n  if (ParseMangledName(state)) {\n    if (RemainingInput(state)[0] != '\\0') {\n      // Drop trailing function clone suffix, if any.\n      if (IsFunctionCloneSuffix(RemainingInput(state))) {\n        return true;\n      }\n      // Append trailing version suffix if any.\n      // ex. _Z3foo@@GLIBCXX_3.4\n      if (RemainingInput(state)[0] == '@') {\n        MaybeAppend(state, RemainingInput(state));\n        return true;\n      }\n      return false;  // Unconsumed suffix.\n    }\n    return true;\n  }\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02583",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
-  "source_line": 1960,
-  "validation_status": "validated"
-}

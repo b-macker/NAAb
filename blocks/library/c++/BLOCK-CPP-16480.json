@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/DiagnosticIDs.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <utility>\n\nusing namespace clang;\nusing namespace detail;\nusing namespace detail;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16480_execute() {\n    {\n    return clang::Selector::getEmptyMarker();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16480",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/IdentifierTable.h",
-  "source_line": 1061,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08759_execute() {\n    {\n    if (NumDecls == 0)\n      return DeclGroupRef();\n    if (NumDecls == 1)\n      return DeclGroupRef(Decls[0]);\n    return DeclGroupRef(DeclGroup::Create(C, Decls, NumDecls));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08759",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclGroup.h",
-  "source_line": 68,
-  "validation_status": "validated"
-}

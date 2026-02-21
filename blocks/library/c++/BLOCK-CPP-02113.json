@@ -1,8 +1,0 @@
-{
-  "code": "{\n// Returns the Mutex delay on iteration `c` depending on the given `mode`.\n// The returned value should be used as `c` for the next call to `MutexDelay`.\nint MutexDelay(int32_t c, int mode) {\n  const int32_t limit = GetMutexGlobals().mutex_sleep_spins[mode];\n  const absl::Duration sleep_time = GetMutexGlobals().mutex_sleep_time;\n  if (c < limit) {\n    // Spin.\n    c++;\n  } else {\n    SchedulingGuard::ScopedEnable enable_rescheduling;\n    ABSL_TSAN_MUTEX_PRE_DIVERT(nullptr, 0);\n    if (c == limit) {\n      // Yield once.\n      ABSL_INTERNAL_C_SYMBOL(AbslInternalMutexYield)();\n      c++;\n    } else {\n      // Then wait.\n      absl::SleepFor(sleep_time);\n      c = 0;\n    }\n    ABSL_TSAN_MUTEX_POST_DIVERT(nullptr, 0);\n  }\n  return c;\n}\n}",
-  "id": "BLOCK-CPP-02113",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/mutex.cc",
-  "source_line": 175,
-  "validation_status": "validated"
-}

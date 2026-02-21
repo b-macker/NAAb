@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class OMPClauseReader;\n\n  /// Post-update expression for the clause.\n  Expr *PostUpdate = nullptr;\n\nprotected:\n  OMPClauseWithPostUpdate(const OMPClause *This) : OMPClauseWithPreInit(This) {\n    assert(get(This) && \"get is not tuned for post-update.\");\n  }\n\n  /// Set pre-initialization statement for the clause.\n  void setPostUpdateExpr(Expr *S) { PostUpdate = S; }\n\npublic:\n  /// Get post-update expression for the clause.\n  const Expr *getPostUpdateExpr() const { return PostUpdate; }\n\n  /// Get post-update expression for the clause.\n  Expr *getPostUpdateExpr() { return PostUpdate; }\n\n  static OMPClauseWithPostUpdate *get(OMPClause *C);\n  static const OMPClauseWithPostUpdate *get(const OMPClause *C);\n}",
-  "id": "BLOCK-CPP-12278",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/OpenMPClause.h",
-  "source_line": 233,
-  "validation_status": "validated"
-}

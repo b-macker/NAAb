@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Stmt.h\"\n#include \"llvm/Support/Compiler.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12999_execute() {\n    { return getCatchParamDecl() == nullptr; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12999",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtObjC.h",
-  "source_line": 113,
-  "validation_status": "validated"
-}

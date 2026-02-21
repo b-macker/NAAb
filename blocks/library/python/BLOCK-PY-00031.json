@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00031_execute() {\n    def _generate_cli_application(self, request) -> str:\n        return self._generate_fallback(request).code\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00031",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/python_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01144_execute() {\n    {\n private:\n  enum { max_size = 4 };\n  Char data_[max_size] = {Char(' '), Char(0), Char(0), Char(0)};\n  unsigned char size_ = 1;\n\n public:\n  FMT_CONSTEXPR void operator=(basic_string_view<Char> s) {\n    auto size = s.size();\n    if (size > max_size) return throw_format_error(\"invalid fill\");\n    for (size_t i = 0; i < size; ++i) data_[i] = s[i];\n    size_ = static_cast<unsigned char>(size);\n  }\n\n  constexpr auto size() const -> size_t { return size_; }\n  constexpr auto data() const -> const Char* { return data_; }\n\n  FMT_CONSTEXPR auto operator[](size_t index) -> Char& { return data_[index]; }\n  FMT_CONSTEXPR auto operator[](size_t index) const -> const Char& {\n    return data_[index];\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01144",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 2086,
-  "validation_status": "validated"
-}

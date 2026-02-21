@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  template <typename T, typename FlagType>\n  static T InvokeGet(const FlagType& flag) {\n    return flag.Get();\n  }\n  template <typename FlagType, typename T>\n  static void InvokeSet(FlagType& flag, const T& v) {\n    flag.Set(v);\n  }\n  template <typename FlagType>\n  static const CommandLineFlag& InvokeReflect(const FlagType& f) {\n    return f.Reflect();\n  }\n}",
-  "id": "BLOCK-CPP-05520",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/flag.h",
-  "source_line": 694,
-  "validation_status": "validated"
-}

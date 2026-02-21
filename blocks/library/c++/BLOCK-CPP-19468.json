@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19468_execute() {\n    {\npublic:\n  /// Show macros in code completion results.\n  unsigned IncludeMacros : 1;\n\n  /// Show code patterns in code completion results.\n  unsigned IncludeCodePatterns : 1;\n\n  /// Show top-level decls in code completion results.\n  unsigned IncludeGlobals : 1;\n\n  /// Show decls in namespace (including the global namespace) in code\n  /// completion results. If this is 0, `IncludeGlobals` will be ignored.\n  ///\n  /// Currently, this only works when completing qualified IDs (i.e.\n  /// `Sema::CodeCompleteQualifiedId`).\n  /// FIXME: consider supporting more completion cases with this option.\n  unsigned IncludeNamespaceLevelDecls : 1;\n\n  /// Show brief documentation comments in code completion results.\n  unsigned IncludeBriefComments : 1;\n\n  /// Hint whether to load data from the external AST to provide full results.\n  /// If false, namespace-level declarations and macros from the preamble may be\n  /// omitted.\n  unsigned LoadExternal : 1;\n\n  /// Include results after corrections (small fix-its), e.g. change '.' to '->'\n  /// on member access, etc.\n  unsigned IncludeFixIts : 1;\n\n  CodeCompleteOptions()\n      : IncludeMacros(0), IncludeCodePatterns(0), IncludeGlobals(1),\n        IncludeNamespaceLevelDecls(1), IncludeBriefComments(0),\n        LoadExternal(1), IncludeFixIts(0) {}\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19468",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/CodeCompleteOptions.h",
-  "source_line": 15,
-  "validation_status": "validated"
-}

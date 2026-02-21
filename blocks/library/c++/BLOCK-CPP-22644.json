@@ -1,8 +1,0 @@
-{
-  "code": "{\n  const Type *T;\n\npublic:\n  TypeInfoLValue() : T() {}\n  explicit TypeInfoLValue(const Type *T);\n\n  const Type *getType() const { return T; }\n  explicit operator bool() const { return T; }\n\n  void *getOpaqueValue() { return const_cast<Type*>(T); }\n  static TypeInfoLValue getFromOpaqueValue(void *Value) {\n    TypeInfoLValue V;\n    V.T = reinterpret_cast<const Type*>(Value);\n    return V;\n  }\n\n  void print(llvm::raw_ostream &Out, const PrintingPolicy &Policy) const;\n}",
-  "id": "BLOCK-CPP-22644",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/APValue.h",
-  "source_line": 44,
-  "validation_status": "validated"
-}

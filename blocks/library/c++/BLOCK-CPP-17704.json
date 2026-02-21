@@ -1,8 +1,0 @@
-{
-  "code": "{\n  void anchor() override;\n\npublic:\n  BinaryAnalyzeJobAction(Action *Input, types::ID Type);\n\n  static bool classof(const Action *A) {\n    return A->getKind() == BinaryAnalyzeJobClass;\n  }\n}",
-  "id": "BLOCK-CPP-17704",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 678,
-  "validation_status": "validated"
-}

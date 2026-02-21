@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTVector.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12371_execute() {\n    {\n    /// The offset to this virtual base in the complete-object layout\n    /// of this class.\n    CharUnits VBaseOffset;\n\n  private:\n    /// Whether this virtual base requires a vtordisp field in the\n    /// Microsoft ABI.  These fields are required for certain operations\n    /// in constructors and destructors.\n    bool HasVtorDisp = false;\n\n  public:\n    VBaseInfo() = default;\n    VBaseInfo(CharUnits VBaseOffset, bool hasVtorDisp)\n        : VBaseOffset(VBaseOffset), HasVtorDisp(hasVtorDisp) {}\n\n    bool hasVtorDisp() const { return HasVtorDisp; }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12371",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/RecordLayout.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

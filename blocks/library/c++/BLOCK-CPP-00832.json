@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00832_execute() {\n    {\n  return ansi_color_escape<Char>(background, \"\\x1b[48;2;\");\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00832",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 416,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  // Implicitly convert from any type that provides the hook function as\n  // described above.\n  template <typename T, decltype(str_format_internal::InvokeFlush(\n                            std::declval<T*>(), string_view()))* = nullptr>\n  FormatRawSinkImpl(T* raw)  // NOLINT\n      : sink_(raw), write_(&FormatRawSinkImpl::Flush<T>) {}\n\n  void Write(string_view s) { write_(sink_, s); }\n\n  template <typename T>\n  static FormatRawSinkImpl Extract(T s) {\n    return s.sink_;\n  }\n\n private:\n  template <typename T>\n  static void Flush(void* r, string_view s) {\n    str_format_internal::InvokeFlush(static_cast<T*>(r), s);\n  }\n\n  void* sink_;\n  void (*write_)(void*, string_view);\n}",
-  "id": "BLOCK-CPP-06403",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/extension.h",
-  "source_line": 39,
-  "validation_status": "validated"
-}

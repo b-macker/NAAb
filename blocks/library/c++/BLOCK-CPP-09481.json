@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/BitmaskEnum.h\"\n#include \"llvm/ADT/BitmaskEnum.h\"\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09481_execute() {\n    {\n  return Dependence(D).type();\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-09481",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DependenceFlags.h",
-  "source_line": 284,
-  "validation_status": "validated"
-}

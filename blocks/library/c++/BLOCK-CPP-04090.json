@@ -1,8 +1,0 @@
-{
-  "code": "{\n#ifdef ABSL_INTERNAL_HAVE_SSSE3\n  uint64_t be = absl::big_endian::FromHost64(val);\n  const auto kNibbleMask = _mm_set1_epi8(0xf);\n  const auto kHexDigits = _mm_setr_epi8('0', '1', '2', '3', '4', '5', '6', '7',\n                                        '8', '9', 'a', 'b', 'c', 'd', 'e', 'f');\n  auto v = _mm_loadl_epi64(reinterpret_cast<__m128i*>(&be));  // load lo dword\n  auto v4 = _mm_srli_epi64(v, 4);                            // shift 4 right\n  auto il = _mm_unpacklo_epi8(v4, v);                        // interleave bytes\n  auto m = _mm_and_si128(il, kNibbleMask);                   // mask out nibbles\n  auto hexchars = _mm_shuffle_epi8(kHexDigits, m);           // hex chars\n  _mm_storeu_si128(reinterpret_cast<__m128i*>(out), hexchars);\n#else\n  for (int i = 0; i < 8; ++i) {\n    auto byte = (val >> (56 - 8 * i)) & 0xFF;\n    auto* hex = &absl::numbers_internal::kHexTable[byte * 2];\n    std::memcpy(out + 2 * i, hex, 2);\n  }\n#endif\n  // | 0x1 so that even 0 has 1 digit.\n  return 16 - static_cast<size_t>(countl_zero(val | 0x1) / 4);\n}",
-  "id": "BLOCK-CPP-04090",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/numbers.h",
-  "source_line": 396,
-  "validation_status": "validated"
-}

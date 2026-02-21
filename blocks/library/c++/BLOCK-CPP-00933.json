@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00933_execute() {\n    {\n    int id = base::next_arg_id();\n    if (id >= num_args_) this->on_error(\"argument not found\");\n    return id;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00933",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 745,
-  "validation_status": "validated"
-}

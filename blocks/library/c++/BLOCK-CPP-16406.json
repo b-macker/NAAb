@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/StringSwitch.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16406_execute() {\n    {\n  return llvm::StringSwitch<HeaderIncludeFormatKind>(Str)\n      .Case(\"textual\", HIFMT_Textual)\n      .Case(\"json\", HIFMT_JSON)\n      .Default(HIFMT_None);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16406",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/HeaderInclude.h",
-  "source_line": 29,
-  "validation_status": "validated"
-}

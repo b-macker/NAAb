@@ -1,8 +1,0 @@
-{
-  "code": "{\n  // Enter the CFG for Decl D, and perform any initial setup operations.\n  void enterCFG(CFG *Cfg, const NamedDecl *D, const CFGBlock *First) {}\n\n  // Enter a CFGBlock.\n  void enterCFGBlock(const CFGBlock *B) {}\n\n  // Returns true if this visitor implements handlePredecessor\n  bool visitPredecessors() { return true; }\n\n  // Process a predecessor edge.\n  void handlePredecessor(const CFGBlock *Pred) {}\n\n  // Process a successor back edge to a previously visited block.\n  void handlePredecessorBackEdge(const CFGBlock *Pred) {}\n\n  // Called just before processing statements.\n  void enterCFGBlockBody(const CFGBlock *B) {}\n\n  // Process an ordinary statement.\n  void handleStatement(const Stmt *S) {}\n\n  // Process a destructor call\n  void handleDestructorCall(const VarDecl *VD, const CXXDestructorDecl *DD) {}\n\n  // Called after all statements have been handled.\n  void exitCFGBlockBody(const CFGBlock *B) {}\n\n  // Return true\n  bool visitSuccessors() { return true; }\n\n  // Process a successor edge.\n  void handleSuccessor(const CFGBlock *Succ) {}\n\n  // Process a successor back edge to a previously visited block.\n  void handleSuccessorBackEdge(const CFGBlock *Succ) {}\n\n  // Leave a CFGBlock.\n  void exitCFGBlock(const CFGBlock *B) {}\n\n  // Leave the CFG, and perform any final cleanup operations.\n  void exitCFG(const CFGBlock *Last) {}\n}",
-  "id": "BLOCK-CPP-21457",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyCommon.h",
-  "source_line": 102,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <memory>\n\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18508_execute() {\n    {\n  TranslationUnitDecl *TUPart = nullptr;\n\n  /// The llvm IR produced for the input.\n  std::unique_ptr<llvm::Module> TheModule;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18508",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Interpreter/PartialTranslationUnit.h",
-  "source_line": 29,
-  "validation_status": "validated"
-}

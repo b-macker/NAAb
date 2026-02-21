@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Parse/ParseDiagnostic.h\"\n#include \"clang/Parse/Parser.h\"\n#include \"clang/Sema/DelayedDiagnostic.h\"\n#include \"clang/Sema/ParsedTemplate.h\"\n#include \"clang/Sema/Sema.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19385_execute() {\n    {\n      if (!P.Tok.is(Kind))\n        return true;\n\n      if (getDepth() < P.getLangOpts().BracketDepth) {\n        LOpen = (P.*Consumer)();\n        return false;\n      }\n\n      return diagnoseOverflow();\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19385",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
-  "source_line": 447,
-  "validation_status": "validated"
-}

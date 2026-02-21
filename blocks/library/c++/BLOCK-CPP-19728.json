@@ -1,8 +1,0 @@
-{
-  "code": "{\n    /// The access writes.\n    unsigned AccessWrites : 3;\n\n    void destroy() {}\n  }",
-  "id": "BLOCK-CPP-19728",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
-  "source_line": 1580,
-  "validation_status": "validated"
-}

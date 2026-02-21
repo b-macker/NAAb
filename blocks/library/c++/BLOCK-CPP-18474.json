@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Lex/MacroInfo.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/Support/DataTypes.h\"\n\nusing namespace clang;\nusing namespace index;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18474_execute() {\n    {\n  SymbolKind Kind;\n  SymbolSubKind SubKind;\n  SymbolLanguage Lang;\n  SymbolPropertySet Properties;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18474",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Index/IndexSymbol.h",
-  "source_line": 144,
-  "validation_status": "validated"
-}

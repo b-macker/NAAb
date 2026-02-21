@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03458_execute() {\n    { ... }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03458",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/thread_annotations.h",
-  "source_line": 138,
-  "validation_status": "validated"
-}

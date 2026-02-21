@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Field(SExpr *R, SExpr *B) : SExpr(COP_Field), Range(R), Body(B) {}\n  Field(const Field &C, SExpr *R, SExpr *B) // rewrite constructor\n      : SExpr(C), Range(R), Body(B) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Field; }\n\n  SExpr *range() { return Range; }\n  const SExpr *range() const { return Range; }\n\n  SExpr *body() { return Body; }\n  const SExpr *body() const { return Body; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Nr = Vs.traverse(Range, Vs.typeCtx(Ctx));\n    auto Nb = Vs.traverse(Body,  Vs.lazyCtx(Ctx));\n    return Vs.reduceField(*this, Nr, Nb);\n  }\n\n  template <class C>\n  typename C::CType compare(const Field* E, C& Cmp) const {\n    typename C::CType Ct = Cmp.compare(range(), E->range());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.compare(body(), E->body());\n  }\n\nprivate:\n  SExpr* Range;\n  SExpr* Body;\n}",
-  "id": "BLOCK-CPP-21656",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 809,
-  "validation_status": "validated"
-}

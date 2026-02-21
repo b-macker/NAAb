@@ -1,8 +1,0 @@
-{
-  "code": "using namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16095_execute() {\n    {\nclass StringRef;\nclass Twine;\nclass VersionTuple;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16095",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Cuda.h",
-  "source_line": 12,
-  "validation_status": "validated"
-}

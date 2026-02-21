@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-RB-00001_execute() {\n    def authenticate_user(email, password)\n  user = User.find_by(email: email)\n  return nil unless user\n\n  user.authenticate(password) ? user : nil\nend\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-RB-00001",
-  "language": "ruby",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp03_vg_f2.rb",
-  "source_line": 35,
-  "validation_status": "validated"
-}

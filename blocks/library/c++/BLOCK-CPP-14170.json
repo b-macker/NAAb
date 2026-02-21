@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n/// Implement simplify_type for QualType, so that we can dyn_cast from QualType\n/// to a specific Type class.\ntemplate<> struct simplify_type< ::clang::QualType> {\n  using SimpleType = const ::clang::Type *;\n\n  static SimpleType getSimplifiedValue(::clang::QualType Val) {\n    return Val.getTypePtr();\n  }\n};\n\n// Teach SmallPtrSet that QualType is \"basically a pointer\".\ntemplate<>\nstruct PointerLikeTypeTraits<clang::QualType> {\n  static inline void *getAsVoidPointer(clang::QualType P) {\n    return P.getAsOpaquePtr();\n  }\n\n  static inline clang::QualType getFromVoidPointer(void *P) {\n    return clang::QualType::getFromOpaquePtr(P);\n  }\n\n  // Various qualifiers go in low bits.\n  static constexpr int NumLowBitsAvailable = 0;\n};\n\n}",
-  "id": "BLOCK-CPP-14170",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 1402,
-  "validation_status": "validated"
-}

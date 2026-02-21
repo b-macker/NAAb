@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00458_execute() {\n    class Or(BinExpr):\n    \"\"\"Short circuited OR.\"\"\"\n\n    operator = \"or\"\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        return self.left.as_const(eval_ctx) or self.right.as_const(eval_ctx)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00458",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 997,
-  "validation_status": "validated"
-}

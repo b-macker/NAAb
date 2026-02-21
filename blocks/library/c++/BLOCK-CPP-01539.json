@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>  // std::max\n#include <limits>     // std::numeric_limits\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01539_execute() {\n    {\n public:\n  template <typename T, FMT_ENABLE_IF(std::is_integral<T>::value)>\n  int operator()(T value) {\n    if (!int_checker<std::numeric_limits<T>::is_signed>::fits_in_int(value))\n      FMT_THROW(format_error(\"number is too big\"));\n    return (std::max)(static_cast<int>(value), 0);\n  }\n\n  template <typename T, FMT_ENABLE_IF(!std::is_integral<T>::value)>\n  int operator()(T) {\n    FMT_THROW(format_error(\"precision is not integer\"));\n    return 0;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01539",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
-  "source_line": 79,
-  "validation_status": "validated"
-}

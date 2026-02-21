@@ -1,8 +1,0 @@
-{
-  "code": "using namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00031_execute() {\n    {\nclass sink;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00031",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fwd.h",
-  "source_line": 10,
-  "validation_status": "validated"
-}

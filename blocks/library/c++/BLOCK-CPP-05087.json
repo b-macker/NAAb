@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  explicit CopyValueAdapter(ConstPointer<A> p) : ptr_(p) {}\n\n  void ConstructNext(A& allocator, Pointer<A> construct_at) {\n    AllocatorTraits<A>::construct(allocator, construct_at, *ptr_);\n  }\n\n  void AssignNext(Pointer<A> assign_at) { *assign_at = *ptr_; }\n\n private:\n  ConstPointer<A> ptr_;\n}",
-  "id": "BLOCK-CPP-05087",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/inlined_vector.h",
-  "source_line": 188,
-  "validation_status": "validated"
-}

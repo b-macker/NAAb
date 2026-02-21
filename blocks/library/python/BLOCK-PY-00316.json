@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00316_execute() {\n    def write(self, x: str) -> None:\n        \"\"\"Write a string into the output stream.\"\"\"\n        if self._new_lines:\n            if not self._first_write:\n                self.stream.write(\"\\n\" * self._new_lines)\n                self.code_lineno += self._new_lines\n                if self._write_debug_info is not None:\n                    self.debug_info.append((self._write_debug_info, self.code_lineno))\n                    self._write_debug_info = None\n            self._first_write = False\n            self.stream.write(\"    \" * self._indentation)\n            self._new_lines = 0\n        self.stream.write(x)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00316",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 451,
-  "validation_status": "validated"
-}

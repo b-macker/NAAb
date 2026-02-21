@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/internal/seed_material.h\"\n#include <fcntl.h>\n#include <unistd.h>\n#include <io.h>\n#include <algorithm>\n#include <cerrno>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/escaping.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include <nacl/nacl_random.h>\n#include <windows.h>\n#include <zircon/syscalls.h>\n#include <sys/random.h>\n#include <bcrypt.h>\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02845_execute() {\n    {\n  assert(values.data() != nullptr);\n  if (values.data() == nullptr) {\n    return false;\n  }\n  if (values.empty()) {\n    return true;\n  }\n  return ReadSeedMaterialFromOSEntropyImpl(values);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02845",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/seed_material.cc",
-  "source_line": 205,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/log/internal/log_sink_set.h\"\n#include \"absl/log/log_sink.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03675_execute() {\n    {\n  log_internal::RemoveLogSink(sink);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03675",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/log_sink_registry.h",
-  "source_line": 47,
-  "validation_status": "validated"
-}

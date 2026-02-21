@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  CFGBaseDtor(const CXXBaseSpecifier *base)\n      : CFGImplicitDtor(BaseDtor, base) {}\n\n  const CXXBaseSpecifier *getBaseSpecifier() const {\n    return static_cast<const CXXBaseSpecifier*>(Data1.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n\n  CFGBaseDtor() = default;\n\n  static bool isKind(const CFGElement &E) {\n    return E.getKind() == BaseDtor;\n  }\n}",
-  "id": "BLOCK-CPP-15560",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 440,
-  "validation_status": "validated"
-}

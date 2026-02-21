@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Sema/AttrParsedAttrList.inc\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15977_execute() {\n    { return AS_C2x; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15977",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AttributeCommonInfo.h",
-  "source_line": 107,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyTIL.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyUtil.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include <cstdint>\n#include <ostream>\n#include \"ThreadSafetyOps.def\"\n#include \"ThreadSafetyOps.def\"\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace til;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21698_execute() {\n    { return true; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21698",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTraverse.h",
-  "source_line": 198,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cassert>\n#include <cmath>\n#include <istream>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/numeric/bits.h\"\n#include \"absl/random/internal/fastmath.h\"\n#include \"absl/random/internal/generate_real.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n#include \"absl/random/internal/traits.h\"\n#include \"absl/random/uniform_int_distribution.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03863_execute() {\n    { return log_range_; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03863",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/log_uniform_int_distribution.h",
-  "source_line": 105,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/str_cat.h\"\n#include <assert.h>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <initializer_list>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02009_execute() {\n    {  // NOLINT\n  if (sizeof(i) <= sizeof(unsigned int)) {\n    return AppendIntegerToString(str, static_cast<unsigned int>(i));\n  } else {\n    return AppendIntegerToString(str,\n                                 static_cast<unsigned long long>(i));  // NOLINT\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02009",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_cat.cc",
-  "source_line": 185,
-  "validation_status": "validated"
-}

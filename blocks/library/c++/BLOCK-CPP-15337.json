@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15337_execute() {\n    {\n    switch (K) {\n    case Function:\n      if (E)\n        return cast<CallExpr>(E)->getCallReturnType(Ctx);\n      return cast<FunctionDecl>(D)->getReturnType();\n    case ObjCMethod:\n      if (E)\n        return cast<ObjCMessageExpr>(E)->getCallReturnType(Ctx);\n      return cast<ObjCMethodDecl>(D)->getReturnType();\n    case Block:\n      // FIXME: BlockDecl does not know its return type,\n      // hence the asymmetry with the function and method cases above.\n      return cast<CallExpr>(E)->getCallReturnType(Ctx);\n    case Destructor:\n    case Constructor:\n    case InheritedConstructor:\n    case Allocator:\n    case Deallocator:\n      return cast<FunctionDecl>(D)->getReturnType();\n    }\n    llvm_unreachable(\"Unknown AnyCall::Kind\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15337",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/AnyCall.h",
-  "source_line": 165,
-  "validation_status": "validated"
-}

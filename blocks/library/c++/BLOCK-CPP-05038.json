@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  explicit HashtablezInfoHandle() = default;\n  explicit HashtablezInfoHandle(std::nullptr_t) {}\n\n  inline void Unregister() {}\n  inline bool IsSampled() const { return false; }\n  inline void RecordStorageChanged(size_t /*size*/, size_t /*capacity*/) {}\n  inline void RecordRehash(size_t /*total_probe_length*/) {}\n  inline void RecordReservation(size_t /*target_capacity*/) {}\n  inline void RecordClearedReservation() {}\n  inline void RecordInsert(size_t /*hash*/, size_t /*distance_from_desired*/) {}\n  inline void RecordErase() {}\n\n  friend inline void swap(HashtablezInfoHandle& /*lhs*/,\n                          HashtablezInfoHandle& /*rhs*/) {}\n}",
-  "id": "BLOCK-CPP-05038",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/hashtablez_sampler.h",
-  "source_line": 184,
-  "validation_status": "validated"
-}

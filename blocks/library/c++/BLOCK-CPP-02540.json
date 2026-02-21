@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02540_execute() {\n    {\n  return ParseCharClass(state, \"OR\");\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02540",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
-  "source_line": 697,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  BlockContentComment(CommentKind K,\n                      SourceLocation LocBegin,\n                      SourceLocation LocEnd) :\n      Comment(K, LocBegin, LocEnd)\n  { }\n\npublic:\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() >= FirstBlockContentCommentConstant &&\n           C->getCommentKind() <= LastBlockContentCommentConstant;\n  }\n}",
-  "id": "BLOCK-CPP-07662",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
-  "source_line": 522,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00229_execute() {\n    def _extract_dependencies(self, code: str, platform: str) -> List[str]:\n        \"\"\"Extract DevOps dependencies from generated code\"\"\"\n        dependencies = [f\"{platform}-cli\"]\n        \n        # Add specific dependencies based on code content\n        if 'kubectl' in code.lower() or 'kubernetes' in code.lower():\n            dependencies.extend([\"kubectl\", \"kubernetes-tools\"])\n        if 'docker' in code.lower():\n            dependencies.append(\"docker\")\n        if 'terraform' in code.lower():\n            dependencies.append(\"terraform\")\n        if 'ansible' in code.lower():\n            dependencies.append(\"ansible\")\n        if 'helm' in code.lower():\n            dependencies.append(\"helm\")\n        if 'prometheus' in code.lower():\n            dependencies.append(\"prometheus\")\n        if 'grafana' in code.lower():\n            dependencies.append(\"grafana\")\n            \n        return list(set(dependencies))\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00229",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

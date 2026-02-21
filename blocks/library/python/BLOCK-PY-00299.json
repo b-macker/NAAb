@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00299_execute() {\n    def visit_Test(self, node: nodes.Test) -> None:\n        self.generic_visit(node)\n        self.tests.add(node.name)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00299",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 261,
-  "validation_status": "validated"
-}

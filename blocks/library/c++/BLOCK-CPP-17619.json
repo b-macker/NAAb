@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTImporterSharedState.h\"\n#include \"clang/Analysis/MacroExpansionContext.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/Path.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace cross_tu;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17619_execute() {\n    { return Count < Limit; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17619",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CrossTU/CrossTranslationUnit.h",
-  "source_line": 277,
-  "validation_status": "validated"
-}

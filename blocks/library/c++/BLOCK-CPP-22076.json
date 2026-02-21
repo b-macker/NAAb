@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22076_execute() {\n    {\n    for (T *I = E + D - 1, *IL = S + D - 1; I != IL; --I) {\n      --E;\n      new (I) T(*E);\n      E->~T();\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22076",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Support/BumpVector.h",
-  "source_line": 223,
-  "validation_status": "validated"
-}

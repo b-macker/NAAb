@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00350_execute() {\n    def visit_Macro(self, node: nodes.Macro, frame: Frame) -> None:\n        macro_frame, macro_ref = self.macro_body(node, frame)\n        self.newline()\n        if frame.toplevel:\n            if not node.name.startswith(\"_\"):\n                self.write(f\"context.exported_vars.add({node.name!r})\")\n            self.writeline(f\"context.vars[{node.name!r}] = \")\n        self.write(f\"{frame.symbols.ref(node.name)} = \")\n        self.macro_def(macro_ref, macro_frame)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00350",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1335,
-  "validation_status": "validated"
-}

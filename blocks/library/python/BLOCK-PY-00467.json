@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00467_execute() {\n    class MarkSafeIfAutoescape(Expr):\n    \"\"\"Mark the wrapped expression as safe (wrap it as `Markup`) but\n    only if autoescaping is active.\n\n    .. versionadded:: 2.5\n    \"\"\"\n\n    fields = (\"expr\",)\n    expr: Expr\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> Markup | t.Any:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        if eval_ctx.volatile:\n            raise Impossible()\n        expr = self.expr.as_const(eval_ctx)\n        if eval_ctx.autoescape:\n            return Markup(expr)\n        return expr\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00467",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 1090,
-  "validation_status": "validated"
-}

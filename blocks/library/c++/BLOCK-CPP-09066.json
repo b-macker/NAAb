@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-09066_execute() {\n    {\n\n/// ObjCPropertyAttribute::Kind - list of property attributes.\n/// Keep this list in sync with LLVM's Dwarf.h ApplePropertyAttributes.s\nnamespace ObjCPropertyAttribute {\nenum Kind {\n  kind_noattr = 0x00,\n  kind_readonly = 0x01,\n  kind_getter = 0x02,\n  kind_assign = 0x04,\n  kind_readwrite = 0x08,\n  kind_retain = 0x10,\n  kind_copy = 0x20,\n  kind_nonatomic = 0x40,\n  kind_setter = 0x80,\n  kind_atomic = 0x100,\n  kind_weak = 0x200,\n  kind_strong = 0x400,\n  kind_unsafe_unretained = 0x800,\n  /// Indicates that the nullability of the type was spelled with a\n  /// property attribute rather than a type qualifier.\n  kind_nullability = 0x1000,\n  kind_null_resettable = 0x2000,\n  kind_class = 0x4000,\n  kind_direct = 0x8000,\n  // Adding a property should change NumObjCPropertyAttrsBits\n  // Also, don't forget to update the Clang C API at CXObjCPropertyAttrKind and\n  // clang_Cursor_getObjCPropertyAttributes.\n};\n} // namespace ObjCPropertyAttribute::Kind\n\nenum {\n  /// Number of bits fitting all the property attributes.\n  NumObjCPropertyAttrsBits = 16\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-09066",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclObjCCommon.h",
-  "source_line": 17,
-  "validation_status": "validated"
-}

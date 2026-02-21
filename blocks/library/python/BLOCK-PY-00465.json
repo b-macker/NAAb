@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00465_execute() {\n    class InternalName(Expr):\n    \"\"\"An internal name in the compiler.  You cannot create these nodes\n    yourself but the parser provides a\n    :meth:`~jinja2.parser.Parser.free_identifier` method that creates\n    a new identifier for you.  This identifier is not available from the\n    template and is not treated specially by the compiler.\n    \"\"\"\n\n    fields = (\"name\",)\n    name: str\n\n    def __init__(self) -> None:\n        raise TypeError(\n            \"Can't create internal names.  Use the \"\n            \"`free_identifier` method on a parser.\"\n        )\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00465",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 1061,
-  "validation_status": "validated"
-}

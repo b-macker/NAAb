@@ -1,8 +1,0 @@
-{
-  "code": "#include <memory>\n#include <type_traits>\n#include \"absl/base/attributes.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace nullability_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04698_execute() {\n    {\n  static_assert(nullability_internal::IsSupportedType<std::remove_cv_t<T>>,\n                \"Template argument must be a raw or supported smart pointer \"\n                \"type. See absl/base/nullability.h.\");\n  using type = T;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04698",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/nullability_impl.h",
-  "source_line": 54,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04708_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace base_internal {\n\nclass ScopedSetEnv {\n public:\n  ScopedSetEnv(const char* var_name, const char* new_value);\n  ~ScopedSetEnv();\n\n private:\n  std::string var_name_;\n  std::string old_value_;\n\n  // True if the environment variable was initially not set.\n  bool was_unset_;\n};\n\n}  // namespace base_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04708",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/scoped_set_env.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

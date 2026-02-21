@@ -1,8 +1,0 @@
-{
-  "code": "{\n  size_t escaped_len = CEscapedLength(src);\n  if (escaped_len == src.size()) {\n    dest->append(src.data(), src.size());\n    return;\n  }\n\n  size_t cur_dest_len = dest->size();\n  strings_internal::STLStringResizeUninitialized(dest,\n                                                 cur_dest_len + escaped_len);\n  char* append_ptr = &(*dest)[cur_dest_len];\n\n  for (char c : src) {\n    size_t char_len = c_escaped_len[static_cast<unsigned char>(c)];\n    if (char_len == 1) {\n      *append_ptr++ = c;\n    } else if (char_len == 2) {\n      switch (c) {\n        case '\\n':\n          *append_ptr++ = '\\\\';\n          *append_ptr++ = 'n';\n          break;\n        case '\\r':\n          *append_ptr++ = '\\\\';\n          *append_ptr++ = 'r';\n          break;\n        case '\\t':\n          *append_ptr++ = '\\\\';\n          *append_ptr++ = 't';\n          break;\n        case '\\\"':\n          *append_ptr++ = '\\\\';\n          *append_ptr++ = '\\\"';\n          break;\n        case '\\'':\n          *append_ptr++ = '\\\\';\n          *append_ptr++ = '\\'';\n          break;\n        case '\\\\':\n          *append_ptr++ = '\\\\';\n          *append_ptr++ = '\\\\';\n          break;\n      }\n    } else {\n      *append_ptr++ = '\\\\';\n      *append_ptr++ = '0' + static_cast<unsigned char>(c) / 64;\n      *append_ptr++ = '0' + (static_cast<unsigned char>(c) % 64) / 8;\n      *append_ptr++ = '0' + static_cast<unsigned char>(c) % 8;\n    }\n  }\n}",
-  "id": "BLOCK-CPP-01919",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/escaping.cc",
-  "source_line": 395,
-  "validation_status": "validated"
-}

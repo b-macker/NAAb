@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/APFixedPoint.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/APSInt.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/Support/AlignOf.h\"\n\nusing namespace clang;\nusing namespace serialization;\nusing namespace serialization;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22650_execute() {\n    {\n      unsigned CallIndex, Version;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22650",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/APValue.h",
-  "source_line": 191,
-  "validation_status": "validated"
-}

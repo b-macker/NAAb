@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00423_execute() {\n    class Assign(Stmt):\n    \"\"\"Assigns an expression to a target.\"\"\"\n\n    fields = (\"target\", \"node\")\n    target: \"Expr\"\n    node: Node\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00423",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 450,
-  "validation_status": "validated"
-}

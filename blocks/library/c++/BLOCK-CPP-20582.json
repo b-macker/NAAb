@@ -1,8 +1,0 @@
-{
-  "code": "{\n    ProcessDeclAttributeOptions()\n        : IncludeCXX11Attributes(true), IgnoreTypeAttributes(false) {}\n\n    ProcessDeclAttributeOptions WithIncludeCXX11Attributes(bool Val) {\n      ProcessDeclAttributeOptions Result = *this;\n      Result.IncludeCXX11Attributes = Val;\n      return Result;\n    }\n\n    ProcessDeclAttributeOptions WithIgnoreTypeAttributes(bool Val) {\n      ProcessDeclAttributeOptions Result = *this;\n      Result.IgnoreTypeAttributes = Val;\n      return Result;\n    }\n\n    // Should C++11 attributes be processed?\n    bool IncludeCXX11Attributes;\n\n    // Should any type attributes encountered be ignored?\n    // If this option is false, a diagnostic will be emitted for any type\n    // attributes of a kind that does not \"slide\" from the declaration to\n    // the decl-specifier-seq.\n    bool IgnoreTypeAttributes;\n  }",
-  "id": "BLOCK-CPP-20582",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Sema.h",
-  "source_line": 4691,
-  "validation_status": "validated"
-}

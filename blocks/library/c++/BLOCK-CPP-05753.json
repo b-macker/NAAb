@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdlib>\n#include <unistd.h>\n#include <ios>\n#include <ostream>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05753_execute() {\n    {\n public:\n  NullStream& AtLocation(absl::string_view, int) { return *this; }\n  template <typename SourceLocationType>\n  NullStream& AtLocation(SourceLocationType) {\n    return *this;\n  }\n  NullStream& NoPrefix() { return *this; }\n  NullStream& WithVerbosity(int) { return *this; }\n  template <typename TimeType>\n  NullStream& WithTimestamp(TimeType) {\n    return *this;\n  }\n  template <typename Tid>\n  NullStream& WithThreadID(Tid) {\n    return *this;\n  }\n  template <typename LogEntryType>\n  NullStream& WithMetadataFrom(const LogEntryType&) {\n    return *this;\n  }\n  NullStream& WithPerror() { return *this; }\n  template <typename LogSinkType>\n  NullStream& ToSinkAlso(LogSinkType*) {\n    return *this;\n  }\n  template <typename LogSinkType>\n  NullStream& ToSinkOnly(LogSinkType*) {\n    return *this;\n  }\n  template <typename LogSinkType>\n  NullStream& OutputToSink(LogSinkType*, bool) {\n    return *this;\n  }\n  NullStream& InternalStream() { return *this; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05753",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/nullstream.h",
-  "source_line": 47,
-  "validation_status": "validated"
-}

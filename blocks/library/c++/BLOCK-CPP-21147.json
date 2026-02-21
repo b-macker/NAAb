@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Tooling/CompilationDatabase.h\"\n#include \"llvm/Support/Registry.h\"\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21147_execute() {\n    {\npublic:\n  virtual ~CompilationDatabasePlugin();\n\n  /// Loads a compilation database from a build directory.\n  ///\n  /// \\see CompilationDatabase::loadFromDirectory().\n  virtual std::unique_ptr<CompilationDatabase>\n  loadFromDirectory(StringRef Directory, std::string &ErrorMessage) = 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21147",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/CompilationDatabasePluginRegistry.h",
-  "source_line": 28,
-  "validation_status": "validated"
-}

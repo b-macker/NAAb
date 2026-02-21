@@ -1,8 +1,0 @@
-{
-  "code": "#include <functional>  // std::reference_wrapper\n#include <memory>      // std::unique_ptr\n#include <vector>\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00522_execute() {\n    {\n    data_.emplace_back(detail::make_arg<Context>(arg));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00522",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/args.h",
-  "source_line": 124,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/internal/randen_hwaes.h\"\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/platform.h\"\n#include \"absl/random/internal/randen_traits.h\"\n#include <cstdio>\n#include <cstdlib>\n#include <altivec.h>\n#include <arm_neon.h>\n#include <immintrin.h>\n\nusing namespace absl;\nusing namespace random_internal;\nusing namespace random_internal;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02812_execute() {\n    {\n  // It is important to always use the full round function - omitting the\n  // final MixColumns reduces security [https://eprint.iacr.org/2010/041.pdf]\n  // and does not help because we never decrypt.\n  return Vector128(_mm_aesenc_si128(state.data(), round_key.data()));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02812",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_hwaes.cc",
-  "source_line": 246,
-  "validation_status": "validated"
-}

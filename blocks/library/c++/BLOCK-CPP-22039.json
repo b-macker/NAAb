@@ -1,8 +1,0 @@
-{
-  "code": "{\n  const Formula *F;\n\npublic:\n  explicit BoolValue(Kind ValueKind, const Formula &F)\n      : Value(ValueKind), F(&F) {}\n\n  static bool classof(const Value *Val) {\n    return Val->getKind() == Kind::TopBool ||\n           Val->getKind() == Kind::AtomicBool ||\n           Val->getKind() == Kind::FormulaBool;\n  }\n\n  const Formula &formula() const { return *F; }\n}",
-  "id": "BLOCK-CPP-22039",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Value.h",
-  "source_line": 93,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n    using DerivedType = typename VType::Variant;\n    template <std::size_t NewIndex>\n    void operator()(SizeT<NewIndex> /*new_i*/) const {\n      using New =\n          typename absl::variant_alternative<NewIndex, DerivedType>::type;\n\n      if (left->index_ == NewIndex) {\n        Access<NewIndex>(*left) = Access<NewIndex>(*right);\n      } else if (std::is_nothrow_copy_constructible<New>::value ||\n                 !std::is_nothrow_move_constructible<New>::value) {\n        Derived(*left).template emplace<NewIndex>(Access<NewIndex>(*right));\n      } else {\n        Derived(*left) = DerivedType(Derived(*right));\n      }\n    }\n\n    void operator()(SizeT<absl::variant_npos> /*new_i*/) const {\n      Destroy(*left);\n    }\n\n    VType* left;\n    const VType* right;\n  }",
-  "id": "BLOCK-CPP-06694",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/variant.h",
-  "source_line": 647,
-  "validation_status": "validated"
-}

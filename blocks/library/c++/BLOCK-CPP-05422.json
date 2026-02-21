@@ -1,8 +1,0 @@
-{
-  "code": "#include <atomic>\n#include <cstddef>\n#include <deque>\n#include \"absl/base/config.h\"\n#include \"absl/crc/crc32c.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05422_execute() {\n    {\n    // `removed_prefix` is the crc and length of any prefix that has been\n    // removed from the Cord (for example, by calling\n    // `CrcCord::RemovePrefix()`). To get the checksum of any prefix of the\n    // cord, this value must be subtracted from `prefix_crc`. See `Checksum()`\n    // for an example.\n    //\n    // CrcCordState is said to be \"normalized\" if removed_prefix.length == 0.\n    PrefixCrc removed_prefix;\n\n    // A deque of (length, crc) pairs, representing length and crc of a prefix\n    // of the Cord, before removed_prefix has been subtracted. The lengths of\n    // the prefixes are stored in increasing order. If the Cord is not empty,\n    // the last value in deque is the contains the CRC32C of the entire Cord\n    // when removed_prefix is subtracted from it.\n    std::deque<PrefixCrc> prefix_crc;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05422",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_cord_state.h",
-  "source_line": 71,
-  "validation_status": "validated"
-}

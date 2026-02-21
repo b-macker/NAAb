@@ -1,8 +1,0 @@
-{
-  "code": "using namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17827_execute() {\n    {\nnamespace opt {\nclass OptTable;\n}\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17827",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Options.h",
-  "source_line": 12,
-  "validation_status": "validated"
-}

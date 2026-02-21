@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00492_execute() {\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        \"\"\"Return the value of the expression as constant or raise\n        :exc:`Impossible` if this was not possible.\n\n        An :class:`EvalContext` can be provided, if none is given\n        a default context is created which requires the nodes to have\n        an attached environment.\n\n        .. versionchanged:: 2.4\n           the `eval_ctx` parameter was added.\n        \"\"\"\n        raise Impossible()\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00492",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 472,
-  "validation_status": "validated"
-}

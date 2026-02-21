@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/Alignment.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/MathExtras.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07543_execute() {\n    {\n        assert(Quantity != 0 && \"offsetting from unknown alignment?\");\n        return CharUnits(llvm::MinAlign(Quantity, offset.Quantity));\n      }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07543",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CharUnits.h",
-  "source_line": 207,
-  "validation_status": "validated"
-}

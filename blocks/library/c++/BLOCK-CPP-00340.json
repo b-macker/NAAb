@@ -1,8 +1,0 @@
-{
-  "code": "#include <arpa/inet.h>\n#include <cstring>\n#include <netdb.h>\n#include <netinet/in.h>\n#include <netinet/udp.h>\n#include <spdlog/common.h>\n#include <spdlog/details/os.h>\n#include <sys/socket.h>\n#include <unistd.h>\n#include <string>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00340_execute() {\n    {\n        socket_ = ::socket(PF_INET, SOCK_DGRAM, 0);\n        if (socket_ < 0) {\n            throw_spdlog_ex(\"error: Create Socket Failed!\");\n        }\n\n        int option_value = TX_BUFFER_SIZE;\n        if (::setsockopt(socket_, SOL_SOCKET, SO_SNDBUF,\n                         reinterpret_cast<const char *>(&option_value), sizeof(option_value)) < 0) {\n            cleanup_();\n            throw_spdlog_ex(\"error: setsockopt(SO_SNDBUF) Failed!\");\n        }\n\n        sockAddr_.sin_family = AF_INET;\n        sockAddr_.sin_port = htons(port);\n\n        if (::inet_aton(host.c_str(), &sockAddr_.sin_addr) == 0) {\n            cleanup_();\n            throw_spdlog_ex(\"error: Invalid address!\");\n        }\n\n        ::memset(sockAddr_.sin_zero, 0x00, sizeof(sockAddr_.sin_zero));\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00340",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/udp_client.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

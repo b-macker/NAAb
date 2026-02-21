@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/log/log_entry.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01787_execute() {\n    {\nextern const char kAvoidEmptyLogEntryLibraryWarning;\nconst char kAvoidEmptyLogEntryLibraryWarning = 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01787",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/log_entry.cc",
-  "source_line": 34,
-  "validation_status": "validated"
-}

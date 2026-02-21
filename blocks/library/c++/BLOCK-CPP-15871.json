@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  StmtPoint(const Stmt *S, const void *p2, Kind k, const LocationContext *L,\n            const ProgramPointTag *tag)\n    : ProgramPoint(S, p2, k, L, tag) {\n    assert(S);\n  }\n\n  const Stmt *getStmt() const { return (const Stmt*) getData1(); }\n\n  template <typename T>\n  const T* getStmtAs() const { return dyn_cast<T>(getStmt()); }\n\nprotected:\n  StmtPoint() = default;\nprivate:\n  friend class ProgramPoint;\n  static bool isKind(const ProgramPoint &Location) {\n    unsigned k = Location.getKind();\n    return k >= PreStmtKind && k <= MaxPostStmtKind;\n  }\n}",
-  "id": "BLOCK-CPP-15871",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 266,
-  "validation_status": "validated"
-}

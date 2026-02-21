@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjCCommon.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/Basic/ExceptionSpecificationType.h\"\n#include \"clang/Basic/Lambda.h\"\n#include \"clang/Basic/OperatorKinds.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Lex/Token.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"clang/Sema/ParsedAttr.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"clang/Basic/TransformTypeTraits.def\"\n#include \"clang/Basic/OpenCLImageTypes.def\"\n#include \"clang/Basic/TransformTypeTraits.def\"\n\nusing namespace clang;\nusing namespace name;\nusing namespace alias;\nusing namespace alias;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19709_execute() {\n    {\n  /// An identifier.\n  IK_Identifier,\n  /// An overloaded operator name, e.g., operator+.\n  IK_OperatorFunctionId,\n  /// A conversion function name, e.g., operator int.\n  IK_ConversionFunctionId,\n  /// A user-defined literal name, e.g., operator \"\" _i.\n  IK_LiteralOperatorId,\n  /// A constructor name.\n  IK_ConstructorName,\n  /// A constructor named via a template-id.\n  IK_ConstructorTemplateId,\n  /// A destructor name.\n  IK_DestructorName,\n  /// A template-id, e.g., f<int>.\n  IK_TemplateId,\n  /// An implicit 'self' parameter\n  IK_ImplicitSelfParam,\n  /// A deduction-guide name (a template-name)\n  IK_DeductionGuideName\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19709",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
-  "source_line": 965,
-  "validation_status": "validated"
-}

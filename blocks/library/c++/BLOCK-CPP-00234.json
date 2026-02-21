@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/details/log_msg.h>\n#include <spdlog/details/os.h>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00234_execute() {\n    {\n\nSPDLOG_INLINE log_msg::log_msg(spdlog::log_clock::time_point log_time,\n                               spdlog::source_loc loc,\n                               string_view_t a_logger_name,\n                               spdlog::level::level_enum lvl,\n                               spdlog::string_view_t msg)\n    : logger_name(a_logger_name),\n      level(lvl),\n      time(log_time)\n#ifndef SPDLOG_NO_THREAD_ID\n      ,\n      thread_id(os::thread_id())\n#endif\n      ,\n      source(loc),\n      payload(msg) {\n}\n\nSPDLOG_INLINE log_msg::log_msg(spdlog::source_loc loc,\n                               string_view_t a_logger_name,\n                               spdlog::level::level_enum lvl,\n                               spdlog::string_view_t msg)\n    : log_msg(os::now(), loc, a_logger_name, lvl, msg) {}\n\nSPDLOG_INLINE log_msg::log_msg(string_view_t a_logger_name,\n                               spdlog::level::level_enum lvl,\n                               spdlog::string_view_t msg)\n    : log_msg(os::now(), source_loc{}, a_logger_name, lvl, msg) {}\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00234",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/log_msg-inl.h",
-  "source_line": 13,
-  "validation_status": "validated"
-}

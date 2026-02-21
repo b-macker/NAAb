@@ -1,8 +1,0 @@
-{
-  "code": "{\n  void push_front(char c) {\n    assert(begin > data);\n    *--begin = c;\n  }\n  void push_back(char c) {\n    assert(end < data + sizeof(data));\n    *end++ = c;\n  }\n  void pop_back() {\n    assert(begin < end);\n    --end;\n  }\n\n  char &back() const {\n    assert(begin < end);\n    return end[-1];\n  }\n\n  char last_digit() const { return end[-1] == '.' ? end[-2] : end[-1]; }\n\n  size_t size() const { return static_cast<size_t>(end - begin); }\n\n  char data[kBufferLength];\n  char *begin;\n  char *end;\n}",
-  "id": "BLOCK-CPP-03108",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
-  "source_line": 1004,
-  "validation_status": "validated"
-}

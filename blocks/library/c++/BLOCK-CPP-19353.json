@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Availability.h\"\n#include \"clang/Basic/BitmaskEnum.h\"\n#include \"clang/Basic/OpenMPKinds.h\"\n#include \"clang/Basic/OperatorPrecedence.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Lex/CodeCompletionHandler.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"clang/Sema/DeclSpec.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Frontend/OpenMP/OMPContext.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/PrettyStackTrace.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n#include <memory>\n#include <optional>\n#include <stack>\n\nusing namespace clang;\nusing namespace declaration;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19353_execute() {\n    {\n    unsigned Qualifiers = AQ_unspecified;\n\n  public:\n    enum AQ {\n      AQ_unspecified = 0,\n      AQ_volatile    = 1,\n      AQ_inline      = 2,\n      AQ_goto        = 4,\n    };\n    static const char *getQualifierName(AQ Qualifier);\n    bool setAsmQualifier(AQ Qualifier);\n    inline bool isVolatile() const { return Qualifiers & AQ_volatile; };\n    inline bool isInline() const { return Qualifiers & AQ_inline; };\n    inline bool isGoto() const { return Qualifiers & AQ_goto; }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19353",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
-  "source_line": 3634,
-  "validation_status": "validated"
-}

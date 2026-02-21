@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15330_execute() {\n    {\n    if (const auto *ME = dyn_cast<ObjCMessageExpr>(E)) {\n      return AnyCall(ME);\n    } else if (const auto *CE = dyn_cast<CallExpr>(E)) {\n      return AnyCall(CE);\n    } else if (const auto *CXNE = dyn_cast<CXXNewExpr>(E)) {\n      return AnyCall(CXNE);\n    } else if (const auto *CXDE = dyn_cast<CXXDeleteExpr>(E)) {\n      return AnyCall(CXDE);\n    } else if (const auto *CXCE = dyn_cast<CXXConstructExpr>(E)) {\n      return AnyCall(CXCE);\n    } else if (const auto *CXCIE = dyn_cast<CXXInheritedCtorInitExpr>(E)) {\n      return AnyCall(CXCIE);\n    } else {\n      return std::nullopt;\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15330",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/AnyCall.h",
-  "source_line": 113,
-  "validation_status": "validated"
-}

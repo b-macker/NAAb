@@ -1,8 +1,0 @@
-{
-  "code": "{\n  Stmt *SubExpr = nullptr;\n\n  CXXStdInitializerListExpr(EmptyShell Empty)\n      : Expr(CXXStdInitializerListExprClass, Empty) {}\n\npublic:\n  friend class ASTReader;\n  friend class ASTStmtReader;\n\n  CXXStdInitializerListExpr(QualType Ty, Expr *SubExpr)\n      : Expr(CXXStdInitializerListExprClass, Ty, VK_PRValue, OK_Ordinary),\n        SubExpr(SubExpr) {\n    setDependence(computeDependence(this));\n  }\n\n  Expr *getSubExpr() { return static_cast<Expr*>(SubExpr); }\n  const Expr *getSubExpr() const { return static_cast<const Expr*>(SubExpr); }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY {\n    return SubExpr->getBeginLoc();\n  }\n\n  SourceLocation getEndLoc() const LLVM_READONLY {\n    return SubExpr->getEndLoc();\n  }\n\n  /// Retrieve the source range of the expression.\n  SourceRange getSourceRange() const LLVM_READONLY {\n    return SubExpr->getSourceRange();\n  }\n\n  static bool classof(const Stmt *S) {\n    return S->getStmtClass() == CXXStdInitializerListExprClass;\n  }\n\n  child_range children() { return child_range(&SubExpr, &SubExpr + 1); }\n\n  const_child_range children() const {\n    return const_child_range(&SubExpr, &SubExpr + 1);\n  }\n}",
-  "id": "BLOCK-CPP-10777",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
-  "source_line": 797,
-  "validation_status": "validated"
-}

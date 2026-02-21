@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00143_execute() {\n    def _generate_tests(self, request, code: str) -> str:\n        \"\"\"Generate Jest tests for JavaScript code\"\"\"\n        return f'''\n// Jest tests for {request.message}\nimport {{ describe, test, expect, beforeEach, afterEach }} from '@jest/globals';\n\ndescribe('{request.message}', () => {{\n    beforeEach(() => {{\n        // Setup before each test\n    }});\n    \n    afterEach(() => {{\n        // Cleanup after each test\n    }});\n    \n    test('should implement basic functionality', () => {{\n        // Test implementation\n        expect(true).toBe(true);\n    }});\n    \n    test('should handle edge cases', () => {{\n        // Test edge cases\n        expect(true).toBe(true);\n    }});\n    \n    test('should handle errors gracefully', () => {{\n        // Test error handling\n        expect(true).toBe(true);\n    }});\n}});\n'''\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00143",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/javascript_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

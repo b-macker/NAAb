@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00456_execute() {\n    class Pow(BinExpr):\n    \"\"\"Left to the power of right.\"\"\"\n\n    operator = \"**\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00456",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 981,
-  "validation_status": "validated"
-}

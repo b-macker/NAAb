@@ -1,8 +1,0 @@
-{
-  "code": "{\n  const DeclStmt *DS;\n\nprotected:\n  VariableConstructionContext(ConstructionContext::Kind K, const DeclStmt *DS)\n      : ConstructionContext(K), DS(DS) {\n    assert(classof(this));\n    assert(DS);\n  }\n\npublic:\n  const DeclStmt *getDeclStmt() const { return DS; }\n\n  const ArrayInitLoopExpr *getArrayInitLoop() const override {\n    const auto *Var = cast<VarDecl>(DS->getSingleDecl());\n\n    return dyn_cast<ArrayInitLoopExpr>(Var->getInit());\n  }\n\n  static bool classof(const ConstructionContext *CC) {\n    return CC->getKind() >= VARIABLE_BEGIN &&\n           CC->getKind() <= VARIABLE_END;\n  }\n}",
-  "id": "BLOCK-CPP-15682",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 316,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/internal/randen_hwaes.h\"\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/platform.h\"\n#include \"absl/random/internal/randen_traits.h\"\n#include <cstdio>\n#include <cstdlib>\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02798_execute() {\n    { return false; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02798",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen_hwaes.cc",
-  "source_line": 54,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"llvm/ADT/StringMap.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16685_execute() {\n    {\n  switch (OpenCLVersion) {\n  default:\n    llvm_unreachable(\"Unknown OpenCL version code\");\n  case 100:\n    return OCL_C_10;\n  case 110:\n    return OCL_C_11;\n  case 120:\n    return OCL_C_12;\n  case 200:\n    return OCL_C_20;\n  case 300:\n    return OCL_C_30;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16685",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/OpenCLOptions.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

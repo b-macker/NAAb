@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstddef>\n#include <functional>\n#include <queue>\n#include <thread>  // NOLINT(build/c++11)\n#include <utility>\n#include <vector>\n#include \"absl/base/thread_annotations.h\"\n#include \"absl/functional/any_invocable.h\"\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06480_execute() {\n    {\n    while (true) {\n      absl::AnyInvocable<void()> func;\n      {\n        absl::MutexLock l(&mu_);\n        mu_.Await(absl::Condition(this, &ThreadPool::WorkAvailable));\n        func = std::move(queue_.front());\n        queue_.pop();\n      }\n      if (func == nullptr) {  // Shutdown signal.\n        break;\n      }\n      func();\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06480",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/thread_pool.h",
-  "source_line": 71,
-  "validation_status": "validated"
-}

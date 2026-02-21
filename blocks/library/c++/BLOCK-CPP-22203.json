@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SValVisitor.h\"\n#include \"llvm/ADT/StringExtras.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22203_execute() {\n    {\n    const MemRegion *R = S->getRegion();\n    // Special handling for argument values.\n    if (auto V = dyn_cast<VarRegion>(R))\n      if (auto D = dyn_cast<ParmVarDecl>(V->getDecl()))\n        return \"argument '\" + D->getQualifiedNameAsString() + \"'\";\n    return \"initial value of \" + Visit(R);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22203",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/SValExplainer.h",
-  "source_line": 104,
-  "validation_status": "validated"
-}

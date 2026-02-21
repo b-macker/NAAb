@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cstddef>\n#include <cstdlib>\n#include <cstring>\n#include <initializer_list>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n#include <utility>\n#include \"absl/algorithm/algorithm.h\"\n#include \"absl/base/internal/throw_delegate.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"\n#include \"absl/container/internal/inlined_vector.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03526_execute() {\n    {\n    // Fast path: if the other vector is empty, there's nothing for us to do.\n    if (other.empty()) {\n      return;\n    }\n\n    // Fast path: if the value type is trivially copy constructible, we know the\n    // allocator doesn't do anything fancy, and there is nothing on the heap\n    // then we know it is legal for us to simply memcpy the other vector's\n    // inlined bytes to form our copy of its elements.\n    if (absl::is_trivially_copy_constructible<value_type>::value &&\n        std::is_same<A, std::allocator<value_type>>::value &&\n        !other.storage_.GetIsAllocated()) {\n      storage_.MemcpyFrom(other.storage_);\n      return;\n    }\n\n    storage_.InitFrom(other.storage_);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03526",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/inlined_vector.h",
-  "source_line": 182,
-  "validation_status": "validated"
-}

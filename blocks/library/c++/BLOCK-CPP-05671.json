@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  PiecewiseCombiner() : position_(0) {}\n  PiecewiseCombiner(const PiecewiseCombiner&) = delete;\n  PiecewiseCombiner& operator=(const PiecewiseCombiner&) = delete;\n\n  // PiecewiseCombiner::add_buffer()\n  //\n  // Appends the given range of bytes to the sequence to be hashed, which may\n  // modify the provided hash state.\n  template <typename H>\n  H add_buffer(H state, const unsigned char* data, size_t size);\n  template <typename H>\n  H add_buffer(H state, const char* data, size_t size) {\n    return add_buffer(std::move(state),\n                      reinterpret_cast<const unsigned char*>(data), size);\n  }\n\n  // PiecewiseCombiner::finalize()\n  //\n  // Finishes combining the hash sequence, which may may modify the provided\n  // hash state.\n  //\n  // Once finalize() is called, add_buffer() may no longer be called. The\n  // resulting hash state will be the same as if the pieces passed to\n  // add_buffer() were concatenated into a single flat buffer, and then provided\n  // to H::combine_contiguous().\n  template <typename H>\n  H finalize(H state);\n\n private:\n  unsigned char buf_[PiecewiseChunkSize()];\n  size_t position_;\n}",
-  "id": "BLOCK-CPP-05671",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/hash.h",
-  "source_line": 104,
-  "validation_status": "validated"
-}

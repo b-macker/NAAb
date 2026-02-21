@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00256_execute() {\n    class Index(slice):\n    \"\"\"Deprecated AST node class. Use the index value directly instead.\"\"\"\n    def __new__(cls, value, **kwargs):\n        return value\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00256",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
-  "source_line": 594,
-  "validation_status": "validated"
-}

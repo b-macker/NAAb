@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00007_execute() {\n    class Database:\n    \"\"\"Simple in-memory database\"\"\"\n\n    def __init__(self):\n        self.users: Dict[int, User] = {}\n        self.next_id = 1\n\n    def create_user(self, name: str, email: str) -> User:\n        \"\"\"Create a new user\"\"\"\n        user = User(id=self.next_id, name=name, email=email)\n        self.users[self.next_id] = user\n        self.next_id += 1\n        return user\n\n    def get_user(self, user_id: int) -> User:\n        \"\"\"Get user by ID\"\"\"\n        if user_id not in self.users:\n            raise HTTPException(status_code=404, detail=\"User not found\")\n        return self.users[user_id]\n\n    def list_users(self) -> List[User]:\n        \"\"\"List all users\"\"\"\n        return list(self.users.values())\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00007",
-  "language": "python",
-  "source_file": "test_sample_api.py",
-  "source_line": 16,
-  "validation_status": "validated"
-}

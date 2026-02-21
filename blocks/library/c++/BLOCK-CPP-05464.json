@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <cstdint>\n#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n#include <elf.h>\n#include <link.h>  // For ElfW() macro.\n#include <functional>\n#include <string>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05464_execute() {\n    {\n\n// Iterates over all sections, invoking callback on each with the section name\n// and the section header.\n//\n// Returns true on success; otherwise returns false in case of errors.\n//\n// This is not async-signal-safe.\nbool ForEachSection(int fd,\n                    const std::function<bool(absl::string_view name,\n                                             const ElfW(Shdr) &)>& callback);\n\n// Gets the section header for the given name, if it exists. Returns true on\n// success. Otherwise, returns false.\nbool GetSectionHeaderByName(int fd, const char *name, size_t name_len,\n                            ElfW(Shdr) *out);\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05464",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/symbolize.h",
-  "source_line": 42,
-  "validation_status": "validated"
-}

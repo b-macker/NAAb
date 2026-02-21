@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00346_execute() {\n    def visit_Import(self, node: nodes.Import, frame: Frame) -> None:\n        \"\"\"Visit regular imports.\"\"\"\n        self.writeline(f\"{frame.symbols.ref(node.target)} = \", node)\n        if frame.toplevel:\n            self.write(f\"context.vars[{node.target!r}] = \")\n\n        self._import_common(node, frame)\n\n        if frame.toplevel and not node.target.startswith(\"_\"):\n            self.writeline(f\"context.exported_vars.discard({node.target!r})\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00346",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1109,
-  "validation_status": "validated"
-}

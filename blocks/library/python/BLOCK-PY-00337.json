@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00337_execute() {\n    def derive_context(self, frame: Frame) -> str:\n        return f\"{self.get_context_ref()}.derived({self.dump_local_context(frame)})\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00337",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 767,
-  "validation_status": "validated"
-}

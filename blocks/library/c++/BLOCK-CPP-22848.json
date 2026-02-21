@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTImportError.h\"\n#include \"clang/AST/ASTImporterLookupTable.h\"\n#include \"clang/AST/Decl.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22848_execute() {\n    { NewDecls.insert(ToD); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22848",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTImporterSharedState.h",
-  "source_line": 83,
-  "validation_status": "validated"
-}

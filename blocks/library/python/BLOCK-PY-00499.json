@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00499_execute() {\n    def from_untrusted(\n        cls,\n        value: t.Any,\n        lineno: int | None = None,\n        environment: \"Environment | None\" = None,\n    ) -> \"Const\":\n        \"\"\"Return a const object if the value is representable as\n        constant value in the generated code, otherwise it will raise\n        an `Impossible` exception.\n        \"\"\"\n        from .compiler import has_safe_repr\n\n        if not has_safe_repr(value):\n            raise Impossible()\n        return cls(value, lineno=lineno, environment=environment)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00499",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 591,
-  "validation_status": "validated"
-}

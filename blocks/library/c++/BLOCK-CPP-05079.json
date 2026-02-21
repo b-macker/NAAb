@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <limits>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/container/internal/compressed_tuple.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace inlined_vector_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05079_execute() {\n    {\n    GetSizeAndIsAllocated() += count << static_cast<SizeType<A>>(1);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05079",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/inlined_vector.h",
-  "source_line": 488,
-  "validation_status": "validated"
-}

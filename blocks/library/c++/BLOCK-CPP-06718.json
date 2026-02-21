@@ -1,8 +1,0 @@
-{
-  "code": "#include <tuple>\n#include <utility>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace utility_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06718_execute() {\n    {\n  return std::get<condition>(std::forward_as_tuple(\n      std::forward<FalseFunc>(false_func), std::forward<TrueFunc>(true_func)))(\n      std::forward<Args>(args)...);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06718",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/utility/internal/if_constexpr.h",
-  "source_line": 50,
-  "validation_status": "validated"
-}

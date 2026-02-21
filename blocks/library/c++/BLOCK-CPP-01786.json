@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/log/log_entry.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01786_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\n#ifdef ABSL_INTERNAL_NEED_REDUNDANT_CONSTEXPR_DECL\nconstexpr int LogEntry::kNoVerbosityLevel;\nconstexpr int LogEntry::kNoVerboseLevel;\n#endif\n\n// https://github.com/abseil/abseil-cpp/issues/1465\n// CMake builds on Apple platforms error when libraries are empty.\n// Our CMake configuration can avoid this error on header-only libraries,\n// but since this library is conditionally empty, including a single\n// variable is an easy workaround.\n#ifdef __APPLE__\nnamespace log_internal {\nextern const char kAvoidEmptyLogEntryLibraryWarning;\nconst char kAvoidEmptyLogEntryLibraryWarning = 0;\n}  // namespace log_internal\n#endif  // __APPLE__\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01786",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/log_entry.cc",
-  "source_line": 20,
-  "validation_status": "validated"
-}

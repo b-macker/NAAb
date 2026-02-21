@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Tooling/ArgumentsAdjusters.h\"\n#include \"clang/Tooling/Execution.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21222_execute() {\n    {\n    return Tool.getSourcePaths();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21222",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/StandaloneExecution.h",
-  "source_line": 72,
-  "validation_status": "validated"
-}

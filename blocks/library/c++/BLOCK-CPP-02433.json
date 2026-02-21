@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/container/internal/raw_hash_set.h\"\n#include <atomic>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/hash/hash.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02433_execute() {\n    {\n  if (is_single_group(c.capacity())) {\n    return true;\n  }\n  const size_t index_before = (index - Group::kWidth) & c.capacity();\n  const auto empty_after = Group(c.control() + index).MaskEmpty();\n  const auto empty_before = Group(c.control() + index_before).MaskEmpty();\n\n  // We count how many consecutive non empties we have to the right and to the\n  // left of `it`. If the sum is >= kWidth then there is at least one probe\n  // window that might have seen a full group.\n  return empty_before && empty_after &&\n         static_cast<size_t>(empty_after.TrailingZeros()) +\n                 empty_before.LeadingZeros() <\n             Group::kWidth;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02433",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.cc",
-  "source_line": 224,
-  "validation_status": "validated"
-}

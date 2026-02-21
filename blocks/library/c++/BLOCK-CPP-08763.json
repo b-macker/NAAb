@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08763_execute() {\n    {\n    if (isSingleDecl())\n      return D ? &D : nullptr;\n    return &getDeclGroup()[0];\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08763",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclGroup.h",
-  "source_line": 99,
-  "validation_status": "validated"
-}

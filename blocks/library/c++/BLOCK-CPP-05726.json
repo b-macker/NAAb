@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace log_internal {\n\n// Stateful condition class name should be \"Log\" + name + \"State\".\nclass LogEveryNState final {\n public:\n  bool ShouldLog(int n);\n  uint32_t counter() { return counter_.load(std::memory_order_relaxed); }\n\n private:\n  std::atomic<uint32_t> counter_{0};\n};\n\nclass LogFirstNState final {\n public:\n  bool ShouldLog(int n);\n  uint32_t counter() { return counter_.load(std::memory_order_relaxed); }\n\n private:\n  std::atomic<uint32_t> counter_{0};\n};\n\nclass LogEveryPow2State final {\n public:\n  bool ShouldLog();\n  uint32_t counter() { return counter_.load(std::memory_order_relaxed); }\n\n private:\n  std::atomic<uint32_t> counter_{0};\n};\n\nclass LogEveryNSecState final {\n public:\n  bool ShouldLog(double seconds);\n  uint32_t counter() { return counter_.load(std::memory_order_relaxed); }\n\n private:\n  std::atomic<uint32_t> counter_{0};\n  // Cycle count according to CycleClock that we should next log at.\n  std::atomic<int64_t> next_log_time_cycles_{0};\n};\n\n// Helper routines to abort the application quietly\n\nABSL_ATTRIBUTE_NORETURN inline void AbortQuietly() { abort(); }\nABSL_ATTRIBUTE_NORETURN inline void ExitQuietly() { _exit(1); }\n}  // namespace log_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-05726",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/conditions.h",
-  "source_line": 188,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07159_execute() {\n    {\n    getNodeDelegate().AddChild([=] {\n      getNodeDelegate().Visit(C, FC);\n      if (!C) {\n        return;\n      }\n      comments::ConstCommentVisitor<Derived, void,\n                                    const comments::FullComment *>::visit(C,\n                                                                          FC);\n      for (comments::Comment::child_iterator I = C->child_begin(),\n                                             E = C->child_end();\n           I != E; ++I)\n        Visit(*I, FC);\n    });\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07159",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
-  "source_line": 260,
-  "validation_status": "validated"
-}

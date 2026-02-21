@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/charconv_parse.h\"\n#include \"absl/strings/charconv.h\"\n#include <cassert>\n#include <cstdint>\n#include <limits>\n#include \"absl/strings/internal/memutil.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02862_execute() {\n    {\n  bool fixed = (flags & chars_format::fixed) == chars_format::fixed;\n  bool scientific =\n      (flags & chars_format::scientific) == chars_format::scientific;\n  return scientific && !fixed;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02862",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/charconv_parse.cc",
-  "source_line": 130,
-  "validation_status": "validated"
-}

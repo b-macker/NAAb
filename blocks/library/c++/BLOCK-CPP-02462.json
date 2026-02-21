@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/crc/internal/crc.h\"\n#include <cstdint>\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/prefetch.h\"\n#include \"absl/crc/internal/crc_internal.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02462_execute() {\n    {\n        t[j][i] = last;  // top bit in last byte is given\n      }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02462",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc.cc",
-  "source_line": 105,
-  "validation_status": "validated"
-}

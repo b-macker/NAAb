@@ -1,8 +1,0 @@
-{
-  "code": "#include <atomic>\n#include <cstdint>\n#include <memory>\n#include <string>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/strings/cord.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/optional.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace status_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05999_execute() {\n    { ref_.fetch_add(1, std::memory_order_relaxed); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05999",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/internal/status_internal.h",
-  "source_line": 80,
-  "validation_status": "validated"
-}

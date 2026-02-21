@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18329_execute() {\n    {\nprotected:\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override;\n\n  void ExecuteAction() override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18329",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendActions.h",
-  "source_line": 210,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/utf8.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02956_execute() {\n    {\n    buffer[2] = static_cast<char>(0x80 | (utf8_char & 0x3F));\n    utf8_char >>= 6;\n    buffer[1] = static_cast<char>(0x80 | (utf8_char & 0x3F));\n    utf8_char >>= 6;\n    buffer[0] = static_cast<char>(0xE0 | utf8_char);\n    return 3;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02956",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/utf8.cc",
-  "source_line": 32,
-  "validation_status": "validated"
-}

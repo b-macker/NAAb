@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cstdint>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07464_execute() {\n    {\n  /// Base - The base class declaration.\n  const CXXRecordDecl *Base;\n\n  /// BaseOffset - The offset from the most derived class to the base class.\n  CharUnits BaseOffset;\n\npublic:\n  BaseSubobject() = default;\n  BaseSubobject(const CXXRecordDecl *Base, CharUnits BaseOffset)\n      : Base(Base), BaseOffset(BaseOffset) {}\n\n  /// getBase - Returns the base class declaration.\n  const CXXRecordDecl *getBase() const { return Base; }\n\n  /// getBaseOffset - Returns the base class offset.\n  CharUnits getBaseOffset() const { return BaseOffset; }\n\n  friend bool operator==(const BaseSubobject &LHS, const BaseSubobject &RHS) {\n    return LHS.Base == RHS.Base && LHS.BaseOffset == RHS.BaseOffset;\n }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07464",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/BaseSubobject.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

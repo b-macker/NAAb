@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00336_execute() {\n    def get_resolve_func(self) -> str:\n        target = self._context_reference_stack[-1]\n        if target == \"context\":\n            return \"resolve\"\n        return f\"{target}.resolve\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00336",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 761,
-  "validation_status": "validated"
-}

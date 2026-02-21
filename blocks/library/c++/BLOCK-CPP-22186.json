@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/StaticAnalyzer/Core/BugReporter/CommonBugCategories.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22186_execute() {\n    {\n\nclass CheckerManager;\n\n#define GET_CHECKERS\n#define CHECKER(FULLNAME, CLASS, HELPTEXT, DOC_URI, IS_HIDDEN)                 \\\n  void register##CLASS(CheckerManager &mgr);                                   \\\n  bool shouldRegister##CLASS(const CheckerManager &mgr);\n#include \"clang/StaticAnalyzer/Checkers/Checkers.inc\"\n#undef CHECKER\n#undef GET_CHECKERS\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22186",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h",
-  "source_line": 20,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n\ntemplate <typename Char>\nvoid write_escaped_path(basic_memory_buffer<Char>& quoted,\n                        const std::filesystem::path& p) {\n  write_escaped_string<Char>(std::back_inserter(quoted), p.string<Char>());\n}\n#  ifdef _WIN32\ntemplate <>\ninline void write_escaped_path<char>(basic_memory_buffer<char>& quoted,\n                                     const std::filesystem::path& p) {\n  auto s = p.u8string();\n  write_escaped_string<char>(\n      std::back_inserter(quoted),\n      string_view(reinterpret_cast<const char*>(s.c_str()), s.size()));\n}\n#  endif\ntemplate <>\ninline void write_escaped_path<std::filesystem::path::value_type>(\n    basic_memory_buffer<std::filesystem::path::value_type>& quoted,\n    const std::filesystem::path& p) {\n  write_escaped_string<std::filesystem::path::value_type>(\n      std::back_inserter(quoted), p.native());\n}\n\n}",
-  "id": "BLOCK-CPP-01594",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/std.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

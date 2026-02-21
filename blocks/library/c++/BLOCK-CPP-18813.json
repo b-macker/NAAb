@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18813_execute() {\n    {\n    return ImmediatelyAfterTopLevelIfndef;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18813",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MultipleIncludeOpt.h",
-  "source_line": 101,
-  "validation_status": "validated"
-}

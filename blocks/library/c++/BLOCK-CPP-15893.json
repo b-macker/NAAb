@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n    LoopExit(const Stmt *LoopStmt, const LocationContext *LC)\n            : ProgramPoint(LoopStmt, nullptr, LoopExitKind, LC) {}\n\n    const Stmt *getLoopStmt() const {\n      return static_cast<const Stmt *>(getData1());\n    }\n\nprivate:\n    friend class ProgramPoint;\n    LoopExit() = default;\n    static bool isKind(const ProgramPoint &Location) {\n      return Location.getKind() == LoopExitKind;\n    }\n}",
-  "id": "BLOCK-CPP-15893",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 711,
-  "validation_status": "validated"
-}

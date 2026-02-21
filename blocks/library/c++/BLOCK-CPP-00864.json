@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00864_execute() {\n    {\n  if constexpr (POS !=\n                basic_string_view<typename S::char_type>(format_str).size()) {\n    constexpr auto tail = compile_format_string<Args, POS, ID>(format_str);\n    if constexpr (std::is_same<remove_cvref_t<decltype(tail)>,\n                               unknown_format>())\n      return tail;\n    else\n      return make_concat(head, tail);\n  } else {\n    return head;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00864",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 313,
-  "validation_status": "validated"
-}

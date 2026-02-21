@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00386_execute() {\n    def visit_EnvironmentAttribute(\n        self, node: nodes.EnvironmentAttribute, frame: Frame\n    ) -> None:\n        self.write(\"environment.\" + node.name)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00386",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1916,
-  "validation_status": "validated"
-}

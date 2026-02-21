@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  SApply(SExpr *Sf, SExpr *A = nullptr) : SExpr(COP_SApply), Sfun(Sf), Arg(A) {}\n  SApply(SApply &A, SExpr *Sf, SExpr *Ar = nullptr) // rewrite constructor\n      : SExpr(A), Sfun(Sf), Arg(Ar) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_SApply; }\n\n  SExpr *sfun() { return Sfun; }\n  const SExpr *sfun() const { return Sfun; }\n\n  SExpr *arg() { return Arg ? Arg : Sfun; }\n  const SExpr *arg() const { return Arg ? Arg : Sfun; }\n\n  bool isDelegation() const { return Arg != nullptr; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Nf = Vs.traverse(Sfun, Vs.subExprCtx(Ctx));\n    typename V::R_SExpr Na = Arg ? Vs.traverse(Arg, Vs.subExprCtx(Ctx))\n                                       : nullptr;\n    return Vs.reduceSApply(*this, Nf, Na);\n  }\n\n  template <class C>\n  typename C::CType compare(const SApply* E, C& Cmp) const {\n    typename C::CType Ct = Cmp.compare(sfun(), E->sfun());\n    if (Cmp.notTrue(Ct) || (!arg() && !E->arg()))\n      return Ct;\n    return Cmp.compare(arg(), E->arg());\n  }\n\nprivate:\n  SExpr* Sfun;\n  SExpr* Arg;\n}",
-  "id": "BLOCK-CPP-21658",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 883,
-  "validation_status": "validated"
-}

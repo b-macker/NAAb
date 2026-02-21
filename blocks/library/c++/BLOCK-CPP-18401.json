@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Frontend/SerializedDiagnostics.h\"\n#include \"llvm/Bitstream/BitstreamWriter.h\"\n\nusing namespace llvm;\nusing namespace clang;\nusing namespace serialized_diags;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18401_execute() {\n    {\n\n/// Returns a DiagnosticConsumer that serializes diagnostics to\n///  a bitcode file.\n///\n/// The created DiagnosticConsumer is designed for quick and lightweight\n/// transfer of diagnostics to the enclosing build system (e.g., an IDE).\n/// This allows wrapper tools for Clang to get diagnostics from Clang\n/// (via libclang) without needing to parse Clang's command line output.\n///\nstd::unique_ptr<DiagnosticConsumer> create(StringRef OutputFile,\n                                           DiagnosticOptions *Diags,\n                                           bool MergeChildRecords = false);\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18401",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/SerializedDiagnosticPrinter.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

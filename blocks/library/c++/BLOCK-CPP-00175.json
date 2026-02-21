@@ -1,8 +1,0 @@
-{
-  "code": "#include <chrono>\n#include <spdlog/fmt/fmt.h>\n// #include <spdlog/fmt/chrono.h>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00175_execute() {\n    { start_tp_ = clock::now(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00175",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/stopwatch.h",
-  "source_line": 42,
-  "validation_status": "validated"
-}

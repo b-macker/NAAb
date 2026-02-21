@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace llvm;\nusing namespace clang;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21399_execute() {\n    {\nnamespace reachable_code {\n\n/// Classifications of unreachable code.\nenum UnreachableKind {\n  UK_Return,\n  UK_Break,\n  UK_Loop_Increment,\n  UK_Other\n};\n\nclass Callback {\n  virtual void anchor();\npublic:\n  virtual ~Callback() {}\n  virtual void HandleUnreachable(UnreachableKind UK, SourceLocation L,\n                                 SourceRange ConditionVal, SourceRange R1,\n                                 SourceRange R2, bool HasFallThroughAttr) = 0;\n};\n\n/// ScanReachableFromBlock - Mark all blocks reachable from Start.\n/// Returns the total number of blocks that were marked reachable.\nunsigned ScanReachableFromBlock(const CFGBlock *Start,\n                                llvm::BitVector &Reachable);\n\nvoid FindUnreachableCode(AnalysisDeclContext &AC, Preprocessor &PP,\n                         Callback &CB);\n\n}}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21399",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ReachableCode.h",
-  "source_line": 36,
-  "validation_status": "validated"
-}

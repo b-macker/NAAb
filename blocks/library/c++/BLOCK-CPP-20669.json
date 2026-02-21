@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20669_execute() {\n    {\n      assert((!TemplateArgumentLists.empty() || NumRetainedOuterLevels) &&\n             \"Replacing in an empty list?\");\n\n      if (!TemplateArgumentLists.empty()) {\n        assert((TemplateArgumentLists[0].AssociatedDeclAndFinal.getPointer() ||\n                TemplateArgumentLists[0].AssociatedDeclAndFinal.getPointer() ==\n                    AssociatedDecl) &&\n               \"Trying to change incorrect declaration?\");\n        TemplateArgumentLists[0].Args = Args;\n      } else {\n        --NumRetainedOuterLevels;\n        TemplateArgumentLists.push_back(\n            {{AssociatedDecl, /*Final=*/false}, Args});\n      }\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20669",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Template.h",
-  "source_line": 235,
-  "validation_status": "validated"
-}

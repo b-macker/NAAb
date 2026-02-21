@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/common.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/sinks/base_sink.h>\n    #include <spdlog/details/udp_client-windows.h>\n    #include <spdlog/details/udp_client.h>\n#include <chrono>\n#include <functional>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00493_execute() {\n    {\n    return Factory::template create<sinks::udp_sink_mt>(logger_name, skin_config);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00493",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/udp_sink.h",
-  "source_line": 63,
-  "validation_status": "validated"
-}

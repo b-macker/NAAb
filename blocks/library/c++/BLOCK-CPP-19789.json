@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19789_execute() {\n    { Decls.push_back(D); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19789",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/IdentifierResolver.h",
-  "source_line": 50,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>  // std::max\n#include <limits>     // std::numeric_limits\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01531_execute() {\n    {\n        ++it;\n        specs.precision = static_cast<int>(\n            visit_format_arg(detail::printf_precision_handler(), get_arg(-1)));\n      }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01531",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
-  "source_line": 417,
-  "validation_status": "validated"
-}

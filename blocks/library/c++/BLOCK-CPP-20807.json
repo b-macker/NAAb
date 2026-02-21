@@ -1,8 +1,0 @@
-{
-  "code": "{\n  uint32_t BitOffsetLow = 0;\n  uint32_t BitOffsetHigh = 0;\n\n  UnderalignedInt64() = default;\n  UnderalignedInt64(uint64_t BitOffset) { setBitOffset(BitOffset); }\n\n  void setBitOffset(uint64_t Offset) {\n    BitOffsetLow = Offset;\n    BitOffsetHigh = Offset >> 32;\n  }\n\n  uint64_t getBitOffset() const {\n    return BitOffsetLow | (uint64_t(BitOffsetHigh) << 32);\n  }\n}",
-  "id": "BLOCK-CPP-20807",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTBitCodes.h",
-  "source_line": 223,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/log/globals.h\"\n#include <atomic>\n#include <cstddef>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/atomic_hook.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/hash/hash.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace log_internal;\nusing namespace log_internal;\nusing namespace log_internal;\nusing namespace log_internal;\nusing namespace log_internal;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01772_execute() {\n    {\n  ABSL_CONST_INIT static std::atomic<const std::string*> user_log_tag(nullptr);\n  ABSL_INTERNAL_CHECK(tag, \"tag must be non-null.\");\n\n  const std::string* tag_str = new std::string(tag);\n  ABSL_INTERNAL_CHECK(\n      android_log_tag.exchange(tag_str->c_str(), std::memory_order_acq_rel) ==\n          kDefaultAndroidTag,\n      \"SetAndroidNativeTag() must only be called once per process!\");\n  user_log_tag.store(tag_str, std::memory_order_relaxed);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01772",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/globals.cc",
-  "source_line": 136,
-  "validation_status": "validated"
-}

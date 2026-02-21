@@ -1,8 +1,0 @@
-{
-  "code": "{\n  SourceLocation AtFinallyLoc;\n  Stmt *AtFinallyStmt;\n\npublic:\n  ObjCAtFinallyStmt(SourceLocation atFinallyLoc, Stmt *atFinallyStmt)\n      : Stmt(ObjCAtFinallyStmtClass), AtFinallyLoc(atFinallyLoc),\n        AtFinallyStmt(atFinallyStmt) {}\n\n  explicit ObjCAtFinallyStmt(EmptyShell Empty) :\n    Stmt(ObjCAtFinallyStmtClass, Empty) { }\n\n  const Stmt *getFinallyBody() const { return AtFinallyStmt; }\n  Stmt *getFinallyBody() { return AtFinallyStmt; }\n  void setFinallyBody(Stmt *S) { AtFinallyStmt = S; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return AtFinallyLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY {\n    return AtFinallyStmt->getEndLoc();\n  }\n\n  SourceLocation getAtFinallyLoc() const { return AtFinallyLoc; }\n  void setAtFinallyLoc(SourceLocation Loc) { AtFinallyLoc = Loc; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ObjCAtFinallyStmtClass;\n  }\n\n  child_range children() {\n    return child_range(&AtFinallyStmt, &AtFinallyStmt+1);\n  }\n\n  const_child_range children() const {\n    return const_child_range(&AtFinallyStmt, &AtFinallyStmt + 1);\n  }\n}",
-  "id": "BLOCK-CPP-13050",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtObjC.h",
-  "source_line": 127,
-  "validation_status": "validated"
-}

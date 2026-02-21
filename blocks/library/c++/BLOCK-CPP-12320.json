@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/ASTTypeTraits.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12320_execute() {\n    {\n  union {\n    DynTypedNode SingleNode;\n    ArrayRef<DynTypedNode> Nodes;\n  };\n  bool IsSingleNode;\n\npublic:\n  DynTypedNodeList(const DynTypedNode &N) : IsSingleNode(true) {\n    new (&SingleNode) DynTypedNode(N);\n  }\n\n  DynTypedNodeList(ArrayRef<DynTypedNode> A) : IsSingleNode(false) {\n    new (&Nodes) ArrayRef<DynTypedNode>(A);\n  }\n\n  const DynTypedNode *begin() const {\n    return !IsSingleNode ? Nodes.begin() : &SingleNode;\n  }\n\n  const DynTypedNode *end() const {\n    return !IsSingleNode ? Nodes.end() : &SingleNode + 1;\n  }\n\n  size_t size() const { return end() - begin(); }\n  bool empty() const { return begin() == end(); }\n\n  const DynTypedNode &operator[](size_t N) const {\n    assert(N < size() && \"Out of bounds!\");\n    return *(begin() + N);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12320",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ParentMapContext.h",
-  "source_line": 92,
-  "validation_status": "validated"
-}

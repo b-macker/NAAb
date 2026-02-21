@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/CachedHashString.h\"\n#include \"llvm/ADT/Hashing.h\"\n#include \"llvm/ADT/SetVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include <cstdint>\n#include <map>\n#include <string>\n#include <vector>\n/// \\#include directives whose paths are enclosed by string quotes (\"\")\n  /// '\\#include \"\"' paths, added by 'gcc -iquote'.\n  /// Paths for '\\#include <>' added by '-I'.\n    /// A prefix to be matched against paths in \\#include directives.\n  /// AddSystemHeaderPrefix - Override whether \\#include directives naming a\n\nusing namespace clang;\nusing namespace frontend;\nusing namespace frontend;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18614_execute() {\n    {\n  HBuilder.add(E.Path, E.Group, E.IsFramework, E.IgnoreSysRoot);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18614",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/HeaderSearchOptions.h",
-  "source_line": 266,
-  "validation_status": "validated"
-}

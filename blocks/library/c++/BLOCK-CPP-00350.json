@@ -1,8 +1,0 @@
-{
-  "code": "#include <cctype>\n#include <spdlog/common.h>\n        #include <version>\n    #include <span>\n\nusing namespace spdlog;\nusing namespace details;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00350_execute() {\n    {\n    return details::dump_info<It>(range_begin, range_end, size_per_line);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00350",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bin_to_hex.h",
-  "source_line": 86,
-  "validation_status": "validated"
-}

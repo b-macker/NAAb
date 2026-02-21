@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Tooling/Refactoring.h\"\n#include \"llvm/Support/YAMLTraits.h\"\n#include <string>\n\nusing namespace llvm;\nusing namespace yaml;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21215_execute() {\n    {\n      return clang::tooling::Replacement(FilePath, Offset, Length,\n                                         ReplacementText);\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21215",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/ReplacementsYaml.h",
-  "source_line": 39,
-  "validation_status": "validated"
-}

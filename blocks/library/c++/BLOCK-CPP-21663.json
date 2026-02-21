@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Store(SExpr *P, SExpr *V) : SExpr(COP_Store), Dest(P), Source(V) {}\n  Store(const Store &S, SExpr *P, SExpr *V) : SExpr(S), Dest(P), Source(V) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Store; }\n\n  SExpr *destination() { return Dest; }  // Address to store to\n  const SExpr *destination() const { return Dest; }\n\n  SExpr *source() { return Source; }     // Value to store\n  const SExpr *source() const { return Source; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Np = Vs.traverse(Dest,   Vs.subExprCtx(Ctx));\n    auto Nv = Vs.traverse(Source, Vs.subExprCtx(Ctx));\n    return Vs.reduceStore(*this, Np, Nv);\n  }\n\n  template <class C>\n  typename C::CType compare(const Store* E, C& Cmp) const {\n    typename C::CType Ct = Cmp.compare(destination(), E->destination());\n    if (Cmp.notTrue(Ct))\n      return Ct;\n    return Cmp.compare(source(), E->source());\n  }\n\nprivate:\n  SExpr* Dest;\n  SExpr* Source;\n}",
-  "id": "BLOCK-CPP-21663",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 1067,
-  "validation_status": "validated"
-}

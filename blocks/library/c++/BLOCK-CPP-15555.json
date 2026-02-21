@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  CFGScopeBegin() {}\n  CFGScopeBegin(const VarDecl *VD, const Stmt *S)\n      : CFGElement(ScopeBegin, VD, S) {}\n\n  // Get statement that triggered a new scope.\n  const Stmt *getTriggerStmt() const {\n    return static_cast<Stmt*>(Data2.getPointer());\n  }\n\n  // Get VD that triggered a new scope.\n  const VarDecl *getVarDecl() const {\n    return static_cast<VarDecl *>(Data1.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n  static bool isKind(const CFGElement &E) {\n    Kind kind = E.getKind();\n    return kind == ScopeBegin;\n  }\n}",
-  "id": "BLOCK-CPP-15555",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 315,
-  "validation_status": "validated"
-}

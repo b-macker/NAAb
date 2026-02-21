@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace digits;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01382_execute() {\n    {\n  if (is_constant_evaluated())\n    return write(out, value, basic_format_specs<Char>());\n  if (const_check(!is_supported_floating_point(value))) return out;\n\n  auto fspecs = float_specs();\n  if (detail::signbit(value)) {\n    fspecs.sign = sign::minus;\n    value = -value;\n  }\n\n  constexpr auto specs = basic_format_specs<Char>();\n  using floaty = conditional_t<std::is_same<T, long double>::value, double, T>;\n  using uint = typename dragonbox::float_info<floaty>::carrier_uint;\n  uint mask = exponent_mask<floaty>();\n  if ((bit_cast<uint>(value) & mask) == mask)\n    return write_nonfinite(out, std::isnan(value), specs, fspecs);\n\n  auto dec = dragonbox::to_decimal(static_cast<floaty>(value));\n  return write_float(out, dec, specs, fspecs, {});\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01382",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 3238,
-  "validation_status": "validated"
-}

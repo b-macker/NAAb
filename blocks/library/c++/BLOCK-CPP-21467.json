@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/Analyses/ThreadSafetyTIL.h\"\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace lexpr;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21467_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21467",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyLogical.h",
-  "source_line": 36,
-  "validation_status": "validated"
-}

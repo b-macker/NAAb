@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/Alignment.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/MathExtras.h\"\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23287_execute() {\n    {\n    clang::CharUnits::QuantityType Quantity = CU.getQuantity();\n    return DenseMapInfo<clang::CharUnits::QuantityType>::getHashValue(Quantity);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23287",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/CharUnits.h",
-  "source_line": 247,
-  "validation_status": "validated"
-}

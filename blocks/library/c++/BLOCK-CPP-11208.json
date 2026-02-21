@@ -1,8 +1,0 @@
-{
-  "code": "{\n  OptionalFlag SuppressAssignment; // '*'\npublic:\n  ScanfSpecifier() :\n    FormatSpecifier(/* isPrintf = */ false),\n    SuppressAssignment(\"*\") {}\n\n  void setSuppressAssignment(const char *position) {\n    SuppressAssignment.setPosition(position);\n  }\n\n  const OptionalFlag &getSuppressAssignment() const {\n    return SuppressAssignment;\n  }\n\n  void setConversionSpecifier(const ScanfConversionSpecifier &cs) {\n    CS = cs;\n  }\n\n  const ScanfConversionSpecifier &getConversionSpecifier() const {\n    return cast<ScanfConversionSpecifier>(CS);\n  }\n\n  bool consumesDataArgument() const {\n    return CS.consumesDataArgument() && !SuppressAssignment;\n  }\n\n  ArgType getArgType(ASTContext &Ctx) const;\n\n  bool fixType(QualType QT, QualType RawQT, const LangOptions &LangOpt,\n               ASTContext &Ctx);\n\n  void toString(raw_ostream &os) const;\n\n  static ScanfSpecifier Parse(const char *beg, const char *end);\n}",
-  "id": "BLOCK-CPP-11208",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/FormatString.h",
-  "source_line": 657,
-  "validation_status": "validated"
-}

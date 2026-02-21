@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/async_logger.h>\n#include <spdlog/details/registry.h>\n#include <spdlog/details/thread_pool.h>\n#include <functional>\n#include <memory>\n#include <mutex>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00008_execute() {\n    {\nstatic const size_t default_async_q_size = 8192;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00008",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/async.h",
-  "source_line": 27,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/MathExtras.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstdint>\n#include <cstring>\n#include \"clang/AST/TypeLocNodes.def\"\n#include \"clang/AST/TypeNodes.inc\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14491_execute() {\n    {\n    if (!QualifierLoc) {\n      // Even if we have a nested-name-specifier in the dependent\n      // template specialization type, we won't record the nested-name-specifier\n      // location information when this type-source location information is\n      // part of a nested-name-specifier.\n      getLocalData()->QualifierData = nullptr;\n      return;\n    }\n\n    assert(QualifierLoc.getNestedNameSpecifier()\n                                        == getTypePtr()->getQualifier() &&\n           \"Inconsistent nested-name-specifier pointer\");\n    getLocalData()->QualifierData = QualifierLoc.getOpaqueData();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-14491",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeLoc.h",
-  "source_line": 2424,
-  "validation_status": "validated"
-}

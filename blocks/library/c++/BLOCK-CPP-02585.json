@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02585_execute() {\n    {\n  State state;\n  InitState(&state, mangled, out, out_size);\n  return ParseTopLevelMangledName(&state) && !Overflowed(&state) &&\n         state.parse_state.out_cur_idx > 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02585",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
-  "source_line": 1987,
-  "validation_status": "validated"
-}

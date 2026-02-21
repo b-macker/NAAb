@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  explicit CFGNewAllocator(const CXXNewExpr *S)\n    : CFGElement(NewAllocator, S) {}\n\n  // Get the new expression.\n  const CXXNewExpr *getAllocatorExpr() const {\n    return static_cast<CXXNewExpr *>(Data1.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n\n  CFGNewAllocator() = default;\n\n  static bool isKind(const CFGElement &elem) {\n    return elem.getKind() == NewAllocator;\n  }\n}",
-  "id": "BLOCK-CPP-15552",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 245,
-  "validation_status": "validated"
-}

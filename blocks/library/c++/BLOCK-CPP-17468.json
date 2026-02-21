@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/IR/DerivedTypes.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17468_execute() {\n    {\n    assert(isInAlloca() && \"Invalid kind!\");\n    InAllocaIndirect = Indirect;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17468",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CGFunctionInfo.h",
-  "source_line": 448,
-  "validation_status": "validated"
-}

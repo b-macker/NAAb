@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  // Creates a new probe sequence using `hash` as the initial value of the\n  // sequence and `mask` (usually the capacity of the table) as the mask to\n  // apply to each value in the progression.\n  probe_seq(size_t hash, size_t mask) {\n    assert(((mask + 1) & mask) == 0 && \"not a mask\");\n    mask_ = mask;\n    offset_ = hash & mask_;\n  }\n\n  // The offset within the table, i.e., the value `p(i)` above.\n  size_t offset() const { return offset_; }\n  size_t offset(size_t i) const { return (offset_ + i) & mask_; }\n\n  void next() {\n    index_ += Width;\n    offset_ += index_;\n    offset_ &= mask_;\n  }\n  // 0-based probe index, a multiple of `Width`.\n  size_t index() const { return index_; }\n\n private:\n  size_t mask_;\n  size_t offset_;\n  size_t index_ = 0;\n}",
-  "id": "BLOCK-CPP-05334",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.h",
-  "source_line": 310,
-  "validation_status": "validated"
-}

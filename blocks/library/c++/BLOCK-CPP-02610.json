@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/vdso_support.h\"\n#include <errno.h>\n#include <fcntl.h>\n#include <syscall.h>\n#include <sys/syscall.h>\n#include <unistd.h>\n#include <sys/auxv.h>\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/port.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02610_execute() {\n    {\n  unsigned cpu;\n  long ret_code =  // NOLINT(runtime/int)\n      (*VDSOSupport::getcpu_fn_)(&cpu, nullptr, nullptr);\n  return ret_code == 0 ? static_cast<int>(cpu) : static_cast<int>(ret_code);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02610",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/vdso_support.cc",
-  "source_line": 194,
-  "validation_status": "validated"
-}

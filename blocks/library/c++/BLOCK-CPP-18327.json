@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18327_execute() {\n    {\n  // Allow other tools (ex lldb) to direct output for their use.\n  std::shared_ptr<llvm::raw_ostream> OutputStream;\n\nprotected:\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override;\n  bool BeginInvocation(CompilerInstance &CI) override;\n  void ExecuteAction() override;\n\npublic:\n  DumpModuleInfoAction() = default;\n  explicit DumpModuleInfoAction(std::shared_ptr<llvm::raw_ostream> Out)\n      : OutputStream(Out) {}\n  bool hasPCHSupport() const override { return false; }\n  bool hasASTFileSupport() const override { return true; }\n  bool hasIRSupport() const override { return false; }\n  bool hasCodeCompletionSupport() const override { return false; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18327",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendActions.h",
-  "source_line": 179,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <ostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/internal/str_format/output.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06371_execute() {\n    {\n  if (c == FormatConversionCharInternal::a ||\n      c == FormatConversionCharInternal::e ||\n      c == FormatConversionCharInternal::f ||\n      c == FormatConversionCharInternal::g ||\n      c == FormatConversionCharInternal::A ||\n      c == FormatConversionCharInternal::E ||\n      c == FormatConversionCharInternal::F ||\n      c == FormatConversionCharInternal::G) {\n    return true;\n  } else {\n    return false;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06371",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/extension.h",
-  "source_line": 232,
-  "validation_status": "validated"
-}

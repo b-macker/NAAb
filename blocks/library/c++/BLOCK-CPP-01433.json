@@ -1,8 +1,0 @@
-{
-  "code": "{\n private:\n  detail::dynamic_format_specs<Char> specs_;\n  const Char* format_str_;\n\n  struct null_handler : detail::error_handler {\n    void on_align(align_t) {}\n    void on_sign(sign_t) {}\n    void on_hash() {}\n  };\n\n  template <typename Context> void handle_specs(Context& ctx) {\n    detail::handle_dynamic_spec<detail::width_checker>(specs_.width,\n                                                       specs_.width_ref, ctx);\n    detail::handle_dynamic_spec<detail::precision_checker>(\n        specs_.precision, specs_.precision_ref, ctx);\n  }\n\n public:\n  template <typename ParseContext>\n  FMT_CONSTEXPR auto parse(ParseContext& ctx) -> decltype(ctx.begin()) {\n    format_str_ = ctx.begin();\n    // Checks are deferred to formatting time when the argument type is known.\n    detail::dynamic_specs_handler<ParseContext> handler(specs_, ctx);\n    return detail::parse_format_specs(ctx.begin(), ctx.end(), handler);\n  }\n\n  template <typename T, typename FormatContext>\n  auto format(const T& val, FormatContext& ctx) -> decltype(ctx.out()) {\n    handle_specs(ctx);\n    detail::specs_checker<null_handler> checker(\n        null_handler(), detail::mapped_type_constant<T, FormatContext>::value);\n    checker.on_align(specs_.align);\n    if (specs_.sign != sign::none) checker.on_sign(specs_.sign);\n    if (specs_.alt) checker.on_hash();\n    if (specs_.precision >= 0) checker.end_precision();\n    return detail::write<Char>(ctx.out(), val, specs_, ctx.locale());\n  }\n}",
-  "id": "BLOCK-CPP-01433",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 3759,
-  "validation_status": "validated"
-}

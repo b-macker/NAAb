@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00375_execute() {\n    def visit_Getattr(self, node: nodes.Getattr, frame: Frame) -> None:\n        if self.environment.is_async:\n            self.write(\"(await auto_await(\")\n\n        self.write(\"environment.getattr(\")\n        self.visit(node.node, frame)\n        self.write(f\", {node.attr!r})\")\n\n        if self.environment.is_async:\n            self.write(\"))\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00375",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1746,
-  "validation_status": "validated"
-}

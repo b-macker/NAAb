@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include <string.h>\n#include <algorithm>\n#include <cassert>\n#include <cmath>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/functional/function_ref.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/numeric/internal/representation.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03051_execute() {\n    {\n    if (!after_chunk_index_)\n      return 0;\n\n    char carry = 0;\n    for (size_t i = after_chunk_index_; i > 0; --i) {\n      carry = MultiplyBy10WithCarry(&data_[i - 1], carry);\n    }\n    // If the lowest chunk is now empty, remove it from view.\n    if (data_[after_chunk_index_ - 1] == 0)\n      --after_chunk_index_;\n    return carry;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03051",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
-  "source_line": 296,
-  "validation_status": "validated"
-}

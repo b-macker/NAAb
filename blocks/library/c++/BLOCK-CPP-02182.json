@@ -1,8 +1,0 @@
-{
-  "code": "#include <winsock2.h>  // for timeval\n#include <algorithm>\n#include <cassert>\n#include <chrono>  // NOLINT(build/c++11)\n#include <cmath>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <ctime>\n#include <functional>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02182_execute() {\n    {\n  Operation<double> op;\n  double hi_doub = op(time_internal::GetRepHi(d), r);\n  double lo_doub = op(time_internal::GetRepLo(d), r);\n\n  double hi_int = 0;\n  double hi_frac = std::modf(hi_doub, &hi_int);\n\n  // Moves hi's fractional bits to lo.\n  lo_doub /= kTicksPerSecond;\n  lo_doub += hi_frac;\n\n  double lo_int = 0;\n  double lo_frac = std::modf(lo_doub, &lo_int);\n\n  // Rolls lo into hi if necessary.\n  int64_t lo64 = std::round(lo_frac * kTicksPerSecond);\n\n  Duration ans;\n  if (!SafeAddRepHi(hi_int, lo_int, &ans)) return ans;\n  int64_t hi64 = time_internal::GetRepHi(ans);\n  if (!SafeAddRepHi(hi64, lo64 / kTicksPerSecond, &ans)) return ans;\n  hi64 = time_internal::GetRepHi(ans);\n  lo64 %= kTicksPerSecond;\n  NormalizeTicks(&hi64, &lo64);\n  return time_internal::MakeDuration(hi64, lo64);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02182",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/duration.cc",
-  "source_line": 240,
-  "validation_status": "validated"
-}

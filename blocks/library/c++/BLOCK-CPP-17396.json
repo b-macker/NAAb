@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Linkage.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17396_execute() {\n    {\n    mergeLinkage(other);\n    mergeVisibility(other);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17396",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Visibility.h",
-  "source_line": 132,
-  "validation_status": "validated"
-}

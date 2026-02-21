@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/Support/BumpVector.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15653_execute() {\n    {\n    ID.AddPointer(Data);\n    ID.AddInteger(Kind);\n    ID.AddInteger(Index);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15653",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 174,
-  "validation_status": "validated"
-}

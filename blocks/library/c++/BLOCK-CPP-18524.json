@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/Compiler.h\"\n#include <cstdint>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18524_execute() {\n    {\nclass raw_ostream;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18524",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Interpreter/Value.h",
-  "source_line": 44,
-  "validation_status": "validated"
-}

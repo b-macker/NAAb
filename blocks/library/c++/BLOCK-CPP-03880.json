@@ -1,8 +1,0 @@
-{
-  "code": "#include <iterator>\n#include <limits>\n#include <memory>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include \"gmock/gmock.h\"\n#include \"gtest/gtest.h\"\n#include \"absl/base/internal/fast_type_id.h\"\n#include \"absl/container/flat_hash_map.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/distributions.h\"\n#include \"absl/random/internal/distribution_caller.h\"\n#include \"absl/random/random.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/str_join.h\"\n#include \"absl/types/span.h\"\n#include \"absl/types/variant.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03880_execute() {\n    {\ntemplate <typename>\nstruct DistributionCaller;\nclass MockHelpers;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03880",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/mocking_bit_gen.h",
-  "source_line": 55,
-  "validation_status": "validated"
-}

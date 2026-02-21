@@ -1,8 +1,0 @@
-{
-  "code": "/// reduces the source down to #define, #include, #import, @import, and any\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n\nusing namespace clang;\nusing namespace tok;\nusing namespace dependency_directives_scan;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18538_execute() {\n    {\n    return is(K1) || is(K2);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18538",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/DependencyDirectivesScanner.h",
-  "source_line": 49,
-  "validation_status": "validated"
-}

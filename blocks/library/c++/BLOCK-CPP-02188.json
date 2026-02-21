@@ -1,8 +1,0 @@
-{
-  "code": "#include <winsock2.h>  // for timeval\n#include <algorithm>\n#include <cassert>\n#include <chrono>  // NOLINT(build/c++11)\n#include <cmath>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <ctime>\n#include <functional>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02188_execute() {\n    {\n      if (den_hi == 1) {\n        *q = num_hi;\n        *rem = time_internal::MakeDuration(0, num_lo);\n        return true;\n      }\n      *q = num_hi / den_hi;\n      *rem = time_internal::MakeDuration(num_hi % den_hi, num_lo);\n      return true;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02188",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/duration.cc",
-  "source_line": 312,
-  "validation_status": "validated"
-}

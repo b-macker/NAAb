@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/DiagnosticIDs.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16488_execute() {\n    {\npublic:\n  virtual ~IdentifierInfoLookup();\n\n  /// Return the IdentifierInfo for the specified named identifier.\n  ///\n  /// Unlike the version in IdentifierTable, this returns a pointer instead\n  /// of a reference.  If the pointer is null then the IdentifierInfo cannot\n  /// be found.\n  virtual IdentifierInfo* get(StringRef Name) = 0;\n\n  /// Retrieve an iterator into the set of all identifiers\n  /// known to this identifier lookup source.\n  ///\n  /// This routine provides access to all of the identifiers known to\n  /// the identifier lookup, allowing access to the contents of the\n  /// identifiers without introducing the overhead of constructing\n  /// IdentifierInfo objects for each.\n  ///\n  /// \\returns A new iterator into the set of known identifiers. The\n  /// caller is responsible for deleting this iterator.\n  virtual IdentifierIterator *getIdentifiers();\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16488",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/IdentifierTable.h",
-  "source_line": 577,
-  "validation_status": "validated"
-}

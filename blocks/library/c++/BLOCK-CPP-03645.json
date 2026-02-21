@@ -1,8 +1,0 @@
-{
-  "code": "#include <tuple>\n#include <utility>\n#include \"absl/functional/function_ref.h\"\n#include \"absl/hash/internal/hash.h\"\n\nusing namespace absl;\nusing namespace as;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03645_execute() {\n    {\n    state_ = state;\n    combine_contiguous_ = &CombineContiguousImpl<T>;\n    run_combine_unordered_ = &RunCombineUnorderedImpl<T>;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03645",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/hash.h",
-  "source_line": 364,
-  "validation_status": "validated"
-}

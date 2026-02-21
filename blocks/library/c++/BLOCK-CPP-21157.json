@@ -1,8 +1,0 @@
-{
-  "code": "{\n  public:\n    NormalizedDiagnostic(const IO &)\n        : DiagLevel(clang::tooling::Diagnostic::Level::Warning) {}\n\n    NormalizedDiagnostic(const IO &, const clang::tooling::Diagnostic &D)\n        : DiagnosticName(D.DiagnosticName), Message(D.Message), Notes(D.Notes),\n          DiagLevel(D.DiagLevel), BuildDirectory(D.BuildDirectory) {}\n\n    clang::tooling::Diagnostic denormalize(const IO &) {\n      return clang::tooling::Diagnostic(DiagnosticName, Message, Notes,\n                                        DiagLevel, BuildDirectory);\n    }\n\n    std::string DiagnosticName;\n    clang::tooling::DiagnosticMessage Message;\n    SmallVector<clang::tooling::DiagnosticMessage, 1> Notes;\n    clang::tooling::Diagnostic::Level DiagLevel;\n    std::string BuildDirectory;\n  }",
-  "id": "BLOCK-CPP-21157",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/DiagnosticsYaml.h",
-  "source_line": 63,
-  "validation_status": "validated"
-}

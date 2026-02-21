@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <algorithm>\n#include <cassert>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21001_execute() {\n    {\n    return const_cast<ContinuousRangeMap*>(this)->find(K);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21001",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ContinuousRangeMap.h",
-  "source_line": 102,
-  "validation_status": "validated"
-}

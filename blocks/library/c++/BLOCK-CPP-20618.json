@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTConcept.h\"\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20618_execute() {\n    {\n    Other.Constraint = nullptr;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20618",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaConcept.h",
-  "source_line": 110,
-  "validation_status": "validated"
-}

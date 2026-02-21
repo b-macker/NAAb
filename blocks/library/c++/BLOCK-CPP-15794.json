@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  PathDiagnosticPopUpPiece(const PathDiagnosticLocation &Pos, StringRef S,\n                           bool AddPosRange = true)\n      : PathDiagnosticSpotPiece(Pos, S, PopUp, AddPosRange) {}\n  ~PathDiagnosticPopUpPiece() override;\n\n  static bool classof(const PathDiagnosticPiece *P) {\n    return P->getKind() == PopUp;\n  }\n\n  void dump() const override;\n\n  void Profile(llvm::FoldingSetNodeID &ID) const override;\n}",
-  "id": "BLOCK-CPP-15794",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/PathDiagnostic.h",
-  "source_line": 741,
-  "validation_status": "validated"
-}

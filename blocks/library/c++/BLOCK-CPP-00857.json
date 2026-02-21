@@ -1,8 +1,0 @@
-{
-  "code": "{\n    if constexpr (is_named_arg<typename std::remove_cv<T>::type>::value) {\n      if (arg_name == arg.name) {\n        out = write<Char>(out, arg.value);\n        return true;\n      }\n    }\n    return false;\n  }",
-  "id": "BLOCK-CPP-00857",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 235,
-  "validation_status": "validated"
-}

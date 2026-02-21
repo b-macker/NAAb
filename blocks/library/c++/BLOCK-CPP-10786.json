@@ -1,8 +1,0 @@
-{
-  "code": "{\n  CXXTemporary *Temp = nullptr;\n  Stmt *SubExpr = nullptr;\n\n  CXXBindTemporaryExpr(CXXTemporary *temp, Expr *SubExpr)\n      : Expr(CXXBindTemporaryExprClass, SubExpr->getType(), VK_PRValue,\n             OK_Ordinary),\n        Temp(temp), SubExpr(SubExpr) {\n    setDependence(computeDependence(this));\n  }\n\npublic:\n  CXXBindTemporaryExpr(EmptyShell Empty)\n      : Expr(CXXBindTemporaryExprClass, Empty) {}\n\n  static CXXBindTemporaryExpr *Create(const ASTContext &C, CXXTemporary *Temp,\n                                      Expr* SubExpr);\n\n  CXXTemporary *getTemporary() { return Temp; }\n  const CXXTemporary *getTemporary() const { return Temp; }\n  void setTemporary(CXXTemporary *T) { Temp = T; }\n\n  const Expr *getSubExpr() const { return cast<Expr>(SubExpr); }\n  Expr *getSubExpr() { return cast<Expr>(SubExpr); }\n  void setSubExpr(Expr *E) { SubExpr = E; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY {\n    return SubExpr->getBeginLoc();\n  }\n\n  SourceLocation getEndLoc() const LLVM_READONLY {\n    return SubExpr->getEndLoc();\n  }\n\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == CXXBindTemporaryExprClass;\n  }\n\n  // Iterators\n  child_range children() { return child_range(&SubExpr, &SubExpr + 1); }\n\n  const_child_range children() const {\n    return const_child_range(&SubExpr, &SubExpr + 1);\n  }\n}",
-  "id": "BLOCK-CPP-10786",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
-  "source_line": 1470,
-  "validation_status": "validated"
-}

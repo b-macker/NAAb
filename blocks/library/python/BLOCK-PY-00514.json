@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00514_execute() {\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        result = value = self.expr.as_const(eval_ctx)\n\n        try:\n            for op in self.ops:\n                new_value = op.expr.as_const(eval_ctx)\n                result = _cmpop_to_func[op.op](value, new_value)\n\n                if not result:\n                    return False\n\n                value = new_value\n        except Exception as e:\n            raise Impossible() from e\n\n        return result\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00514",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 916,
-  "validation_status": "validated"
-}

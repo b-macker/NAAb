@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Stmt.h\"\n#include \"llvm/Support/Compiler.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13038_execute() {\n    {\n    return T->getStmtClass() == ObjCAtThrowStmtClass;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-13038",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtObjC.h",
-  "source_line": 381,
-  "validation_status": "validated"
-}

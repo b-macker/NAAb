@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace cord_internal {\n\n// Returns true if the provided rep is a FLAT, EXTERNAL or a SUBSTRING node\n// holding a FLAT or EXTERNAL child rep. Requires `rep != nullptr`.\ninline bool IsDataEdge(const CordRep* edge) {\n  assert(edge != nullptr);\n\n  // The fast path is that `edge` is an EXTERNAL or FLAT node, making the below\n  // if a single, well predicted branch. We then repeat the FLAT or EXTERNAL\n  // check in the slow path of the SUBSTRING check to optimize for the hot path.\n  if (edge->tag == EXTERNAL || edge->tag >= FLAT) return true;\n  if (edge->tag == SUBSTRING) edge = edge->substring()->child;\n  return edge->tag == EXTERNAL || edge->tag >= FLAT;\n}\n\n// Returns the `absl::string_view` data reference for the provided data edge.\n// Requires 'IsDataEdge(edge) == true`.\ninline absl::string_view EdgeData(const CordRep* edge) {\n  assert(IsDataEdge(edge));\n\n  size_t offset = 0;\n  const size_t length = edge->length;\n  if (edge->IsSubstring()) {\n    offset = edge->substring()->start;\n    edge = edge->substring()->child;\n  }\n  return edge->tag >= FLAT\n             ? absl::string_view{edge->flat()->Data() + offset, length}\n             : absl::string_view{edge->external()->base + offset, length};\n}\n\n}  // namespace cord_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-06058",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cord_data_edge.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

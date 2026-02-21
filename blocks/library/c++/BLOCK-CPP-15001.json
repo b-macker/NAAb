@@ -1,8 +1,0 @@
-{
-  "code": "{ void f(int x) {} }",
-  "id": "BLOCK-CPP-15001",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchers.h",
-  "source_line": 4862,
-  "validation_status": "validated"
-}

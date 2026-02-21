@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/ProgramState_Fwd.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/Store.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <vector>\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22343_execute() {\n    {\n  friend class ::clang::ento::CheckerRegistry;\n\n  StringRef Name;\n\n  explicit CheckerNameRef(StringRef Name) : Name(Name) {}\n\npublic:\n  CheckerNameRef() = default;\n\n  StringRef getName() const { return Name; }\n  operator StringRef() const { return Name; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22343",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/CheckerManager.h",
-  "source_line": 106,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  SourceLocation QuestionLoc, ColonLoc;\n  friend class ASTStmtReader;\n\nprotected:\n  AbstractConditionalOperator(StmtClass SC, QualType T, ExprValueKind VK,\n                              ExprObjectKind OK, SourceLocation qloc,\n                              SourceLocation cloc)\n      : Expr(SC, T, VK, OK), QuestionLoc(qloc), ColonLoc(cloc) {}\n\n  AbstractConditionalOperator(StmtClass SC, EmptyShell Empty)\n    : Expr(SC, Empty) { }\n\npublic:\n  /// getCond - Return the expression representing the condition for\n  ///   the ?: operator.\n  Expr *getCond() const;\n\n  /// getTrueExpr - Return the subexpression representing the value of\n  ///   the expression if the condition evaluates to true.\n  Expr *getTrueExpr() const;\n\n  /// getFalseExpr - Return the subexpression representing the value of\n  ///   the expression if the condition evaluates to false.  This is\n  ///   the same as getRHS.\n  Expr *getFalseExpr() const;\n\n  SourceLocation getQuestionLoc() const { return QuestionLoc; }\n  SourceLocation getColonLoc() const { return ColonLoc; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ConditionalOperatorClass ||\n           T->getStmtClass() == BinaryConditionalOperatorClass;\n  }\n}",
-  "id": "BLOCK-CPP-10244",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
-  "source_line": 4134,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22896_execute() {\n    {\n    getNodeDelegate().AddChild([=] {\n      getNodeDelegate().Visit(A);\n      if (const TypeSourceInfo *TSI = A.getTypeSourceInfo())\n        Visit(TSI->getType());\n      Visit(A.getAssociationExpr());\n    });\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22896",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
-  "source_line": 225,
-  "validation_status": "validated"
-}

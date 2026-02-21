@@ -1,8 +1,0 @@
-{
-  "code": "{\n  SourceLocation LeaveLoc;\n\npublic:\n  explicit SEHLeaveStmt(SourceLocation LL)\n      : Stmt(SEHLeaveStmtClass), LeaveLoc(LL) {}\n\n  /// Build an empty __leave statement.\n  explicit SEHLeaveStmt(EmptyShell Empty) : Stmt(SEHLeaveStmtClass, Empty) {}\n\n  SourceLocation getLeaveLoc() const { return LeaveLoc; }\n  void setLeaveLoc(SourceLocation L) { LeaveLoc = L; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return LeaveLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY { return LeaveLoc; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == SEHLeaveStmtClass;\n  }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
-  "id": "BLOCK-CPP-12895",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Stmt.h",
-  "source_line": 3539,
-  "validation_status": "validated"
-}

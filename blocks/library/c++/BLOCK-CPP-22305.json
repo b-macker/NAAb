@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename CHECKER>\n  static void _checkLocation(void *checker,\n                             const SVal &location, bool isLoad, const Stmt *S,\n                             CheckerContext &C) {\n    ((const CHECKER *)checker)->checkLocation(location, isLoad, S, C);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForLocation(\n           CheckerManager::CheckLocationFunc(checker, _checkLocation<CHECKER>));\n  }\n}",
-  "id": "BLOCK-CPP-22305",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 194,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Lex/Lexer.h\"\n#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/MD5.h\"\n#include <cstddef>\n#include <memory>\n#include <system_error>\n#include <type_traits>\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18384_execute() {\n    {\n    /// All files have size set.\n    off_t Size = 0;\n\n    /// Modification time is set for files that are on disk.  For memory\n    /// buffers it is zero.\n    time_t ModTime = 0;\n\n    /// Memory buffers have MD5 instead of modification time.  We don't\n    /// compute MD5 for on-disk files because we hope that modification time is\n    /// enough to tell if the file was changed.\n    llvm::MD5::MD5Result MD5 = {};\n\n    static PreambleFileHash createForFile(off_t Size, time_t ModTime);\n    static PreambleFileHash\n    createForMemoryBuffer(const llvm::MemoryBufferRef &Buffer);\n\n    friend bool operator==(const PreambleFileHash &LHS,\n                           const PreambleFileHash &RHS) {\n      return LHS.Size == RHS.Size && LHS.ModTime == RHS.ModTime &&\n             LHS.MD5 == RHS.MD5;\n    }\n    friend bool operator!=(const PreambleFileHash &LHS,\n                           const PreambleFileHash &RHS) {\n      return !(LHS == RHS);\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18384",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/PrecompiledPreamble.h",
-  "source_line": 143,
-  "validation_status": "validated"
-}

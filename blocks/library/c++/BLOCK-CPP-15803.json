@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include <cassert>\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15803_execute() {\n    {\n    unsigned x = Tag.getInt();\n    x <<= 2;\n    x |= L.getInt();\n    x <<= 2;\n    x |= Data2.getInt();\n    return (Kind) x;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15803",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 156,
-  "validation_status": "validated"
-}

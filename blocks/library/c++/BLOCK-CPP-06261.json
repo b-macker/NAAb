@@ -1,8 +1,0 @@
-{
-  "code": "#include <array>\n#include <initializer_list>\n#include <iterator>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include \"absl/base/macros.h\"\n#include \"absl/base/port.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/internal/stl_type_traits.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06261_execute() {\n    {\n      return pair.first;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06261",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_split_internal.h",
-  "source_line": 466,
-  "validation_status": "validated"
-}

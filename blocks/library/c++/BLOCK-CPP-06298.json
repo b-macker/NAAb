@@ -1,8 +1,0 @@
-{
-  "code": "#include <string.h>\n#include <wchar.h>\n#include <algorithm>\n#include <cstddef>\n#include <cstdint>\n#include <cstdio>\n#include <limits>\n#include <memory>\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/has_absl_stringify.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/string_view.h\"\n#include <string_view>\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06298_execute() {\n    {\n      T value;\n      memcpy(&value, arg.buf, sizeof(T));\n      return value;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06298",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/arg.h",
-  "source_line": 550,
-  "validation_status": "validated"
-}

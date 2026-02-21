@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00294_execute() {\n    def copy(self) -> \"te.Self\":\n        \"\"\"Create a copy of the current one.\"\"\"\n        rv = object.__new__(self.__class__)\n        rv.__dict__.update(self.__dict__)\n        rv.symbols = self.symbols.copy()\n        return rv\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00294",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 217,
-  "validation_status": "validated"
-}

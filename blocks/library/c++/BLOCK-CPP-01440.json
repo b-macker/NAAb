@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01440_execute() {\n    {\n  constexpr fixed_string(const Char (&str)[N]) {\n    detail::copy_str<Char, const Char*, Char*>(static_cast<const Char*>(str),\n                                               str + N, data);\n  }\n  Char data[N] = {};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01440",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 963,
-  "validation_status": "validated"
-}

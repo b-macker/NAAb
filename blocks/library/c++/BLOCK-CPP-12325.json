@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n\nusing namespace clang;\nusing namespace foo;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12325_execute() {\n    { return false; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12325",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/PrettyPrinter.h",
-  "source_line": 49,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00548_execute() {\n    {\n  codecvt_result<Char> unit;\n  write_codecvt(unit, sv, loc);\n  return copy_str<Char>(unit.buf, unit.end, out);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00548",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
-  "source_line": 398,
-  "validation_status": "validated"
-}

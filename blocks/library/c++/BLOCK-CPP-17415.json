@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/IR/ModuleSummaryIndex.h\"\n#include <memory>\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace vfs;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17415_execute() {\n    {\n  class DiagnosticsEngine;\n  class HeaderSearchOptions;\n  class CodeGenOptions;\n  class TargetOptions;\n  class LangOptions;\n\n  enum BackendAction {\n    Backend_EmitAssembly,  ///< Emit native assembly files\n    Backend_EmitBC,        ///< Emit LLVM bitcode files\n    Backend_EmitLL,        ///< Emit human-readable LLVM assembly\n    Backend_EmitNothing,   ///< Don't emit anything (benchmarking mode)\n    Backend_EmitMCNull,    ///< Run CodeGen, but don't emit anything\n    Backend_EmitObj        ///< Emit native object files\n  };\n\n  void EmitBackendOutput(DiagnosticsEngine &Diags, const HeaderSearchOptions &,\n                         const CodeGenOptions &CGOpts,\n                         const TargetOptions &TOpts, const LangOptions &LOpts,\n                         StringRef TDesc, llvm::Module *M, BackendAction Action,\n                         llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS,\n                         std::unique_ptr<raw_pwrite_stream> OS);\n\n  void EmbedBitcode(llvm::Module *M, const CodeGenOptions &CGOpts,\n                    llvm::MemoryBufferRef Buf);\n\n  void EmbedObject(llvm::Module *M, const CodeGenOptions &CGOpts,\n                   DiagnosticsEngine &Diags);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17415",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/BackendUtil.h",
-  "source_line": 27,
-  "validation_status": "validated"
-}

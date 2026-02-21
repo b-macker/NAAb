@@ -1,8 +1,0 @@
-{
-  "code": "#include <functional>  // For std::bind_front.\n#include \"absl/functional/internal/front_binder.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03622_execute() {\n    { return a - b; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03622",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/bind_front.h",
-  "source_line": 61,
-  "validation_status": "validated"
-}

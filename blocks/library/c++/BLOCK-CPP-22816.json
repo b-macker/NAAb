@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22816_execute() {\n    {\n  llvm::raw_ostream &OS;\n  const bool ShowColors;\n\npublic:\n  ColorScope(llvm::raw_ostream &OS, bool ShowColors, TerminalColor Color)\n      : OS(OS), ShowColors(ShowColors) {\n    if (ShowColors)\n      OS.changeColor(Color.Color, Color.Bold);\n  }\n  ~ColorScope() {\n    if (ShowColors)\n      OS.resetColor();\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22816",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTDumperUtils.h",
-  "source_line": 86,
-  "validation_status": "validated"
-}

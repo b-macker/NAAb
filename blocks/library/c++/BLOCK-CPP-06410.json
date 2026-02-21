@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/extension.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06410_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace str_format_internal {\n\nbool ConvertFloatImpl(float v, const FormatConversionSpecImpl &conv,\n                      FormatSinkImpl *sink);\n\nbool ConvertFloatImpl(double v, const FormatConversionSpecImpl &conv,\n                      FormatSinkImpl *sink);\n\nbool ConvertFloatImpl(long double v, const FormatConversionSpecImpl &conv,\n                      FormatSinkImpl *sink);\n\n}  // namespace str_format_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06410",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.h",
-  "source_line": 20,
-  "validation_status": "validated"
-}

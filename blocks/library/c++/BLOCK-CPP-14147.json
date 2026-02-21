@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTReader;\n  template <class T> friend class serialization::AbstractTypeReader;\n\n  /// Stores the TagDecl associated with this type. The decl may point to any\n  /// TagDecl that declares the entity.\n  TagDecl *decl;\n\nprotected:\n  TagType(TypeClass TC, const TagDecl *D, QualType can);\n\npublic:\n  TagDecl *getDecl() const;\n\n  /// Determines whether this type is in the process of being defined.\n  bool isBeingDefined() const;\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == Enum || T->getTypeClass() == Record;\n  }\n}",
-  "id": "BLOCK-CPP-14147",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 4846,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cwchar>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace literals;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01609_execute() {\n    {\n#if FMT_USE_USER_DEFINED_LITERALS && !FMT_USE_NONTYPE_TEMPLATE_ARGS\nconstexpr detail::udl_arg<wchar_t> operator\"\" _a(const wchar_t* s, size_t) {\n  return {s};\n}\n#endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01609",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/xchar.h",
-  "source_line": 50,
-  "validation_status": "validated"
-}

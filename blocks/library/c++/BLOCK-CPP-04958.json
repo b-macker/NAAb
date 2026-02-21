@@ -1,8 +1,0 @@
-{
-  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include <utility>\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace container_internal;\nusing namespace internal_compressed_tuple;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04958_execute() {\n    {\n  T value;\n  constexpr Storage() = default;\n  template <typename V>\n  explicit constexpr Storage(absl::in_place_t, V&& v)\n      : value(absl::forward<V>(v)) {}\n  constexpr const T& get() const& { return value; }\n  T& get() & { return value; }\n  constexpr const T&& get() const&& { return absl::move(*this).value; }\n  T&& get() && { return std::move(*this).value; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04958",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/compressed_tuple.h",
-  "source_line": 85,
-  "validation_status": "validated"
-}

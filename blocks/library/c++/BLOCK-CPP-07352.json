@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07352_execute() {\n    {\n  return (value ? *value : T());\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07352",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
-  "source_line": 18,
-  "validation_status": "validated"
-}

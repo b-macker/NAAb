@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename CHECKER>\n  static void _checkStmt(void *checker, const Stmt *S, CheckerContext &C) {\n    ((const CHECKER *)checker)->checkPreStmt(cast<STMT>(S), C);\n  }\n\n  static bool _handlesStmt(const Stmt *S) {\n    return isa<STMT>(S);\n  }\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForPreStmt(CheckerManager::CheckStmtFunc(checker,\n                                                          _checkStmt<CHECKER>),\n                            _handlesStmt);\n  }\n}",
-  "id": "BLOCK-CPP-22298",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 81,
-  "validation_status": "validated"
-}

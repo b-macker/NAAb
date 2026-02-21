@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cstdint>\n#include <utility>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23201_execute() {\n    {\n    return clang::BaseSubobject(\n      DenseMapInfo<const clang::CXXRecordDecl *>::getTombstoneKey(),\n      clang::CharUnits::fromQuantity(DenseMapInfo<int64_t>::getTombstoneKey()));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23201",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/BaseSubobject.h",
-  "source_line": 64,
-  "validation_status": "validated"
-}

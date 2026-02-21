@@ -1,8 +1,0 @@
-{
-  "code": "#include <sdkddkver.h>\n#include \"absl/base/config.h\"\n#include \"absl/synchronization/internal/kernel_timeout.h\"\n#include \"absl/synchronization/internal/waiter_base.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06491_execute() {\n    {\n\n#define ABSL_INTERNAL_HAVE_WIN32_WAITER 1\n\nclass Win32Waiter : public WaiterCrtp<Win32Waiter> {\n public:\n  Win32Waiter();\n\n  bool Wait(KernelTimeout t);\n  void Post();\n  void Poke();\n\n  static constexpr char kName[] = \"Win32Waiter\";\n\n private:\n  // WinHelper - Used to define utilities for accessing the lock and\n  // condition variable storage once the types are complete.\n  class WinHelper;\n\n  // REQUIRES: WinHelper::GetLock(this) must be held.\n  void InternalCondVarPoke();\n\n  // We can't include Windows.h in our headers, so we use aligned character\n  // buffers to define the storage of SRWLOCK and CONDITION_VARIABLE.\n  // SRW locks and condition variables do not need to be explicitly destroyed.\n  // https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-initializesrwlock\n  // https://stackoverflow.com/questions/28975958/why-does-windows-have-no-deleteconditionvariable-function-to-go-together-with\n  alignas(void*) unsigned char mu_storage_[sizeof(void*)];\n  alignas(void*) unsigned char cv_storage_[sizeof(void*)];\n  int waiter_count_;\n  int wakeup_count_;\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06491",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/win32_waiter.h",
-  "source_line": 32,
-  "validation_status": "validated"
-}

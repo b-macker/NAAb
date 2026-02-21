@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/crc/crc32c.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05411_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace crc_internal {\n\n// Modifies a CRC32 value by removing `length` bytes with a value of 0 from\n// the end of the string.\n//\n// This is the inverse operation of ExtendCrc32cByZeroes().\n//\n// This operation has a runtime cost of O(log(`length`))\n//\n// Internal implementation detail, exposed for testing only.\ncrc32c_t UnextendCrc32cByZeroes(crc32c_t initial_crc, size_t length);\n\n}  // namespace crc_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05411",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc32c.h",
-  "source_line": 21,
-  "validation_status": "validated"
-}

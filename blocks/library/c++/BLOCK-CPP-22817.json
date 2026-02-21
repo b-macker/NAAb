@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22817_execute() {\n    {\n  llvm::raw_ostream::Colors Color;\n  bool Bold;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22817",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTDumperUtils.h",
-  "source_line": 29,
-  "validation_status": "validated"
-}

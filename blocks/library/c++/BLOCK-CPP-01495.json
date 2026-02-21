@@ -1,8 +1,0 @@
-{
-  "code": "{\n private:\n  FILE* file_;\n\n  friend class file;\n\n  explicit buffered_file(FILE* f) : file_(f) {}\n\n public:\n  buffered_file(const buffered_file&) = delete;\n  void operator=(const buffered_file&) = delete;\n\n  // Constructs a buffered_file object which doesn't represent any file.\n  buffered_file() noexcept : file_(nullptr) {}\n\n  // Destroys the object closing the file it represents if any.\n  FMT_API ~buffered_file() noexcept;\n\n public:\n  buffered_file(buffered_file&& other) noexcept : file_(other.file_) {\n    other.file_ = nullptr;\n  }\n\n  buffered_file& operator=(buffered_file&& other) {\n    close();\n    file_ = other.file_;\n    other.file_ = nullptr;\n    return *this;\n  }\n\n  // Opens a file.\n  FMT_API buffered_file(cstring_view filename, cstring_view mode);\n\n  // Closes the file.\n  FMT_API void close();\n\n  // Returns the pointer to a FILE object representing this file.\n  FILE* get() const noexcept { return file_; }\n\n  FMT_API int descriptor() const;\n\n  void vprint(string_view format_str, format_args args) {\n    fmt::vprint(file_, format_str, args);\n  }\n\n  template <typename... Args>\n  inline void print(string_view format_str, const Args&... args) {\n    vprint(format_str, fmt::make_format_args(args...));\n  }\n}",
-  "id": "BLOCK-CPP-01495",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/os.h",
-  "source_line": 224,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <string>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06528_execute() {\n    {\n  std::string std_abbr;\n  std::int_fast32_t std_offset;\n\n  std::string dst_abbr;\n  std::int_fast32_t dst_offset;\n  PosixTransition dst_start;\n  PosixTransition dst_end;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06528",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_posix.h",
-  "source_line": 111,
-  "validation_status": "validated"
-}

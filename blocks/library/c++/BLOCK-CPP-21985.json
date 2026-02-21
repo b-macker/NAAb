@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/FlowSensitive/DataflowEnvironment.h\"\n#include \"clang/Analysis/FlowSensitive/StorageLocation.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21985_execute() {\n    {\n  return recordsEqual(Loc1, Env, Loc2, Env);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21985",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/RecordOps.h",
-  "source_line": 67,
-  "validation_status": "validated"
-}

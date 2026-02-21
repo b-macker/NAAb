@@ -1,8 +1,0 @@
-{
-  "code": "{\n  if constexpr (std::is_same<typename S::char_type, char>::value) {\n    constexpr auto str = basic_string_view<typename S::char_type>(S());\n    if constexpr (str.size() == 2 && str[0] == '{' && str[1] == '}') {\n      const auto& first = detail::first(args...);\n      if constexpr (detail::is_named_arg<\n                        remove_cvref_t<decltype(first)>>::value) {\n        return fmt::to_string(first.value);\n      } else {\n        return fmt::to_string(first);\n      }\n    }\n  }\n  constexpr auto compiled = detail::compile<Args...>(S());\n  if constexpr (std::is_same<remove_cvref_t<decltype(compiled)>,\n                             detail::unknown_format>()) {\n    return fmt::format(\n        static_cast<basic_string_view<typename S::char_type>>(S()),\n        std::forward<Args>(args)...);\n  } else {\n    return fmt::format(compiled, std::forward<Args>(args)...);\n  }\n}",
-  "id": "BLOCK-CPP-00885",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 527,
-  "validation_status": "validated"
-}

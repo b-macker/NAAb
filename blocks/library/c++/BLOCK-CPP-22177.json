@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include \"llvm/Support/raw_ostream.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22177_execute() {\n    {\nprotected:\n  std::unique_ptr<FixItRewriter> Rewriter;\n  std::unique_ptr<FixItOptions> FixItOpts;\n\n  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,\n                                                 StringRef InFile) override;\n\n  bool BeginSourceFileAction(CompilerInstance &CI) override;\n\n  void EndSourceFileAction() override;\n\n  bool hasASTFileSupport() const override { return false; }\n\npublic:\n  FixItAction();\n  ~FixItAction() override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22177",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Frontend/FrontendActions.h",
-  "source_line": 29,
-  "validation_status": "validated"
-}

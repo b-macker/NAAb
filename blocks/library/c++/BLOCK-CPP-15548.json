@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  explicit CFGStmt(const Stmt *S, Kind K = Statement) : CFGElement(K, S) {\n    assert(isKind(*this));\n  }\n\n  const Stmt *getStmt() const {\n    return static_cast<const Stmt *>(Data1.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n\n  static bool isKind(const CFGElement &E) {\n    return E.getKind() >= STMT_BEGIN && E.getKind() <= STMT_END;\n  }\n\nprotected:\n  CFGStmt() = default;\n}",
-  "id": "BLOCK-CPP-15548",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 130,
-  "validation_status": "validated"
-}

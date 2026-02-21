@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01349_execute() {\n    {\n  if (is_constant_evaluated()) {\n    return do_write_float<OutputIt, DecimalFP, Char,\n                          fallback_digit_grouping<Char>>(out, f, specs, fspecs,\n                                                         loc);\n  } else {\n    return do_write_float(out, f, specs, fspecs, loc);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01349",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 2480,
-  "validation_status": "validated"
-}

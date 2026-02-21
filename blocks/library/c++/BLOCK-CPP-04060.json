@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <memory>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/strings/internal/cord_internal.h\"\n#include \"absl/strings/internal/cord_rep_flat.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04060_execute() {\n    {\n      short_rep.raw_size = static_cast<char>((length << 1) + 1);\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04060",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/cord_buffer.h",
-  "source_line": 353,
-  "validation_status": "validated"
-}

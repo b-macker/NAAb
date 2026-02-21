@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18325_execute() {\n    {\n\nprivate:\n  bool BeginSourceFileAction(CompilerInstance &CI) override;\n\n  std::unique_ptr<raw_pwrite_stream>\n  CreateOutputFile(CompilerInstance &CI, StringRef InFile) override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18325",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendActions.h",
-  "source_line": 158,
-  "validation_status": "validated"
-}

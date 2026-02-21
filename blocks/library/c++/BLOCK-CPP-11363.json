@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Expr.h\"\n\nusing namespace clang;\nusing namespace analyze_os_log;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11363_execute() {\n    {\n    return llvm::any_of(Items, [](const OSLogBufferItem &Item) {\n      return Item.getKind() != OSLogBufferItem::ScalarKind ||\n             !Item.getMaskType().empty();\n    });\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11363",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/OSLog.h",
-  "source_line": 132,
-  "validation_status": "validated"
-}

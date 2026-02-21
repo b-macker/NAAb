@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/Type.h\"\n#include <functional>\n\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14574_execute() {\n    {\n      using clang::CanQualType;\n      return CanQualType::getFromOpaquePtr(reinterpret_cast<clang::Type *>(-1));\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-14574",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TypeOrdering.h",
-  "source_line": 61,
-  "validation_status": "validated"
-}

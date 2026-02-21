@@ -1,8 +1,0 @@
-{
-  "code": "//   #include \"absl/base/config.h\"\n//   #include \"sys/mman.h\"\n#include <limits.h>\n#include <cstddef>\n#include <version>\n#include <Availability.h>\n#include <TargetConditionals.h>\n#include \"absl/base/options.h\"\n#include \"absl/base/policy_checks.h\"\n\nusing namespace annotations;\nusing namespace absl;\nusing namespace is;\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace ABSL_OPTION_INLINE_NAMESPACE_NAME;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03421_execute() {\n    {\n#define ABSL_NAMESPACE_END }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03421",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/config.h",
-  "source_line": 181,
-  "validation_status": "validated"
-}

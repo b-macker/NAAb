@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/internal/low_level_alloc.h\"\n#include <type_traits>\n#include \"absl/base/call_once.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/direct_mmap.h\"\n#include \"absl/base/internal/scheduling_mode.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/thread_annotations.h\"\n#include <pthread.h>\n#include <signal.h>\n#include <sys/mman.h>\n#include <unistd.h>\n#include <windows.h>\n#include <sys/prctl.h>\n#include <string.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <cstddef>\n#include <new>  // for placement-new\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/spinlock.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02298_execute() {\n    {\n  // max_fit is the maximum number of levels that will fit in a node for the\n  // given size.   We can't return more than max_fit, no matter what the\n  // random number generator says.\n  size_t max_fit = (size - offsetof(AllocList, next)) / sizeof(AllocList *);\n  int level = IntLog2(size, base) + (random != nullptr ? Random(random) : 1);\n  if (static_cast<size_t>(level) > max_fit) level = static_cast<int>(max_fit);\n  if (level > kMaxLevel - 1) level = kMaxLevel - 1;\n  ABSL_RAW_CHECK(level >= 1, \"block not big enough for even one level\");\n  return level;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02298",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/low_level_alloc.cc",
-  "source_line": 140,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n    assert(isTokenBrace() && \"wrong consume method\");\n    if (Tok.getKind() == tok::l_brace)\n      ++BraceCount;\n    else if (BraceCount) {\n      AngleBrackets.clear(*this);\n      --BraceCount;     // Don't let unbalanced }'s drive the count negative.\n    }\n\n    PrevTokLocation = Tok.getLocation();\n    PP.Lex(Tok);\n    return PrevTokLocation;\n  }",
-  "id": "BLOCK-CPP-19260",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
-  "source_line": 637,
-  "validation_status": "validated"
-}

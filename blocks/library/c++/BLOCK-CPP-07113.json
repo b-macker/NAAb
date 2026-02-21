@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclTemplate.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07113_execute() {\n    {\n  if (!DC || !isa<CXXMethodDecl>(DC)) return false;\n  return isLambdaCallOperator(cast<CXXMethodDecl>(DC));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07113",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTLambda.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

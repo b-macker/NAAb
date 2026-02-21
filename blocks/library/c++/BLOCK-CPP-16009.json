@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/AttributeCommonInfo.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/TargetInfo.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16009_execute() {\n    {\n\nclass IdentifierInfo;\n\n/// Return the version number associated with the attribute if we\n/// recognize and implement the attribute specified by the given information.\nint hasAttribute(AttributeCommonInfo::Syntax Syntax,\n                 const IdentifierInfo *Scope, const IdentifierInfo *Attr,\n                 const TargetInfo &Target, const LangOptions &LangOpts);\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16009",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Attributes.h",
-  "source_line": 16,
-  "validation_status": "validated"
-}

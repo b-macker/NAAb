@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23110_execute() {\n    {\n  return (value ? std::optional<T *>(value) : std::optional<T *>());\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23110",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicWriter.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

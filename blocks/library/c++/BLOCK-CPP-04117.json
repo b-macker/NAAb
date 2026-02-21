@@ -1,8 +1,0 @@
-{
-  "code": "using namespace of;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04117_execute() {\n    { ... }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04117",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_cat.h",
-  "source_line": 57,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <stdint.h>\n#include <new>\n#include \"absl/base/internal/low_level_alloc.h\"\n#include \"absl/synchronization/internal/waiter.h\"\n#include <string.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/spinlock.h\"\n#include \"absl/base/internal/thread_identity.h\"\n#include \"absl/synchronization/internal/per_thread_sem.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03122_execute() {\n    {\n  return (addr + align - 1) & ~(align - 1);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03122",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/create_thread_identity.cc",
-  "source_line": 70,
-  "validation_status": "validated"
-}

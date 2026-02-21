@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include <xmmintrin.h>\n#include <intrin.h>\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03456_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03456",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/prefetch.h",
-  "source_line": 201,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <system_error>  // std::system_error\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01494_execute() {\n    {\n private:\n  memory_buffer buffer_;\n\n public:\n  utf16_to_utf8() {}\n  FMT_API explicit utf16_to_utf8(basic_string_view<wchar_t> s);\n  operator string_view() const { return string_view(&buffer_[0], size()); }\n  size_t size() const { return buffer_.size() - 1; }\n  const char* c_str() const { return &buffer_[0]; }\n  std::string str() const { return std::string(&buffer_[0], size()); }\n\n  // Performs conversion returning a system error code instead of\n  // throwing exception on conversion error. This method may still throw\n  // in case of memory allocation error.\n  FMT_API int convert(basic_string_view<wchar_t> s);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01494",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/os.h",
-  "source_line": 147,
-  "validation_status": "validated"
-}

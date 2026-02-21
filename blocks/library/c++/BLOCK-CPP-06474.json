@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include <semaphore.h>\n#include <atomic>\n#include <cstdint>\n#include \"absl/base/internal/thread_identity.h\"\n#include \"absl/synchronization/internal/futex.h\"\n#include \"absl/synchronization/internal/kernel_timeout.h\"\n#include \"absl/synchronization/internal/waiter_base.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06474_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace synchronization_internal {\n\n#define ABSL_INTERNAL_HAVE_SEM_WAITER 1\n\nclass SemWaiter : public WaiterCrtp<SemWaiter> {\n public:\n  SemWaiter();\n\n  bool Wait(KernelTimeout t);\n  void Post();\n  void Poke();\n\n  static constexpr char kName[] = \"SemWaiter\";\n\n private:\n  int TimedWait(KernelTimeout t);\n\n  sem_t sem_;\n\n  // This seems superfluous, but for Poke() we need to cause spurious\n  // wakeups on the semaphore. Hence we can't actually use the\n  // semaphore's count.\n  std::atomic<int> wakeups_;\n};\n\n}  // namespace synchronization_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06474",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/sem_waiter.h",
-  "source_line": 32,
-  "validation_status": "validated"
-}

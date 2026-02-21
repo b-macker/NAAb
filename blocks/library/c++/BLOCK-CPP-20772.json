@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20772_execute() {\n    {\n      return WeakInfo(DenseMapInfo::getTombstoneKey(), SourceLocation());\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20772",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Weak.h",
-  "source_line": 42,
-  "validation_status": "validated"
-}

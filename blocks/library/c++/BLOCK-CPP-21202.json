@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Tooling/Core/Replacement.h\"\n#include \"clang/Tooling/Tooling.h\"\n#include <map>\n#include <string>\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21202_execute() {\n    {\npublic:\n  /// \\see ClangTool::ClangTool.\n  RefactoringTool(const CompilationDatabase &Compilations,\n                  ArrayRef<std::string> SourcePaths,\n                  std::shared_ptr<PCHContainerOperations> PCHContainerOps =\n                      std::make_shared<PCHContainerOperations>());\n\n  /// Returns the file path to replacements map to which replacements\n  /// should be added during the run of the tool.\n  std::map<std::string, Replacements> &getReplacements();\n\n  /// Call run(), apply all generated replacements, and immediately save\n  /// the results to disk.\n  ///\n  /// \\returns 0 upon success. Non-zero upon failure.\n  int runAndSave(FrontendActionFactory *ActionFactory);\n\n  /// Apply all stored replacements to the given Rewriter.\n  ///\n  /// FileToReplaces will be deduplicated with `groupReplacementsByFile` before\n  /// application.\n  ///\n  /// Replacement applications happen independently of the success of other\n  /// applications.\n  ///\n  /// \\returns true if all replacements apply. false otherwise.\n  bool applyAllReplacements(Rewriter &Rewrite);\n\nprivate:\n  /// Write all refactored files to disk.\n  int saveRewrittenFiles(Rewriter &Rewrite);\n\nprivate:\n  std::map<std::string, Replacements> FileToReplaces;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21202",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/Refactoring.h",
-  "source_line": 37,
-  "validation_status": "validated"
-}

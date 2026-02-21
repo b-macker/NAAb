@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00327_execute() {\n    def position(self, node: nodes.Node) -> str:\n        \"\"\"Return a human readable position for the node.\"\"\"\n        rv = f\"line {node.lineno}\"\n        if self.name is not None:\n            rv = f\"{rv} in {self.name!r}\"\n        return rv\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00327",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 705,
-  "validation_status": "validated"
-}

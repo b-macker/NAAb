@@ -1,8 +1,0 @@
-{
-  "code": "{\n    precision = std::max(precision, size_t{1}) - 1;\n    if (!FloatToBuffer<FormatStyle::Precision>(decomposed, precision, &buffer,\n                                               &exp)) {\n      return FallbackToSnprintf(v, conv, sink);\n    }\n    if ((exp < 0 || precision + 1 > static_cast<size_t>(exp)) && exp >= -4) {\n      if (exp < 0) {\n        // Have 1.23456, needs 0.00123456\n        // Move the first digit\n        buffer.begin[1] = *buffer.begin;\n        // Add some zeros\n        for (; exp < -1; ++exp) *buffer.begin-- = '0';\n        *buffer.begin-- = '.';\n        *buffer.begin = '0';\n      } else if (exp > 0) {\n        // Have 1.23456, needs 1234.56\n        // Move the '.' exp positions to the right.\n        std::rotate(buffer.begin + 1, buffer.begin + 2, buffer.begin + exp + 2);\n      }\n      exp = 0;\n    }\n    if (!conv.has_alt_flag()) {\n      while (buffer.back() == '0') buffer.pop_back();\n      if (buffer.back() == '.') buffer.pop_back();\n    }\n    if (exp) {\n      PrintExponent(\n          exp, FormatConversionCharIsUpper(conv.conversion_char()) ? 'E' : 'e',\n          &buffer);\n    }\n  }",
-  "id": "BLOCK-CPP-03094",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
-  "source_line": 1381,
-  "validation_status": "validated"
-}

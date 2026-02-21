@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00404_execute() {\n    class EvalContext:\n    \"\"\"Holds evaluation time information.  Custom attributes can be attached\n    to it in extensions.\n    \"\"\"\n\n    def __init__(\n        self, environment: \"Environment\", template_name: str | None = None\n    ) -> None:\n        self.environment = environment\n        if callable(environment.autoescape):\n            self.autoescape = environment.autoescape(template_name)\n        else:\n            self.autoescape = environment.autoescape\n        self.volatile = False\n\n    def save(self) -> t.Mapping[str, t.Any]:\n        return self.__dict__.copy()\n\n    def revert(self, old: t.Mapping[str, t.Any]) -> None:\n        self.__dict__.clear()\n        self.__dict__.update(old)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00404",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 71,
-  "validation_status": "validated"
-}

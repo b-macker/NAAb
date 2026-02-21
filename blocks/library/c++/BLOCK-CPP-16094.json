@@ -1,8 +1,0 @@
-{
-  "code": "using namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16094_execute() {\n    {\n  // CUDA-9.2+ uses a new API for launching kernels.\n  CUDA_USES_NEW_LAUNCH,\n  // CUDA-10.1+ needs explicit end of GPU binary registration.\n  CUDA_USES_FATBIN_REGISTER_END,\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16094",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Cuda.h",
-  "source_line": 146,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"clang/Basic/TransformTypeTraits.def\"\n#include \"clang/Basic/OpenCLImageTypes.def\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17012_execute() {\n    {\n    static_assert(TST_error < 1 << 7, \"Type bitfield not wide enough for TST\");\n    /*DeclSpec::TST*/ unsigned Type : 7;\n    /*DeclSpec::TSS*/ unsigned Sign  : 2;\n    /*TypeSpecifierWidth*/ unsigned Width : 2;\n    unsigned ModeAttr : 1;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17012",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Specifiers.h",
-  "source_line": 104,
-  "validation_status": "validated"
-}

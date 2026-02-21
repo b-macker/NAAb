@@ -1,8 +1,0 @@
-{
-  "code": "#include <atomic>\n#include <cstdint>\n#include \"absl/base/internal/spinlock_wait.h\"\n#include \"absl/base/internal/spinlock_win32.inc\"\n#include \"absl/base/internal/spinlock_linux.inc\"\n#include \"absl/base/internal/spinlock_akaros.inc\"\n#include \"absl/base/internal/spinlock_posix.inc\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02335_execute() {\n    {\n  int loop = 0;\n  for (;;) {\n    uint32_t v = w->load(std::memory_order_acquire);\n    int i;\n    for (i = 0; i != n && v != trans[i].from; i++) {\n    }\n    if (i == n) {\n      SpinLockDelay(w, v, ++loop, scheduling_mode);  // no matching transition\n    } else if (trans[i].to == v ||                   // null transition\n               w->compare_exchange_strong(v, trans[i].to,\n                                          std::memory_order_acquire,\n                                          std::memory_order_relaxed)) {\n      if (trans[i].done) return v;\n    }\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02335",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/spinlock_wait.cc",
-  "source_line": 39,
-  "validation_status": "validated"
-}

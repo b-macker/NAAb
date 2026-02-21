@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/common.h>\n#include <algorithm>\n#include <iterator>\n\nusing namespace spdlog;\nusing namespace level;\nusing namespace level;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00013_execute() {\n    { SPDLOG_THROW(spdlog_ex(std::move(msg))); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00013",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/common-inl.h",
-  "source_line": 66,
-  "validation_status": "validated"
-}

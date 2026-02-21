@@ -1,8 +1,0 @@
-{
-  "code": "{\n    ///     int f() { return 0; };\n    ///   };\n    ///   int f();\n    ///   int f() { return 1; }\n    /// \\endcode\n    RTBS_None,\n    /// Always break after the return type.\n    /// \\code\n    ///   class A {\n    ///     int\n    ///     f() {\n    ///       return 0;\n    ///     };\n    ///   };\n    ///   int\n    ///   f();\n    ///   int\n    ///   f() {\n    ///     return 1;\n    ///   }\n    /// \\endcode\n    RTBS_All,\n    /// Always break after the return types of top-level functions.\n    /// \\code\n    ///   class A {\n    ///     int f() { return 0; };\n    ///   };\n    ///   int\n    ///   f();\n    ///   int\n    ///   f() {\n    ///     return 1;\n    ///   }\n    /// \\endcode\n    RTBS_TopLevel,\n    /// Always break after the return type of function definitions.\n    /// \\code\n    ///   class A {\n    ///     int\n    ///     f() {\n    ///       return 0;\n    ///     };\n    ///   };\n    ///   int f();\n    ///   int\n    ///   f() {\n    ///     return 1;\n    ///   }\n    /// \\endcode\n    RTBS_AllDefinitions,\n    /// Always break after the return type of top-level definitions.\n    /// \\code\n    ///   class A {\n    ///     int f() { return 0; };\n    ///   };\n    ///   int f();\n    ///   int\n    ///   f() {\n    ///     return 1;\n    ///   }\n    /// \\endcode\n    RTBS_TopLevelDefinitions,\n  }",
-  "id": "BLOCK-CPP-18122",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
-  "source_line": 838,
-  "validation_status": "validated"
-}

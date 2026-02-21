@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19792_execute() {\n    {\n      assert(isIterator() && \"Ptr not an iterator!\");\n      return reinterpret_cast<BaseIter>(Ptr & ~0x1);\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19792",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/IdentifierResolver.h",
-  "source_line": 100,
-  "validation_status": "validated"
-}

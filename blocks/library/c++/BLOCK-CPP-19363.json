@@ -1,8 +1,0 @@
-{
-  "code": "{\n    SourceLocation ColonLoc;\n    ExprResult RangeExpr;\n\n    bool ParsedForRangeDecl() { return !ColonLoc.isInvalid(); }\n  }",
-  "id": "BLOCK-CPP-19363",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
-  "source_line": 2379,
-  "validation_status": "validated"
-}

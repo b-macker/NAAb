@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/match.h\"\n#include <algorithm>\n#include <cstdint>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/memutil.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01941_execute() {\n    {\n  char upper_needle = absl::ascii_toupper(static_cast<unsigned char>(needle));\n  char lower_needle = absl::ascii_tolower(static_cast<unsigned char>(needle));\n  if (upper_needle == lower_needle) {\n    return StrContains(haystack, needle);\n  } else {\n    const char both_cstr[3] = {lower_needle, upper_needle, '\\0'};\n    return haystack.find_first_of(both_cstr) != absl::string_view::npos;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01941",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/match.cc",
-  "source_line": 48,
-  "validation_status": "validated"
-}

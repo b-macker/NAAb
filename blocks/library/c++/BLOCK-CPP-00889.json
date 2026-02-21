@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00889_execute() {\n    {\n  return fmt::format_to(detail::counting_iterator(), format_str, args...)\n      .count();\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00889",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 578,
-  "validation_status": "validated"
-}

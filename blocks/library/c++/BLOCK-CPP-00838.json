@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00838_execute() {\n    {\n  basic_memory_buffer<Char> buf;\n  detail::vformat_to(buf, ts, detail::to_string_view(format), args);\n  if (detail::is_utf8()) {\n    detail::print(f, basic_string_view<Char>(buf.begin(), buf.size()));\n  } else {\n    buf.push_back(Char(0));\n    detail::fputs(buf.data(), f);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00838",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 483,
-  "validation_status": "validated"
-}

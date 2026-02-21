@@ -1,8 +1,0 @@
-{
-  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01571_execute() {\n    {\n  template <typename U>\n  static auto check(U* p)\n      -> decltype((void)p->find('a'), p->length(), (void)p->data(), int());\n  template <typename> static void check(...);\n\n public:\n  static constexpr const bool value =\n      is_string<T>::value ||\n      std::is_convertible<T, std_string_view<char>>::value ||\n      !std::is_void<decltype(check<T>(nullptr))>::value;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01571",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
-  "source_line": 51,
-  "validation_status": "validated"
-}

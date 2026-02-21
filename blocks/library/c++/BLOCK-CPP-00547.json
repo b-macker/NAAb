@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00547_execute() {\n    {\n        buf.push_back(static_cast<char>(0xf0 | (c >> 18)));\n        buf.push_back(static_cast<char>(0x80 | ((c & 0x3ffff) >> 12)));\n        buf.push_back(static_cast<char>(0x80 | ((c & 0xfff) >> 6)));\n        buf.push_back(static_cast<char>(0x80 | (c & 0x3f)));\n      }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00547",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
-  "source_line": 382,
-  "validation_status": "validated"
-}

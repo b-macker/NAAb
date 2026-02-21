@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00232_execute() {\n    def _generate_nginx_dockerfile(self, complexity: str) -> str:\n        \"\"\"Generate Nginx Dockerfile\"\"\"\n        return \"\"\"# Nginx Production Dockerfile\nFROM nginx:alpine\n\n# Install security updates\nRUN apk update && apk upgrade && rm -rf /var/cache/apk/*\n\n# Copy custom configuration\nCOPY nginx.conf /etc/nginx/nginx.conf\nCOPY default.conf /etc/nginx/conf.d/default.conf\n\n# Copy static files\nCOPY dist/ /usr/share/nginx/html/\n\n# Create non-root user\nRUN adduser -D -s /bin/sh nginx-user\n\n# Set proper permissions\nRUN chown -R nginx-user:nginx-user /usr/share/nginx/html\nRUN chown -R nginx-user:nginx-user /var/cache/nginx\nRUN chown -R nginx-user:nginx-user /etc/nginx\n\n# Switch to non-root user\nUSER nginx-user\n\nEXPOSE 80\nCMD [\"nginx\", \"-g\", \"daemon off;\"]\"\"\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00232",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  virtual void anchor();\n\nprotected:\n  JobAction(ActionClass Kind, Action *Input, types::ID Type);\n  JobAction(ActionClass Kind, const ActionList &Inputs, types::ID Type);\n\npublic:\n  static bool classof(const Action *A) {\n    return (A->getKind() >= JobClassFirst &&\n            A->getKind() <= JobClassLast);\n  }\n}",
-  "id": "BLOCK-CPP-17684",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 399,
-  "validation_status": "validated"
-}

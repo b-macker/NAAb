@@ -1,8 +1,0 @@
-{
-  "code": "#include <optional>\n#include <utility>\n#include <vector>\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Analysis/FlowSensitive/ControlFlowContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowAnalysisContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowEnvironment.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowLattice.h\"\n#include \"llvm/ADT/Any.h\"\n#include \"llvm/Support/Error.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22016_execute() {\n    {\n  llvm::Any Value;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22016",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.h",
-  "source_line": 49,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/Module.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Serialization/ModuleFile.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <cstdint>\n#include <ctime>\n#include <memory>\n#include <string>\n#include <utility>\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21047_execute() {\n    {\n    explicit VisitState(unsigned N) : VisitNumber(N, 0) {\n      Stack.reserve(N);\n    }\n\n    /// The stack used when marking the imports of a particular module\n    /// as not-to-be-visited.\n    SmallVector<ModuleFile *, 4> Stack;\n\n    /// The visit number of each module file, which indicates when\n    /// this module file was last visited.\n    SmallVector<unsigned, 4> VisitNumber;\n\n    /// The next visit number to use to mark visited module files.\n    unsigned NextVisitNumber = 1;\n\n    /// The next visit state.\n    std::unique_ptr<VisitState> NextState;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21047",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ModuleManager.h",
-  "source_line": 102,
-  "validation_status": "validated"
-}

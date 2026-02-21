@@ -1,8 +1,0 @@
-{
-  "code": "#include <iterator>\n#include <optional>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Analysis/FlowSensitive/ControlFlowContext.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowEnvironment.h\"\n#include \"clang/Analysis/FlowSensitive/DataflowLattice.h\"\n#include \"clang/Analysis/FlowSensitive/TypeErasedDataflowAnalysis.h\"\n#include \"llvm/ADT/Any.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/Support/Error.h\"\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21889_execute() {\n    {\npublic:\n  /// Return value indicates whether the model processed the `Element`.\n  virtual bool transfer(const CFGElement &Element, Environment &Env) = 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21889",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/DataflowAnalysis.h",
-  "source_line": 244,
-  "validation_status": "validated"
-}

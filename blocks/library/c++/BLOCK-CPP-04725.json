@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04725_execute() {\n    {\n\n// A portable and thread-safe alternative to C89's `strerror`.\n//\n// The C89 specification of `strerror` is not suitable for use in a\n// multi-threaded application as the returned string may be changed by calls to\n// `strerror` from another thread.  The many non-stdlib alternatives differ\n// enough in their names, availability, and semantics to justify this wrapper\n// around them.  `errno` will not be modified by a call to `absl::StrError`.\nstd::string StrError(int errnum);\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04725",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/strerror.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

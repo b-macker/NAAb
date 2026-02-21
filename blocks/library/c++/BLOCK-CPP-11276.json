@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Type.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11276_execute() {\n    {\n    return T->getTypeClass() == (TypeClass)LocInfo;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11276",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LocInfoType.h",
-  "source_line": 50,
-  "validation_status": "validated"
-}

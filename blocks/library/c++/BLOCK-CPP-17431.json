@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/IR/DerivedTypes.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17431_execute() {\n    {\n    auto AI = getExpand();\n    AI.setPaddingInReg(PaddingInReg);\n    AI.setPaddingType(Padding);\n    return AI;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17431",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CGFunctionInfo.h",
-  "source_line": 239,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/time/civil_time.h\"\n#include <cstdlib>\n#include <ostream>\n#include <string>\n#include \"absl/strings/str_cat.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02117_execute() {\n    {\n  // Civil times support a larger year range than absl::Time, so we need to\n  // parse the year separately, normalize it, then use absl::ParseTime on the\n  // normalized string.\n  const std::string ss = std::string(s);  // TODO(absl-team): Avoid conversion.\n  const char* const np = ss.c_str();\n  char* endp;\n  errno = 0;\n  const civil_year_t y =\n      std::strtoll(np, &endp, 10);  // NOLINT(runtime/deprecated_fn)\n  if (endp == np || errno == ERANGE) return false;\n  const std::string norm = StrCat(NormalizeYear(y), endp);\n\n  const TimeZone utc = UTCTimeZone();\n  Time t;\n  if (ParseTime(StrCat(\"%Y\", fmt), norm, utc, &t, nullptr)) {\n    const auto cs = ToCivilSecond(t, utc);\n    *c = CivilT(y, cs.month(), cs.day(), cs.hour(), cs.minute(), cs.second());\n    return true;\n  }\n\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02117",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/civil_time.cc",
-  "source_line": 45,
-  "validation_status": "validated"
-}

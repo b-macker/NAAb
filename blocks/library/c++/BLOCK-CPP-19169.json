@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19169_execute() {\n    {\n    setLocation(R.getBegin());\n    setAnnotationEndLoc(R.getEnd());\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19169",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Token.h",
-  "source_line": 168,
-  "validation_status": "validated"
-}

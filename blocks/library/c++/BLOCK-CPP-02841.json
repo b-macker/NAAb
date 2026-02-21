@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/internal/seed_material.h\"\n#include <fcntl.h>\n#include <unistd.h>\n#include <io.h>\n#include <algorithm>\n#include <cerrno>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/escaping.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include <nacl/nacl_random.h>\n#include <windows.h>\n#include <zircon/syscalls.h>\n#include <sys/random.h>\n#include <bcrypt.h>\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02841_execute() {\n    {\n  auto buffer = reinterpret_cast<uint8_t*>(values.data());\n  size_t buffer_size = sizeof(uint32_t) * values.size();\n  while (buffer_size > 0) {\n    // getentropy() has a maximum permitted length of 256.\n    size_t to_read = std::min<size_t>(buffer_size, 256);\n    int result = getentropy(buffer, to_read);\n    if (result < 0) {\n      return false;\n    }\n    // https://github.com/google/sanitizers/issues/1173\n    // MemorySanitizer can't see through getentropy().\n    ABSL_ANNOTATE_MEMORY_IS_INITIALIZED(buffer, to_read);\n    buffer += to_read;\n    buffer_size -= to_read;\n  }\n  return true;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02841",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/seed_material.cc",
-  "source_line": 142,
-  "validation_status": "validated"
-}

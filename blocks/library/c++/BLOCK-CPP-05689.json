@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <ostream>\n#include <string>\n#include <vector>\n#include \"absl/hash/hash.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_join.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05689_execute() {\n    {\n    const std::string a_flat = absl::StrJoin(a.hash_representation_, \"\");\n    const std::string b_flat = absl::StrJoin(b.hash_representation_, \"\");\n    if (a_flat == b_flat) return CompareResult::kEqual;\n    if (absl::EndsWith(a_flat, b_flat)) return CompareResult::kBSuffixA;\n    if (absl::EndsWith(b_flat, a_flat)) return CompareResult::kASuffixB;\n    return CompareResult::kUnequal;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05689",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/spy_hash_state.h",
-  "source_line": 114,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/log/log_entry.h\"\n#include \"absl/log/log_sink.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05748_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace log_internal {\n\n// Returns true if a globally-registered `LogSink`'s `Send()` is currently\n// being invoked on this thread.\nbool ThreadIsLoggingToLogSink();\n\n// This function may log to two sets of sinks:\n//\n// * If `extra_sinks_only` is true, it will dispatch only to `extra_sinks`.\n//   `LogMessage::ToSinkAlso` and `LogMessage::ToSinkOnly` are used to attach\n//    extra sinks to the entry.\n// * Otherwise it will also log to the global sinks set. This set is managed\n//   by `absl::AddLogSink` and `absl::RemoveLogSink`.\nvoid LogToSinks(const absl::LogEntry& entry,\n                absl::Span<absl::LogSink*> extra_sinks, bool extra_sinks_only);\n\n// Implementation for operations with log sink set.\nvoid AddLogSink(absl::LogSink* sink);\nvoid RemoveLogSink(absl::LogSink* sink);\nvoid FlushLogSinks();\n\n}  // namespace log_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05748",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/log_sink_set.h",
-  "source_line": 27,
-  "validation_status": "validated"
-}

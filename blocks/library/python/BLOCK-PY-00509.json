@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00509_execute() {\n    def as_const(self, eval_ctx: EvalContext | None = None) -> t.Any:\n        if self.node is None:\n            raise Impossible()\n\n        return super().as_const(eval_ctx=eval_ctx)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00509",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 793,
-  "validation_status": "validated"
-}

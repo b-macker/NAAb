@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicReader.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23104_execute() {\n    {\n    static_assert(sizeof(FunctionProtoType::ExtParameterInfo().getOpaqueValue())\n                    <= sizeof(uint32_t),\n                  \"opaque value doesn't fit into uint32_t\");\n    uint32_t value = asImpl().readUInt32();\n    return FunctionProtoType::ExtParameterInfo::getFromOpaqueValue(value);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23104",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicReader.h",
-  "source_line": 239,
-  "validation_status": "validated"
-}

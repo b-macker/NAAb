@@ -1,8 +1,0 @@
-{
-  "code": "{\n  // Category name location\n  SourceLocation CategoryNameLoc;\n\n  ObjCCategoryImplDecl(DeclContext *DC, IdentifierInfo *Id,\n                       ObjCInterfaceDecl *classInterface,\n                       SourceLocation nameLoc, SourceLocation atStartLoc,\n                       SourceLocation CategoryNameLoc)\n      : ObjCImplDecl(ObjCCategoryImpl, DC, classInterface, Id,\n                     nameLoc, atStartLoc),\n        CategoryNameLoc(CategoryNameLoc) {}\n\n  void anchor() override;\n\npublic:\n  friend class ASTDeclReader;\n  friend class ASTDeclWriter;\n\n  static ObjCCategoryImplDecl *Create(ASTContext &C, DeclContext *DC,\n                                      IdentifierInfo *Id,\n                                      ObjCInterfaceDecl *classInterface,\n                                      SourceLocation nameLoc,\n                                      SourceLocation atStartLoc,\n                                      SourceLocation CategoryNameLoc);\n  static ObjCCategoryImplDecl *CreateDeserialized(ASTContext &C, unsigned ID);\n\n  ObjCCategoryDecl *getCategoryDecl() const;\n\n  SourceLocation getCategoryNameLoc() const { return CategoryNameLoc; }\n\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == ObjCCategoryImpl;}\n}",
-  "id": "BLOCK-CPP-09059",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclObjC.h",
-  "source_line": 2531,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  CFGImplicitDtor() = default;\n\n  CFGImplicitDtor(Kind kind, const void *data1, const void *data2 = nullptr)\n    : CFGElement(kind, data1, data2) {\n    assert(kind >= DTOR_BEGIN && kind <= DTOR_END);\n  }\n\npublic:\n  const CXXDestructorDecl *getDestructorDecl(ASTContext &astContext) const;\n  bool isNoReturn(ASTContext &astContext) const;\n\nprivate:\n  friend class CFGElement;\n\n  static bool isKind(const CFGElement &E) {\n    Kind kind = E.getKind();\n    return kind >= DTOR_BEGIN && kind <= DTOR_END;\n  }\n}",
-  "id": "BLOCK-CPP-15557",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 364,
-  "validation_status": "validated"
-}

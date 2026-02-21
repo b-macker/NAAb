@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/IR/Constant.h\"\n\nusing namespace clang;\nusing namespace CodeGen;\nusing namespace llvm;\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17586_execute() {\n    {\n    ConstantInitFuture result;\n    result.Data = PairTy::getFromOpaqueValue(value);\n    return result;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17586",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ConstantInitFuture.h",
-  "source_line": 77,
-  "validation_status": "validated"
-}

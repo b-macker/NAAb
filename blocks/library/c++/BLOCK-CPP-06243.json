@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstring>\n#include <iterator>\n#include <memory>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/strings/internal/ostringstream.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/str_cat.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06243_execute() {\n    {\n public:\n  PairFormatterImpl(F1 f1, absl::string_view sep, F2 f2)\n      : f1_(std::move(f1)), sep_(sep), f2_(std::move(f2)) {}\n\n  template <typename T>\n  void operator()(std::string* out, const T& p) {\n    f1_(out, p.first);\n    out->append(sep_);\n    f2_(out, p.second);\n  }\n\n  template <typename T>\n  void operator()(std::string* out, const T& p) const {\n    f1_(out, p.first);\n    out->append(sep_);\n    f2_(out, p.second);\n  }\n\n private:\n  F1 f1_;\n  std::string sep_;\n  F2 f2_;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06243",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_join_internal.h",
-  "source_line": 101,
-  "validation_status": "validated"
-}

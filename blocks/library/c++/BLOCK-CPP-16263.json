@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n\nusing namespace clang;\nusing namespace diag;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16263_execute() {\n    {\nenum {\n#define DIAG(ENUM, FLAGS, DEFAULT_MAPPING, DESC, GROUP, SFINAE, NOWERROR,      \\\n             SHOWINSYSHEADER, SHOWINSYSMACRO, DEFERRABLE, CATEGORY)            \\\n  ENUM,\n#define ASTSTART\n#include \"clang/Basic/DiagnosticASTKinds.inc\"\n#undef DIAG\n  NUM_BUILTIN_AST_DIAGNOSTICS\n};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16263",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticAST.h",
-  "source_line": 15,
-  "validation_status": "validated"
-}

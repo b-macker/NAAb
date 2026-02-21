@@ -1,8 +1,0 @@
-{
-  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01547_execute() {\n    {\n  for (auto it = range.begin(), end = range.end(); it != end; ++it)\n    *out++ = *it;\n  return out;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01547",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
-  "source_line": 25,
-  "validation_status": "validated"
-}

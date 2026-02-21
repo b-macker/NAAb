@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/spdlog.h>\n#include <spdlog/common.h>\n#include <spdlog/pattern_formatter.h>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00130_execute() {\n    {\n    set_formatter(\n        std::unique_ptr<spdlog::formatter>(new pattern_formatter(std::move(pattern), time_type)));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00130",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/spdlog-inl.h",
-  "source_line": 27,
-  "validation_status": "validated"
-}

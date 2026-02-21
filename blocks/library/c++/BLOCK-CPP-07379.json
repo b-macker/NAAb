@@ -1,8 +1,0 @@
-{
-  "code": "{\n    asImpl().writeUInt32(uint32_t(esi.Type));\n    if (esi.Type == EST_Dynamic) {\n      asImpl().writeArray(esi.Exceptions);\n    } else if (isComputedNoexcept(esi.Type)) {\n      asImpl().writeExprRef(esi.NoexceptExpr);\n    } else if (esi.Type == EST_Uninstantiated) {\n      asImpl().writeDeclRef(esi.SourceDecl);\n      asImpl().writeDeclRef(esi.SourceTemplate);\n    } else if (esi.Type == EST_Unevaluated) {\n      asImpl().writeDeclRef(esi.SourceDecl);\n    }\n  }",
-  "id": "BLOCK-CPP-07379",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicWriter.h",
-  "source_line": 204,
-  "validation_status": "validated"
-}

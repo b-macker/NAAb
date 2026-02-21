@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n/// A \"future\" for a completed constant initializer, which can be passed\n/// around independently of any sub-builders (but not the original parent).\nclass ConstantInitFuture {\n  using PairTy = llvm::PointerUnion<ConstantInitBuilderBase*, llvm::Constant*>;\n\n  PairTy Data;\n\n  friend class ConstantInitBuilderBase;\n  explicit ConstantInitFuture(ConstantInitBuilderBase *builder);\n\npublic:\n  ConstantInitFuture() {}\n\n  /// A future can be explicitly created from a fixed initializer.\n  explicit ConstantInitFuture(llvm::Constant *initializer) : Data(initializer) {\n    assert(initializer && \"creating null future\");\n  }\n\n  /// Is this future non-null?\n  explicit operator bool() const { return bool(Data); }\n\n  /// Return the type of the initializer.\n  llvm::Type *getType() const;\n\n  /// Abandon this initializer.\n  void abandon();\n\n  /// Install the initializer into a global variable.  This cannot\n  /// be called multiple times.\n  void installInGlobal(llvm::GlobalVariable *global);\n\n  void *getOpaqueValue() const { return Data.getOpaqueValue(); }\n  static ConstantInitFuture getFromOpaqueValue(void *value) {\n    ConstantInitFuture result;\n    result.Data = PairTy::getFromOpaqueValue(value);\n    return result;\n  }\n  static constexpr int NumLowBitsAvailable =\n      llvm::PointerLikeTypeTraits<PairTy>::NumLowBitsAvailable;\n};\n\n}",
-  "id": "BLOCK-CPP-17593",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ConstantInitFuture.h",
-  "source_line": 43,
-  "validation_status": "validated"
-}

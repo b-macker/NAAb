@@ -1,8 +1,0 @@
-{
-  "code": "{\n  const CXXConstructExpr *ElidedCE;\n  const ConstructionContext *ElidedCC;\n\n  friend class ConstructionContext; // Allows to create<>() itself.\n\n  explicit ElidedTemporaryObjectConstructionContext(\n      const CXXBindTemporaryExpr *BTE, const MaterializeTemporaryExpr *MTE,\n      const CXXConstructExpr *ElidedCE, const ConstructionContext *ElidedCC)\n      : TemporaryObjectConstructionContext(\n            ConstructionContext::ElidedTemporaryObjectKind, BTE, MTE),\n        ElidedCE(ElidedCE), ElidedCC(ElidedCC) {\n    // Elided constructor and its context should be either both specified\n    // or both unspecified. In the former case, the constructor must be\n    // elidable.\n    assert(ElidedCE && ElidedCE->isElidable() && ElidedCC);\n  }\n\npublic:\n  const CXXConstructExpr *getConstructorAfterElision() const {\n    return ElidedCE;\n  }\n\n  const ConstructionContext *getConstructionContextAfterElision() const {\n    return ElidedCC;\n  }\n\n  static bool classof(const ConstructionContext *CC) {\n    return CC->getKind() == ElidedTemporaryObjectKind;\n  }\n}",
-  "id": "BLOCK-CPP-15691",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 549,
-  "validation_status": "validated"
-}

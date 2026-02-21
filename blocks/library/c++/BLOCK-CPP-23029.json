@@ -1,8 +1,0 @@
-{
-  "code": "{\n    static const T *get(ASTNodeKind NodeKind, const void *Storage) {\n      if (ASTNodeKind::getFromNodeKind<T>().isBaseOf(NodeKind))\n        return &getUnchecked(NodeKind, Storage);\n      return nullptr;\n    }\n    static const T &getUnchecked(ASTNodeKind NodeKind, const void *Storage) {\n      assert(ASTNodeKind::getFromNodeKind<T>().isBaseOf(NodeKind));\n      return *static_cast<const T *>(reinterpret_cast<const BaseT *>(Storage));\n    }\n    static DynTypedNode create(const T &Node) {\n      DynTypedNode Result;\n      Result.NodeKind = ASTNodeKind::getFromNode(Node);\n      new (&Result.Storage) T(Node);\n      return Result;\n    }\n  }",
-  "id": "BLOCK-CPP-23029",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTTypeTraits.h",
-  "source_line": 480,
-  "validation_status": "validated"
-}

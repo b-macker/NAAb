@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/log/internal/conditions.h\"\n#include <atomic>\n#include <cstdint>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/cycleclock.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02692_execute() {\n    {\n  const uint32_t value = counter->load(std::memory_order_relaxed);\n  counter->store(value + 1, std::memory_order_relaxed);\n  return value;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02692",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/conditions.cc",
-  "source_line": 31,
-  "validation_status": "validated"
-}

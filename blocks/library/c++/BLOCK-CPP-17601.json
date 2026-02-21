@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/PCHContainerOperations.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17601_execute() {\n    {\n  ArrayRef<StringRef> getFormats() const override;\n\n  /// Returns the serialized AST inside the PCH container Buffer.\n  StringRef ExtractPCH(llvm::MemoryBufferRef Buffer) const override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17601",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ObjectFilePCHContainerOperations.h",
-  "source_line": 34,
-  "validation_status": "validated"
-}

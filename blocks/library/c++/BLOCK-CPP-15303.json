@@ -1,8 +1,0 @@
-{
-  "code": "using namespace and;\nusing namespace my_matchers;\nusing namespace my_matchers;\nusing namespace may;\nusing namespace clang;\nusing namespace ast_matchers;\nusing namespace ast_matchers;\nusing namespace clang;\nusing namespace internal;\nusing namespace internal;\nusing namespace internal;\nusing namespace internal;\nusing namespace internal;\nusing namespace internal;\nusing namespace internal;\nusing namespace internal;\nusing namespace internal;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15303_execute() {\n    {                                                         \\\n  template <typename T> struct TypeLocMatcher##MatcherName##Getter {           \\\n    static TypeLoc (T::*value())() const { return &T::FunctionName##Loc; }     \\\n  };                                                                           \\\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15303",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchersMacros.h",
-  "source_line": 430,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTVector.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/UnresolvedSet.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23037_execute() {\n    { return const_iterator(Decls.begin()); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23037",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTUnresolvedSet.h",
-  "source_line": 52,
-  "validation_status": "validated"
-}

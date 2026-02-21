@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <initializer_list>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/functional/internal/any_invocable.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03617_execute() {\n    { return 0; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03617",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/any_invocable.h",
-  "source_line": 80,
-  "validation_status": "validated"
-}

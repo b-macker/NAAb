@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/crc/internal/crc.h\"\n#include <cstdint>\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/prefetch.h\"\n#include \"absl/crc/internal/crc_internal.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02460_execute() {\n    {\n  uint32_t l = *val;\n  uint32_t result = 0;\n  auto onebit = uint32_t{0x80000000u};\n  for (uint32_t one = onebit; one != 0; one >>= 1) {\n    if ((l & one) != 0) {\n      result ^= m;\n    }\n    if (m & 1) {\n      m = (m >> 1) ^ poly;\n    } else {\n      m >>= 1;\n    }\n  }\n  *val = result;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02460",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc.cc",
-  "source_line": 83,
-  "validation_status": "validated"
-}

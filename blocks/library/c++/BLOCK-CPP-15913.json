@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/ImmutableMap.h\"\n#include \"clang/AST/Attr.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/ParentMap.h\"\n#include \"clang/Analysis/AnyCall.h\"\n#include \"clang/Analysis/SelectorExtras.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace ento;\nusing namespace ento;\nusing namespace clang;\nusing namespace ento;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15913_execute() {\n    {\n    typedef std::pair<IdentifierInfo*, Selector> PairTy;\n    return DenseMapInfo<PairTy>::getHashValue(PairTy(V.getIdentifier(),\n                                                     V.getSelector()));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15913",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/RetainSummaryManager.h",
-  "source_line": 259,
-  "validation_status": "validated"
-}

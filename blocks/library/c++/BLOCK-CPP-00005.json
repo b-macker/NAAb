@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/async_logger.h>\n#include <spdlog/details/registry.h>\n#include <spdlog/details/thread_pool.h>\n#include <functional>\n#include <memory>\n#include <mutex>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00005_execute() {\n    {\n    return details::registry::instance().get_tp();\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00005",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/async.h",
-  "source_line": 97,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "// Do not proliferate #includes here, require clients to #include their\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16497_execute() {\n    {\n  // ADT's.\n  class StringRef;\n  class Twine;\n  class VersionTuple;\n  template<typename T> class ArrayRef;\n  template<typename T> class MutableArrayRef;\n  template<typename T> class OwningArrayRef;\n  template<unsigned InternalLen> class SmallString;\n  template<typename T, unsigned N> class SmallVector;\n  template<typename T> class SmallVectorImpl;\n  template <class T> class Expected;\n\n  template<typename T>\n  struct SaveAndRestore;\n\n  // Reference counting.\n  template <typename T> class IntrusiveRefCntPtr;\n  template <typename T> struct IntrusiveRefCntPtrInfo;\n  template <class Derived> class RefCountedBase;\n\n  class raw_ostream;\n  class raw_pwrite_stream;\n  // TODO: DenseMap, ...\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16497",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/LLVM.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

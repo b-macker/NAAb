@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01146_execute() {\n    {\n  FMT_CONSTEXPR arg_ref() : kind(arg_id_kind::none), val() {}\n\n  FMT_CONSTEXPR explicit arg_ref(int index)\n      : kind(arg_id_kind::index), val(index) {}\n  FMT_CONSTEXPR explicit arg_ref(basic_string_view<Char> name)\n      : kind(arg_id_kind::name), val(name) {}\n\n  FMT_CONSTEXPR auto operator=(int idx) -> arg_ref& {\n    kind = arg_id_kind::index;\n    val.index = idx;\n    return *this;\n  }\n\n  arg_id_kind kind;\n  union value {\n    FMT_CONSTEXPR value(int id = 0) : index{id} {}\n    FMT_CONSTEXPR value(basic_string_view<Char> n) : name(n) {}\n\n    int index;\n    basic_string_view<Char> name;\n  } val;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01146",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 2161,
-  "validation_status": "validated"
-}

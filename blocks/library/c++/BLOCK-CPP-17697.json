@@ -1,8 +1,0 @@
-{
-  "code": "{\n  void anchor() override;\n\npublic:\n  VerifyJobAction(ActionClass Kind, Action *Input, types::ID Type);\n\n  static bool classof(const Action *A) {\n    return A->getKind() == VerifyDebugInfoJobClass ||\n           A->getKind() == VerifyPCHJobClass;\n  }\n}",
-  "id": "BLOCK-CPP-17697",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 550,
-  "validation_status": "validated"
-}

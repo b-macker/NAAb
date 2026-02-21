@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  CallEnter(const Stmt *stmt, const StackFrameContext *calleeCtx,\n            const LocationContext *callerCtx)\n    : ProgramPoint(stmt, calleeCtx, CallEnterKind, callerCtx, nullptr) {}\n\n  const Stmt *getCallExpr() const {\n    return static_cast<const Stmt *>(getData1());\n  }\n\n  const StackFrameContext *getCalleeContext() const {\n    return static_cast<const StackFrameContext *>(getData2());\n  }\n\n  /// Returns the entry block in the CFG for the entered function.\n  const CFGBlock *getEntry() const {\n    const StackFrameContext *CalleeCtx = getCalleeContext();\n    const CFG *CalleeCFG = CalleeCtx->getCFG();\n    return &(CalleeCFG->getEntry());\n  }\n\nprivate:\n  friend class ProgramPoint;\n  CallEnter() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == CallEnterKind;\n  }\n}",
-  "id": "BLOCK-CPP-15890",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 628,
-  "validation_status": "validated"
-}

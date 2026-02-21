@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <TargetConditionals.h>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/unscaledcycleclock_config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace time_internal;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04746_execute() {\n    {\nclass CycleClock;\nclass UnscaledCycleClockWrapperForInitializeFrequency;\n\nclass UnscaledCycleClock {\n private:\n  UnscaledCycleClock() = delete;\n\n  // Return the value of a cycle counter that counts at a rate that is\n  // approximately constant.\n  static int64_t Now();\n\n  // Return the how much UnscaledCycleClock::Now() increases per second.\n  // This is not necessarily the core CPU clock frequency.\n  // It may be the nominal value report by the kernel, rather than a measured\n  // value.\n  static double Frequency();\n\n  // Allowed users\n  friend class base_internal::CycleClock;\n  friend class time_internal::UnscaledCycleClockWrapperForGetCurrentTime;\n  friend class base_internal::UnscaledCycleClockWrapperForInitializeFrequency;\n};\n\n#if defined(__x86_64__)\n\ninline int64_t UnscaledCycleClock::Now() {\n  uint64_t low, high;\n  __asm__ volatile(\"rdtsc\" : \"=a\"(low), \"=d\"(high));\n  return static_cast<int64_t>((high << 32) | low);\n}\n\n#endif\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04746",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/unscaledcycleclock.h",
-  "source_line": 56,
-  "validation_status": "validated"
-}

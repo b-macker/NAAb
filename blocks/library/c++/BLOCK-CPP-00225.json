@@ -1,8 +1,0 @@
-{
-  "code": "#include <chrono>\n#include <iterator>\n#include <spdlog/common.h>\n#include <spdlog/fmt/fmt.h>\n#include <type_traits>\n    #include <charconv>\n    #include <limits>\n\nusing namespace spdlog;\nusing namespace details;\nusing namespace fmt_helper;\nusing namespace to;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00225_execute() {\n    {\n    static_assert(std::is_unsigned<T>::value, \"pad_uint must get unsigned T\");\n    for (auto digits = count_digits(n); digits < width; digits++) {\n        dest.push_back('0');\n    }\n    append_int(n, dest);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00225",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/fmt_helper.h",
-  "source_line": 95,
-  "validation_status": "validated"
-}

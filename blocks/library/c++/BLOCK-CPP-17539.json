@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17539_execute() {\n    {\n  class LLVMContext;\n  class Module;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17539",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CodeGenAction.h",
-  "source_line": 15,
-  "validation_status": "validated"
-}

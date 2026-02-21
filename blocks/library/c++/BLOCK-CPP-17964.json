@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include <tuple>\n\nusing namespace clang;\nusing namespace edit;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17964_execute() {\n    { return Offs; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17964",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Edit/FileOffset.h",
-  "source_line": 29,
-  "validation_status": "validated"
-}

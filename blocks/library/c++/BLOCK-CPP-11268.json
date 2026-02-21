@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/RecursiveASTVisitor.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/Support/SaveAndRestore.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11268_execute() {\n    {\n    // Objective-C @implementation declarations should not trigger early exit\n    // until the additional decls are traversed as their children are not\n    // lexically ordered.\n    bool Result = BaseType::TraverseObjCImplementationDecl(D);\n    return TraverseAdditionalLexicallyNestedDeclarations() ? Result : false;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11268",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LexicallyOrderedRecursiveASTVisitor.h",
-  "source_line": 66,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00914_execute() {\n    {\n  // Avoid buggy sign extensions in MSVC's constant evaluation mode (#2297).\n  using uchar = unsigned char;\n  return FMT_UNICODE || (sizeof(micro) == 3 && uchar(micro[0]) == 0xC2 &&\n                         uchar(micro[1]) == 0xB5);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00914",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 415,
-  "validation_status": "validated"
-}

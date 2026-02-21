@@ -1,8 +1,0 @@
-{
-  "code": "#include <fstream>\n#include <ostream>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01505_execute() {\n    {\n  const auto& vargs = fmt::make_format_args(args...);\n  if (detail::is_utf8())\n    vprint(os, fmt, vargs);\n  else\n    detail::vprint_directly(os, fmt, vargs);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01505",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ostream.h",
-  "source_line": 218,
-  "validation_status": "validated"
-}

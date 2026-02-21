@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nbool ShouldLogBacktraceAt(absl::string_view file, int line) {\n  const size_t flag_hash =\n      log_backtrace_at_hash.load(std::memory_order_relaxed);\n\n  return flag_hash != 0 && flag_hash == HashSiteForLogBacktraceAt(file, line);\n}\n\n}",
-  "id": "BLOCK-CPP-01782",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/globals.cc",
-  "source_line": 148,
-  "validation_status": "validated"
-}

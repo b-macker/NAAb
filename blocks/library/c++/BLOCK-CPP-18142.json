@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Tooling/Core/Replacement.h\"\n#include \"clang/Tooling/Inclusions/IncludeStyle.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/Regex.h\"\n#include \"llvm/Support/SourceMgr.h\"\n#include <optional>\n#include <system_error>\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\nusing namespace format;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18142_execute() {\n    {\n    /// Specifies the way to align trailing comments.\n    TrailingCommentsAlignmentKinds Kind;\n    /// How many empty lines to apply alignment.\n    /// When both ``MaxEmptyLinesToKeep`` and ``OverEmptyLines`` are set to 2,\n    /// it formats like below.\n    /// \\code\n    ///   int a;      // all these\n    ///\n    ///   int ab;     // comments are\n    ///\n    ///\n    ///   int abcdef; // aligned\n    /// \\endcode\n    ///\n    /// When ``MaxEmptyLinesToKeep`` is set to 2 and ``OverEmptyLines`` is set\n    /// to 1, it formats like below.\n    /// \\code\n    ///   int a;  // these are\n    ///\n    ///   int ab; // aligned\n    ///\n    ///\n    ///   int abcdef; // but this isn't\n    /// \\endcode\n    unsigned OverEmptyLines;\n\n    bool operator==(const TrailingCommentsAlignmentStyle &R) const {\n      return Kind == R.Kind && OverEmptyLines == R.OverEmptyLines;\n    }\n    bool operator!=(const TrailingCommentsAlignmentStyle &R) const {\n      return !(*this == R);\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18142",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
-  "source_line": 505,
-  "validation_status": "validated"
-}

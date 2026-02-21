@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\nusing namespace detail;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\nusing namespace impl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06586_execute() {\n    {\n  CONSTEXPR_D weekday k_weekdays_back[14] = {\n      weekday::sunday,   weekday::saturday,  weekday::friday,\n      weekday::thursday, weekday::wednesday, weekday::tuesday,\n      weekday::monday,   weekday::sunday,    weekday::saturday,\n      weekday::friday,   weekday::thursday,  weekday::wednesday,\n      weekday::tuesday,  weekday::monday,\n  };\n  weekday base = get_weekday(cd);\n  for (int i = 0;; ++i) {\n    if (base == k_weekdays_back[i]) {\n      for (int j = i + 1;; ++j) {\n        if (wd == k_weekdays_back[j]) {\n          return cd - (j - i);\n        }\n      }\n    }\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06586",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
-  "source_line": 584,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01066_execute() {\n    {\n  switch (to_ascii(type)) {\n  case 'd':\n    return presentation_type::dec;\n  case 'o':\n    return presentation_type::oct;\n  case 'x':\n    return presentation_type::hex_lower;\n  case 'X':\n    return presentation_type::hex_upper;\n  case 'b':\n    return presentation_type::bin_lower;\n  case 'B':\n    return presentation_type::bin_upper;\n  case 'a':\n    return presentation_type::hexfloat_lower;\n  case 'A':\n    return presentation_type::hexfloat_upper;\n  case 'e':\n    return presentation_type::exp_lower;\n  case 'E':\n    return presentation_type::exp_upper;\n  case 'f':\n    return presentation_type::fixed_lower;\n  case 'F':\n    return presentation_type::fixed_upper;\n  case 'g':\n    return presentation_type::general_lower;\n  case 'G':\n    return presentation_type::general_upper;\n  case 'c':\n    return presentation_type::chr;\n  case 's':\n    return presentation_type::string;\n  case 'p':\n    return presentation_type::pointer;\n  case '?':\n    return presentation_type::debug;\n  default:\n    return presentation_type::none;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01066",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 2515,
-  "validation_status": "validated"
-}

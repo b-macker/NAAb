@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00323_execute() {\n    def choose_async(self, async_value: str = \"async \", sync_value: str = \"\") -> str:\n        return async_value if self.environment.is_async else sync_value\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00323",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 604,
-  "validation_status": "validated"
-}

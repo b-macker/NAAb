@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/flags/internal/parse.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03607_execute() {\n    {\n\nHelpMode ParseAbseilFlagsOnlyImpl(\n    int argc, char* argv[], std::vector<char*>& positional_args,\n    std::vector<UnrecognizedFlag>& unrecognized_flags,\n    UsageFlagsAction usage_flag_action);\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03607",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/parse.h",
-  "source_line": 54,
-  "validation_status": "validated"
-}

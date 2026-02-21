@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/StaticAnalyzer/Core/CheckerManager.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SVals.h\"\n#include \"llvm/Support/Casting.h\"\n\nusing namespace clang;\nusing namespace ento;\nusing namespace check;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22279_execute() {\n    {\n\n    if (!ETraits)\n      return ((const CHECKER *)Checker)->checkPointerEscape(State,\n                                                            Escaped,\n                                                            Call,\n                                                            Kind);\n\n    InvalidatedSymbols RegularEscape;\n    for (SymbolRef Sym : Escaped)\n      if (!ETraits->hasTrait(\n              Sym, RegionAndSymbolInvalidationTraits::TK_PreserveContents) &&\n          !ETraits->hasTrait(\n              Sym, RegionAndSymbolInvalidationTraits::TK_SuppressEscape))\n        RegularEscape.insert(Sym);\n\n    if (RegularEscape.empty())\n      return State;\n\n    return ((const CHECKER *)Checker)->checkPointerEscape(State,\n                                                          RegularEscape,\n                                                          Call,\n                                                          Kind);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22279",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 357,
-  "validation_status": "validated"
-}

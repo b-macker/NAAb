@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00435_execute() {\n    class Dict(Literal):\n    \"\"\"Any dict literal such as ``{1: 2, 3: 4}``.  The items must be a list of\n    :class:`Pair` nodes.\n    \"\"\"\n\n    fields = (\"items\",)\n    items: list[\"Pair\"]\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> dict[t.Any, t.Any]:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        return dict(x.as_const(eval_ctx) for x in self.items)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00435",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 655,
-  "validation_status": "validated"
-}

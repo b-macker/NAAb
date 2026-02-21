@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTConsumer.h\"\n#include \"llvm/ADT/StringMap.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22381_execute() {\n    {\npublic:\n  ModelConsumer(llvm::StringMap<Stmt *> &Bodies);\n\n  bool HandleTopLevelDecl(DeclGroupRef D) override;\n\nprivate:\n  llvm::StringMap<Stmt *> &Bodies;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22381",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Frontend/ModelConsumer.h",
-  "source_line": 31,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/FileManager.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Lex/HeaderMapTypes.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/MemoryBuffer.h\"\n#include <memory>\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18560_execute() {\n    {\n    const HMapHeader &Hdr = getHeader();\n    unsigned NumBuckets = getEndianAdjustedWord(Hdr.NumBuckets);\n\n    for (unsigned Bucket = 0; Bucket < NumBuckets; ++Bucket) {\n      HMapBucket B = getBucket(Bucket);\n      if (B.Key != HMAP_EmptyBucketKey)\n        if (std::optional<StringRef> Key = getString(B.Key))\n          Callback(*Key);\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18560",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/HeaderMap.h",
-  "source_line": 44,
-  "validation_status": "validated"
-}

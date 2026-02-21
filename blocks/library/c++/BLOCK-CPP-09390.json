@@ -1,8 +1,0 @@
-{
-  "code": "{\n  ///   typedef array this_type; // \"array\" is equivalent to \"array<T, N>\"\n  /// };\n  /// \\endcode\n  QualType getInjectedClassNameSpecialization();\n\n  using spec_iterator = SpecIterator<ClassTemplateSpecializationDecl>;\n  using spec_range = llvm::iterator_range<spec_iterator>;\n\n  spec_range specializations() const {\n    return spec_range(spec_begin(), spec_end());\n  }\n\n  spec_iterator spec_begin() const {\n    return makeSpecIterator(getSpecializations(), false);\n  }\n\n  spec_iterator spec_end() const {\n    return makeSpecIterator(getSpecializations(), true);\n  }\n\n  // Implement isa/cast/dyncast support\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K == ClassTemplate; }\n}",
-  "id": "BLOCK-CPP-09390",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclTemplate.h",
-  "source_line": 2436,
-  "validation_status": "validated"
-}

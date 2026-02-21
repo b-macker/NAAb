@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/FileManager.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <memory>\n#include <system_error>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17998_execute() {\n    {\n  using FilePathList = std::vector<std::string>;\n\n  /// The API to use for generating from the files at \\p IgnoresFilePathList.\n  ///\n  /// \\returns an initialized APIIgnoresList or an Error.\n  static llvm::Expected<APIIgnoresList>\n  create(const FilePathList &IgnoresFilePathList, FileManager &FM);\n\n  APIIgnoresList() = default;\n\n  /// Check if \\p SymbolName is specified in the APIIgnoresList and if it should\n  /// therefore be ignored.\n  bool shouldIgnore(llvm::StringRef SymbolName) const;\n\nprivate:\n  using SymbolNameList = llvm::SmallVector<llvm::StringRef, 32>;\n  using BufferList = llvm::SmallVector<std::unique_ptr<llvm::MemoryBuffer>>;\n\n  APIIgnoresList(SymbolNameList SymbolsToIgnore, BufferList Buffers)\n      : SymbolsToIgnore(std::move(SymbolsToIgnore)),\n        Buffers(std::move(Buffers)) {}\n\n  SymbolNameList SymbolsToIgnore;\n  BufferList Buffers;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17998",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/APIIgnoresList.h",
-  "source_line": 46,
-  "validation_status": "validated"
-}

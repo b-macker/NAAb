@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  CXXBoolLiteralExpr(bool Val, QualType Ty, SourceLocation Loc)\n      : Expr(CXXBoolLiteralExprClass, Ty, VK_PRValue, OK_Ordinary) {\n    CXXBoolLiteralExprBits.Value = Val;\n    CXXBoolLiteralExprBits.Loc = Loc;\n    setDependence(ExprDependence::None);\n  }\n\n  explicit CXXBoolLiteralExpr(EmptyShell Empty)\n      : Expr(CXXBoolLiteralExprClass, Empty) {}\n\n  static CXXBoolLiteralExpr *Create(const ASTContext &C, bool Val, QualType Ty,\n                                    SourceLocation Loc) {\n    return new (C) CXXBoolLiteralExpr(Val, Ty, Loc);\n  }\n\n  bool getValue() const { return CXXBoolLiteralExprBits.Value; }\n  void setValue(bool V) { CXXBoolLiteralExprBits.Value = V; }\n\n  SourceLocation getBeginLoc() const { return getLocation(); }\n  SourceLocation getEndLoc() const { return getLocation(); }\n\n  SourceLocation getLocation() const { return CXXBoolLiteralExprBits.Loc; }\n  void setLocation(SourceLocation L) { CXXBoolLiteralExprBits.Loc = L; }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == CXXBoolLiteralExprClass;\n  }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
-  "id": "BLOCK-CPP-10775",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
-  "source_line": 720,
-  "validation_status": "validated"
-}

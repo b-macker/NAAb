@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  SmallVector<OSLogBufferItem, 4> Items;\n\n  enum Flags { HasPrivateItems = 1, HasNonScalarItems = 1 << 1 };\n\n  CharUnits size() const {\n    CharUnits result;\n    result += CharUnits::fromQuantity(2); // summary byte, num-args byte\n    for (auto &item : Items) {\n      // descriptor byte, size byte\n      result += item.size() + CharUnits::fromQuantity(2);\n    }\n    return result;\n  }\n\n  bool hasPrivateItems() const {\n    return llvm::any_of(\n        Items, [](const OSLogBufferItem &Item) { return Item.getIsPrivate(); });\n  }\n\n  bool hasNonScalarOrMask() const {\n    return llvm::any_of(Items, [](const OSLogBufferItem &Item) {\n      return Item.getKind() != OSLogBufferItem::ScalarKind ||\n             !Item.getMaskType().empty();\n    });\n  }\n\n  unsigned char getSummaryByte() const {\n    unsigned char result = 0;\n    if (hasPrivateItems())\n      result |= HasPrivateItems;\n    if (hasNonScalarOrMask())\n      result |= HasNonScalarItems;\n    return result;\n  }\n\n  unsigned char getNumArgsByte() const { return Items.size(); }\n}",
-  "id": "BLOCK-CPP-11367",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/OSLog.h",
-  "source_line": 111,
-  "validation_status": "validated"
-}

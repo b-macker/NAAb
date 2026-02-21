@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/str_cat.h\"\n#include <assert.h>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <initializer_list>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02017_execute() {\n    {\n  size_t old_size = dest->size();\n  size_t to_append = 0;\n  for (absl::string_view piece : pieces) {\n    ASSERT_NO_OVERLAP(*dest, piece);\n    to_append += piece.size();\n  }\n  strings_internal::STLStringAppendUninitializedAmortized(dest, to_append);\n\n  char* const begin = &(*dest)[0];\n  char* out = begin + old_size;\n  for (absl::string_view piece : pieces) {\n    const size_t this_size = piece.size();\n    if (this_size != 0) {\n      memcpy(out, piece.data(), this_size);\n      out += this_size;\n    }\n  }\n  assert(out == begin + dest->size());\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02017",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_cat.cc",
-  "source_line": 253,
-  "validation_status": "validated"
-}

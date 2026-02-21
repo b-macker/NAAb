@@ -1,8 +1,0 @@
-{
-  "code": "def _initialize_templates(self) -> Dict[str, str]:\n        return {\n            'class_template': '''\ntemplate<typename T>\nclass {name} {\nprivate:\n    T data_;\npublic:\n    {name}(const T& data) : data_(data) {}\n    const T& get() const { return data_; }\n    void set(const T& data) { data_ = data; }\n};''',\n            'function_template': '''\ntemplate<typename T>\nauto {name}(const T& value) -> decltype(auto) {\n    return {implementation};\n}'''\n        }",
-  "id": "BLOCK-PY-00161",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/cpp_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

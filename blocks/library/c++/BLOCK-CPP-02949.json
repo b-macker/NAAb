@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/pow10_helper.h\"\n#include <cmath>\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02949_execute() {\n    {\n    return INFINITY;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02949",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/pow10_helper.cc",
-  "source_line": 113,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename Node>\n  static auto GetSlot(const Node& node) -> decltype(node.slot()) {\n    return node.slot();\n  }\n\n  template <typename Node>\n  static void Destroy(Node* node) {\n    node->destroy();\n  }\n\n  template <typename Node>\n  static void Reset(Node* node) {\n    node->reset();\n  }\n\n  template <typename T, typename... Args>\n  static T Transfer(Args&&... args) {\n    return T(typename T::transfer_tag_t{}, std::forward<Args>(args)...);\n  }\n\n  template <typename T, typename... Args>\n  static T Construct(Args&&... args) {\n    return T(typename T::construct_tag_t{}, std::forward<Args>(args)...);\n  }\n}",
-  "id": "BLOCK-CPP-04941",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/common.h",
-  "source_line": 168,
-  "validation_status": "validated"
-}

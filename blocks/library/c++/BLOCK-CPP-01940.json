@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/match.h\"\n#include <algorithm>\n#include <cstdint>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/endian.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/internal/memutil.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01940_execute() {\n    {\n  while (haystack.size() >= needle.size()) {\n    if (StartsWithIgnoreCase(haystack, needle)) return true;\n    haystack.remove_prefix(1);\n  }\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01940",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/match.cc",
-  "source_line": 39,
-  "validation_status": "validated"
-}

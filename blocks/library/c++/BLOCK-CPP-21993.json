@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/FlowSensitive/Formula.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <optional>\n#include <vector>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21993_execute() {\n    {\n      /// Indicates that there exists a satisfying assignment for a boolean\n      /// formula.\n      Satisfiable,\n\n      /// Indicates that there is no satisfying assignment for a boolean\n      /// formula.\n      Unsatisfiable,\n\n      /// Indicates that the solver gave up trying to find a satisfying\n      /// assignment for a boolean formula.\n      TimedOut,\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21993",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/Solver.h",
-  "source_line": 31,
-  "validation_status": "validated"
-}

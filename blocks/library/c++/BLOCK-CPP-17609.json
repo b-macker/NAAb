@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/AST/Type.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17609_execute() {\n    {\n  class IntegerType;\n  class Type;\n  class StructType;\n  class VectorType;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17609",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/SwiftCallingConv.h",
-  "source_line": 23,
-  "validation_status": "validated"
-}

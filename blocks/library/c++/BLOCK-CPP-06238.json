@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstring>\n#include <iterator>\n#include <memory>\n#include <string>\n#include <type_traits>\n#include <utility>\n#include \"absl/strings/internal/ostringstream.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/str_cat.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06238_execute() {\n    {\n  std::string result;\n  JoinTupleLoop<0, sizeof...(T)>()(&result, tup, sep, fmt);\n  return result;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06238",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_join_internal.h",
-  "source_line": 281,
-  "validation_status": "validated"
-}

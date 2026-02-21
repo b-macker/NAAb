@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/base/internal/unscaledcycleclock_config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04570_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace base_internal {\n\n#if ABSL_USE_UNSCALED_CYCLECLOCK\n#ifdef NDEBUG\n#ifdef ABSL_INTERNAL_UNSCALED_CYCLECLOCK_FREQUENCY_IS_CPU_FREQUENCY\n// Not debug mode and the UnscaledCycleClock frequency is the CPU\n// frequency.  Scale the CycleClock to prevent overflow if someone\n// tries to represent the time as cycles since the Unix epoch.\nABSL_INTERNAL_INLINE_CONSTEXPR(int32_t, kCycleClockShift, 1);\n#else\n// Not debug mode and the UnscaledCycleClock isn't operating at the\n// raw CPU frequency. There is no need to do any scaling, so don't\n// needlessly sacrifice precision.\nABSL_INTERNAL_INLINE_CONSTEXPR(int32_t, kCycleClockShift, 0);\n#endif\n#else   // NDEBUG\n// In debug mode use a different shift to discourage depending on a\n// particular shift value.\nABSL_INTERNAL_INLINE_CONSTEXPR(int32_t, kCycleClockShift, 2);\n#endif  // NDEBUG\n\nABSL_INTERNAL_INLINE_CONSTEXPR(double, kCycleClockFrequencyScale,\n                               1.0 / (1 << kCycleClockShift));\n#endif  //  ABSL_USE_UNSCALED_CYCLECLOC\n\n}  // namespace base_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04570",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/cycleclock_config.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

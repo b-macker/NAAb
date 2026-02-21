@@ -1,8 +1,0 @@
-{
-  "code": "{\n    static filename_t calc_filename(const filename_t &file_path, const tm &now_tm) {\n#if defined(_WIN32) && defined(SPDLOG_WCHAR_FILENAMES)\n        std::wstringstream stream;\n#else\n        std::stringstream stream;\n#endif\n        stream << std::put_time(&now_tm, file_path.c_str());\n        return stream.str();\n    }\n}",
-  "id": "BLOCK-CPP-00392",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/daily_file_sink.h",
-  "source_line": 49,
-  "validation_status": "validated"
-}

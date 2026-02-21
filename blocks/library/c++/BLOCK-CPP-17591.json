@@ -1,8 +1,0 @@
-{
-  "code": "{\ntemplate <>\nstruct PointerLikeTypeTraits< ::clang::CodeGen::ConstantInitBuilderBase*> {\n  using T = ::clang::CodeGen::ConstantInitBuilderBase*;\n\n  static inline void *getAsVoidPointer(T p) { return p; }\n  static inline T getFromVoidPointer(void *p) {return static_cast<T>(p);}\n  static constexpr int NumLowBitsAvailable = 2;\n};\n}",
-  "id": "BLOCK-CPP-17591",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ConstantInitFuture.h",
-  "source_line": 31,
-  "validation_status": "validated"
-}

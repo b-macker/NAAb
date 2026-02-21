@@ -1,8 +1,0 @@
-{
-  "code": "#include <stddef.h>\n#include <stdlib.h>\n#include <cassert>\n#include <cstring>\n#include <initializer_list>\n#include <memory>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/strings/internal/str_format/checker.h\"\n#include \"absl/strings/internal/str_format/constexpr_parser.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06433_execute() {\n    {\n    std::unique_ptr<ExtendedParsedFormat> conv(\n        new ExtendedParsedFormat(format, allow_ignored));\n    if (conv->has_error()) return nullptr;\n    return conv;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06433",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/parser.h",
-  "source_line": 254,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00359_execute() {\n    def _output_child_to_const(\n        self, node: nodes.Expr, frame: Frame, finalize: _FinalizeInfo\n    ) -> str:\n        \"\"\"Try to optimize a child of an ``Output`` node by trying to\n        convert it to constant, finalized data at compile time.\n\n        If :exc:`Impossible` is raised, the node is not constant and\n        will be evaluated at runtime. Any other exception will also be\n        evaluated at runtime for easier debugging.\n        \"\"\"\n        const = node.as_const(frame.eval_ctx)\n\n        if frame.eval_ctx.autoescape:\n            const = escape(const)\n\n        # Template data doesn't go through finalize.\n        if isinstance(node, nodes.TemplateData):\n            return str(const)\n\n        return finalize.const(const)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00359",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1449,
-  "validation_status": "validated"
-}

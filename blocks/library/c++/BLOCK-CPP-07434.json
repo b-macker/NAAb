@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  InheritableAttr(ASTContext &Context, const AttributeCommonInfo &CommonInfo,\n                  attr::Kind AK, bool IsLateParsed,\n                  bool InheritEvenIfAlreadyPresent)\n      : Attr(Context, CommonInfo, AK, IsLateParsed) {\n    this->InheritEvenIfAlreadyPresent = InheritEvenIfAlreadyPresent;\n  }\n\npublic:\n  void setInherited(bool I) { Inherited = I; }\n\n  /// Should this attribute be inherited from a prior declaration even if it's\n  /// explicitly provided in the current declaration?\n  bool shouldInheritEvenIfAlreadyPresent() const {\n    return InheritEvenIfAlreadyPresent;\n  }\n\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Attr *A) {\n    return A->getKind() >= attr::FirstInheritableAttr &&\n           A->getKind() <= attr::LastInheritableAttr;\n  }\n}",
-  "id": "BLOCK-CPP-07434",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Attr.h",
-  "source_line": 136,
-  "validation_status": "validated"
-}

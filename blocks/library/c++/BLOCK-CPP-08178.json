@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTContext;\n\n  /// This indicates the Type object that represents\n  /// this TypeDecl.  It is a cache maintained by\n  /// ASTContext::getTypedefType, ASTContext::getTagDeclType, and\n  /// ASTContext::getTemplateTypeParmType, and TemplateTypeParmDecl.\n  mutable const Type *TypeForDecl = nullptr;\n\n  /// The start of the source range for this declaration.\n  SourceLocation LocStart;\n\n  void anchor() override;\n\nprotected:\n  TypeDecl(Kind DK, DeclContext *DC, SourceLocation L, IdentifierInfo *Id,\n           SourceLocation StartL = SourceLocation())\n    : NamedDecl(DK, DC, L, Id), LocStart(StartL) {}\n\npublic:\n  // Low-level accessor. If you just want the type defined by this node,\n  // check out ASTContext::getTypeDeclType or one of\n  // ASTContext::getTypedefType, ASTContext::getRecordType, etc. if you\n  // already know the specific kind of node this is.\n  const Type *getTypeForDecl() const { return TypeForDecl; }\n  void setTypeForDecl(const Type *TD) { TypeForDecl = TD; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return LocStart; }\n  void setLocStart(SourceLocation L) { LocStart = L; }\n  SourceRange getSourceRange() const override LLVM_READONLY {\n    if (LocStart.isValid())\n      return SourceRange(LocStart, getLocation());\n    else\n      return SourceRange(getLocation());\n  }\n\n  // Implement isa/cast/dyncast/etc.\n  static bool classof(const Decl *D) { return classofKind(D->getKind()); }\n  static bool classofKind(Kind K) { return K >= firstType && K <= lastType; }\n}",
-  "id": "BLOCK-CPP-08178",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Decl.h",
-  "source_line": 3277,
-  "validation_status": "validated"
-}

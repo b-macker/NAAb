@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08768_execute() {\n    {\n      return clang::DeclGroupRef::getFromOpaquePtr(P);\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08768",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclGroup.h",
-  "source_line": 146,
-  "validation_status": "validated"
-}

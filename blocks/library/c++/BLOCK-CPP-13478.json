@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DependenceFlags.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include <cassert>\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-13478_execute() {\n    {\n    ID.AddPointer(NNS);\n    ID.AddBoolean(TemplateKeyword);\n    ID.AddPointer(TN.getAsVoidPointer());\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-13478",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/TemplateName.h",
-  "source_line": 472,
-  "validation_status": "validated"
-}

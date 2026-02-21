@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08757_execute() {\n    {\n    return (Kind) (reinterpret_cast<uintptr_t>(D) & Mask);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08757",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclGroup.h",
-  "source_line": 58,
-  "validation_status": "validated"
-}

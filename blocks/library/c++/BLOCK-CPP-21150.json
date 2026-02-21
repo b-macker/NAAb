@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Tooling/Core/Diagnostic.h\"\n#include \"clang/Tooling/ReplacementsYaml.h\"\n#include \"llvm/Support/YAMLTraits.h\"\n#include <string>\n\nusing namespace llvm;\nusing namespace yaml;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21150_execute() {\n    {\n    Io.mapRequired(\"FilePath\", R.FilePath);\n    Io.mapRequired(\"FileOffset\", R.FileOffset);\n    Io.mapRequired(\"Length\", R.Length);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21150",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/DiagnosticsYaml.h",
-  "source_line": 31,
-  "validation_status": "validated"
-}

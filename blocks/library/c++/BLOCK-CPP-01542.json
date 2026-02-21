@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>  // std::max\n#include <limits>     // std::numeric_limits\n#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01542_execute() {\n    {\n private:\n  basic_format_arg<Context>& arg_;\n\n public:\n  explicit char_converter(basic_format_arg<Context>& arg) : arg_(arg) {}\n\n  template <typename T, FMT_ENABLE_IF(std::is_integral<T>::value)>\n  void operator()(T value) {\n    arg_ = detail::make_arg<Context>(\n        static_cast<typename Context::char_type>(value));\n  }\n\n  template <typename T, FMT_ENABLE_IF(!std::is_integral<T>::value)>\n  void operator()(T) {}  // No conversion needed for non-integral types.\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01542",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/printf.h",
-  "source_line": 169,
-  "validation_status": "validated"
-}

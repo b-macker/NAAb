@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21852_execute() {\n    { UninitAfterCall = true; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21852",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/UninitializedValues.h",
-  "source_line": 62,
-  "validation_status": "validated"
-}

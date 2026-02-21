@@ -1,8 +1,0 @@
-{
-  "code": "#include <stddef.h>\n#include <stdint.h>\n#include <atomic>\n#include <cassert>\n#include <cstring>\n#include \"absl/base/optimization.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05548_execute() {\n    {\n  return align * ((x + align - 1) / align);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05548",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/sequence_lock.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

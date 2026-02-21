@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00496_execute() {\n    def can_assign(self) -> bool:\n        return self.name not in {\"true\", \"false\", \"none\", \"True\", \"False\", \"None\"}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00496",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 552,
-  "validation_status": "validated"
-}

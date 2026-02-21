@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Lex/Token.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <algorithm>\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18718_execute() {\n    {\n    assert(\n        !IsDefinitionLengthCached &&\n        \"Changing replacement tokens after definition length got calculated\");\n    assert(ReplacementTokens == nullptr && NumReplacementTokens == 0 &&\n           \"Token list already set!\");\n    if (Tokens.empty())\n      return;\n\n    NumReplacementTokens = Tokens.size();\n    Token *NewReplacementTokens = PPAllocator.Allocate<Token>(Tokens.size());\n    std::copy(Tokens.begin(), Tokens.end(), NewReplacementTokens);\n    ReplacementTokens = NewReplacementTokens;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18718",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MacroInfo.h",
-  "source_line": 263,
-  "validation_status": "validated"
-}

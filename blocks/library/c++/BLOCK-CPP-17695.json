@@ -1,8 +1,0 @@
-{
-  "code": "{\n  void anchor() override;\n\npublic:\n  LipoJobAction(ActionList &Inputs, types::ID Type);\n\n  static bool classof(const Action *A) {\n    return A->getKind() == LipoJobClass;\n  }\n}",
-  "id": "BLOCK-CPP-17695",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 528,
-  "validation_status": "validated"
-}

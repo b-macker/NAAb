@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00191_execute() {\n    def _extract_dependencies(self, code: str) -> List[str]:\n        \"\"\"Extract Go module dependencies from code\"\"\"\n        dependencies = []\n        \n        # Common Go dependencies based on imports in code\n        if 'gin-gonic/gin' in code or 'gin.' in code:\n            dependencies.append('github.com/gin-gonic/gin')\n            dependencies.append('github.com/gin-contrib/cors')\n            dependencies.append('github.com/gin-contrib/requestid')\n            \n        if 'grpc' in code.lower():\n            dependencies.extend([\n                'google.golang.org/grpc',\n                'google.golang.org/protobuf'\n            ])\n            \n        if 'zap' in code or 'uber.go/zap' in code:\n            dependencies.append('go.uber.org/zap')\n            \n        if 'testify' in code:\n            dependencies.append('github.com/stretchr/testify')\n            \n        if 'gorm' in code.lower():\n            dependencies.extend([\n                'gorm.io/gorm',\n                'gorm.io/driver/postgres'\n            ])\n            \n        if 'redis' in code.lower():\n            dependencies.append('github.com/redis/go-redis/v9')\n            \n        if 'jwt' in code.lower():\n            dependencies.append('github.com/golang-jwt/jwt/v5')\n            \n        if 'prometheus' in code.lower():\n            dependencies.append('github.com/prometheus/client_golang')\n            \n        return list(set(dependencies))\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00191",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/go_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

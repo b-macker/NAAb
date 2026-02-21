@@ -1,8 +1,0 @@
-{
-  "code": "#include <exception>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03895_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\n//------------------------------------------------------------------------------\n// SeedGenException\n//------------------------------------------------------------------------------\nclass SeedGenException : public std::exception {\n public:\n  SeedGenException() = default;\n  ~SeedGenException() override;\n  const char* what() const noexcept override;\n};\n\nnamespace random_internal {\n\n// throw delegator\n[[noreturn]] void ThrowSeedGenException();\n\n}  // namespace random_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03895",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/seed_gen_exception.h",
-  "source_line": 33,
-  "validation_status": "validated"
-}

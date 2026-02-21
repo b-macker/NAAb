@@ -1,8 +1,0 @@
-{
-  "code": "{\n    /// The type qualifiers for the array:\n    /// const/volatile/restrict/__unaligned/_Atomic.\n    unsigned TypeQuals : 5;\n\n    /// True if this dimension included the 'static' keyword.\n    unsigned hasStatic : 1;\n\n    /// True if this dimension was [*].  In this case, NumElts is null.\n    unsigned isStar : 1;\n\n    /// This is the size of the array, or null if [] or [*] was specified.\n    /// Since the parser is multi-purpose, and we don't want to impose a root\n    /// expression class on all clients, NumElts is untyped.\n    Expr *NumElts;\n\n    void destroy() {}\n  }",
-  "id": "BLOCK-CPP-19722",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
-  "source_line": 1264,
-  "validation_status": "validated"
-}

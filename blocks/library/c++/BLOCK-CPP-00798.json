@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00798_execute() {\n    {\n    if (begin != end && *begin == ':') ++begin;\n    end = detail::parse_chrono_format(begin, end, detail::tm_format_checker());\n    // Replace default spec only if the new spec is not empty.\n    if (end != begin) specs = {begin, detail::to_unsigned(end - begin)};\n    return end;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00798",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
-  "source_line": 2028,
-  "validation_status": "validated"
-}

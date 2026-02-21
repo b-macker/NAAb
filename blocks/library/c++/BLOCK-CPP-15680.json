@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/Support/BumpVector.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15680_execute() {\n    {\n  const ConstructionContextLayer *Parent = nullptr;\n  ConstructionContextItem Item;\n\n  ConstructionContextLayer(ConstructionContextItem Item,\n                           const ConstructionContextLayer *Parent)\n      : Parent(Parent), Item(Item) {}\n\npublic:\n  static const ConstructionContextLayer *\n  create(BumpVectorContext &C, const ConstructionContextItem &Item,\n         const ConstructionContextLayer *Parent = nullptr);\n\n  const ConstructionContextItem &getItem() const { return Item; }\n  const ConstructionContextLayer *getParent() const { return Parent; }\n  bool isLast() const { return !Parent; }\n\n  /// See if Other is a proper initial segment of this construction context\n  /// in terms of the parent chain - i.e. a few first parents coincide and\n  /// then the other context terminates but our context goes further - i.e.,\n  /// we are providing the same context that the other context provides,\n  /// and a bit more above that.\n  bool isStrictlyMoreSpecificThan(const ConstructionContextLayer *Other) const;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15680",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 213,
-  "validation_status": "validated"
-}

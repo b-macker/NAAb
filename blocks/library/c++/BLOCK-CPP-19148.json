@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19148_execute() {\n    {\n  SourceManager &SourceMgr;\n  char *CurBuffer;\n  SourceLocation BufferStartLoc;\n  unsigned BytesUsed;\npublic:\n  ScratchBuffer(SourceManager &SM);\n\n  /// getToken - Splat the specified text into a temporary MemoryBuffer and\n  /// return a SourceLocation that refers to the token.  This is just like the\n  /// previous method, but returns a location that indicates the physloc of the\n  /// token.\n  SourceLocation getToken(const char *Buf, unsigned Len, const char *&DestPtr);\n\nprivate:\n  void AllocScratchBuffer(unsigned RequestLen);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19148",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/ScratchBuffer.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

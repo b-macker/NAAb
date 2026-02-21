@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  ArgsList() : next_arg_(0) {}\n  ArgsList(int argc, char* argv[]) : args_(argv, argv + argc), next_arg_(0) {}\n  explicit ArgsList(const std::vector<std::string>& args)\n      : args_(args), next_arg_(0) {}\n\n  // Returns success status: true if parsing successful, false otherwise.\n  bool ReadFromFlagfile(const std::string& flag_file_name);\n\n  size_t Size() const { return args_.size() - next_arg_; }\n  size_t FrontIndex() const { return next_arg_; }\n  absl::string_view Front() const { return args_[next_arg_]; }\n  void PopFront() { next_arg_++; }\n\n private:\n  std::vector<std::string> args_;\n  size_t next_arg_;\n}",
-  "id": "BLOCK-CPP-01721",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/parse.cc",
-  "source_line": 166,
-  "validation_status": "validated"
-}

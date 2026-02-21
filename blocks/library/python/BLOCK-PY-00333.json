@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00333_execute() {\n    def push_context_reference(self, target: str) -> None:\n        self._context_reference_stack.append(target)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00333",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 752,
-  "validation_status": "validated"
-}

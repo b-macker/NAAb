@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class SarifDocumentWriter;\n\n  CharSourceRange Range;\n  ThreadFlowImportance Importance;\n  std::string Message;\n\n  ThreadFlow() = default;\n\npublic:\n  static ThreadFlow create() { return {}; }\n\n  ThreadFlow setRange(const CharSourceRange &ItemRange) {\n    assert(ItemRange.isCharRange() &&\n           \"ThreadFlows require a character granular source range!\");\n    Range = ItemRange;\n    return *this;\n  }\n\n  ThreadFlow setImportance(const ThreadFlowImportance &ItemImportance) {\n    Importance = ItemImportance;\n    return *this;\n  }\n\n  ThreadFlow setMessage(llvm::StringRef ItemMessage) {\n    Message = ItemMessage.str();\n    return *this;\n  }\n}",
-  "id": "BLOCK-CPP-16805",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Sarif.h",
-  "source_line": 175,
-  "validation_status": "validated"
-}

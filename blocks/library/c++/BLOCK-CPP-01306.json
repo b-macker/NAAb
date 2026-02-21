@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01306_execute() {\n    {\n  // Slightly faster check for specs.width == 0 && specs.precision == -1.\n  if ((specs.width | (specs.precision + 1)) == 0) {\n    auto it = reserve(out, to_unsigned(num_digits) + (prefix >> 24));\n    if (prefix != 0) {\n      for (unsigned p = prefix & 0xffffff; p != 0; p >>= 8)\n        *it++ = static_cast<Char>(p & 0xff);\n    }\n    return base_iterator(out, write_digits(it));\n  }\n  auto data = write_int_data<Char>(num_digits, prefix, specs);\n  return write_padded<align::right>(\n      out, specs, data.size, [=](reserve_iterator<OutputIt> it) {\n        for (unsigned p = prefix & 0xffffff; p != 0; p >>= 8)\n          *it++ = static_cast<Char>(p & 0xff);\n        it = detail::fill_n(it, data.padding, static_cast<Char>('0'));\n        return write_digits(it);\n      });\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01306",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 1908,
-  "validation_status": "validated"
-}

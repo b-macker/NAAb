@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Sema/SemaFixItUtils.h\"\n#include \"clang/Sema/TemplateDeduction.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/AlignOf.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20044_execute() {\n    {\n    if (isa<UsingDecl>(ND))\n      return ConstructorInfo{};\n\n    // For constructors, the access check is performed against the underlying\n    // declaration, not the found declaration.\n    auto *D = ND->getUnderlyingDecl();\n    ConstructorInfo Info = {DeclAccessPair::make(ND, D->getAccess()), nullptr,\n                            nullptr};\n    Info.ConstructorTmpl = dyn_cast<FunctionTemplateDecl>(D);\n    if (Info.ConstructorTmpl)\n      D = Info.ConstructorTmpl->getTemplatedDecl();\n    Info.Constructor = dyn_cast<CXXConstructorDecl>(D);\n    return Info;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20044",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Overload.h",
-  "source_line": 1215,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/Support/Compiler.h\"\n#include <cstdint>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18518_execute() {\n    { Data.m_Ptr = Ptr; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18518",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Interpreter/Value.h",
-  "source_line": 140,
-  "validation_status": "validated"
-}

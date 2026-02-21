@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  llvm::APFloat getValue(const llvm::fltSemantics &Semantics) const {\n    return llvm::APFloat(Semantics, getIntValue());\n  }\n  void setValue(const ASTContext &C, const llvm::APFloat &Val) {\n    setIntValue(C, Val.bitcastToAPInt());\n  }\n}",
-  "id": "BLOCK-CPP-10228",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
-  "source_line": 1507,
-  "validation_status": "validated"
-}

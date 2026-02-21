@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\n\nnamespace {\nvoid InitializeLogImpl(absl::TimeZone time_zone) {\n  // This comes first since it is used by RAW_LOG.\n  absl::log_internal::SetTimeZone(time_zone);\n\n  // Note that initialization is complete, so logs can now be sent to their\n  // proper destinations rather than stderr.\n  log_internal::SetInitialized();\n}\n}  // namespace\n\nvoid InitializeLog() { InitializeLogImpl(absl::LocalTimeZone()); }\n\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-01785",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/initialize.cc",
-  "source_line": 21,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  // Actually a SelectorTableImpl\n  void *Impl;\n\npublic:\n  SelectorTable();\n  SelectorTable(const SelectorTable &) = delete;\n  SelectorTable &operator=(const SelectorTable &) = delete;\n  ~SelectorTable();\n\n  /// Can create any sort of selector.\n  ///\n  /// \\p NumArgs indicates whether this is a no argument selector \"foo\", a\n  /// single argument selector \"foo:\" or multi-argument \"foo:bar:\".\n  Selector getSelector(unsigned NumArgs, IdentifierInfo **IIV);\n\n  Selector getUnarySelector(IdentifierInfo *ID) {\n    return Selector(ID, 1);\n  }\n\n  Selector getNullarySelector(IdentifierInfo *ID) {\n    return Selector(ID, 0);\n  }\n\n  /// Return the total amount of memory allocated for managing selectors.\n  size_t getTotalMemory() const;\n\n  /// Return the default setter name for the given identifier.\n  ///\n  /// This is \"set\" + \\p Name where the initial character of \\p Name\n  /// has been capitalized.\n  static SmallString<64> constructSetterName(StringRef Name);\n\n  /// Return the default setter selector for the given identifier.\n  ///\n  /// This is \"set\" + \\p Name where the initial character of \\p Name\n  /// has been capitalized.\n  static Selector constructSetterSelector(IdentifierTable &Idents,\n                                          SelectorTable &SelTable,\n                                          const IdentifierInfo *Name);\n\n  /// Return the property name for the given setter selector.\n  static std::string getPropertyNameFromSetterSelector(Selector Sel);\n}",
-  "id": "BLOCK-CPP-16491",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/IdentifierTable.h",
-  "source_line": 946,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/CharInfo.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/DataTypes.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18679_execute() {\n    {\n  uint64_t Value;\n  tok::TokenKind Kind;\n  bool IsMultiChar;\n  bool HadError;\n  SmallString<32> UDSuffixBuf;\n  unsigned UDSuffixOffset;\npublic:\n  CharLiteralParser(const char *begin, const char *end,\n                    SourceLocation Loc, Preprocessor &PP,\n                    tok::TokenKind kind);\n\n  bool hadError() const { return HadError; }\n  bool isOrdinary() const { return Kind == tok::char_constant; }\n  bool isWide() const { return Kind == tok::wide_char_constant; }\n  bool isUTF8() const { return Kind == tok::utf8_char_constant; }\n  bool isUTF16() const { return Kind == tok::utf16_char_constant; }\n  bool isUTF32() const { return Kind == tok::utf32_char_constant; }\n  bool isMultiChar() const { return IsMultiChar; }\n  uint64_t getValue() const { return Value; }\n  StringRef getUDSuffix() const { return UDSuffixBuf; }\n  unsigned getUDSuffixOffset() const {\n    assert(!UDSuffixBuf.empty() && \"no ud-suffix\");\n    return UDSuffixOffset;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18679",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/LiteralSupport.h",
-  "source_line": 188,
-  "validation_status": "validated"
-}

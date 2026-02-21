@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/internal/seed_material.h\"\n#include <fcntl.h>\n#include <unistd.h>\n#include <io.h>\n#include <algorithm>\n#include <cerrno>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/escaping.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include <nacl/nacl_random.h>\n#include <windows.h>\n#include <zircon/syscalls.h>\n#include <sys/random.h>\n#include <bcrypt.h>\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02844_execute() {\n    {\n#if defined(ABSL_RANDOM_USE_GET_ENTROPY)\n  if (ReadSeedMaterialFromGetEntropy(values)) {\n    return true;\n  }\n#endif\n  // Libc may support getentropy, but the kernel may not, so we still have\n  // to fallback to ReadSeedMaterialFromDevURandom().\n  return ReadSeedMaterialFromDevURandom(values);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02844",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/seed_material.cc",
-  "source_line": 190,
-  "validation_status": "validated"
-}

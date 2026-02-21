@@ -1,8 +1,0 @@
-{
-  "code": "{\n  auto strip_leading_space = [](absl::string_view* sv) {\n    while (!sv->empty()) {\n      if (!std::isspace(sv->front())) return;\n      sv->remove_prefix(1);\n    }\n  };\n\n  // Portable toolchains means we don't get nice constexpr here.\n  struct Literal {\n    const char* name;\n    size_t size;\n    absl::Time value;\n  };\n  static Literal literals[] = {\n      {kInfiniteFutureStr, strlen(kInfiniteFutureStr), InfiniteFuture()},\n      {kInfinitePastStr, strlen(kInfinitePastStr), InfinitePast()},\n  };\n  strip_leading_space(&input);\n  for (const auto& lit : literals) {\n    if (absl::StartsWith(input, absl::string_view(lit.name, lit.size))) {\n      absl::string_view tail = input;\n      tail.remove_prefix(lit.size);\n      strip_leading_space(&tail);\n      if (tail.empty()) {\n        *time = lit.value;\n        return true;\n      }\n    }\n  }\n\n  std::string error;\n  cctz_parts parts;\n  const bool b =\n      cctz::detail::parse(std::string(format), std::string(input),\n                          cctz::time_zone(tz), &parts.sec, &parts.fem, &error);\n  if (b) {\n    *time = Join(parts);\n  } else if (err != nullptr) {\n    *err = error;\n  }\n  return b;\n}",
-  "id": "BLOCK-CPP-02239",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/format.cc",
-  "source_line": 99,
-  "validation_status": "validated"
-}

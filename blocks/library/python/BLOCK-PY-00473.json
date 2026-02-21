@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00473_execute() {\n    class OverlayScope(Stmt):\n    \"\"\"An overlay scope for extensions.  This is a largely unoptimized scope\n    that however can be used to introduce completely arbitrary variables into\n    a sub scope from a dictionary or dictionary like object.  The `context`\n    field has to evaluate to a dictionary object.\n\n    Example usage::\n\n        OverlayScope(context=self.call_method('get_context'),\n                     body=[...])\n\n    .. versionadded:: 2.10\n    \"\"\"\n\n    fields = (\"context\", \"body\")\n    context: Expr\n    body: list[Node]\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00473",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 1152,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00418_execute() {\n    class Block(Stmt):\n    \"\"\"A node that represents a block.\n\n    .. versionchanged:: 3.0.0\n        the `required` field was added.\n    \"\"\"\n\n    fields = (\"name\", \"body\", \"scoped\", \"required\")\n    name: str\n    body: list[Node]\n    scoped: bool\n    required: bool\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00418",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 393,
-  "validation_status": "validated"
-}

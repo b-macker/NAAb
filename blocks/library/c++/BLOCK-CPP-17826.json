@@ -1,8 +1,0 @@
-{
-  "code": "{\n/// Return the value of the last argument as an integer, or a default. If Diags\n/// is non-null, emits an error if the argument is given, but non-integral.\nint getLastArgIntValue(const llvm::opt::ArgList &Args,\n                       llvm::opt::OptSpecifier Id, int Default,\n                       DiagnosticsEngine *Diags = nullptr, unsigned Base = 0);\n\ninline int getLastArgIntValue(const llvm::opt::ArgList &Args,\n                              llvm::opt::OptSpecifier Id, int Default,\n                              DiagnosticsEngine &Diags, unsigned Base = 0) {\n  return getLastArgIntValue(Args, Id, Default, &Diags, Base);\n}\n\nuint64_t getLastArgUInt64Value(const llvm::opt::ArgList &Args,\n                               llvm::opt::OptSpecifier Id, uint64_t Default,\n                               DiagnosticsEngine *Diags = nullptr,\n                               unsigned Base = 0);\n\ninline uint64_t getLastArgUInt64Value(const llvm::opt::ArgList &Args,\n                                      llvm::opt::OptSpecifier Id,\n                                      uint64_t Default,\n                                      DiagnosticsEngine &Diags,\n                                      unsigned Base = 0) {\n  return getLastArgUInt64Value(Args, Id, Default, &Diags, Base);\n}\n\n}",
-  "id": "BLOCK-CPP-17826",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/OptionUtils.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

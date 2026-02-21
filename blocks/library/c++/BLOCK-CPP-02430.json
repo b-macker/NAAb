@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/container/internal/raw_hash_set.h\"\n#include <atomic>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/hash/hash.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02430_execute() {\n    {\n  assert(ctrl[capacity] == ctrl_t::kSentinel);\n  assert(IsValidCapacity(capacity));\n  for (ctrl_t* pos = ctrl; pos < ctrl + capacity; pos += Group::kWidth) {\n    Group{pos}.ConvertSpecialToEmptyAndFullToDeleted(pos);\n  }\n  // Copy the cloned ctrl bytes.\n  std::memcpy(ctrl + capacity + 1, ctrl, NumClonedBytes());\n  ctrl[capacity] = ctrl_t::kSentinel;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02430",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.cc",
-  "source_line": 113,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n\ntemplate <typename... IdentifierInfos>\nstatic inline Selector getKeywordSelector(ASTContext &Ctx,\n                                          IdentifierInfos *... IIs) {\n  static_assert(sizeof...(IdentifierInfos) > 0,\n                \"keyword selectors must have at least one argument\");\n  SmallVector<IdentifierInfo *, 10> II({&Ctx.Idents.get(IIs)...});\n\n  return Ctx.Selectors.getSelector(II.size(), &II[0]);\n}\n\ntemplate <typename... IdentifierInfos>\nstatic inline void lazyInitKeywordSelector(Selector &Sel, ASTContext &Ctx,\n                                           IdentifierInfos *... IIs) {\n  if (!Sel.isNull())\n    return;\n  Sel = getKeywordSelector(Ctx, IIs...);\n}\n\n}",
-  "id": "BLOCK-CPP-15956",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/SelectorExtras.h",
-  "source_line": 14,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  const llvm::opt::Arg &Input;\n  std::string Id;\n  virtual void anchor();\n\npublic:\n  InputAction(const llvm::opt::Arg &Input, types::ID Type,\n              StringRef Id = StringRef());\n\n  const llvm::opt::Arg &getInputArg() const { return Input; }\n\n  void setId(StringRef _Id) { Id = _Id.str(); }\n  StringRef getId() const { return Id; }\n\n  static bool classof(const Action *A) {\n    return A->getKind() == InputClass;\n  }\n}",
-  "id": "BLOCK-CPP-17682",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 229,
-  "validation_status": "validated"
-}

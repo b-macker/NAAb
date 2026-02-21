@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00117_execute() {\n    def _extract_dependencies(self, code: str) -> List[str]:\n        \"\"\"Extract Maven/Gradle dependencies from Java code\"\"\"\n        dependencies = []\n        \n        # Common Spring Boot dependencies\n        if 'spring' in code.lower():\n            dependencies.extend([\n                'spring-boot-starter-web',\n                'spring-boot-starter-data-jpa',\n                'spring-boot-starter-security',\n                'spring-boot-starter-validation'\n            ])\n        \n        if 'junit' in code.lower() or '@Test' in code:\n            dependencies.extend([\n                'spring-boot-starter-test',\n                'junit-jupiter',\n                'mockito-core'\n            ])\n            \n        if 'swagger' in code.lower() or 'openapi' in code.lower():\n            dependencies.append('springdoc-openapi-ui')\n            \n        if 'redis' in code.lower():\n            dependencies.append('spring-boot-starter-data-redis')\n            \n        if 'kafka' in code.lower():\n            dependencies.append('spring-kafka')\n            \n        if 'lombok' in code.lower() or '@Data' in code:\n            dependencies.append('lombok')\n            \n        return list(set(dependencies))\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00117",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/java_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

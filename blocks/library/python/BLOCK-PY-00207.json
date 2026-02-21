@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00207_execute() {\n    def _generate_rate_limiter(self, request) -> str:\n        return self._generate_fallback(request).code\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00207",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/go_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

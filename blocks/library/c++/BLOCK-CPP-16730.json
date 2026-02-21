@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/raw_ostream.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace markup;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16730_execute() {\n    {\n  FIDMap::iterator I = FIDs.find(FID);\n  if (I != FIDs.end())\n    return I->second;\n  unsigned NewValue = V.size();\n  FIDs[FID] = NewValue;\n  V.push_back(FID);\n  return NewValue;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16730",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/PlistSupport.h",
-  "source_line": 27,
-  "validation_status": "validated"
-}

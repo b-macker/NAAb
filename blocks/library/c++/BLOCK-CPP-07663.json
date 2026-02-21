@@ -1,8 +1,0 @@
-{
-  "code": "{\n  ArrayRef<InlineContentComment *> Content;\n\npublic:\n  ParagraphComment(ArrayRef<InlineContentComment *> Content) :\n      BlockContentComment(ParagraphCommentKind,\n                          SourceLocation(),\n                          SourceLocation()),\n      Content(Content) {\n    if (Content.empty()) {\n      ParagraphCommentBits.IsWhitespace = true;\n      ParagraphCommentBits.IsWhitespaceValid = true;\n      return;\n    }\n\n    ParagraphCommentBits.IsWhitespaceValid = false;\n\n    setSourceRange(SourceRange(Content.front()->getBeginLoc(),\n                               Content.back()->getEndLoc()));\n    setLocation(Content.front()->getBeginLoc());\n  }\n\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() == ParagraphCommentKind;\n  }\n\n  child_iterator child_begin() const {\n    return reinterpret_cast<child_iterator>(Content.begin());\n  }\n\n  child_iterator child_end() const {\n    return reinterpret_cast<child_iterator>(Content.end());\n  }\n\n  bool isWhitespace() const {\n    if (ParagraphCommentBits.IsWhitespaceValid)\n      return ParagraphCommentBits.IsWhitespace;\n\n    ParagraphCommentBits.IsWhitespace = isWhitespaceNoCache();\n    ParagraphCommentBits.IsWhitespaceValid = true;\n    return ParagraphCommentBits.IsWhitespace;\n  }\n\nprivate:\n  bool isWhitespaceNoCache() const;\n}",
-  "id": "BLOCK-CPP-07663",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
-  "source_line": 538,
-  "validation_status": "validated"
-}

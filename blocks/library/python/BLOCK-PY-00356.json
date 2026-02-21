@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00356_execute() {\n    def _default_finalize(value: t.Any) -> t.Any:\n        \"\"\"The default finalize function if the environment isn't\n        configured with one. Or, if the environment has one, this is\n        called on that function's output for constants.\n        \"\"\"\n        return str(value)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00356",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1385,
-  "validation_status": "validated"
-}

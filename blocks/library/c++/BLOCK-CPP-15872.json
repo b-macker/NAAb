@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  PreStmt(const Stmt *S, const LocationContext *L, const ProgramPointTag *tag,\n          const Stmt *SubStmt = nullptr)\n    : StmtPoint(S, SubStmt, PreStmtKind, L, tag) {}\n\n  const Stmt *getSubStmt() const { return (const Stmt*) getData2(); }\n\nprivate:\n  friend class ProgramPoint;\n  PreStmt() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == PreStmtKind;\n  }\n}",
-  "id": "BLOCK-CPP-15872",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 290,
-  "validation_status": "validated"
-}

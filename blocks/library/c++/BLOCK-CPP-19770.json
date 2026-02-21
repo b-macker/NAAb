@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19770_execute() {\n    {\n    assert((isArrayDesignator() || isArrayRangeDesignator()) &&\n           \"Invalid accessor\");\n    return isArrayDesignator() ? ArrayInfo.LBracketLoc\n                               : ArrayRangeInfo.LBracketLoc;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19770",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Designator.h",
-  "source_line": 154,
-  "validation_status": "validated"
-}

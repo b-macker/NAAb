@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00246_execute() {\n    def iter_child_nodes(node):\n    \"\"\"\n    Yield all direct child nodes of *node*, that is, all fields that are nodes\n    and all items of fields that are lists of nodes.\n    \"\"\"\n    for name, field in iter_fields(node):\n        if isinstance(field, AST):\n            yield field\n        elif isinstance(field, list):\n            for item in field:\n                if isinstance(item, AST):\n                    yield item\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00246",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmpf5_11x91.py",
-  "source_line": 294,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTVector.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/UnresolvedSet.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23040_execute() {\n    {\n    for (DeclsTy::iterator I = Decls.begin(), E = Decls.end(); I != E; ++I) {\n      if (I->getDecl() == Old) {\n        I->set(New, AS);\n        return true;\n      }\n    }\n    return false;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23040",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTUnresolvedSet.h",
-  "source_line": 62,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/details/circular_q.h>\n#include <spdlog/details/log_msg_buffer.h>\n#include <atomic>\n#include <functional>\n#include <mutex>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00198_execute() {\n    {\nclass SPDLOG_API backtracer {\n    mutable std::mutex mutex_;\n    std::atomic<bool> enabled_{false};\n    circular_q<log_msg_buffer> messages_;\n\npublic:\n    backtracer() = default;\n    backtracer(const backtracer &other);\n\n    backtracer(backtracer &&other) SPDLOG_NOEXCEPT;\n    backtracer &operator=(backtracer other);\n\n    void enable(size_t size);\n    void disable();\n    bool enabled() const;\n    void push_back(const log_msg &msg);\n    bool empty() const;\n\n    // pop all items in the q and apply the given fun on each of them.\n    void foreach_pop(std::function<void(const details::log_msg &)> fun);\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00198",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/backtracer.h",
-  "source_line": 17,
-  "validation_status": "validated"
-}

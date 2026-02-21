@@ -1,8 +1,0 @@
-{
-  "code": "#include <winsock2.h>  // for timeval\n#include <algorithm>\n#include <cassert>\n#include <chrono>  // NOLINT(build/c++11)\n#include <cmath>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <ctime>\n#include <functional>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02176_execute() {\n    {\n  int64_t rep_hi = time_internal::GetRepHi(d);\n  uint32_t rep_lo = time_internal::GetRepLo(d);\n  if (rep_hi < 0) {\n    ++rep_hi;\n    rep_hi = -rep_hi;\n    rep_lo = kTicksPerSecond - rep_lo;\n  }\n  uint128 u128 = static_cast<uint64_t>(rep_hi);\n  u128 *= static_cast<uint64_t>(kTicksPerSecond);\n  u128 += rep_lo;\n  return u128;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02176",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/duration.cc",
-  "source_line": 122,
-  "validation_status": "validated"
-}

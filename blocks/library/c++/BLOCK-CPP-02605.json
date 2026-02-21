@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/stack_consumption.h\"\n#include <signal.h>\n#include <string.h>\n#include <sys/mman.h>\n#include <unistd.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02605_execute() {\n    {\n  const char* begin;\n  int increment;\n  if (kStackGrowsDown) {\n    begin = reinterpret_cast<const char*>(altstack);\n    increment = 1;\n  } else {\n    begin = reinterpret_cast<const char*>(altstack) + kAlternateStackSize - 1;\n    increment = -1;\n  }\n\n  for (int usage_count = kAlternateStackSize; usage_count > 0; --usage_count) {\n    if (*begin != kAlternateStackFillValue) {\n      ABSL_RAW_CHECK(usage_count <= kAlternateStackSize - kSafetyMargin,\n                     \"Buffer has overflowed or is about to overflow\");\n      return usage_count;\n    }\n    begin += increment;\n  }\n\n  ABSL_RAW_LOG(FATAL, \"Unreachable code\");\n  return -1;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02605",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/stack_consumption.cc",
-  "source_line": 84,
-  "validation_status": "validated"
-}

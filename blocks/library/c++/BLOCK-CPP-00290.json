@@ -1,8 +1,0 @@
-{
-  "code": "#include <chrono>\n#include <condition_variable>\n#include <functional>\n#include <mutex>\n#include <thread>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00290_execute() {\n    {\nnamespace details {\n\nclass SPDLOG_API periodic_worker {\npublic:\n    template <typename Rep, typename Period>\n    periodic_worker(const std::function<void()> &callback_fun,\n                    std::chrono::duration<Rep, Period> interval) {\n        active_ = (interval > std::chrono::duration<Rep, Period>::zero());\n        if (!active_) {\n            return;\n        }\n\n        worker_thread_ = std::thread([this, callback_fun, interval]() {\n            for (;;) {\n                std::unique_lock<std::mutex> lock(this->mutex_);\n                if (this->cv_.wait_for(lock, interval, [this] { return !this->active_; })) {\n                    return;  // active_ == false, so exit this thread\n                }\n                callback_fun();\n            }\n        });\n    }\n    periodic_worker(const periodic_worker &) = delete;\n    periodic_worker &operator=(const periodic_worker &) = delete;\n    // stop the worker thread and join it\n    ~periodic_worker();\n\nprivate:\n    bool active_;\n    std::thread worker_thread_;\n    std::mutex mutex_;\n    std::condition_variable cv_;\n};\n}  // namespace details\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00290",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/periodic_worker.h",
-  "source_line": 18,
-  "validation_status": "validated"
-}

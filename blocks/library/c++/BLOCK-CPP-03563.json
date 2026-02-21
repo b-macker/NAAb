@@ -1,8 +1,0 @@
-{
-  "code": "{\n\ntemplate <class T>\nstruct NodeHashSetPolicy\n    : absl::container_internal::node_slot_policy<T&, NodeHashSetPolicy<T>> {\n  using key_type = T;\n  using init_type = T;\n  using constant_iterators = std::true_type;\n\n  template <class Allocator, class... Args>\n  static T* new_element(Allocator* alloc, Args&&... args) {\n    using ValueAlloc =\n        typename absl::allocator_traits<Allocator>::template rebind_alloc<T>;\n    ValueAlloc value_alloc(*alloc);\n    T* res = absl::allocator_traits<ValueAlloc>::allocate(value_alloc, 1);\n    absl::allocator_traits<ValueAlloc>::construct(value_alloc, res,\n                                                  std::forward<Args>(args)...);\n    return res;\n  }\n\n  template <class Allocator>\n  static void delete_element(Allocator* alloc, T* elem) {\n    using ValueAlloc =\n        typename absl::allocator_traits<Allocator>::template rebind_alloc<T>;\n    ValueAlloc value_alloc(*alloc);\n    absl::allocator_traits<ValueAlloc>::destroy(value_alloc, elem);\n    absl::allocator_traits<ValueAlloc>::deallocate(value_alloc, elem, 1);\n  }\n\n  template <class F, class... Args>\n  static decltype(absl::container_internal::DecomposeValue(\n      std::declval<F>(), std::declval<Args>()...))\n  apply(F&& f, Args&&... args) {\n    return absl::container_internal::DecomposeValue(\n        std::forward<F>(f), std::forward<Args>(args)...);\n  }\n\n  static size_t element_space_used(const T*) { return sizeof(T); }\n};\n}",
-  "id": "BLOCK-CPP-03563",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/node_hash_set.h",
-  "source_line": 452,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00411_execute() {\n    class Extends(Stmt):\n    \"\"\"Represents an extends statement.\"\"\"\n\n    fields = (\"template\",)\n    template: \"Expr\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00411",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 312,
-  "validation_status": "validated"
-}

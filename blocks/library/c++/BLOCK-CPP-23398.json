@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  StringRef TagName;\n  SourceRange TagNameRange;\n\n  HTMLTagComment(CommentKind K,\n                 SourceLocation LocBegin,\n                 SourceLocation LocEnd,\n                 StringRef TagName,\n                 SourceLocation TagNameBegin,\n                 SourceLocation TagNameEnd) :\n      InlineContentComment(K, LocBegin, LocEnd),\n      TagName(TagName),\n      TagNameRange(TagNameBegin, TagNameEnd) {\n    setLocation(TagNameBegin);\n    HTMLTagCommentBits.IsMalformed = 0;\n  }\n\npublic:\n  static bool classof(const Comment *C) {\n    return C->getCommentKind() >= FirstHTMLTagCommentConstant &&\n           C->getCommentKind() <= LastHTMLTagCommentConstant;\n  }\n\n  StringRef getTagName() const LLVM_READONLY { return TagName; }\n\n  SourceRange getTagNameSourceRange() const LLVM_READONLY {\n    SourceLocation L = getLocation();\n    return SourceRange(L.getLocWithOffset(1),\n                       L.getLocWithOffset(1 + TagName.size()));\n  }\n\n  bool isMalformed() const {\n    return HTMLTagCommentBits.IsMalformed;\n  }\n\n  void setIsMalformed() {\n    HTMLTagCommentBits.IsMalformed = 1;\n  }\n}",
-  "id": "BLOCK-CPP-23398",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
-  "source_line": 369,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"clang/Sema/AttrParsedAttrList.inc\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15991_execute() {\n    { return ScopeName; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15991",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AttributeCommonInfo.h",
-  "source_line": 174,
-  "validation_status": "validated"
-}

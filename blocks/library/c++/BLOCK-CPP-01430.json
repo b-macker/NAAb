@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\nusing namespace digits;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01430_execute() {\n    {\n public:\n  explicit FMT_CONSTEXPR width_checker(ErrorHandler& eh) : handler_(eh) {}\n\n  template <typename T, FMT_ENABLE_IF(is_integer<T>::value)>\n  FMT_CONSTEXPR auto operator()(T value) -> unsigned long long {\n    if (is_negative(value)) handler_.on_error(\"negative width\");\n    return static_cast<unsigned long long>(value);\n  }\n\n  template <typename T, FMT_ENABLE_IF(!is_integer<T>::value)>\n  FMT_CONSTEXPR auto operator()(T) -> unsigned long long {\n    handler_.on_error(\"width is not integer\");\n    return 0;\n  }\n\n private:\n  ErrorHandler& handler_;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01430",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 3420,
-  "validation_status": "validated"
-}

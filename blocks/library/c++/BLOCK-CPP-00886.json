@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00886_execute() {\n    {\n    constexpr auto str = basic_string_view<typename S::char_type>(S());\n    if constexpr (str.size() == 2 && str[0] == '{' && str[1] == '}') {\n      const auto& first = detail::first(args...);\n      if constexpr (detail::is_named_arg<\n                        remove_cvref_t<decltype(first)>>::value) {\n        return fmt::to_string(first.value);\n      } else {\n        return fmt::to_string(first);\n      }\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00886",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 529,
-  "validation_status": "validated"
-}

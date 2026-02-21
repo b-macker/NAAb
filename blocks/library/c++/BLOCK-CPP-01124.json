@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01124_execute() {\n    {\n private:\n  basic_string_view<Char> str_;\n\n public:\n  template <typename S,\n            FMT_ENABLE_IF(\n                std::is_convertible<const S&, basic_string_view<Char>>::value)>\n  FMT_CONSTEVAL FMT_INLINE basic_format_string(const S& s) : str_(s) {\n    static_assert(\n        detail::count<\n            (std::is_base_of<detail::view, remove_reference_t<Args>>::value &&\n             std::is_reference<Args>::value)...>() == 0,\n        \"passing views as lvalues is disallowed\");\n#ifdef FMT_HAS_CONSTEVAL\n    if constexpr (detail::count_named_args<Args...>() ==\n                  detail::count_statically_named_args<Args...>()) {\n      using checker = detail::format_string_checker<Char, detail::error_handler,\n                                                    remove_cvref_t<Args>...>;\n      detail::parse_format_string<true>(str_, checker(s, {}));\n    }\n#else\n    detail::check_format_string<Args...>(s);\n#endif\n  }\n  basic_format_string(basic_runtime<Char> r) : str_(r.str) {}\n\n  FMT_INLINE operator basic_string_view<Char>() const { return str_; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01124",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 3140,
-  "validation_status": "validated"
-}

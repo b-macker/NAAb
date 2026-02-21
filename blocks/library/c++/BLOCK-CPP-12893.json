@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTReader;\n  friend class ASTStmtReader;\n\n  SourceLocation  Loc;\n  Stmt *Block;\n\n  SEHFinallyStmt(SourceLocation Loc, Stmt *Block);\n  explicit SEHFinallyStmt(EmptyShell E) : Stmt(SEHFinallyStmtClass, E) {}\n\npublic:\n  static SEHFinallyStmt* Create(const ASTContext &C,\n                                SourceLocation FinallyLoc,\n                                Stmt *Block);\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return getFinallyLoc(); }\n\n  SourceLocation getFinallyLoc() const { return Loc; }\n  SourceLocation getEndLoc() const { return Block->getEndLoc(); }\n\n  CompoundStmt *getBlock() const { return cast<CompoundStmt>(Block); }\n\n  child_range children() {\n    return child_range(&Block,&Block+1);\n  }\n\n  const_child_range children() const {\n    return const_child_range(&Block, &Block + 1);\n  }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == SEHFinallyStmtClass;\n  }\n}",
-  "id": "BLOCK-CPP-12893",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Stmt.h",
-  "source_line": 3451,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang-c/Index.h\"\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/FileSystemOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"clang/Basic/TargetOptions.h\"\n#include \"clang/Lex/HeaderSearchOptions.h\"\n#include \"clang/Lex/ModuleLoader.h\"\n#include \"clang/Lex/PreprocessingRecord.h\"\n#include \"clang/Sema/CodeCompleteConsumer.h\"\n#include \"clang/Serialization/ASTBitCodes.h\"\n#include \"clang/Frontend/PrecompiledPreamble.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <memory>\n#include <optional>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace llvm;\nusing namespace vfs;\nusing namespace vfs;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18181_execute() {\n    {\n    return CachedCompletionAllocator;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18181",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/ASTUnit.h",
-  "source_line": 312,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00302_execute() {\n    def visit_Name(self, node: nodes.Name) -> None:\n        if node.ctx == \"load\" and node.name in self.names:\n            self.undeclared.add(node.name)\n            if self.undeclared == self.names:\n                raise VisitorExit()\n        else:\n            self.names.discard(node.name)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00302",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 279,
-  "validation_status": "validated"
-}

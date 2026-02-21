@@ -1,8 +1,0 @@
-{
-  "code": "{\n  bool is_debug = specs.type == presentation_type::debug;\n  return write_padded(out, specs, 1, [=](reserve_iterator<OutputIt> it) {\n    if (is_debug) return write_escaped_char(it, value);\n    *it++ = value;\n    return it;\n  });\n}",
-  "id": "BLOCK-CPP-01302",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 1862,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "// This file provides common API and #includes for the internal\n#include \"clang/AST/ASTContext.h\"\n#include \"clang/Sema/Lookup.h\"\n#include \"clang/Sema/Sema.h\"\n#include \"clang/Sema/SemaDiagnostic.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20637_execute() {\n    {\n  if (!LangOpts.CUDA || !D)\n    return true;\n  bool isDeviceSideDecl = D->hasAttr<CUDADeviceAttr>() ||\n                          D->hasAttr<CUDASharedAttr>() ||\n                          D->hasAttr<CUDAGlobalAttr>();\n  return isDeviceSideDecl == LangOpts.CUDAIsDevice;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20637",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/SemaInternal.h",
-  "source_line": 44,
-  "validation_status": "validated"
-}

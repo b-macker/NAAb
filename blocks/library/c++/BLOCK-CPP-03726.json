@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include <bit>\n#include \"absl/base/attributes.h\"\n#include \"absl/numeric/internal/bits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03726_execute() {\n    {\n  // If T is narrower than unsigned, T{1} << bit_width will be promoted.  We\n  // want to force it to wraparound so that bit_ceil of an invalid value are not\n  // core constant expressions.\n  //\n  // BitCeilNonPowerOf2 triggers an overflow in constexpr contexts if we would\n  // undergo promotion to unsigned but not fit the result into T without\n  // truncation.\n  return has_single_bit(x) ? T{1} << (bit_width(x) - 1)\n                           : numeric_internal::BitCeilNonPowerOf2(x);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03726",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/bits.h",
-  "source_line": 178,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n    constexpr explicit List(absl::ConstInitType)\n        : mutex(absl::kConstInit,\n                absl::base_internal::SCHEDULE_COOPERATIVE_AND_KERNEL) {}\n\n    SpinLock mutex;\n    std::atomic<CordzInfo*> head ABSL_GUARDED_BY(mutex){nullptr};\n  }",
-  "id": "BLOCK-CPP-06182",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_info.h",
-  "source_line": 190,
-  "validation_status": "validated"
-}

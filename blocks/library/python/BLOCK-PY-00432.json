@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00432_execute() {\n    class TemplateData(Literal):\n    \"\"\"A constant template string.\"\"\"\n\n    fields = (\"data\",)\n    data: str\n\n    def as_const(self, eval_ctx: EvalContext | None = None) -> str:\n        eval_ctx = get_eval_context(self, eval_ctx)\n        if eval_ctx.volatile:\n            raise Impossible()\n        if eval_ctx.autoescape:\n            return Markup(self.data)\n        return self.data\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00432",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 608,
-  "validation_status": "validated"
-}

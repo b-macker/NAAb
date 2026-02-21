@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ASTMatchers/ASTMatchers.h\"\n#include \"clang/ASTMatchers/ASTMatchersInternal.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include <memory>\n#include <optional>\n#include <vector>\n\nusing namespace clang;\nusing namespace ast_matchers;\nusing namespace dynamic;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21285_execute() {\n    { return K; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21285",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/Dynamic/VariantValue.h",
-  "source_line": 56,
-  "validation_status": "validated"
-}

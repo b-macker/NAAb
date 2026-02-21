@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  PostStmtPurgeDeadSymbols(const Stmt *S, const LocationContext *L,\n                       const ProgramPointTag *tag = nullptr)\n    : StmtPoint(S, nullptr, PostStmtPurgeDeadSymbolsKind, L, tag) { }\n\nprivate:\n  friend class ProgramPoint;\n  PostStmtPurgeDeadSymbols() = default;\n  static bool isKind(const ProgramPoint &Location) {\n    return Location.getKind() == PostStmtPurgeDeadSymbolsKind;\n  }\n}",
-  "id": "BLOCK-CPP-15883",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 484,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <cstring>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17364_execute() {\n    {\n  /// The \\c this pointer adjustment.\n  ThisAdjustment This;\n\n  /// The return adjustment.\n  ReturnAdjustment Return;\n\n  /// Holds a pointer to the overridden method this thunk is for,\n  /// if needed by the ABI to distinguish different thunks with equal\n  /// adjustments. Otherwise, null.\n  /// CAUTION: In the unlikely event you need to sort ThunkInfos, consider using\n  /// an ABI-specific comparator.\n  const CXXMethodDecl *Method;\n\n  ThunkInfo() : Method(nullptr) {}\n\n  ThunkInfo(const ThisAdjustment &This, const ReturnAdjustment &Return,\n            const CXXMethodDecl *Method = nullptr)\n      : This(This), Return(Return), Method(Method) {}\n\n  friend bool operator==(const ThunkInfo &LHS, const ThunkInfo &RHS) {\n    return LHS.This == RHS.This && LHS.Return == RHS.Return &&\n           LHS.Method == RHS.Method;\n  }\n\n  bool isEmpty() const {\n    return This.isEmpty() && Return.isEmpty() && Method == nullptr;\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17364",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Thunk.h",
-  "source_line": 156,
-  "validation_status": "validated"
-}

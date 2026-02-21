@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include <string.h>\n#include <algorithm>\n#include <cassert>\n#include <cmath>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/functional/function_ref.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/numeric/internal/representation.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03064_execute() {\n    {\n  if (exp >= 0) {\n    const int total_bits =\n        static_cast<int>(sizeof(Int) * 8) - LeadingZeros(mantissa) + exp;\n\n    // Fallback to the slow stack-based approach if we can't do it in a 64 or\n    // 128 bit state.\n    if (ABSL_PREDICT_FALSE(total_bits > 128)) {\n      return FormatFPositiveExpSlow(mantissa, exp, state);\n    }\n  } else {\n    // Fallback to the slow stack-based approach if we can't do it in a 64 or\n    // 128 bit state.\n    if (ABSL_PREDICT_FALSE(exp < -128)) {\n      return FormatFNegativeExpSlow(mantissa, -exp, state);\n    }\n  }\n  return FormatFFast(mantissa, exp, state);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03064",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
-  "source_line": 676,
-  "validation_status": "validated"
-}

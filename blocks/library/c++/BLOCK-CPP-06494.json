@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06494_execute() {\n    {\n\n// Helper functions for dealing with the names and abbreviations\n// of time zones that are a fixed offset (seconds east) from UTC.\n// FixedOffsetFromName() extracts the offset from a valid fixed-offset\n// name, while FixedOffsetToName() and FixedOffsetToAbbr() generate\n// the canonical zone name and abbreviation respectively for the given\n// offset.\n//\n// A fixed-offset name looks like \"Fixed/UTC<+-><hours>:<mins>:<secs>\".\n// Its abbreviation is of the form \"UTC(<+->H?H(MM(SS)?)?)?\" where the\n// optional pieces are omitted when their values are zero.  (Note that\n// the sign is the opposite of that used in a POSIX TZ specification.)\n//\n// Note: FixedOffsetFromName() fails on syntax errors or when the parsed\n// offset exceeds 24 hours.  FixedOffsetToName() and FixedOffsetToAbbr()\n// both produce \"UTC\" when the argument offset exceeds 24 hours.\nbool FixedOffsetFromName(const std::string& name, seconds* offset);\nstd::string FixedOffsetToName(const seconds& offset);\nstd::string FixedOffsetToAbbr(const seconds& offset);\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06494",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_fixed.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

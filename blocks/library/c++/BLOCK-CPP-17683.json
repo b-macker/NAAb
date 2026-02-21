@@ -1,8 +1,0 @@
-{
-  "code": "{\n  virtual void anchor();\n\n  /// The architecture to bind, or 0 if the default architecture\n  /// should be bound.\n  StringRef ArchName;\n\npublic:\n  BindArchAction(Action *Input, StringRef ArchName);\n\n  StringRef getArchName() const { return ArchName; }\n\n  static bool classof(const Action *A) {\n    return A->getKind() == BindArchClass;\n  }\n}",
-  "id": "BLOCK-CPP-17683",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 248,
-  "validation_status": "validated"
-}

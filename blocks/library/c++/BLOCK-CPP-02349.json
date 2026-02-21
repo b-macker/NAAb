@@ -1,8 +1,0 @@
-{
-  "code": "{\n  struct timespec t;\n#ifdef CLOCK_MONOTONIC_RAW\n  int rc = clock_gettime(CLOCK_MONOTONIC_RAW, &t);\n#else\n  int rc = clock_gettime(CLOCK_MONOTONIC, &t);\n#endif\n  if (rc != 0) {\n    ABSL_INTERNAL_LOG(\n        FATAL, \"clock_gettime() failed: (\" + std::to_string(errno) + \")\");\n  }\n  return int64_t{t.tv_sec} * 1000000000 + t.tv_nsec;\n}",
-  "id": "BLOCK-CPP-02349",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/sysinfo.cc",
-  "source_line": 235,
-  "validation_status": "validated"
-}

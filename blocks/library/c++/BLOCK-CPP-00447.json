@@ -1,8 +1,0 @@
-{
-  "code": "#include \"spdlog/common.h\"\n#include \"spdlog/details/log_msg.h\"\n#include \"spdlog/details/synchronous_factory.h\"\n#include \"spdlog/sinks/base_sink.h\"\n#include <array>\n#include <QPlainTextEdit>\n#include <QTextEdit>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00447_execute() {\n    {\n        invoke_params(int max_lines,\n                      QTextEdit *q_text_edit,\n                      QString payload,\n                      QTextCharFormat default_color,\n                      QTextCharFormat level_color,\n                      int color_range_start,\n                      int color_range_end)\n            : max_lines(max_lines),\n              q_text_edit(q_text_edit),\n              payload(std::move(payload)),\n              default_color(default_color),\n              level_color(level_color),\n              color_range_start(color_range_start),\n              color_range_end(color_range_end) {}\n        int max_lines;\n        QTextEdit *q_text_edit;\n        QString payload;\n        QTextCharFormat default_color;\n        QTextCharFormat level_color;\n        int color_range_start;\n        int color_range_end;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00447",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/qt_sinks.h",
-  "source_line": 126,
-  "validation_status": "validated"
-}

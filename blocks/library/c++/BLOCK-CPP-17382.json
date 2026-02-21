@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Linkage.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17382_execute() {\n    {\n    return LinkageInfo(InternalLinkage, DefaultVisibility, false);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17382",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Visibility.h",
-  "source_line": 70,
-  "validation_status": "validated"
-}

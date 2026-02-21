@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n/// Carries a Clang diagnostic in an llvm::Error.\n///\n/// Users should emit the stored diagnostic using the DiagnosticsEngine.\nclass DiagnosticError : public llvm::ErrorInfo<DiagnosticError> {\npublic:\n  DiagnosticError(PartialDiagnosticAt Diag) : Diag(std::move(Diag)) {}\n\n  void log(raw_ostream &OS) const override { OS << \"clang diagnostic\"; }\n\n  PartialDiagnosticAt &getDiagnostic() { return Diag; }\n  const PartialDiagnosticAt &getDiagnostic() const { return Diag; }\n\n  /// Creates a new \\c DiagnosticError that contains the given diagnostic at\n  /// the given location.\n  static llvm::Error create(SourceLocation Loc, PartialDiagnostic Diag) {\n    return llvm::make_error<DiagnosticError>(\n        PartialDiagnosticAt(Loc, std::move(Diag)));\n  }\n\n  /// Extracts and returns the diagnostic payload from the given \\c Error if\n  /// the error is a \\c DiagnosticError. Returns std::nullopt if the given error\n  /// is not a \\c DiagnosticError.\n  static std::optional<PartialDiagnosticAt> take(llvm::Error &Err) {\n    std::optional<PartialDiagnosticAt> Result;\n    Err = llvm::handleErrors(std::move(Err), [&](DiagnosticError &E) {\n      Result = std::move(E.getDiagnostic());\n    });\n    return Result;\n  }\n\n  static char ID;\n\nprivate:\n  // Users are not expected to use error_code.\n  std::error_code convertToErrorCode() const override {\n    return llvm::inconvertibleErrorCode();\n  }\n\n  PartialDiagnosticAt Diag;\n};\n\n}",
-  "id": "BLOCK-CPP-16277",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticError.h",
-  "source_line": 16,
-  "validation_status": "validated"
-}

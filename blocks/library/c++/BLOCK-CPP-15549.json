@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  explicit CFGConstructor(const CXXConstructExpr *CE,\n                          const ConstructionContext *C)\n      : CFGStmt(CE, Constructor) {\n    assert(C);\n    Data2.setPointer(const_cast<ConstructionContext *>(C));\n  }\n\n  const ConstructionContext *getConstructionContext() const {\n    return static_cast<ConstructionContext *>(Data2.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n\n  CFGConstructor() = default;\n\n  static bool isKind(const CFGElement &E) {\n    return E.getKind() == Constructor;\n  }\n}",
-  "id": "BLOCK-CPP-15549",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 154,
-  "validation_status": "validated"
-}

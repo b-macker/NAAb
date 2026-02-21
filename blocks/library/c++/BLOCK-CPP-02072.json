@@ -1,8 +1,0 @@
-{
-  "code": "{  // s's priority is above head's\n      // try to put s in priority-fifo order, or failing that at the front.\n      if (!head->maybe_unlocking) {\n        // No unlocker can be scanning the queue, so we can insert into the\n        // middle of the queue.\n        //\n        // Within a skip chain, all waiters have the same priority, so we can\n        // skip forward through the chains until we find one with a lower\n        // priority than the waiter to be enqueued.\n        PerThreadSynch* advance_to = head;  // next value of enqueue_after\n        do {\n          enqueue_after = advance_to;\n          // (side-effect: optimizes skip chain)\n          advance_to = Skip(enqueue_after->next);\n        } while (s->priority <= advance_to->priority);\n        // termination guaranteed because s->priority > head->priority\n        // and head is the end of a skip chain\n      } else if (waitp->how == kExclusive && waitp->cond == nullptr) {\n        // An unlocker could be scanning the queue, but we know it will recheck\n        // the queue front for writers that have no condition, which is what s\n        // is, so an insert at front is safe.\n        enqueue_after = head;  // add after head, at front\n      }\n    }",
-  "id": "BLOCK-CPP-02072",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/mutex.cc",
-  "source_line": 964,
-  "validation_status": "validated"
-}

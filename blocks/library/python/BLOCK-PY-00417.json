@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00417_execute() {\n    class With(Stmt):\n    \"\"\"Specific node for with statements.  In older versions of Jinja the\n    with statement was implemented on the base of the `Scope` node instead.\n\n    .. versionadded:: 2.9.3\n    \"\"\"\n\n    fields = (\"targets\", \"values\", \"body\")\n    targets: list[\"Expr\"]\n    values: list[\"Expr\"]\n    body: list[Node]\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00417",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 380,
-  "validation_status": "validated"
-}

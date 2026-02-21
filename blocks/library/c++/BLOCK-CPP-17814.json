@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Driver/Multilib.h\"\n\nusing namespace clang;\nusing namespace driver;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17814_execute() {\n    {\npublic:\n  using multilib_list = std::vector<MultilibBuilder>;\n\n  MultilibSetBuilder() = default;\n\n  /// Add an optional Multilib segment\n  MultilibSetBuilder &Maybe(const MultilibBuilder &M);\n\n  /// Add a set of mutually incompatible Multilib segments\n  MultilibSetBuilder &Either(const MultilibBuilder &M1,\n                             const MultilibBuilder &M2);\n  MultilibSetBuilder &Either(const MultilibBuilder &M1,\n                             const MultilibBuilder &M2,\n                             const MultilibBuilder &M3);\n  MultilibSetBuilder &Either(const MultilibBuilder &M1,\n                             const MultilibBuilder &M2,\n                             const MultilibBuilder &M3,\n                             const MultilibBuilder &M4);\n  MultilibSetBuilder &Either(const MultilibBuilder &M1,\n                             const MultilibBuilder &M2,\n                             const MultilibBuilder &M3,\n                             const MultilibBuilder &M4,\n                             const MultilibBuilder &M5);\n  MultilibSetBuilder &Either(ArrayRef<MultilibBuilder> Ms);\n\n  /// Filter out those Multilibs whose gccSuffix matches the given expression\n  MultilibSetBuilder &FilterOut(const char *Regex);\n\n  MultilibSet makeMultilibSet() const;\n\nprivate:\n  multilib_list Multilibs;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17814",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/MultilibBuilder.h",
-  "source_line": 96,
-  "validation_status": "validated"
-}

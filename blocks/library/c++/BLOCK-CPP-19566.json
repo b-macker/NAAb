@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclObjCCommon.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/Basic/ExceptionSpecificationType.h\"\n#include \"clang/Basic/Lambda.h\"\n#include \"clang/Basic/OperatorKinds.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Lex/Token.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"clang/Sema/ParsedAttr.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"clang/Basic/TransformTypeTraits.def\"\n#include \"clang/Basic/OpenCLImageTypes.def\"\n#include \"clang/Basic/TransformTypeTraits.def\"\n\nusing namespace clang;\nusing namespace name;\nusing namespace alias;\nusing namespace alias;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19566_execute() {\n    {\n    PropertyAttributes =\n        (ObjCPropertyAttribute::Kind)(PropertyAttributes | PRVal);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19566",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
-  "source_line": 898,
-  "validation_status": "validated"
-}

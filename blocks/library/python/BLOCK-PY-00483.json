@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00483_execute() {\n    def iter_child_nodes(\n        self,\n        exclude: t.Container[str] | None = None,\n        only: t.Container[str] | None = None,\n    ) -> t.Iterator[\"Node\"]:\n        \"\"\"Iterates over all direct child nodes of the node.  This iterates\n        over all fields and yields the values of they are nodes.  If the value\n        of a field is a list all the nodes in that list are returned.\n        \"\"\"\n        for _, item in self.iter_fields(exclude, only):\n            if isinstance(item, list):\n                for n in item:\n                    if isinstance(n, Node):\n                        yield n\n            elif isinstance(item, Node):\n                yield item\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00483",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 169,
-  "validation_status": "validated"
-}

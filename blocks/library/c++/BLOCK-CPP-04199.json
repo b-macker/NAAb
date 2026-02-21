@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cstddef>\n#include <map>\n#include <set>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/strings/internal/str_split_internal.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04199_execute() {\n    {\n  bool operator()(absl::string_view sp) const {\n    sp = absl::StripAsciiWhitespace(sp);\n    return !sp.empty();\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04199",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_split.h",
-  "source_line": 383,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/IR/Constant.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17589_execute() {\n    {\nnamespace CodeGen {\nclass ConstantInitBuilderBase;\n}\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17589",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ConstantInitFuture.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

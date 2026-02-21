@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-CPP-21644_execute() {\n    { A a; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21644",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 18,
-  "validation_status": "validated"
-}

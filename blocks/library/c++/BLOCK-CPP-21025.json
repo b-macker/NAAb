@@ -1,8 +1,0 @@
-{
-  "code": "{\n  enum {\n    Overridden = 1,\n    OutOfDate = 2,\n    NotFound = 3\n  };\n  llvm::PointerIntPair<const FileEntryRef::MapEntry *, 2, unsigned> Val;\n\npublic:\n  InputFile() = default;\n\n  InputFile(FileEntryRef File, bool isOverridden = false,\n            bool isOutOfDate = false) {\n    assert(!(isOverridden && isOutOfDate) &&\n           \"an overridden cannot be out-of-date\");\n    unsigned intVal = 0;\n    if (isOverridden)\n      intVal = Overridden;\n    else if (isOutOfDate)\n      intVal = OutOfDate;\n    Val.setPointerAndInt(&File.getMapEntry(), intVal);\n  }\n\n  static InputFile getNotFound() {\n    InputFile File;\n    File.Val.setInt(NotFound);\n    return File;\n  }\n\n  OptionalFileEntryRefDegradesToFileEntryPtr getFile() const {\n    if (auto *P = Val.getPointer())\n      return FileEntryRef(*P);\n    return std::nullopt;\n  }\n  bool isOverridden() const { return Val.getInt() == Overridden; }\n  bool isOutOfDate() const { return Val.getInt() == OutOfDate; }\n  bool isNotFound() const { return Val.getInt() == NotFound; }\n}",
-  "id": "BLOCK-CPP-21025",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ModuleFile.h",
-  "source_line": 76,
-  "validation_status": "validated"
-}

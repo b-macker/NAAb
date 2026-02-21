@@ -1,8 +1,0 @@
-{
-  "code": "{\n  static_assert(std::is_lvalue_reference<Reference>::value, \"\");\n\n  using slot_type = typename std::remove_cv<\n      typename std::remove_reference<Reference>::type>::type*;\n\n  template <class Alloc, class... Args>\n  static void construct(Alloc* alloc, slot_type* slot, Args&&... args) {\n    *slot = Policy::new_element(alloc, std::forward<Args>(args)...);\n  }\n\n  template <class Alloc>\n  static void destroy(Alloc* alloc, slot_type* slot) {\n    Policy::delete_element(alloc, *slot);\n  }\n\n  // Returns true_type to indicate that transfer can use memcpy.\n  template <class Alloc>\n  static std::true_type transfer(Alloc*, slot_type* new_slot,\n                                 slot_type* old_slot) {\n    *new_slot = *old_slot;\n    return {};\n  }\n\n  static size_t space_used(const slot_type* slot) {\n    if (slot == nullptr) return Policy::element_space_used(nullptr);\n    return Policy::element_space_used(*slot);\n  }\n\n  static Reference element(slot_type* slot) { return **slot; }\n\n  template <class T, class P = Policy>\n  static auto value(T* elem) -> decltype(P::value(elem)) {\n    return P::value(elem);\n  }\n\n  template <class... Ts, class P = Policy>\n  static auto apply(Ts&&... ts) -> decltype(P::apply(std::forward<Ts>(ts)...)) {\n    return P::apply(std::forward<Ts>(ts)...);\n  }\n}",
-  "id": "BLOCK-CPP-05132",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/node_slot_policy.h",
-  "source_line": 48,
-  "validation_status": "validated"
-}

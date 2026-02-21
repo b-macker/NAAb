@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LangOptions.h\"\n#include \"llvm/ADT/StringMap.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16693_execute() {\n    {\n    return OpenCLOptionInfo(std::forward<Args>(args)...).isCoreIn(LO);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16693",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/OpenCLOptions.h",
-  "source_line": 189,
-  "validation_status": "validated"
-}

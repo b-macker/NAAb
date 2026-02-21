@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02525_execute() {\n    {\n  if (state->parse_state.append && length > 0) {\n    // Append a space if the output buffer ends with '<' and \"str\"\n    // starts with '<' to avoid <<<.\n    if (str[0] == '<' && EndsWith(state, '<')) {\n      Append(state, \" \", 1);\n    }\n    // Remember the last identifier name for ctors/dtors,\n    // but only if we haven't yet overflown the buffer.\n    if (state->parse_state.out_cur_idx < state->out_end_idx &&\n        (IsAlpha(str[0]) || str[0] == '_')) {\n      state->parse_state.prev_name_idx = state->parse_state.out_cur_idx;\n      state->parse_state.prev_name_length = static_cast<unsigned int>(length);\n    }\n    Append(state, str, length);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02525",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
-  "source_line": 432,
-  "validation_status": "validated"
-}

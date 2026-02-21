@@ -1,8 +1,0 @@
-{
-  "code": "{\n  static size_t Find(absl::string_view text, absl::string_view delimiter,\n                     size_t pos) {\n    return text.find(delimiter, pos);\n  }\n  static size_t Length(absl::string_view delimiter) {\n    return delimiter.length();\n  }\n}",
-  "id": "BLOCK-CPP-02037",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_split.cc",
-  "source_line": 59,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00538_execute() {\n    def validate_metadata(nb: MutableMapping[str, Any]) -> None:\n    \"\"\"If notebook is marked as non-Python, don't format it.\n\n    All notebook metadata fields are optional, see\n    https://nbformat.readthedocs.io/en/latest/format_description.html. So\n    if a notebook has empty metadata, we will try to parse it anyway.\n    \"\"\"\n    language = nb.get(\"metadata\", {}).get(\"language_info\", {}).get(\"name\", None)\n    if language is not None and language != \"python\":\n        raise NothingChanged from None\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00538",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 1133,
-  "validation_status": "validated"
-}

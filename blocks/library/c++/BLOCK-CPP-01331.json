@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\nusing namespace dragonbox;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01331_execute() {\n    {\n  auto abs_value = static_cast<uint32_or_64_or_128_t<T>>(value);\n  bool negative = is_negative(value);\n  // Don't do -abs_value since it trips unsigned-integer-overflow sanitizer.\n  if (negative) abs_value = ~abs_value + 1;\n  int num_digits = count_digits(abs_value);\n  auto size = (negative ? 1 : 0) + static_cast<size_t>(num_digits);\n  auto it = reserve(out, size);\n  if (auto ptr = to_pointer<Char>(it, size)) {\n    if (negative) *ptr++ = static_cast<Char>('-');\n    format_decimal<Char>(ptr, abs_value, num_digits);\n    return out;\n  }\n  if (negative) *it++ = static_cast<Char>('-');\n  it = format_decimal<Char>(it, abs_value, num_digits).end;\n  return base_iterator(out, it);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01331",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 2218,
-  "validation_status": "validated"
-}

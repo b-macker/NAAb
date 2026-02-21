@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/str_cat.h\"\n#include <assert.h>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <initializer_list>\n#include <string>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01993_execute() {\n    {\n  // memcpy is allowed to overwrite arbitrary memory, so doing this after the\n  // call would force an extra fetch of x.size().\n  char* after = out + x.size();\n  if (x.size() != 0) {\n    memcpy(out, x.data(), x.size());\n  }\n  return after;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01993",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_cat.cc",
-  "source_line": 46,
-  "validation_status": "validated"
-}

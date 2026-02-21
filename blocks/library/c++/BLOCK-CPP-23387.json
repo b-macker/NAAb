@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CommentCommandTraits.h\"\n#include \"clang/AST/DeclObjC.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23387_execute() {\n    {\n    friend class InlineContentComment;\n\n    unsigned : NumCommentBits;\n\n    /// True if there is a newline after this inline content node.\n    /// (There is no separate AST node for a newline.)\n    unsigned HasTrailingNewline : 1;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23387",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Comment.h",
-  "source_line": 68,
-  "validation_status": "validated"
-}

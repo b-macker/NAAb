@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00217_execute() {\n    def _generate_dockerfile(self, request, platform: str, complexity: str) -> CodeGenerationResult:\n        \"\"\"Generate comprehensive Dockerfile\"\"\"\n        message = request.message.lower()\n        \n        if 'node' in message or 'javascript' in message:\n            dockerfile = self._generate_nodejs_dockerfile(complexity)\n        elif 'python' in message:\n            dockerfile = self._generate_python_dockerfile(complexity)\n        elif 'java' in message or 'spring' in message:\n            dockerfile = self._generate_java_dockerfile(complexity)\n        elif 'go' in message or 'golang' in message:\n            dockerfile = self._generate_go_dockerfile(complexity)\n        elif 'nginx' in message or 'web server' in message:\n            dockerfile = self._generate_nginx_dockerfile(complexity)\n        else:\n            dockerfile = self._generate_generic_dockerfile(complexity)\n        \n        return CodeGenerationResult(\n            success=True,\n            code=dockerfile,\n            language=\"dockerfile\",\n            framework=\"docker\",\n            code_type=CodeType.CONFIGURATION\n        )\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00217",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/devops_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

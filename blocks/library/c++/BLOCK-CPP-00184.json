@@ -1,8 +1,0 @@
-{
-  "code": "{\ninline void load_env_levels() {\n    auto env_val = details::os::getenv(\"SPDLOG_LEVEL\");\n    if (!env_val.empty()) {\n        helpers::load_levels(env_val);\n    }\n}\n\n}",
-  "id": "BLOCK-CPP-00184",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/cfg/env.h",
-  "source_line": 27,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/details/null_mutex.h>\n        #include <spdlog/details/os.h>\n    #include <spdlog/sinks/base_sink.h>\n    #include <mutex>\n    #include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00428_execute() {\n    {\n/*\n * MSVC sink (logging using OutputDebugStringA)\n */\ntemplate <typename Mutex>\nclass msvc_sink : public base_sink<Mutex> {\npublic:\n    msvc_sink() = default;\n    msvc_sink(bool check_debugger_present)\n        : check_debugger_present_{check_debugger_present} {};\n\nprotected:\n    void sink_it_(const details::log_msg &msg) override {\n        if (check_debugger_present_ && !IsDebuggerPresent()) {\n            return;\n        }\n        memory_buf_t formatted;\n        base_sink<Mutex>::formatter_->format(msg, formatted);\n        formatted.push_back('\\0');  // add a null terminator for OutputDebugString\n    #if defined(SPDLOG_WCHAR_TO_UTF8_SUPPORT)\n        wmemory_buf_t wformatted;\n        details::os::utf8_to_wstrbuf(string_view_t(formatted.data(), formatted.size()), wformatted);\n        OutputDebugStringW(wformatted.data());\n    #else\n        OutputDebugStringA(formatted.data());\n    #endif\n    }\n\n    void flush_() override {}\n\n    bool check_debugger_present_ = true;\n};\n\nusing msvc_sink_mt = msvc_sink<std::mutex>;\nusing msvc_sink_st = msvc_sink<details::null_mutex>;\n\nusing windebug_sink_mt = msvc_sink_mt;\nusing windebug_sink_st = msvc_sink_st;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00428",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/msvc_sink.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

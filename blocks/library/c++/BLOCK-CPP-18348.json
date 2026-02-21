@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTDumperUtils.h\"\n#include \"clang/Basic/LangStandard.h\"\n#include \"clang/Frontend/CommandLineSourceLoc.h\"\n#include \"clang/Sema/CodeCompleteOptions.h\"\n#include \"clang/Serialization/ModuleFileExtension.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/MemoryBuffer.h\"\n#include <cassert>\n#include <map>\n#include <memory>\n#include <optional>\n#include <string>\n#include <vector>\n  /// Expand macros but not \\#includes.\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace frontend;\nusing namespace frontend;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18348_execute() {\n    {\n    return InputKind(getLanguage(), getFormat(), isPreprocessed(),\n                     getHeaderUnitKind(), true);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18348",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendOptions.h",
-  "source_line": 202,
-  "validation_status": "validated"
-}

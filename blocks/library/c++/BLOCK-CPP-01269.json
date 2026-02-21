@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>         // std::signbit\n#include <cstdint>       // uint32_t\n#include <cstring>       // std::memcpy\n#include <limits>        // std::numeric_limits\n#include <memory>        // std::uninitialized_copy\n#include <stdexcept>     // std::runtime_error\n#include <system_error>  // std::system_error\n#include \"core.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace detail_exported;\nusing namespace detail_exported;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01269_execute() {\n    {\n#ifdef FMT_BUILTIN_CLZ\n  if (!is_constant_evaluated() && num_bits<UInt>() == 32)\n    return (FMT_BUILTIN_CLZ(static_cast<uint32_t>(n) | 1) ^ 31) / BITS + 1;\n#endif\n  // Lambda avoids unreachable code warnings from NVHPC.\n  return [](UInt m) {\n    int num_digits = 0;\n    do {\n      ++num_digits;\n    } while ((m >>= BITS) != 0);\n    return num_digits;\n  }(n);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01269",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 1104,
-  "validation_status": "validated"
-}

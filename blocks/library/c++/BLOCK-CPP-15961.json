@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15961_execute() {\n    {\n  return (AS == LangAS::ptr32_sptr || AS == LangAS::ptr32_uptr ||\n          AS == LangAS::ptr64);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15961",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AddressSpaces.h",
-  "source_line": 91,
-  "validation_status": "validated"
-}

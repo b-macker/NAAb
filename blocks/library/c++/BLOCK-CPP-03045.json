@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/float_conversion.h\"\n#include <string.h>\n#include <algorithm>\n#include <cassert>\n#include <cmath>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/functional/function_ref.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/numeric/internal/representation.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03045_execute() {\n    {\n    if (decimal_start_ >= decimal_end_) return false;\n\n    uint32_t w = data_[decimal_start_++];\n    for (size_ = 0; size_ < kDigitsPerChunk; w /= 10) {\n      digits_[kDigitsPerChunk - ++size_] = w % 10 + '0';\n    }\n    return true;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03045",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/float_conversion.cc",
-  "source_line": 167,
-  "validation_status": "validated"
-}

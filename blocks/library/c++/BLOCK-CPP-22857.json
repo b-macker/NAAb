@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclTemplate.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22857_execute() {\n    {\n  return isGenericLambdaCallOperatorSpecialization(\n                                          dyn_cast<CXXMethodDecl>(DC));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22857",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTLambda.h",
-  "source_line": 62,
-  "validation_status": "validated"
-}

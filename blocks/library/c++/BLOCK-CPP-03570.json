@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <ostream>\n#include \"absl/crc/internal/crc32c_inline.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03570_execute() {\n    {\n// Non-inline code path for `absl::ExtendCrc32c()`. Do not call directly.\n// Call `absl::ExtendCrc32c()` (defined below) instead.\ncrc32c_t ExtendCrc32cInternal(crc32c_t initial_crc,\n                              absl::string_view buf_to_add);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03570",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/crc32c.h",
-  "source_line": 75,
-  "validation_status": "validated"
-}

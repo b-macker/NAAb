@@ -1,8 +1,0 @@
-{
-  "code": "{\n  /// The destructor that needs to be called.\n  const CXXDestructorDecl *Destructor;\n\n  explicit CXXTemporary(const CXXDestructorDecl *destructor)\n      : Destructor(destructor) {}\n\npublic:\n  static CXXTemporary *Create(const ASTContext &C,\n                              const CXXDestructorDecl *Destructor);\n\n  const CXXDestructorDecl *getDestructor() const { return Destructor; }\n\n  void setDestructor(const CXXDestructorDecl *Dtor) {\n    Destructor = Dtor;\n  }\n}",
-  "id": "BLOCK-CPP-10785",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
-  "source_line": 1438,
-  "validation_status": "validated"
-}

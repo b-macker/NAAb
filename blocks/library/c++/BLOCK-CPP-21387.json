@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/BitVector.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PostOrderIterator.h\"\n#include <utility>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21387_execute() {\n    { return Blocks.rend(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21387",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/PostOrderCFGView.h",
-  "source_line": 91,
-  "validation_status": "validated"
-}

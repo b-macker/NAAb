@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/AST/DeclBase.h\"\n#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/AST/ExternalASTSource.h\"\n#include \"clang/AST/TypeLoc.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/Compiler.h\"\n#include \"llvm/Support/TrailingObjects.h\"\n#include <cassert>\n#include <iterator>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-08748_execute() {\n    {\n    return FriendLoc;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-08748",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclFriend.h",
-  "source_line": 141,
-  "validation_status": "validated"
-}

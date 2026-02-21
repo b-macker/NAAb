@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00402_execute() {\n    class Impossible(Exception):\n    \"\"\"Raised if the node could not perform a requested action.\"\"\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00402",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 50,
-  "validation_status": "validated"
-}

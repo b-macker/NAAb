@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n#include <iostream>\n\nextern \"C\" {\n\nint BLOCK_CPP_TEST_001_add(int a, int b) {\n    std::cout << \"[BLOCK] Adding \" << a << \" + \" << b << std::endl;\n    return a + b;\n}\n\nconst char* BLOCK_CPP_TEST_001_greet(const char* name) {\n    static std::string greeting = std::string(\"Hello, \") + name + \"! Welcome to NAAb v0.1.0\";\n    std::cout << \"[BLOCK] Greeting: \" << greeting << std::endl;\n    return greeting.c_str();\n}\n\nvoid BLOCK_CPP_TEST_001_test_security() {\n    std::cout << \"[BLOCK] Testing security features:\" << std::endl;\n    std::cout << \"  - Resource limits: ACTIVE\" << std::endl;\n    std::cout << \"  - Input validation: ACTIVE\" << std::endl;\n    std::cout << \"  - Sandboxing: ACTIVE\" << std::endl;\n    std::cout << \"  - Audit logging: ACTIVE\" << std::endl;\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-TEST-001",
-  "language": "c++",
-  "source_file": "/test/naab_integration_test.cpp",
-  "source_line": 1,
-  "validation_status": "validated"
-}

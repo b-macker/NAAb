@@ -1,8 +1,0 @@
-{
-  "code": "#include <initializer_list>\n#include <tuple>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01584_execute() {\n    {\n  using mapper = arg_mapper<Context>;\n\n  template <typename T,\n            FMT_ENABLE_IF(has_formatter<remove_cvref_t<T>, Context>::value)>\n  static auto map(T&& value) -> T&& {\n    return static_cast<T&&>(value);\n  }\n  template <typename T,\n            FMT_ENABLE_IF(!has_formatter<remove_cvref_t<T>, Context>::value)>\n  static auto map(T&& value)\n      -> decltype(mapper().map(static_cast<T&&>(value))) {\n    return mapper().map(static_cast<T&&>(value));\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01584",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/ranges.h",
-  "source_line": 384,
-  "validation_status": "validated"
-}

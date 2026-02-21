@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <optional>\n#include <vector>\n#include \"clang/Basic/DiagnosticCommonKinds.inc\"\n\nusing namespace clang;\nusing namespace diag;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16295_execute() {\n    {\n      // NOTE: 0 means \"uncomputed\".\n      Ignored = 1, ///< Do not present this diagnostic, ignore it.\n      Remark = 2,  ///< Present this diagnostic as a remark.\n      Warning = 3, ///< Present this diagnostic as a warning.\n      Error = 4,   ///< Present this diagnostic as an error.\n      Fatal = 5    ///< Present this diagnostic as a fatal error.\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16295",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticIDs.h",
-  "source_line": 83,
-  "validation_status": "validated"
-}

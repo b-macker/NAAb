@@ -1,8 +1,0 @@
-{
-  "code": "{\n  const CXXCtorInitializer *I;\n\nprotected:\n  explicit ConstructorInitializerConstructionContext(\n      ConstructionContext::Kind K, const CXXCtorInitializer *I)\n      : ConstructionContext(K), I(I) {\n    assert(classof(this));\n    assert(I);\n  }\n\npublic:\n  const CXXCtorInitializer *getCXXCtorInitializer() const { return I; }\n\n  const ArrayInitLoopExpr *getArrayInitLoop() const override {\n    return dyn_cast<ArrayInitLoopExpr>(I->getInit());\n  }\n\n  static bool classof(const ConstructionContext *CC) {\n    return CC->getKind() >= INITIALIZER_BEGIN &&\n           CC->getKind() <= INITIALIZER_END;\n  }\n}",
-  "id": "BLOCK-CPP-15685",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 388,
-  "validation_status": "validated"
-}

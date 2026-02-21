@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"   // TODO(calabrese) IWYU removal?\n#include \"absl/utility/utility.h\"\n#include <optional>  // IWYU pragma: export\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04492_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nusing std::bad_optional_access;\nusing std::optional;\nusing std::make_optional;\nusing std::nullopt_t;\nusing std::nullopt;\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04492",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/optional.h",
-  "source_line": 45,
-  "validation_status": "validated"
-}

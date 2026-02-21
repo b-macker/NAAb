@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ASTMatchers/ASTMatchFinder.h\"\n#include \"clang/Tooling/Refactoring.h\"\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21206_execute() {\n    {\npublic:\n  RefactoringCallback();\n  Replacements &getReplacements();\n\nprotected:\n  Replacements Replace;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21206",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/RefactoringCallbacks.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

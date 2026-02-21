@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <cstdlib>\n#include <initializer_list>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/seed_material.h\"\n#include \"absl/types/optional.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05961_execute() {\n    {\n    // Allocates a seed buffer of `n` elements, generates the seed, then\n    // copies the result into the `out` iterator.\n    absl::InlinedVector<uint32_t, 8> data(n, 0);\n    generate_impl(ContiguousAndUint32Tag{}, data.begin(), data.end(), n);\n    std::copy(data.begin(), data.end(), begin);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05961",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/salted_seed_seq.h",
-  "source_line": 112,
-  "validation_status": "validated"
-}

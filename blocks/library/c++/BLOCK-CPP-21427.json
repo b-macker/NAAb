@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/Analyses/PostOrderCFGView.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyTIL.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyTraverse.h\"\n#include \"clang/Analysis/Analyses/ThreadSafetyUtil.h\"\n#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Casting.h\"\n#include <sstream>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace sx;\nusing namespace sx;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21427_execute() {\n    { return true; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21427",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyCommon.h",
-  "source_line": 110,
-  "validation_status": "validated"
-}

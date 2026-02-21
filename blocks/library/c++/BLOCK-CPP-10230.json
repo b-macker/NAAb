@@ -1,8 +1,0 @@
-{
-  "code": "{\n  Stmt *Val;\npublic:\n  ImaginaryLiteral(Expr *val, QualType Ty)\n      : Expr(ImaginaryLiteralClass, Ty, VK_PRValue, OK_Ordinary), Val(val) {\n    setDependence(ExprDependence::None);\n  }\n\n  /// Build an empty imaginary literal.\n  explicit ImaginaryLiteral(EmptyShell Empty)\n    : Expr(ImaginaryLiteralClass, Empty) { }\n\n  const Expr *getSubExpr() const { return cast<Expr>(Val); }\n  Expr *getSubExpr() { return cast<Expr>(Val); }\n  void setSubExpr(Expr *E) { Val = E; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY {\n    return Val->getBeginLoc();\n  }\n  SourceLocation getEndLoc() const LLVM_READONLY { return Val->getEndLoc(); }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ImaginaryLiteralClass;\n  }\n\n  // Iterators\n  child_range children() { return child_range(&Val, &Val+1); }\n  const_child_range children() const {\n    return const_child_range(&Val, &Val + 1);\n  }\n}",
-  "id": "BLOCK-CPP-10230",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Expr.h",
-  "source_line": 1741,
-  "validation_status": "validated"
-}

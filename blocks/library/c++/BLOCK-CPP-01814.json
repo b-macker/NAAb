@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace status_internal {\n\nABSL_INTERNAL_ATOMIC_HOOK_ATTRIBUTES\nstatic absl::base_internal::AtomicHook<StatusPayloadPrinter> storage;\n\nvoid SetStatusPayloadPrinter(StatusPayloadPrinter printer) {\n  storage.Store(printer);\n}\n\nStatusPayloadPrinter GetStatusPayloadPrinter() {\n  return storage.Load();\n}\n\n}  // namespace status_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-01814",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/status_payload_printer.cc",
-  "source_line": 19,
-  "validation_status": "validated"
-}

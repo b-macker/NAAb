@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace synchronization_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06456_execute() {\n    {\n  uint64_t handle;\n\n  bool operator==(const GraphId& x) const { return handle == x.handle; }\n  bool operator!=(const GraphId& x) const { return handle != x.handle; }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06456",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/synchronization/internal/graphcycles.h",
-  "source_line": 50,
-  "validation_status": "validated"
-}

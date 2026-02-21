@@ -1,8 +1,0 @@
-{
-  "code": "{\n    /// The type qualifier: restrict. [GNU] C++ extension\n    bool HasRestrict : 1;\n    /// True if this is an lvalue reference, false if it's an rvalue reference.\n    bool LValueRef : 1;\n    void destroy() {\n    }\n  }",
-  "id": "BLOCK-CPP-19721",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
-  "source_line": 1255,
-  "validation_status": "validated"
-}

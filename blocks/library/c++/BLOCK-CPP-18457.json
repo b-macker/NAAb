@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18457_execute() {\n    {\nclass ASTContext;\n\nnamespace comments {\nclass FullComment;\nclass HTMLTagComment;\n}\n\nnamespace index {\nclass CommentToXMLConverter {\npublic:\n  CommentToXMLConverter();\n  ~CommentToXMLConverter();\n\n  void convertCommentToHTML(const comments::FullComment *FC,\n                            SmallVectorImpl<char> &HTML,\n                            const ASTContext &Context);\n\n  void convertHTMLTagNodeToText(const comments::HTMLTagComment *HTC,\n                                SmallVectorImpl<char> &Text,\n                                const ASTContext &Context);\n\n  void convertCommentToXML(const comments::FullComment *FC,\n                           SmallVectorImpl<char> &XML,\n                           const ASTContext &Context);\n};\n\n} // namespace index\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18457",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Index/CommentToXML.h",
-  "source_line": 14,
-  "validation_status": "validated"
-}

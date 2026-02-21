@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17006_execute() {\n    { Unspecified, Constexpr, Consteval, Constinit }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17006",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Specifiers.h",
-  "source_line": 35,
-  "validation_status": "validated"
-}

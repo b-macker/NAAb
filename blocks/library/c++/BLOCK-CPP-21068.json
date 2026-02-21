@@ -1,8 +1,0 @@
-{
-  "code": "#include <climits>\n#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21068_execute() {\n    {\n    if (Raw == 0)\n      return 0;\n    UIntTy Rotated = SourceLocationEncoding::encodeRaw(Raw);\n    if (Prev == 0)\n      return Prev = Rotated;\n    UIntTy Delta = Rotated - Prev;\n    Prev = Rotated;\n    // Exactly one 33 bit value is possible! (1 << 32).\n    // This is because we have two representations of zero: trivial & relative.\n    return 1 + EncodedTy{zigZag(Delta)};\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21068",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/SourceLocationEncoding.h",
-  "source_line": 106,
-  "validation_status": "validated"
-}

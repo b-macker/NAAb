@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/BaseSubobject.h\"\n#include \"clang/AST/CXXInheritance.h\"\n#include \"clang/AST/GlobalDecl.h\"\n#include \"clang/AST/RecordLayout.h\"\n#include \"clang/Basic/ABI.h\"\n#include \"clang/Basic/Thunk.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <memory>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14626_execute() {\n    {\n    assert(!isa<CXXDestructorDecl>(MD) &&\n           \"Don't use MakeUnusedFunction with destructors!\");\n    return VTableComponent(CK_UnusedFunctionPointer,\n                           reinterpret_cast<uintptr_t>(MD));\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-14626",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/VTableBuilder.h",
-  "source_line": 89,
-  "validation_status": "validated"
-}

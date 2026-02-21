@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContextAllocate.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07342_execute() {\n    {\n    if (I == this->end()) {  // Important special case for empty vector.\n      push_back(Elt, C);\n      return this->end()-1;\n    }\n\n    if (this->End < this->capacity_ptr()) {\n    Retry:\n      new (this->end()) T(this->back());\n      this->setEnd(this->end()+1);\n      // Push everything else over.\n      std::copy_backward(I, this->end()-1, this->end());\n      *I = Elt;\n      return I;\n    }\n    size_t EltNo = I-this->begin();\n    this->grow(C);\n    I = this->begin()+EltNo;\n    goto Retry;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07342",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTVector.h",
-  "source_line": 219,
-  "validation_status": "validated"
-}

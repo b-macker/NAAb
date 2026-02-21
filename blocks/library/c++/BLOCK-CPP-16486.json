@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/DiagnosticIDs.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/TokenKinds.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n#include \"llvm/ADT/SmallString.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16486_execute() {\n    {\n  IdentifierInfo *const II;\n  const bool OldValue;\n\npublic:\n  PoisonIdentifierRAIIObject(IdentifierInfo *II, bool NewValue)\n    : II(II), OldValue(II ? II->isPoisoned() : false) {\n    if(II)\n      II->setIsPoisoned(NewValue);\n  }\n\n  ~PoisonIdentifierRAIIObject() {\n    if(II)\n      II->setIsPoisoned(OldValue);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16486",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/IdentifierTable.h",
-  "source_line": 531,
-  "validation_status": "validated"
-}

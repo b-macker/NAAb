@@ -1,8 +1,0 @@
-{
-  "code": "#include <cwchar>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace literals;\nusing namespace literals;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01604_execute() {\n    {\n  vprint(stdout, fmt, args);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01604",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/xchar.h",
-  "source_line": 207,
-  "validation_status": "validated"
-}

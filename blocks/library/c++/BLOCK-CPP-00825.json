@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00825_execute() {\n    {\n  return text_style(true, foreground);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00825",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/color.h",
-  "source_line": 313,
-  "validation_status": "validated"
-}

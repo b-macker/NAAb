@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include <optional>\n#include \"clang/AST/AbstractBasicWriter.inc\"\n\nusing namespace clang;\nusing namespace serialization;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23114_execute() {\n    {\n    asImpl().writeBool(value.isUnsigned());\n    asImpl().writeAPInt(value);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23114",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractBasicWriter.h",
-  "source_line": 153,
-  "validation_status": "validated"
-}

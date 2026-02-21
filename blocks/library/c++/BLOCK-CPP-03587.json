@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03587_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace flags_internal {\n\n// absl::Flag<T> represents a flag of type 'T' created by ABSL_FLAG.\ntemplate <typename T>\nclass Flag;\n\n}  // namespace flags_internal\n\n// Flag\n//\n// Forward declaration of the `absl::Flag` type for use in defining the macro.\ntemplate <typename T>\nusing Flag = flags_internal::Flag<T>;\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03587",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/declare.h",
-  "source_line": 30,
-  "validation_status": "validated"
-}

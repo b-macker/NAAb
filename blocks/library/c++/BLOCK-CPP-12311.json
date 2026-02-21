@@ -1,8 +1,0 @@
-{
-  "code": "using namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12311_execute() {\n    {\nclass Stmt;\nclass Expr;\n\nclass ParentMap {\n  void* Impl;\npublic:\n  ParentMap(Stmt* ASTRoot);\n  ~ParentMap();\n\n  /// Adds and/or updates the parent/child-relations of the complete\n  /// stmt tree of S. All children of S including indirect descendants are\n  /// visited and updated or inserted but not the parents of S.\n  void addStmt(Stmt* S);\n\n  /// Manually sets the parent of \\p S to \\p Parent.\n  ///\n  /// If \\p S is already in the map, this method will update the mapping.\n  void setParent(const Stmt *S, const Stmt *Parent);\n\n  Stmt *getParent(Stmt*) const;\n  Stmt *getParentIgnoreParens(Stmt *) const;\n  Stmt *getParentIgnoreParenCasts(Stmt *) const;\n  Stmt *getParentIgnoreParenImpCasts(Stmt *) const;\n  Stmt *getOuterParenParent(Stmt *) const;\n\n  const Stmt *getParent(const Stmt* S) const {\n    return getParent(const_cast<Stmt*>(S));\n  }\n\n  const Stmt *getParentIgnoreParens(const Stmt *S) const {\n    return getParentIgnoreParens(const_cast<Stmt*>(S));\n  }\n\n  const Stmt *getParentIgnoreParenCasts(const Stmt *S) const {\n    return getParentIgnoreParenCasts(const_cast<Stmt*>(S));\n  }\n\n  bool hasParent(const Stmt *S) const { return getParent(S) != nullptr; }\n\n  bool isConsumedExpr(Expr *E) const;\n\n  bool isConsumedExpr(const Expr *E) const {\n    return isConsumedExpr(const_cast<Expr*>(E));\n  }\n};\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12311",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ParentMap.h",
-  "source_line": 16,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  virtual ~DependencyCollector();\n\n  virtual void attachToPreprocessor(Preprocessor &PP);\n  virtual void attachToASTReader(ASTReader &R);\n  ArrayRef<std::string> getDependencies() const { return Dependencies; }\n\n  /// Called when a new file is seen. Return true if \\p Filename should be added\n  /// to the list of dependencies.\n  ///\n  /// The default implementation ignores <built-in> and system files.\n  virtual bool sawDependency(StringRef Filename, bool FromModule,\n                             bool IsSystem, bool IsModuleFile, bool IsMissing);\n\n  /// Called when the end of the main file is reached.\n  virtual void finishedMainFile(DiagnosticsEngine &Diags) {}\n\n  /// Return true if system files should be passed to sawDependency().\n  virtual bool needSystemDependencies() { return false; }\n\n  /// Add a dependency \\p Filename if it has not been seen before and\n  /// sawDependency() returns true.\n  virtual void maybeAddDependency(StringRef Filename, bool FromModule,\n                                  bool IsSystem, bool IsModuleFile,\n                                  bool IsMissing);\n\nprotected:\n  /// Return true if the filename was added to the list of dependencies, false\n  /// otherwise.\n  bool addDependency(StringRef Filename);\n\nprivate:\n  llvm::StringSet<> Seen;\n  std::vector<std::string> Dependencies;\n}",
-  "id": "BLOCK-CPP-18442",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/Utils.h",
-  "source_line": 61,
-  "validation_status": "validated"
-}

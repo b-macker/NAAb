@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\n\nbad_optional_access::~bad_optional_access() = default;\n\nconst char* bad_optional_access::what() const noexcept {\n  return \"optional has no value\";\n}\n\nnamespace optional_internal {\n\nvoid throw_bad_optional_access() {\n#ifdef ABSL_HAVE_EXCEPTIONS\n  throw bad_optional_access();\n#else\n  ABSL_RAW_LOG(FATAL, \"Bad optional access\");\n  abort();\n#endif\n}\n\n}  // namespace optional_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-02284",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_optional_access.cc",
-  "source_line": 24,
-  "validation_status": "validated"
-}

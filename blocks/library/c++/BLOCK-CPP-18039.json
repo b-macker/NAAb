@@ -1,8 +1,0 @@
-{
-  "code": "{\n    ///     foo();\n    ///   }\n    ///   void f() {\n    ///   }\n    /// \\endcode\n    SFS_InlineOnly,\n    /// Only merge empty functions.\n    /// \\code\n    ///   void f() {}\n    ///   void f2() {\n    ///     bar2();\n    ///   }\n    /// \\endcode\n    SFS_Empty,\n    /// Only merge functions defined inside a class. Implies \"empty\".\n    /// \\code\n    ///   class Foo {\n    ///     void f() { foo(); }\n    ///   };\n    ///   void f() {\n    ///     foo();\n    ///   }\n    ///   void f() {}\n    /// \\endcode\n    SFS_Inline,\n    /// Merge all functions fitting on a single line.\n    /// \\code\n    ///   class Foo {\n    ///     void f() { foo(); }\n    ///   };\n    ///   void f() { bar(); }\n    /// \\endcode\n    SFS_All,\n  }",
-  "id": "BLOCK-CPP-18039",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
-  "source_line": 669,
-  "validation_status": "validated"
-}

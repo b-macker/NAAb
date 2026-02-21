@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclBase.h\"\n#include \"clang/Analysis/BodyFarm.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"clang/Analysis/CodeInjector.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/iterator_range.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <functional>\n#include <memory>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15307_execute() {\n    {\n    return !cfgBuildOptions.PruneTriviallyFalseEdges;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15307",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/AnalysisDeclContext.h",
-  "source_line": 120,
-  "validation_status": "validated"
-}

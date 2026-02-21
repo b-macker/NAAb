@@ -1,8 +1,0 @@
-{
-  "code": "{\n  mutable ASTUnresolvedSet Impl;\n\n  void getFromExternalSource(ASTContext &C) const;\n\npublic:\n  ASTUnresolvedSet &get(ASTContext &C) const {\n    if (Impl.Decls.isLazy())\n      getFromExternalSource(C);\n    return Impl;\n  }\n\n  void reserve(ASTContext &C, unsigned N) { Impl.reserve(C, N); }\n\n  void addLazyDecl(ASTContext &C, uintptr_t ID, AccessSpecifier AS) {\n    assert(Impl.empty() || Impl.Decls.isLazy());\n    Impl.Decls.setLazy(true);\n    Impl.addDecl(C, reinterpret_cast<NamedDecl *>(ID << 2), AS);\n  }\n}",
-  "id": "BLOCK-CPP-23050",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTUnresolvedSet.h",
-  "source_line": 98,
-  "validation_status": "validated"
-}

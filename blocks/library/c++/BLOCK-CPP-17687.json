@@ -1,8 +1,0 @@
-{
-  "code": "{\n  void anchor() override;\n\npublic:\n  ExtractAPIJobAction(Action *Input, types::ID OutputType);\n\n  static bool classof(const Action *A) {\n    return A->getKind() == ExtractAPIJobClass;\n  }\n\n  void addHeaderInput(Action *Input) { getInputs().push_back(Input); }\n}",
-  "id": "BLOCK-CPP-17687",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 438,
-  "validation_status": "validated"
-}

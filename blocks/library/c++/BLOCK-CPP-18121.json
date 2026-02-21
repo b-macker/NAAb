@@ -1,8 +1,0 @@
-{
-  "code": "{\n    ///     void f() { foo(); }\n    ///   };\n    ///   void f() { bar(); }\n    /// \\endcode\n    SFS_All,\n  }",
-  "id": "BLOCK-CPP-18121",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
-  "source_line": 697,
-  "validation_status": "validated"
-}

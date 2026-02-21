@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cmath>\n#include <istream>\n#include <limits>\n#include <ostream>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n#include \"absl/random/internal/fastmath.h\"\n#include \"absl/random/internal/generate_real.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03798_execute() {\n    {\n      return result_type(1) /\n             std::log((std::numeric_limits<result_type>::max)());\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03798",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/beta_distribution.h",
-  "source_line": 144,
-  "validation_status": "validated"
-}

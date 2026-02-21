@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/cord_rep_crc.h\"\n#include <cassert>\n#include <cstdint>\n#include <utility>\n#include \"absl/base/config.h\"\n#include \"absl/strings/internal/cord_internal.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02903_execute() {\n    {\n\nCordRepCrc* CordRepCrc::New(CordRep* child, crc_internal::CrcCordState state) {\n  if (child != nullptr && child->IsCrc()) {\n    if (child->refcount.IsOne()) {\n      child->crc()->crc_cord_state = std::move(state);\n      return child->crc();\n    }\n    CordRep* old = child;\n    child = old->crc()->child;\n    CordRep::Ref(child);\n    CordRep::Unref(old);\n  }\n  auto* new_cordrep = new CordRepCrc;\n  new_cordrep->length = child != nullptr ? child->length : 0;\n  new_cordrep->tag = cord_internal::CRC;\n  new_cordrep->child = child;\n  new_cordrep->crc_cord_state = std::move(state);\n  return new_cordrep;\n}\n\nvoid CordRepCrc::Destroy(CordRepCrc* node) {\n  if (node->child != nullptr) {\n    CordRep::Unref(node->child);\n  }\n  delete node;\n}\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02903",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cord_rep_crc.cc",
-  "source_line": 26,
-  "validation_status": "validated"
-}

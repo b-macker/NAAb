@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\nusing namespace index;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18484_execute() {\n    {\n  return \"c:\";\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18484",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Index/USRGeneration.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

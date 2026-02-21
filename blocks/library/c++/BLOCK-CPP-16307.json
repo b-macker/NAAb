@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16307_execute() {\n    {\nnamespace diag {\nenum {\n#define DIAG(ENUM, FLAGS, DEFAULT_MAPPING, DESC, GROUP, SFINAE, NOWERROR,      \\\n             SHOWINSYSHEADER, SHOWINSYSMACRO, DEFERRABLE, CATEGORY)            \\\n  ENUM,\n#define REFACTORINGSTART\n#include \"clang/Basic/DiagnosticRefactoringKinds.inc\"\n#undef DIAG\n  NUM_BUILTIN_REFACTORING_DIAGNOSTICS\n};\n} // end namespace diag\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16307",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticRefactoring.h",
-  "source_line": 14,
-  "validation_status": "validated"
-}

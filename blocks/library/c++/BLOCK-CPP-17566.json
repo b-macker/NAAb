@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/IR/Constants.h\"\n#include \"llvm/IR/GlobalValue.h\"\n#include \"clang/AST/CharUnits.h\"\n#include \"clang/CodeGen/ConstantInitFuture.h\"\n#include <vector>\n\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17566_execute() {\n    {\n    assert(!this->Parent && \"finishing non-root builder\");\n    return this->Builder.createFuture(asImpl().finishImpl());\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17566",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ConstantInitBuilder.h",
-  "source_line": 410,
-  "validation_status": "validated"
-}

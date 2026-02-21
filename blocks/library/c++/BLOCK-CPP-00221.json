@@ -1,8 +1,0 @@
-{
-  "code": "#include <chrono>\n#include <iterator>\n#include <spdlog/common.h>\n#include <spdlog/fmt/fmt.h>\n#include <type_traits>\n    #include <charconv>\n    #include <limits>\n\nusing namespace spdlog;\nusing namespace details;\nusing namespace fmt_helper;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00221_execute() {\n    {\n    fmt::format_int i(n);\n    dest.append(i.data(), i.data() + i.size());\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00221",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/fmt_helper.h",
-  "source_line": 41,
-  "validation_status": "validated"
-}

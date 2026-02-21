@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04182_execute() {\n    {\n  absl::string_view old;\n  absl::string_view replacement;\n  size_t offset;\n\n  ViableSubstitution(absl::string_view old_str,\n                     absl::string_view replacement_str, size_t offset_val)\n      : old(old_str), replacement(replacement_str), offset(offset_val) {}\n\n  // One substitution occurs \"before\" another (takes priority) if either\n  // it has the lowest offset, or it has the same offset but a larger size.\n  bool OccursBefore(const ViableSubstitution& y) const {\n    if (offset != y.offset) return offset < y.offset;\n    return old.size() > y.old.size();\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04182",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_replace.h",
-  "source_line": 138,
-  "validation_status": "validated"
-}

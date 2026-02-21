@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/ErrorHandling.h\"\n#include \"llvm/Support/HashBuilder.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16669_execute() {\n    {\n    switch (getKind()) {\n    case FragileMacOSX: return false;\n    case MacOSX: return getVersion() >= VersionTuple(10, 11);\n    case iOS: return getVersion() >= VersionTuple(9);\n    case WatchOS: return true;\n\n    // This is really a lie, because some implementations and versions\n    // of the runtime do not support ARC.  Probably -fgnu-runtime\n    // should imply a \"maximal\" runtime or something?\n    case GCC: return true;\n    case GNUstep: return true;\n    case ObjFW: return true;\n    }\n    llvm_unreachable(\"bad kind\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16669",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/ObjCRuntime.h",
-  "source_line": 298,
-  "validation_status": "validated"
-}

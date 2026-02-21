@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/common.h>\n#include <spdlog/details/circular_q.h>\n#include <spdlog/details/file_helper.h>\n#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/os.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/fmt/chrono.h>\n#include <spdlog/fmt/fmt.h>\n#include <spdlog/sinks/base_sink.h>\n#include <chrono>\n#include <cstdio>\n#include <iomanip>\n#include <mutex>\n#include <sstream>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00382_execute() {\n    {\n        std::lock_guard<Mutex> lock(base_sink<Mutex>::mutex_);\n        return file_helper_.filename();\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00382",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/daily_file_sink.h",
-  "source_line": 98,
-  "validation_status": "validated"
-}

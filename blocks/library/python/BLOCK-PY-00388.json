@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00388_execute() {\n    def visit_ImportedName(self, node: nodes.ImportedName, frame: Frame) -> None:\n        self.write(self.import_aliases[node.importname])\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00388",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1926,
-  "validation_status": "validated"
-}

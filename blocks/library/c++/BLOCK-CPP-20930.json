@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/AbstractBasicWriter.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/Serialization/ASTWriter.h\"\n#include \"clang/Serialization/SourceLocationEncoding.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20930_execute() {\n    {\n    // Convert offsets into relative form.\n    for (unsigned I : OffsetIndices) {\n      auto &StoredOffset = (*Record)[I];\n      assert(StoredOffset < MyOffset && \"invalid offset\");\n      if (StoredOffset)\n        StoredOffset = MyOffset - StoredOffset;\n    }\n    OffsetIndices.clear();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20930",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTRecordWriter.h",
-  "source_line": 48,
-  "validation_status": "validated"
-}

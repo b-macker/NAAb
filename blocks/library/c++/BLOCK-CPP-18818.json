@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n    // condition could evaluate differently when subsequently #included.  Reject\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18818_execute() {\n    {\n    // If a conditional directive (except #ifndef) is found at the top level,\n    // there is a chunk of the file not guarded by the controlling macro.\n    Invalidate();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18818",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MultipleIncludeOpt.h",
-  "source_line": 148,
-  "validation_status": "validated"
-}

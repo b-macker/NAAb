@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/ProgramPoint.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/RangedConstraintManager.h\"\n#include \"clang/StaticAnalyzer/Core/PathSensitive/SVals.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/STLExtras.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <list>\n#include <memory>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace ento;\nusing namespace bugreporter;\nusing namespace bugreporter;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22456_execute() {\n    {\npublic:\n  void Profile(llvm::FoldingSetNodeID &ID) const override;\n\n  PathDiagnosticPieceRef VisitNode(const ExplodedNode *N,\n                                   BugReporterContext &BRC,\n                                   PathSensitiveBugReport &R) override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22456",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/BugReporter/BugReporterVisitors.h",
-  "source_line": 623,
-  "validation_status": "validated"
-}

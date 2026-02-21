@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/Support/BumpVector.h\"\n#include \"clang/AST/ExprCXX.h\"\n#include \"clang/AST/ExprObjC.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15647_execute() {\n    {\n    return Kind >= STATEMENT_KIND_BEGIN &&\n           Kind <= STATEMENT_KIND_END;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15647",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ConstructionContext.h",
-  "source_line": 71,
-  "validation_status": "validated"
-}

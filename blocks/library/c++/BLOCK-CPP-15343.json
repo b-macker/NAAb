@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclBase.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include <optional>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15343_execute() {\n    {\n\nclass ASTContext;\nclass FunctionDecl;\nclass ObjCMethodDecl;\nclass Stmt;\nclass CodeInjector;\n\nclass BodyFarm {\npublic:\n  BodyFarm(ASTContext &C, CodeInjector *injector) : C(C), Injector(injector) {}\n\n  /// Factory method for creating bodies for ordinary functions.\n  Stmt *getBody(const FunctionDecl *D);\n\n  /// Factory method for creating bodies for Objective-C properties.\n  Stmt *getBody(const ObjCMethodDecl *D);\n\n  /// Remove copy constructor to avoid accidental copying.\n  BodyFarm(const BodyFarm &other) = delete;\n\n  /// Delete copy assignment operator.\n  BodyFarm &operator=(const BodyFarm &other) = delete;\n\nprivate:\n  typedef llvm::DenseMap<const Decl *, std::optional<Stmt *>> BodyMap;\n\n  ASTContext &C;\n  BodyMap Bodies;\n  CodeInjector *Injector;\n};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15343",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/BodyFarm.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

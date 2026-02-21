@@ -1,8 +1,0 @@
-{
-  "code": "{\n  static Allocation<A> Allocate(A& allocator, SizeType<A> requested_capacity) {\n    return {AllocatorTraits<A>::allocate(allocator, requested_capacity),\n            requested_capacity};\n  }\n\n  static void Deallocate(A& allocator, Pointer<A> pointer,\n                         SizeType<A> capacity) {\n    AllocatorTraits<A>::deallocate(allocator, pointer, capacity);\n  }\n}",
-  "id": "BLOCK-CPP-05094",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/inlined_vector.h",
-  "source_line": 129,
-  "validation_status": "validated"
-}

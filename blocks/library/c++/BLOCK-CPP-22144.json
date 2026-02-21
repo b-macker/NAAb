@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstddef>\n#include <iterator>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22144_execute() {\n    {\n    void /*RopePieceBTreeNode*/ *Root;\n\n  public:\n    RopePieceBTree();\n    RopePieceBTree(const RopePieceBTree &RHS);\n    RopePieceBTree &operator=(const RopePieceBTree &) = delete;\n    ~RopePieceBTree();\n\n    using iterator = RopePieceBTreeIterator;\n\n    iterator begin() const { return iterator(Root); }\n    iterator end() const { return iterator(); }\n    unsigned size() const;\n    unsigned empty() const { return size() == 0; }\n\n    void clear();\n\n    void insert(unsigned Offset, const RopePiece &R);\n\n    void erase(unsigned Offset, unsigned NumBytes);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22144",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/RewriteRope.h",
-  "source_line": 141,
-  "validation_status": "validated"
-}

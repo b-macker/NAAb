@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/time/time.h\"\n#include <winsock2.h>  // for timeval\n#include <cstring>\n#include <ctime>\n#include <limits>\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02269_execute() {\n    {\n  timespec ts;\n  absl::Duration d = time_internal::ToUnixDuration(t);\n  if (!time_internal::IsInfiniteDuration(d)) {\n    ts.tv_sec = static_cast<decltype(ts.tv_sec)>(time_internal::GetRepHi(d));\n    if (ts.tv_sec == time_internal::GetRepHi(d)) {  // no time_t narrowing\n      ts.tv_nsec = time_internal::GetRepLo(d) / 4;  // floor\n      return ts;\n    }\n  }\n  if (d >= absl::ZeroDuration()) {\n    ts.tv_sec = std::numeric_limits<time_t>::max();\n    ts.tv_nsec = 1000 * 1000 * 1000 - 1;\n  } else {\n    ts.tv_sec = std::numeric_limits<time_t>::min();\n    ts.tv_nsec = 0;\n  }\n  return ts;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02269",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.cc",
-  "source_line": 302,
-  "validation_status": "validated"
-}

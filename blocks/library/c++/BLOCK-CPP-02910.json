@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/cordz_handle.h\"\n#include <atomic>\n#include \"absl/base/internal/raw_logging.h\"  // For ABSL_RAW_CHECK\n#include \"absl/synchronization/mutex.h\"\n\nusing namespace absl;\nusing namespace cord_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02910_execute() {\n    {nullptr}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02910",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/cordz_handle.cc",
-  "source_line": 31,
-  "validation_status": "validated"
-}

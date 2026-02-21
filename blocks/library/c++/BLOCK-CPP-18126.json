@@ -1,8 +1,0 @@
-{
-  "code": "{\n    ///     int f() { return 0; };\n    ///   };\n    ///   int f();\n    ///   int\n    ///   f() {\n    ///     return 1;\n    ///   }\n    /// \\endcode\n    RTBS_TopLevelDefinitions,\n  }",
-  "id": "BLOCK-CPP-18126",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Format/Format.h",
-  "source_line": 891,
-  "validation_status": "validated"
-}

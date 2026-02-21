@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00330_execute() {\n    def push_parameter_definitions(self, frame: Frame) -> None:\n        \"\"\"Pushes all parameter targets from the given frame into a local\n        stack that permits tracking of yet to be assigned parameters.  In\n        particular this enables the optimization from `visit_Name` to skip\n        undefined expressions for parameters in macros as macros can reference\n        otherwise unbound parameters.\n        \"\"\"\n        self._param_def_block.append(frame.symbols.dump_param_targets())\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00330",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 732,
-  "validation_status": "validated"
-}

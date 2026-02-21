@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/random/gaussian_distribution.h\"\n#include <cmath>\n#include <cstddef>\n#include <iostream>\n#include <limits>\n#include <string>\n#include \"absl/base/macros.h\"\n         \"#include \\\"absl/random/gaussian_distribution.h\\\"\\n\"\n\nusing namespace absl;\nusing namespace random_internal;\nusing namespace absl;\nusing namespace random_internal;\nusing namespace random_internal;\nusing namespace absl;\nusing namespace random_internal;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02776_execute() {\n    {\n  std::cerr << \"\\nCopy the output to gaussian_distribution.cc\" << std::endl;\n  absl::random_internal::TableGenerator generator;\n  generator.Print(&std::cout);\n  return 0;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02776",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/gaussian_distribution_gentables.cc",
-  "source_line": 138,
-  "validation_status": "validated"
-}

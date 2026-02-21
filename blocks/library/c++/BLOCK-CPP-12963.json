@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Stmt.h\"\n#include \"llvm/ADT/DepthFirstIterator.h\"\n#include \"llvm/ADT/GraphTraits.h\"\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12963_execute() {\n    {\n    if (N) return N->child_end();\n    else return ChildIteratorType();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12963",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtGraphTraits.h",
-  "source_line": 61,
-  "validation_status": "validated"
-}

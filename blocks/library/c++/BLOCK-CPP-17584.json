@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/IR/Constant.h\"\n\nusing namespace clang;\nusing namespace CodeGen;\nusing namespace llvm;\nusing namespace clang;\nusing namespace CodeGen;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17584_execute() {\n    {\n    assert(initializer && \"creating null future\");\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17584",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ConstantInitFuture.h",
-  "source_line": 59,
-  "validation_status": "validated"
-}

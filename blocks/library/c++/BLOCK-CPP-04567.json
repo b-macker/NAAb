@@ -1,8 +1,0 @@
-{
-  "code": "#include <atomic>\n#include <cstdint>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/cycleclock_config.h\"\n#include \"absl/base/internal/unscaledcycleclock.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04567_execute() {\n    {\n private:\n  // CycleClockSource::Register()\n  //\n  // Register a function that provides an alternate source for the unscaled CPU\n  // cycle count value. The source function must be async signal safe, must not\n  // call CycleClock::Now(), and must have a frequency that matches that of the\n  // unscaled clock used by CycleClock. A nullptr value resets CycleClock to use\n  // the default source.\n  static void Register(CycleClockSourceFunc source);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04567",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/cycleclock.h",
-  "source_line": 93,
-  "validation_status": "validated"
-}

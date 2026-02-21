@@ -1,8 +1,0 @@
-{
-  "code": "{\n  const diff_t a_c4_off = y1 % 400;\n  const diff_t b_c4_off = y2 % 400;\n  diff_t c4_diff = (y1 - a_c4_off) - (y2 - b_c4_off);\n  diff_t delta = ymd_ord(a_c4_off, m1, d1) - ymd_ord(b_c4_off, m2, d2);\n  if (c4_diff > 0 && delta < 0) {\n    delta += 2 * 146097;\n    c4_diff -= 2 * 400;\n  } else if (c4_diff < 0 && delta > 0) {\n    delta -= 2 * 146097;\n    c4_diff += 2 * 400;\n  }\n  return (c4_diff / 400 * 146097) + delta;\n}",
-  "id": "BLOCK-CPP-06555",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/include/cctz/civil_time_detail.h",
-  "source_line": 284,
-  "validation_status": "validated"
-}

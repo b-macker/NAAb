@@ -1,8 +1,0 @@
-{
-  "code": "{\n    template <class K, class... Args>\n    std::pair<iterator, bool> operator()(const K& key, Args&&...) && {\n      auto res = s.find_or_prepare_insert(key);\n      if (res.second) {\n        s.transfer(s.slot_array() + res.first, &slot);\n      } else if (do_destroy) {\n        s.destroy(&slot);\n      }\n      return {s.iterator_at(res.first), res.second};\n    }\n    raw_hash_set& s;\n    // Constructed slot. Either moved into place or destroyed.\n    slot_type&& slot;\n  }",
-  "id": "BLOCK-CPP-05356",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.h",
-  "source_line": 2832,
-  "validation_status": "validated"
-}

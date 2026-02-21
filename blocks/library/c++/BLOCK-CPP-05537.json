@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace flags_internal {\n\n// A portable interface that returns the basename of the filename passed as an\n// argument. It is similar to basename(3)\n// <https://linux.die.net/man/3/basename>.\n// For example:\n//     flags_internal::Basename(\"a/b/prog/file.cc\")\n// returns \"file.cc\"\n//     flags_internal::Basename(\"file.cc\")\n// returns \"file.cc\"\ninline absl::string_view Basename(absl::string_view filename) {\n  auto last_slash_pos = filename.find_last_of(\"/\\\\\");\n\n  return last_slash_pos == absl::string_view::npos\n             ? filename\n             : filename.substr(last_slash_pos + 1);\n}\n\n// A portable interface that returns the directory name of the filename\n// passed as an argument, including the trailing slash.\n// Returns the empty string if a slash is not found in the input file name.\n// For example:\n//      flags_internal::Package(\"a/b/prog/file.cc\")\n// returns \"a/b/prog/\"\n//      flags_internal::Package(\"file.cc\")\n// returns \"\"\ninline absl::string_view Package(absl::string_view filename) {\n  auto last_slash_pos = filename.find_last_of(\"/\\\\\");\n\n  return last_slash_pos == absl::string_view::npos\n             ? absl::string_view()\n             : filename.substr(0, last_slash_pos + 1);\n}\n\n}  // namespace flags_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-05537",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/internal/path_util.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

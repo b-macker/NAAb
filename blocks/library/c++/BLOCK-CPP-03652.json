@@ -1,8 +1,0 @@
-{
-  "code": "{\nABSL_NAMESPACE_BEGIN\nnamespace log_internal {\n\n// Crashes the process after logging `exprtext` annotated at the `file` and\n// `line` location. Called when `ABSL_DIE_IF_NULL` fails. Calling this function\n// generates less code than its implementation would if inlined, for a slight\n// code size reduction each time `ABSL_DIE_IF_NULL` is called.\nABSL_ATTRIBUTE_NORETURN ABSL_ATTRIBUTE_NOINLINE void DieBecauseNull(\n    const char* file, int line, const char* exprtext);\n\n// Helper for `ABSL_DIE_IF_NULL`.\ntemplate <typename T>\nABSL_MUST_USE_RESULT T DieIfNull(const char* file, int line,\n                                 const char* exprtext, T&& t) {\n  if (ABSL_PREDICT_FALSE(t == nullptr)) {\n    // Call a non-inline helper function for a small code size improvement.\n    DieBecauseNull(file, line, exprtext);\n  }\n  return std::forward<T>(t);\n}\n\n}  // namespace log_internal\nABSL_NAMESPACE_END\n}",
-  "id": "BLOCK-CPP-03652",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/die_if_null.h",
-  "source_line": 50,
-  "validation_status": "validated"
-}

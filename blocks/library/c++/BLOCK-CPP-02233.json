@@ -1,8 +1,0 @@
-{
-  "code": "#include <string.h>\n#include <cctype>\n#include <cstdint>\n#include \"absl/strings/match.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/internal/cctz/include/cctz/time_zone.h\"\n#include \"absl/time/time.h\"\n\nusing namespace cctz;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02233_execute() {\n    {\n  const auto d = time_internal::ToUnixDuration(t);\n  const int64_t rep_hi = time_internal::GetRepHi(d);\n  const int64_t rep_lo = time_internal::GetRepLo(d);\n  const auto sec = unix_epoch() + cctz::seconds(rep_hi);\n  const auto fem = cctz::detail::femtoseconds(rep_lo * (1000 * 1000 / 4));\n  return {sec, fem};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02233",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/format.cc",
-  "source_line": 54,
-  "validation_status": "validated"
-}

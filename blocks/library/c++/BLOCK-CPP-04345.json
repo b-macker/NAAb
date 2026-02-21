@@ -1,8 +1,0 @@
-{
-  "code": "#include <iosfwd>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n\nusing namespace absl;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04345_execute() {\n    {\nstruct second_tag : cctz::detail::second_tag {};\nstruct minute_tag : second_tag, cctz::detail::minute_tag {};\nstruct hour_tag : minute_tag, cctz::detail::hour_tag {};\nstruct day_tag : hour_tag, cctz::detail::day_tag {};\nstruct month_tag : day_tag, cctz::detail::month_tag {};\nstruct year_tag : month_tag, cctz::detail::year_tag {};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04345",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/civil_time.h",
-  "source_line": 83,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/stack_consumption.h\"\n#include <signal.h>\n#include <string.h>\n#include <sys/mman.h>\n#include <unistd.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02604_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02604",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/stack_consumption.cc",
-  "source_line": 69,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstddef>\n#include <memory>\n#include <type_traits>\n#include <utility>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05127_execute() {\n    {\n    *slot = Policy::new_element(alloc, std::forward<Args>(args)...);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05127",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/node_slot_policy.h",
-  "source_line": 55,
-  "validation_status": "validated"
-}

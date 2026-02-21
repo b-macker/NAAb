@@ -1,8 +1,0 @@
-{
-  "code": "    #include <spdlog/spdlog.h>\n#include <spdlog/common.h>\n#include <spdlog/pattern_formatter.h>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00135_execute() {\n    {\n    return default_logger_raw()->should_log(log_level);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00135",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/spdlog-inl.h",
-  "source_line": 42,
-  "validation_status": "validated"
-}

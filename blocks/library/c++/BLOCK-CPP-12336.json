@@ -1,8 +1,0 @@
-{
-  "code": "using namespace llvm;\nusing namespace llvm;\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12336_execute() {\n    {\n\nclass ASTContext;\nclass Decl;\nclass RecordDecl;\n\nnamespace randstruct {\n\nbool randomizeStructureLayout(const ASTContext &Context, RecordDecl *RD,\n                              llvm::SmallVectorImpl<Decl *> &FinalOrdering);\n\n} // namespace randstruct\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12336",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Randstruct.h",
-  "source_line": 21,
-  "validation_status": "validated"
-}

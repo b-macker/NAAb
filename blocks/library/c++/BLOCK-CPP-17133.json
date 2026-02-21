@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/AddressSpaces.h\"\n#include \"clang/Basic/BitmaskEnum.h\"\n#include \"clang/Basic/CodeGenOptions.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include \"clang/Basic/TargetCXXABI.h\"\n#include \"clang/Basic/TargetOptions.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/APInt.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include \"llvm/ADT/SmallSet.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include \"llvm/Frontend/OpenMP/OMPGridValues.h\"\n#include \"llvm/IR/DerivedTypes.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include \"llvm/Support/Error.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include \"llvm/TargetParser/Triple.h\"\n#include <cassert>\n#include <optional>\n#include <string>\n#include <vector>\n\nusing namespace llvm;\nusing namespace clang;\nusing namespace Builtin;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17133_execute() {\n    { return BoolAlign; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17133",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/TargetInfo.h",
-  "source_line": 472,
-  "validation_status": "validated"
-}

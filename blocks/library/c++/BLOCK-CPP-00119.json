@@ -1,8 +1,0 @@
-{
-  "code": "{\n    null_scoped_padder(size_t /*wrapped_size*/,\n                       const padding_info & /*padinfo*/,\n                       memory_buf_t & /*dest*/) {}\n\n    template <typename T>\n    static unsigned int count_digits(T /* number */) {\n        return 0;\n    }\n}",
-  "id": "BLOCK-CPP-00119",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/pattern_formatter-inl.h",
-  "source_line": 84,
-  "validation_status": "validated"
-}

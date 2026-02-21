@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename CHECKER>\n  static void _checkCall(void *checker, const CallEvent &msg,\n                         CheckerContext &C) {\n    ((const CHECKER *)checker)->checkPostCall(msg, C);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForPostCall(\n     CheckerManager::CheckCallFunc(checker, _checkCall<CHECKER>));\n  }\n}",
-  "id": "BLOCK-CPP-22304",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 179,
-  "validation_status": "validated"
-}

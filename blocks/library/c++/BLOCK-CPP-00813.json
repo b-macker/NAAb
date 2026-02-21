@@ -1,8 +1,0 @@
-{
-  "code": "{\n    formatter& f;\n    basic_format_parse_context<Char>& context;\n    basic_string_view<Char> format_str;\n\n    template <typename Id> FMT_CONSTEXPR arg_ref_type make_arg_ref(Id arg_id) {\n      context.check_arg_id(arg_id);\n      return arg_ref_type(arg_id);\n    }\n\n    FMT_CONSTEXPR arg_ref_type make_arg_ref(basic_string_view<Char> arg_id) {\n      context.check_arg_id(arg_id);\n      return arg_ref_type(arg_id);\n    }\n\n    FMT_CONSTEXPR arg_ref_type make_arg_ref(detail::auto_id) {\n      return arg_ref_type(context.next_arg_id());\n    }\n\n    void on_error(const char* msg) { FMT_THROW(format_error(msg)); }\n    FMT_CONSTEXPR void on_fill(basic_string_view<Char> fill) {\n      f.specs.fill = fill;\n    }\n    FMT_CONSTEXPR void on_align(align_t align) { f.specs.align = align; }\n    FMT_CONSTEXPR void on_width(int width) { f.specs.width = width; }\n    FMT_CONSTEXPR void on_precision(int _precision) {\n      f.precision = _precision;\n    }\n    FMT_CONSTEXPR void end_precision() {}\n\n    template <typename Id> FMT_CONSTEXPR void on_dynamic_width(Id arg_id) {\n      f.width_ref = make_arg_ref(arg_id);\n    }\n\n    template <typename Id> FMT_CONSTEXPR void on_dynamic_precision(Id arg_id) {\n      f.precision_ref = make_arg_ref(arg_id);\n    }\n  }",
-  "id": "BLOCK-CPP-00813",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
-  "source_line": 1895,
-  "validation_status": "validated"
-}

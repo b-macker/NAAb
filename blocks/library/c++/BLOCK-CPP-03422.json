@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03422_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\nenum ConstInitType {\n  kConstInit,\n};\n\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03422",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/const_init.h",
-  "source_line": 66,
-  "validation_status": "validated"
-}

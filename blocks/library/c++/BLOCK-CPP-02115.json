@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/time/civil_time.h\"\n#include <cstdlib>\n#include <ostream>\n#include <string>\n#include \"absl/strings/str_cat.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02115_execute() {\n    {\n  return 2400 + year % 400;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02115",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/civil_time.cc",
-  "source_line": 33,
-  "validation_status": "validated"
-}

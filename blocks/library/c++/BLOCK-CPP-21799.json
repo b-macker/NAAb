@@ -1,8 +1,0 @@
-{
-  "code": "{\n  public:\n    bool Success = true;\n\n    Container(VisitReducerBase &S, unsigned N) {}\n\n    void push_back(bool E) { Success = Success && E; }\n  }",
-  "id": "BLOCK-CPP-21799",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTraverse.h",
-  "source_line": 172,
-  "validation_status": "validated"
-}

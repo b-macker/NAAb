@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/log/internal/proto.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02752_execute() {\n    {\n  if (!msg.data()) return;\n  assert(buf->data() >= msg.data());\n  if (buf->data() < msg.data()) return;\n  EncodeRawVarint(\n      static_cast<uint64_t>(buf->data() - (msg.data() + msg.size())),\n      msg.size(), &msg);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02752",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/proto.cc",
-  "source_line": 145,
-  "validation_status": "validated"
-}

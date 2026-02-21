@@ -1,8 +1,0 @@
-{
-  "code": "{\n  unsigned MinComplexity;\n\npublic:\n  MinComplexityConstraint(unsigned MinComplexity)\n      : MinComplexity(MinComplexity) {}\n\n  /// Calculates the complexity of the given StmtSequence.\n  /// \\param Limit The limit of complexity we probe for. After reaching\n  ///              this limit during calculation, this method is exiting\n  ///              early to improve performance and returns this limit.\n  size_t calculateStmtComplexity(const StmtSequence &Seq, std::size_t Limit,\n                                 const std::string &ParentMacroStack = \"\");\n\n  void constrain(std::vector<CloneDetector::CloneGroup> &CloneGroups) {\n    CloneConstraint::filterGroups(\n        CloneGroups, [this](const CloneDetector::CloneGroup &A) {\n          if (!A.empty())\n            return calculateStmtComplexity(A.front(), MinComplexity) <\n                   MinComplexity;\n          else\n            return false;\n        });\n  }\n}",
-  "id": "BLOCK-CPP-15634",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CloneDetection.h",
-  "source_line": 275,
-  "validation_status": "validated"
-}

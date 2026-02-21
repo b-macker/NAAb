@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00544_execute() {\n    {\n#if FMT_CLANG_VERSION\n#  pragma clang diagnostic push\n#  pragma clang diagnostic ignored \"-Wdeprecated\"\n  auto& f = std::use_facet<std::codecvt<CodeUnit, char, std::mbstate_t>>(loc);\n#  pragma clang diagnostic pop\n#else\n  auto& f = std::use_facet<std::codecvt<CodeUnit, char, std::mbstate_t>>(loc);\n#endif\n  auto mb = std::mbstate_t();\n  const char* from_next = nullptr;\n  auto result = f.in(mb, in_buf.begin(), in_buf.end(), from_next,\n                     std::begin(out.buf), std::end(out.buf), out.end);\n  if (result != std::codecvt_base::ok)\n    FMT_THROW(format_error(\"failed to format time\"));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00544",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
-  "source_line": 323,
-  "validation_status": "validated"
-}

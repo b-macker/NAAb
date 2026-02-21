@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-TS-00001_execute() {\n    class UserController {\n    async getUsers(req: Request, res: Response): Promise<void> {\n        try {\n            const users = await prisma.user.findMany({\n                select: {\n                    id: true,\n                    email: true,\n                    name: true,\n                    createdAt: true\n                }\n            });\n            res.json(users);\n        } catch (error) {\n            res.status(500).json({ error: 'Failed to fetch users' });\n        }\n    }\n\n    async createUser(req: Request, res: Response): Promise<void> {\n        const { email, name, password }: CreateUserDTO = req.body;\n\n        const passwordHash = createHash('sha256').update(password).digest('hex');\n\n        try {\n            const user = await prisma.user.create({\n                data: {\n                    email,\n                    name,\n                    passwordHash\n                }\n            });\n            res.status(201).json(user);\n        } catch (error) {\n            res.status(400).json({ error: 'Failed to create user' });\n        }\n    }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-TS-00001",
-  "language": "typescript",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmpuyc39w_c.ts",
-  "source_line": 21,
-  "validation_status": "validated"
-}

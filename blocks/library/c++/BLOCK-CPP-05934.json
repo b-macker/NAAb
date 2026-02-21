@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include \"absl/random/internal/platform.h\"\n#include \"absl/random/internal/randen_hwaes.h\"\n#include \"absl/random/internal/randen_slow.h\"\n#include \"absl/random/internal/randen_traits.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05934_execute() {\n    {\n#if ABSL_RANDOM_INTERNAL_AES_DISPATCH\n    // HW AES Dispatch.\n    if (has_crypto_) {\n      RandenHwAes::Absorb(seed, state);\n    } else {\n      RandenSlow::Absorb(seed, state);\n    }\n#elif ABSL_HAVE_ACCELERATED_AES\n    // HW AES is enabled.\n    RandenHwAes::Absorb(seed, state);\n#else\n    // HW AES is disabled.\n    RandenSlow::Absorb(seed, state);\n#endif\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05934",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/randen.h",
-  "source_line": 68,
-  "validation_status": "validated"
-}

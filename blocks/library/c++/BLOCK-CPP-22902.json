@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/AttrVisitor.h\"\n#include \"clang/AST/CommentVisitor.h\"\n#include \"clang/AST/DeclVisitor.h\"\n#include \"clang/AST/LocInfoType.h\"\n#include \"clang/AST/StmtVisitor.h\"\n#include \"clang/AST/TemplateArgumentVisitor.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/AST/TypeVisitor.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22902_execute() {\n    {\n    if (!TPL)\n      return;\n\n    for (const auto &TP : *TPL)\n      Visit(TP);\n\n    if (const Expr *RC = TPL->getRequiresClause())\n      Visit(RC);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22902",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTNodeTraverser.h",
-  "source_line": 302,
-  "validation_status": "validated"
-}

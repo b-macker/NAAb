@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/AbstractBasicWriter.h\"\n#include \"clang/AST/OpenMPClause.h\"\n#include \"clang/Serialization/ASTWriter.h\"\n#include \"clang/Serialization/SourceLocationEncoding.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20961_execute() {\n    {\n    return Writer->AddString(Str, *Record);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20961",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTRecordWriter.h",
-  "source_line": 288,
-  "validation_status": "validated"
-}

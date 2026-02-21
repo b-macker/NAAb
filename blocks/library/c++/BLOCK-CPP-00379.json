@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/sinks/base_sink.h>\n#include <mutex>\n#include <string>\n\nusing namespace spdlog;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00379_execute() {\n    {\n/*\n * Trivial callback sink, gets a callback function and calls it on each log\n */\ntemplate <typename Mutex>\nclass callback_sink final : public base_sink<Mutex> {\npublic:\n    explicit callback_sink(const custom_log_callback &callback)\n        : callback_{callback} {}\n\nprotected:\n    void sink_it_(const details::log_msg &msg) override { callback_(msg); }\n    void flush_() override{};\n\nprivate:\n    custom_log_callback callback_;\n};\n\nusing callback_sink_mt = callback_sink<std::mutex>;\nusing callback_sink_st = callback_sink<details::null_mutex>;\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00379",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/callback_sink.h",
-  "source_line": 18,
-  "validation_status": "validated"
-}

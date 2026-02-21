@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <ostream>\n#include <string>\n#include <vector>\n#include \"absl/hash/hash.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_join.h\"\n\nusing namespace absl;\nusing namespace hash_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05690_execute() {\n    {\n    const size_t large_chunk_stride = PiecewiseChunkSize();\n    if (size > large_chunk_stride) {\n      // Combining a large contiguous buffer must have the same effect as\n      // doing it piecewise by the stride length, followed by the (possibly\n      // empty) remainder.\n      while (size >= large_chunk_stride) {\n        hash_state = SpyHashStateImpl::combine_contiguous(\n            std::move(hash_state), begin, large_chunk_stride);\n        begin += large_chunk_stride;\n        size -= large_chunk_stride;\n      }\n    }\n\n    hash_state.hash_representation_.emplace_back(\n        reinterpret_cast<const char*>(begin), size);\n    return hash_state;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05690",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/hash/internal/spy_hash_state.h",
-  "source_line": 148,
-  "validation_status": "validated"
-}

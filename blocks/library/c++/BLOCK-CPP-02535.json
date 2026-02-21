@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02535_execute() {\n    {\n  // Returns true if \"anon_prefix\" is a proper prefix of \"mangled_cur\".\n  static const char anon_prefix[] = \"_GLOBAL__N_\";\n  return (length > (sizeof(anon_prefix) - 1) &&\n          StrPrefix(RemainingInput(state), anon_prefix));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02535",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
-  "source_line": 534,
-  "validation_status": "validated"
-}

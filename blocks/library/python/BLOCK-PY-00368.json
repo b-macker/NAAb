@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00368_execute() {\n    def visit_TemplateData(self, node: nodes.TemplateData, frame: Frame) -> None:\n        try:\n            self.write(repr(node.as_const(frame.eval_ctx)))\n        except nodes.Impossible:\n            self.write(\n                f\"(Markup if context.eval_ctx.autoescape else identity)({node.data!r})\"\n            )\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00368",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1671,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  RopePieceBTree Chunks;\n\n  /// We allocate space for string data out of a buffer of size AllocChunkSize.\n  /// This keeps track of how much space is left.\n  llvm::IntrusiveRefCntPtr<RopeRefCountString> AllocBuffer;\n  enum { AllocChunkSize = 4080 };\n  unsigned AllocOffs = AllocChunkSize;\n\npublic:\n  RewriteRope() = default;\n  RewriteRope(const RewriteRope &RHS) : Chunks(RHS.Chunks) {}\n\n  // The copy assignment operator is defined as deleted pending further\n  // motivation.\n  RewriteRope &operator=(const RewriteRope &) = delete;\n\n  using iterator = RopePieceBTree::iterator;\n  using const_iterator = RopePieceBTree::iterator;\n\n  iterator begin() const { return Chunks.begin(); }\n  iterator end() const { return Chunks.end(); }\n  unsigned size() const { return Chunks.size(); }\n\n  void clear() {\n    Chunks.clear();\n  }\n\n  void assign(const char *Start, const char *End) {\n    clear();\n    if (Start != End)\n      Chunks.insert(0, MakeRopeString(Start, End));\n  }\n\n  void insert(unsigned Offset, const char *Start, const char *End) {\n    assert(Offset <= size() && \"Invalid position to insert!\");\n    if (Start == End) return;\n    Chunks.insert(Offset, MakeRopeString(Start, End));\n  }\n\n  void erase(unsigned Offset, unsigned NumBytes) {\n    assert(Offset+NumBytes <= size() && \"Invalid region to erase!\");\n    if (NumBytes == 0) return;\n    Chunks.erase(Offset, NumBytes);\n  }\n\nprivate:\n  RopePiece MakeRopeString(const char *Start, const char *End);\n}",
-  "id": "BLOCK-CPP-22145",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Rewrite/Core/RewriteRope.h",
-  "source_line": 171,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n    static const unsigned NumCached = 16;\n    DiagnosticStorage Cached[NumCached];\n    DiagnosticStorage *FreeList[NumCached];\n    unsigned NumFreeListEntries;\n\n  public:\n    DiagStorageAllocator();\n    ~DiagStorageAllocator();\n\n    /// Allocate new storage.\n    DiagnosticStorage *Allocate() {\n      if (NumFreeListEntries == 0)\n        return new DiagnosticStorage;\n\n      DiagnosticStorage *Result = FreeList[--NumFreeListEntries];\n      Result->NumDiagArgs = 0;\n      Result->DiagRanges.clear();\n      Result->FixItHints.clear();\n      return Result;\n    }\n\n    /// Free the given storage object.\n    void Deallocate(DiagnosticStorage *S) {\n      if (S >= Cached && S <= Cached + NumCached) {\n        FreeList[NumFreeListEntries++] = S;\n        return;\n      }\n\n      delete S;\n    }\n  }",
-  "id": "BLOCK-CPP-16248",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Diagnostic.h",
-  "source_line": 1114,
-  "validation_status": "validated"
-}

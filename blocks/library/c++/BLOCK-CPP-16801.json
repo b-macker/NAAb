@@ -1,8 +1,0 @@
-{
-  "code": "{\nprivate:\n  friend class clang::SarifDocumentWriter;\n\n  std::optional<uint32_t> Index;\n  std::string URI;\n\n  SarifArtifactLocation() = delete;\n  explicit SarifArtifactLocation(const std::string &URI) : URI(URI) {}\n\npublic:\n  static SarifArtifactLocation create(llvm::StringRef URI) {\n    return SarifArtifactLocation{URI.str()};\n  }\n\n  SarifArtifactLocation setIndex(uint32_t Idx) {\n    Index = Idx;\n    return *this;\n  }\n}",
-  "id": "BLOCK-CPP-16801",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Sarif.h",
-  "source_line": 71,
-  "validation_status": "validated"
-}

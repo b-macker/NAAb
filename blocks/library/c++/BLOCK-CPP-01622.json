@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/failure_signal_handler.h\"\n#include \"absl/base/config.h\"\n#include <windows.h>\n#include <sched.h>\n#include <unistd.h>\n#include <TargetConditionals.h>\n#include <sys/mman.h>\n#include <sys/prctl.h>\n#include <algorithm>\n#include <atomic>\n#include <cerrno>\n#include <csignal>\n#include <cstdio>\n#include <cstring>\n#include <ctime>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/sysinfo.h\"\n#include \"absl/debugging/internal/examine_stack.h\"\n#include \"absl/debugging/stacktrace.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01622_execute() {\n    {\n  // Search for the previous handler.\n  for (const auto& it : failure_signal_data) {\n    if (it.signo == signo) {\n#ifdef ABSL_HAVE_SIGACTION\n      sigaction(signo, &it.previous_action, nullptr);\n#else\n      signal(signo, it.previous_handler);\n#endif\n      raise(signo);\n      return;\n    }\n  }\n\n  // Not found, use the default handler.\n  RaiseToDefaultHandler(signo);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01622",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/failure_signal_handler.cc",
-  "source_line": 108,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/IR/Constant.h\"\n\nusing namespace clang;\nusing namespace CodeGen;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17582_execute() {\n    {return static_cast<T>(p);}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17582",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ConstantInitFuture.h",
-  "source_line": 37,
-  "validation_status": "validated"
-}

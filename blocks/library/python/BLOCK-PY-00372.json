@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00372_execute() {\n    def visit_Concat(self, node: nodes.Concat, frame: Frame) -> None:\n        if frame.eval_ctx.volatile:\n            func_name = \"(markup_join if context.eval_ctx.volatile else str_join)\"\n        elif frame.eval_ctx.autoescape:\n            func_name = \"markup_join\"\n        else:\n            func_name = \"str_join\"\n        self.write(f\"{func_name}((\")\n        for arg in node.nodes:\n            self.visit(arg, frame)\n            self.write(\", \")\n        self.write(\"))\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00372",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1720,
-  "validation_status": "validated"
-}

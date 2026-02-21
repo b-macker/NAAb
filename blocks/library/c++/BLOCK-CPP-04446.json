@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/utility/utility.h\"\n#include <any>  // IWYU pragma: export\n#include <algorithm>\n#include <cstddef>\n#include <initializer_list>\n#include <memory>\n#include <stdexcept>\n#include <type_traits>\n#include <typeinfo>\n#include <utility>\n#include \"absl/base/internal/fast_type_id.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/bad_any_cast.h\"\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04446_execute() {\n    {\n   public:\n    template <typename... Args>\n    explicit Obj(in_place_t /*tag*/, Args&&... args)\n        : value(std::forward<Args>(args)...) {}\n\n    std::unique_ptr<ObjInterface> Clone() const final {\n      return std::unique_ptr<ObjInterface>(new Obj(in_place, value));\n    }\n\n    const void* ObjTypeId() const noexcept final { return IdForType<T>(); }\n\n#ifdef ABSL_INTERNAL_HAS_RTTI\n    const std::type_info& Type() const noexcept final { return typeid(T); }\n#endif  // ABSL_INTERNAL_HAS_RTTI\n\n    T value;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04446",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/any.h",
-  "source_line": 369,
-  "validation_status": "validated"
-}

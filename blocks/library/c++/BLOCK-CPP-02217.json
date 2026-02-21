@@ -1,8 +1,0 @@
-{
-  "code": "#include <winsock2.h>  // for timeval\n#include <algorithm>\n#include <cassert>\n#include <chrono>  // NOLINT(build/c++11)\n#include <cmath>\n#include <cstdint>\n#include <cstdlib>\n#include <cstring>\n#include <ctime>\n#include <functional>\n#include <limits>\n#include <string>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/casts.h\"\n#include \"absl/base/config.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/strings/strip.h\"\n#include \"absl/time/time.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace time_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02217_execute() {\n    {\n  char buf[sizeof(\"2562047788015216\")];  // hours in max duration\n  char* const ep = buf + sizeof(buf);\n  char* bp = Format64(ep, 0, n);\n  if (*bp != '0' || bp + 1 != ep) {\n    out->append(bp, static_cast<size_t>(ep - bp));\n    out->append(unit.abbr.data(), unit.abbr.size());\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02217",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/duration.cc",
-  "source_line": 724,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  using list_type = SmallVector<std::unique_ptr<Command>, 4>;\n  using size_type = list_type::size_type;\n  using iterator = llvm::pointee_iterator<list_type::iterator>;\n  using const_iterator = llvm::pointee_iterator<list_type::const_iterator>;\n\nprivate:\n  list_type Jobs;\n\npublic:\n  void Print(llvm::raw_ostream &OS, const char *Terminator,\n             bool Quote, CrashReportInfo *CrashInfo = nullptr) const;\n\n  /// Add a job to the list (taking ownership).\n  void addJob(std::unique_ptr<Command> J) { Jobs.push_back(std::move(J)); }\n\n  /// Clear the job list.\n  void clear();\n\n  const list_type &getJobs() const { return Jobs; }\n\n  bool empty() const { return Jobs.empty(); }\n  size_type size() const { return Jobs.size(); }\n  iterator begin() { return Jobs.begin(); }\n  const_iterator begin() const { return Jobs.begin(); }\n  iterator end() { return Jobs.end(); }\n  const_iterator end() const { return Jobs.end(); }\n}",
-  "id": "BLOCK-CPP-17798",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Job.h",
-  "source_line": 262,
-  "validation_status": "validated"
-}

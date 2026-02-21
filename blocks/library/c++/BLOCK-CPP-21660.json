@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  Call(SExpr *T, const CallExpr *Ce = nullptr)\n      : SExpr(COP_Call), Target(T), Cexpr(Ce) {}\n  Call(const Call &C, SExpr *T) : SExpr(C), Target(T), Cexpr(C.Cexpr) {}\n\n  static bool classof(const SExpr *E) { return E->opcode() == COP_Call; }\n\n  SExpr *target() { return Target; }\n  const SExpr *target() const { return Target; }\n\n  const CallExpr *clangCallExpr() const { return Cexpr; }\n\n  template <class V>\n  typename V::R_SExpr traverse(V &Vs, typename V::R_Ctx Ctx) {\n    auto Nt = Vs.traverse(Target, Vs.subExprCtx(Ctx));\n    return Vs.reduceCall(*this, Nt);\n  }\n\n  template <class C>\n  typename C::CType compare(const Call* E, C& Cmp) const {\n    return Cmp.compare(target(), E->target());\n  }\n\nprivate:\n  SExpr* Target;\n  const CallExpr *Cexpr;\n}",
-  "id": "BLOCK-CPP-21660",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyTIL.h",
-  "source_line": 974,
-  "validation_status": "validated"
-}

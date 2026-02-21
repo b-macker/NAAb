@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01145_execute() {\n    {\n  int width;\n  int precision;\n  presentation_type type;\n  align_t align : 4;\n  sign_t sign : 3;\n  bool alt : 1;  // Alternate form ('#').\n  bool localized : 1;\n  detail::fill_t<Char> fill;\n\n  constexpr basic_format_specs()\n      : width(0),\n        precision(-1),\n        type(presentation_type::none),\n        align(align::none),\n        sign(sign::none),\n        alt(false),\n        localized(false) {}\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01145",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 2134,
-  "validation_status": "validated"
-}

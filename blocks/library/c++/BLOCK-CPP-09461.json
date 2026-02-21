@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n/// Define DenseMapInfo so that DeclarationNames can be used as keys\n/// in DenseMap and DenseSets.\ntemplate<>\nstruct DenseMapInfo<clang::DeclarationName> {\n  static inline clang::DeclarationName getEmptyKey() {\n    return clang::DeclarationName::getEmptyMarker();\n  }\n\n  static inline clang::DeclarationName getTombstoneKey() {\n    return clang::DeclarationName::getTombstoneMarker();\n  }\n\n  static unsigned getHashValue(clang::DeclarationName Name) {\n    return DenseMapInfo<void*>::getHashValue(Name.getAsOpaquePtr());\n  }\n\n  static inline bool\n  isEqual(clang::DeclarationName LHS, clang::DeclarationName RHS) {\n    return LHS == RHS;\n  }\n};\n\ntemplate <> struct PointerLikeTypeTraits<clang::DeclarationName> {\n  static inline void *getAsVoidPointer(clang::DeclarationName P) {\n    return P.getAsOpaquePtr();\n  }\n  static inline clang::DeclarationName getFromVoidPointer(void *P) {\n    return clang::DeclarationName::getFromOpaquePtr(P);\n  }\n  static constexpr int NumLowBitsAvailable = 0;\n};\n\n}",
-  "id": "BLOCK-CPP-09461",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/DeclarationName.h",
-  "source_line": 898,
-  "validation_status": "validated"
-}

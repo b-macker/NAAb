@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00365_execute() {\n    def visit_Name(self, node: nodes.Name, frame: Frame) -> None:\n        if node.ctx == \"store\" and (\n            frame.toplevel or frame.loop_frame or frame.block_frame\n        ):\n            if self._assign_stack:\n                self._assign_stack[-1].add(node.name)\n        ref = frame.symbols.ref(node.name)\n\n        # If we are looking up a variable we might have to deal with the\n        # case where it's undefined.  We can skip that case if the load\n        # instruction indicates a parameter which are always defined.\n        if node.ctx == \"load\":\n            load = frame.symbols.find_load(ref)\n            if not (\n                load is not None\n                and load[0] == VAR_LOAD_PARAMETER\n                and not self.parameter_is_undeclared(ref)\n            ):\n                self.write(\n                    f\"(undefined(name={node.name!r}) if {ref} is missing else {ref})\"\n                )\n                return\n\n        self.write(ref)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00365",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1631,
-  "validation_status": "validated"
-}

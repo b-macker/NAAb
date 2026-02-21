@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/internal/str_format/bind.h\"\n#include <algorithm>\n#include <cassert>\n#include <cerrno>\n#include <cstddef>\n#include <cstdio>\n#include <ios>\n#include <limits>\n#include <ostream>\n#include <sstream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/strings/internal/str_format/arg.h\"\n#include \"absl/strings/internal/str_format/constexpr_parser.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/internal/str_format/output.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03027_execute() {\n    {\n  FILERawSink sink(output);\n  if (!FormatUntyped(&sink, format, args)) {\n    errno = EINVAL;\n    return -1;\n  }\n  if (sink.error()) {\n    errno = sink.error();\n    return -1;\n  }\n  if (sink.count() > static_cast<size_t>(std::numeric_limits<int>::max())) {\n    errno = EFBIG;\n    return -1;\n  }\n  return static_cast<int>(sink.count());\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03027",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/bind.cc",
-  "source_line": 243,
-  "validation_status": "validated"
-}

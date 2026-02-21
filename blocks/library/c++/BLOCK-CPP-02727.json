@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/log/internal/log_message.h\"\n#include <stddef.h>\n#include <stdint.h>\n#include <stdlib.h>\n#include <string.h>\n#include <unistd.h>\n#include <algorithm>\n#include <array>\n#include <atomic>\n#include <memory>\n#include <ostream>\n#include <string>\n#include <tuple>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/strerror.h\"\n#include \"absl/base/internal/sysinfo.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/debugging/internal/examine_stack.h\"\n#include \"absl/log/globals.h\"\n#include \"absl/log/internal/append_truncated.h\"\n#include \"absl/log/internal/globals.h\"\n#include \"absl/log/internal/log_format.h\"\n#include \"absl/log/internal/log_sink_set.h\"\n#include \"absl/log/internal/proto.h\"\n#include \"absl/log/log_entry.h\"\n#include \"absl/log/log_sink.h\"\n#include \"absl/log/log_sink_registry.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/time/clock.h\"\n#include \"absl/time/time.h\"\n#include \"absl/types/span.h\"\n\nusing namespace absl;\nusing namespace log_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02727_execute() {\n    {\n    __gcov_flush();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02727",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/internal/log_message.cc",
-  "source_line": 335,
-  "validation_status": "validated"
-}

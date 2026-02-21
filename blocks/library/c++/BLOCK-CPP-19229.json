@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"clang/Sema/ParsedAttr.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19229_execute() {\n    {\n  // Source range of the directive.\n  SourceRange Range;\n  // Identifier corresponding to the name of the pragma.  \"loop\" for\n  // \"#pragma clang loop\" directives and \"unroll\" for \"#pragma unroll\"\n  // hints.\n  IdentifierLoc *PragmaNameLoc = nullptr;\n  // Name of the loop hint.  Examples: \"unroll\", \"vectorize\".  In the\n  // \"#pragma unroll\" and \"#pragma nounroll\" cases, this is identical to\n  // PragmaNameLoc.\n  IdentifierLoc *OptionLoc = nullptr;\n  // Identifier for the hint state argument.  If null, then the state is\n  // default value such as for \"#pragma unroll\".\n  IdentifierLoc *StateLoc = nullptr;\n  // Expression for the hint argument if it exists, null otherwise.\n  Expr *ValueExpr = nullptr;\n\n  LoopHint() = default;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19229",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/LoopHint.h",
-  "source_line": 20,
-  "validation_status": "validated"
-}

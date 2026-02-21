@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\nusing namespace ento;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21870_execute() {\n    {\nnamespace cocoa {\n\n  bool isRefType(QualType RetTy, StringRef Prefix,\n                 StringRef Name = StringRef());\n\n  bool isCocoaObjectRef(QualType T);\n\n}\n\nnamespace coreFoundation {\n  bool isCFObjectRef(QualType T);\n\n  bool followsCreateRule(const FunctionDecl *FD);\n}\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21870",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/DomainSpecific/CocoaConventions.h",
-  "source_line": 23,
-  "validation_status": "validated"
-}

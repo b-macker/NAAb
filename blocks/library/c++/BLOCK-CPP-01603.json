@@ -1,8 +1,0 @@
-{
-  "code": "#include <cwchar>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace literals;\nusing namespace literals;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01603_execute() {\n    {\n  wmemory_buffer buffer;\n  detail::vformat_to(buffer, fmt, args);\n  buffer.push_back(L'\\0');\n  if (std::fputws(buffer.data(), f) == -1)\n    FMT_THROW(system_error(errno, FMT_STRING(\"cannot write to file\")));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01603",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/xchar.h",
-  "source_line": 199,
-  "validation_status": "validated"
-}

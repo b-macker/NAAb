@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  TypeWithKeyword(ElaboratedTypeKeyword Keyword, TypeClass tc,\n                  QualType Canonical, TypeDependence Dependence)\n      : Type(tc, Canonical, Dependence) {\n    TypeWithKeywordBits.Keyword = Keyword;\n  }\n\npublic:\n  ElaboratedTypeKeyword getKeyword() const {\n    return static_cast<ElaboratedTypeKeyword>(TypeWithKeywordBits.Keyword);\n  }\n\n  /// Converts a type specifier (DeclSpec::TST) into an elaborated type keyword.\n  static ElaboratedTypeKeyword getKeywordForTypeSpec(unsigned TypeSpec);\n\n  /// Converts a type specifier (DeclSpec::TST) into a tag type kind.\n  /// It is an error to provide a type specifier which *isn't* a tag kind here.\n  static TagTypeKind getTagTypeKindForTypeSpec(unsigned TypeSpec);\n\n  /// Converts a TagTypeKind into an elaborated type keyword.\n  static ElaboratedTypeKeyword getKeywordForTagTypeKind(TagTypeKind Tag);\n\n  /// Converts an elaborated type keyword into a TagTypeKind.\n  /// It is an error to provide an elaborated type keyword\n  /// which *isn't* a tag kind here.\n  static TagTypeKind getTagTypeKindForKeyword(ElaboratedTypeKeyword Keyword);\n\n  static bool KeywordIsTagTypeKind(ElaboratedTypeKeyword Keyword);\n\n  static StringRef getKeywordName(ElaboratedTypeKeyword Keyword);\n\n  static StringRef getTagTypeKindName(TagTypeKind Kind) {\n    return getKeywordName(getKeywordForTagTypeKind(Kind));\n  }\n\n  class CannotCastToThisType {};\n  static CannotCastToThisType classof(const Type *);\n}",
-  "id": "BLOCK-CPP-14153",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 5643,
-  "validation_status": "validated"
-}

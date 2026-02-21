@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <istream>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/optimization.h\"\n#include \"absl/random/internal/fast_uniform_bits.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n#include \"absl/random/internal/traits.h\"\n#include \"absl/random/internal/wide_multiply.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03902_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03902",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/uniform_int_distribution.h",
-  "source_line": 105,
-  "validation_status": "validated"
-}

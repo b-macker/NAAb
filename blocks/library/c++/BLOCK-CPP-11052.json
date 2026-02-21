@@ -1,8 +1,0 @@
-{
-  "code": "{\n  ObjCProtocolDecl *TheProtocol;\n  SourceLocation AtLoc, ProtoLoc, RParenLoc;\n\npublic:\n  friend class ASTStmtReader;\n  friend class ASTStmtWriter;\n\n  ObjCProtocolExpr(QualType T, ObjCProtocolDecl *protocol, SourceLocation at,\n                   SourceLocation protoLoc, SourceLocation rp)\n      : Expr(ObjCProtocolExprClass, T, VK_PRValue, OK_Ordinary),\n        TheProtocol(protocol), AtLoc(at), ProtoLoc(protoLoc), RParenLoc(rp) {\n    setDependence(ExprDependence::None);\n  }\n  explicit ObjCProtocolExpr(EmptyShell Empty)\n      : Expr(ObjCProtocolExprClass, Empty) {}\n\n  ObjCProtocolDecl *getProtocol() const { return TheProtocol; }\n  void setProtocol(ObjCProtocolDecl *P) { TheProtocol = P; }\n\n  SourceLocation getProtocolIdLoc() const { return ProtoLoc; }\n  SourceLocation getAtLoc() const { return AtLoc; }\n  SourceLocation getRParenLoc() const { return RParenLoc; }\n  void setAtLoc(SourceLocation L) { AtLoc = L; }\n  void setRParenLoc(SourceLocation L) { RParenLoc = L; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return AtLoc; }\n  SourceLocation getEndLoc() const LLVM_READONLY { return RParenLoc; }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == ObjCProtocolExprClass;\n  }\n}",
-  "id": "BLOCK-CPP-11052",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprObjC.h",
-  "source_line": 504,
-  "validation_status": "validated"
-}

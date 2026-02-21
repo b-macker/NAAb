@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03460_execute() {\n    {\n\n// Takes a reference to a guarded data member, and returns an unguarded\n// reference.\n// Do not use this function directly, use ABSL_TS_UNCHECKED_READ instead.\ntemplate <typename T>\ninline const T& ts_unchecked_read(const T& v) ABSL_NO_THREAD_SAFETY_ANALYSIS {\n  return v;\n}\n\ntemplate <typename T>\ninline T& ts_unchecked_read(T& v) ABSL_NO_THREAD_SAFETY_ANALYSIS {\n  return v;\n}\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03460",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/thread_annotations.h",
-  "source_line": 314,
-  "validation_status": "validated"
-}

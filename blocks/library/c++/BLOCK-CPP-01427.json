@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  constexpr fallback_digit_grouping(locale_ref, bool) {}\n\n  constexpr Char separator() const { return Char(); }\n\n  constexpr int count_separators(int) const { return 0; }\n\n  template <typename Out, typename C>\n  constexpr Out apply(Out out, basic_string_view<C>) const {\n    return out;\n  }\n}",
-  "id": "BLOCK-CPP-01427",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 2465,
-  "validation_status": "validated"
-}

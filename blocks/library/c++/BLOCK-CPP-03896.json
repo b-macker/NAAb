@@ -1,8 +1,0 @@
-{
-  "code": "#include <exception>\n#include \"absl/base/config.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03896_execute() {\n    {\n\n// throw delegator\n[[noreturn]] void ThrowSeedGenException();\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03896",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/seed_gen_exception.h",
-  "source_line": 46,
-  "validation_status": "validated"
-}

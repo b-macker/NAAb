@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/VersionTuple.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23196_execute() {\n    { return Version.empty(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23196",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Availability.h",
-  "source_line": 57,
-  "validation_status": "validated"
-}

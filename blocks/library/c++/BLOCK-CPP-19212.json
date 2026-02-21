@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Lex/Preprocessor.h\"\n#include \"llvm/ADT/SmallVector.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19212_execute() {\n    {\n      assert(!isReset() &&\n             \"Must only be called if the state has not been reset\");\n      return StringifyBefore;\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19212",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/VariadicMacroSupport.h",
-  "source_line": 139,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <class... Ts> RetTy visit(QualType FT, Ts &&... Args) {\n    QualType::PrimitiveCopyKind PCK =\n        IsMove ? FT.isNonTrivialToPrimitiveDestructiveMove()\n               : FT.isNonTrivialToPrimitiveCopy();\n    return asDerived().visitWithKind(PCK, FT, std::forward<Ts>(Args)...);\n  }\n\n  template <class... Ts>\n  RetTy visitWithKind(QualType::PrimitiveCopyKind PCK, QualType FT,\n                      Ts &&... Args) {\n    asDerived().preVisit(PCK, FT, std::forward<Ts>(Args)...);\n\n    switch (PCK) {\n    case QualType::PCK_ARCStrong:\n      return asDerived().visitARCStrong(FT, std::forward<Ts>(Args)...);\n    case QualType::PCK_ARCWeak:\n      return asDerived().visitARCWeak(FT, std::forward<Ts>(Args)...);\n    case QualType::PCK_Struct:\n      return asDerived().visitStruct(FT, std::forward<Ts>(Args)...);\n    case QualType::PCK_Trivial:\n      return asDerived().visitTrivial(FT, std::forward<Ts>(Args)...);\n    case QualType::PCK_VolatileTrivial:\n      return asDerived().visitVolatileTrivial(FT, std::forward<Ts>(Args)...);\n    }\n\n    llvm_unreachable(\"unknown primitive copy kind\");\n  }\n\n  Derived &asDerived() { return static_cast<Derived &>(*this); }\n}",
-  "id": "BLOCK-CPP-11345",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/NonTrivialTypeVisitor.h",
-  "source_line": 77,
-  "validation_status": "validated"
-}

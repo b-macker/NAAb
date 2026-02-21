@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/Decl.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/BitVector.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/Support/Error.h\"\n#include <memory>\n#include <utility>\n\nusing namespace clang;\nusing namespace dataflow;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21881_execute() {\n    {\n    return BlockReachable[B.getBlockID()];\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21881",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/FlowSensitive/ControlFlowContext.h",
-  "source_line": 62,
-  "validation_status": "validated"
-}

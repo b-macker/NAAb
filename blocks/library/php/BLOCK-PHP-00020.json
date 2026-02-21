@@ -1,8 +1,0 @@
-{
-  "code": "class UserController\n{\n    private $authService;\n\n    public function __construct(AuthService $authService)\n    {\n        $this->authService = $authService;\n    }\n\n    public function index()\n    {\n        $users = User::orderBy('created_at', 'desc')->get();\n        return response()->json($users);\n    }\n\n    public function store(Request $request)\n    {\n        $validated = $request->validate([\n            'name' => 'required|string|max:255',\n            'email' => 'required|email|unique:users',\n            'password' => 'required|min:8'\n        ]);\n\n        $user = User::create([\n            'name' => $validated['name'],\n            'email' => $validated['email'],\n            'password' => Hash::make($validated['password'])\n        ]);\n\n        return response()->json($user, 201);\n    }\n\n    public function update(Request $request, $id)\n    {\n        $user = User::findOrFail($id);\n\n        $validated = $request->validate([\n            'name' => 'sometimes|string|max:255',\n            'email' => 'sometimes|email|unique:users,email,' . $id\n        ]);\n\n        $user->update($validated);\n\n        return response()->json($user);\n    }\n}",
-  "id": "BLOCK-PHP-00020",
-  "language": "php",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp2e515_rq.php",
-  "source_line": 11,
-  "validation_status": "validated"
-}

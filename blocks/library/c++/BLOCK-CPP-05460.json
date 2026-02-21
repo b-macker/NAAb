@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05460_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace debugging_internal {\n\n// Returns the stack consumption in bytes for the code exercised by\n// signal_handler.  To measure stack consumption, signal_handler is registered\n// as a signal handler, so the code that it exercises must be async-signal\n// safe.  The argument of signal_handler is an implementation detail of signal\n// handlers and should ignored by the code for signal_handler.  Use global\n// variables to pass information between your test code and signal_handler.\nint GetSignalHandlerStackConsumption(void (*signal_handler)(int));\n\n}  // namespace debugging_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05460",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/stack_consumption.h",
-  "source_line": 32,
-  "validation_status": "validated"
-}

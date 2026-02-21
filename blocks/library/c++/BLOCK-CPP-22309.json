@@ -1,8 +1,0 @@
-{
-  "code": "{\n  template <typename CHECKER>\n  static void _checkEndFunction(void *checker, const ReturnStmt *RS,\n                                CheckerContext &C) {\n    ((const CHECKER *)checker)->checkEndFunction(RS, C);\n  }\n\npublic:\n  template <typename CHECKER>\n  static void _register(CHECKER *checker, CheckerManager &mgr) {\n    mgr._registerForEndFunction(\n     CheckerManager::CheckEndFunctionFunc(checker, _checkEndFunction<CHECKER>));\n  }\n}",
-  "id": "BLOCK-CPP-22309",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/Checker.h",
-  "source_line": 255,
-  "validation_status": "validated"
-}

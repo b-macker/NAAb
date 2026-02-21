@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15955_execute() {\n    {\n  if (!Sel.isNull())\n    return;\n  Sel = getKeywordSelector(Ctx, IIs...);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15955",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/SelectorExtras.h",
-  "source_line": 26,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16300_execute() {\n    {\nnamespace diag {\nenum {\n#define DIAG(ENUM, FLAGS, DEFAULT_MAPPING, DESC, GROUP, SFINAE, NOWERROR,      \\\n             SHOWINSYSHEADER, SHOWINSYSMACRO, DEFERRABLE, CATEGORY)            \\\n  ENUM,\n#define LEXSTART\n#include \"clang/Basic/DiagnosticLexKinds.inc\"\n#undef DIAG\n  NUM_BUILTIN_LEX_DIAGNOSTICS\n};\n} // end namespace diag\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16300",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DiagnosticLex.h",
-  "source_line": 14,
-  "validation_status": "validated"
-}

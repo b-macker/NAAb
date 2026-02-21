@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstddef>\n#include <cstdlib>\n#include <memory>\n#include <stdexcept>\n#include <tuple>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/identity.h\"\n#include \"absl/base/internal/inline_variable.h\"\n#include \"absl/base/internal/invoke.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/types/bad_variant_access.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace variant_internal;\nusing namespace for;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06715_execute() {\n    {\n  variant<Types...>* v;\n  variant<Types...>* w;\n\n  void generic_swap() const {\n    variant<Types...> tmp(std::move(*w));\n    VariantCoreAccess::Destroy(*w);\n    VariantCoreAccess::InitFrom(*w, std::move(*v));\n    VariantCoreAccess::Destroy(*v);\n    VariantCoreAccess::InitFrom(*v, std::move(tmp));\n  }\n\n  void operator()(SizeT<absl::variant_npos> /*w_i*/) const {\n    if (!v->valueless_by_exception()) {\n      generic_swap();\n    }\n  }\n\n  template <std::size_t Wi>\n  void operator()(SizeT<Wi> /*w_i*/) {\n    if (v->index() == Wi) {\n      VisitIndices<sizeof...(Types)>::Run(SwapSameIndex<Types...>{v, w}, Wi);\n    } else {\n      generic_swap();\n    }\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06715",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/internal/variant.h",
-  "source_line": 1562,
-  "validation_status": "validated"
-}

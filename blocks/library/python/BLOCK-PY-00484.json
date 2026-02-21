@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00484_execute() {\n    def find(self, node_type: type[_NodeBound]) -> _NodeBound | None:\n        \"\"\"Find the first node of a given type.  If no such node exists the\n        return value is `None`.\n        \"\"\"\n        for result in self.find_all(node_type):\n            return result\n\n        return None\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00484",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 186,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/BitmaskEnum.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cstdint>\n#include <optional>\n#include <set>\n#include <string>\n#include <unordered_map>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace RISCV;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21122_execute() {\n    {\nprivate:\n  std::unordered_map<uint64_t, RVVType> LegalTypes;\n  std::set<uint64_t> IllegalTypes;\n\npublic:\n  /// Compute output and input types by applying different config (basic type\n  /// and LMUL with type transformers). It also record result of type in legal\n  /// or illegal set to avoid compute the same config again. The result maybe\n  /// have illegal RVVType.\n  std::optional<RVVTypes>\n  computeTypes(BasicType BT, int Log2LMUL, unsigned NF,\n               llvm::ArrayRef<PrototypeDescriptor> Prototype);\n  std::optional<RVVTypePtr> computeType(BasicType BT, int Log2LMUL,\n                                        PrototypeDescriptor Proto);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21122",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Support/RISCVVIntrinsicUtils.h",
-  "source_line": 342,
-  "validation_status": "validated"
-}

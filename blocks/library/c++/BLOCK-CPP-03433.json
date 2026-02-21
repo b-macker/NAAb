@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstddef>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/optimization.h\"\n#include \"absl/base/port.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03433_execute() {\n    {\nABSL_NAMESPACE_BEGIN\nnamespace macros_internal {\n// Note: this internal template function declaration is used by ABSL_ARRAYSIZE.\n// The function doesn't need a definition, as we only use its type.\ntemplate <typename T, size_t N>\nauto ArraySizeHelper(const T (&array)[N]) -> char (&)[N];\n}  // namespace macros_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03433",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/macros.h",
-  "source_line": 47,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Tooling/ArgumentsAdjusters.h\"\n#include \"clang/Tooling/CompilationDatabase.h\"\n#include \"llvm/Support/CommandLine.h\"\n#include \"llvm/Support/Error.h\"\n/// #include \"clang/Frontend/FrontendActions.h\"\n/// #include \"clang/Tooling/CommonOptionsParser.h\"\n/// #include \"clang/Tooling/Tooling.h\"\n/// #include \"llvm/Support/CommandLine.h\"\n\nusing namespace clang;\nusing namespace tooling;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21137_execute() {\n    {\npublic:\n  ArgumentsAdjustingCompilations(\n      std::unique_ptr<CompilationDatabase> Compilations)\n      : Compilations(std::move(Compilations)) {}\n\n  void appendArgumentsAdjuster(ArgumentsAdjuster Adjuster);\n\n  std::vector<CompileCommand>\n  getCompileCommands(StringRef FilePath) const override;\n\n  std::vector<std::string> getAllFiles() const override;\n\n  std::vector<CompileCommand> getAllCompileCommands() const override;\n\nprivate:\n  std::unique_ptr<CompilationDatabase> Compilations;\n  std::vector<ArgumentsAdjuster> Adjusters;\n\n  std::vector<CompileCommand>\n  adjustCommands(std::vector<CompileCommand> Commands) const;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21137",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/CommonOptionsParser.h",
-  "source_line": 118,
-  "validation_status": "validated"
-}

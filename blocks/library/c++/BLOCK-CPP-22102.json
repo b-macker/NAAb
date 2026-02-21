@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ExtractAPI/API.h\"\n\nusing namespace clang;\nusing namespace extractapi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22102_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22102",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ExtractAPI/Serialization/SerializerBase.h",
-  "source_line": 99,
-  "validation_status": "validated"
-}

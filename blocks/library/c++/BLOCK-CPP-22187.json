@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h\"\n\nusing namespace clang;\nusing namespace ento;\nusing namespace mpi;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22187_execute() {\n    { identifierInit(ASTCtx); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22187",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Checkers/MPIFunctionClassifier.h",
-  "source_line": 24,
-  "validation_status": "validated"
-}

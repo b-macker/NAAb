@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Sema/Ownership.h\"\n#include \"clang/Sema/SemaConcept.h\"\n#include \"clang/AST/ASTConcept.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/DeclTemplate.h\"\n#include \"clang/AST/TemplateBase.h\"\n#include \"clang/Basic/PartialDiagnostic.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include <cassert>\n#include <cstddef>\n#include <optional>\n#include <utility>\n\nusing namespace clang;\nusing namespace sema;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20704_execute() {\n    {\n    assert(HasSFINAEDiagnostic);\n    PD.first = SuppressedDiagnostics.front().first;\n    PD.second.swap(SuppressedDiagnostics.front().second);\n    clearSFINAEDiagnostic();\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20704",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/TemplateDeduction.h",
-  "source_line": 107,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <string>\n\nusing namespace clang;\nusing namespace of;\nusing namespace with;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18877_execute() {\n    { return Handlers.empty(); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18877",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Pragma.h",
-  "source_line": 118,
-  "validation_status": "validated"
-}

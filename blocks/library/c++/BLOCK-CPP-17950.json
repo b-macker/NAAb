@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Edit/FileOffset.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Allocator.h\"\n\nusing namespace clang;\nusing namespace edit;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17950_execute() {\n    {\n    EditKind Kind;\n    StringRef Text;\n    SourceLocation OrigLoc;\n    FileOffset Offset;\n    FileOffset InsertFromRangeOffs;\n    unsigned Length;\n    bool BeforePrev;\n\n    SourceLocation getFileLocation(SourceManager &SM) const;\n    CharSourceRange getFileRange(SourceManager &SM) const;\n    CharSourceRange getInsertFromRange(SourceManager &SM) const;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17950",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Edit/Commit.h",
-  "source_line": 37,
-  "validation_status": "validated"
-}

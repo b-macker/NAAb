@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/CanonicalType.h\"\n#include \"clang/AST/Type.h\"\n#include \"clang/Basic/ABI.h\"\n#include \"clang/CodeGen/CGFunctionInfo.h\"\n#include \"llvm/IR/BasicBlock.h\"\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17528_execute() {\n    {\nclass AttrBuilder;\nclass Constant;\nclass Function;\nclass FunctionType;\nclass Type;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17528",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/CodeGenABITypes.h",
-  "source_line": 32,
-  "validation_status": "validated"
-}

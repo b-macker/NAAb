@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Specifiers.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <climits>\n#include <optional>\n#include <vector>\n\nusing namespace llvm;\nusing namespace llvm;\nusing namespace clang;\nusing namespace api_notes;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06805_execute() {\n    {\npublic:\n  /// Whether this is a designated initializer of its class.\n  unsigned DesignatedInit : 1;\n\n  /// Whether this is a required initializer.\n  unsigned RequiredInit : 1;\n\n  ObjCMethodInfo() : DesignatedInit(false), RequiredInit(false) {}\n\n  friend bool operator==(const ObjCMethodInfo &, const ObjCMethodInfo &);\n\n  ObjCMethodInfo &operator|=(const ObjCContextInfo &RHS) {\n    // Merge Nullability.\n    if (!NullabilityAudited) {\n      if (auto Nullable = RHS.getDefaultNullability()) {\n        NullabilityAudited = true;\n        addTypeInfo(0, *Nullable);\n      }\n    }\n    return *this;\n  }\n\n  LLVM_DUMP_METHOD void dump(llvm::raw_ostream &OS);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06805",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/APINotes/Types.h",
-  "source_line": 602,
-  "validation_status": "validated"
-}

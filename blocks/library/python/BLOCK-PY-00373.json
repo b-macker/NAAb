@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00373_execute() {\n    def visit_Compare(self, node: nodes.Compare, frame: Frame) -> None:\n        self.write(\"(\")\n        self.visit(node.expr, frame)\n        for op in node.ops:\n            self.visit(op, frame)\n        self.write(\")\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00373",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1734,
-  "validation_status": "validated"
-}

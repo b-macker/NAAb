@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/FrontendAction.h\"\n#include <memory>\n#include <string>\n#include <vector>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18335_execute() {\n    {\nprotected:\n  void ExecuteAction() override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18335",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Frontend/FrontendActions.h",
-  "source_line": 290,
-  "validation_status": "validated"
-}

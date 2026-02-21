@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00451_execute() {\n    class Div(BinExpr):\n    \"\"\"Divides the left by the right node.\"\"\"\n\n    operator = \"/\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00451",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 949,
-  "validation_status": "validated"
-}

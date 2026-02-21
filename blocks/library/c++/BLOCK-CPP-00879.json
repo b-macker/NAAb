@@ -1,8 +1,0 @@
-{
-  "code": "#include \"format.h\"\n\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00879_execute() {\n    {\n            return unknown_format();  // no type info for specs parsing\n          }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00879",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/compile.h",
-  "source_line": 466,
-  "validation_status": "validated"
-}

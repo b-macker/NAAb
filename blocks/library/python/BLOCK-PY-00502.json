@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00502_execute() {\n    def can_assign(self) -> bool:\n        for item in self.items:\n            if not item.can_assign():\n                return False\n        return True\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00502",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 637,
-  "validation_status": "validated"
-}

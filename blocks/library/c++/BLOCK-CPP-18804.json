@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/IdentifierTable.h\"\n#include \"clang/Basic/LangOptions.h\"\n#include \"clang/Basic/Module.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/ADT/StringSet.h\"\n#include \"llvm/ADT/TinyPtrVector.h\"\n#include \"llvm/ADT/Twine.h\"\n#include <ctime>\n#include <memory>\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18804_execute() {\n    {\n    /// Whether this is a system module.\n    unsigned IsSystem : 1;\n\n    /// Whether this is an extern \"C\" module.\n    unsigned IsExternC : 1;\n\n    /// Whether this is an exhaustive set of configuration macros.\n    unsigned IsExhaustive : 1;\n\n    /// Whether files in this module can only include non-modular headers\n    /// and headers from used modules.\n    unsigned NoUndeclaredIncludes : 1;\n\n    Attributes()\n        : IsSystem(false), IsExternC(false), IsExhaustive(false),\n          NoUndeclaredIncludes(false) {}\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18804",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/ModuleMap.h",
-  "source_line": 234,
-  "validation_status": "validated"
-}

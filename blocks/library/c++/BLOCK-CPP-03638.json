@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace functional_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03638_execute() {\n    {\ntemplate <typename T>\nconstexpr bool kDependentFalse = false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03638",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/functional/overload.h",
-  "source_line": 60,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n public:\n  static int64_t Now() { return base_internal::UnscaledCycleClock::Now(); }\n}",
-  "id": "BLOCK-CPP-02164",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/clock.cc",
-  "source_line": 93,
-  "validation_status": "validated"
-}

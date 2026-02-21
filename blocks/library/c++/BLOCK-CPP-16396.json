@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16396_execute() {\n    {\npublic:\n  /// If set, paths are resolved as if the working directory was\n  /// set to the value of WorkingDir.\n  std::string WorkingDir;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16396",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/FileSystemOptions.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n  timeval tv;\n  timespec ts = absl::ToTimespec(t);\n  tv.tv_sec = static_cast<decltype(tv.tv_sec)>(ts.tv_sec);\n  if (tv.tv_sec != ts.tv_sec) {  // narrowing\n    if (ts.tv_sec < 0) {\n      tv.tv_sec = std::numeric_limits<decltype(tv.tv_sec)>::min();\n      tv.tv_usec = 0;\n    } else {\n      tv.tv_sec = std::numeric_limits<decltype(tv.tv_sec)>::max();\n      tv.tv_usec = 1000 * 1000 - 1;\n    }\n    return tv;\n  }\n  tv.tv_usec = static_cast<int>(ts.tv_nsec / 1000);  // suseconds_t\n  return tv;\n}",
-  "id": "BLOCK-CPP-02270",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/time.cc",
-  "source_line": 322,
-  "validation_status": "validated"
-}

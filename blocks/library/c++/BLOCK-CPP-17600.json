@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Frontend/PCHContainerOperations.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17600_execute() {\n    {\n  StringRef getFormat() const override { return \"obj\"; }\n\n  /// Return an ASTConsumer that can be chained with a\n  /// PCHGenerator that produces a wrapper file format\n  /// that also contains full debug info for the module.\n  std::unique_ptr<ASTConsumer>\n  CreatePCHContainerGenerator(CompilerInstance &CI,\n                              const std::string &MainFileName,\n                              const std::string &OutputFileName,\n                              std::unique_ptr<llvm::raw_pwrite_stream> OS,\n                              std::shared_ptr<PCHBuffer> Buffer) const override;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17600",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/CodeGen/ObjectFilePCHContainerOperations.h",
-  "source_line": 18,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/CommentOptions.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <map>\n\nusing namespace clang;\nusing namespace comments;\nusing namespace comments;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12340_execute() {\n    {\n    if (!isInvalid())\n      return false;\n    StringRef Text = getRawText(SourceMgr);\n    if (Text.size() < 6 || Text[0] != '/')\n      return false;\n    if (Text[1] == '*')\n      return Text[Text.size() - 1] != '/' || Text[Text.size() - 2] != '*';\n    return Text[1] != '/';\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12340",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/RawCommentList.h",
-  "source_line": 118,
-  "validation_status": "validated"
-}

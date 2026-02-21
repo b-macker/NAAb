@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00314_execute() {\n    def simple_write(\n        self, s: str, frame: Frame, node: nodes.Node | None = None\n    ) -> None:\n        \"\"\"Simple shortcut for start_write + write + end_write.\"\"\"\n        self.start_write(frame, node)\n        self.write(s)\n        self.end_write(frame)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00314",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 432,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n    /// The type qualifiers: const/volatile/restrict/unaligned/atomic.\n    unsigned TypeQuals : 5;\n\n    /// The location of the const-qualifier, if any.\n    SourceLocation ConstQualLoc;\n\n    /// The location of the volatile-qualifier, if any.\n    SourceLocation VolatileQualLoc;\n\n    /// The location of the restrict-qualifier, if any.\n    SourceLocation RestrictQualLoc;\n\n    /// The location of the _Atomic-qualifier, if any.\n    SourceLocation AtomicQualLoc;\n\n    /// The location of the __unaligned-qualifier, if any.\n    SourceLocation UnalignedQualLoc;\n\n    void destroy() {\n    }\n  }",
-  "id": "BLOCK-CPP-19720",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/DeclSpec.h",
-  "source_line": 1232,
-  "validation_status": "validated"
-}

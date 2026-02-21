@@ -1,8 +1,0 @@
-{
-  "code": "{\n  static constexpr size_t kN = std::numeric_limits<UIntType>::digits;\n  using input_type = UIntType;\n  using result_type = typename random_internal::unsigned_bits<kN * 2>::type;\n\n  static result_type multiply(input_type a, input_type b) {\n    return static_cast<result_type>(a) * b;\n  }\n\n  static input_type hi(result_type r) {\n    return static_cast<input_type>(r >> kN);\n  }\n  static input_type lo(result_type r) { return static_cast<input_type>(r); }\n\n  static_assert(std::is_unsigned<UIntType>::value,\n                \"Class-template wide_multiply<> argument must be unsigned.\");\n}",
-  "id": "BLOCK-CPP-05995",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/wide_multiply.h",
-  "source_line": 38,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/DiagnosticIDs.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Basic/SourceManager.h\"\n#include \"clang/Lex/ModuleLoader.h\"\n#include \"clang/Lex/Pragma.h\"\n#include \"llvm/ADT/StringRef.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18822_execute() {\n    {}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18822",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/PPCallbacks.h",
-  "source_line": 70,
-  "validation_status": "validated"
-}

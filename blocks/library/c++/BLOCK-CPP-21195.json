@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTTypeTraits.h\"\n#include \"clang/AST/DeclarationName.h\"\n#include \"llvm/ADT/IntrusiveRefCntPtr.h\"\n#include <set>\n\nusing namespace clang;\nusing namespace tooling;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21195_execute() {\n    {\npublic:\n  static void print(const LocationCall &Call, llvm::raw_ostream &OS);\n  static std::string format(const LocationCall &Call);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21195",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/NodeIntrospection.h",
-  "source_line": 54,
-  "validation_status": "validated"
-}

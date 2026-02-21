@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/base/config.h\"\n#include <functional>\n#include <algorithm>\n#include <type_traits>\n#include <utility>\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace base_internal;\nusing namespace base_internal;\nusing namespace absl;\nusing namespace absl;\nusing namespace base_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04680_execute() {\n    {\n  return Invoker<F, Args...>::type::Invoke(std::forward<F>(f),\n                                           std::forward<Args>(args)...);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04680",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/internal/invoke.h",
-  "source_line": 210,
-  "validation_status": "validated"
-}

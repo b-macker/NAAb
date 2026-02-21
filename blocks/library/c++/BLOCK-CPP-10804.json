@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTStmtReader;\n\n  SourceLocation KeywordLoc;\n  Stmt *SubExprs[2];\n\npublic:\n  DependentCoawaitExpr(SourceLocation KeywordLoc, QualType Ty, Expr *Op,\n                       UnresolvedLookupExpr *OpCoawait)\n      : Expr(DependentCoawaitExprClass, Ty, VK_PRValue, OK_Ordinary),\n        KeywordLoc(KeywordLoc) {\n    // NOTE: A co_await expression is dependent on the coroutines promise\n    // type and may be dependent even when the `Op` expression is not.\n    assert(Ty->isDependentType() &&\n           \"wrong constructor for non-dependent co_await/co_yield expression\");\n    SubExprs[0] = Op;\n    SubExprs[1] = OpCoawait;\n    setDependence(computeDependence(this));\n  }\n\n  DependentCoawaitExpr(EmptyShell Empty)\n      : Expr(DependentCoawaitExprClass, Empty) {}\n\n  Expr *getOperand() const { return cast<Expr>(SubExprs[0]); }\n\n  UnresolvedLookupExpr *getOperatorCoawaitLookup() const {\n    return cast<UnresolvedLookupExpr>(SubExprs[1]);\n  }\n\n  SourceLocation getKeywordLoc() const { return KeywordLoc; }\n\n  SourceLocation getBeginLoc() const LLVM_READONLY { return KeywordLoc; }\n\n  SourceLocation getEndLoc() const LLVM_READONLY {\n    return getOperand()->getEndLoc();\n  }\n\n  child_range children() { return child_range(SubExprs, SubExprs + 2); }\n\n  const_child_range children() const {\n    return const_child_range(SubExprs, SubExprs + 2);\n  }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == DependentCoawaitExprClass;\n  }\n}",
-  "id": "BLOCK-CPP-10804",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ExprCXX.h",
-  "source_line": 5048,
-  "validation_status": "validated"
-}

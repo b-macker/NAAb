@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/Analyses/ThreadSafetyTIL.h\"\n\nusing namespace clang;\nusing namespace threadSafety;\nusing namespace lexpr;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21474_execute() {\n    {\npublic:\n  enum Opcode {\n    Terminal,\n    And,\n    Or,\n    Not\n  };\n  Opcode kind() const { return Kind; }\n\n  /// Logical implication. Returns true if the LExpr implies RHS, i.e. if\n  /// the LExpr holds, then RHS must hold. For example, (A & B) implies A.\n  inline bool implies(const LExpr *RHS) const;\n\nprotected:\n  LExpr(Opcode Kind) : Kind(Kind) {}\n\nprivate:\n  Opcode Kind;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21474",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/ThreadSafetyLogical.h",
-  "source_line": 21,
-  "validation_status": "validated"
-}

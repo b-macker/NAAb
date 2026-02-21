@@ -1,8 +1,0 @@
-{
-  "code": "#include <typeinfo>\n#include \"absl/base/config.h\"\n#include <any>\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04451_execute() {\n    {\nABSL_NAMESPACE_BEGIN\n\n// -----------------------------------------------------------------------------\n// bad_any_cast\n// -----------------------------------------------------------------------------\n//\n// An `absl::bad_any_cast` type is an exception type that is thrown when\n// failing to successfully cast the return value of an `absl::any` object.\n//\n// Example:\n//\n//   auto a = absl::any(65);\n//   absl::any_cast<int>(a);         // 65\n//   try {\n//     absl::any_cast<char>(a);\n//   } catch(const absl::bad_any_cast& e) {\n//     std::cout << \"Bad any cast: \" << e.what() << '\\n';\n//   }\nclass bad_any_cast : public std::bad_cast {\n public:\n  ~bad_any_cast() override;\n  const char* what() const noexcept override;\n};\n\nnamespace any_internal {\n\n[[noreturn]] void ThrowBadAnyCast();\n\n}  // namespace any_internal\nABSL_NAMESPACE_END\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04451",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_any_cast.h",
-  "source_line": 40,
-  "validation_status": "validated"
-}

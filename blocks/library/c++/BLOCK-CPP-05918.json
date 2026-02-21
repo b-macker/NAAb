@@ -1,8 +1,0 @@
-{
-  "code": "#include <type_traits>\n#include \"absl/base/config.h\"\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/bits.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/random/internal/fastmath.h\"\n#include \"absl/random/internal/iostream_state_saver.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05918_execute() {\n    { return kMult; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05918",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/pcg_engine.h",
-  "source_line": 254,
-  "validation_status": "validated"
-}

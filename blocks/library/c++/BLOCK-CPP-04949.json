@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>\n#include <cstring>\n#include <memory>\n#include <new>\n#include <type_traits>\n#include <utility>\n#include \"absl/meta/type_traits.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04949_execute() {\n    {\n    // TODO(b/247130232): remove casts after fixing warnings.\n    // TODO(b/251814870): remove casts after fixing warnings.\n    std::memcpy(\n        static_cast<void*>(std::launder(\n            const_cast<std::remove_const_t<value_type>*>(&element(new_slot)))),\n        static_cast<const void*>(&element(old_slot)), sizeof(value_type));\n    return {};\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04949",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/common_policy_traits.h",
-  "source_line": 110,
-  "validation_status": "validated"
-}

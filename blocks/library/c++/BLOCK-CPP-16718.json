@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <cassert>\n#include <cstdint>\n#include <string>\n#include <type_traits>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-16718_execute() {\n    {\n    Allocator = reinterpret_cast<DiagStorageAllocator *>(~uintptr_t(0));\n    DiagStorage = DiagStorage_;\n    if (Other.DiagStorage)\n      *this->DiagStorage = *Other.DiagStorage;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-16718",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/PartialDiagnostic.h",
-  "source_line": 83,
-  "validation_status": "validated"
-}

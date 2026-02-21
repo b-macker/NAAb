@@ -1,8 +1,0 @@
-{
-  "code": "{\ntemplate <typename Exception> inline void do_throw(const Exception& x) {\n  // Silence unreachable code warnings in MSVC and NVCC because these\n  // are nearly impossible to fix in a generic code.\n  volatile bool b = true;\n  if (b) throw x;\n}\n}",
-  "id": "BLOCK-CPP-01460",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format.h",
-  "source_line": 84,
-  "validation_status": "validated"
-}

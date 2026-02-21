@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\nusing namespace align;\nusing namespace sign;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01086_execute() {\n    {\n#if FMT_USE_NONTYPE_TEMPLATE_ARGS\n  if constexpr (sizeof...(Args) > 0)\n    return get_arg_index_by_name<0, Args...>(name);\n#endif\n  (void)name;\n  return invalid_arg_index;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01086",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 2925,
-  "validation_status": "validated"
-}

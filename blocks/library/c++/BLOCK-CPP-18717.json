@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Lex/Token.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <algorithm>\n#include <cassert>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18717_execute() {\n    {\n    assert(ReplacementTokens == nullptr && NumReplacementTokens == 0 &&\n           \"Token list already allocated!\");\n    NumReplacementTokens = NumTokens;\n    Token *NewReplacementTokens = PPAllocator.Allocate<Token>(NumTokens);\n    ReplacementTokens = NewReplacementTokens;\n    return llvm::MutableArrayRef(NewReplacementTokens, NumTokens);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18717",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MacroInfo.h",
-  "source_line": 253,
-  "validation_status": "validated"
-}

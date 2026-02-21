@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/container/internal/raw_hash_set.h\"\n#include <atomic>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/hash/hash.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02435_execute() {\n    {\n  c.set_size(0);\n  if (reuse) {\n    ResetCtrl(c, policy.slot_size);\n    ResetGrowthLeft(c);\n    c.infoz().RecordStorageChanged(0, c.capacity());\n  } else {\n    // We need to record infoz before calling dealloc, which will unregister\n    // infoz.\n    c.infoz().RecordClearedReservation();\n    c.infoz().RecordStorageChanged(0, 0);\n    (*policy.dealloc)(c, policy);\n    c.set_control(EmptyGroup());\n    c.set_generation_ptr(EmptyGeneration());\n    c.set_slots(nullptr);\n    c.set_capacity(0);\n  }\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02435",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.cc",
-  "source_line": 255,
-  "validation_status": "validated"
-}

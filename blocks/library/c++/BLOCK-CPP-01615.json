@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/crc/crc32c.h\"\n#include <cstdint>\n#include \"absl/crc/internal/crc.h\"\n#include \"absl/crc/internal/crc32c.h\"\n#include \"absl/crc/internal/crc_memcpy.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01615_execute() {\n    {\n  uint32_t result = static_cast<uint32_t>(lhs_crc);\n  CrcEngine()->ExtendByZeroes(&result, rhs_len);\n  return crc32c_t{result ^ static_cast<uint32_t>(rhs_crc)};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01615",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/crc32c.cc",
-  "source_line": 67,
-  "validation_status": "validated"
-}

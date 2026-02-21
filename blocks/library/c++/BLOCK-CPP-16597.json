@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nclass MacroBuilder {\n  raw_ostream &Out;\npublic:\n  MacroBuilder(raw_ostream &Output) : Out(Output) {}\n\n  /// Append a \\#define line for macro of the form \"\\#define Name Value\\n\".\n  void defineMacro(const Twine &Name, const Twine &Value = \"1\") {\n    Out << \"#define \" << Name << ' ' << Value << '\\n';\n  }\n\n  /// Append a \\#undef line for Name.  Name should be of the form XXX\n  /// and we emit \"\\#undef XXX\".\n  void undefineMacro(const Twine &Name) {\n    Out << \"#undef \" << Name << '\\n';\n  }\n\n  /// Directly append Str and a newline to the underlying buffer.\n  void append(const Twine &Str) {\n    Out << Str << '\\n';\n  }\n};\n\n}",
-  "id": "BLOCK-CPP-16597",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/MacroBuilder.h",
-  "source_line": 21,
-  "validation_status": "validated"
-}

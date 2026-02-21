@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n#include \"clang/AST/AbstractBasicReader.h\"\n#include \"clang/Lex/Token.h\"\n#include \"clang/Serialization/ASTReader.h\"\n#include \"clang/Serialization/SourceLocationEncoding.h\"\n#include \"llvm/ADT/APFloat.h\"\n#include \"llvm/ADT/APInt.h\"\n#include \"llvm/ADT/APSInt.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20917_execute() {\n    {\n    TemplateArgument Arg = readTemplateArgument();\n    if (Canonicalize) {\n      Arg = getContext().getCanonicalTemplateArgument(Arg);\n    }\n    return Arg;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20917",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Serialization/ASTRecordReader.h",
-  "source_line": 237,
-  "validation_status": "validated"
-}

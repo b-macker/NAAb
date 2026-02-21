@@ -1,8 +1,0 @@
-{
-  "code": "{\n  using optional_none_tag = typename RefTy::optional_none_tag;\n  RefTy MaybeRef;\n\npublic:\n  MapEntryOptionalStorage() : MaybeRef(optional_none_tag()) {}\n\n  template <class... ArgTypes>\n  explicit MapEntryOptionalStorage(std::in_place_t, ArgTypes &&...Args)\n      : MaybeRef(std::forward<ArgTypes>(Args)...) {}\n\n  void reset() { MaybeRef = optional_none_tag(); }\n\n  bool has_value() const { return MaybeRef.hasOptionalValue(); }\n\n  RefTy &value() & {\n    assert(has_value());\n    return MaybeRef;\n  }\n  RefTy const &value() const & {\n    assert(has_value());\n    return MaybeRef;\n  }\n  RefTy &&value() && {\n    assert(has_value());\n    return std::move(MaybeRef);\n  }\n\n  template <class... Args> void emplace(Args &&...args) {\n    MaybeRef = RefTy(std::forward<Args>(args)...);\n  }\n\n  MapEntryOptionalStorage &operator=(RefTy Ref) {\n    MaybeRef = Ref;\n    return *this;\n  }\n}",
-  "id": "BLOCK-CPP-16333",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/DirectoryEntry.h",
-  "source_line": 127,
-  "validation_status": "validated"
-}

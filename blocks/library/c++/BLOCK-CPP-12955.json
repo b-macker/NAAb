@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclarationName.h\"\n#include \"clang/AST/Expr.h\"\n#include \"clang/AST/NestedNameSpecifier.h\"\n#include \"clang/AST/Stmt.h\"\n#include \"llvm/Support/Compiler.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-12955_execute() {\n    {\n    Stmt *Body = nullptr;\n    Stmt *Promise = nullptr;\n    Expr *InitialSuspend = nullptr;\n    Expr *FinalSuspend = nullptr;\n    Stmt *OnException = nullptr;\n    Stmt *OnFallthrough = nullptr;\n    Expr *Allocate = nullptr;\n    Expr *Deallocate = nullptr;\n    Stmt *ResultDecl = nullptr;\n    Expr *ReturnValue = nullptr;\n    Stmt *ReturnStmt = nullptr;\n    Stmt *ReturnStmtOnAllocFailure = nullptr;\n    ArrayRef<Stmt *> ParamMoves;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-12955",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/StmtCXX.h",
-  "source_line": 348,
-  "validation_status": "validated"
-}

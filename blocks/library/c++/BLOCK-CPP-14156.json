@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class ASTContext; // ASTContext creates these.\n  friend class ASTReader;\n  template <class T> friend class serialization::AbstractTypeReader;\n\n  ObjCInterfaceDecl *Decl;\n\n  ObjCInterfaceType(const ObjCInterfaceDecl *D)\n      : ObjCObjectType(Nonce_ObjCInterface),\n        Decl(const_cast<ObjCInterfaceDecl*>(D)) {}\n\npublic:\n  /// Get the declaration of this interface.\n  ObjCInterfaceDecl *getDecl() const;\n\n  bool isSugared() const { return false; }\n  QualType desugar() const { return QualType(this, 0); }\n\n  static bool classof(const Type *T) {\n    return T->getTypeClass() == ObjCInterface;\n  }\n\n  // Nonsense to \"hide\" certain members of ObjCObjectType within this\n  // class.  People asking for protocols on an ObjCInterfaceType are\n  // not going to get what they want: ObjCInterfaceTypes are\n  // guaranteed to have no protocols.\n  enum {\n    qual_iterator,\n    qual_begin,\n    qual_end,\n    getNumProtocols,\n    getProtocol\n  };\n}",
-  "id": "BLOCK-CPP-14156",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 6276,
-  "validation_status": "validated"
-}

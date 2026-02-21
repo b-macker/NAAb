@@ -1,8 +1,0 @@
-{
-  "code": "{\n    Parser &P;\n    CXXScopeSpec &SS;\n    bool EnteredScope;\n    bool CreatedScope;\n  public:\n    DeclaratorScopeObj(Parser &p, CXXScopeSpec &ss)\n      : P(p), SS(ss), EnteredScope(false), CreatedScope(false) {}\n\n    void EnterDeclaratorScope() {\n      assert(!EnteredScope && \"Already entered the scope!\");\n      assert(SS.isSet() && \"C++ scope was not set!\");\n\n      CreatedScope = true;\n      P.EnterScope(0); // Not a decl scope.\n\n      if (!P.Actions.ActOnCXXEnterDeclaratorScope(P.getCurScope(), SS))\n        EnteredScope = true;\n    }\n\n    ~DeclaratorScopeObj() {\n      if (EnteredScope) {\n        assert(SS.isSet() && \"C++ scope was cleared ?\");\n        P.Actions.ActOnCXXExitDeclaratorScope(P.getCurScope(), SS);\n      }\n      if (CreatedScope)\n        P.ExitScope();\n    }\n  }",
-  "id": "BLOCK-CPP-19352",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/Parser.h",
-  "source_line": 3058,
-  "validation_status": "validated"
-}

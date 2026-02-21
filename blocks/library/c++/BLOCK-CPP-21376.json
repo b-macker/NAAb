@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"llvm/ADT/ImmutableSet.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21376_execute() {\n    {\n    return computeLiveness(analysisContext, false);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21376",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Analyses/LiveVariables.h",
-  "source_line": 114,
-  "validation_status": "validated"
-}

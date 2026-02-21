@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/details/null_mutex.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/sinks/base_sink.h>\n#include <array>\n#include <string>\n#include <syslog.h>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00481_execute() {\n    {\n    return Factory::template create<sinks::syslog_sink_mt>(logger_name, syslog_ident, syslog_option,\n                                                           syslog_facility, enable_formatting);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00481",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/syslog_sink.h",
-  "source_line": 84,
-  "validation_status": "validated"
-}

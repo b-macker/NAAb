@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/escaping.h\"\n#include <algorithm>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/base/internal/unaligned_access.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/charset.h\"\n#include \"absl/strings/internal/escaping.h\"\n#include \"absl/strings/internal/resize_uninitialized.h\"\n#include \"absl/strings/internal/utf8.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n// #include <sys/time.h>\n// #include <stdlib.h>\n// #include <string.h>\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01923_execute() {\n    {\n  // Determine the size of the output string.  Base64 encodes every 3 bytes into\n  // 4 characters.  Any leftover chars are added directly for good measure.\n  const size_t dest_len = 3 * (slen / 4) + (slen % 4);\n\n  strings_internal::STLStringResizeUninitialized(dest, dest_len);\n\n  // We are getting the destination buffer by getting the beginning of the\n  // string and converting it into a char *.\n  size_t len;\n  const bool ok =\n      Base64UnescapeInternal(src, slen, &(*dest)[0], dest_len, unbase64, &len);\n  if (!ok) {\n    dest->clear();\n    return false;\n  }\n\n  // could be shorter if there was padding\n  assert(len <= dest_len);\n  dest->erase(len);\n\n  return true;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01923",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/escaping.cc",
-  "source_line": 786,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclCXX.h\"\n#include \"clang/AST/DeclTemplate.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-07118_execute() {\n    {\n  const auto *MD = dyn_cast<CXXMethodDecl>(DC);\n  if (!MD) return false;\n  const CXXRecordDecl *LambdaClass = MD->getParent();\n  if (LambdaClass && LambdaClass->isGenericLambda())\n    return (isLambdaCallOperator(MD) || MD->isLambdaStaticInvoker()) &&\n                    MD->isFunctionTemplateSpecialization();\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-07118",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTLambda.h",
-  "source_line": 67,
-  "validation_status": "validated"
-}

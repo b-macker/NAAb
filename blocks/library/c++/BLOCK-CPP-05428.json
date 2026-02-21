@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <memory>\n#include <vector>\n#include \"absl/base/internal/raw_logging.h\"\n#include \"absl/crc/internal/crc.h\"\n\nusing namespace absl;\nusing namespace crc_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05428_execute() {\n    {  // Implementation of the abstract class CRC\n public:\n  using Uint32By256 = uint32_t[256];\n\n  CRCImpl() = default;\n  ~CRCImpl() override = default;\n\n  // The internal version of CRC::New().\n  static CRCImpl* NewInternal();\n\n  // Fill in a table for updating a CRC by one word of 'word_size' bytes\n  // [last_lo, last_hi] contains the answer if the last bit in the word\n  // is set.\n  static void FillWordTable(uint32_t poly, uint32_t last, int word_size,\n                            Uint32By256* t);\n\n  // Build the table for extending by zeroes, returning the number of entries.\n  // For a in {1, 2, ..., ZEROES_BASE-1}, b in {0, 1, 2, 3, ...},\n  // entry j=a-1+(ZEROES_BASE-1)*b\n  // contains a polynomial Pi such that multiplying\n  // a CRC by Pi mod P, where P is the CRC polynomial, is equivalent to\n  // appending a*2**(ZEROES_BASE_LG*b) zero bytes to the original string.\n  static int FillZeroesTable(uint32_t poly, Uint32By256* t);\n\n  virtual void InitTables() = 0;\n\n private:\n  CRCImpl(const CRCImpl&) = delete;\n  CRCImpl& operator=(const CRCImpl&) = delete;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05428",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/crc_internal.h",
-  "source_line": 63,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/Support/Allocator.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <iterator>\n#include <memory>\n#include <type_traits>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-22052_execute() {\n    { return Begin; }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-22052",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/Support/BumpVector.h",
-  "source_line": 102,
-  "validation_status": "validated"
-}

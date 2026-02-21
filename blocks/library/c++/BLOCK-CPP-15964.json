@@ -1,8 +1,0 @@
-{
-  "code": "{\n\ninline llvm::VersionTuple alignedAllocMinVersion(llvm::Triple::OSType OS) {\n  switch (OS) {\n  default:\n    break;\n  case llvm::Triple::Darwin:\n  case llvm::Triple::MacOSX: // Earliest supporting version is 10.13.\n    return llvm::VersionTuple(10U, 13U);\n  case llvm::Triple::IOS:\n  case llvm::Triple::TvOS: // Earliest supporting version is 11.0.0.\n    return llvm::VersionTuple(11U);\n  case llvm::Triple::WatchOS: // Earliest supporting version is 4.0.0.\n    return llvm::VersionTuple(4U);\n  case llvm::Triple::ZOS:\n    return llvm::VersionTuple(); // All z/OS versions have no support.\n  }\n\n  llvm_unreachable(\"Unexpected OS\");\n}\n\n}",
-  "id": "BLOCK-CPP-15964",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/AlignedAllocation.h",
-  "source_line": 22,
-  "validation_status": "validated"
-}

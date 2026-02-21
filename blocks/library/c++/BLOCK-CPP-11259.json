@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Decl.h\"\n#include \"clang/Basic/Lambda.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-11259_execute() {\n    {\n    return DeclAndBits.getInt() & Capture_Implicit;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-11259",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/LambdaCapture.h",
-  "source_line": 111,
-  "validation_status": "validated"
-}

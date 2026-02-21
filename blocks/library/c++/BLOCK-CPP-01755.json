@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nvoid DieBecauseNull(const char* file, int line, const char* exprtext) {\n  LOG(FATAL).AtLocation(file, line)\n      << absl::StrCat(\"Check failed: '\", exprtext, \"' Must be non-null\");\n}\n\n}",
-  "id": "BLOCK-CPP-01755",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/die_if_null.cc",
-  "source_line": 23,
-  "validation_status": "validated"
-}

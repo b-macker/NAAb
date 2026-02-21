@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Driver/Phases.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Option/ArgList.h\"\n\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-17927_execute() {\n    {\nclass StringRef;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-17927",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Types.h",
-  "source_line": 16,
-  "validation_status": "validated"
-}

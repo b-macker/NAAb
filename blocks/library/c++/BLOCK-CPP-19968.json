@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/DeclObjC.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-19968_execute() {\n    { NextAndExtraBits.setPointer(L); }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-19968",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ObjCMethodList.h",
-  "source_line": 47,
-  "validation_status": "validated"
-}

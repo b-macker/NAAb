@@ -1,8 +1,0 @@
-{
-  "code": "{\n  friend class BugReporter;\n\n  /// List of *owned* BugReport objects.\n  llvm::SmallVector<std::unique_ptr<BugReport>, 4> Reports;\n\n  void AddReport(std::unique_ptr<BugReport> &&R) {\n    Reports.push_back(std::move(R));\n  }\n\npublic:\n  BugReportEquivClass(std::unique_ptr<BugReport> R) { AddReport(std::move(R)); }\n\n  ArrayRef<std::unique_ptr<BugReport>> getReports() const { return Reports; }\n\n  void Profile(llvm::FoldingSetNodeID& ID) const {\n    assert(!Reports.empty());\n    Reports.front()->Profile(ID);\n  }\n}",
-  "id": "BLOCK-CPP-22429",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/StaticAnalyzer/Core/BugReporter/BugReporter.h",
-  "source_line": 544,
-  "validation_status": "validated"
-}

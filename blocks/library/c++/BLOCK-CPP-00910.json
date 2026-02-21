@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstddef>  // std::byte\n#include <cstdio>   // std::FILE\n#include <cstring>  // std::strlen\n#include <iterator>\n#include <limits>\n#include <string>\n#include <type_traits>\n\nusing namespace fmt;\nusing namespace v9;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00910_execute() {\n    {\n#ifdef __cpp_lib_is_constant_evaluated\n  ignore_unused(default_value);\n  return std::is_constant_evaluated();\n#else\n  return default_value;\n#endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00910",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/core.h",
-  "source_line": 345,
-  "validation_status": "validated"
-}

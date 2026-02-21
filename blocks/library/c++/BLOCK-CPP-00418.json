@@ -1,8 +1,0 @@
-{
-  "code": "#include \"spdlog/async.h\"\n#include \"spdlog/details/log_msg.h\"\n#include \"spdlog/details/null_mutex.h\"\n#include \"spdlog/details/synchronous_factory.h\"\n#include \"spdlog/sinks/base_sink.h\"\n#include <mutex>\n#include <spdlog/common.h>\n#include <librdkafka/rdkafkacpp.h>\n\nusing namespace spdlog;\nusing namespace sinks;\nusing namespace sinks;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00418_execute() {\n    {\n    return Factory::template create<sinks::kafka_sink_mt>(logger_name, config);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00418",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/sinks/kafka_sink.h",
-  "source_line": 107,
-  "validation_status": "validated"
-}

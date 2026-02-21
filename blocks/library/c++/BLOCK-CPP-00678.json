@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <chrono>\n#include <cmath>    // std::isfinite\n#include <cstring>  // std::memcpy\n#include <ctime>\n#include <iterator>\n#include <locale>\n#include <ostream>\n#include <type_traits>\n#include \"format.h\"\n\nusing namespace safe_duration_cast;\nusing namespace safe_duration_cast;\nusing namespace detail;\nusing namespace detail;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\nusing namespace fmt;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00678_execute() {\n    {\n    auto year = tm_year();\n    char buf[10];\n    size_t offset = 0;\n    if (year >= 0 && year < 10000) {\n      copy2(buf, digits2(static_cast<size_t>(year / 100)));\n    } else {\n      offset = 4;\n      write_year_extended(year);\n      year = 0;\n    }\n    write_digit2_separated(buf + 2, static_cast<unsigned>(year % 100),\n                           to_unsigned(tm_mon() + 1), to_unsigned(tm_mday()),\n                           '-');\n    out_ = copy_str<Char>(std::begin(buf) + offset, std::end(buf), out_);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00678",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/chrono.h",
-  "source_line": 1213,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <algorithm>\n#include <cctype>\n#include <cerrno>  // errno\n#include <climits>\n#include <cmath>\n#include <cstdarg>\n#include <cstring>  // std::memmove\n#include <cwchar>\n#include <exception>\n#include \"format.h\"\n\nusing namespace detail;\nusing namespace detail;\nusing namespace detail;\nusing namespace dragonbox;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01181_execute() {\n    {\n  // The numbers below are chosen such that:\n  //   1. floor(n/d) = floor(nm / 2^k) where d=10 or d=100,\n  //   2. nm mod 2^k < m if and only if n is divisible by d,\n  // where m is magic_number, k is shift_amount\n  // and d is divisor.\n  //\n  // Item 1 is a common technique of replacing division by a constant with\n  // multiplication, see e.g. \"Division by Invariant Integers Using\n  // Multiplication\" by Granlund and Montgomery (1994). magic_number (m) is set\n  // to ceil(2^k/d) for large enough k.\n  // The idea for item 2 originates from Schubfach.\n  constexpr auto info = div_small_pow10_infos[N - 1];\n  FMT_ASSERT(n <= info.divisor * 10, \"n is too large\");\n  constexpr uint32_t magic_number =\n      (1u << info.shift_amount) / info.divisor + 1;\n  n *= magic_number;\n  const uint32_t comparison_mask = (1u << info.shift_amount) - 1;\n  bool result = (n & comparison_mask) < magic_number;\n  n >>= info.shift_amount;\n  return result;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01181",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/fmt/bundled/format-inl.h",
-  "source_line": 245,
-  "validation_status": "validated"
-}

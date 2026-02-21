@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n// `sequence_urbg` is a simple random number generator which meets the\n// requirements of [rand.req.urbg], and is solely for testing absl\n// distributions.\nclass sequence_urbg {\n public:\n  using result_type = uint64_t;\n\n  static constexpr result_type(min)() {\n    return (std::numeric_limits<result_type>::min)();\n  }\n  static constexpr result_type(max)() {\n    return (std::numeric_limits<result_type>::max)();\n  }\n\n  sequence_urbg(std::initializer_list<result_type> data) : i_(0), data_(data) {}\n  void reset() { i_ = 0; }\n\n  result_type operator()() { return data_[i_++ % data_.size()]; }\n\n  size_t invocations() const { return i_; }\n\n private:\n  size_t i_;\n  std::vector<result_type> data_;\n};\n\n}",
-  "id": "BLOCK-CPP-05976",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/sequence_urbg.h",
-  "source_line": 28,
-  "validation_status": "validated"
-}

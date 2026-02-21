@@ -1,8 +1,0 @@
-{
-  "code": "#include <stddef.h>\n#include <stdint.h>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include <sanitizer/hwasan_interface.h>\n#include \"absl/base/internal/dynamic_annotations.h\"  // IWYU pragma: export\n#include <sanitizer/msan_interface.h>\n#include <sanitizer/common_interface_defs.h>\n\nusing namespace absl;\nusing namespace base_internal;\nusing namespace base_internal;\nusing namespace absl;\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03426_execute() {\n    {\n#ifdef ABSL_HAVE_HWADDRESS_SANITIZER\n// Under HWASAN changes the tag of the pointer.\ntemplate <typename T>\nT* HwasanTagPointer(T* ptr, uintptr_t tag) {\n  return reinterpret_cast<T*>(__hwasan_tag_pointer(ptr, tag));\n}\n#else\ntemplate <typename T>\nT* HwasanTagPointer(T* ptr, uintptr_t) {\n  return ptr;\n}\n#endif\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03426",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/base/dynamic_annotations.h",
-  "source_line": 468,
-  "validation_status": "validated"
-}

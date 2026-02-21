@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/crc/internal/cpu_detect.h\"\n#include <cstdint>\n#include <string>\n#include \"absl/base/config.h\"\n#include <asm/hwcap.h>\n#include <sys/auxv.h>\n#include <intrin.h>\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02438_execute() {\n    {\n  __asm__ volatile(\"cpuid \\n\\t\"\n                   : \"=a\"(cpu_info[0]), \"=b\"(cpu_info[1]), \"=c\"(cpu_info[2]),\n                     \"=d\"(cpu_info[3])\n                   : \"a\"(info_type), \"c\"(0));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02438",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/crc/internal/cpu_detect.cc",
-  "source_line": 39,
-  "validation_status": "validated"
-}

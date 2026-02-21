@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTContext.h\"\n\nusing namespace clang;\nusing namespace tooling;\nusing namespace fixit;\nusing namespace internal;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21183_execute() {\n    {\n  return FixItHint::CreateReplacement(internal::getSourceRange(Destination),\n                                      Source);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21183",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Tooling/FixIt.h",
-  "source_line": 69,
-  "validation_status": "validated"
-}

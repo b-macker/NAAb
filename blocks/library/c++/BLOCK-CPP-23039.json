@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/ASTVector.h\"\n#include \"clang/AST/DeclAccessPair.h\"\n#include \"clang/AST/UnresolvedSet.h\"\n#include \"clang/Basic/Specifiers.h\"\n#include <cassert>\n#include <cstdint>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23039_execute() {\n    {\n    Decls.push_back(DeclAccessPair::make(D, AS), C);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23039",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTUnresolvedSet.h",
-  "source_line": 55,
-  "validation_status": "validated"
-}

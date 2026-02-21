@@ -1,8 +1,0 @@
-{
-  "code": "#include <cassert>\n#include <cstdio>\n#include <ostream>\n#include <string>\n#include \"absl/base/config.h\"\n#include \"absl/container/inlined_vector.h\"\n#include \"absl/strings/internal/str_format/arg.h\"\n#include \"absl/strings/internal/str_format/checker.h\"\n#include \"absl/strings/internal/str_format/constexpr_parser.h\"\n#include \"absl/strings/internal/str_format/extension.h\"\n#include \"absl/strings/internal/str_format/parser.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/span.h\"\n#include \"absl/utility/utility.h\"\n\nusing namespace absl;\nusing namespace str_format_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-06325_execute() {\n    {\n public:\n  Streamable(const UntypedFormatSpecImpl& format,\n             absl::Span<const FormatArgImpl> args)\n      : format_(format), args_(args.begin(), args.end()) {}\n\n  std::ostream& Print(std::ostream& os) const;\n\n  friend std::ostream& operator<<(std::ostream& os, const Streamable& l) {\n    return l.Print(os);\n  }\n\n private:\n  const UntypedFormatSpecImpl& format_;\n  absl::InlinedVector<FormatArgImpl, 4> args_;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-06325",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/internal/str_format/bind.h",
-  "source_line": 180,
-  "validation_status": "validated"
-}

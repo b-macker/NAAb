@@ -1,8 +1,0 @@
-{
-  "code": "{\npublic:\n  CFGMemberDtor(const FieldDecl *field)\n      : CFGImplicitDtor(MemberDtor, field, nullptr) {}\n\n  const FieldDecl *getFieldDecl() const {\n    return static_cast<const FieldDecl*>(Data1.getPointer());\n  }\n\nprivate:\n  friend class CFGElement;\n\n  CFGMemberDtor() = default;\n\n  static bool isKind(const CFGElement &E) {\n    return E.getKind() == MemberDtor;\n  }\n}",
-  "id": "BLOCK-CPP-15561",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/CFG.h",
-  "source_line": 461,
-  "validation_status": "validated"
-}

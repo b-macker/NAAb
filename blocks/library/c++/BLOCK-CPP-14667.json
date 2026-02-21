@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ASTMatchers/ASTMatchers.h\"\n#include \"llvm/ADT/SmallPtrSet.h\"\n#include \"llvm/ADT/StringMap.h\"\n#include \"llvm/Support/Timer.h\"\n#include <optional>\n\nusing namespace clang;\nusing namespace ast_matchers;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-14667_execute() {\n    {\n    match(clang::DynTypedNode::create(Node), Context);\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-14667",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchFinder.h",
-  "source_line": 194,
-  "validation_status": "validated"
-}

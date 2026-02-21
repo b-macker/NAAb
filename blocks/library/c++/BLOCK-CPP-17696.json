@@ -1,8 +1,0 @@
-{
-  "code": "{\n  void anchor() override;\n\npublic:\n  DsymutilJobAction(ActionList &Inputs, types::ID Type);\n\n  static bool classof(const Action *A) {\n    return A->getKind() == DsymutilJobClass;\n  }\n}",
-  "id": "BLOCK-CPP-17696",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Driver/Action.h",
-  "source_line": 539,
-  "validation_status": "validated"
-}

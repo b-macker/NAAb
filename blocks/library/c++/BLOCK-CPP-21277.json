@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/ASTMatchers/Dynamic/Diagnostics.h\"\n#include \"clang/ASTMatchers/Dynamic/VariantValue.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include <optional>\n#include <string>\n#include <utility>\n#include <vector>\n\nusing namespace clang;\nusing namespace ast_matchers;\nusing namespace dynamic;\nusing namespace internal;\nusing namespace internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-21277_execute() {\n    {\n  MatcherCompletion() = default;\n  MatcherCompletion(StringRef TypedText, StringRef MatcherDecl,\n                    unsigned Specificity)\n      : TypedText(TypedText), MatcherDecl(MatcherDecl),\n        Specificity(Specificity) {}\n\n  bool operator==(const MatcherCompletion &Other) const {\n    return TypedText == Other.TypedText && MatcherDecl == Other.MatcherDecl;\n  }\n\n  /// The text to type to select this matcher.\n  std::string TypedText;\n\n  /// The \"declaration\" of the matcher, with type information.\n  std::string MatcherDecl;\n\n  /// Value corresponding to the \"specificity\" of the converted matcher.\n  ///\n  /// Zero specificity indicates that this conversion would produce a trivial\n  /// matcher that will either always or never match.\n  /// Such matchers are excluded from code completion results.\n  unsigned Specificity;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-21277",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/Dynamic/Registry.h",
-  "source_line": 57,
-  "validation_status": "validated"
-}

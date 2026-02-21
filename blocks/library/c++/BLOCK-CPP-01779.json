@@ -1,8 +1,0 @@
-{
-  "code": "{\n\nvoid RawSetMinLogLevel(absl::LogSeverityAtLeast severity) {\n  min_log_level.store(static_cast<int>(severity), std::memory_order_release);\n}\n\nvoid RawSetStderrThreshold(absl::LogSeverityAtLeast severity) {\n  stderrthreshold.store(static_cast<int>(severity), std::memory_order_release);\n}\n\nvoid RawEnableLogPrefix(bool on_off) {\n  prepend_log_prefix.store(on_off, std::memory_order_release);\n}\n\nvoid SetLoggingGlobalsListener(LoggingGlobalsListener l) {\n  logging_globals_listener.Store(l);\n}\n\n}",
-  "id": "BLOCK-CPP-01779",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/log/globals.cc",
-  "source_line": 67,
-  "validation_status": "validated"
-}

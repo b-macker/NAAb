@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/demangle.h\"\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <limits>\n#include <string>\n#include \"absl/base/config.h\"\n#include <cxxabi.h>\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02548_execute() {\n    {\n  ComplexityGuard guard(state);\n  if (guard.IsTooComplex()) return false;\n  bool negative = false;\n  if (ParseOneCharToken(state, 'n')) {\n    negative = true;\n  }\n  const char *p = RemainingInput(state);\n  uint64_t number = 0;\n  for (; *p != '\\0'; ++p) {\n    if (IsDigit(*p)) {\n      number = number * 10 + static_cast<uint64_t>(*p - '0');\n    } else {\n      break;\n    }\n  }\n  // Apply the sign with uint64_t arithmetic so overflows aren't UB.  Gives\n  // \"incorrect\" results for out-of-range inputs, but negative values only\n  // appear for literals, which aren't printed.\n  if (negative) {\n    number = ~number + 1;\n  }\n  if (p != RemainingInput(state)) {  // Conversion succeeded.\n    state->parse_state.mangled_idx += p - RemainingInput(state);\n    if (number_out != nullptr) {\n      // Note: possibly truncate \"number\".\n      *number_out = static_cast<int>(number);\n    }\n    return true;\n  }\n  return false;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02548",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/demangle.cc",
-  "source_line": 867,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/common.h>\n#include <spdlog/details/registry.h>\n#include <spdlog/details/synchronous_factory.h>\n#include <spdlog/logger.h>\n#include <spdlog/version.h>\n#include <chrono>\n#include <functional>\n#include <memory>\n#include <string>\n\nusing namespace spdlog;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00148_execute() {\n    {\n    details::registry::instance().flush_every(interval);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00148",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/spdlog.h",
-  "source_line": 85,
-  "validation_status": "validated"
-}

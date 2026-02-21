@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/AttrSubjectMatchRules.h\"\n#include \"clang/Basic/AttributeCommonInfo.h\"\n#include \"clang/Basic/Diagnostic.h\"\n#include \"clang/Basic/ParsedAttrInfo.h\"\n#include \"clang/Basic/SourceLocation.h\"\n#include \"clang/Sema/Ownership.h\"\n#include \"llvm/ADT/PointerUnion.h\"\n#include \"llvm/ADT/SmallVector.h\"\n#include \"llvm/Support/Allocator.h\"\n#include \"llvm/Support/VersionTuple.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstring>\n#include <utility>\n\nusing namespace clang;\nusing namespace detail;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20122_execute() {\n    {\n    switch (getParsedKind()) {\n    case ParsedAttr::AT_OpenCLConstantAddressSpace:\n      return LangAS::opencl_constant;\n    case ParsedAttr::AT_OpenCLGlobalAddressSpace:\n      return LangAS::opencl_global;\n    case ParsedAttr::AT_OpenCLGlobalDeviceAddressSpace:\n      return LangAS::opencl_global_device;\n    case ParsedAttr::AT_OpenCLGlobalHostAddressSpace:\n      return LangAS::opencl_global_host;\n    case ParsedAttr::AT_OpenCLLocalAddressSpace:\n      return LangAS::opencl_local;\n    case ParsedAttr::AT_OpenCLPrivateAddressSpace:\n      return LangAS::opencl_private;\n    case ParsedAttr::AT_OpenCLGenericAddressSpace:\n      return LangAS::opencl_generic;\n    default:\n      return LangAS::Default;\n    }\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20122",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/ParsedAttr.h",
-  "source_line": 554,
-  "validation_status": "validated"
-}

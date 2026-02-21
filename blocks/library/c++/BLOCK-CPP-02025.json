@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/strings/str_replace.h\"\n#include <cstddef>\n#include <initializer_list>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace strings_internal;\nusing namespace strings_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02025_execute() {\n    {\n  return StrReplaceAll<strings_internal::FixedMapping>(s, replacements);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02025",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/strings/str_replace.cc",
-  "source_line": 80,
-  "validation_status": "validated"
-}

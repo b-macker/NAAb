@@ -1,8 +1,0 @@
-{
-  "code": "{\n  public:\n    virtual ~MatchCallback();\n\n    /// Called on every match by the \\c MatchFinder.\n    virtual void run(const MatchResult &Result) = 0;\n\n    /// Called at the start of each translation unit.\n    ///\n    /// Optionally override to do per translation unit tasks.\n    virtual void onStartOfTranslationUnit() {}\n\n    /// Called at the end of each translation unit.\n    ///\n    /// Optionally override to do per translation unit tasks.\n    virtual void onEndOfTranslationUnit() {}\n\n    /// An id used to group the matchers.\n    ///\n    /// This id is used, for example, for the profiling output.\n    /// It defaults to \"<unknown>\".\n    virtual StringRef getID() const;\n\n    /// TraversalKind to use while matching and processing\n    /// the result nodes. This API is temporary to facilitate\n    /// third parties porting existing code to the default\n    /// behavior of clang-tidy.\n    virtual std::optional<TraversalKind> getCheckTraversalKind() const;\n  }",
-  "id": "BLOCK-CPP-14675",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/ASTMatchers/ASTMatchFinder.h",
-  "source_line": 92,
-  "validation_status": "validated"
-}

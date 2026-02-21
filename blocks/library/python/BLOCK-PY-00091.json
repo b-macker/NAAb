@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00091_execute() {\n    def _extract_dependencies(self, code: str) -> List[str]:\n        \"\"\"Extract Cargo dependencies from Rust code\"\"\"\n        dependencies = []\n        \n        # Common Rust dependencies based on use statements\n        if 'tokio::' in code or 'tokio = ' in code:\n            dependencies.append('tokio')\n            \n        if 'axum::' in code or 'axum = ' in code:\n            dependencies.append('axum')\n            \n        if 'serde::' in code or 'serde = ' in code:\n            dependencies.extend(['serde', 'serde_json'])\n            \n        if 'sqlx::' in code:\n            dependencies.append('sqlx')\n            \n        if 'anyhow::' in code:\n            dependencies.append('anyhow')\n            \n        if 'thiserror::' in code:\n            dependencies.append('thiserror')\n            \n        if 'tracing::' in code:\n            dependencies.extend(['tracing', 'tracing-subscriber'])\n            \n        if 'uuid::' in code:\n            dependencies.append('uuid')\n            \n        if 'chrono::' in code:\n            dependencies.append('chrono')\n            \n        if 'futures::' in code:\n            dependencies.append('futures')\n            \n        if 'tower::' in code or 'tower_http::' in code:\n            dependencies.extend(['tower', 'tower-http'])\n            \n        return list(set(dependencies))\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00091",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/rust_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

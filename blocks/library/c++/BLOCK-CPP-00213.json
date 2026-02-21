@@ -1,8 +1,0 @@
-{
-  "code": "#include <mutex>\n#include <spdlog/details/null_mutex.h>\n\nusing namespace spdlog;\nusing namespace details;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00213_execute() {\n    {\n\nstruct console_mutex {\n    using mutex_t = std::mutex;\n    static mutex_t &mutex() {\n        static mutex_t s_mutex;\n        return s_mutex;\n    }\n};\n\nstruct console_nullmutex {\n    using mutex_t = null_mutex;\n    static mutex_t &mutex() {\n        static mutex_t s_mutex;\n        return s_mutex;\n    }\n};\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00213",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/details/console_globals.h",
-  "source_line": 10,
-  "validation_status": "validated"
-}

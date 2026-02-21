@@ -1,8 +1,0 @@
-{
-  "code": "#include <cstdint>\n#include <limits>\n#include <type_traits>\n#include \"absl/base/config.h\"\n#include <bit>\n#include \"absl/base/attributes.h\"\n#include \"absl/numeric/internal/bits.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03724_execute() {\n    {\n  return std::numeric_limits<T>::digits - countl_zero(x);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03724",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/numeric/bits.h",
-  "source_line": 159,
-  "validation_status": "validated"
-}

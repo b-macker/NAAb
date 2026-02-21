@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n#include \"llvm/ADT/DenseMapInfo.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20774_execute() {\n    {\n      return DenseMapInfo::isEqual(LHS.getAlias(), RHS.getAlias());\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20774",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Weak.h",
-  "source_line": 48,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n\n// On platforms other than Linux, just return true.\nbool AddressIsReadable(const void* /* addr */) { return true; }\n\n}",
-  "id": "BLOCK-CPP-02499",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/address_is_readable.cc",
-  "source_line": 24,
-  "validation_status": "validated"
-}

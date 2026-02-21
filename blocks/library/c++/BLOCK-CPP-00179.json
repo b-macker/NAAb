@@ -1,8 +1,0 @@
-{
-  "code": "#include <spdlog/cfg/helpers.h>\n#include <spdlog/details/registry.h>\n\nusing namespace spdlog;\nusing namespace cfg;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-00179_execute() {\n    {\n    load_argv_levels(argc, const_cast<const char **>(argv));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-00179",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/spdlog/include/spdlog/cfg/argv.h",
-  "source_line": 35,
-  "validation_status": "validated"
-}

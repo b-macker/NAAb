@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00421_execute() {\n    class FromImport(Stmt):\n    \"\"\"A node that represents the from import tag.  It's important to not\n    pass unsafe names to the name attribute.  The compiler translates the\n    attribute lookups directly into getattr calls and does *not* use the\n    subscript callback of the interface.  As exported variables may not\n    start with double underscores (which the parser asserts) this is not a\n    problem for regular Jinja code, but if this node is used in an extension\n    extra care must be taken.\n\n    The list of names may contain tuples if aliases are wanted.\n    \"\"\"\n\n    fields = (\"template\", \"names\", \"with_context\")\n    template: \"Expr\"\n    names: list[str | tuple[str, str]]\n    with_context: bool\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00421",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 425,
-  "validation_status": "validated"
-}

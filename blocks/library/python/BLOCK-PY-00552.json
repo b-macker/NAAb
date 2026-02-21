@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00552_execute() {\n    def get_imports_from_children(children: list[LN]) -> Generator[str, None, None]:\n        for child in children:\n            if isinstance(child, Leaf):\n                if child.type == token.NAME:\n                    yield child.value\n\n            elif child.type == syms.import_as_name:\n                orig_name = child.children[0]\n                assert isinstance(orig_name, Leaf), \"Invalid syntax parsing imports\"\n                assert orig_name.type == token.NAME, \"Invalid syntax parsing imports\"\n                yield orig_name.value\n\n            elif child.type == syms.import_as_names:\n                yield from get_imports_from_children(child.children)\n\n            else:\n                raise AssertionError(\"Invalid syntax parsing imports\")\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00552",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmplabimd09.py",
-  "source_line": 1528,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00415_execute() {\n    class CallBlock(Stmt):\n    \"\"\"Like a macro without a name but a call instead.  `call` is called with\n    the unnamed macro as `caller` argument this node holds.\n    \"\"\"\n\n    fields = (\"call\", \"args\", \"defaults\", \"body\")\n    call: \"Call\"\n    args: list[\"Name\"]\n    defaults: list[\"Expr\"]\n    body: list[Node]\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00415",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 360,
-  "validation_status": "validated"
-}

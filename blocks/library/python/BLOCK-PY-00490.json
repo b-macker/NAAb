@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00490_execute() {\n    def __repr__(self) -> str:\n        args_str = \", \".join(f\"{a}={getattr(self, a, None)!r}\" for a in self.fields)\n        return f\"{type(self).__name__}({args_str})\"\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00490",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmppoupkjvy.py",
-  "source_line": 248,
-  "validation_status": "validated"
-}

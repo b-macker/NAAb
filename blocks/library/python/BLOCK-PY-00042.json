@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00042_execute() {\n    def _initialize_templates(self) -> Dict[str, str]:\n        return {\n            'fastapi_app': '''\nfrom fastapi import FastAPI, Depends, HTTPException\nfrom pydantic import BaseModel\nimport uvicorn\n\napp = FastAPI(title=\"{name}\", version=\"1.0.0\")\n\n@app.get(\"/\")\ndef read_root():\n    return {\"message\": \"Hello World\"}\n''',\n            'django_model': '''\nfrom django.db import models\nfrom django.contrib.auth.models import AbstractUser\n\nclass {name}(models.Model):\n    name = models.CharField(max_length=100)\n    created_at = models.DateTimeField(auto_now_add=True)\n    \n    class Meta:\n        db_table = \"{table_name}\"\n'''\n        }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00042",
-  "language": "python",
-  "source_file": "/storage/emulated/0/Download/integrate ideas/Generators/python_generator.py",
-  "source_line": 0,
-  "validation_status": "validated"
-}

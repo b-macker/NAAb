@@ -1,8 +1,0 @@
-{
-  "code": "#include <cmath>\n#include <iostream>\n#include <limits>\n#include <type_traits>\n#include \"absl/meta/type_traits.h\"\n#include \"absl/numeric/int128.h\"\n\nusing namespace absl;\nusing namespace random_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-05883_execute() {\n    {\n  // max_digits10 may be 0 on MSVC; if so, use digits10 + 3.\n  static constexpr int kPrecision =\n      (std::numeric_limits<T>::max_digits10 > std::numeric_limits<T>::digits10)\n          ? std::numeric_limits<T>::max_digits10\n          : (std::numeric_limits<T>::digits10 + 3);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-05883",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/random/internal/iostream_state_saver.h",
-  "source_line": 106,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\n\ntemplate <class T>\nstruct FlatHashSetPolicy {\n  using slot_type = T;\n  using key_type = T;\n  using init_type = T;\n  using constant_iterators = std::true_type;\n\n  template <class Allocator, class... Args>\n  static void construct(Allocator* alloc, slot_type* slot, Args&&... args) {\n    absl::allocator_traits<Allocator>::construct(*alloc, slot,\n                                                 std::forward<Args>(args)...);\n  }\n\n  template <class Allocator>\n  static void destroy(Allocator* alloc, slot_type* slot) {\n    absl::allocator_traits<Allocator>::destroy(*alloc, slot);\n  }\n\n  static T& element(slot_type* slot) { return *slot; }\n\n  template <class F, class... Args>\n  static decltype(absl::container_internal::DecomposeValue(\n      std::declval<F>(), std::declval<Args>()...))\n  apply(F&& f, Args&&... args) {\n    return absl::container_internal::DecomposeValue(\n        std::forward<F>(f), std::forward<Args>(args)...);\n  }\n\n  static size_t space_used(const T*) { return 0; }\n};\n}",
-  "id": "BLOCK-CPP-03518",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/flat_hash_set.h",
-  "source_line": 461,
-  "validation_status": "validated"
-}

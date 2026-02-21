@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00276_execute() {\n    def optimizeconst(f: F) -> F:\n    def new_func(\n        self: \"CodeGenerator\", node: nodes.Expr, frame: \"Frame\", **kwargs: t.Any\n    ) -> t.Any:\n        # Only optimize if the frame is not volatile\n        if self.optimizer is not None and not frame.eval_ctx.volatile:\n            new_node = self.optimizer.visit(node, frame.eval_ctx)\n\n            if new_node != node:\n                return self.visit(new_node, frame)\n\n        return f(self, node, frame, **kwargs)\n\n    return update_wrapper(new_func, f)\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00276",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 45,
-  "validation_status": "validated"
-}

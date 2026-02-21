@@ -1,8 +1,0 @@
-{
-  "code": "{\n    llvm::DenseMap<unsigned, DiagnosticMapping> DiagMap;\n\n  public:\n    // \"Global\" configuration state that can actually vary between modules.\n\n    // Ignore all warnings: -w\n    unsigned IgnoreAllWarnings : 1;\n\n    // Enable all warnings.\n    unsigned EnableAllWarnings : 1;\n\n    // Treat warnings like errors.\n    unsigned WarningsAsErrors : 1;\n\n    // Treat errors like fatal errors.\n    unsigned ErrorsAsFatal : 1;\n\n    // Suppress warnings in system headers.\n    unsigned SuppressSystemWarnings : 1;\n\n    // Map extensions to warnings or errors?\n    diag::Severity ExtBehavior = diag::Severity::Ignored;\n\n    DiagState()\n        : IgnoreAllWarnings(false), EnableAllWarnings(false),\n          WarningsAsErrors(false), ErrorsAsFatal(false),\n          SuppressSystemWarnings(false) {}\n\n    using iterator = llvm::DenseMap<unsigned, DiagnosticMapping>::iterator;\n    using const_iterator =\n        llvm::DenseMap<unsigned, DiagnosticMapping>::const_iterator;\n\n    void setMapping(diag::kind Diag, DiagnosticMapping Info) {\n      DiagMap[Diag] = Info;\n    }\n\n    DiagnosticMapping lookupMapping(diag::kind Diag) const {\n      return DiagMap.lookup(Diag);\n    }\n\n    DiagnosticMapping &getOrAddMapping(diag::kind Diag);\n\n    const_iterator begin() const { return DiagMap.begin(); }\n    const_iterator end() const { return DiagMap.end(); }\n  }",
-  "id": "BLOCK-CPP-16244",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Basic/Diagnostic.h",
-  "source_line": 310,
-  "validation_status": "validated"
-}

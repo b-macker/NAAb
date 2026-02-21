@@ -1,8 +1,0 @@
-{
-  "code": "extern \"C\" {\n\nvoid BLOCK-PY-00400_execute() {\n    def finalize(value: t.Any) -> t.Any:  # noqa: F811\n                    return default(env_finalize(value))\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-PY-00400",
-  "language": "python",
-  "source_file": "/data/data/com.termux/files/usr/tmp/tmp8pjecjps.py",
-  "source_line": 1428,
-  "validation_status": "validated"
-}

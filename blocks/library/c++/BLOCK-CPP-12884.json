@@ -1,8 +1,0 @@
-{
-  "code": "{\n  LabelDecl *Label;\n  SourceLocation LabelLoc;\n\npublic:\n  GotoStmt(LabelDecl *label, SourceLocation GL, SourceLocation LL)\n      : Stmt(GotoStmtClass), Label(label), LabelLoc(LL) {\n    setGotoLoc(GL);\n  }\n\n  /// Build an empty goto statement.\n  explicit GotoStmt(EmptyShell Empty) : Stmt(GotoStmtClass, Empty) {}\n\n  LabelDecl *getLabel() const { return Label; }\n  void setLabel(LabelDecl *D) { Label = D; }\n\n  SourceLocation getGotoLoc() const { return GotoStmtBits.GotoLoc; }\n  void setGotoLoc(SourceLocation L) { GotoStmtBits.GotoLoc = L; }\n  SourceLocation getLabelLoc() const { return LabelLoc; }\n  void setLabelLoc(SourceLocation L) { LabelLoc = L; }\n\n  SourceLocation getBeginLoc() const { return getGotoLoc(); }\n  SourceLocation getEndLoc() const { return getLabelLoc(); }\n\n  static bool classof(const Stmt *T) {\n    return T->getStmtClass() == GotoStmtClass;\n  }\n\n  // Iterators\n  child_range children() {\n    return child_range(child_iterator(), child_iterator());\n  }\n\n  const_child_range children() const {\n    return const_child_range(const_child_iterator(), const_child_iterator());\n  }\n}",
-  "id": "BLOCK-CPP-12884",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Stmt.h",
-  "source_line": 2683,
-  "validation_status": "validated"
-}

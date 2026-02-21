@@ -1,8 +1,0 @@
-{
-  "code": "{\n    public:\n      using VecTy = llvm::SmallVector<Decl *, 32>;\n\n      void push(Decl *D) {\n        Nodes.push_back(D);\n        ++Aux[D];\n      }\n\n      void pop() {\n        if (Nodes.empty())\n          return;\n        --Aux[Nodes.back()];\n        Nodes.pop_back();\n      }\n\n      /// Returns true if the last element can be found earlier in the path.\n      bool hasCycleAtBack() const {\n        auto Pos = Aux.find(Nodes.back());\n        return Pos != Aux.end() && Pos->second > 1;\n      }\n\n      using Cycle = llvm::iterator_range<VecTy::const_reverse_iterator>;\n      Cycle getCycleAtBack() const {\n        assert(Nodes.size() >= 2);\n        return Cycle(Nodes.rbegin(),\n                     std::find(Nodes.rbegin() + 1, Nodes.rend(), Nodes.back()) +\n                         1);\n      }\n\n      /// Returns the copy of the cycle.\n      VecTy copyCycleAtBack() const {\n        auto R = getCycleAtBack();\n        return VecTy(R.begin(), R.end());\n      }\n\n    private:\n      // All nodes of the path.\n      VecTy Nodes;\n      // Auxiliary container to be able to answer \"Do we have a cycle ending\n      // at last element?\" as fast as possible.\n      // We count each Decl's occurrence over the path.\n      llvm::SmallDenseMap<Decl *, int, 32> Aux;\n    }",
-  "id": "BLOCK-CPP-07098",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/ASTImporter.h",
-  "source_line": 147,
-  "validation_status": "validated"
-}

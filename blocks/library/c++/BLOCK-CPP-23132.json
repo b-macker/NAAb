@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Type.h\"\n#include \"clang/AST/AbstractBasicWriter.h\"\n#include \"clang/AST/DeclObjC.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-23132_execute() {\n    {\nnamespace serialization {\n\n// template <class PropertyWriter>\n// class AbstractTypeWriter {\n// public:\n//   AbstractTypeWriter(PropertyWriter &W);\n//   void write(QualType type);\n// };\n//\n// The actual class is auto-generated; see ClangASTPropertiesEmitter.cpp.\n#include \"clang/AST/AbstractTypeWriter.inc\"\n\n} // end namespace serialization\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-23132",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/AbstractTypeWriter.h",
-  "source_line": 16,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/AST/Expr.h\"\n#include \"clang/Basic/LLVM.h\"\n#include \"llvm/ADT/ArrayRef.h\"\n#include \"llvm/Support/PointerLikeTypeTraits.h\"\n#include \"llvm/Support/type_traits.h\"\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n\nusing namespace clang;\nusing namespace clang;\nusing namespace llvm;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-20064_execute() {\n    {\n      return clang::OpaquePtr<T>::getFromOpaquePtr(P);\n    }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-20064",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Sema/Ownership.h",
-  "source_line": 126,
-  "validation_status": "validated"
-}

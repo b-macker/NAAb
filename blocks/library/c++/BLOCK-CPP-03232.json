@@ -1,8 +1,0 @@
-{
-  "code": "#include \"time_zone_info.h\"\n#include <algorithm>\n#include <cassert>\n#include <chrono>\n#include <cstdint>\n#include <cstdio>\n#include <cstdlib>\n#include <cstring>\n#include <fstream>\n#include <functional>\n#include <memory>\n#include <sstream>\n#include <string>\n#include <utility>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/time/internal/cctz/include/cctz/civil_time.h\"\n#include \"time_zone_fixed.h\"\n#include \"time_zone_posix.h\"\n\nusing namespace absl;\nusing namespace time_internal;\nusing namespace cctz;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03232_execute() {\n    {\n  std::int_fast64_t days = 0;\n  switch (pt.date.fmt) {\n    case PosixTransition::J: {\n      days = pt.date.j.day;\n      if (!leap_year || days < kMonthOffsets[1][3]) days -= 1;\n      break;\n    }\n    case PosixTransition::N: {\n      days = pt.date.n.day;\n      break;\n    }\n    case PosixTransition::M: {\n      const bool last_week = (pt.date.m.week == 5);\n      days = kMonthOffsets[leap_year][pt.date.m.month + last_week];\n      const std::int_fast64_t weekday = (jan1_weekday + days) % 7;\n      if (last_week) {\n        days -= (weekday + 7 - 1 - pt.date.m.weekday) % 7 + 1;\n      } else {\n        days += (pt.date.m.weekday + 7 - weekday) % 7;\n        days += (pt.date.m.week - 1) * 7;\n      }\n      break;\n    }\n  }\n  return (days * kSecsPerDay) + pt.time.offset;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03232",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/time/internal/cctz/src/time_zone_info.cc",
-  "source_line": 197,
-  "validation_status": "validated"
-}

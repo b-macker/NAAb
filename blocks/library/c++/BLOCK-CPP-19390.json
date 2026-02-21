@@ -1,8 +1,0 @@
-{
-  "code": "{\n    ParsingDeclRAIIObject ParsingRAII;\n\n  public:\n    ParsingDeclarator(Parser &P, const ParsingDeclSpec &DS,\n                      const ParsedAttributes &DeclarationAttrs,\n                      DeclaratorContext C)\n        : Declarator(DS, DeclarationAttrs, C),\n          ParsingRAII(P, &DS.getDelayedDiagnosticPool()) {}\n\n    const ParsingDeclSpec &getDeclSpec() const {\n      return static_cast<const ParsingDeclSpec&>(Declarator::getDeclSpec());\n    }\n\n    ParsingDeclSpec &getMutableDeclSpec() const {\n      return const_cast<ParsingDeclSpec&>(getDeclSpec());\n    }\n\n    void clear() {\n      Declarator::clear();\n      ParsingRAII.reset();\n    }\n\n    void complete(Decl *D) {\n      ParsingRAII.complete(D);\n    }\n  }",
-  "id": "BLOCK-CPP-19390",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Parse/RAIIObjectsForParser.h",
-  "source_line": 200,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/container/internal/raw_hash_set.h\"\n#include <atomic>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstring>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/dynamic_annotations.h\"\n#include \"absl/container/internal/container_memory.h\"\n#include \"absl/hash/hash.h\"\n\nusing namespace absl;\nusing namespace container_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02434_execute() {\n    {\n  assert(IsFull(c.control()[index]) && \"erasing a dangling iterator\");\n  c.decrement_size();\n  c.infoz().RecordErase();\n\n  if (WasNeverFull(c, index)) {\n    SetCtrl(c, index, ctrl_t::kEmpty, slot_size);\n    c.set_growth_left(c.growth_left() + 1);\n    return;\n  }\n\n  SetCtrl(c, index, ctrl_t::kDeleted, slot_size);\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02434",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/container/internal/raw_hash_set.cc",
-  "source_line": 241,
-  "validation_status": "validated"
-}

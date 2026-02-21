@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/flags/marshalling.h\"\n#include <stddef.h>\n#include <cmath>\n#include <limits>\n#include <sstream>\n#include <string>\n#include <type_traits>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/base/log_severity.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/numeric/int128.h\"\n#include \"absl/strings/ascii.h\"\n#include \"absl/strings/match.h\"\n#include \"absl/strings/numbers.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_join.h\"\n#include \"absl/strings/str_split.h\"\n#include \"absl/strings/string_view.h\"\n\nusing namespace absl;\nusing namespace flags_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-01657_execute() {\n    {\n  const char* kTrue[] = {\"1\", \"t\", \"true\", \"y\", \"yes\"};\n  const char* kFalse[] = {\"0\", \"f\", \"false\", \"n\", \"no\"};\n  static_assert(sizeof(kTrue) == sizeof(kFalse), \"true_false_equal\");\n\n  text = absl::StripAsciiWhitespace(text);\n\n  for (size_t i = 0; i < ABSL_ARRAYSIZE(kTrue); ++i) {\n    if (absl::EqualsIgnoreCase(text, kTrue[i])) {\n      *dst = true;\n      return true;\n    } else if (absl::EqualsIgnoreCase(text, kFalse[i])) {\n      *dst = false;\n      return true;\n    }\n  }\n  return false;  // didn't match a legal input\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-01657",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/marshalling.cc",
-  "source_line": 47,
-  "validation_status": "validated"
-}

@@ -1,8 +1,0 @@
-{
-  "code": "{\nprotected:\n  friend class ASTContext; // ASTContext creates these.\n\n  explicit RecordType(const RecordDecl *D)\n      : TagType(Record, reinterpret_cast<const TagDecl*>(D), QualType()) {}\n  explicit RecordType(TypeClass TC, RecordDecl *D)\n      : TagType(TC, reinterpret_cast<const TagDecl*>(D), QualType()) {}\n\npublic:\n  RecordDecl *getDecl() const {\n    return reinterpret_cast<RecordDecl*>(TagType::getDecl());\n  }\n\n  /// Recursively check all fields in the record for const-ness. If any field\n  /// is declared const, return true. Otherwise, return false.\n  bool hasConstFields() const;\n\n  bool isSugared() const { return false; }\n  QualType desugar() const { return QualType(this, 0); }\n\n  static bool classof(const Type *T) { return T->getTypeClass() == Record; }\n}",
-  "id": "BLOCK-CPP-14148",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/AST/Type.h",
-  "source_line": 4870,
-  "validation_status": "validated"
-}

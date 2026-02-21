@@ -1,8 +1,0 @@
-{
-  "code": "{\n    std::optional<MacroAnnotationInfo> DeprecationInfo;\n    std::optional<MacroAnnotationInfo> RestrictExpansionInfo;\n    std::optional<SourceLocation> FinalAnnotationLoc;\n\n    static MacroAnnotations makeDeprecation(SourceLocation Loc,\n                                            std::string Msg) {\n      return MacroAnnotations{MacroAnnotationInfo{Loc, std::move(Msg)},\n                              std::nullopt, std::nullopt};\n    }\n\n    static MacroAnnotations makeRestrictExpansion(SourceLocation Loc,\n                                                  std::string Msg) {\n      return MacroAnnotations{\n          std::nullopt, MacroAnnotationInfo{Loc, std::move(Msg)}, std::nullopt};\n    }\n\n    static MacroAnnotations makeFinal(SourceLocation Loc) {\n      return MacroAnnotations{std::nullopt, std::nullopt, Loc};\n    }\n  }",
-  "id": "BLOCK-CPP-19115",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/Preprocessor.h",
-  "source_line": 1034,
-  "validation_status": "validated"
-}

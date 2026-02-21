@@ -1,8 +1,0 @@
-{
-  "code": "#include <string>\n#include <vector>\n#include \"absl/base/config.h\"\n#include \"absl/flags/internal/parse.h\"\n\nusing namespace absl;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-03605_execute() {\n    {\n  enum Source { kFromArgv, kFromFlagfile };\n\n  explicit UnrecognizedFlag(Source s, absl::string_view f)\n      : source(s), flag_name(f) {}\n  // This field indicates where we found this flag: on the original command line\n  // or read in some flag file.\n  Source source;\n  // Name of the flag we did not recognize in --flag_name=value or --flag_name.\n  std::string flag_name;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-03605",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/flags/parse.h",
-  "source_line": 37,
-  "validation_status": "validated"
-}

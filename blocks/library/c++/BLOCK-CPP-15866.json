@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Analysis/AnalysisDeclContext.h\"\n#include \"clang/Analysis/CFG.h\"\n#include \"llvm/ADT/DenseMap.h\"\n#include \"llvm/ADT/FoldingSet.h\"\n#include \"llvm/ADT/PointerIntPair.h\"\n#include \"llvm/ADT/StringRef.h\"\n#include \"llvm/Support/Casting.h\"\n#include \"llvm/Support/DataTypes.h\"\n#include <cassert>\n#include <optional>\n#include <string>\n#include <utility>\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-15866_execute() {\n    {\npublic:\n  ProgramPointTag(void *tagKind = nullptr) : TagKind(tagKind) {}\n  virtual ~ProgramPointTag();\n  virtual StringRef getTagDescription() const = 0;\n\n  /// Used to implement 'isKind' in subclasses.\n  const void *getTagKind() const { return TagKind; }\n\nprivate:\n  const void *const TagKind;\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-15866",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Analysis/ProgramPoint.h",
-  "source_line": 38,
-  "validation_status": "validated"
-}

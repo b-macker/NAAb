@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/status/internal/status_internal.h\"\n#include <atomic>\n#include <cassert>\n#include <cstddef>\n#include <cstdint>\n#include <cstdio>\n#include <cstring>\n#include <memory>\n#include <string>\n#include <utility>\n#include \"absl/base/attributes.h\"\n#include \"absl/base/config.h\"\n#include \"absl/base/macros.h\"\n#include \"absl/base/nullability.h\"\n#include \"absl/debugging/stacktrace.h\"\n#include \"absl/debugging/symbolize.h\"\n#include \"absl/memory/memory.h\"\n#include \"absl/status/status.h\"\n#include \"absl/status/status_payload_printer.h\"\n#include \"absl/strings/cord.h\"\n#include \"absl/strings/escaping.h\"\n#include \"absl/strings/str_cat.h\"\n#include \"absl/strings/str_format.h\"\n#include \"absl/strings/str_split.h\"\n#include \"absl/strings/string_view.h\"\n#include \"absl/types/optional.h\"\n\nusing namespace absl;\nusing namespace status_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02852_execute() {\n    {\n  return new std::string(\n      absl::StrCat(prefix, \" (\",\n                   status->ToString(StatusToStringMode::kWithEverything), \")\"));\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02852",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/status/internal/status_internal.cc",
-  "source_line": 237,
-  "validation_status": "validated"
-}

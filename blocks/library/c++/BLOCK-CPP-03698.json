@@ -1,8 +1,0 @@
-{
-  "code": "{\ntemplate <typename Allocator, typename Iterator, typename... Args>\nvoid ConstructRange(Allocator& alloc, Iterator first, Iterator last,\n                    const Args&... args) {\n  for (Iterator cur = first; cur != last; ++cur) {\n    ABSL_INTERNAL_TRY {\n      std::allocator_traits<Allocator>::construct(alloc, std::addressof(*cur),\n                                                  args...);\n    }\n    ABSL_INTERNAL_CATCH_ANY {\n      while (cur != first) {\n        --cur;\n        std::allocator_traits<Allocator>::destroy(alloc, std::addressof(*cur));\n      }\n      ABSL_INTERNAL_RETHROW;\n    }\n  }\n}\n\ntemplate <typename Allocator, typename Iterator, typename InputIterator>\nvoid CopyRange(Allocator& alloc, Iterator destination, InputIterator first,\n               InputIterator last) {\n  for (Iterator cur = destination; first != last;\n       static_cast<void>(++cur), static_cast<void>(++first)) {\n    ABSL_INTERNAL_TRY {\n      std::allocator_traits<Allocator>::construct(alloc, std::addressof(*cur),\n                                                  *first);\n    }\n    ABSL_INTERNAL_CATCH_ANY {\n      while (cur != destination) {\n        --cur;\n        std::allocator_traits<Allocator>::destroy(alloc, std::addressof(*cur));\n      }\n      ABSL_INTERNAL_RETHROW;\n    }\n  }\n}\n}",
-  "id": "BLOCK-CPP-03698",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/memory/memory.h",
-  "source_line": 237,
-  "validation_status": "validated"
-}

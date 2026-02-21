@@ -1,8 +1,0 @@
-{
-  "code": "#include \"absl/debugging/internal/elf_mem_image.h\"\n#include <string.h>\n#include <cassert>\n#include <cstddef>\n#include \"absl/base/config.h\"\n#include \"absl/base/internal/raw_logging.h\"\n\nusing namespace absl;\nusing namespace debugging_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-02589_execute() {\n    {\n          link_base_ = program_header->p_vaddr;\n        }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-02589",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/debugging/internal/elf_mem_image.cc",
-  "source_line": 202,
-  "validation_status": "validated"
-}

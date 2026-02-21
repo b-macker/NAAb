@@ -1,8 +1,0 @@
-{
-  "code": "#include \"clang/Basic/SourceLocation.h\"\n\nusing namespace clang;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-18817_execute() {\n    {\n    // If the macro is already set, this is after the top-level #endif.\n    if (TheMacro)\n      return Invalidate();\n\n    // If we have already expanded a macro by the end of the #ifndef line, then\n    // there is a macro expansion *in* the #ifndef line.  This means that the\n    // condition could evaluate differently when subsequently #included.  Reject\n    // this.\n    if (DidMacroExpansion)\n      return Invalidate();\n\n    // Remember that we're in the #if and that we have the macro.\n    ReadAnyTokens = true;\n    ImmediatelyAfterTopLevelIfndef = true;\n    TheMacro = M;\n    MacroLoc = Loc;\n  }\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-18817",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/llvm/clang/include/clang/Lex/MultipleIncludeOpt.h",
-  "source_line": 128,
-  "validation_status": "validated"
-}

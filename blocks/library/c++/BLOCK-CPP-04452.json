@@ -1,8 +1,0 @@
-{
-  "code": "#include <typeinfo>\n#include \"absl/base/config.h\"\n#include <any>\n\nusing namespace absl;\nusing namespace absl;\nusing namespace absl;\nusing namespace any_internal;\n\nextern \"C\" {\n\nvoid BLOCK-CPP-04452_execute() {\n    {\n\n[[noreturn]] void ThrowBadAnyCast();\n\n}\n}\n\n} // extern \"C\"\n",
-  "id": "BLOCK-CPP-04452",
-  "language": "c++",
-  "source_file": "/storage/emulated/0/Download/cpp_codebases/abseil/absl/types/bad_any_cast.h",
-  "source_line": 65,
-  "validation_status": "validated"
-}
