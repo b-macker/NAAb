@@ -283,7 +283,7 @@ result
     print("[Example 3] Multi-Language File Processing")
 
     # Create a file with Bash
-    let filename = "/tmp/naab_test.txt"
+    let filename = "/data/data/com.termux/files/usr/tmp/naab_test.txt"
     <<bash[filename]
     echo "Line 1: Hello from Bash" > "$filename"
     echo "Line 2: NAAb is awesome" >> "$filename"

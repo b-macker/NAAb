@@ -4,7 +4,7 @@ use file
 
 main {
     print("--- RESOURCE STRESS ---")
-    let path = "verification/chaos_tests/tmp_leak.txt"
+    let path = "/data/data/com.termux/files/usr/tmp/naab_leak_test.txt"
     file.write(path, "content")
 
     print("Cycling 1000 file reads...")
