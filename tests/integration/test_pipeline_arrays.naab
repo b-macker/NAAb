@@ -3,7 +3,7 @@
 
 use array
 
-function double(x) {
+fn double(x) {
     return x * 2
 }
 

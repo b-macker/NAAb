@@ -37,7 +37,7 @@ int main() {
 
         // Test 2: Build index from test blocks
         std::cout << "Test 2: Building index from test blocks..." << std::endl;
-        std::string test_blocks_path = "/storage/emulated/0/Download/.naab/naab_language/tests/test_blocks";
+        std::string test_blocks_path = "tests/fixtures/block-samples";
         int count = index.buildIndex(test_blocks_path);
         std::cout << "  ✓ Indexed " << count << " blocks" << std::endl;
         ASSERT_GT(count, 0, "Should index at least 1 block");

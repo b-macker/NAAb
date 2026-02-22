@@ -1,0 +1,45 @@
+# Chapter 12: Error Handling Verification
+
+fn thrower() {
+    print("Throwing from function...")
+    throw "Propagated Error"
+}
+
+fn caller() {
+    thrower()
+}
+
+main {
+    print(">>> Chapter 12 Verification: Error Handling <<<")
+
+    # 1. Basic Try/Catch
+    print("--- Basic Try/Catch ---")
+    try {
+        print("Inside try block")
+        throw "Test Error"
+        print("This should not be printed")
+    } catch (e) {
+        print("Caught error:", e)
+    }
+
+    # 2. Finally Block
+    print("--- Finally Block ---")
+    try {
+        print("Inside try (finally test)")
+        throw "Error for finally"
+    } catch (e) {
+        print("Caught:", e)
+    } finally {
+        print("Finally block executed")
+    }
+
+    # 3. Error Propagation
+    print("--- Error Propagation ---")
+    try {
+        caller()
+    } catch (e) {
+        print("Caught propagated error:", e)
+    }
+
+    print(">>> Chapter 12 Verification: COMPLETE <<<")
+}

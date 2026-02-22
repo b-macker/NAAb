@@ -54,9 +54,9 @@ cmake -B build-asan -DENABLE_ASAN=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-asan -j4
 
 # Run security tests
-./build-asan/naab-lang run tests/security/test_sanitizers.naab
-./build-asan/naab-lang run tests/security/test_input_limits.naab
-./build-asan/naab-lang run tests/security/test_recursion_limits.naab
+./build-asan/naab-lang tests/security/test_sanitizers.naab
+./build-asan/naab-lang tests/security/test_input_limits.naab
+./build-asan/naab-lang tests/security/test_recursion_limits.naab
 ```
 
 ### With UndefinedBehaviorSanitizer
@@ -67,7 +67,7 @@ cmake -B build-ubsan -DENABLE_UBSAN=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-ubsan -j4
 
 # Run tests
-./build-ubsan/naab-lang run tests/security/*.naab
+./build-ubsan/naab-lang tests/security/*.naab
 ```
 
 ### Testing Limits
@@ -80,7 +80,7 @@ To actually trigger the security limits:
 dd if=/dev/zero of=/tmp/huge.txt bs=1M count=20  # 20MB file
 
 # Try to read it (should fail with InputSizeException)
-echo "use io; main { io.read_file('/tmp/huge.txt') }" | ./naab-lang run -
+echo "use io; main { io.read_file('/tmp/huge.txt') }" | ./naab-lang -
 ```
 
 **Recursion Depth Limits:**
@@ -145,6 +145,5 @@ Week 2-6 will add:
 
 ## References
 
-- Plan: `.claude/plans/functional-plotting-pelican.md`
-- Safety Audit: `docs/SAFETY_AUDIT.md`
-- Security Policy: `docs/SECURITY.md` (to be created)
+- Security Policy: [SECURITY.md](../../SECURITY.md)
+- Security Chapter: [Chapter 13](../../docs/book/chapter13.md)

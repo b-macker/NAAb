@@ -4,8 +4,9 @@ project(json_block CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find nlohmann/json
+# Find nlohmann/json and NAAb headers
 include_directories(../../external/json/include)
+include_directories(../../include)
 
 # Build as shared library
 add_library(json_block SHARED json_block.cpp)

@@ -1,0 +1,13 @@
+// modules/simulation_engine.naab
+use io
+
+export fn run_simulation(days: int) -> bool {
+    io.write("🦀 [Rust] Running simulation for ", days, " days...\n")
+
+    // Simulation logic using Rust for performance
+    let success = <<rust
+true
+    >>
+
+    return success
+}

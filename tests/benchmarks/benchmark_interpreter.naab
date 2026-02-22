@@ -6,7 +6,7 @@ use string
 use time
 
 // Helper: Measure execution time
-function benchmark(name, func) {
+fn benchmark(name, func) {
     let start = time.now()
     func()
     let end_time = time.now()
@@ -17,11 +17,11 @@ function benchmark(name, func) {
 }
 
 // Benchmark 1: Function call overhead
-function empty_function() {
+fn empty_function() {
     return 1
 }
 
-function bench_function_calls() {
+fn bench_function_calls() {
     let i = 0
     let sum = 0
     while i < 10000 {
@@ -32,7 +32,7 @@ function bench_function_calls() {
 }
 
 // Benchmark 2: Loop performance
-function bench_loops() {
+fn bench_loops() {
     let sum = 0
     let i = 0
     while i < 40000 {
@@ -43,7 +43,7 @@ function bench_loops() {
 }
 
 // Benchmark 3: Array operations
-function bench_array_ops() {
+fn bench_array_ops() {
     let arr = []
     let i = 0
     while i < 1000 {
@@ -59,19 +59,19 @@ function bench_array_ops() {
 }
 
 // Benchmark 4: Recursion
-function fibonacci(n) {
+fn fibonacci(n) {
     if n <= 1 {
         return n
     }
     return fibonacci(n - 1) + fibonacci(n - 2)
 }
 
-function bench_recursion() {
+fn bench_recursion() {
     return fibonacci(20)
 }
 
 // Benchmark 5: String operations
-function bench_string_ops() {
+fn bench_string_ops() {
     let str = "hello"
     let i = 0
     while i < 1000 {
@@ -83,7 +83,7 @@ function bench_string_ops() {
 }
 
 // Benchmark 6: Dict operations
-function bench_dict_ops() {
+fn bench_dict_ops() {
     let dict = {}
     let i = 0
     while i < 1000 {
@@ -99,7 +99,7 @@ function bench_dict_ops() {
 }
 
 // Benchmark 7: Higher-order functions
-function bench_higher_order() {
+fn bench_higher_order() {
     let nums = []
     let i = 0
     while i < 100 {

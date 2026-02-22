@@ -1,0 +1,50 @@
+// IronDome/modules/visualizer_core.naab
+// 3D Topology Visualization Hub
+// Uses: <<python>>, <<javascript>>, json, file
+
+use io
+use json
+use file
+
+export fn generate_topology(files) {
+    let files_json = json.stringify(files)
+    let tmp_file = "verification/ch0_full_projects/IronDome/logs/topology.json"
+
+    // Stage 1: 3D Force-Graph Data Generation (Python)
+    let topology_json = <<python[files_json, tmp_file]
+import json
+files = json.loads(files_json)
+nodes = [{"id": "ROOT", "group": 0, "size": 20, "color": "#00ff41"}]
+links = []
+
+for f in files:
+    path = f["path"]
+    parts = path.split("/")
+    
+    parent = "ROOT"
+    for i, part in enumerate(parts):
+        node_id = "/".join(parts[:i+1])
+        group = i + 1
+        
+        exists = False
+        for n in nodes:
+            if n["id"] == node_id: exists = True
+        
+        if not exists:
+            size = 5 if i < len(parts)-1 else 2
+            # Security Highlight
+            color = "#ff0000" if "tmp" in node_id or "secret" in node_id else "#00ff41"
+            nodes.append({"id": node_id, "group": group, "size": size, "color": color})
+            links.append({"source": parent, "target": node_id})
+        
+        parent = node_id
+
+f = open(tmp_file, "w")
+json.dump({"nodes": nodes, "links": links}, f)
+f.close()
+    >>
+    
+    let result = json.parse(file.read(tmp_file))
+    file.delete(tmp_file)
+    return result
+}

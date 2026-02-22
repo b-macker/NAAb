@@ -1,0 +1,250 @@
+// Chapter 17 Cookbook Verification Test
+// Tests all recipes from section 17.4
+
+use string
+use array
+use json
+use env
+
+fn to_title_case(text) {
+    let words = string.split(text, " ")
+    let result = []
+    let i = 0
+    while i < array.length(words) {
+        let word = words[i]
+        if string.length(word) > 0 {
+            let first = string.upper(string.substring(word, 0, 1))
+            let rest = string.lower(string.substring(word, 1, string.length(word)))
+            result.push(first + rest)
+        }
+        i = i + 1
+    }
+    return string.join(result, " ")
+}
+
+fn fill_template(template, key, value) {
+    return string.replace(template, "{" + key + "}", value)
+}
+
+fn try_with_fallback(primary_fn, fallback_value) {
+    try {
+        return primary_fn()
+    } catch (e) {
+        return fallback_value
+    }
+}
+
+fn risky_division(a, b) {
+    return a / b
+}
+
+main {
+    let pass = 0
+    let fail = 0
+
+    // ============================================
+    // 17.4.1 String Manipulation
+    // ============================================
+
+    let title = to_title_case("hello world from naab")
+    if title == "Hello World From Naab" {
+        print("PASS: title case conversion")
+        pass = pass + 1
+    } else {
+        print("FAIL: title case - got: " + title)
+        fail = fail + 1
+    }
+
+    let msg = "Hello {name}, welcome to {place}!"
+    let msg = fill_template(msg, "name", "Alice")
+    let msg = fill_template(msg, "place", "NAAb")
+    if msg == "Hello Alice, welcome to NAAb!" {
+        print("PASS: template filling")
+        pass = pass + 1
+    } else {
+        print("FAIL: template filling - got: " + msg)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 17.4.2 Array Operations
+    // ============================================
+
+    let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    let evens = array.filter_fn(numbers, fn(n) { return n % 2 == 0 })
+    if array.length(evens) == 5 {
+        print("PASS: array.filter_fn")
+        pass = pass + 1
+    } else {
+        print("FAIL: array.filter_fn - got length " + array.length(evens))
+        fail = fail + 1
+    }
+
+    let doubled = array.map_fn(numbers, fn(n) { return n * 2 })
+    if doubled[0] == 2 {
+        if doubled[4] == 10 {
+            print("PASS: array.map_fn")
+            pass = pass + 1
+        } else {
+            print("FAIL: array.map_fn - doubled[4] wrong")
+            fail = fail + 1
+        }
+    } else {
+        print("FAIL: array.map_fn - doubled[0] wrong")
+        fail = fail + 1
+    }
+
+    let total = array.reduce_fn(numbers, fn(acc, n) { return acc + n }, 0)
+    if total == 55 {
+        print("PASS: array.reduce_fn")
+        pass = pass + 1
+    } else {
+        print("FAIL: array.reduce_fn - got " + total)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 17.4.3 Error Handling Patterns
+    // ============================================
+
+    let result = try_with_fallback(fn() { return risky_division(10, 2) }, 0)
+    if result == 5 {
+        print("PASS: try_with_fallback (safe)")
+        pass = pass + 1
+    } else {
+        print("FAIL: try_with_fallback (safe) - got " + result)
+        fail = fail + 1
+    }
+
+    let result2 = try_with_fallback(fn() { return risky_division(10, 0) }, -1)
+    if result2 == -1 {
+        print("PASS: try_with_fallback (div by zero)")
+        pass = pass + 1
+    } else {
+        print("FAIL: try_with_fallback (div by zero) - got " + result2)
+        fail = fail + 1
+    }
+
+    let errors = []
+    let results = []
+    let inputs = [10, 0, 5, 0, 3]
+    let i = 0
+    while i < array.length(inputs) {
+        try {
+            let val = 100 / inputs[i]
+            results.push(val)
+        } catch (e) {
+            errors.push("Error at index " + i)
+        }
+        i = i + 1
+    }
+    if array.length(results) == 3 {
+        if array.length(errors) == 2 {
+            print("PASS: error collection pattern")
+            pass = pass + 1
+        } else {
+            print("FAIL: error collection - wrong error count")
+            fail = fail + 1
+        }
+    } else {
+        print("FAIL: error collection - wrong result count")
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 17.4.4 JSON Processing
+    // ============================================
+
+    let json_str = "{\"name\": \"Alice\", \"age\": 30}"
+    let data = json.parse(json_str)
+    if data["name"] == "Alice" {
+        if data["age"] == 30 {
+            print("PASS: json.parse")
+            pass = pass + 1
+        } else {
+            print("FAIL: json.parse - age wrong")
+            fail = fail + 1
+        }
+    } else {
+        print("FAIL: json.parse - name wrong")
+        fail = fail + 1
+    }
+
+    let user = {
+        "name": "Bob",
+        "age": 25,
+        "tags": ["developer", "naab-user"]
+    }
+    let json_output = json.stringify(user)
+    if string.contains(json_output, "Bob") {
+        print("PASS: json.stringify")
+        pass = pass + 1
+    } else {
+        print("FAIL: json.stringify - missing Bob")
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 17.4.5 Polyglot Patterns
+    // ============================================
+
+    let stat_data = [10, 20, 30, 40, 50]
+    let stats = <<python[stat_data]
+import statistics
+{"mean": statistics.mean(stat_data), "median": statistics.median(stat_data)}
+>>
+
+    if stats["mean"] == 30 {
+        print("PASS: python statistics")
+        pass = pass + 1
+    } else {
+        print("FAIL: python statistics - got mean " + stats["mean"])
+        fail = fail + 1
+    }
+
+    let kernel = <<bash
+uname -r
+>>
+    if string.length(kernel) > 0 {
+        print("PASS: bash system info")
+        pass = pass + 1
+    } else {
+        print("FAIL: bash system info - empty")
+        fail = fail + 1
+    }
+
+    let items = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
+    let unique_sorted = <<javascript[items]
+[...new Set(items)].sort((a, b) => a - b).join(", ")
+>>
+    if string.contains(unique_sorted, "1, 2, 3") {
+        print("PASS: javascript transformation")
+        pass = pass + 1
+    } else {
+        print("FAIL: javascript transformation - got: " + unique_sorted)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 17.4.6 Environment and Configuration
+    // ============================================
+
+    env.set_var("NAAB_TEST_VAR", "cookbook_test")
+    let test_var = env.get("NAAB_TEST_VAR")
+    if test_var == "cookbook_test" {
+        print("PASS: env.set/env.get")
+        pass = pass + 1
+    } else {
+        print("FAIL: env.set/env.get - got: " + test_var)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // Summary
+    // ============================================
+    print("")
+    print("=== Chapter 17 Cookbook Results ===")
+    print("PASS: " + pass)
+    print("FAIL: " + fail)
+}

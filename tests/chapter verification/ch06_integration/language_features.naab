@@ -1,0 +1,57 @@
+# Chapter 6: Language Integration Verification
+
+main {
+    print(">>> Chapter 6 Verification: Integration Details <<<")
+
+    # 1. Python Data Science (Simulated)
+    print("--- Python Data Analysis ---")
+    let data_points = [12, 45, 67, 23, 89, 34, 56]
+    <<python[data_points]
+    import statistics
+    mean = statistics.mean(data_points)
+    print(f"Python Mean: {mean:.2f}")
+    True # Return a value to avoid "None/null" warning
+    >>
+
+    # 2. JavaScript JSON Handling
+    print("--- JavaScript JSON ---")
+    let raw_data = {"id": 1, "user": "alice", "roles": ["admin"]}
+    <<javascript[raw_data]
+    if (raw_data.roles.includes("admin")) {
+        console.log(`JS: User ${raw_data.user} is admin.`);
+    }
+    // Modify and print
+    raw_data.checked = true;
+    console.log("JS Enriched:", JSON.stringify(raw_data));
+    >>
+
+    # 3. C++ with Manual Headers (ISS-004 Workaround)
+    print("--- C++ Manual Headers ---")
+    # Note: Variable binding in C++ is currently flaky (ISS-004), so we test pure code here
+    # or rely on the fact that if we include headers, basic code works.
+    <<cpp
+    #include <iostream>
+    #include <vector>
+    #include <algorithm>
+
+    std::vector<int> numbers = {5, 1, 4, 2, 3};
+    std::sort(numbers.begin(), numbers.end());
+
+    std::cout << "C++ Sorted: ";
+    for (int n : numbers) std::cout << n << " ";
+    std::cout << std::endl;
+    >>
+
+    # 4. Bash Operations
+    print("--- Bash System Ops ---")
+    let test_dir = "test_verification_dir"
+    <<bash[test_dir]
+    echo "Bash: Working with $test_dir"
+    mkdir -p "$test_dir"
+    echo "created" > "$test_dir/status.txt"
+    cat "$test_dir/status.txt"
+    rm -rf "$test_dir"
+    >>
+
+    print(">>> Chapter 6 Verification: COMPLETE <<<")
+}

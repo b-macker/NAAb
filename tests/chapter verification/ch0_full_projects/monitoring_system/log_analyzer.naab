@@ -1,0 +1,94 @@
+// ============================================================================
+// Log Analyzer Module - Phase 4: Module System
+// Advanced log parsing and analysis functionality
+// ============================================================================
+
+// Enum for log levels
+export enum LogLevel {
+    DEBUG,
+    INFO,
+    WARNING,
+    ERROR,
+    CRITICAL
+}
+
+// Struct for parsed log entry
+export struct LogEntry {
+    timestamp: string,
+    level: LogLevel,
+    message: string,
+    source: string,
+    line_number: int?
+}
+
+// Parse log line using regex
+export fn parse_log_line(line: string) -> LogEntry? {
+    // Check if line contains ERROR or CRITICAL
+    let is_error = regex.matches(line, "ERROR")
+    let is_critical = regex.matches(line, "CRITICAL")
+    let is_warning = regex.matches(line, "WARNING|WARN")
+
+    let level = LogLevel.INFO
+    if is_critical {
+        level = LogLevel.CRITICAL
+    } else if is_error {
+        level = LogLevel.ERROR
+    } else if is_warning {
+        level = LogLevel.WARNING
+    }
+
+    // Extract timestamp (simplified - assumes format "YYYY-MM-DD HH:MM:SS")
+    let timestamp = string.substring(line, 0, 19)
+
+    return new LogEntry {
+        timestamp: timestamp,
+        level: level,
+        message: line,
+        source: "monitoring_system",
+        line_number: null
+    }
+}
+
+// Count errors in log entries
+export fn count_errors(entries: list) -> int {
+    let error_count = 0
+    let i = 0
+    while i < array.length(entries) {
+        let entry = entries[i]
+        if entry.level == LogLevel.ERROR || entry.level == LogLevel.CRITICAL {
+            error_count = error_count + 1
+        }
+        i = i + 1
+    }
+    return error_count
+}
+
+// Filter logs by severity
+export fn filter_by_severity(entries: list, min_level: LogLevel) -> list {
+    let filtered = []
+    let i = 0
+    while i < array.length(entries) {
+        let entry = entries[i]
+        // Simple severity check (in production, use proper level comparison)
+        if entry.level == LogLevel.CRITICAL || entry.level == LogLevel.ERROR {
+            array.push(filtered, entry)
+        }
+        i = i + 1
+    }
+    return filtered
+}
+
+// Generate log summary report
+export fn generate_summary(entries: list) -> string {
+    let total = array.length(entries)
+    let errors = count_errors(entries)
+
+    let summary = <<javascript[total, errors]
+`Log Analysis Summary:
+  Total Entries: ${total}
+  Error/Critical: ${errors}
+  Success Rate: ${((total - errors) / total * 100).toFixed(1)}%`;
+    >>
+
+    return summary
+}

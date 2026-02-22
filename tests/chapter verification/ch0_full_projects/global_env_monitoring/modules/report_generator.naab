@@ -1,0 +1,117 @@
+// modules/report_generator.naab
+// Responsible for generating various reports from processed data and detected anomalies.
+// Refactored to export a factory function that returns a map of its API.
+
+// (Note: No direct import "modules/logger.naab" here. Configured logger is passed.)
+
+// --- Factory Function: createReportGeneratorModule ---
+// This function returns a map of functions that constitute the module's public API.
+export func createReportGeneratorModule(): Map<String, Any> {
+
+    // --- Internal Function: init ---
+    // Initializes the report generator module with global configuration and configured logger.
+    let initFunc = func(globalConfig: Map<String, Any>, configuredLogger: Map<String, Any>) {
+        configuredLogger.logInfo("ReportGeneratorModule initialized.");
+    };
+
+    // --- Internal Function: generateSummaryReportContent ---
+    // Generates the content for a summary report.
+    let generateSummaryReportContentFunc = func(processedData: List<Map<String, Any>>, anomalies: List<Map<String, Any>>, configuredLogger: Map<String, Any>) {
+        let getCurrentTimestamp = configuredLogger.getCurrentTimestamp;
+        let content = "--- Environmental Monitoring Summary Report ---\n";
+        content += "Generated On: ${getCurrentTimestamp()}\n\n";
+        content += "Total Processed Data Points: ${processedData.size()}\n";
+        content += "Total Anomalies Detected: ${anomalies.size()}\n\n";
+
+        content += "--- Data Overview ---
+";
+        if (!processedData.isEmpty()) {
+            let firstPoint = processedData.get(0);
+            let lastPoint = processedData.get(processedData.size() - 1);
+            content += "First Recorded Data Point (Approx): ${firstPoint.getString("processed_timestamp", "N/A")} (Source: ${firstPoint.getString("source", "N/A")})\n";
+            content += "Last Recorded Data Point (Approx): ${lastPoint.getString("processed_timestamp", "N/A")} (Source: ${lastPoint.getString("source", "N/A")})\n";
+            content += "Example Temperature: ${firstPoint.getFloat("temperature_celsius", 0.0)}°C\n";
+            content += "Example AQI: ${lastPoint.getInt("aqi", 0)}\n\n";
+        } else {
+            content += "No processed data available.\n\n";
+        }
+
+        content += "--- Anomaly Details ---
+";
+        if (!anomalies.isEmpty()) {
+            for anomaly in anomalies {
+                content += "  - ${anomaly.getString("level")}: ${anomaly.getString("metric")} ${anomaly.getString("type")} at ${anomaly.getString("data_point_timestamp")}\n";
+                if anomaly.has("location") {
+                    content += "    Location: ${anomaly.getString("location")}\n";
+                }
+                if anomaly.has("city") {
+                    content += "    City: ${anomaly.getString("city")}\n";
+                }
+                content += "    Value: ${anomaly.getString("value")}, Threshold: ${anomaly.getString("threshold")}\n\n";
+            }
+        } else {
+            content += "No anomalies detected in this reporting period.\n\n";
+        }
+
+        content += "--- End of Report ---
+";
+        return content;
+    };
+
+    // --- Internal Function: generateJsonReportContent ---
+    // Generates report content in JSON format.
+    let generateJsonReportContentFunc = func(processedData: List<Map<String, Any>>, anomalies: List<Map<String, Any>>, configuredLogger: Map<String, Any>) {
+        let getCurrentTimestamp = configuredLogger.getCurrentTimestamp;
+        return {
+            "report_meta": {
+                "generated_on": getCurrentTimestamp(),
+                "report_type": "Summary/Anomaly",
+                "processed_data_count": processedData.size(),
+                "anomaly_count": anomalies.size()
+            },
+            "processed_data_sample": processedData.take(5),
+            "anomalies": anomalies
+        };
+    };
+
+    // --- Internal Function: saveReport ---
+    // Simulates saving a report to a file.
+    let saveReportFunc = func(reportFileName: String, content: String, reportDirectory: String, configuredLogger: Map<String, Any>) {
+        let fullPath = reportDirectory + "/" + reportFileName;
+        configuredLogger.createDirectory(reportDirectory);
+
+        configuredLogger.appendToFile(fullPath, content);
+
+        configuredLogger.logInfo("Report saved to: ${fullPath}");
+    };
+
+    // --- Public Function: generateReports ---
+    // Orchestrates the generation and saving of reports.
+    let generateReportsFunc = func(processedData: List<Map<String, Any>>, anomalies: List<Map<String, Any>>, reportingConfig: Map<String, Any>, configuredLogger: Map<String, Any>) {
+        let reportDirectory = reportingConfig.getString("report_directory", "data/reports");
+        let outputFormat = reportingConfig.getString("output_format", "txt");
+
+        configuredLogger.logInfo("Generating reports in format: ${outputFormat} to directory: ${reportDirectory}");
+
+        let getCurrentTimestamp = configuredLogger.getCurrentTimestamp;
+
+        // Summary Text Report
+        let summaryReportContent = generateSummaryReportContentFunc(processedData, anomalies, configuredLogger);
+        saveReportFunc("summary_report_${getCurrentTimestamp().replace(" ", "_").replace(":", "-")}.${outputFormat}", summaryReportContent, reportDirectory, configuredLogger);
+
+        // JSON Report (if output format is json or all formats)
+        if (outputFormat == "json" || outputFormat == "all") {
+            let jsonReportMap = generateJsonReportContentFunc(processedData, anomalies, configuredLogger);
+            let jsonString = "{\"report_meta\": {\"generated_on\": \"${getCurrentTimestamp()}\", \"report_type\": \"Summary/Anomaly\", \"processed_data_count\": ${processedData.size()}, \"anomaly_count\": ${anomalies.size()}}, \"processed_data_sample\": [], \"anomalies\": []}";
+            saveReportFunc("detailed_report_${getCurrentTimestamp().replace(" ", "_").replace(":", "-")}.json", jsonString, reportDirectory, configuredLogger);
+        }
+
+        configuredLogger.logInfo("Reports generation complete.");
+    };
+
+    // Return the public API of the module as a map of functions
+    return {
+        "init": initFunc,
+        "generateReports": generateReportsFunc
+    };
+}

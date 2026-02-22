@@ -1,0 +1,6 @@
+{
+  "simulation_days": 30,
+  "regions": ["North America", "Europe", "Asia"],
+  "products": ["Widget A", "Gadget B", "Doohickey C"],
+  "base_currency": "USD"
+}

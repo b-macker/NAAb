@@ -5,7 +5,7 @@ use array
 use time
 
 // Helper: Measure execution time
-function benchmark(name, func) {
+fn benchmark(name, func) {
     let start = time.now()
     func()
     let end_time = time.now()
@@ -16,24 +16,24 @@ function benchmark(name, func) {
 }
 
 // Pipeline functions
-function double(x) {
+fn double(x) {
     return x * 2
 }
 
-function add_ten(x) {
+fn add_ten(x) {
     return x + 10
 }
 
-function square(x) {
+fn square(x) {
     return x * x
 }
 
-function subtract_five(x) {
+fn subtract_five(x) {
     return x - 5
 }
 
 // Benchmark 1: Simple pipeline execution
-function bench_simple_pipeline() {
+fn bench_simple_pipeline() {
     let iterations = 1000
     let i = 0
     while i < iterations {
@@ -43,7 +43,7 @@ function bench_simple_pipeline() {
 }
 
 // Benchmark 2: Long pipeline execution
-function bench_long_pipeline() {
+fn bench_long_pipeline() {
     let iterations = 1000
     let i = 0
     while i < iterations {
@@ -53,7 +53,7 @@ function bench_long_pipeline() {
 }
 
 // Benchmark 3: Pipeline with array functions
-function bench_array_pipeline() {
+fn bench_array_pipeline() {
     let iterations = 100
     let i = 0
     while i < iterations {
@@ -66,7 +66,7 @@ function bench_array_pipeline() {
 }
 
 // Benchmark 4: Pipeline validation overhead
-function validate_pipeline() {
+fn validate_pipeline() {
     // Simulate type checking in pipeline
     let types = ["int", "int", "int", "int"]
     let i = 0
@@ -77,7 +77,7 @@ function validate_pipeline() {
     }
 }
 
-function bench_validation() {
+fn bench_validation() {
     let iterations = 1000
     let i = 0
     while i < iterations {
@@ -87,7 +87,7 @@ function bench_validation() {
 }
 
 // Benchmark 5: Complex data transformation pipeline
-function bench_complex_pipeline() {
+fn bench_complex_pipeline() {
     let iterations = 50
     let i = 0
     while i < iterations {

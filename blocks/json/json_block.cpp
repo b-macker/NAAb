@@ -3,42 +3,14 @@
 // Version: 1.0.0
 
 #include <nlohmann/json.hpp>
-#include <memory>
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <variant>
-#include <stdexcept>
+#include "naab/interpreter.h"
 #include <cstring>
 
 using json = nlohmann::json;
+using naab::Value;
+using naab::ValueData;
 
-// Forward declarations - matching naab::interpreter::Value structure
-using ValueData = std::variant<
-    std::monostate,  // void/null
-    int,
-    double,
-    bool,
-    std::string,
-    std::vector<void*>,  // Actually std::vector<std::shared_ptr<Value>>
-    std::unordered_map<std::string, void*>,  // Actually std::unordered_map<std::string, std::shared_ptr<Value>>
-    void*,  // BlockValue
-    void*,  // FunctionValue
-    void*   // PythonObjectValue
->;
-
-// Simplified Value structure for block interface
-struct Value {
-    ValueData data;
-
-    Value() : data(std::monostate{}) {}
-    explicit Value(int v) : data(v) {}
-    explicit Value(double v) : data(v) {}
-    explicit Value(bool v) : data(v) {}
-    explicit Value(std::string v) : data(std::move(v)) {}
-};
-
-// Helper: Convert nlohmann::json to simplified Value
+// Helper: Convert nlohmann::json to Value
 Value* jsonToValue(const json& j) {
     if (j.is_null()) {
         return new Value();
@@ -50,8 +22,19 @@ Value* jsonToValue(const json& j) {
         return new Value(j.get<double>());
     } else if (j.is_string()) {
         return new Value(j.get<std::string>());
+    } else if (j.is_array()) {
+        std::vector<std::shared_ptr<Value>> arr;
+        for (const auto& elem : j) {
+            arr.push_back(std::shared_ptr<Value>(jsonToValue(elem)));
+        }
+        return new Value(std::move(arr));
+    } else if (j.is_object()) {
+        std::unordered_map<std::string, std::shared_ptr<Value>> dict;
+        for (auto& [key, val] : j.items()) {
+            dict[key] = std::shared_ptr<Value>(jsonToValue(val));
+        }
+        return new Value(std::move(dict));
     }
-    // TODO: Handle arrays and objects when full Value API is available
     return new Value();
 }
 
@@ -70,6 +53,18 @@ json valueToJson(const Value& val) {
             return arg;
         } else if constexpr (std::is_same_v<T, std::string>) {
             return arg;
+        } else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) {
+            json arr = json::array();
+            for (const auto& elem : arg) {
+                arr.push_back(valueToJson(*elem));
+            }
+            return arr;
+        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) {
+            json obj = json::object();
+            for (const auto& [key, val] : arg) {
+                obj[key] = valueToJson(*val);
+            }
+            return obj;
         } else {
             return "<unsupported>";
         }
@@ -79,31 +74,31 @@ json valueToJson(const Value& val) {
 // Exported C functions for block loading
 extern "C" {
 
-// Parse JSON string
+// Parse JSON string — caller owns the returned Value*
 void* json_parse(const char* json_str) {
     try {
         json j = json::parse(json_str);
         return jsonToValue(j);
     } catch (const json::parse_error& e) {
-        // TODO: Better error handling
         return new Value();  // Return null on error
     }
 }
 
-// Stringify value to JSON
+// Stringify value to JSON — returns statically managed string
+// Note: Uses thread_local buffer to avoid memory leaks
 const char* json_stringify(void* value_ptr, int indent) {
     try {
         Value* val = static_cast<Value*>(value_ptr);
         json j = valueToJson(*val);
 
-        std::string* result = new std::string();
+        thread_local std::string result_buf;
         if (indent >= 0) {
-            *result = j.dump(indent);
+            result_buf = j.dump(indent);
         } else {
-            *result = j.dump();
+            result_buf = j.dump();
         }
 
-        return result->c_str();
+        return result_buf.c_str();
     } catch (const std::exception& e) {
         return "";
     }

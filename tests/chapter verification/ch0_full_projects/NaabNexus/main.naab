@@ -1,0 +1,475 @@
+// ===================================================================
+// NAAb Nexus V2 — Enterprise Intelligence Dashboard
+// ===================================================================
+// Enterprise-grade multi-source intelligence platform demonstrating
+// EVERY NAAb language feature across 9 programming languages.
+//
+// V2 Enterprise Features:
+//   - Data validation & quality assurance (Grade A-D scoring)
+//   - Tamper-evident audit trail (SHA-256 hash chain + Rust verification)
+//   - Quantitative risk analysis (Monte Carlo, VaR, Sharpe ratio)
+//   - Business disruption index per city
+//   - Investment recommendations (Strong Buy/Buy/Hold/Watch)
+//   - Currency arbitrage detection
+//   - Defense-in-depth crypto (12 functions demonstrated)
+//   - Self-test & environment validation (Phase 0)
+//
+// Syntax: main, use, fn/function/func/def, struct, export, let, const,
+//         if/else, while, for...in, break/continue, try/catch/throw,
+//         return, lambda, pipeline (|>), if-expressions, dict, array,
+//         member access, string concat, arithmetic, comparison, logical,
+//         new StructName {}
+// Stdlib: io, json, file, http, time, array, string, math, crypto,
+//         csv, env (all 12 modules + prelude)
+// Polyglot: C++, Python, JavaScript, Rust, Go, Ruby, PHP, TypeScript, Shell
+// Block Assembly: use "BLOCK-CPP-MATH" as math_block
+// ===================================================================
+
+// ── Block Assembly (must come first)
+use "BLOCK-CPP-MATH" as math_block
+
+// ── Standard Library (all 12 modules)
+use io
+use json
+use file
+use http
+use time
+use array
+use string
+use math
+use crypto
+use csv
+use env
+
+// ── Custom Modules (11 modules)
+use modules.data_fetcher
+use modules.data_validator
+use modules.weather_engine
+use modules.finance_engine
+use modules.tech_intel
+use modules.risk_analyzer
+use modules.analytics
+use modules.audit_trail
+use modules.security
+use modules.dashboard
+use modules.reporter
+
+// ── Helper: elapsed time formatting
+fn format_elapsed(start_ms, end_ms) {
+    let elapsed = end_ms - start_ms
+    if elapsed < 1000 {
+        return "" + elapsed + "ms"
+    }
+    let secs = math.round(elapsed / 100.0) / 10.0
+    return "" + secs + "s"
+}
+
+// ── Helper: count live sources
+fn count_live_sources(weather_list, crypto_list, currency, github_list, geo) {
+    let live = 0
+    let total = 0
+
+    for (w in weather_list) {
+        total = total + 1
+        if w.is_live {
+            live = live + 1
+        }
+    }
+    for (c in crypto_list) {
+        total = total + 1
+        if c.is_live {
+            live = live + 1
+        }
+    }
+    total = total + 1
+    if currency.is_live {
+        live = live + 1
+    }
+    for (r in github_list) {
+        total = total + 1
+        if r.is_live {
+            live = live + 1
+        }
+    }
+    total = total + 1
+    if geo.is_live {
+        live = live + 1
+    }
+
+    return {"live": live, "total": total}
+}
+
+// ===================================================================
+//                          MAIN
+// ===================================================================
+
+main {
+    let total_start = time.now()
+
+    // ── Phase 0: Self-Test & Environment Check ──────────────────
+    io.write("\n")
+    io.write("  ╔═══════════════════════════════════════════════════════════╗\n")
+    io.write("  ║                                                           ║\n")
+    io.write("  ║        N A A b   N E X U S   V 2                         ║\n")
+    io.write("  ║        Enterprise Intelligence Dashboard                  ║\n")
+    io.write("  ║                                                           ║\n")
+    io.write("  ║  9 Languages | 5 APIs | 12 Stdlib | Risk + Audit + VaR   ║\n")
+    io.write("  ║                                                           ║\n")
+    io.write("  ╚═══════════════════════════════════════════════════════════╝\n")
+    io.write("\n")
+
+    io.write("Phase 0/10: Self-Test & Environment Check\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase0_start = time.now()
+    let self_test_pass = 0
+    let self_test_total = 0
+
+    // Test: System detection
+    let sys_info = <<sh
+    echo "$(uname -s) $(uname -m) | $(nproc 2>/dev/null || echo '?') cores | $(free -h 2>/dev/null | awk '/Mem:/{print $2}' || echo '? RAM')"
+    >>
+    io.write("  System: ", string.trim(sys_info), "\n")
+
+    // Test: Environment
+    let home_dir = env.get("HOME")
+    io.write("  Home: ", home_dir, "\n")
+    let args = env.get_args()
+    io.write("  Args: ", array.length(args), " script arguments\n")
+
+    // Test: Block assembly
+    let block_test = math_block.power(2, 8)
+    self_test_total = self_test_total + 1
+    if block_test == 256 {
+        self_test_pass = self_test_pass + 1
+        io.write("  Block Assembly: PASS (2^8 = ", block_test, ")\n")
+    } else {
+        io.write("  Block Assembly: FAIL (expected 256, got ", block_test, ")\n")
+    }
+
+    // Test: Math operations
+    self_test_total = self_test_total + 1
+    let math_test = math.sqrt(144.0)
+    if math_test == 12.0 {
+        self_test_pass = self_test_pass + 1
+        io.write("  Math.sqrt: PASS\n")
+    } else {
+        io.write("  Math.sqrt: FAIL\n")
+    }
+
+    // Test: String operations
+    self_test_total = self_test_total + 1
+    let str_test = string.upper("naab")
+    if str_test == "NAAB" {
+        self_test_pass = self_test_pass + 1
+        io.write("  String.upper: PASS\n")
+    } else {
+        io.write("  String.upper: FAIL\n")
+    }
+
+    // Test: Crypto
+    self_test_total = self_test_total + 1
+    let hash_test = crypto.sha256("test")
+    if string.length(hash_test) == 64 {
+        self_test_pass = self_test_pass + 1
+        io.write("  Crypto.sha256: PASS\n")
+    } else {
+        io.write("  Crypto.sha256: FAIL\n")
+    }
+
+    // Test: JSON round-trip
+    self_test_total = self_test_total + 1
+    let json_obj = {"key": "value", "num": 42}
+    let json_str = json.stringify(json_obj)
+    let json_back = json.parse(json_str)
+    if json_back["num"] == 42 {
+        self_test_pass = self_test_pass + 1
+        io.write("  JSON round-trip: PASS\n")
+    } else {
+        io.write("  JSON round-trip: FAIL\n")
+    }
+
+    // Test: Time module
+    self_test_total = self_test_total + 1
+    let ts_now = time.now()
+    let ts_millis = time.now_millis()
+    if ts_now > 0 {
+        self_test_pass = self_test_pass + 1
+        io.write("  Time.now: PASS (", ts_now, ")\n")
+    } else {
+        io.write("  Time.now: FAIL\n")
+    }
+
+    io.write("  Self-test: ", self_test_pass, "/", self_test_total, " passed\n")
+    let phase0_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase0_start, phase0_end), "\n\n")
+
+    // ── Phase 1: Configuration ──────────────────────────────────
+    io.write("Phase 1/10: Loading Configuration\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase1_start = time.now()
+
+    // Detect base directory
+    let base_dir = <<sh
+    for d in "tests/chapter verification/ch0_full_projects/NaabNexus" "."; do if [ -f "$d/config.json" ]; then printf "%s" "$d"; exit 0; fi; done; printf "."
+    >>
+
+    let config_path = string.trim(base_dir) + "/config.json"
+    let config_raw = file.read(config_path)
+    let config = json.parse(config_raw)
+
+    io.write("  Config loaded from: ", config_path, "\n")
+    io.write("  Cities: ", array.length(config["cities"]), "\n")
+    io.write("  Crypto: ", array.length(config["crypto_ids"]), "\n")
+    io.write("  Currencies: ", array.length(config["currencies"]), "\n")
+    io.write("  GitHub repos: ", array.length(config["github_repos"]), "\n")
+    io.write("  Risk thresholds: Monte Carlo x", config["risk_thresholds"]["monte_carlo_iterations"], "\n")
+
+    // Prepare output directory using file module
+    let out_dir = string.trim(base_dir) + "/" + config["output_dir"]
+    let dir_exists = file.exists(out_dir)
+    if !dir_exists {
+        file.create_dir(out_dir)
+        io.write("  Created output dir: ", out_dir, "\n")
+    } else {
+        io.write("  Output dir: ", out_dir, " (exists)\n")
+    }
+
+    let phase1_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase1_start, phase1_end), "\n\n")
+
+    // ── Phase 2: Data Collection ────────────────────────────────
+    io.write("Phase 2/10: Data Collection (5 APIs)\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase2_start = time.now()
+
+    // Initialize audit trail state
+    let audit = audit_trail.create_state()
+
+    let weather_raw = data_fetcher.fetch_weather(config)
+    let crypto_raw = data_fetcher.fetch_crypto(config)
+    let currency_raw = data_fetcher.fetch_currencies(config)
+    let github_raw = data_fetcher.fetch_github(config)
+    let geo_raw = data_fetcher.fetch_geo(config)
+
+    // Audit: record data collection
+    audit = audit_trail.record(audit, "data_collection", "fetch_weather", config["cities"], weather_raw)
+    audit = audit_trail.record(audit, "data_collection", "fetch_crypto", config["crypto_ids"], crypto_raw)
+    audit = audit_trail.record(audit, "data_collection", "fetch_currency", config["currencies"], currency_raw)
+    audit = audit_trail.record(audit, "data_collection", "fetch_github", config["github_repos"], github_raw)
+    audit = audit_trail.record(audit, "data_collection", "fetch_geo", "ip_lookup", geo_raw)
+
+    let source_counts = count_live_sources(weather_raw, crypto_raw, currency_raw, github_raw, geo_raw)
+    io.write("  Sources: ", source_counts["live"], "/", source_counts["total"], " live\n")
+
+    let phase2_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase2_start, phase2_end), "\n\n")
+
+    // ── Phase 3: Data Validation & Quality Assurance ────────────
+    io.write("Phase 3/10: Data Validation & Quality Assurance\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase3_start = time.now()
+
+    let validation = data_validator.validate_all(
+        weather_raw, crypto_raw, currency_raw, github_raw, geo_raw, config
+    )
+
+    // Audit: record validation
+    audit = audit_trail.record(audit, "validation", "quality_check", "all_sources", validation)
+
+    let phase3_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase3_start, phase3_end), "\n\n")
+
+    // ── Phase 4: Weather Analysis (C++) ─────────────────────────
+    io.write("Phase 4/10: Weather Analysis [C++ FFI]\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase4_start = time.now()
+
+    let weather_enriched = weather_engine.process_weather(weather_raw)
+    let weather_stats = weather_engine.weather_summary(weather_enriched)
+
+    io.write("  Avg temp: ", weather_stats["avg_temperature"], "C\n")
+    io.write("  Hottest: ", weather_stats["hottest_city"], " (", weather_stats["max_temperature"], "C)\n")
+    io.write("  Coldest: ", weather_stats["coldest_city"], " (", weather_stats["min_temperature"], "C)\n")
+    io.write("  Avg disruption: ", weather_stats["avg_disruption"], " | Max: ", weather_stats["max_disruption_city"], " (", weather_stats["max_disruption"], ")\n")
+
+    // Audit: record weather processing
+    audit = audit_trail.record(audit, "processing", "weather_analysis", weather_raw, weather_enriched)
+
+    let phase4_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase4_start, phase4_end), "\n\n")
+
+    // ── Phase 5: Financial Analysis (C++) ───────────────────────
+    io.write("Phase 5/10: Financial Analysis [C++ Stats + VaR]\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase5_start = time.now()
+
+    let crypto_analysis = finance_engine.analyze_crypto(crypto_raw)
+    let currency_analysis = finance_engine.analyze_currencies(currency_raw)
+
+    io.write("  Price stdev: ", crypto_analysis["price_stats"]["stdev"], "\n")
+    io.write("  VaR(95%): $", crypto_analysis["var"]["var_dollar"], "\n")
+    io.write("  Sharpe ratio: ", crypto_analysis["var"]["sharpe_ratio"], "\n")
+    io.write("  Currency range: ", currency_analysis["rate_stats"]["range"], "\n")
+
+    // Audit: record financial analysis
+    audit = audit_trail.record(audit, "processing", "crypto_analysis", crypto_raw, crypto_analysis)
+    audit = audit_trail.record(audit, "processing", "currency_analysis", currency_raw, currency_analysis)
+
+    let phase5_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase5_start, phase5_end), "\n\n")
+
+    // ── Phase 6: Tech Intelligence ──────────────────────────────
+    io.write("Phase 6/10: Tech Intelligence [Pure NAAb + Lambdas]\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase6_start = time.now()
+
+    let github_analysis = tech_intel.analyze_repos(github_raw)
+
+    io.write("  Top repo: ", github_analysis["top_repo"], " -> ", github_analysis["top_recommendation"], "\n")
+
+    // Audit: record tech intel
+    audit = audit_trail.record(audit, "processing", "tech_intelligence", github_raw, github_analysis)
+
+    let phase6_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase6_start, phase6_end), "\n\n")
+
+    // ── Phase 7: Risk Analysis & Anomaly Detection ──────────────
+    io.write("Phase 7/10: Risk Analysis & Anomaly Detection [Python + C++]\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase7_start = time.now()
+
+    let risk_data = risk_analyzer.analyze_risk(
+        weather_stats, crypto_analysis, currency_analysis, validation, config
+    )
+
+    // Audit: record risk analysis (secure - SHA-512)
+    audit = audit_trail.record_secure(audit, "risk_analysis", "composite_risk", "multi_source", risk_data)
+
+    let phase7_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase7_start, phase7_end), "\n\n")
+
+    // ── Phase 8: Cross-Source Analytics (Python + JS) ───────────
+    io.write("Phase 8/10: Cross-Source Analytics [Python + JavaScript]\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase8_start = time.now()
+
+    // Build geo dict for analytics
+    let geo_dict = {
+        "ip": geo_raw.ip,
+        "city": geo_raw.city,
+        "region": geo_raw.region,
+        "country": geo_raw.country,
+        "latitude": geo_raw.latitude,
+        "longitude": geo_raw.longitude,
+        "timezone": geo_raw.timezone,
+        "is_live": geo_raw.is_live
+    }
+
+    let analytics_result = analytics.run_analytics(
+        weather_enriched, crypto_analysis,
+        currency_analysis, github_analysis, geo_dict,
+        risk_data, validation
+    )
+
+    io.write("  Correlation: r=", analytics_result["correlation"]["cross_correlation"], "\n")
+    io.write("  Weather trend: ", analytics_result["correlation"]["weather_trend"], "\n")
+
+    // Audit: record analytics
+    audit = audit_trail.record(audit, "processing", "cross_source_analytics", "all_data", analytics_result)
+
+    let phase8_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase8_start, phase8_end), "\n\n")
+
+    // ── Phase 9: Security & Audit Trail (Rust + Go + Crypto) ────
+    io.write("Phase 9/10: Security & Audit Trail [Rust + Go + Crypto]\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase9_start = time.now()
+
+    // Assemble all raw data for integrity hashing
+    let all_raw = {
+        "weather": weather_enriched,
+        "crypto": crypto_analysis,
+        "currency": currency_analysis,
+        "github": github_analysis,
+        "geo": geo_dict
+    }
+
+    // Get audit summary before finalizing
+    let audit_summary = audit_trail.get_summary(audit)
+
+    let integrity = security.verify_integrity(all_raw, out_dir, audit_summary)
+
+    // Additional crypto showcase
+    let data_fingerprint = crypto.sha256(json.stringify(all_raw))
+    let b64_fingerprint = crypto.base64_encode(data_fingerprint)
+    io.write("  Data fingerprint: ", string.substring(data_fingerprint, 0, 16), "...\n")
+    io.write("  [type] integrity = ", type(integrity), "\n")
+
+    // Finalize audit trail
+    let audit_result = audit_trail.finalize(audit, out_dir)
+
+    let phase9_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase9_start, phase9_end), "\n\n")
+
+    // ── Phase 10: Report Generation (PHP + Ruby + TS + CSV) ─────
+    io.write("Phase 10/10: Report Generation [PHP + Ruby + TypeScript + CSV]\n")
+    io.write("─────────────────────────────────────────────────\n")
+    let phase10_start = time.now()
+
+    // PHP Dashboard
+    let dashboard_path = out_dir + "/" + config["dashboard_filename"]
+    let html_size = dashboard.render_dashboard(
+        analytics_result["dashboard"],
+        integrity["report_id"],
+        dashboard_path
+    )
+
+    // Ruby Summary + TypeScript CSV Validation + CSV Write
+    let report_result = reporter.generate_reports(
+        analytics_result["dashboard"],
+        integrity["report_id"],
+        out_dir
+    )
+
+    let phase10_end = time.now()
+    io.write("  Completed in ", format_elapsed(phase10_start, phase10_end), "\n\n")
+
+    // ── Final Summary ───────────────────────────────────────────
+    let total_end = time.now()
+    let total_elapsed = format_elapsed(total_start, total_end)
+
+    // Pipeline operator showcase
+    let format_status = fn(n) { return "" + n + "/" + source_counts["total"] + " live" }
+    let status_line = source_counts["live"] |> format_status
+
+    // Risk level color indicator
+    let risk_indicator = if risk_data["alert_level"] == "RED" { "!!!" } else { if risk_data["alert_level"] == "YELLOW" { "!!" } else { "OK" } }
+
+    io.write("  ╔═══════════════════════════════════════════════════════════╗\n")
+    io.write("  ║                MISSION COMPLETE                           ║\n")
+    io.write("  ╠═══════════════════════════════════════════════════════════╣\n")
+    io.write("  ║  Total Time:     ", total_elapsed, "\n")
+    io.write("  ║  Data Sources:   ", status_line, "\n")
+    io.write("  ║  Data Quality:   ", validation["quality_grade"], " (", validation["overall_score"], "%)\n")
+    io.write("  ║  Risk Level:     ", risk_data["alert_level"], " [", risk_indicator, "] (score: ", risk_data["risk_score"], "/100)\n")
+    io.write("  ║  Report ID:      ", integrity["report_id"], "\n")
+    io.write("  ║  Verification:   ", integrity["verification"]["status"], "\n")
+    io.write("  ║  Audit Events:   ", audit_result["total_events"], " (chain: ", if audit_result["chain_valid"] { "VALID" } else { "BROKEN" }, ")\n")
+    io.write("  ║  Self-Tests:     ", self_test_pass, "/", self_test_total, " passed\n")
+    io.write("  ╠═══════════════════════════════════════════════════════════╣\n")
+    io.write("  ║  Files Generated:                                        ║\n")
+    io.write("  ║    ", dashboard_path, "\n")
+    io.write("  ║    ", report_result["csv_path"], "\n")
+    io.write("  ║    ", report_result["report_path"], "\n")
+    io.write("  ║    ", out_dir, "/integrity.json\n")
+    io.write("  ║    ", out_dir, "/audit_trail.json\n")
+    io.write("  ╠═══════════════════════════════════════════════════════════╣\n")
+    io.write("  ║  Languages:  C++ Python JavaScript Rust Go               ║\n")
+    io.write("  ║              Ruby PHP TypeScript Shell                    ║\n")
+    io.write("  ║  Stdlib:     io json file http time array string         ║\n")
+    io.write("  ║              math crypto csv env                         ║\n")
+    io.write("  ║  Enterprise: VaR Monte-Carlo Risk-Scoring Audit-Trail    ║\n")
+    io.write("  ║              Data-Validation Arbitrage Recommendations   ║\n")
+    io.write("  ║  Block:      BLOCK-CPP-MATH verified                    ║\n")
+    io.write("  ╚═══════════════════════════════════════════════════════════╝\n\n")
+}

@@ -1,0 +1,22 @@
+# Chapter 14: Testing Pattern Verification
+
+fn assert_eq(actual: int, expected: int) {
+    if actual != expected {
+        throw "Assertion failed"
+    }
+}
+
+fn test_math() {
+    assert_eq(1 + 1, 2)
+    print("Math test passed")
+}
+
+main {
+    print(">>> Chapter 14 Verification: Testing <<<")
+    try {
+        test_math()
+    } catch (e) {
+        print("Test failed:", e)
+    }
+    print(">>> Chapter 14 Verification: COMPLETE <<<")
+}

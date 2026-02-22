@@ -1,0 +1,699 @@
+# NAAb Tutorial: Block Assembly System
+# Learn how to use pre-built blocks from the block registry
+
+# ═══════════════════════════════════════════════════════════════
+# INTRODUCTION TO BLOCK ASSEMBLY
+# ═══════════════════════════════════════════════════════════════
+
+# NAAb has a registry of pre-built code blocks across multiple languages
+# that you can search, discover, and use in your programs. This is called
+# the "Block Assembly" system.
+#
+# Think of it like a massive library of functions across multiple languages
+# that you can import and use without writing the code yourself.
+
+# ═══════════════════════════════════════════════════════════════
+# PART 1: SEARCHING FOR BLOCKS
+# ═══════════════════════════════════════════════════════════════
+
+# Before you can use a block, you need to find it!
+# Use the command line tool to search:
+
+# Example searches (run in terminal, not in this file):
+# ------------------------------------------------------------
+# $ cd ~/.naab/language/build
+# $ ./naab-lang blocks search "validate email"
+# $ ./naab-lang blocks search "parse json"
+# $ ./naab-lang blocks search "http request"
+# $ ./naab-lang blocks search "fibonacci"
+# $ ./naab-lang blocks search "sort array"
+
+# Search results show:
+# - Block ID (e.g., BLOCK-PY-09145)
+# - Language (python, javascript, cpp, go, etc.)
+# - Description
+# - Input/Output types
+# - Relevance score
+
+# Example output:
+# Search results for "validate email":
+#
+# 1. BLOCK-PY-09145 (python)
+#    Validate email address format
+#    Input: string → Output: bool
+#    Score: 0.95
+#
+# 2. BLOCK-JS-03421 (javascript)
+#    Email validation with regex
+#    Input: string → Output: bool
+#    Score: 0.87
+
+# ═══════════════════════════════════════════════════════════════
+# PART 2: LISTING AVAILABLE BLOCKS
+# ═══════════════════════════════════════════════════════════════
+
+# See all available blocks:
+# $ ./naab-lang blocks list
+
+# Output shows:
+# Total blocks: 24,515
+#
+# By language:
+#   Python:     8,234 blocks
+#   C++:        7,621 blocks
+#   JavaScript: 5,142 blocks
+#   Go:         2,341 blocks
+#   Rust:         845 blocks
+#   Java:         300 blocks
+#   Ruby:         172 blocks
+#   Swift:        100 blocks
+
+# Filter by language:
+# $ ./naab-lang blocks list --language python
+# $ ./naab-lang blocks list --language javascript
+
+# Filter by category:
+# $ ./naab-lang blocks list --category validation
+# $ ./naab-lang blocks list --category data-processing
+# $ ./naab-lang blocks list --category algorithms
+
+# ═══════════════════════════════════════════════════════════════
+# PART 3: USING BLOCKS IN YOUR CODE (Basic)
+# ═══════════════════════════════════════════════════════════════
+
+use io
+
+fn demo_basic_block_usage() {
+    io.write("=== PART 3: Basic Block Usage ===\n
+")
+    io.write("\n
+")
+
+    # Import a block using its ID
+    # Syntax: use BLOCK-ID as name
+    # NOTE: These are example IDs - actual IDs may differ
+    # Run 'blocks search' to find real block IDs
+
+    # Example 1: Email validation block
+    # use BLOCK-PY-09145 as validate_email
+
+    # let email1 = "alice@example.com"
+    # let email2 = "invalid-email"
+
+    # let valid1 = validate_email(email1)
+    # let valid2 = validate_email(email2)
+
+    # print("Is '", email1, "' valid? ", valid1)  # true
+    # print("Is '", email2, "' valid? ", valid2)  # false
+
+    io.write("(See comments in source code for usage examples)
+")
+    io.write("\n
+")
+}
+
+# ═══════════════════════════════════════════════════════════════
+# PART 4: BLOCK COMPOSITION (Chaining Blocks)
+# ═══════════════════════════════════════════════════════════════
+
+fn demo_block_composition() {
+    io.write("=== PART 4: Block Composition ===\n
+")
+    io.write("\n
+")
+
+    # You can chain multiple blocks together!
+    # This is the power of Block Assembly
+
+    # Example: Data processing pipeline
+    # 1. Parse JSON
+    # 2. Validate data
+    # 3. Transform data
+    # 4. Format output
+
+    # use BLOCK-PY-10234 as parse_json
+    # use BLOCK-PY-10567 as validate_data
+    # use BLOCK-JS-05432 as transform_data
+    # use BLOCK-PY-11234 as format_output
+
+    # let raw_json = '{"name": "Alice", "age": 30}'
+
+    # # Chain the blocks
+    # let parsed = parse_json(raw_json)
+    # let validated = validate_data(parsed)
+    # let transformed = transform_data(validated)
+    # let formatted = format_output(transformed)
+
+    # print("Result: ", formatted)
+
+    io.write("(Block composition allows cross-language pipelines)
+")
+    io.write("\n
+")
+}
+
+# ═══════════════════════════════════════════════════════════════
+# PART 5: VALIDATING BLOCK COMPATIBILITY
+# ═══════════════════════════════════════════════════════════════
+
+# Before using blocks together, validate they're compatible:
+# $ ./naab-lang validate "BLOCK-PY-09145,BLOCK-JS-03421"
+
+# Output:
+# Validation results:
+#
+# ✓ BLOCK-PY-09145 → BLOCK-JS-03421
+#   Compatible: Output type (bool) matches input type
+#
+# Composition is valid!
+
+# Or check for issues:
+# $ ./naab-lang validate "BLOCK-PY-10234,BLOCK-GO-05678"
+
+# Output:
+# Validation results:
+#
+# ✗ BLOCK-PY-10234 → BLOCK-GO-05678
+#   Type mismatch: Output (dict) incompatible with input (string)
+#   Suggestion: Add type conversion block
+#
+# Composition has issues!
+
+# ═══════════════════════════════════════════════════════════════
+# PART 6: INSPECTING BLOCKS
+# ═══════════════════════════════════════════════════════════════
+
+# Get detailed information about a block:
+# $ ./naab-lang blocks info BLOCK-PY-09145
+
+# Output:
+# Block ID: BLOCK-PY-09145
+# Language: Python
+# Category: validation
+# Description: Validate email address format using RFC 5322 regex
+#
+# Signature:
+#   Input: string (email address)
+#   Output: bool (true if valid, false otherwise)
+#
+# Dependencies: re (Python standard library)
+#
+# Example usage:
+#   use BLOCK-PY-09145 as validate_email
+#   let is_valid = validate_email("user@example.com")
+#
+# Performance: O(n) where n is email length
+# Tested: Yes (100% pass rate on RFC 5322 test suite)
+# Security: Safe (no code execution)
+
+# ═══════════════════════════════════════════════════════════════
+# PART 7: BLOCK CATEGORIES
+# ═══════════════════════════════════════════════════════════════
+
+# Blocks are organized into categories:
+
+# VALIDATION
+# - Email validation
+# - URL validation
+# - Phone number validation
+# - Credit card validation
+# - Input sanitization
+
+# DATA PROCESSING
+# - JSON parsing/serialization
+# - XML parsing
+# - CSV parsing
+# - Data transformation
+# - Data filtering
+
+# ALGORITHMS
+# - Sorting algorithms
+# - Search algorithms
+# - Graph algorithms
+# - String algorithms
+# - Numerical algorithms
+
+# WEB
+# - HTTP requests
+# - HTML parsing
+# - API clients
+# - Web scraping
+# - OAuth authentication
+
+# FILE OPERATIONS
+# - File reading/writing
+# - Directory operations
+# - Archive handling (zip, tar)
+# - File format conversion
+
+# CRYPTOGRAPHY
+# - Hashing (MD5, SHA-256, etc.)
+# - Encryption/Decryption
+# - Password hashing
+# - Token generation
+
+# DATE/TIME
+# - Date parsing
+# - Date formatting
+# - Timezone conversion
+# - Duration calculation
+
+# MATH/STATISTICS
+# - Statistical calculations
+# - Linear algebra
+# - Probability functions
+# - Random number generation
+
+# ═══════════════════════════════════════════════════════════════
+# PART 8: PRACTICAL EXAMPLES
+# ═══════════════════════════════════════════════════════════════
+
+fn demo_practical_examples() {
+    io.write("=== PART 8: Practical Examples ===\n
+")
+    io.write("\n
+")
+
+    # Example 1: User Registration System
+    io.write("[Example 1] User Registration\n
+")
+
+    # Blocks needed:
+    # - Email validation
+    # - Password strength checker
+    # - Username sanitization
+    # - Database insert
+
+    # use BLOCK-PY-09145 as validate_email
+    # use BLOCK-PY-12345 as check_password_strength
+    # use BLOCK-JS-05678 as sanitize_username
+    # use BLOCK-PY-13579 as insert_user
+
+    # let email = "alice@example.com"
+    # let password = "SecurePass123!"
+    # let username = "alice_2024"
+
+    # if validate_email(email) {
+    #     if check_password_strength(password) {
+    #         let clean_username = sanitize_username(username)
+    #         let success = insert_user(email, password, clean_username)
+    #         io.write("User registered: ", success)
+    #     }
+    # }
+
+    io.write("  (Uses 4 blocks: validation, security, sanitization, database)
+")
+    io.write("\n
+")
+
+    # Example 2: Data Analytics Pipeline
+    io.write("[Example 2] Data Analytics\n
+")
+
+    # Blocks needed:
+    # - CSV parser
+    # - Data cleaner
+    # - Statistical analyzer
+    # - Chart generator
+
+    # use BLOCK-PY-20001 as parse_csv
+    # use BLOCK-PY-20002 as clean_data
+    # use BLOCK-PY-20003 as analyze_stats
+    # use BLOCK-JS-20004 as generate_chart
+
+    # let csv_data = "name,sales\nAlice,100\nBob,150\n"
+    # let parsed = parse_csv(csv_data)
+    # let cleaned = clean_data(parsed)
+    # let stats = analyze_stats(cleaned)
+    # let chart = generate_chart(stats)
+
+    # print("  Analytics complete: ", stats)
+
+    io.write("  (Uses 4 blocks: parsing, cleaning, analytics, visualization)
+")
+    io.write("\n
+")
+
+    # Example 3: Web Scraping
+    io.write("[Example 3] Web Scraping\n
+")
+
+    # Blocks needed:
+    # - HTTP GET request
+    # - HTML parser
+    # - Data extractor
+    # - JSON serializer
+
+    # use BLOCK-PY-30001 as http_get
+    # use BLOCK-PY-30002 as parse_html
+    # use BLOCK-JS-30003 as extract_data
+    # use BLOCK-PY-30004 as to_json
+
+    # let url = "https://example.com/data"
+    # let html = http_get(url)
+    # let dom = parse_html(html)
+    # let data = extract_data(dom)
+    # let json = to_json(data)
+
+    # print("  Scraped data: ", json)
+
+    io.write("  (Uses 4 blocks: HTTP, parsing, extraction, serialization)
+")
+    io.write("\n
+")
+}
+
+# ═══════════════════════════════════════════════════════════════
+# PART 9: ADVANCED FEATURES
+# ═══════════════════════════════════════════════════════════════
+
+fn demo_advanced_features() {
+    io.write("=== PART 9: Advanced Features ===\n
+")
+    io.write("\n
+")
+
+    # Feature 1: Block Metadata
+    io.write("[Feature 1] Block Metadata\n
+")
+    io.write("  Each block includes metadata:\n
+")
+    io.write("  • Author and version\n
+")
+    io.write("  • Performance characteristics (O notation)
+")
+    io.write("  • Security audit status\n
+")
+    io.write("  • Test coverage percentage\n
+")
+    io.write("  • Dependencies\n
+")
+    io.write("  • License information\n
+")
+    io.write("\n
+")
+
+    # Feature 2: Type Safety
+    io.write("[Feature 2] Type Safety\n
+")
+    io.write("  Blocks have strict type signatures:\n
+")
+    io.write("  • Input types validated at runtime\n
+")
+    io.write("  • Output types guaranteed\n
+")
+    io.write("  • Type conversion handled automatically\n
+")
+    io.write("  • Compile-time checking (when possible)
+")
+    io.write("\n
+")
+
+    # Feature 3: Performance Optimization
+    io.write("[Feature 3] Performance\n
+")
+    io.write("  The block system is optimized:\n
+")
+    io.write("  • Blocks cached after first load\n
+")
+    io.write("  • JIT compilation for hot paths\n
+")
+    io.write("  • Lazy loading of dependencies\n
+")
+    io.write("  • Cross-language optimization\n
+")
+    io.write("\n
+")
+
+    # Feature 4: Security
+    io.write("[Feature 4] Security\n
+")
+    io.write("  All blocks are security-audited:\n
+")
+    io.write("  • Sandboxed execution\n
+")
+    io.write("  • No arbitrary code execution\n
+")
+    io.write("  • Input validation\n
+")
+    io.write("  • Resource limits enforced\n
+")
+    io.write("\n
+")
+}
+
+# ═══════════════════════════════════════════════════════════════
+# PART 10: CREATING YOUR OWN BLOCKS
+# ═══════════════════════════════════════════════════════════════
+
+# You can contribute blocks to the registry!
+
+# Step 1: Write your code
+# $ nano my_block.py
+
+# Step 2: Create block metadata
+# $ ./naab-lang blocks create my_block.py \
+#     --name "My Custom Block" \
+#     --description "Does something useful" \
+#     --input string \
+#     --output int \
+#     --category custom
+
+# Step 3: Test your block
+# $ ./naab-lang blocks test BLOCK-CUSTOM-00001
+
+# Step 4: Submit to registry (if public)
+# $ ./naab-lang blocks submit BLOCK-CUSTOM-00001
+
+# Metadata requirements:
+# - Clear description
+# - Type signatures
+# - Example usage
+# - Unit tests
+# - Documentation
+
+# ═══════════════════════════════════════════════════════════════
+# PART 11: BLOCK DISCOVERY STRATEGIES
+# ═══════════════════════════════════════════════════════════════
+
+fn demo_discovery_strategies() {
+    io.write("=== PART 11: Finding the Right Blocks ===\n
+")
+    io.write("\n
+")
+
+    io.write("Strategy 1: Search by task\n
+")
+    io.write("  $ ./naab-lang blocks search 'validate email'\n
+")
+    io.write("\n
+")
+
+    io.write("Strategy 2: Search by input/output types\n
+")
+    io.write("  $ ./naab-lang blocks search 'string -> int'\n
+")
+    io.write("\n
+")
+
+    io.write("Strategy 3: Browse by category\n
+")
+    io.write("  $ ./naab-lang blocks list --category validation\n
+")
+    io.write("\n
+")
+
+    io.write("Strategy 4: Search by language\n
+")
+    io.write("  $ ./naab-lang blocks search 'sort array' --language python\n
+")
+    io.write("\n
+")
+
+    io.write("Strategy 5: Similar blocks\n
+")
+    io.write("  $ ./naab-lang blocks similar BLOCK-PY-09145\n
+")
+    io.write("\n
+")
+}
+
+# ═══════════════════════════════════════════════════════════════
+# PART 12: BLOCK ASSEMBLY VS INLINE CODE
+# ═══════════════════════════════════════════════════════════════
+
+fn demo_comparison() {
+    io.write("=== PART 12: Block Assembly vs Inline Code ===\n
+")
+    io.write("\n
+")
+
+    io.write("BLOCK ASSEMBLY:\n
+")
+    io.write("  ✓ Pre-tested and audited\n
+")
+    io.write("  ✓ Optimized performance\n
+")
+    io.write("  ✓ Type-safe\n
+")
+    io.write("  ✓ Reusable across projects\n
+")
+    io.write("  ✓ Maintained by community\n
+")
+    io.write("  ✗ Less flexible\n
+")
+    io.write("  ✗ May not fit exact needs\n
+")
+    io.write("\n
+")
+
+    io.write("INLINE CODE:\n
+")
+    io.write("  ✓ Fully customizable\n
+")
+    io.write("  ✓ No block search needed\n
+")
+    io.write("  ✓ Can use any library\n
+")
+    io.write("  ✗ You write the tests\n
+")
+    io.write("  ✗ You maintain the code\n
+")
+    io.write("  ✗ Potential security issues\n
+")
+    io.write("\n
+")
+
+    io.write("RECOMMENDATION:\n
+")
+    io.write("  • Use blocks for common tasks\n
+")
+    io.write("  • Use inline code for custom logic\n
+")
+    io.write("  • Combine both for best results!\n
+")
+    io.write("\n
+")
+}
+
+# ═══════════════════════════════════════════════════════════════
+# PART 13: TROUBLESHOOTING
+# ═══════════════════════════════════════════════════════════════
+
+fn demo_troubleshooting() {
+    io.write("=== PART 13: Troubleshooting ===\n
+")
+    io.write("\n
+")
+
+    io.write("Problem: Block not found\n
+")
+    io.write("  Solution:\n
+")
+    io.write("  • Check block ID spelling\n
+")
+    io.write("  • Update block database: ./naab-lang blocks update\n
+")
+    io.write("  • Search for similar blocks\n
+")
+    io.write("\n
+")
+
+    io.write("Problem: Type mismatch\n
+")
+    io.write("  Solution:\n
+")
+    io.write("  • Check block signatures: ./naab-lang blocks info BLOCK-ID\n
+")
+    io.write("  • Add type conversion block\n
+")
+    io.write("  • Validate composition: ./naab-lang validate\n
+")
+    io.write("\n
+")
+
+    io.write("Problem: Block execution fails\n
+")
+    io.write("  Solution:\n
+")
+    io.write("  • Check block dependencies\n
+")
+    io.write("  • Verify input data format\n
+")
+    io.write("  • Check block version compatibility\n
+")
+    io.write("  • Report issue: ./naab-lang blocks report BLOCK-ID\n
+")
+    io.write("\n
+")
+}
+
+# ═══════════════════════════════════════════════════════════════
+# MAIN PROGRAM
+# ═══════════════════════════════════════════════════════════════
+
+main {
+    io.write("╔══════════════════════════════════════════════════════════╗\n
+")
+    io.write("║  NAAb Block Assembly System Tutorial                     ║\n
+")
+    io.write("║  24,500+ Pre-built Blocks at Your Fingertips             ║\n
+")
+    io.write("╚══════════════════════════════════════════════════════════╝\n
+")
+    io.write("\n
+")
+
+    demo_basic_block_usage()
+    demo_block_composition()
+    demo_practical_examples()
+    demo_advanced_features()
+    demo_discovery_strategies()
+    demo_comparison()
+    demo_troubleshooting()
+
+    io.write("╔══════════════════════════════════════════════════════════╗\n
+")
+    io.write("║  Tutorial Complete!                                       ║\n
+")
+    io.write("║                                                          ║\n
+")
+    io.write("║  Block Assembly System:                                  ║\n
+")
+    io.write("║  • 24,500+ blocks available                              ║\n
+")
+    io.write("║  • 8 languages supported                                 ║\n
+")
+    io.write("║  • Search, discover, validate, use                       ║\n
+")
+    io.write("║                                                          ║\n
+")
+    io.write("║  Key Commands:                                           ║\n
+")
+    io.write("║  $ ./naab-lang blocks search <query>                     ║\n
+")
+    io.write("║  $ ./naab-lang blocks list                               ║\n
+")
+    io.write("║  $ ./naab-lang blocks info <BLOCK-ID>                    ║\n
+")
+    io.write("║  $ ./naab-lang validate <BLOCK-IDs>                      ║\n
+")
+    io.write("║                                                          ║\n
+")
+    io.write("║  In Code:                                                ║\n
+")
+    io.write("║  use BLOCK-ID as name                                    ║\n
+")
+    io.write("║  let result = name(input)                                ║
+")
+    io.write("║                                                          ║\n
+")
+    io.write("║  Next: Try searching for blocks!                         ║\n
+")
+    io.write("║  $ cd ~/.naab/language/build                             ║\n
+")
+    io.write("║  $ ./naab-lang blocks search 'your task'                 ║\n
+")
+    io.write("╚══════════════════════════════════════════════════════════╝\n
+")
+}

@@ -1,0 +1,40 @@
+use "BLOCK-CPP-MATH" as math_block
+use io
+use json
+use file
+use http
+use time
+use array
+use string
+use math
+use crypto
+use csv
+use env
+use modules.data_fetcher
+use modules.weather_engine
+
+fn format_elapsed(start_ms, end_ms) {
+    let elapsed = end_ms - start_ms
+    if elapsed < 1000 {
+        return "" + elapsed + "ms"
+    }
+    let secs = math.round(elapsed / 100.0) / 10.0
+    return "" + secs + "s"
+}
+
+main {
+    let base_dir = <<sh
+    for d in "docs/book/verification/ch0_full_projects/NaabNexus" "."; do if [ -f "$d/config.json" ]; then printf "%s" "$d"; exit 0; fi; done; printf "."
+    >>
+    let config_path = string.trim(base_dir) + "/config.json"
+    io.write("Config: " + config_path + "\n")
+    let config_raw = file.read(config_path)
+    let config = json.parse(config_raw)
+    io.write("Cities: " + array.length(config["cities"]) + "\n")
+    io.write("Fetching weather...\n")
+    let weather = data_fetcher.fetch_weather(config)
+    io.write("Got " + array.length(weather) + " cities\n")
+    io.write("Processing weather...\n")
+    let enriched = weather_engine.process_weather(weather)
+    io.write("DONE\n")
+}

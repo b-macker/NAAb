@@ -1,0 +1,165 @@
+// main.naab
+// Entry point for the Global Environmental Monitoring and Reporting System (GEMRS).
+// Refactored to adhere to NAAb's strict top-level declarations and explicitly pass system functions.
+
+import "modules/logger.naab" as Logger // Import the logger factory function
+import "modules/data_acquisition.naab" as DataAcquisition
+import "modules/data_processor.naab" as DataProcessor
+import "modules/anomaly_detector.naab" as AnomalyDetector
+import "modules/notification_service.naab" as NotificationService
+import "modules/report_generator.naab" as ReportGenerator
+
+// --- Application Entry Point ---
+main {
+    let appName = "Global Environmental Monitoring and Reporting System (GEMRS)";
+    let appVersion = "1.0.0";
+    let configFilePath = "verification/ch0_full_projects/global_env_monitoring/config.json";
+
+    // --- Direct Implementation for Mock readJsonFile ---
+    // This function simulates reading a JSON file.
+    let readJsonFile = func(filePath: String): Map<String, Any> {
+        print("Simulating: Reading JSON file: ${filePath}");
+        // Hardcoded config for simulation. In a real scenario, this would read and parse the actual file.
+        return {
+            "application": {
+                "name": "Global Environmental Monitoring and Reporting System (GEMRS)",
+                "version": "1.0.0",
+                "run_interval_minutes": 1, // Reduced for demonstration
+                "log_level": "INFO"
+            },
+            "logging": {
+                "file_path": "logs/gemrs.log",
+                "max_file_size_mb": 10,
+                "max_backup_files": 5
+            },
+            "data_sources": [
+                { "id": "weather_api", "fetch_enabled": true, "endpoint": "https://api.example.com/weather/v1", "api_key": "YOUR_WEATHER_API_KEY" },
+                { "id": "air_quality_api", "fetch_enabled": true, "endpoint": "https://api.example.com/airquality/v2", "api_key": "YOUR_AIR_QUALITY_API_KEY" }
+            ],
+            "monitoring_thresholds": {
+                "temperature_celsius": { "critical_high": 35 }
+            },
+            "reporting": {
+                "output_format": "json",
+                "report_directory": "data/reports"
+            },
+            "notifications": {
+                "enabled": true,
+                "recipients": ["admin@example.com"]
+            }
+        };
+    };
+
+    // --- Helper Functions for SysIO (defined within main block) ---
+    let helperGetParentDirectory = func(filePath: String): String {
+        if filePath.contains("/") { return filePath.substring(0, filePath.lastIndexOf("/")); }
+        return ".";
+    };
+    let helperCreateDirectory = func(dirPath: String) { print("Simulating: Creating directory: ${dirPath}\n"); };
+    let helperAppendToFile = func(filePath: String, content: String) { print("Simulating: Appending to file '${filePath}': ${content.substring(0, 50)}...\n"); };
+
+    // --- SysIOFunctions map (populating with references to helper functions) ---
+    let sysIOFunctions: Map<String, Any> = {
+        "getParentDirectory": helperGetParentDirectory,
+        "createDirectory": helperCreateDirectory,
+        "appendToFile": helperAppendToFile
+    };
+
+    // --- Helper Functions for SysTime (defined within main block) ---
+    let helperGetCurrentTimestamp = func(): String { return "2026-02-12 10:30:45"; }; // Fixed for consistent simulation output
+    let helperSleep = func(milliseconds: Int) { print("Simulating: Sleeping for ${milliseconds}ms...\n"); }; // Mock sleep function
+
+    // --- SysTimeFunctions map (populating with references to helper functions) ---
+    let sysTimeFunctions: Map<String, Any> = {
+        "getCurrentTimestamp": helperGetCurrentTimestamp,
+        "sleep": helperSleep
+    };
+
+    let initialConfig = readJsonFile(configFilePath); // Direct call to the defined function
+
+    if len(initialConfig) == 0 {
+        print("ERROR: Could not load configuration from ${configFilePath}. Exiting.");
+        print("Application terminated.");
+        // In a real app, you would exit the process here.
+        // For NAAb simulation, we just print and let the main block finish.
+        return; // Exit main block
+    }
+
+    // --- Instantiate and Initialize Logger ---
+    let configuredLogger = Logger.createLogger(
+        initialConfig,
+        sysIOFunctions,
+        sysTimeFunctions
+    );
+
+    // --- Instantiate other Module Objects ---
+    let dataAcquisitionModule = DataAcquisition.createDataAcquisitionModule();
+    let dataProcessorModule = DataProcessor.createDataProcessorModule();
+    let anomalyDetectorModule = AnomalyDetector.createAnomalyDetectorModule();
+    let notificationServiceModule = NotificationService.createNotificationServiceModule();
+    let reportGeneratorModule = ReportGenerator.createReportGeneratorModule();
+
+    // --- Global Application State ---
+    let runningState = { "shouldRun": true }; // Mutable map for simple state management
+
+    // --- Define Application Functions ---
+
+    let initializeModules = func() {
+        configuredLogger.logInfo("Initializing application modules...");
+        dataAcquisitionModule.init(initialConfig, configuredLogger);
+        dataProcessorModule.init(initialConfig, configuredLogger);
+        anomalyDetectorModule.init(initialConfig, configuredLogger);
+        reportGeneratorModule.init(initialConfig, configuredLogger);
+        notificationServiceModule.init(initialConfig, configuredLogger);
+        configuredLogger.logInfo("All modules initialized.");
+    };
+
+    let runMainLoop = func() {
+        configuredLogger.logInfo("Starting GEMRS main loop...");
+        let intervalMinutes = initialConfig.application.run_interval_minutes;
+        let sleepMilliseconds = intervalMinutes * 60 * 1000;
+
+        while (runningState.get("shouldRun")) {
+            configuredLogger.logInfo("--- Cycle Start ---");
+
+            // --- Data Acquisition Phase ---
+            let rawData = dataAcquisitionModule.fetchEnvironmentalData(initialConfig.data_sources, configuredLogger);
+            if rawData.isEmpty() {
+                configuredLogger.logWarn("No raw data acquired in this cycle.");
+            } else {
+                configuredLogger.logInfo("Acquired ${rawData.size()} data points.");
+            }
+
+            // --- Data Processing Phase ---
+            let processedData = dataProcessorModule.processRawData(rawData, configuredLogger);
+            configuredLogger.logInfo("Processed ${processedData.size()} data points.");
+
+            // --- Anomaly Detection Phase ---
+            let anomalies = anomalyDetectorModule.detectAnomalies(processedData, initialConfig.monitoring_thresholds, configuredLogger);
+            if anomalies.isEmpty() {
+                configuredLogger.logInfo("No anomalies detected.");
+            } else {
+                configuredLogger.logWarn("Detected ${anomalies.size()} anomalies!");
+                notificationServiceModule.sendAnomalyAlerts(anomalies, initialConfig.notifications, configuredLogger);
+            }
+
+            // --- Reporting Phase ---
+            reportGeneratorModule.generateReports(processedData, anomalies, initialConfig.reporting, configuredLogger);
+            configuredLogger.logInfo("Reports generated.");
+
+            configuredLogger.logInfo("--- Cycle End ---");
+            helperSleep(sleepMilliseconds); // Use local helper sleep function
+        }
+    };
+
+    // --- Shutdown Hook ---
+    let shutdownHook = func() {
+        configuredLogger.logInfo("Shutdown signal received. Initiating graceful shutdown...");
+        runningState.put("shouldRun", false);
+        configuredLogger.logInfo("GEMRS application stopped.");
+    };
+
+    // Execute the application lifecycle
+    initializeModules();
+    runMainLoop();
+}

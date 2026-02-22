@@ -1,0 +1,38 @@
+// polyglot_tower/modules/system.naab
+use io
+use file
+use json
+
+// Bash ensures the save directory exists
+export fn ensure_save_dir() -> bool {
+    let result = <<bash
+    mkdir -p save_games
+    if [ -d "save_games" ]; then
+        echo "true"
+    else
+        echo "false"
+    fi
+    >>
+    
+    return result == "true"
+}
+
+// C# calculates a checksum for the save data
+export fn calculate_checksum(data: string) -> string {
+    // C# is good for enterprise-grade integrity checks ;)
+    // We use a simple expression to ensure the auto-wrapper kicks in
+    let checksum = <<csharp[data]
+    "CS-" + Math.Abs(data.GetHashCode())
+    >>
+    
+    return checksum
+}
+
+export fn save_game(filename: string, data: string) {
+    if ensure_save_dir() {
+        let path = "save_games/" + filename
+        file.write(path, data)
+        io.write("  [System] Game saved to ", path, "\n")
+    }
+}
+

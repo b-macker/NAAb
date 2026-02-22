@@ -1,0 +1,31 @@
+use "BLOCK-CPP-MATH" as math_block
+use io
+use json
+use file
+use http
+use time
+use array
+use string
+use math
+use crypto
+use csv
+use env
+use modules.data_fetcher
+use modules.weather_engine
+use modules.finance_engine
+use modules.tech_intel
+use modules.analytics
+use modules.security
+use modules.dashboard
+use modules.reporter
+
+main {
+    io.write("Phase 1: Config\n")
+    let config_raw = file.read("docs/book/verification/ch0_full_projects/NaabNexus/config.json")
+    let config = json.parse(config_raw)
+    io.write("  Cities: " + array.length(config["cities"]) + "\n")
+    io.write("Phase 2: Weather fetch\n")
+    let weather = data_fetcher.fetch_weather(config)
+    io.write("Got " + array.length(weather) + " cities\n")
+    io.write("DONE\n")
+}

@@ -1,0 +1,44 @@
+// IronDome/modules/feed_ingester.naab
+// Sovereign Information Feed Ingester
+// Uses: <<bash>>, <<python>>, <<cpp>>, json, string, fabric_utils
+
+use io
+use json
+use string
+use fabric_utils
+
+export fn acquire_feeds(config) {
+    // Stage 1: Git Reality (Bash)
+    let git_feed = <<bash
+    if [ -d .git ]; then
+        echo "{\"branch\":\"master\",\"author\":\"admin\",\"vcs\":\"git\"}"
+    else
+        echo "{\"branch\":\"detached\",\"author\":\"unknown\",\"vcs\":\"none\"}"
+    fi
+    >>
+    let git_data = fabric_utils.extract_json(git_feed, "FEED_GIT")
+
+    // Stage 2: Policy Synchronization (Python)
+    let policy_feed = <<python
+import json
+res = {"threat_level": "ELEVATED"}
+json.dumps(res)
+    >>
+    let policy_data = fabric_utils.extract_json(policy_feed, "FEED_POLICY")
+
+    // Stage 3: Metadata Summary (C++)
+    let metadata_feed = <<cpp
+    #include <iostream>
+    int main() {
+        std::cout << R"({"system_entropy": 0.88})" << std::endl;
+        return 0;
+    }
+    >>
+    let meta_data = fabric_utils.extract_json(metadata_feed, "FEED_METADATA")
+
+    return {
+        "git": git_data,
+        "remote": policy_data,
+        "telemetry": meta_data
+    }
+}

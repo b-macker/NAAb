@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IRON DOME // GOVERNANCE PLANE</title>
+    <style>
+        :root { --neon: #00ff41; --bg: #050505; --panel: #111; --danger: #ff3e3e; --text: #e0e0e0; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        nav { width: 240px; background: #0a0a0a; border-right: 1px solid #222; display: flex; flex-direction: column; padding: 20px; }
+        .nav-item { padding: 12px; margin-bottom: 8px; cursor: pointer; border-radius: 4px; font-size: 14px; transition: 0.2s; border: 1px solid transparent; }
+        .nav-item:hover { background: #1a1a1a; border-color: #333; }
+        .nav-item.active { background: rgba(0, 255, 65, 0.1); border-color: var(--neon); color: var(--neon); }
+        main { flex-grow: 1; display: flex; flex-direction: column; overflow-y: auto; }
+        header { padding: 20px 40px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; background: rgba(10,10,10,0.8); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 100; }
+        .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; background: var(--neon); color: #000; }
+        .content-area { padding: 40px; max-width: 1200px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-bottom: 40px; }
+        .card { background: var(--panel); border: 1px solid #222; border-radius: 8px; padding: 20px; transition: 0.3s; }
+        .card h3 { margin: 0 0 15px 0; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .big-val { font-size: 36px; font-weight: 300; margin-bottom: 5px; color: #fff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+        th { text-align: left; padding: 12px; color: #666; border-bottom: 1px solid #222; }
+        td { padding: 12px; border-bottom: 1px solid #1a1a1a; }
+        .code { font-family: monospace; background: #000; padding: 2px 6px; border-radius: 3px; color: var(--neon); }
+        .diff-view { background: #000; border-radius: 6px; padding: 20px; font-family: monospace; font-size: 12px; border: 1px solid #333; margin-top: 10px; }
+        .diff-add { color: var(--neon); }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div style="font-weight: bold; font-size: 18px; margin-bottom: 40px; color: var(--neon)">IRON DOME <span style="color:#fff">v12.0</span></div>
+        <div class="nav-item active" onclick="showTab('overview')">Control Overview</div>
+        <div class="nav-item" onclick="showTab('consensus')">Consortium Ledger</div>
+        <div class="nav-item" onclick="showTab('violations')">Gate Enforcement</div>
+        <div class="nav-item" onclick="showTab('raw')">Raw Sovereign Data</div>
+        <div style="margin-top: auto; font-size: 10px; color: #444;">
+            PROVENANCE ID: 99962cbd419036780da2d422
+        </div>
+    </nav>
+    <main>
+        <header>
+            <div>
+                <div style="font-size: 12px; color: #666">SOVEREIGN COMMAND</div>
+                <div style="font-size: 20px; font-weight: bold">Enterprise Governance Plane</div>
+            </div>
+            <div class="status-pill">FABRIC SEALED</div>
+        </header>
+        <div class="content-area">
+            <section id="tab-overview">
+                <div class="grid">
+                    <div class="card">
+                        <h3>Risk Index</h3>
+                        <div class="big-val">14.000000</div>
+                        <div style="font-size: 11px; color: var(--danger)">PROCEED_WITH_MONITORING</div>
+                    </div>
+                    <div class="card">
+                        <h3>Temporal Judgment</h3>
+                        <div class="big-val">CHRONIC_ANOMALY</div>
+                        <div style="font-size: 11px; color: #888">Occurrence Count: 2</div>
+                    </div>
+                    <div class="card">
+                        <h3>System Entropy</h3>
+                        <div class="big-val">0.880000</div>
+                        <div style="font-size: 11px; color: var(--neon)">STABILITY: OPTIMAL</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Active Remediation Studio</h3>
+                    <p style="font-size: 14px">Automated patch synthesized and verified via Quantum Mirror.</p><div class='diff-view'><span class='diff-add'>+ truncate -s 1M large_file.tmp</span></div>
+                </div>
+            </section>
+            <section id="tab-consensus" class="hidden">
+                <div class="card">
+                    <h3>Council Decision Ledger</h3>
+                    <table>
+                        <thead><tr><th>Layer</th><th>Language</th><th>Verdict</th><th>Status</th></tr></thead>
+                        <tbody>
+                            <tr><td>Security</td><td>C++</td><td><span class="code">SECURE</span></td><td>VALIDATED</td></tr>
+                            <tr><td>Integrity</td><td>Rust</td><td><span class="code">SECURE</span></td><td>VALIDATED</td></tr>
+                            <tr><td>Logic</td><td>Python</td><td><span class="code">ABSTAIN</span></td><td>PASSIVE</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            <section id="tab-violations" class="hidden">
+                <div class="card">
+                    <h3>Gate Enforcement Logs</h3>
+                    <table>
+                        <thead><tr><th>Gate</th><th>Subject</th><th>Severity</th><th>Message</th></tr></thead>
+                        <tbody><tr><td>gate_file_size</td><td>large_file.tmp</td><td style='color:var(--danger)'>critical</td><td>Quantum Scan: File exceeds limit</td></tr></tbody>
+                    </table>
+                </div>
+            </section>
+            <section id="tab-raw" class="hidden">
+                <div class="card">
+                    <h3>Audit Proof (JSON)</h3>
+                    <pre style="font-size: 11px; color: #008f11; background: #000; padding: 20px; overflow-x: auto">{"consortium":{"judges":{"cpp":"SECURE","python":null,"rust":"SECURE"},"quorum_reached":true,"verdict":null},"decision":{"consensus_status":"STABLE","recommendation":"PROCEED_WITH_MONITORING","risk_index":14.0,"structural_entropy":0,"systemic_threat":false},"enforcement":{"blocking_violations":1,"failed":1,"integrity_seal":"PROVENANCE_19C78F8436D","passed":2,"quantum_verified":true,"total_gates":3,"violations":[{"blocking":true,"file_path":"large_file.tmp","gate_id":"gate_file_size","message":"Quantum Scan: File exceeds limit","severity":"critical"}]},"feeds":{"git":{"author":"unknown","branch":"detached","vcs":"none"},"remote":{"threat_level":"ELEVATED"},"telemetry":{"system_entropy":0.88}},"oracle":{"temporal_analysis":{"is_chronic":true,"judgment":"CHRONIC_ANOMALY","occurrence_count":2,"risk_escalation":1.4}},"provenance":{"event_id":"99962cbd419036780da2d422","executor":"Unknown Agent","system":"IronDome_v1.1","timestamp":1771556066.023},"remediation":{"os_support":{"supported":true},"patch":{"remediation_cmd":"truncate -s 1M large_file.tmp","strategy":"ACTIVE_REDUCTION"},"ready_for_apply":true,"safety":{"verified":true}},"seal":{"hash":"c4dc77ba03c1c4a3d905b83b7990f9fda7071427f7723b42fc01471d74f382de","signature":"NAAB-SEAL-v7-C4DC77BA03C1C4A3","timestamp":1771556066.407}}</pre>
+                </div>
+            </section>
+        </div>
+    </main>
+    <script>
+        function showTab(tabId) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            event.currentTarget.classList.add('active');
+        }
+    </script>
+</body>
+</html>

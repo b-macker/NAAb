@@ -4,19 +4,19 @@
 use string
 use array
 
-function process_string(str) {
+fn process_string(str) {
     return string.upper(str)
 }
 
-function count_length(str) {
+fn count_length(str) {
     return string.length(str)
 }
 
-function to_str(x) {
+fn to_str(x) {
     return "" + x
 }
 
-function create_range(n) {
+fn create_range(n) {
     let result = []
     let i = 0
     while i < n {
@@ -26,7 +26,7 @@ function create_range(n) {
     return result
 }
 
-function sum_array(arr) {
+fn sum_array(arr) {
     return array.reduce_fn(arr, fn(acc, x) { return acc + x }, 0)
 }
 

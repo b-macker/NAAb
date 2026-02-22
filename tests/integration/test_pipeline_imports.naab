@@ -6,19 +6,19 @@ import {reverse_string, capitalize_words} from "./modules/string_utils.naab"
 
 use array
 
-function add_two(x) {
+fn add_two(x) {
     return add(x, 2)
 }
 
-function multiply_four(x) {
+fn multiply_four(x) {
     return multiply(x, 4)
 }
 
-function double(x) {
+fn double(x) {
     return multiply(x, 2)
 }
 
-function multiply_by_index(arr) {
+fn multiply_by_index(arr) {
     let result = []
     let i = 0
     for item in arr {
@@ -28,7 +28,7 @@ function multiply_by_index(arr) {
     return result
 }
 
-function sum_array(arr) {
+fn sum_array(arr) {
     return array.reduce_fn(arr, fn(acc, x) { return acc + x }, 0)
 }
 

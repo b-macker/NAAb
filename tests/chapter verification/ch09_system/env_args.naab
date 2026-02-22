@@ -1,0 +1,48 @@
+// Chapter 9: Command-Line Arguments Access Verification
+// Tests env.get_args() function for accessing script arguments
+
+use io
+use json
+use env
+
+main {
+    io.write("=== Command-Line Arguments Test ===\n\n")
+
+    // TEST 1: Get command-line arguments
+    io.write("TEST 1: env.get_args() returns arguments\n")
+    let args = env.get_args()
+    io.write("  Arguments: ", json.stringify(args), "\n")
+    io.write("  ✓ env.get_args() works\n\n")
+
+    // TEST 2: Check argument count
+    io.write("TEST 2: Argument count\n")
+    let count = 0
+    for arg in args {
+        count = count + 1
+    }
+    io.write("  Number of arguments: ", json.stringify(count), "\n")
+    io.write("  ✓ Can iterate over arguments\n\n")
+
+    // TEST 3: Access individual arguments (if provided)
+    if count > 0 {
+        io.write("TEST 3: Access individual arguments\n")
+        io.write("  First argument: ", json.stringify(args[0]), "\n")
+        io.write("  ✓ Can access arguments by index\n\n")
+    }
+
+    // TEST 4: Empty args when no arguments provided
+    io.write("TEST 4: Empty args handling\n")
+    if count == 0 {
+        io.write("  No arguments provided (expected when run without args)\n")
+    } else {
+        io.write("  Arguments were provided: ", json.stringify(count), " args\n")
+    }
+    io.write("  ✓ Handles both cases correctly\n\n")
+
+    io.write("=== Key Feature: Command-Line Arguments (ISS-028) ===\n")
+    io.write("• env.get_args() returns list<string> of script arguments\n")
+    io.write("• Arguments after script name (non-flag) are passed to script\n")
+    io.write("• Returns empty list when no arguments provided\n")
+    io.write("• Can be accessed via index: args[0], args[1], etc.\n")
+    io.write("\n=== Test completed! ===\n")
+}

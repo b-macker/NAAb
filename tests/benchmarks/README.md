@@ -34,7 +34,7 @@ The benchmark suite tests various aspects of NAAb's performance:
 ### Run All Benchmarks
 
 ```bash
-cd /storage/emulated/0/Download/.naab/naab_language/tests/benchmarks
+cd tests/benchmarks
 ./run_all_benchmarks.sh
 ```
 
@@ -42,16 +42,16 @@ cd /storage/emulated/0/Download/.naab/naab_language/tests/benchmarks
 
 ```bash
 # Search performance
-~/naab-lang run benchmark_search.naab
+./build/naab-lang benchmark_search.naab
 
 # Interpreter performance
-~/naab-lang run benchmark_interpreter.naab
+./build/naab-lang benchmark_interpreter.naab
 
 # Pipeline performance
-~/naab-lang run benchmark_pipeline.naab
+./build/naab-lang benchmark_pipeline.naab
 
 # Memory usage
-~/naab-lang run benchmark_memory.naab
+./build/naab-lang benchmark_memory.naab
 
 # API performance (requires server running)
 ./benchmark_api.sh
@@ -70,7 +70,7 @@ cd /storage/emulated/0/Download/.naab/naab_language/tests/benchmarks
 ## Starting the API Server (for API benchmarks)
 
 ```bash
-~/naab-lang api 8080
+./build/naab-lang api 8080
 ```
 
 Then in another terminal:
@@ -182,17 +182,17 @@ To add a new benchmark:
 // Performance Benchmark: <Name>
 // Target: <Performance Target>
 
-import "stdlib" as std
+use time
 
 print("========================================")
 print("  <Benchmark Name>")
 print("========================================")
 print("")
 
-function benchmark(name, fn) {
-    let start = std.now()
-    fn()
-    let end = std.now()
+fn benchmark(name, callback) {
+    let start = time.now()
+    callback()
+    let end = time.now()
     let elapsed = end - start
     print(name + ": " + elapsed + "ms")
     return elapsed
@@ -251,7 +251,7 @@ diff baseline_results.txt current_results.txt
 
 ## System Requirements
 
-- NAAb binary in `~/naab-lang` (or set `NAAB_BIN` environment variable)
+- NAAb binary in `./build/naab-lang` (or set `NAAB_BIN` environment variable)
 - For API benchmarks: Running API server on localhost:8080
 - For shell benchmarks: bash, curl, bc
 
@@ -271,7 +271,7 @@ export NAAB_BIN=/path/to/naab-lang
 Make sure the API server is running:
 
 ```bash
-~/naab-lang api 8080 &
+./build/naab-lang api 8080 &
 sleep 2  # Wait for server to start
 ./benchmark_api.sh
 ```
@@ -286,5 +286,4 @@ TIMEOUT=300 ./run_all_benchmarks.sh
 
 ---
 
-**Last Updated**: December 30, 2024
 **NAAb Version**: 0.1.0

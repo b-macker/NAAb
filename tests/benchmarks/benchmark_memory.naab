@@ -6,7 +6,7 @@ use string
 use time
 
 // Helper: Measure execution time
-function benchmark(name, func) {
+fn benchmark(name, func) {
     let start = time.now()
     func()
     let end_time = time.now()
@@ -17,7 +17,7 @@ function benchmark(name, func) {
 }
 
 // Benchmark 1: Large array creation
-function bench_large_array() {
+fn bench_large_array() {
     let arr = []
     let i = 0
     while i < 10000 {
@@ -28,7 +28,7 @@ function bench_large_array() {
 }
 
 // Benchmark 2: Large dict creation
-function bench_large_dict() {
+fn bench_large_dict() {
     let dict = {}
     let i = 0
     while i < 5000 {
@@ -44,7 +44,7 @@ function bench_large_dict() {
 }
 
 // Benchmark 3: Nested data structures
-function bench_nested_structures() {
+fn bench_nested_structures() {
     let data = []
     let i = 0
     while i < 100 {
@@ -65,7 +65,7 @@ function bench_nested_structures() {
 }
 
 // Benchmark 4: String concatenation
-function bench_string_concat() {
+fn bench_string_concat() {
     let result = ""
     let i = 0
     while i < 1000 {
@@ -76,7 +76,7 @@ function bench_string_concat() {
 }
 
 // Benchmark 5: Array copying
-function bench_array_copy() {
+fn bench_array_copy() {
     let original = []
     let i = 0
     while i < 1000 {
@@ -96,7 +96,7 @@ function bench_array_copy() {
 }
 
 // Benchmark 6: Memory churn (allocate and discard)
-function bench_memory_churn() {
+fn bench_memory_churn() {
     let iterations = 1000
     let i = 0
     while i < iterations {

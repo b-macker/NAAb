@@ -1,0 +1,88 @@
+// IronDome/modules/policy_schema_ts.naab
+// Policy Validation using TypeScript
+// Uses: <<typescript>>, json, io
+
+use io
+use json
+
+fn ts_validate(policy_json) {
+    let result = <<typescript[policy_json]
+    interface Gate {
+        id: string;
+        name: string;
+        severity: "critical" | "warning" | "info";
+        threshold_bytes?: number;
+        patterns?: string[];
+        blocking: boolean;
+    }
+
+    interface Policy {
+        gates: Gate[];
+        scanner: {
+            max_depth: number;
+            ignore: string[];
+        };
+        audit: {
+            log_path: string;
+            buffer_size: number;
+        };
+        council?: {
+            enabled: boolean;
+            quorum: number;
+            members: string[];
+        };
+        provenance?: {
+            track_identity: boolean;
+            require_signature: boolean;
+        };
+    }
+
+    function validate(json: string): { valid: boolean; errors: string[] } {
+        let policy: any;
+        try {
+            policy = JSON.parse(json);
+        } catch (e) {
+            return { valid: false, errors: ["Invalid JSON format"] };
+        }
+
+        const errors: string[] = [];
+
+        if (!Array.isArray(policy.gates)) {
+            errors.push("Missing 'gates' array");
+        } else {
+            policy.gates.forEach((g: any, i: number) => {
+                if (!g.id) errors.push(`Gate[${i}] missing 'id'`);
+                if (!g.name) errors.push(`Gate[${i}] missing 'name'`);
+                if (!["critical", "warning", "info"].includes(g.severity)) {
+                    errors.push(`Gate[${i}] invalid severity: ${g.severity}`);
+                }
+            });
+        }
+
+        if (!policy.scanner || typeof policy.scanner.max_depth !== "number") {
+            errors.push("Invalid scanner config");
+        }
+
+        if (!policy.audit || typeof policy.audit.log_path !== "string") {
+            errors.push("Invalid audit config");
+        }
+
+        if (policy.council) {
+            if (typeof policy.council.enabled !== "boolean") errors.push("Council 'enabled' must be boolean");
+            if (!Array.isArray(policy.council.members)) errors.push("Council 'members' must be an array");
+        }
+
+        return { valid: errors.length === 0, errors };
+    }
+
+    const validation = validate(policy_json);
+    console.log(JSON.stringify(validation));
+    >>
+    
+    return json.parse(result)
+}
+
+export fn validate_schema(policy) {
+    let p_json = json.stringify(policy)
+    return ts_validate(p_json)
+}

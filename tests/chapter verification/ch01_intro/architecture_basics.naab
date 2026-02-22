@@ -1,0 +1,103 @@
+# Chapter 1 Verification: Architecture Basics
+# Tests the execution pipeline described in section 1.5
+
+main {
+    print(">>> Chapter 1 Verification: Architecture Basics <<<")
+    let pass = 0
+    let fail = 0
+
+    # --- 1.5.1 Native execution works ---
+    let x = 10 + 20
+    if x == 30 {
+        print("PASS: Native arithmetic execution")
+        pass = pass + 1
+    } else {
+        print("FAIL: Native arithmetic")
+        fail = fail + 1
+    }
+
+    # --- 1.5.1 String operations work ---
+    let greeting = "Hello" + ", " + "NAAb!"
+    if greeting == "Hello, NAAb!" {
+        print("PASS: String concatenation")
+        pass = pass + 1
+    } else {
+        print("FAIL: String concatenation")
+        fail = fail + 1
+    }
+
+    # --- 1.5.2 Embedded executor (Python) ---
+    let py_val = <<python
+2 + 3
+    >>
+    if py_val == 5 {
+        print("PASS: Python embedded executor")
+        pass = pass + 1
+    } else {
+        print("FAIL: Python embedded executor")
+        fail = fail + 1
+    }
+
+    # --- 1.5.2 Embedded executor (JavaScript) ---
+    let js_val = <<javascript
+2 * 4
+    >>
+    if js_val == 8 {
+        print("PASS: JavaScript embedded executor")
+        pass = pass + 1
+    } else {
+        print("FAIL: JavaScript embedded executor")
+        fail = fail + 1
+    }
+
+    # --- 1.5.2 Subprocess executor (Bash) ---
+    let bash_val = <<bash
+echo "hello from bash"
+    >>
+    if bash_val == "hello from bash" {
+        print("PASS: Bash subprocess executor")
+        pass = pass + 1
+    } else {
+        print("FAIL: Bash subprocess executor, got: " + bash_val)
+        fail = fail + 1
+    }
+
+    # --- 1.5.2 Data marshalling (array to Python and back) ---
+    let nums = [10, 20, 30]
+    let total = <<python[nums]
+sum(nums)
+    >>
+    if total == 60 {
+        print("PASS: Data marshalling (array to Python)")
+        pass = pass + 1
+    } else {
+        print("FAIL: Data marshalling")
+        fail = fail + 1
+    }
+
+    # --- 1.5.1 Standard library works ---
+    let arr = [5, 3, 1, 4, 2]
+    let len = array.length(arr)
+    if len == 5 {
+        print("PASS: Standard library (array.length)")
+        pass = pass + 1
+    } else {
+        print("FAIL: Standard library")
+        fail = fail + 1
+    }
+
+    # --- Summary ---
+    print("")
+    print("Total:")
+    print(pass + fail)
+    print("Pass:")
+    print(pass)
+    print("Fail:")
+    print(fail)
+
+    if fail == 0 {
+        print(">>> Chapter 1 Architecture Verification: ALL PASS <<<")
+    } else {
+        print(">>> Chapter 1 Architecture Verification: FAILURES <<<")
+    }
+}

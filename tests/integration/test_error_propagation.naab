@@ -3,19 +3,19 @@
 
 import {divide} from "./modules/math_utils.naab"
 
-function level3() {
+fn level3() {
     return divide(100, 0)
 }
 
-function level2() {
+fn level2() {
     return level3()
 }
 
-function level1() {
+fn level1() {
     return level2()
 }
 
-function safe_divide(x) {
+fn safe_divide(x) {
     return divide(x, 0)
 }
 

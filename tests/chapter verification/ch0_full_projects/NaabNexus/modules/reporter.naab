@@ -1,0 +1,351 @@
+// modules/reporter.naab
+// Ruby text summaries + TypeScript CSV/audit validation + NAAb csv.write
+// Enhanced: executive summary, risk alerts, audit trail validation
+// Uses: <<ruby>>, <<typescript>>, csv, file, array, string, json
+
+use io
+use json
+use file
+use array
+use csv
+use string
+use math
+
+// ── Ruby: Executive Summary + Human-Readable Report ─────────────
+
+fn generate_text_summary(dashboard_json, report_id) {
+    let summary = <<ruby[dashboard_json, report_id]
+require 'json'
+
+data = JSON.parse(dashboard_json)
+meta = data['meta'] || {}
+weather = data['weather'] || []
+crypto = data['crypto'] || []
+currency = data['currency'] || []
+github = data['github'] || []
+geo = data['geo'] || {}
+correlation = data['correlation'] || {}
+risk = data['risk'] || {}
+quality = data['quality'] || {}
+mc = data['monte_carlo'] || []
+var_data = data['var'] || {}
+arbitrage = data['arbitrage'] || []
+
+lines = []
+lines << "=" * 70
+lines << "NAAB NEXUS V2 - ENTERPRISE INTELLIGENCE REPORT"
+lines << "=" * 70
+lines << ""
+lines << "Report ID: #{report_id}"
+lines << "Generated: #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}"
+lines << "Data Sources: #{meta['live_sources']}/#{meta['total_sources']} live (#{meta['live_percent']}%)"
+if geo['city'] && geo['city'] != 'Unknown'
+  lines << "Observer Location: #{geo['city']}, #{geo['country']} (#{geo['ip']})"
+end
+lines << ""
+
+# Executive Summary
+lines << "-" * 70
+lines << "EXECUTIVE SUMMARY"
+lines << "-" * 70
+alert = risk['alert_level'] || 'GREEN'
+score = risk['total'] || 0
+qgrade = quality['grade'] || 'N/A'
+qscore = quality['score'] || 0
+
+exec_lines = []
+exec_lines << "Overall risk assessment: #{alert} (score: #{score}/100)."
+exec_lines << "Data quality grade: #{qgrade} (#{qscore}% checks passed)."
+
+if crypto.length > 0
+  top_crypto = crypto.max_by { |c| c['price'] }
+  exec_lines << "Leading crypto asset #{top_crypto['name']} at $#{top_crypto['price'].round(2)} with #{top_crypto['change'] >= 0 ? '+' : ''}#{top_crypto['change'].round(2)}% 24h change."
+end
+
+if !var_data.empty?
+  exec_lines << "Portfolio VaR(95%): $#{var_data['var_dollar'].round(2)} at risk. Sharpe ratio: #{var_data['sharpe_ratio'].round(4)}."
+end
+
+if mc.length > 0
+  ranges = mc.map { |m| "#{m['asset']}: $#{m['low'].round(0)}-$#{m['high'].round(0)}" }
+  exec_lines << "30-day Monte Carlo ranges: #{ranges.join(', ')}."
+end
+
+exec_lines.each { |l| lines << "  #{l}" }
+lines << ""
+
+# Risk Alerts
+if alert != 'GREEN'
+  lines << "-" * 70
+  lines << "RISK ALERTS"
+  lines << "-" * 70
+  msg = risk['alert_message'] || ''
+  lines << "  [#{alert}] #{msg}"
+  lines << "  Components: Weather=#{risk['weather_risk']} Crypto=#{risk['crypto_risk']} Currency=#{risk['currency_risk']} Quality=#{risk['quality_risk']}"
+  lines << ""
+end
+
+lines << "-" * 70
+lines << "WEATHER INTELLIGENCE"
+lines << "-" * 70
+weather.each do |w|
+  status = w['live'] ? 'LIVE' : 'SYNTH'
+  dl = w['disruption_level'] || 'LOW'
+  di = (w['disruption'] || 0).round(1)
+  lines << "  #{w['city'].ljust(15)} #{w['temp'].to_s.rjust(6)}C (feels #{w['feels'].round(1)}C) | #{w['desc']} [#{status}] BDI:#{di} #{dl}"
+end
+lines << ""
+
+lines << "-" * 70
+lines << "CRYPTOCURRENCY MARKETS"
+lines << "-" * 70
+crypto.each do |c|
+  sign = c['change'] >= 0 ? '+' : ''
+  lines << "  #{c['name'].ljust(12)} $#{c['price'].round(2).to_s.rjust(12)} | #{sign}#{c['change'].round(2)}% | Vol: #{c['volClass']}"
+end
+lines << ""
+
+lines << "-" * 70
+lines << "CURRENCY EXCHANGE (USD)"
+lines << "-" * 70
+currency.each do |p|
+  lines << "  #{p['code'].ljust(6)} #{p['rate'].round(4).to_s.rjust(12)} | Inv: #{p['inverse'].round(4)} | #{p['strength'].gsub('_', ' ')}"
+end
+if arbitrage.length > 0
+  lines << ""
+  arbitrage.each do |a|
+    lines << "  Arbitrage: #{a['triangle']} profit: #{a['profit_pct']}% #{a['exploitable'] ? '[OPPORTUNITY]' : '[Neutral]'}"
+  end
+end
+lines << ""
+
+lines << "-" * 70
+lines << "GITHUB REPOSITORIES"
+lines << "-" * 70
+github.each do |r|
+  rec = r['recommendation'] || 'N/A'
+  lines << "  #{r['name'].ljust(25)} [#{r['tier']}] #{rec} | Stars: #{r['stars']} | #{r['lang']}"
+end
+lines << ""
+
+lines << "-" * 70
+lines << "CROSS-SOURCE ANALYSIS"
+lines << "-" * 70
+lines << "  #{correlation['insight']}" if correlation['insight']
+lines << "  Weather Trend: #{correlation['trend']}" if correlation['trend']
+lines << "  Correlation (r): #{correlation['r_value']}" if correlation['r_value']
+lines << ""
+lines << "=" * 70
+lines << "End of Report"
+lines << "=" * 70
+
+puts lines.join("\n")
+    >>
+
+    return summary
+}
+
+// ── TypeScript: CSV + Audit Schema Validation ───────────────────
+
+fn validate_csv_schema(rows_json) {
+    let validation = <<typescript[rows_json]
+interface CSVRow {
+    source: string;
+    category: string;
+    key: string;
+    value: string;
+    unit: string;
+    is_live: string;
+}
+
+const REQUIRED_COLUMNS: (keyof CSVRow)[] = ['source', 'category', 'key', 'value', 'unit', 'is_live'];
+
+const rows: string[][] = JSON.parse(rows_json);
+
+let errors: string[] = [];
+let warnings: string[] = [];
+
+if (rows.length === 0) {
+    errors.push('No data rows');
+} else {
+    const header = rows[0];
+    for (const col of REQUIRED_COLUMNS) {
+        if (!header.includes(col)) {
+            errors.push(`Missing required column: ${col}`);
+        }
+    }
+
+    const colCount = header.length;
+    for (let i = 1; i < rows.length; i++) {
+        if (rows[i].length !== colCount) {
+            errors.push(`Row ${i} has ${rows[i].length} columns, expected ${colCount}`);
+        }
+        const sourceIdx = header.indexOf('source');
+        const keyIdx = header.indexOf('key');
+        if (sourceIdx >= 0 && (!rows[i][sourceIdx] || rows[i][sourceIdx].trim() === '')) {
+            warnings.push(`Row ${i}: empty source field`);
+        }
+        if (keyIdx >= 0 && (!rows[i][keyIdx] || rows[i][keyIdx].trim() === '')) {
+            warnings.push(`Row ${i}: empty key field`);
+        }
+    }
+}
+
+const result = {
+    valid: errors.length === 0,
+    row_count: rows.length - 1,
+    column_count: rows.length > 0 ? rows[0].length : 0,
+    error_count: errors.length,
+    warning_count: warnings.length,
+    errors: errors,
+    warnings: warnings.slice(0, 5)
+};
+
+console.log(JSON.stringify(result));
+    >>
+
+    return json.parse(validation)
+}
+
+// ── Build CSV Rows (enhanced with risk data) ────────────────────
+
+fn build_csv_rows(dashboard_data) {
+    let rows = []
+
+    // Header row
+    array.push(rows, ["source", "category", "key", "value", "unit", "is_live"])
+
+    // Weather rows (with disruption)
+    let weather = dashboard_data["weather"]
+    let i = 0
+    while i < array.length(weather) {
+        let w = weather[i]
+        let live_str = if w["live"] { "true" } else { "false" }
+        array.push(rows, ["weather", "temperature", w["city"], "" + w["temp"], "celsius", live_str])
+        array.push(rows, ["weather", "humidity", w["city"], "" + w["humidity"], "percent", live_str])
+        array.push(rows, ["weather", "wind", w["city"], "" + w["wind"], "km/h", live_str])
+        array.push(rows, ["weather", "feels_like", w["city"], "" + w["feels"], "celsius", live_str])
+        array.push(rows, ["weather", "disruption_index", w["city"], "" + w["disruption"], "score", live_str])
+        i = i + 1
+    }
+
+    // Crypto rows
+    let crypto_list = dashboard_data["crypto"]
+    i = 0
+    while i < array.length(crypto_list) {
+        let c = crypto_list[i]
+        let live_str = if c["live"] { "true" } else { "false" }
+        array.push(rows, ["crypto", "price", c["name"], "" + c["price"], "USD", live_str])
+        array.push(rows, ["crypto", "change_24h", c["name"], "" + c["change"], "percent", live_str])
+        array.push(rows, ["crypto", "market_cap", c["name"], "" + c["mcap"], "USD", live_str])
+        i = i + 1
+    }
+
+    // Currency rows
+    let currency_list = dashboard_data["currency"]
+    i = 0
+    while i < array.length(currency_list) {
+        let p = currency_list[i]
+        array.push(rows, ["currency", "exchange_rate", p["code"] + "/USD", "" + p["rate"], "ratio", "true"])
+        i = i + 1
+    }
+
+    // GitHub rows
+    let github_list = dashboard_data["github"]
+    i = 0
+    while i < array.length(github_list) {
+        let r = github_list[i]
+        let live_str = if r["live"] { "true" } else { "false" }
+        array.push(rows, ["github", "stars", r["name"], "" + r["stars"], "count", live_str])
+        array.push(rows, ["github", "forks", r["name"], "" + r["forks"], "count", live_str])
+        array.push(rows, ["github", "issues", r["name"], "" + r["issues"], "count", live_str])
+        i = i + 1
+    }
+
+    // Risk rows
+    let risk = dashboard_data["risk"]
+    if risk != null {
+        array.push(rows, ["risk", "composite_score", "total", "" + risk["total"], "score_0_100", "true"])
+        array.push(rows, ["risk", "alert_level", "system", risk["alert_level"], "level", "true"])
+        array.push(rows, ["risk", "weather_risk", "component", "" + risk["weather_risk"], "score", "true"])
+        array.push(rows, ["risk", "crypto_risk", "component", "" + risk["crypto_risk"], "score", "true"])
+        array.push(rows, ["risk", "currency_risk", "component", "" + risk["currency_risk"], "score", "true"])
+    }
+
+    // Quality rows
+    let quality = dashboard_data["quality"]
+    if quality != null {
+        array.push(rows, ["quality", "overall_score", "system", "" + quality["score"], "percent", "true"])
+        array.push(rows, ["quality", "grade", "system", quality["grade"], "grade", "true"])
+        array.push(rows, ["quality", "checks_passed", "system", "" + quality["passed"], "count", "true"])
+    }
+
+    // Monte Carlo rows
+    let mc = dashboard_data["monte_carlo"]
+    if mc != null {
+        i = 0
+        while i < array.length(mc) {
+            let m = mc[i]
+            array.push(rows, ["monte_carlo", "30d_low", m["asset"], "" + m["low"], "USD", "true"])
+            array.push(rows, ["monte_carlo", "30d_median", m["asset"], "" + m["median"], "USD", "true"])
+            array.push(rows, ["monte_carlo", "30d_high", m["asset"], "" + m["high"], "USD", "true"])
+            i = i + 1
+        }
+    }
+
+    return rows
+}
+
+// ── Main Reporter Entry Point (enhanced) ────────────────────────
+
+export fn generate_reports(dashboard_data, report_id, output_dir) {
+    io.write("  [Reporter] Generating enterprise intelligence reports...\n")
+
+    // 1. Ruby text summary + executive synopsis
+    io.write("    [Ruby] Generating executive report...\n")
+    let dashboard_json = json.stringify(dashboard_data)
+    let summary = generate_text_summary(dashboard_json, report_id)
+    io.write("    Report generated (", string.length(summary), " chars)\n")
+
+    // 2. Build CSV rows (enhanced)
+    io.write("    Building CSV data...\n")
+    let csv_rows = build_csv_rows(dashboard_data)
+    io.write("    CSV rows: ", array.length(csv_rows), " (including header)\n")
+
+    // 3. TypeScript schema validation
+    io.write("    [TypeScript] Validating CSV schema...\n")
+    let rows_json = json.stringify(csv_rows)
+    let validation = validate_csv_schema(rows_json)
+
+    if validation["valid"] {
+        io.write("    Schema validation: PASSED (", validation["row_count"], " rows, ", validation["column_count"], " cols)\n")
+    } else {
+        io.write("    Schema validation: FAILED\n")
+        let ei = 0
+        while ei < array.length(validation["errors"]) {
+            io.write("      Error: ", validation["errors"][ei], "\n")
+            ei = ei + 1
+        }
+    }
+
+    // 4. Write CSV
+    let csv_path = output_dir + "/intelligence_report.csv"
+    csv.write(csv_path, csv_rows)
+    io.write("    Written: ", csv_path, "\n")
+
+    // 5. Write text report to file
+    let report_path = output_dir + "/executive_report.txt"
+    file.write(report_path, summary)
+    io.write("    Written: ", report_path, "\n")
+
+    // Summary already printed via Ruby block stdout
+    io.write("\n")
+
+    return {
+        "csv_path": csv_path,
+        "report_path": report_path,
+        "csv_rows": array.length(csv_rows),
+        "csv_valid": validation["valid"],
+        "summary_length": string.length(summary)
+    }
+}

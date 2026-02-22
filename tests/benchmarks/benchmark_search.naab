@@ -5,7 +5,7 @@ use array
 use time
 
 // Helper: Measure execution time
-function benchmark(name, func) {
+fn benchmark(name, func) {
     let start = time.now()
     func()
     let end_time = time.now()
@@ -27,7 +27,7 @@ fn search_queries() {
 }
 
 // Simulate block search (placeholder - requires actual search implementation)
-function search_blocks(query) {
+fn search_blocks(query) {
     // In real implementation, this would call BlockSearchIndex.search()
     // For now, simulate some work
     let results = []

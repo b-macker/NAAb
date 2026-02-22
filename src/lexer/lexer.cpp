@@ -14,10 +14,10 @@ namespace lexer {
 const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"use", TokenType::USE},
     {"as", TokenType::AS},
-    {"function", TokenType::FUNCTION},
-    {"fn", TokenType::FUNCTION},    // Alias for function
-    {"func", TokenType::FUNCTION},  // Alias for function (Go/Swift style)
-    {"def", TokenType::FUNCTION},   // Alias for function (Python style)
+    {"fn", TokenType::FUNCTION},        // Primary keyword
+    {"function", TokenType::FUNCTION},  // Alias (JS/TS style)
+    {"func", TokenType::FUNCTION},      // Alias (Go/Swift style)
+    {"def", TokenType::FUNCTION},       // Alias (Python style)
     {"async", TokenType::ASYNC},
     {"method", TokenType::METHOD},
     {"return", TokenType::RETURN},

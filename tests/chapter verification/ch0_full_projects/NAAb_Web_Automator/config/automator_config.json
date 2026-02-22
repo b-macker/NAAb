@@ -1,0 +1,39 @@
+{
+  "browser_settings": {
+    "browser_type": "chromium",
+    "headless": true,
+    "timeout_ms": 30000
+  },
+  "flows": [
+    {
+      "name": "Scrape_Agent_List",
+      "start_url": "https://www.vibecodingtools.tech/agents",
+      "steps": [
+        {
+          "selector": "body",
+          "action": "wait_for_selector",
+          "value": null,
+          "delay_ms": 2000
+        }
+      ],
+      "extraction_rules": [
+        {
+          "target_selector": "div.relative.group",
+          "extract_attribute": "outerHTML",
+          "name": "agent_card_html"
+        },
+        {
+          "target_selector": "h2.text-xl.font-semibold",
+          "extract_attribute": "innerText",
+          "name": "agent_name"
+        },
+        {
+          "target_selector": "div.text-gray-600.dark:text-gray-300.text-sm.mt-2",
+          "extract_attribute": "innerText",
+          "name": "agent_description"
+        }
+      ],
+      "post_flow_wait_ms": 1000
+    }
+  ]
+}

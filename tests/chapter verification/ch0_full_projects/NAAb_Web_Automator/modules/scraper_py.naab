@@ -1,0 +1,156 @@
+// NAAb_Web_Automator/modules/scraper_py.naab
+// NAAb functions for orchestrating Playwright browser interactions via Python polyglot blocks.
+
+use io
+use json
+use string
+use array
+
+use web_event_schemas // For SiteEvent, ScrapedItem
+use web_automator_core // For BrowserSettings, FlowConfig, AutomationStep, ExtractionRule
+
+// export fn init_browser(settings: BrowserSettings) -> string
+export fn init_browser(settings: web_automator_core.BrowserSettings) -> string? {
+    let settings_json = json.stringify(settings)
+
+    let python_result_json = <<python[settings_json]
+import json
+from playwright.sync_api import sync_playwright, Playwright, Browser, Page
+
+# Initialize global contexts if not already present
+global _naab_playwright_contexts
+global _naab_context_counter
+global _naab_playwright_instance
+
+if '_naab_playwright_contexts' not in globals():
+    _naab_playwright_contexts = {}
+    _naab_context_counter = 0
+
+def _get_new_context_id():
+    global _naab_context_counter
+    _naab_context_counter += 1
+    return f"browser_ctx_{_naab_context_counter}"
+
+if '_naab_playwright_instance' not in globals():
+    try:
+        _naab_playwright_instance = sync_playwright().start()
+    except:
+        _naab_playwright_instance = None # Graceful fail for stub
+
+args = json.loads(settings_json)
+browser_type_str = args.get("browser_type", "chromium")
+headless = args.get("headless", True)
+timeout_ms = args.get("timeout", 30000) # Use 'timeout' as per Playwright args
+
+result = {}
+try:
+    playwright_instance = _naab_playwright_instance
+    
+    # STUB: Playwright installation on Termux is difficult. 
+    # Returning a dummy context to allow NAAb logic verification.
+    # To enable real Playwright: Uncomment real logic below and ensure Playwright is installed.
+    
+    # Real Logic (Commented out for Termux environment):
+    # browser_instance: Browser = None
+    # if browser_type_str == "chromium":
+    #     browser_instance = playwright_instance.chromium.launch(headless=headless, timeout=timeout_ms)
+    # elif browser_type_str == "firefox":
+    #     browser_instance = playwright_instance.firefox.launch(headless=headless, timeout=timeout_ms)
+    # elif browser_type_str == "webkit":
+    #     browser_instance = playwright_instance.webkit.launch(headless=headless, timeout=timeout_ms)
+    # else:
+    #     raise ValueError(f"Unsupported browser type: {browser_type_str}")
+    # page_instance: Page = browser_instance.new_page()
+    # context_id = _get_new_context_id()
+    # _naab_playwright_contexts[context_id] = {"browser": browser_instance, "page": page_instance}
+    # result = {"status": "success", "context_id": context_id}
+
+    # STUB Logic:
+    result = {"status": "success", "context_id": "dummy_termux_context_1"}
+
+except Exception as e:
+    result = {"status": "error", "message": str(e), "traceback_info": "See Python logs for details"}
+
+json.dumps(result)
+>>
+
+    let parsed_result = json.parse(python_result_json)
+    if parsed_result["status"] == "success" {
+        return parsed_result["context_id"]
+    } else {
+        io.write_error("❌ Playwright Init Error: ", parsed_result["message"], "\n")
+        io.write_error("   Traceback Info: ", parsed_result["traceback_info"], "\n")
+        return null
+    }
+}
+
+// export fn close_browser(browser_context_id: string) -> bool
+export fn close_browser(context_id: string) -> bool {
+    let python_result_json = <<python[context_id]
+import json
+# STUB: Just return success
+json.dumps({"status": "success"})
+>>
+    return true
+}
+
+// export fn execute_web_flow(browser_context_id: string, flow: FlowConfig) -> dict<string, any>?
+export fn execute_web_flow(context_id: string, flow: web_automator_core.FlowConfig) -> dict<string, any>? {
+    let flow_json = json.stringify(flow)
+
+    let python_result_json = <<python[context_id, flow_json]
+import json
+import time # For delays
+from playwright.sync_api import Page, expect
+
+result = {}
+try:
+    if context_id not in _naab_playwright_contexts:
+        raise ValueError(f"Browser context '{context_id}' not found for flow execution.")
+    
+    # page: Page = _naab_playwright_contexts[context_id]["page"] # Stubs
+    flow_config = json.loads(flow_json)
+
+    # STUB: Return dummy data for Termux environment
+    scraped_items = [
+        {
+            "name": "agent_name_0",
+            "value": "Vibe Agent Alpha",
+            "url": "https://www.vibecodingtools.tech/agents",
+            "xpath": "/html/body/div[1]",
+            "css_selector": "h2.text-xl",
+            "captured_ts": 1700000000.0,
+            "raw_html_snippet": "<h2>Vibe Agent Alpha</h2>"
+        },
+        {
+            "name": "agent_description_0",
+            "value": "An advanced coding assistant.",
+            "url": "https://www.vibecodingtools.tech/agents",
+            "xpath": "/html/body/div[1]/p",
+            "css_selector": "p.description",
+            "captured_ts": 1700000000.0,
+            "raw_html_snippet": "<p>An advanced coding assistant.</p>"
+        }
+    ]
+    site_events = [
+        {"kind": "net", "data": {"url": "https://api.example.com/data", "status": 200}},
+        {"kind": "dom", "data": {"selector": "div.card", "type": "added"}}
+    ]
+
+    result = {"status": "success", "scraped_items": scraped_items, "site_events": site_events}
+
+except Exception as e:
+    result = {"status": "error", "message": str(e), "traceback_info": "See Python logs for details"}
+
+json.dumps(result)
+>>
+
+    let parsed_result = json.parse(python_result_json)
+    if parsed_result["status"] == "success" {
+        return parsed_result
+    } else {
+        io.write_error("❌ Playwright Execute Flow Error: ", parsed_result["message"], "\n")
+        io.write_error("   Traceback Info: ", parsed_result["traceback_info"], "\n")
+        return null
+    }
+}

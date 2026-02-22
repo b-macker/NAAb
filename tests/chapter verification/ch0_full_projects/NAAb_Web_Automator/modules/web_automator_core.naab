@@ -1,0 +1,117 @@
+// NAAb_Web_Automator/modules/web_automator_core.naab
+// Defines core structs for automation configuration and a function to load it.
+
+use io
+use json
+use file
+use string
+use array // Added for array.push
+
+use web_event_schemas // For ScrapedItem - this dependency is now required here
+
+// Helper to convert dynamic JSON lists to typed NAAb lists of structs
+fn parse_automation_steps(steps_json: list) -> list<AutomationStep> {
+    let parsed_steps: list<AutomationStep> = []
+    for step_data in steps_json {
+        let step_value: string? = null
+        try {
+            step_value = step_data["value"] // Try to get it
+        } catch (e) {
+            step_value = null // Key not found, assign null
+        }
+        
+        array.push(parsed_steps, new AutomationStep {
+            selector: step_data["selector"],
+            action: step_data["action"],
+            value: step_value, // Assign the (potentially null) value
+            delay_ms: step_data["delay_ms"]
+        })
+    }
+    return parsed_steps
+}
+
+// Struct representing a single step in an automation flow
+struct AutomationStep {
+    selector: string,       // CSS selector of the element to interact with
+    action: string,         // Action to perform ("click", "fill", "goto", "wait_for_selector", "type")
+    value: string?,         // Value for "fill" or "type" actions (optional)
+    delay_ms: int?          // Optional delay after the step in milliseconds
+}
+
+// Helper to convert dynamic JSON lists to typed NAAb lists of structs
+fn parse_extraction_rules(rules_json: list) -> list<ExtractionRule> {
+    let parsed_rules: list<ExtractionRule> = []
+    for rule_data in rules_json {
+        array.push(parsed_rules, new ExtractionRule {
+            target_selector: rule_data["target_selector"],
+            extract_attribute: rule_data["extract_attribute"],
+            name: rule_data["name"]
+        })
+    }
+    return parsed_rules
+}
+
+// Struct representing a single rule for extracting data from a page
+struct ExtractionRule {
+    target_selector: string, // CSS selector of the element to extract from
+    extract_attribute: string, // Attribute to extract (e.g., "innerText", "href", "src")
+    name: string            // A friendly name for the extracted data point
+}
+
+// Struct for browser configuration settings
+struct BrowserSettings {
+    browser_type: string,   // e.g., "chromium", "firefox", "webkit"
+    headless: bool,         // Run browser in headless mode (true) or with UI (false)
+    timeout_ms: int         // Default timeout for browser operations in milliseconds
+}
+
+// Struct representing a single automation flow
+struct FlowConfig {
+    name: string,                   // Unique name for this flow
+    start_url: string,              // URL to start the flow
+    steps: list<AutomationStep>,    // List of automation steps to execute
+    extraction_rules: list<ExtractionRule>, // Rules for data extraction after steps
+    post_flow_wait_ms: int?         // Optional wait time after the flow completes
+}
+
+// Main application configuration struct
+struct AutomatorConfig {
+    browser_settings: BrowserSettings, // General browser settings
+    flows: list<FlowConfig>            // List of defined automation flows
+}
+
+// Function to load the entire automator configuration from a JSON file
+export fn load_config(config_file_path: string) -> AutomatorConfig? {
+    if !file.exists(config_file_path) {
+        io.write_error("❌ Error: Configuration file not found: ", config_file_path, "\n")
+        return null
+    }
+
+    let config_content = file.read(config_file_path)
+    let parsed_config = json.parse(config_content)
+
+    // Populate BrowserSettings
+    let browser_settings = new BrowserSettings {
+        browser_type: parsed_config.browser_settings.browser_type,
+        headless: parsed_config.browser_settings.headless,
+        timeout_ms: parsed_config.browser_settings.timeout_ms
+    }
+
+    // Populate Flows
+    let flows_list: list<FlowConfig> = []
+    for flow_data in parsed_config.flows {
+        flows_list = array.push(flows_list, new FlowConfig {
+            name: flow_data["name"],
+            start_url: flow_data["start_url"],
+            steps: parse_automation_steps(flow_data["steps"]),
+            extraction_rules: parse_extraction_rules(flow_data["extraction_rules"]),
+            post_flow_wait_ms: flow_data["post_flow_wait_ms"]
+        })
+    }
+    
+    // Return the complete AutomatorConfig
+    return new AutomatorConfig {
+        browser_settings: browser_settings,
+        flows: flows_list
+    }
+}

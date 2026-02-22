@@ -3,15 +3,15 @@
 
 use string
 
-function double(x) {
+fn double(x) {
     return x * 2
 }
 
-function add_ten(x) {
+fn add_ten(x) {
     return x + 10
 }
 
-function sum_array(arr) {
+fn sum_array(arr) {
     let total = 0
     for item in arr {
         total = total + item
@@ -19,11 +19,11 @@ function sum_array(arr) {
     return total
 }
 
-function subtract_five(x) {
+fn subtract_five(x) {
     return x - 5
 }
 
-function square(x) {
+fn square(x) {
     return x * x
 }
 

@@ -43,7 +43,7 @@ int main() {
 
     // Initialize BlockRegistry with test blocks directory
     auto& registry = naab::runtime::BlockRegistry::instance();
-    std::string test_blocks_path = "/storage/emulated/0/Download/.naab/naab_language/tests/test_blocks";
+    std::string test_blocks_path = "tests/fixtures/block-samples";
 
     registry.initialize(test_blocks_path);
     ASSERT(registry.isInitialized(), "BlockRegistry should be initialized");

@@ -1,0 +1,8 @@
+use io
+main {
+    let x = <<sh
+    echo "shell works"
+    >>
+    io.write(x)
+    io.write("\n")
+}

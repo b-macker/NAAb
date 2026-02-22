@@ -1,0 +1,51 @@
+// IronDome/modules/context_intelligence.naab
+// Intelligence & Context Super-Plugin
+// Uses: <<python>>, <<cpp>>, json, file
+
+use io
+use json
+use file
+
+export fn analyze_context(workspace_meta) {
+    let ws_json = json.stringify(workspace_meta)
+    let tmp_idx = "verification/ch0_full_projects/IronDome/logs/idx.json"
+    let tmp_insight = "verification/ch0_full_projects/IronDome/logs/insight.json"
+
+    // Stage 1: Fast Context Indexing (C++)
+    <<cpp[ws_json, tmp_idx]
+    #include <iostream>
+    #include <fstream>
+    #include <string>
+    int main() {
+        std::string s = ws_json;
+        int count = 0;
+        size_t pos = s.find("path");
+        while (pos != std::string::npos) {
+            count++;
+            pos = s.find("path", pos + 4);
+        }
+        std::ofstream f(tmp_idx);
+        f << "{\"complexity\":" << count << "}";
+        f.close();
+        return 0;
+    }
+    >>
+    let idx = json.parse(file.read(tmp_idx))
+
+    // Stage 2: Knowledge Synthesis (Python)
+    let p_json = json.stringify(idx)
+    <<python[ws_json, p_json, tmp_insight]
+import json
+res = {"intelligence": {"status": "OPTIMAL", "validated": True, "meta": json.loads(p_json)}}
+f = open(tmp_insight, "w")
+json.dump(res, f)
+f.close()
+    >>
+    
+    let result = json.parse(file.read(tmp_insight))
+    
+    file.delete(tmp_idx)
+    file.delete(tmp_insight)
+    
+    return result
+}

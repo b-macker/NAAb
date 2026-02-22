@@ -1,0 +1,21 @@
+// Shared Types and Utilities
+
+// A struct to hold our simulation results
+struct RiskReport {
+    id: string,
+    score: float,
+    is_valid: bool,
+    timestamp: int,
+    source: string
+}
+
+// A pure NAAb utility function to generate an ID
+fn generate_report_id(prefix: string, index: int) -> string {
+    return prefix + "_" + index
+}
+
+// A logging utility
+fn log_status(stage: string, msg: string) {
+    // This will be used to demonstrate importing a void function
+    // In a real scenario, this might write to a file via stdlib
+}

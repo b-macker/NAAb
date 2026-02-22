@@ -16,7 +16,7 @@ BlockTester::BlockTester() {
 }
 
 std::string BlockTester::getTestDefinitionDir() {
-    return "/storage/emulated/0/Download/.naab/naab_language/examples/block_tests";
+    return "tests/fixtures/block-tests";
 }
 
 bool BlockTester::loadTestDefinition(const std::string& test_file_path) {
