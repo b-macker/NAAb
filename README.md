@@ -1,4 +1,4 @@
-# NAAb Programming Language
+# NAAb Language
 
 A polyglot programming language that seamlessly integrates Python, JavaScript, Rust, C++, and other languages through an innovative block system. Write once, execute in any language.
 
