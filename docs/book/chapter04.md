@@ -547,6 +547,105 @@ This example demonstrates:
 - ✅ Pipeline operator with modules
 - ✅ Higher-order functions
 
+## 4.6 Relative Imports (Multi-File Projects)
+
+NAAb supports organizing code across multiple files using dot-notation imports. The module system converts dots to directory separators and appends `.naab`.
+
+### 4.6.1 Syntax
+
+```naab
+// Import from subdirectory: resolves to utils/helper.naab
+use utils.helper
+
+// Import from nested subdirectory: resolves to lib/math/calculator.naab
+use lib.math.calculator
+
+// Import with alias
+use lib.math.calculator as calc
+```
+
+Slash notation (`use utils/helper`) is **not supported** — always use dots.
+
+### 4.6.2 Exporting Functions
+
+Only functions marked with `export` are visible to importers:
+
+```naab
+// utils/helper.naab
+export fn greet(name) {
+    return "Hello, " + name
+}
+
+fn internal_helper() {
+    // This function is NOT accessible from other modules
+}
+```
+
+### 4.6.3 Example: Multi-File Project
+
+**File structure:**
+```
+myproject/
+├── main.naab
+└── utils/
+    └── helper.naab
+```
+
+**utils/helper.naab:**
+```naab
+export fn greet(name) {
+    return "Hello, " + name
+}
+```
+
+**main.naab:**
+```naab
+use utils.helper
+
+main {
+    print(helper.greet("World"))
+    // Output: Hello, World
+}
+```
+
+### 4.6.4 Module Resolution
+
+Modules are resolved relative to the current file's directory:
+
+| Import Statement | File Searched |
+|-----------------|---------------|
+| `use utils.helper` | `utils/helper.naab` |
+| `use lib.math.calc` | `lib/math/calc.naab` |
+| `use io` | Built-in stdlib module (no file search) |
+
+Standard library modules (`io`, `string`, `array`, `math`, `json`, `file`, `env`, `time`, `csv`, `regex`, `crypto`, `http`) are always resolved as built-ins, regardless of directory structure.
+
+### 4.6.5 Best Practices
+
+*   Use aliases for deeply nested imports: `use app.services.database.connection as db`
+*   Export only what's needed — unexported functions stay private
+*   Don't include the `.naab` extension in import paths
+*   Avoid circular dependencies (module A imports B which imports A)
+
+## 4.7 Standard Library Overview
+
+NAAb ships with 12 built-in modules, all accessible via `use`:
+
+| Module | Purpose | Key Functions |
+|--------|---------|--------------|
+| `io` | Input/output | `write()`, `read()`, `output()` |
+| `string` | String manipulation | `length()`, `split()`, `upper()`, `lower()`, `trim()`, `replace()` |
+| `array` | Array operations | `length()`, `push()`, `pop()`, `sort()`, `reverse()`, `slice()` |
+| `math` | Mathematics | `sqrt()`, `pow()`, `abs()`, `floor()`, `ceil()`, `random()` |
+| `json` | JSON parsing | `parse()`, `stringify()` |
+| `file` | File operations | `read()`, `write()`, `exists()`, `delete()` |
+| `env` | Environment variables | `get()`, `set()` |
+| `time` | Date/time | `now()`, `sleep()`, `format()` |
+| `csv` | CSV processing | `parse()`, `stringify()` |
+| `regex` | Regular expressions | `match()`, `replace()`, `split()` |
+| `crypto` | Cryptography | `hash()`, `hmac()` |
+| `http` | HTTP client | `get()`, `post()` |
+
+Each module is covered in detail in Chapter 8 (Text and Math) and Chapter 9 (I/O and Networking).
+
 **Next Chapter:** In [Chapter 5](chapter05.md), we'll dive deep into the polyglot block system, exploring how to execute code from Python, JavaScript, C++, Bash, and other languages directly within your NAAb programs.
-
-

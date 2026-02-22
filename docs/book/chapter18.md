@@ -81,10 +81,12 @@ main {
     // Parse a CSV string
     let csv_content = "name,age,role\nAlice,30,Engineer\nBob,25,Designer"
     let rows = csv.parse(csv_content)
-    
-    // Result is a list of dictionaries (if headers present)
-    print("First row:", rows[0]) 
-    // Output: {"name": "Alice", "age": "30", "role": "Engineer"}
+
+    // Result is a list of arrays (first row is headers)
+    print("Headers:", rows[0])
+    // Output: [name, age, role]
+    print("First data row:", rows[1])
+    // Output: [Alice, 30, Engineer]
     
     // Write data to CSV string
     let new_csv = csv.stringify(rows)

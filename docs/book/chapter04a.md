@@ -69,7 +69,7 @@ main {
 
     io.write("Python: ", python_result, "\n")       # 12.0
     io.write("JavaScript: ", js_result, "\n")       # {"name":"NAAb","version":1.0}
-    io.write("Shell: ", shell_result.stdout, "\n") # Hello from shell
+    io.write("Shell: ", shell_result, "\n")         # Hello from shell
 }
 ```
 
@@ -257,9 +257,9 @@ main {
 
 ---
 
-## 4.5.6 Shell Result Structure
+## 4.5.6 Shell Results
 
-Shell commands return a struct with three fields:
+Shell commands return the standard output as a string. The output is automatically trimmed of trailing whitespace.
 
 ```naab
 use io
@@ -269,14 +269,23 @@ main {
     ls -la /tmp | head -5
     >>
 
-    # Result is a struct: {exit_code: int, stdout: string, stderr: string}
-    io.write("Exit code: ", result.exit_code, "\n")
-    io.write("Output: ", result.stdout, "\n")
-    io.write("Errors: ", result.stderr, "\n")
+    # Result is a string containing stdout
+    io.write("Output: ", result, "\n")
+}
+```
 
-    # Check for errors
-    if result.exit_code != 0 {
-        io.write("Command failed!\n")
+To detect errors in shell commands, use try/catch — a non-zero exit code raises an exception:
+
+```naab
+use io
+
+main {
+    try {
+        let result = <<bash
+        ls /nonexistent_directory
+        >>
+    } catch (e) {
+        io.write("Command failed: ", e, "\n")
     }
 }
 ```

@@ -480,7 +480,7 @@ main {
     // }
 }
 ```
-**Current Status (from `PHASE_2_4_5_NULL_SAFETY.md`):** Null safety is designed and planned for NAAb. The type system will enforce non-nullable by default semantics. While some aspects are already recognized, full compile-time enforcement and language features like optional chaining (`?.`) are still under active implementation.
+**Current Status:** Null safety is designed and planned for NAAb. The type system will enforce non-nullable by default semantics. While some aspects are already recognized, full compile-time enforcement and language features like optional chaining (`?.`) are still under active implementation.
 
 ## 2.6 Scope and Shadowing
 
@@ -507,3 +507,43 @@ main {
 }
 ```
 Shadowing allows you to declare a new variable with the same name in an inner scope. This new variable temporarily "hides" the outer variable, but the outer variable's value remains unchanged.
+
+## 2.7 Reserved Keywords
+
+The following identifiers are reserved and cannot be used as variable, function, or type names. Keywords are case-sensitive.
+
+### Control Flow
+`if`, `else`, `for`, `in`, `while`, `break`, `continue`, `match`, `return`
+
+### Error Handling
+`try`, `catch`, `throw`, `finally`
+
+### Type System
+`struct`, `class`, `enum`, `new`, `ref`
+
+### Functions
+`fn` (aliases: `func`, `function`), `async`, `await`, `method`
+
+### Modules
+`use`, `as`, `module`, `export`, `import`
+
+### Variables
+`let`, `const`
+
+### Special
+`main`, `config`, `init`, `null`, `true`, `false`
+
+### Common Pitfall: `config` is Reserved
+
+The word `config` is reserved because it is used for NAAb's configuration blocks. This catches many developers by surprise since it is a common variable name in other languages:
+
+```naab
+// This will NOT work:
+// let config = {"debug": true}    // ERROR: config is reserved
+
+// Use an alternative name instead:
+let settings = {"debug": true}     // OK
+let app_config = {"debug": true}   // OK (config is reserved, but app_config is not)
+```
+
+Note that keywords are case-sensitive: `Config` (uppercase C) is a valid identifier, while `config` (lowercase) is reserved.

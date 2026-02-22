@@ -204,3 +204,87 @@ When you pass data between NAAb and a foreign language, NAAb performs "marshalin
 
 **Handling Complex Structures:**
 For complex nested structures (like a list of dicts), NAAb typically serializes the data to a JSON string when passing it to languages like Bash or C++, requiring you to parse it on the other side if you need deep access. Dynamic languages like Python and JavaScript receive native objects (lists/dicts) directly.
+
+## 6.7 C FFI: Struct Interface for C++ Blocks
+
+For advanced C++ block integration, NAAb provides a C FFI (Foreign Function Interface) that allows C++ blocks to inspect and manipulate NAAb struct values directly. All FFI functions are thread-safe.
+
+### 6.7.1 Type Constants
+
+```c
+typedef enum {
+    NAAB_TYPE_NULL = 0,
+    NAAB_TYPE_INT = 1,
+    NAAB_TYPE_DOUBLE = 2,
+    NAAB_TYPE_BOOL = 3,
+    NAAB_TYPE_STRING = 4,
+    NAAB_TYPE_ARRAY = 5,
+    NAAB_TYPE_DICT = 6,
+    NAAB_TYPE_BLOCK = 7,
+    NAAB_TYPE_FUNCTION = 8,
+    NAAB_TYPE_PYOBJECT = 9,
+    NAAB_TYPE_STRUCT = 10
+} NaabValueType;
+```
+
+### 6.7.2 Struct Query and Access
+
+```c
+// Get the struct's type name (returns NULL if not a struct)
+const char* naab_value_get_struct_type_name(void* value);
+
+// Get field count (-1 if not a struct)
+int naab_value_get_struct_field_count(void* value);
+
+// Get field name by index (NULL if out of bounds)
+const char* naab_value_get_struct_field_name(void* value, int field_index);
+
+// Get a field value by name (NULL if field doesn't exist)
+void* naab_value_get_struct_field(void* value, const char* field_name);
+
+// Set a field value (returns 0 on success, -1 on error)
+int naab_value_set_struct_field(void* struct_value, const char* field_name, void* field_value);
+
+// Create a new struct instance (NULL if type not registered)
+void* naab_value_create_struct(const char* type_name);
+```
+
+### 6.7.3 Example: C++ Block Using Structs
+
+```cpp
+#include "naab/cpp_block_interface.h"
+
+// Takes a Point struct and returns a new Point with doubled coordinates
+int double_point(void* point_in, void** result, char* error_msg) {
+    const char* type_name = naab_value_get_struct_type_name(point_in);
+    if (!type_name || strcmp(type_name, "Point") != 0) {
+        strncpy(error_msg, "Expected Point struct", 512);
+        return -1;
+    }
+
+    void* x_val = naab_value_get_struct_field(point_in, "x");
+    void* y_val = naab_value_get_struct_field(point_in, "y");
+
+    int x, y;
+    naab_value_get_int(x_val, &x);
+    naab_value_get_int(y_val, &y);
+
+    void* new_point = naab_value_create_struct("Point");
+    void* new_x = naab_value_create_int(x * 2);
+    void* new_y = naab_value_create_int(y * 2);
+    naab_value_set_struct_field(new_point, "x", new_x);
+    naab_value_set_struct_field(new_point, "y", new_y);
+    naab_value_destroy(new_x);
+    naab_value_destroy(new_y);
+
+    *result = new_point;
+    return 0;
+}
+```
+
+### 6.7.4 Best Practices
+
+1.  **Always check return values** — NULL indicates failure
+2.  **Destroy temporary values** — Call `naab_value_destroy()` on created values after use to avoid memory leaks
+3.  **Verify struct types** — Check the type name before accessing fields
+4.  **Handle missing fields gracefully** — `naab_value_get_struct_field()` returns NULL for non-existent fields

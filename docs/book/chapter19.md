@@ -34,30 +34,27 @@ main {
     // Generate random bytes (hex encoded)
     let random_hex = crypto.random_bytes(16)
     print("Random Token:", random_hex)
-    
-    // Generate a UUID v4
-    let uuid = crypto.uuid()
-    print("UUID:", uuid)
 }
 ```
 
-## 19.3 Basic Encryption
+## 19.3 Encryption
 
-The `crypto` module provides basic symmetric encryption capabilities (typically AES).
+For encryption and decryption, use a polyglot block with a mature library. The crypto module currently focuses on hashing and randomness:
 
 ```naab
 main {
-    let key = "12345678901234567890123456789012" // 32 bytes for AES-256
-    let iv = "1234567890123456" // 16 bytes IV
     let plaintext = "Sensitive Data"
+    let key = "my_secret_key_32bytes_long_12345"
 
-    // Encrypt
-    let ciphertext = crypto.encrypt(plaintext, key, iv)
-    print("Encrypted:", ciphertext)
+    let encrypted = <<python[plaintext, key]
+from cryptography.fernet import Fernet
+import base64, hashlib
+key_bytes = base64.urlsafe_b64encode(hashlib.sha256(key.encode()).digest())
+f = Fernet(key_bytes)
+f.encrypt(plaintext.encode()).decode()
+>>
 
-    // Decrypt
-    let decrypted = crypto.decrypt(ciphertext, key, iv)
-    print("Decrypted:", decrypted)
+    print("Encrypted:", encrypted)
 }
 ```
 

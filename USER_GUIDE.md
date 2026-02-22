@@ -1,5 +1,5 @@
 # NAAb Language User Guide
-**Version**: 0.1.0
+**Version**: 0.2.0
 **Last Updated**: December 30, 2024
 
 ## Table of Contents
@@ -21,7 +21,7 @@
 
 ## Introduction
 
-NAAb (Not Another Assembly Block) is a modern block assembly language designed for composing reusable code blocks across multiple programming languages. With 24,483 blocks in the registry, NAAb allows you to build applications by assembling pre-built, tested components.
+NAAb is a modern block assembly language designed for composing reusable code blocks across multiple programming languages. With 24,483 blocks in the registry, NAAb allows you to build applications by assembling pre-built, tested components.
 
 ### Key Features
 
@@ -38,10 +38,6 @@ NAAb (Not Another Assembly Block) is a modern block assembly language designed f
 ## Getting Started
 
 ### Installation
-
-```bash
-# Clone repository
-cd /storage/emulated/0/Download/.naab/naab_language
 
 # Build
 cmake -B build
@@ -189,25 +185,25 @@ let joined = std.join(numbers, ",")  // "1,2,3,4,5"
 
 ```naab
 // Map - transform array
-function double(x) {
+fn double(x) {
     return x * 2
 }
 let doubled = std.map_fn(numbers, double)  // [2, 4, 6, 8, 10]
 
 // Filter - select elements
-function is_even(x) {
+fn is_even(x) {
     return x % 2 == 0
 }
 let evens = std.filter_fn(numbers, is_even)  // [2, 4]
 
 // Reduce - aggregate
-function add(acc, x) {
+fn add(acc, x) {
     return acc + x
 }
 let sum = std.reduce_fn(numbers, add, 0)  // 15
 
 // Find - first match
-function greater_than_3(x) {
+fn greater_than_3(x) {
     return x > 3
 }
 let found = std.find(numbers, greater_than_3)  // 4
@@ -279,7 +275,7 @@ person["age"] = 31
 ### Function Declaration
 
 ```naab
-function greet(name) {
+fn greet(name) {
     return "Hello, " + name + "!"
 }
 
@@ -290,7 +286,7 @@ print(message)  // "Hello, Alice!"
 ### Default Parameters
 
 ```naab
-function greet(name = "World") {
+fn greet(name = "World") {
     return "Hello, " + name + "!"
 }
 
@@ -301,7 +297,7 @@ print(greet("Bob"))   // "Hello, Bob!"
 ### Recursive Functions
 
 ```naab
-function factorial(n) {
+fn factorial(n) {
     if (n <= 1) {
         return 1
     }
@@ -314,11 +310,11 @@ print(factorial(5))  // 120
 ### Function as Values
 
 ```naab
-function apply(fn, value) {
-    return fn(value)
+fn apply(callback, value) {
+    return callback(value)
 }
 
-function double(x) {
+fn double(x) {
     return x * 2
 }
 
@@ -437,7 +433,7 @@ try {
 ### Throwing Errors
 
 ```naab
-function divide(a, b) {
+fn divide(a, b) {
     if (b == 0) {
         throw "Division by zero"
     }
@@ -555,11 +551,11 @@ std.setenv("MY_VAR", "value")
 Create `math_utils.naab`:
 
 ```naab
-export function add(a, b) {
+export fn add(a, b) {
     return a + b
 }
 
-export function multiply(a, b) {
+export fn multiply(a, b) {
     return a * b
 }
 ```
@@ -700,7 +696,7 @@ print(result)
 ### Type Annotations
 
 ```naab
-function add(x: int, y: int): int {
+fn add(x: int, y: int): int {
     return x + y
 }
 
@@ -722,12 +718,12 @@ Supported types:
 
 ```naab
 // Good
-export function calculate_discount(price: float, percent: float): float {
+export fn calculate_discount(price: float, percent: float): float {
     return price * (1 - percent / 100)
 }
 
 // Less clear
-export function calculate_discount(price, percent) {
+export fn calculate_discount(price, percent) {
     return price * (1 - percent / 100)
 }
 ```
@@ -768,7 +764,7 @@ let v = true
 
 ```naab
 // Good
-function process_order(order) {
+fn process_order(order) {
     let validated = validate_order(order)
     let calculated = calculate_totals(validated)
     let formatted = format_receipt(calculated)
@@ -776,7 +772,7 @@ function process_order(order) {
 }
 
 // Bad - too much in one function
-function process_order(order) {
+fn process_order(order) {
     // 50 lines of validation, calculation, formatting...
 }
 ```
@@ -800,7 +796,7 @@ import "stdlib" as std
 let upper = std.upper(text)
 
 // Bad - reinvent the wheel
-function to_upper(text) {
+fn to_upper(text) {
     // Manual uppercase implementation...
 }
 ```
@@ -809,12 +805,12 @@ function to_upper(text) {
 
 ```naab
 // utils/string_helpers.naab
-export function capitalize(text) { ... }
-export function reverse(text) { ... }
+export fn capitalize(text) { ... }
+export fn reverse(text) { ... }
 
 // utils/math_helpers.naab
-export function average(numbers) { ... }
-export function median(numbers) { ... }
+export fn average(numbers) { ... }
+export fn median(numbers) { ... }
 
 // main.naab
 import * as strings from "./utils/string_helpers.naab"
@@ -825,17 +821,16 @@ import * as math from "./utils/math_helpers.naab"
 
 ## Next Steps
 
-- Read [API_REFERENCE.md](API_REFERENCE.md) for complete stdlib documentation
-- Check [EXAMPLES.md](EXAMPLES.md) for real-world examples
-- See [QUICKSTART.md](QUICKSTART.md) for quick installation guide
-- Visit [ARCHITECTURE.md](ARCHITECTURE.md) to understand internals
+- Read the [NAAb Book](docs/book/) for comprehensive documentation (21 chapters)
+- See [Quick Start](docs/book/QUICK_START.md) for getting started
+- Browse [examples/](examples/) for real-world examples
 
 ---
 
 ## Getting Help
 
-- **Documentation**: `/storage/emulated/0/Download/.naab/naab_language/docs/`
-- **Examples**: `/storage/emulated/0/Download/.naab/naab_language/examples/`
-- **Tests**: `/storage/emulated/0/Download/.naab/naab_language/tests/`
+- **Documentation**: `docs/book/`
+- **Examples**: `examples/`
+- **Tests**: `tests/`
 
-Run `~/naab-lang help` for command-line options.
+Run `naab-lang --help` for command-line options.

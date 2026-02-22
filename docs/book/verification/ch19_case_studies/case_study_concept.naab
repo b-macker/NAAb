@@ -1,8 +1,0 @@
-# Chapter 17: Case Studies Verification (Conceptual)
-
-main {
-    print(">>> Chapter 17 Verification: Case Studies <<<")
-    print("Case studies illustrate concepts, not runnable code.")
-    print("Verification is conceptual: does the text accurately describe NAAb's potential?")
-    print(">>> Chapter 17 Verification: COMPLETE <<<")
-}

@@ -269,4 +269,4 @@ Hint: Always check for null before accessing properties:
     }
 ```
 
-For a complete guide to debugging NAAb programs, see `docs/DEBUGGING_GUIDE.md`.
+For a complete guide to debugging NAAb programs, see [Chapter 16: Tooling](chapter16.md).

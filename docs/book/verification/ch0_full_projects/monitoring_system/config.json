@@ -1,8 +1,0 @@
-{
-  "check_interval_seconds": 60,
-  "alert_threshold_cpu": 80.0,
-  "alert_threshold_memory": 85.0,
-  "alert_threshold_disk": 90.0,
-  "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
-  "log_retention_days": 30
-}

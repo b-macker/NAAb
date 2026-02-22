@@ -26,7 +26,7 @@ main {
     // Step 1: Load Data (Python)
     print("Step 1: Loading data...")
     let raw_data = load_dataset("data.csv")
-    print("Data loaded, rows:", std.length(raw_data))
+    print("Data loaded, rows:", array.length(raw_data))
 
     // Step 2: Clean Data (JavaScript)
     print("Step 2: Cleaning data...")
