@@ -4,7 +4,8 @@
 # Runs all integration tests and reports results
 
 NAAB_BIN="${NAAB_BIN:-~/naab-lang}"
-TEST_DIR="/storage/emulated/0/Download/.naab/naab_language/tests/integration"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TEST_DIR="$SCRIPT_DIR"
 TIMEOUT=30
 
 echo "======================================="

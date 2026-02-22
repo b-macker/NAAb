@@ -11,8 +11,8 @@ The NAAb Language project takes security seriously. We are committed to maintain
 
 | Version | Supported          | Security Updates |
 | ------- | ------------------ | ---------------- |
-| 0.9.x   | :white_check_mark: | Yes (development) |
-| < 0.9   | :x:                | No               |
+| 0.2.x   | :white_check_mark: | Yes (current) |
+| < 0.2   | :x:                | No               |
 
 **Note:** Once 1.0 is released, we will maintain security updates for:
 - Current major version (1.x): Full support
@@ -26,8 +26,8 @@ The NAAb Language project takes security seriously. We are committed to maintain
 
 Instead, please report security vulnerabilities via:
 
-1. **Email:** security@naab-lang.org (preferred)
-2. **GitHub Security Advisory:** https://github.com/yourusername/naab/security/advisories/new
+1. **GitHub Security Advisory:** https://github.com/b-macker/NAAb/security/advisories/new (preferred)
+2. **GitHub Issues (private):** For less critical issues, use the Security tab on the repository
 
 ### What to Include
 
@@ -112,7 +112,7 @@ NAAb has undergone a comprehensive 6-week security hardening sprint and implemen
 - **Coverage:** 144/192 items implemented
 - **Blockers:** 0 critical, 0 high priority
 
-See [SAFETY_AUDIT.md](docs/SAFETY_AUDIT_UPDATED.md) for detailed assessment.
+See [Chapter 13: Security](docs/book/chapter13.md) for detailed security documentation.
 
 ## Known Security Limitations
 
@@ -130,7 +130,7 @@ See [SAFETY_AUDIT.md](docs/SAFETY_AUDIT_UPDATED.md) for detailed assessment.
 2. **Formal Verification:** Not formally verified (research project scope)
 3. **SLSA Level 3:** Currently Level 2 (hermetic builds pending)
 
-See [SAFETY_AUDIT.md](docs/SAFETY_AUDIT_UPDATED.md) for complete gap analysis.
+See [Chapter 13: Security](docs/book/chapter13.md) for complete gap analysis.
 
 ## Security Best Practices
 
@@ -163,9 +163,8 @@ See [SAFETY_AUDIT.md](docs/SAFETY_AUDIT_UPDATED.md) for complete gap analysis.
 
 ## Security Contacts
 
-- **Security Team:** security@naab-lang.org
-- **Project Lead:** maintainer@naab-lang.org
-- **GitHub Security:** https://github.com/yourusername/naab/security
+- **GitHub Security:** https://github.com/b-macker/NAAb/security
+- **Project Lead:** https://github.com/b-macker
 
 ## Security Updates
 
@@ -173,10 +172,9 @@ See [SAFETY_AUDIT.md](docs/SAFETY_AUDIT_UPDATED.md) for complete gap analysis.
 
 Stay informed about security updates:
 
-1. **GitHub Security Advisories:** https://github.com/yourusername/naab/security/advisories
+1. **GitHub Security Advisories:** https://github.com/b-macker/NAAb/security/advisories
 2. **Release Notes:** Check release notes for security fixes
-3. **Mailing List:** security-announce@naab-lang.org (coming soon)
-4. **Twitter:** @naablang (security announcements)
+3. **GitHub Watch:** Watch the repository for release notifications
 
 ### Update Process
 
@@ -193,14 +191,14 @@ sudo apt update && sudo apt upgrade naab-lang
 brew update && brew upgrade naab-lang
 
 # Or download latest release
-wget https://github.com/yourusername/naab/releases/latest/naab-lang
+wget https://github.com/b-macker/NAAb/releases/latest/naab-lang
 ```
 
 **Verify Signature:**
 ```bash
 # Download signature and certificate
-wget https://github.com/yourusername/naab/releases/download/v1.0.0/naab-lang.sig
-wget https://github.com/yourusername/naab/releases/download/v1.0.0/naab-lang.pem
+wget https://github.com/b-macker/NAAb/releases/download/v0.2.0/naab-lang.sig
+wget https://github.com/b-macker/NAAb/releases/download/v0.2.0/naab-lang.pem
 
 # Verify with cosign
 cosign verify-blob naab-lang \
@@ -321,18 +319,15 @@ NAAb aims to comply with:
 
 For security-related questions:
 
-- **General Questions:** security@naab-lang.org
-- **Vulnerability Reports:** security@naab-lang.org (private)
+- **Vulnerability Reports:** https://github.com/b-macker/NAAb/security/advisories/new
 - **Non-Security Issues:** GitHub Issues
 - **Discussions:** GitHub Discussions
 
 ## Resources
 
-- **Security Documentation:** [docs/SECURITY_ARCHITECTURE.md](docs/SECURITY_ARCHITECTURE.md)
-- **Threat Model:** [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
-- **Incident Response:** [docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md)
-- **Safety Audit:** [docs/SAFETY_AUDIT_UPDATED.md](docs/SAFETY_AUDIT_UPDATED.md)
-- **Weekly Summaries:** [docs/WEEK*_SUMMARY.md](docs/)
+- **Security Documentation:** [Chapter 13: Security](docs/book/chapter13.md)
+- **Language Reference:** [The NAAb Book](docs/book/)
+- **Contributing:** [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
 
 ---
 

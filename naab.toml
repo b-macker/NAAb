@@ -1,8 +1,8 @@
 [package]
-name = "my-naab-project"
-version = "0.1.0"
-authors = ["Your Name <you@example.com>"]
-description = "My NAAb project"
+name = "naab-lang"
+version = "0.2.0"
+authors = ["NAAb Contributors"]
+description = "NAAb Block Assembly Language"
 
 [dependencies]
 # Future: External NAAb packages
@@ -11,8 +11,8 @@ description = "My NAAb project"
 
 [build]
 # Build configuration
-target = "debug"  # or "release"
-optimize = false
+target = "release"
+optimize = true
 
 [polyglot]
 # Which language runtimes to enable

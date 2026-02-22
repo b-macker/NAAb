@@ -4,6 +4,7 @@
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
+#include "naab/paths.h"
 #include <fmt/core.h>
 #include <string>
 #include <vector>
@@ -67,13 +68,13 @@ public:
         linenoiseSetHintsCallback(hints);
 
         // Load history
-        linenoiseHistoryLoad("/data/data/com.termux/files/home/.naab_history");
+        linenoiseHistoryLoad(naab::paths::history_file().c_str());
         linenoiseHistorySetMaxLen(1000);
     }
 
     ~ReadlineReplSession() {
         // Save history
-        linenoiseHistorySave("/data/data/com.termux/files/home/.naab_history");
+        linenoiseHistorySave(naab::paths::history_file().c_str());
         g_interpreter = nullptr;
     }
 

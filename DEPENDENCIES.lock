@@ -4,8 +4,8 @@
 # DO NOT EDIT MANUALLY - Regenerate with: scripts/update-dependencies.sh
 
 version: 1
-generated: 2026-01-30T00:00:00Z
-naab_version: 0.1.0
+generated: 2026-02-21T00:00:00Z
+naab_version: 0.2.0
 
 # ============================================================================
 # Vendored C++ Dependencies (in external/)

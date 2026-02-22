@@ -2,6 +2,7 @@
 // Capability-based access control and resource isolation
 
 #include "naab/sandbox.h"
+#include "naab/paths.h"
 #include "naab/audit_logger.h"
 #include "naab/logger.h"
 #include <fmt/core.h>
@@ -55,7 +56,7 @@ SandboxConfig SandboxConfig::fromPermissionLevel(PermissionLevel level) {
 
             // Allow read/write in temp and user dirs
             config.allowed_read_paths.push_back("/tmp");
-            config.allowed_read_paths.push_back(std::string(getenv("HOME") ? getenv("HOME") : "/data/data/com.termux/files/home"));
+            config.allowed_read_paths.push_back(naab::paths::home());
             config.allowed_write_paths.push_back("/tmp");
             break;
 
@@ -390,7 +391,7 @@ SandboxConfig SandboxManager::createConfigForBlock(const std::string& block_id,
     auto config = SandboxConfig::fromPermissionLevel(level);
 
     // Add block-specific sandbox directory
-    std::string home = getenv("HOME") ? getenv("HOME") : "/data/data/com.termux/files/home";
+    std::string home = naab::paths::home();
     std::string block_sandbox = home + "/.naab/sandbox/" + block_id;
 
     config.allowReadPath(block_sandbox);

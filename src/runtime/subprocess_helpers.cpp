@@ -7,6 +7,7 @@
 // Both posix_spawn() and popen() fail with SIGABRT in the same context.
 
 #include "naab/subprocess_helpers.h"
+#include "naab/paths.h"
 #include <cstdio>       // For FILE, fopen, fclose, fprintf, tmpnam
 #include <array>        // For std::array
 #include <stdexcept>    // For std::runtime_error
@@ -123,16 +124,17 @@ int execute_subprocess_with_pipes(
     const std::map<std::string, std::string>* env) {
 
     // Create temp files for stdout and stderr capture
-    std::string stdout_tmp = "/data/data/com.termux/files/usr/tmp/naab_out_XXXXXX";
-    std::string stderr_tmp = "/data/data/com.termux/files/usr/tmp/naab_err_XXXXXX";
+    std::string tmp = naab::paths::temp_dir();
+    std::string stdout_tmp = tmp + "/naab_out_XXXXXX";
+    std::string stderr_tmp = tmp + "/naab_err_XXXXXX";
 
     int stdout_fd = mkstemp(&stdout_tmp[0]);
     int stderr_fd = mkstemp(&stderr_tmp[0]);
 
     if (stdout_fd == -1 || stderr_fd == -1) {
         // Fallback paths if mkstemp fails
-        stdout_tmp = fmt::format("/data/data/com.termux/files/usr/tmp/naab_out_{}", getpid());
-        stderr_tmp = fmt::format("/data/data/com.termux/files/usr/tmp/naab_err_{}", getpid());
+        stdout_tmp = fmt::format("{}/naab_out_{}", tmp, getpid());
+        stderr_tmp = fmt::format("{}/naab_err_{}", tmp, getpid());
     } else {
         close(stdout_fd);
         close(stderr_fd);

@@ -4,6 +4,7 @@
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
+#include "naab/paths.h"
 #include <fmt/core.h>
 #include <iostream>
 #include <string>
@@ -291,7 +292,7 @@ private:
 
     void loadHistory() {
         // Try to load history from file
-        std::string history_file = "/data/data/com.termux/files/home/.naab_history";
+        std::string history_file = naab::paths::history_file();
         std::ifstream file(history_file);
         if (file.is_open()) {
             std::string line;
@@ -305,7 +306,7 @@ private:
 
     void saveHistory() {
         // Save last 100 commands
-        std::string history_file = "/data/data/com.termux/files/home/.naab_history";
+        std::string history_file = naab::paths::history_file();
         std::ofstream file(history_file);
         if (file.is_open()) {
             size_t start = history_.size() > 100 ? history_.size() - 100 : 0;

@@ -2,28 +2,27 @@
 
 **Created by Brandon Mackert**
 
-A production-ready polyglot programming language that seamlessly integrates Python, JavaScript, Rust, C++, and other languages through an innovative block system. Write once, execute in any language.
+A polyglot programming language that seamlessly integrates Python, JavaScript, Rust, C++, and other languages through an innovative block system. Write once, execute in any language.
 
 ---
 
 ## ✨ Features
 
 ### Core Language
-- **Strong Type System** - Generics, union types, type inference, null safety
+- **Type System** - Union types, type inference, type annotations
 - **Modern Syntax** - Clean, expressive syntax with automatic semicolon insertion
-- **Structs & Enums** - First-class data structures with pattern matching
+- **Structs & Enums** - First-class data structures
 - **Module System** - Clean imports with alias support
 
 ### Polyglot Blocks
 - **Multi-Language Execution** - Seamlessly call Python, JavaScript, Rust, C++, Go, Ruby, Shell, and more
-- **124MB Block Library** - Pre-built blocks for common operations across languages
+- **Block Library** - Pre-built block registry for common operations across languages
 - **Type-Safe Bridges** - Automatic marshalling between language boundaries
-- **Zero-Copy FFI** - Optimized cross-language calls
 
 ### Developer Experience
 - **LSP Server** - Full IDE support with autocomplete, hover, go-to-definition, diagnostics
 - **VS Code Extension** - Syntax highlighting, IntelliSense, debugging support
-- **Auto-Formatter** - `naab-fmt` for consistent code style
+- **Auto-Formatter** - `naab-lang fmt` for consistent code style
 - **Linter** - Static analysis and code quality checks
 - **Debugger** - Built-in debugging with breakpoints and variable inspection
 
@@ -76,17 +75,14 @@ main {
 ### Polyglot Example
 
 ```naab
-# Call Python for data science
-use python
-
 main {
     let data = [1, 2, 3, 4, 5]
 
-    # Execute Python code
-    let result = <<python
-        import statistics
-        statistics.mean(data)
-    python>>
+    // Execute Python code with variable binding
+    let result = <<python[data]
+import statistics
+statistics.mean(data)
+>>
 
     print("Average: " + result)
 }
@@ -105,29 +101,28 @@ See the [examples/](examples/) directory for:
 
 ## 📚 Documentation
 
-- **[User Guide](docs/USER_GUIDE.md)** - Complete language reference
-- **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Contributing and architecture
-- **[LSP Guide](docs/LSP_USER_GUIDE.md)** - IDE setup and features
-- **[API Reference](docs/API_REFERENCE.md)** - Standard library documentation
-- **[Cookbook](docs/COOKBOOK.md)** - Common patterns and recipes
+- **[The NAAb Book](docs/book/)** - Comprehensive language reference (21 chapters)
+- **[Quick Start](docs/book/QUICK_START.md)** - Get up and running fast
+- **[User Guide](USER_GUIDE.md)** - Complete language guide
+- **[Contributing](docs/CONTRIBUTING.md)** - Contributor guidelines
 
 ---
 
 ## 🏗️ Architecture
 
 - **Parser** - Hand-written recursive descent parser with full AST
-- **Type Checker** - Bidirectional type inference with generics support
+- **Type Checker** - Bidirectional type inference
 - **Interpreter** - Tree-walking interpreter with optimized execution
-- **Memory Model** - Automatic garbage collection with cycle detection
+- **Memory Model** - Automatic memory management with RAII and smart pointers
 - **Cross-Language Bridge** - FFI layer with type-safe marshalling
 - **LSP Server** - JSON-RPC protocol with caching and debouncing
 
 ### Statistics
 - **10,000+** lines of C++ code
-- **21/21** integration tests passing (100%)
-- **~200MB** repository size (source only)
-- **85%** production readiness
+- **308/350** tests passing (308 pass + 42 expected failures = 100%)
+- **325** mono test assertions passing (0 failures)
 - **7** LSP capabilities implemented
+- **12** standard library modules
 
 ---
 
@@ -186,7 +181,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) f
 
 ### Areas for Contribution
 - Standard library modules
-- Language features (async/await, pattern matching)
+- Language features (pattern matching, async/await)
 - Performance optimizations
 - Documentation and examples
 - IDE integrations (Vim, Emacs, IntelliJ)
@@ -199,12 +194,10 @@ Contributions are welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) f
 **Phase 1:** ✅ Syntax & Parser - 100% Complete
 **Phase 2:** ✅ Type System - 100% Complete
 **Phase 3:** ✅ Memory Management - 100% Complete
-**Phase 4:** ✅ Tooling (LSP, Formatter, Linter, Debugger) - 85% Complete
-**Phase 5:** ✅ Standard Library - 100% Complete (15+ modules)
+**Phase 4:** ✅ Tooling (LSP, Formatter, Linter, Debugger) - 80% Complete
+**Phase 5:** ✅ Standard Library - 100% Complete (12 modules)
 
-**Overall:** 85% Production Ready
-
-See [PRODUCTION_STATUS_SUMMARY.md](MASTER_STATUS/PRODUCTION_STATUS_SUMMARY.md) for details.
+See [docs/](docs/) for detailed documentation.
 
 ---
 

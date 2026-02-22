@@ -125,6 +125,13 @@ compile_commands.json
 test_results.txt
 tmp_leak.txt
 
+# Runtime artifacts
+system_monitor.log
+system_report.txt
+
 # Data/output files
 output/
 check_failures.sh
+
+# Internal review documents
+PUBLICATION_REVIEW*.md

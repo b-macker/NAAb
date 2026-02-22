@@ -13,7 +13,7 @@ for count in 10 50 100 200; do
     echo ""
 
     # Generate test input
-    TEST_FILE="/data/data/com.termux/files/home/repl_test_${count}.txt"
+    TEST_FILE="$(mktemp "/tmp/repl_test_${count}_XXXXXX.txt")"
     > "$TEST_FILE"
     for i in $(seq 1 $count); do
         echo "let x$i = $i" >> "$TEST_FILE"

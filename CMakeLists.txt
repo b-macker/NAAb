@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 # Project with semantic versioning
 project(naab_lang
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "NAAb Block Assembly Language"
     LANGUAGES C CXX
 )
@@ -328,7 +328,7 @@ add_library(naab_security
     src/runtime/crypto_utils.cpp
     src/runtime/audit_logger.cpp
     src/runtime/sandbox.cpp
-    src/safe_regex.cpp                       # Phase 1 Item 7: Regex timeout protection
+    src/utils/safe_regex.cpp                 # Phase 1 Item 7: Regex timeout protection
     src/runtime/tamper_evident_logger.cpp    # Phase 1 Item 8: Tamper-evident logging
     src/runtime/ffi_callback_validator.cpp   # Phase 1 Item 9: FFI callback safety
     src/runtime/ffi_async_callback.cpp       # Phase 1 Item 10: FFI async callback safety
@@ -407,6 +407,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/thread_pool.cpp  # Thread pool for async execution
     src/runtime/source_mapper.cpp  # Phase 12: Polyglot error mapping
     src/runtime/json_result_parser.cpp  # Phase 12: JSON sovereign pipe
+    src/utils/paths.cpp  # Portable path resolution
 )
 
 # Add Python executor if pybind11 is available
@@ -453,6 +454,15 @@ endif()
 target_include_directories(naab_runtime PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
 )
+# Portable path compile definitions
+target_compile_definitions(naab_runtime PRIVATE
+    NAAB_INCLUDE_DIR="${CMAKE_SOURCE_DIR}/include"
+)
+if(Python3_FOUND)
+    target_compile_definitions(naab_runtime PRIVATE
+        NAAB_PYTHON_INCLUDE_DIR="${Python3_INCLUDE_DIRS}"
+    )
+endif()
 message(STATUS "  ✓ Runtime & block loader (SQLite3)")
 
 # Manifest system

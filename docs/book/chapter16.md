@@ -1,43 +1,69 @@
 # Chapter 16: Tooling and the Development Environment
 
-A productive development environment relies on robust tooling. NAAb provides essential command-line tools for executing, interacting with, and managing your code. While advanced IDE integrations are under development, the core command-line interface (CLI) and Read-Eval-Print Loop (REPL) are fully functional.
+A productive development environment relies on robust tooling. NAAb provides a full suite of command-line tools for running, formatting, debugging, and analyzing your code, plus an LSP server for IDE integration.
 
 ## 16.1 The `naab-lang` CLI
 
-The `naab-lang` executable is the primary interface for compiling, running, and managing NAAb projects. It supports various commands:
+The `naab-lang` executable is the primary interface for running and managing NAAb programs.
 
-*   **`naab-lang run <file.naab>`**: Executes a NAAb program. This is the most common command for running your applications.
+### 16.1.1 Commands
+
+*   **`naab-lang run <file.naab>`**: Executes a NAAb program. You can also pass `<file.naab>` directly without the `run` subcommand — NAAb auto-detects `.naab` files.
 *   **`naab-lang parse <file.naab>`**: Parses a NAAb program and prints its Abstract Syntax Tree (AST). Useful for understanding how NAAb interprets your code.
-*   **`naab-lang check <file.naab>`**: Performs a static type check on your NAAb program, identifying type errors without executing the code.
-*   **`naab-lang validate <block1,block2,...>`**: Validates the compatibility of a sequence of blocks, ensuring their input and output types align. This is crucial for constructing robust pipelines.
-*   **`naab-lang stats`**: Displays overall usage statistics for blocks and other NAAb components.
-*   **`naab-lang blocks list`**: Lists statistics about all available blocks in the local registry.
-*   **`naab-lang blocks search <query>`**: Searches the block registry for components matching a specific query.
-*   **`naab-lang blocks info <block_id>`**: Displays detailed metadata for a specific block ID.
-*   **`naab-lang blocks index [path]`**: Builds or rebuilds the search index for the block registry.
-*   **`naab-lang version`**: Displays the current version of the NAAb interpreter and its build information.
-*   **`naab-lang help`**: Shows a comprehensive list of all commands and their usage.
+*   **`naab-lang check <file.naab>`**: Performs a static type check, identifying type errors without executing the code.
+*   **`naab-lang fmt <file.naab>`**: Formats code according to the project's style configuration (see section 16.3).
+*   **`naab-lang validate <block1,block2,...>`**: Validates block compatibility, ensuring input and output types align for pipelines.
+*   **`naab-lang stats`**: Displays usage statistics for blocks and other components.
+*   **`naab-lang blocks list`**: Lists all available blocks in the local registry.
+*   **`naab-lang blocks search <query>`**: Searches the block registry for matching components.
+*   **`naab-lang blocks info <block_id>`**: Displays detailed metadata for a specific block.
+*   **`naab-lang blocks index [path]`**: Builds or rebuilds the block search index.
+*   **`naab-lang api [port]`**: Starts a REST API server for programmatic access.
+*   **`naab-lang init`**: Creates a `naab.toml` project manifest in the current directory.
+*   **`naab-lang manifest check`**: Validates an existing `naab.toml` manifest.
+*   **`naab-lang version`**: Displays the interpreter version and build information.
+*   **`naab-lang help`**: Shows all commands and options.
+
+### 16.1.2 Runtime Options
+
+These flags modify how `naab-lang run` executes your program:
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--verbose` | `-v` | Enable verbose output |
+| `--debug` | `-d` | Enable interactive debugger (see section 16.4) |
+| `--profile` | `-p` | Enable performance profiling |
+| `--explain` | | Explain execution step-by-step |
+| `--no-color` | | Disable colored error messages |
+| `--pipe` | | Pipe mode: `io.write()` goes to stderr, `io.output()` goes to stdout (useful for JSON pipelines) |
+
+### 16.1.3 Security Options
+
+NAAb provides sandboxing controls for running untrusted code:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--sandbox-level <level>` | `standard` | Security level: `restricted`, `standard`, `elevated`, or `unrestricted` |
+| `--timeout <seconds>` | `30` | Execution timeout per polyglot block |
+| `--memory-limit <MB>` | `512` | Memory limit per polyglot block |
+| `--allow-network` | disabled | Enable network access for polyglot blocks |
 
 **Example Usage:**
 
 ```bash
-# Run your program
-naab-lang run my_app.naab
+# Run a program
+naab-lang my_app.naab
 
-# Check a file for type errors
-naab-lang check my_library.naab
+# Run with verbose output and profiling
+naab-lang run --verbose --profile my_app.naab
 
-# List all available blocks
-naab-lang blocks list
+# Run untrusted code in restricted sandbox with tight limits
+naab-lang run --sandbox-level restricted --timeout 5 --memory-limit 64 untrusted.naab
 ```
 
-## 16.2 The `naab-repl` (Read-Eval-Print Loop)
+## 16.2 The REPL (Read-Eval-Print Loop)
 
-The `naab-repl` is an interactive console that allows you to execute NAAb code snippets one line at a time. It's an invaluable tool for:
-
-*   **Experimentation**: Quickly test language features, syntax, and logic.
-*   **Debugging**: Inspect variable values and test functions without running a full program.
-*   **Learning**: Explore NAAb interactively.
+The REPL is an interactive console for executing NAAb code one statement at a time. It is useful for experimentation, debugging, and learning.
 
 To start the REPL:
 
@@ -45,7 +71,7 @@ To start the REPL:
 naab-repl
 ```
 
-Once inside, you can type NAAb statements and expressions:
+Once inside, type NAAb statements and expressions:
 
 ```naab
 > let x = 10
@@ -57,14 +83,14 @@ Once inside, you can type NAAb statements and expressions:
 12
 ```
 
-The REPL also supports special commands, usually prefixed with a colon (`:`):
+The REPL supports special commands prefixed with a colon:
 
-*   **`:reset`**: Resets the interpreter's state, clearing all declared variables and functions.
+*   **`:reset`**: Clears all declared variables and functions.
 *   **`:exit`** or **`:quit`**: Exits the REPL.
 
-## 16.3 Code Formatter: `naab-fmt`
+## 16.3 Code Formatter
 
-NAAb includes a comprehensive code formatter that automatically formats your code according to a consistent style guide. The formatter ensures code readability and eliminates style debates across teams.
+NAAb includes an auto-formatter that enforces consistent style across projects. The formatter is idempotent, semantically preserving, and never modifies code inside polyglot `<<>>` blocks.
 
 ### 16.3.1 Basic Usage
 
@@ -75,11 +101,11 @@ naab-lang fmt myprogram.naab
 # Format all files in a directory
 naab-lang fmt src/**/*.naab
 
-# Check if files are formatted (CI mode)
+# Check if files are formatted (CI mode, exit code 1 if not)
 naab-lang fmt --check src/**/*.naab
 
-# Show formatting differences without modifying files
-naab-lang fmt --diff myprogram.naab
+# Show what would change without modifying files
+naab-lang fmt --check --diff myprogram.naab
 ```
 
 ### 16.3.2 Configuration
@@ -88,30 +114,61 @@ The formatter reads settings from `.naabfmt.toml` in your project root:
 
 ```toml
 [style]
-indent_width = 4              # Number of spaces per indent (2 or 4)
-max_line_length = 100         # Maximum line length before wrapping
-semicolons = "never"          # "always", "never", or "as-needed"
-trailing_commas = true        # Add trailing commas in multi-line lists
+indent_width = 4              # 2 or 4 spaces (default: 4)
+max_line_length = 100         # Maximum line length before wrapping (default: 100)
+semicolons = "never"          # "always", "never", or "as-needed" (default: "never")
+trailing_commas = true        # Trailing commas in multi-line lists (default: true)
 
 [braces]
-function_brace_style = "same_line"     # K&R style
+function_brace_style = "same_line"        # "same_line" (K&R) or "next_line" (Allman)
 control_flow_brace_style = "same_line"
+
+[spacing]
+blank_lines_between_declarations = 1
+blank_lines_between_sections = 2
+space_before_function_paren = false
 
 [wrapping]
 wrap_function_params = "auto"   # "auto", "always", or "never"
 wrap_struct_fields = "auto"
+wrap_array_elements = "auto"
 align_wrapped_params = true
 ```
 
-### 16.3.3 Features
+### 16.3.3 Editor Integration
 
-*   **Idempotent**: Formatting the same code twice produces identical results
-*   **Semantic preservation**: Never changes program behavior
-*   **Configurable styles**: Customize indentation, line length, braces, and more
-*   **Multi-line formatting**: Intelligently wraps long function calls, struct literals, and arrays
-*   **Polyglot block preservation**: Never modifies code inside `<<>>` blocks
+**VS Code** — Add to `.vscode/settings.json`:
 
-For complete details, see `docs/FORMATTER_GUIDE.md`.
+```json
+{
+  "[naab]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "naab.naab-fmt"
+  }
+}
+```
+
+**Vim/Neovim** — Format on save:
+
+```vim
+autocmd BufWritePre *.naab !naab-fmt %
+```
+
+### 16.3.4 CI Integration
+
+**GitHub Actions:**
+
+```yaml
+- name: Check formatting
+  run: naab-lang fmt --check src/**/*.naab
+```
+
+**Pre-commit hook** — Create `.git/hooks/pre-commit`:
+
+```bash
+#!/bin/bash
+naab-fmt --check $(git diff --cached --name-only --diff-filter=ACM | grep '\.naab$')
+```
 
 ## 16.4 Interactive Debugger
 
@@ -127,20 +184,22 @@ naab-lang run --debug myprogram.naab
 
 ### 16.4.2 Setting Breakpoints
 
-Set breakpoints directly in your code using special comments:
+Set breakpoints in code using special comments:
 
 ```naab
-fn processData(items: list<int>) -> int {
+fn processData(items) {
     let sum = 0
-    for item in items {
+    let i = 0
+    while i < array.length(items) {
         // breakpoint
-        sum = sum + item    // Debugger pauses here
+        sum = sum + items[i]    // Debugger pauses here
+        i = i + 1
     }
     return sum
 }
 ```
 
-You can also set breakpoints at runtime:
+Or set breakpoints at runtime from the debugger prompt:
 
 ```
 (debug) b myfile.naab:15
@@ -186,7 +245,43 @@ Added watch: temp
 ...
 ```
 
-For comprehensive debugging techniques, see `docs/DEBUGGING_GUIDE.md`.
+### 16.4.5 Debugging Techniques
+
+**Print debugging** — The simplest approach for quick inspection:
+
+```naab
+main {
+    let data = [1, 2, 3, 4, 5]
+    print("data before: " + string.join(data, ", "))
+
+    // ... operations on data ...
+
+    print("data after: " + string.join(data, ", "))
+}
+```
+
+**Try-catch debugging** — Wrap risky operations to see error details:
+
+```naab
+main {
+    try {
+        riskyOperation()
+    } catch (e) {
+        print("Error: " + e)
+    }
+}
+```
+
+**The `debug` module** — Use `debug.inspect()` and `debug.type()` for runtime introspection:
+
+```naab
+main {
+    let data = {"name": "Alice", "scores": [90, 85, 92]}
+    print(debug.inspect(data))    // Shows full structure
+    print(debug.type(data))       // "dict"
+    print(debug.type(data["scores"]))  // "array"
+}
+```
 
 ## 16.5 Code Quality Hints
 
@@ -211,34 +306,130 @@ Hint: Dictionary keys must be quoted strings in NAAb.
 
 Did you mean:
     let person = {
-        "name": "Alice",  // ✅ Quoted keys
+        "name": "Alice",
         "age": 30
     }
 
 Instead of:
     let person = {
-        name: "Alice",  // ❌ Unquoted keys
+        name: "Alice",
         age: 30
     }
 
 Note: Use structs for fixed schemas, dictionaries for dynamic data.
 ```
 
-### 16.5.3 LLM Best Practices
+### 16.5.3 Common Mistake Detection
 
-NAAb detects common mistakes made by Large Language Models when generating code:
+NAAb detects common patterns from other languages and provides targeted suggestions:
 
-*   Unnecessary type annotations (over-specification)
-*   Incorrect polyglot block syntax (missing variable lists)
-*   Wrong module import patterns (using `import` instead of `use`)
-*   JavaScript/Python idioms that don't work in NAAb
+*   Using `function` instead of `fn`
+*   Using `import` instead of `use`
+*   Using `console.log()` instead of `print()`
+*   Calling camelCase stdlib functions (`toUpperCase`) instead of NAAb names (`string.upper`)
+*   Missing variable lists in polyglot blocks (`<<python code >>` instead of `<<python[vars] code >>`)
 
-See `docs/LLM_BEST_PRACTICES.md` for a complete guide to generating correct NAAb code.
+## 16.6 Language Server Protocol (LSP)
 
-## 16.6 Future Tools and IDE Integration
+NAAb includes an LSP server (`naab-lsp`) that provides IDE features for editors that support the Language Server Protocol.
 
-Additional tools are planned or under active development:
+### 16.6.1 Features
 
-*   **Language Server Protocol (LSP)**: An LSP server will provide rich IDE features like intelligent autocompletion, real-time diagnostics, hover information, go-to-definition, and refactoring support in popular editors like VS Code, Neovim, and Sublime Text.
-*   **Package Manager**: A package manager (`naab-pkg`) will simplify dependency management, allowing easy installation, updating, and publishing of NAAb modules and libraries.
-*   **Documentation Generator**: Automatically generate API documentation from code comments and type signatures.
+The LSP server currently supports:
+
+*   **Code Completion**: Suggests keywords (`fn`, `let`, `if`, `while`, `struct`), defined functions with signatures, in-scope variables, and built-in types. Triggered automatically or with `Ctrl+Space`.
+*   **Hover Information**: Shows type information and function signatures when hovering over symbols.
+*   **Go-to-Definition**: Jump to where a function, variable, or type is defined (`Ctrl+Click` or `F12`).
+*   **Document Symbols (Outline)**: Shows a hierarchical outline of all functions, structs, enums, and the main block (`Ctrl+Shift+O` in VS Code).
+*   **Real-time Diagnostics**: Parse errors and type errors appear as red squiggles as you type. The server debounces updates by 300ms to reduce CPU usage during rapid typing.
+
+### 16.6.2 Installation
+
+Build the LSP server from source:
+
+```bash
+cd ~/.naab/language
+cmake --build build --target naab-lsp
+```
+
+Then ensure `naab-lsp` is in your PATH or configure your editor to point to `build/naab-lsp`.
+
+### 16.6.3 Editor Setup
+
+**VS Code:**
+
+Install the NAAb extension from the `vscode-naab/` directory:
+
+```bash
+cd vscode-naab
+npm install && npm run compile
+npx vsce package
+code --install-extension naab-0.2.0.vsix
+```
+
+Configure the server path in VS Code settings if needed:
+
+```json
+{
+  "naab.lsp.serverPath": "/path/to/naab-lsp",
+  "naab.trace.server": "verbose"
+}
+```
+
+**Neovim** (with nvim-lspconfig):
+
+```lua
+require('lspconfig').configs.naab = {
+  default_config = {
+    cmd = {'naab-lsp'},
+    filetypes = {'naab'},
+    root_dir = function(fname)
+      return vim.fn.getcwd()
+    end,
+  },
+}
+require('lspconfig').naab.setup{}
+```
+
+**Emacs** (lsp-mode):
+
+```elisp
+(require 'lsp-mode)
+(add-to-list 'lsp-language-id-configuration '(naab-mode . "naab"))
+(lsp-register-client
+ (make-lsp-client
+  :new-connection (lsp-stdio-connection "naab-lsp")
+  :major-modes '(naab-mode)
+  :server-id 'naab-lsp))
+(add-hook 'naab-mode-hook #'lsp)
+```
+
+### 16.6.4 Architecture
+
+The LSP server is built in C++17 and communicates over JSON-RPC via stdin/stdout. Its internal components are:
+
+| Component | Responsibility |
+|-----------|---------------|
+| `JsonRpcTransport` | Parse and serialize JSON-RPC messages over stdio |
+| `LSPServer` | Message routing, lifecycle management, debouncing |
+| `DocumentManager` | Track open documents, trigger parsing on changes |
+| `CompletionProvider` | Generate keyword, function, and variable completions |
+| `HoverProvider` | Produce type and signature information |
+| `DefinitionProvider` | Locate symbol definitions in the AST |
+| `SymbolProvider` | Extract document symbols for the outline view |
+
+When a document is opened or changed, the server runs the lexer, parser, and type checker to produce an AST, symbol table, and diagnostics. Completion results are cached and invalidated on document change.
+
+### 16.6.5 Known Limitations
+
+*   **Single-file scope**: Go-to-definition and completions work within a single file only. Cross-file symbol resolution is not yet implemented.
+*   **Member access**: Completions after `.` (struct field access) are not fully implemented.
+*   **Find references and rename**: Not yet implemented. Use editor text search as a workaround.
+
+## 16.7 Future Tools
+
+Additional tools are planned for future releases:
+
+*   **Package Manager** (`naab-pkg`): Dependency management for installing, updating, and publishing NAAb modules.
+*   **Documentation Generator**: Automatic API documentation from code comments and type signatures.
+*   **Semantic Highlighting**: LSP-based token coloring that understands NAAb semantics.

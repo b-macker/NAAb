@@ -2,7 +2,7 @@
   "name": "naab",
   "displayName": "NAAb Language Support",
   "description": "Language support for NAAb (NAAb Assembles Anything in Blocks)",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "naab",
   "engines": {
     "vscode": "^1.60.0"

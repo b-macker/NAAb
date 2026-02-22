@@ -129,7 +129,7 @@ Initial release of NAAb language support:
 
 ## Contributing
 
-Report issues and contribute at: https://github.com/naab-lang/naab
+Report issues and contribute at: https://github.com/b-macker/NAAb
 
 ## License
 

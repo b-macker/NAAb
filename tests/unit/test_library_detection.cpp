@@ -20,7 +20,7 @@ int main() {
     fmt::print("-------------------------------------------\n");
 
     // Read the block
-    std::ifstream file("/storage/emulated/0/Download/.naab/naab/blocks/library/c++/BLOCK-CPP-23886.json");
+    std::ifstream file("blocks/library/c++/BLOCK-CPP-23886.json");
     if (!file.is_open()) {
         fmt::print("ERROR: Could not open BLOCK-CPP-23886.json\n");
         return 1;
@@ -66,7 +66,7 @@ int main() {
     fmt::print("Test 2: spdlog Block (BLOCK-CPP-00004)\n");
     fmt::print("---------------------------------------\n");
 
-    std::ifstream file2("/storage/emulated/0/Download/.naab/naab/blocks/library/c++/BLOCK-CPP-00004.json");
+    std::ifstream file2("blocks/library/c++/BLOCK-CPP-00004.json");
     if (file2.is_open()) {
         json block2_json;
         file2 >> block2_json;

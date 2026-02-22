@@ -2,6 +2,7 @@
 // Commands: run, parse, check, fmt, blocks, etc.
 
 #include "naab/config.h"
+#include "naab/paths.h"
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
@@ -61,7 +62,7 @@ naab::security::SandboxConfig createEnterpriseConfig() {
 
     // Allowed paths
     std::filesystem::path cwd = std::filesystem::current_path();
-    std::filesystem::path tmp = "/data/data/com.termux/files/usr/tmp";
+    std::filesystem::path tmp = naab::paths::temp_dir();
     config.allowReadPath(cwd.string());
     config.allowWritePath(cwd.string());
     config.allowReadPath(tmp.string());
@@ -230,6 +231,13 @@ int main(int argc, char** argv) {
         _exit(0);
     }
 
+    // Handle --version and -V flags
+    if (command == "--version" || command == "-V") {
+        fmt::print("naab-lang {}\n", NAAB_VERSION_STRING);
+        fflush(stdout);
+        _exit(0);
+    }
+
     // Auto-detect .naab files: `naab-lang file.naab` → `naab-lang run file.naab`
     // This is the #1 source of confusion for new users and LLMs
     bool auto_run = false;
@@ -240,7 +248,7 @@ int main(int argc, char** argv) {
 
     if (command == "run") {
         if (!auto_run && command_arg_index + 1 >= argc) {
-            fmt::print("Error: Missing file argument\n");
+            fmt::print("Error: Missing file argument. Usage: naab-lang run <file.naab>\n");
             return 1;
         }
 
@@ -317,7 +325,7 @@ int main(int argc, char** argv) {
 
         // Validate filename was provided
         if (filename.empty()) {
-            fmt::print("Error: Missing file argument\n");
+            fmt::print("Error: Missing file argument. Usage: naab-lang run <file.naab>\n");
             return 1;
         }
 
@@ -452,7 +460,7 @@ int main(int argc, char** argv) {
 
     } else if (command == "parse") {
         if (argc < 3) {
-            fmt::print("Error: Missing file argument\n");
+            fmt::print("Error: Missing file argument. Usage: naab-lang run <file.naab>\n");
             return 1;
         }
         std::string filename = argv[2];
@@ -478,7 +486,7 @@ int main(int argc, char** argv) {
 
     } else if (command == "check") {
         if (argc < 3) {
-            fmt::print("Error: Missing file argument\n");
+            fmt::print("Error: Missing file argument. Usage: naab-lang run <file.naab>\n");
             return 1;
         }
         std::string filename = argv[2];
@@ -518,7 +526,7 @@ int main(int argc, char** argv) {
     } else if (command == "fmt") {
         // Phase 4.2: Auto-formatter command
         if (argc < 3) {
-            fmt::print("Error: Missing file argument\n");
+            fmt::print("Error: Missing file argument. Usage: naab-lang run <file.naab>\n");
             fmt::print("Usage: naab-lang fmt [--check] [--config=path] <file.naab>\n");
             return 1;
         }

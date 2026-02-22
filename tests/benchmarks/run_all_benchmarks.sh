@@ -4,7 +4,8 @@
 # Runs all performance benchmarks and generates report
 
 NAAB_BIN="${NAAB_BIN:-~/naab-lang}"
-BENCHMARK_DIR="/storage/emulated/0/Download/.naab/naab_language/tests/benchmarks"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BENCHMARK_DIR="$SCRIPT_DIR"
 TIMEOUT=120
 
 echo "============================================="

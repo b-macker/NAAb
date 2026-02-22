@@ -3,6 +3,7 @@
 
 #include "naab/cpp_executor.h"
 #include "naab/interpreter.h"
+#include "naab/paths.h"
 #include "naab/resource_limits.h"
 #include "naab/input_validator.h"
 #include "naab/audit_logger.h"
@@ -40,9 +41,8 @@ CompiledBlock::~CompiledBlock() {
 // ============================================================================
 
 CppExecutor::CppExecutor() {
-    // Create cache directory in Termux home for dlopen compatibility
-    // Android has namespace restrictions on external storage
-    cache_dir_ = "/data/data/com.termux/files/home/.naab_cpp_cache";
+    // Create cache directory in user's home for dlopen compatibility
+    cache_dir_ = naab::paths::cpp_cache_dir();
 
     try {
         if (!fs::exists(cache_dir_)) {
@@ -214,10 +214,9 @@ bool CppExecutor::compileToSharedLibrary(
     // Build library flags from dependencies
     std::string lib_flags = buildLibraryFlags(dependencies);
 
-    // Get NAAb include directory (relative to executable or known location)
-    // For Termux, assume NAAb is installed in a standard location
-    std::string naab_include = "/data/data/com.termux/files/home/.naab/language/include";
-    std::string python_include = "/data/data/com.termux/files/usr/include/python3.12";
+    // Get NAAb include directory (from compile-time define or relative fallback)
+    std::string naab_include = naab::paths::include_dir();
+    std::string python_include = naab::paths::python_include_dir();
 
     std::ostringstream cmd;
     cmd << compiler << " "

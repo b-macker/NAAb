@@ -5,7 +5,7 @@ echo "Testing NAAb REPL..."
 echo ""
 
 # Send commands to REPL
-/data/data/com.termux/files/home/naab-repl << 'EOF'
+${NAAB_REPL:-./naab-repl} << 'EOF'
 :help
 let x = 42
 print("x =", x)

@@ -3,6 +3,7 @@
 //
 
 #include "naab/inline_code_cache.h"
+#include "naab/paths.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -20,13 +21,7 @@ namespace fs = std::filesystem;
 // ============================================================================
 
 InlineCodeCache::InlineCodeCache() {
-    // Use Termux-compatible cache location
-    const char* home = std::getenv("HOME");
-    if (home) {
-        cache_root_ = std::string(home) + "/.naab/cache";
-    } else {
-        cache_root_ = "/data/data/com.termux/files/home/.naab/cache";
-    }
+    cache_root_ = naab::paths::cache_dir();
 
     try {
         if (!fs::exists(cache_root_)) {

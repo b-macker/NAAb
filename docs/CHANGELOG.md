@@ -7,32 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-02-21
+
 ### Added
-- Phase 3: Sandboxing and Permissions
-  - Capability-based permission system (sandbox.h/cpp)
-  - Filesystem access control with path whitelisting
-  - Network access control (connect/listen restrictions)
-  - Permission levels: RESTRICTED, STANDARD, ELEVATED, UNRESTRICTED
-  - ScopedSandbox for RAII-style sandbox activation
-  - SandboxManager for per-block permission configuration
-  - Sandbox violation exceptions with detailed error messages
-- Phase 2 Extensions: Block Versioning
-  - Block version compatibility checking (min_runtime_version)
-  - Deprecation warning system with formatted display
-  - Version bumping automation script (scripts/bump_version.sh)
-  - BlockMetadata extended with version fields
-- Phase 2: Versioning and Release Management
-  - Semantic version parser and comparator (semver.h/cpp)
-  - Runtime version tracking with git metadata and build timestamps
-  - Version macros in config.h for consistent version display
-  - Enhanced `naab-lang version` command with build information
-- CHANGELOG.md following Keep a Changelog format
+- **Polyglot Enhancements**
+  - Native data binding for Ruby, PHP, compiled languages (context file serialization)
+  - JSON Sovereign Pipe (`naab_return()`, `-> JSON` header, sentinel parsing)
+  - Persistent sub-runtime contexts (`runtime` keyword, `.exec()` method)
+  - Block header first-line awareness (Go `package main`, PHP `<?php`)
+  - Error mapping with SourceMapper wired into polyglot catch blocks
+  - Polyglot error context (code preview in error messages)
+  - Exception propagation from polyglot blocks to try/catch
+  - Configurable polyglot timeouts
+  - Parallel polyglot execution with dependency analysis
+  - Thread-safe temp files for C++, Rust, C# executors
+  - Python indentation fix for embedded blocks
+- **Language Features**
+  - Lambda expressions with closure capture (`fn(x) { return x * 2 }`)
+  - If expressions (`let x = if cond { a } else { b }`)
+  - Pipeline operator fix (evaluate right side lazily)
+  - Copy-on-assignment value semantics for arrays and dicts
+  - Assignment-in-condition detection
+  - Control flow validation (break/continue outside loops)
+  - Type coercion errors (strict arithmetic, permissive string concat)
+  - Silent bug detection (div-by-zero, modulo-by-zero, overflow)
+- **Error Messages & Developer Experience**
+  - "Did you mean?" suggestions using Levenshtein distance (all 12 stdlib modules)
+  - Common mistake helpers (~35 patterns: camelCase, Python/JS naming conventions)
+  - Better function argument count/type errors
+  - Arrow function syntax helper errors
+  - Debug module (debug.inspect, debug.type)
+  - LLM-friendly parser (keyword aliases `func`/`function`, semicolons, helper errors)
+- **Standard Library**
+  - 204 error messages across 12 modules with fuzzy matching
+  - Missing functions: string.reverse, string.char_at, env.set_var
+  - Type naming consistency ("array" not "list")
+- **CLI & REPL**
+  - Auto-detect `.naab` extension (no `run` subcommand needed)
+  - `--help` flag support
+  - Buffered output fix (fflush)
+- **Infrastructure**
+  - Sandboxing and permissions (capability-based access control)
+  - Block versioning and deprecation warnings
+  - Semantic version parser and comparator
+  - Comprehensive mono test suite (325 PASS, 0 FAIL across 12 sections)
+  - Portable path resolution (no hardcoded platform paths)
 
 ### Changed
-- CMakeLists.txt now uses `project(VERSION ...)` for version management
-- Version display now shows git commit hash and build timestamp
-- Removed hardcoded version strings from main.cpp
-- Security library now includes sandboxing infrastructure
+- All hardcoded Termux paths replaced with portable path resolution
+- CMakeLists.txt uses `project(VERSION ...)` for version management
+- Version display shows git commit hash and build timestamps
+- Security library includes sandboxing infrastructure
+- README updated to reflect accurate feature set and test counts
+- All GitHub URLs updated to `github.com/b-macker/NAAb`
+- SECURITY.md contact info updated to use GitHub Security Advisories
+
+### Fixed
+- `>>` polyglot block delimiter now only closes at line start
+- JavaScript type conversion in polyglot blocks
+- Python large integer handling
+- Pipeline operator evaluation order
+- String.reverse and string.char_at dispatch
+- Debug module registration
 
 ## [0.1.0] - 2024-12-27
 
@@ -94,10 +130,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Infrastructure
 - CMake build system (C++17, CMake 3.15+)
 - External dependencies: Abseil, fmt, spdlog, SQLite3
-- Build script: build_and_install.sh
+- Build script: build-and-install.sh
 - Test suite with multiple test executables
 - Example programs for cross-language integration
 
-[Unreleased]: https://github.com/naab-lang/naab/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/naab-lang/naab/releases/tag/v0.1.0
-[0.0.1]: https://github.com/naab-lang/naab/releases/tag/v0.0.1
+[Unreleased]: https://github.com/b-macker/NAAb/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/b-macker/NAAb/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/b-macker/NAAb/releases/tag/v0.1.0
+[0.0.1]: https://github.com/b-macker/NAAb/releases/tag/v0.0.1

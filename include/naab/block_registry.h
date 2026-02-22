@@ -26,7 +26,7 @@ public:
      * Initialize registry by scanning the blocks directory
      *
      * @param blocks_path Absolute path to blocks library directory
-     *                    Expected: /storage/emulated/0/Download/.naab/naab/blocks/library/
+     *                    Expected: $HOME/.naab/blocks/library/
      */
     void initialize(const std::string& blocks_path);
 

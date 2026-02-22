@@ -8,7 +8,7 @@ int main() {
 
     // Initialize registry
     auto& registry = naab::runtime::BlockRegistry::instance();
-    std::string blocks_path = "/storage/emulated/0/Download/.naab/naab/blocks/library/";
+    std::string blocks_path = "blocks/library/";
 
     fmt::print("Initializing BlockRegistry from: {}\n", blocks_path);
     registry.initialize(blocks_path);

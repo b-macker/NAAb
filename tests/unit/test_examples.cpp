@@ -58,21 +58,21 @@ int main() {
     // Test 1: cpp_math.naab
     total++;
     if (testParse("cpp_math.naab",
-                  "/storage/emulated/0/Download/.naab/naab_language/examples/cpp_math.naab")) {
+                  "examples/cpp_math.naab")) {
         passed++;
     }
 
     // Test 2: js_utils.naab
     total++;
     if (testParse("js_utils.naab",
-                  "/storage/emulated/0/Download/.naab/naab_language/examples/js_utils.naab")) {
+                  "examples/js_utils.naab")) {
         passed++;
     }
 
     // Test 3: polyglot.naab
     total++;
     if (testParse("polyglot.naab",
-                  "/storage/emulated/0/Download/.naab/naab_language/examples/polyglot.naab")) {
+                  "examples/polyglot.naab")) {
         passed++;
     }
 

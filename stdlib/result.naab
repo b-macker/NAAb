@@ -1,4 +1,5 @@
-// NAAb Standard Library: Result<T, E> Type// Result type for error handling without exceptions
+// NAAb Standard Library: Result<T, E> Type
+// Result type for error handling without exceptions
 // Similar to Rust's Result<T, E>
 
 // Phase 3.1: Result<T, E> - represents either success (Ok) or failure (Err)
@@ -9,7 +10,7 @@ struct Result<T, E> {
 }
 
 // Constructor for successful result
-function Ok<T, E>(value: T) -> Result<T, E> {
+fn Ok<T, E>(value: T) -> Result<T, E> {
     return Result<T, E> {
         is_ok: true,
         value: value,
@@ -18,7 +19,7 @@ function Ok<T, E>(value: T) -> Result<T, E> {
 }
 
 // Constructor for error result
-function Err<T, E>(error: E) -> Result<T, E> {
+fn Err<T, E>(error: E) -> Result<T, E> {
     return Result<T, E> {
         is_ok: false,
         value: null,
@@ -27,17 +28,17 @@ function Err<T, E>(error: E) -> Result<T, E> {
 }
 
 // Check if result is Ok
-function isOk<T, E>(result: Result<T, E>) -> bool {
+fn isOk<T, E>(result: Result<T, E>) -> bool {
     return result.is_ok
 }
 
 // Check if result is Err
-function isErr<T, E>(result: Result<T, E>) -> bool {
+fn isErr<T, E>(result: Result<T, E>) -> bool {
     return !result.is_ok
 }
 
 // Unwrap value or throw if error
-function unwrap<T, E>(result: Result<T, E>) -> T {
+fn unwrap<T, E>(result: Result<T, E>) -> T {
     if (result.is_ok) {
         return result.value
     } else {
@@ -46,7 +47,7 @@ function unwrap<T, E>(result: Result<T, E>) -> T {
 }
 
 // Unwrap value or return default
-function unwrapOr<T, E>(result: Result<T, E>, default_value: T) -> T {
+fn unwrapOr<T, E>(result: Result<T, E>, default_value: T) -> T {
     if (result.is_ok) {
         return result.value
     } else {
@@ -55,7 +56,7 @@ function unwrapOr<T, E>(result: Result<T, E>, default_value: T) -> T {
 }
 
 // Unwrap error or throw if ok
-function unwrapErr<T, E>(result: Result<T, E>) -> E {
+fn unwrapErr<T, E>(result: Result<T, E>) -> E {
     if (!result.is_ok) {
         return result.error
     } else {
@@ -64,7 +65,7 @@ function unwrapErr<T, E>(result: Result<T, E>) -> E {
 }
 
 // Map over Ok value
-function map<T, U, E>(result: Result<T, E>, fn: function(T) -> U) -> Result<U, E> {
+fn map<T, U, E>(result: Result<T, E>, fn: function(T) -> U) -> Result<U, E> {
     if (result.is_ok) {
         return Ok<U, E>(fn(result.value))
     } else {
@@ -73,7 +74,7 @@ function map<T, U, E>(result: Result<T, E>, fn: function(T) -> U) -> Result<U, E
 }
 
 // Map over Err value
-function mapErr<T, E, F>(result: Result<T, E>, fn: function(E) -> F) -> Result<T, F> {
+fn mapErr<T, E, F>(result: Result<T, E>, fn: function(E) -> F) -> Result<T, F> {
     if (result.is_ok) {
         return Ok<T, F>(result.value)
     } else {
@@ -82,7 +83,7 @@ function mapErr<T, E, F>(result: Result<T, E>, fn: function(E) -> F) -> Result<T
 }
 
 // Chain results (flatMap)
-function andThen<T, U, E>(result: Result<T, E>, fn: function(T) -> Result<U, E>) -> Result<U, E> {
+fn andThen<T, U, E>(result: Result<T, E>, fn: function(T) -> Result<U, E>) -> Result<U, E> {
     if (result.is_ok) {
         return fn(result.value)
     } else {
@@ -91,7 +92,7 @@ function andThen<T, U, E>(result: Result<T, E>, fn: function(T) -> Result<U, E>)
 }
 
 // Pattern matching on Result
-function match<T, E, R>(
+fn match<T, E, R>(
     result: Result<T, E>,
     onOk: function(T) -> R,
     onErr: function(E) -> R

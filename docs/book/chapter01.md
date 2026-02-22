@@ -23,29 +23,33 @@ NAAb is built to be lean and efficient. The primary tool for development is the 
 
 ### 1.3.1 Installation
 
-To get NAAb up and running, follow these steps. This assumes you have `git` and `cmake` installed on your system.
+**Prerequisites:**
+
+*   CMake 3.15+
+*   C++17 compatible compiler (GCC 9+, Clang 10+)
+*   Python 3.8+ with development headers (`python3-dev` on Debian/Ubuntu, `python` on Termux)
+*   fmt library (`libfmt-dev` on Debian/Ubuntu, `fmt` on Termux)
+
+**Build steps:**
 
 1.  **Clone the Repository**:
     ```bash
-    git clone https://github.com/naab-lang/naab.git
+    git clone https://github.com/b-macker/NAAb.git
     cd naab
     ```
-    *(Note: The exact repository path may vary based on your system setup.)*
 
 2.  **Build from Source**:
-    NAAb uses `cmake` for its build system.
     ```bash
     cmake -B build
-    cmake --build build -j$(nproc) # Use all available cores for faster build
+    cmake --build build --target naab-lang -j$(nproc)
     ```
-    This will compile the `naab-lang` interpreter and associated tools into the `build/` directory.
+    This compiles the `naab-lang` interpreter into the `build/` directory.
 
 3.  **Verify Installation**:
-    You can directly run the interpreter from the `build/` directory.
     ```bash
     ./build/naab-lang --version
     ```
-    You should see output indicating the NAAb version.
+    You should see output like `NAAb Block Assembly Language v0.2.0-dev`.
 
 ### 1.3.2 The NAAb REPL (Read-Eval-Print Loop)
 
@@ -88,7 +92,7 @@ You should see the output:
 Hello, NAAb!
 ```
 
-If you encounter any errors during installation or execution, refer to the project's `README.md` or seek assistance from the NAAb community forums.
+If you encounter any errors during installation or execution, check the project's `README.md` for troubleshooting tips.
 
 ### 1.4.1 Understanding the Entry Point: `main {}`
 
@@ -125,21 +129,76 @@ This means you've written `fn main()` when you should use `main {}`.
 
 **Verification:** See `docs/book/verification/ch01_intro/hello.naab` for a working example.
 
-## 1.5 The NAAb Compilation and Execution Model
+## 1.5 Architecture and Execution Model
 
-NAAb programs are interpreted, meaning the `naab-lang` tool reads your source code and executes it directly. However, for polyglot blocks (which we'll explore in Part II), NAAb dynamically compiles or executes code in its native environment.
+NAAb programs are interpreted. The `naab-lang` tool reads your source code and executes it directly. For polyglot blocks, NAAb hands off code to the appropriate language executor.
 
-At a high level, the process is:
+### 1.5.1 The Execution Pipeline
 
-1.  **Lexing**: The `naab-lang` tool scans your `.naab` file, breaking it down into a stream of tokens (keywords, identifiers, operators, etc.).
-2.  **Parsing**: These tokens are then structured into an Abstract Syntax Tree (AST), which represents the hierarchical structure of your program.
-3.  **Semantic Analysis**: The AST is checked for type correctness, variable scope, and other semantic rules.
-4.  **Interpretation**: The interpreter traverses the AST, executing the operations defined in your program.
-    *   For native NAAb code, this is direct execution within the NAAb runtime.
-    *   For `<<lang` blocks, the interpreter hands off the code to the relevant language-specific executor (e.g., a Python interpreter, a C++ compiler, a JavaScript engine).
-5.  **Memory Management**: NAAb employs automatic garbage collection. This means you, as the developer, do not need to manually allocate or free memory for most objects. The runtime automatically reclaims memory that is no longer in use, simplifying development and reducing memory-related bugs.
+```
+Source File (.naab)
+       ↓
+┌──────────────────────────────────┐
+│  Lexer (src/lexer/lexer.cpp)     │  Tokenizes source into keywords,
+│  Keywords, identifiers, literals │  operators, and polyglot blocks
+└──────────────┬───────────────────┘
+               ↓
+┌──────────────────────────────────┐
+│  Parser (src/parser/parser.cpp)  │  Recursive descent parser builds
+│  Builds Abstract Syntax Tree     │  a tree of expression/statement nodes
+└──────────────┬───────────────────┘
+               ↓
+┌──────────────────────────────────┐
+│  Interpreter (src/interpreter/)  │  Visitor pattern traverses the AST.
+│  AST Visitor + Environment       │  Native code runs directly; polyglot
+│                                  │  blocks dispatch to executors.
+└──────────┬───────────┬───────────┘
+           ↓           ↓
+┌─────────────────┐  ┌────────────────────────────┐
+│  Standard       │  │  Polyglot Executors         │
+│  Library        │  │  (src/runtime/)             │
+│  (12 modules)   │  │  Python, JS, Bash, C++,    │
+│                 │  │  Rust, Go, Ruby, C#, PHP    │
+└─────────────────┘  └────────────────────────────┘
+```
 
-This hybrid approach allows NAAb to maintain fast native execution for its core logic while providing unparalleled flexibility for integrating diverse language ecosystems.
+Each stage in the pipeline:
+
+1.  **Lexing**: Scans your `.naab` file into a stream of tokens. Recognizes NAAb keywords, polyglot block delimiters (`<<python`, `>>`), and keyword aliases (`fn`/`func`/`function` all map to the same token).
+2.  **Parsing**: Builds an Abstract Syntax Tree (AST) from the token stream. Each node represents a language construct (function declaration, if-statement, polyglot block, etc.).
+3.  **Interpretation**: The interpreter walks the AST using the visitor pattern. For native NAAb code, it executes directly. For polyglot blocks (`<<python ... >>`), it dispatches to the appropriate executor.
+4.  **Memory Management**: NAAb uses C++ smart pointers (RAII) for automatic memory management. You do not need to manually allocate or free memory.
+
+### 1.5.2 Polyglot Execution
+
+When the interpreter encounters a polyglot block, it routes execution based on the language tag:
+
+*   **Embedded executors** (JavaScript via QuickJS, Python via CPython): Run within the NAAb process for low overhead.
+*   **Subprocess executors** (Bash, Ruby, Go, PHP): Run as separate OS processes, communicating via stdin/stdout pipes.
+*   **Compiled executors** (C++, Rust, C#): Compile source to a temporary binary, execute it, and capture the output.
+
+Data flows between NAAb and polyglot blocks through a type marshalling layer that converts NAAb values (integers, strings, arrays, dictionaries) to their equivalents in the target language and back.
+
+### 1.5.3 Project Structure
+
+For contributors or those exploring the source:
+
+```
+language/
+├── src/
+│   ├── cli/              # Command-line interface (main.cpp)
+│   ├── lexer/            # Tokenization (lexer.cpp)
+│   ├── parser/           # Syntax analysis (parser.cpp)
+│   ├── interpreter/      # Execution engine (interpreter.cpp)
+│   ├── stdlib/           # Standard library modules (12 modules)
+│   ├── runtime/          # Polyglot executors (9 languages)
+│   └── debugger/         # Interactive debugger
+├── include/naab/         # Public C++ headers
+├── tools/naab-lsp/       # LSP server for IDE integration
+├── vscode-naab/          # VS Code extension
+├── docs/book/            # This book and verification tests
+└── CMakeLists.txt        # Build configuration
+```
 
 ## 1.6 Common Beginner Mistakes
 

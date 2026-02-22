@@ -73,7 +73,7 @@ We welcome contributions in these areas:
 ### Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/naab.git
+git clone https://github.com/b-macker/NAAb.git
 cd naab/naab_language
 ```
 
@@ -337,10 +337,9 @@ Update documentation when you:
 ### Documentation Files
 
 - **README.md**: Project overview, quick start
-- **docs/USER_GUIDE.md**: Usage instructions
-- **docs/API_REFERENCE.md**: Complete API docs
-- **docs/ARCHITECTURE.md**: System design
-- **docs/tutorials/**: Step-by-step guides
+- **USER_GUIDE.md**: Complete language guide
+- **docs/book/**: The NAAb Book (21 chapters covering all features)
+- **docs/book/QUICK_START.md**: Getting started guide
 
 ### Writing Good Documentation
 
@@ -426,8 +425,8 @@ print(result)  # 30
 
 ### Need Guidance?
 
-- Read [ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- Check [API_REFERENCE.md](docs/API_REFERENCE.md)
+- Read the [NAAb Book](book/) for language documentation
+- Browse [Chapter 1: Introduction](book/chapter01.md) for architecture overview
 - Look at existing code
 
 ---
