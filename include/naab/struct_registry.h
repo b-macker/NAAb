@@ -1,5 +1,4 @@
-#ifndef NAAB_STRUCT_REGISTRY_H
-#define NAAB_STRUCT_REGISTRY_H
+#pragma once
 
 #include "naab/interpreter.h"
 #include <memory>
@@ -38,4 +37,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_STRUCT_REGISTRY_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_MODULE_RESOLVER_H
-#define NAAB_MODULE_RESOLVER_H
+#pragma once
 
 // NAAb Module Resolver - Phase 3.1 & 3.2
 // Resolves module paths and manages module loading
@@ -153,4 +152,3 @@ struct ModuleConfig {
 } // namespace modules
 } // namespace naab
 
-#endif // NAAB_MODULE_RESOLVER_H

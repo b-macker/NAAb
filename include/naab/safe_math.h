@@ -1,3 +1,4 @@
+#pragma once
 // NAAb Safe Arithmetic
 // Week 4, Task 4.3: Arithmetic Overflow Checking
 //
@@ -7,8 +8,6 @@
 // - Using compiler builtins for efficient checking
 // - Protecting array size calculations and indexing
 
-#ifndef NAAB_SAFE_MATH_H
-#define NAAB_SAFE_MATH_H
 
 #include <stdexcept>
 #include <string>
@@ -294,4 +293,3 @@ public:
 } // namespace math
 } // namespace naab
 
-#endif // NAAB_SAFE_MATH_H

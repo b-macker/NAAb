@@ -1,5 +1,4 @@
-#ifndef NAAB_BLOCK_ENRICHER_H
-#define NAAB_BLOCK_ENRICHER_H
+#pragma once
 
 // Block Enricher
 // Converts code snippets to callable functions with C-ABI wrappers
@@ -112,4 +111,3 @@ private:
 } // namespace tools
 } // namespace naab
 
-#endif // NAAB_BLOCK_ENRICHER_H

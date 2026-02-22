@@ -1,5 +1,4 @@
-#ifndef NAAB_SOURCE_MAPPER_H
-#define NAAB_SOURCE_MAPPER_H
+#pragma once
 
 // NAAb Source Mapper
 // Maps lines between generated temp files and original NAAb source
@@ -60,4 +59,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_SOURCE_MAPPER_H

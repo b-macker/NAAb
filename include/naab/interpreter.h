@@ -1,5 +1,4 @@
-#ifndef NAAB_INTERPRETER_H
-#define NAAB_INTERPRETER_H
+#pragma once
 
 // NAAb Block Assembly Language - Interpreter
 // Direct AST execution with visitor pattern
@@ -353,9 +352,6 @@ public:
     void traverse(std::function<void(std::shared_ptr<Value>)> visitor) const;
 };
 
-// Environment is defined in environment.h
-// This definition kept for exported_structs/enums extensions
-#ifndef NAAB_ENVIRONMENT_H
 // Variable environment (scoping)
 class Environment {
 public:
@@ -382,7 +378,6 @@ private:
     std::unordered_map<std::string, std::shared_ptr<Value>> values_;
     std::shared_ptr<Environment> parent_;
 };
-#endif // NAAB_ENVIRONMENT_H
 
 // Interpreter
 class Interpreter : public ast::ASTVisitor {
@@ -660,4 +655,3 @@ private:
 } // namespace interpreter
 } // namespace naab
 
-#endif // NAAB_INTERPRETER_H

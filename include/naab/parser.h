@@ -1,5 +1,4 @@
-#ifndef NAAB_PARSER_H
-#define NAAB_PARSER_H
+#pragma once
 
 // NAAb Block Assembly Language - Parser
 // Recursive descent parser assembled from LLVM patterns
@@ -139,4 +138,3 @@ private:
 } // namespace parser
 } // namespace naab
 
-#endif // NAAB_PARSER_H

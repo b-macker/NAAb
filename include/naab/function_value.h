@@ -1,5 +1,4 @@
-#ifndef NAAB_FUNCTION_VALUE_H
-#define NAAB_FUNCTION_VALUE_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -51,4 +50,3 @@ struct FunctionValue {
 } // namespace interpreter
 } // namespace naab
 
-#endif // NAAB_FUNCTION_VALUE_H

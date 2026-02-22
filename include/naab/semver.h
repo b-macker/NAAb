@@ -1,5 +1,4 @@
-#ifndef NAAB_SEMVER_H
-#define NAAB_SEMVER_H
+#pragma once
 
 // NAAb Semantic Versioning Library
 // Implements semver.org specification 2.0.0
@@ -77,4 +76,3 @@ std::string getCompatibilityMessage(Compatibility compat,
 } // namespace versioning
 } // namespace naab
 
-#endif // NAAB_SEMVER_H

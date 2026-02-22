@@ -1,3 +1,4 @@
+#pragma once
 /**
  * Pure C Wrapper for Python Execution
  *
@@ -8,8 +9,6 @@
  * No pybind11 overhead - uses raw Python C API for 5x better performance.
  */
 
-#ifndef PYTHON_C_WRAPPER_H
-#define PYTHON_C_WRAPPER_H
 
 #include <Python.h>
 
@@ -158,4 +157,3 @@ int python_c_shutdown(void);
 }
 #endif
 
-#endif // PYTHON_C_WRAPPER_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_ERROR_REPORTER_H
-#define NAAB_ERROR_REPORTER_H
+#pragma once
 
 // NAAb Error Reporter - Enhanced error messages with context
 // Provides beautiful, helpful error messages with source code context
@@ -148,4 +147,3 @@ namespace colors {
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_ERROR_REPORTER_H

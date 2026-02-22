@@ -1,5 +1,4 @@
-#ifndef NAAB_LINTER_LLM_PATTERNS_H
-#define NAAB_LINTER_LLM_PATTERNS_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -92,4 +91,3 @@ private:
 } // namespace linter
 } // namespace naab
 
-#endif // NAAB_LINTER_LLM_PATTERNS_H

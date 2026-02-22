@@ -1,5 +1,4 @@
-#ifndef NAAB_ENVIRONMENT_H
-#define NAAB_ENVIRONMENT_H
+#pragma once
 
 #include "absl/container/flat_hash_map.h"
 #include <string>
@@ -44,4 +43,3 @@ private:
 } // namespace interpreter
 } // namespace naab
 
-#endif // NAAB_ENVIRONMENT_H

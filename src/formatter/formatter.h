@@ -1,5 +1,4 @@
-#ifndef NAAB_FORMATTER_H
-#define NAAB_FORMATTER_H
+#pragma once
 
 // NAAb Auto-Formatter - AST-based code formatter
 // Implements consistent code style across all NAAb code
@@ -230,4 +229,3 @@ private:
 } // namespace formatter
 } // namespace naab
 
-#endif // NAAB_FORMATTER_H

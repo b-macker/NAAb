@@ -1,5 +1,4 @@
-#ifndef NAAB_FFI_ASYNC_CALLBACK_H
-#define NAAB_FFI_ASYNC_CALLBACK_H
+#pragma once
 
 // Phase 1 Item 10: FFI Async Callback Safety
 // Thread-safe async callbacks across FFI boundaries
@@ -210,4 +209,3 @@ AsyncCallbackResult executeRace(
 } // namespace ffi
 } // namespace naab
 
-#endif // NAAB_FFI_ASYNC_CALLBACK_H

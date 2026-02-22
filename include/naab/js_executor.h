@@ -1,5 +1,4 @@
-#ifndef NAAB_JS_EXECUTOR_H
-#define NAAB_JS_EXECUTOR_H
+#pragma once
 
 // NAAb JavaScript Block Executor
 // Executes JavaScript blocks using QuickJS engine
@@ -67,4 +66,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_JS_EXECUTOR_H

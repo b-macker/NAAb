@@ -1,5 +1,4 @@
-#ifndef NAAB_REPL_COMMANDS_H
-#define NAAB_REPL_COMMANDS_H
+#pragma once
 
 // NAAb REPL Commands
 // Handles REPL command processing for block management and utilities
@@ -64,4 +63,3 @@ private:
 } // namespace repl
 } // namespace naab
 
-#endif // NAAB_REPL_COMMANDS_H

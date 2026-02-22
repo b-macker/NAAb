@@ -1,5 +1,4 @@
-#ifndef NAAB_BLOCK_LOADER_H
-#define NAAB_BLOCK_LOADER_H
+#pragma once
 
 // NAAb Block Loader - Load blocks from SQLite registry
 // Enables cross-language block assembly
@@ -104,4 +103,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_BLOCK_LOADER_H

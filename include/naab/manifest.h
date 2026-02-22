@@ -1,5 +1,4 @@
-#ifndef NAAB_MANIFEST_H
-#define NAAB_MANIFEST_H
+#pragma once
 
 // NAAb Manifest System
 // Loads and manages naab.toml project configuration
@@ -86,4 +85,3 @@ bool createDefaultManifest(const std::string& file_path);
 } // namespace manifest
 } // namespace naab
 
-#endif // NAAB_MANIFEST_H

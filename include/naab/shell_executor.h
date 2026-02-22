@@ -1,5 +1,4 @@
-#ifndef NAAB_SHELL_EXECUTOR_H
-#define NAAB_SHELL_EXECUTOR_H
+#pragma once
 
 // NAAb Shell Executor
 // Executes shell commands and scripts via subprocess
@@ -41,4 +40,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_SHELL_EXECUTOR_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_CPP_EXECUTOR_H
-#define NAAB_CPP_EXECUTOR_H
+#pragma once
 
 // NAAb C++ Block Executor
 // Compiles and executes C++ blocks via dynamic loading
@@ -120,4 +119,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_CPP_EXECUTOR_H

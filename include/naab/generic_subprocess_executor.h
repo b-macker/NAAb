@@ -1,5 +1,4 @@
-#ifndef NAAB_GENERIC_SUBPROCESS_EXECUTOR_H
-#define NAAB_GENERIC_SUBPROCESS_EXECUTOR_H
+#pragma once
 
 // NAAb Generic Subprocess Executor
 // Executes code for various languages by invoking their command-line tools
@@ -54,4 +53,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_GENERIC_SUBPROCESS_EXECUTOR_H

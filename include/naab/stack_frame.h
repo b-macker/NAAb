@@ -1,5 +1,4 @@
-#ifndef NAAB_STACK_FRAME_H
-#define NAAB_STACK_FRAME_H
+#pragma once
 
 #include <string>
 #include <map>
@@ -67,4 +66,3 @@ struct StackFrame {
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_STACK_FRAME_H

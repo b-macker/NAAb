@@ -1,5 +1,4 @@
-#ifndef NAAB_LOGGER_H
-#define NAAB_LOGGER_H
+#pragma once
 
 // NAAb Logging System
 // Provides clean, configurable logging with verbosity levels
@@ -90,4 +89,3 @@ private:
 } // namespace logging
 } // namespace naab
 
-#endif // NAAB_LOGGER_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_STRING_UTILS_H
-#define NAAB_STRING_UTILS_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -22,4 +21,3 @@ std::string formatSuggestions(const std::string& wrong_name,
 } // namespace utils
 } // namespace naab
 
-#endif // NAAB_STRING_UTILS_H

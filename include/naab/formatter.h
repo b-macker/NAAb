@@ -1,5 +1,4 @@
-#ifndef NAAB_FORMATTER_PUBLIC_H
-#define NAAB_FORMATTER_PUBLIC_H
+#pragma once
 
 // NAAb Auto-Formatter - Public API
 // This is the public interface for the NAAb code formatter
@@ -32,4 +31,3 @@ bool isFormatted(const std::string& source_code, const FormatterOptions& options
 } // namespace formatter
 } // namespace naab
 
-#endif // NAAB_FORMATTER_PUBLIC_H

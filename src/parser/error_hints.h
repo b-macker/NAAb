@@ -1,5 +1,4 @@
-#ifndef NAAB_PARSER_ERROR_HINTS_H
-#define NAAB_PARSER_ERROR_HINTS_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -75,4 +74,3 @@ private:
 } // namespace parser
 } // namespace naab
 
-#endif // NAAB_PARSER_ERROR_HINTS_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_EXPRESSION_DETECTOR_H
-#define NAAB_EXPRESSION_DETECTOR_H
+#pragma once
 
 #include <string>
 
@@ -28,4 +27,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_EXPRESSION_DETECTOR_H

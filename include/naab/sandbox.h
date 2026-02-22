@@ -1,5 +1,4 @@
-#ifndef NAAB_SANDBOX_H
-#define NAAB_SANDBOX_H
+#pragma once
 
 // NAAb Sandboxing and Permissions System
 // Provides capability-based access control for blocks
@@ -203,4 +202,3 @@ private:
 } // namespace security
 } // namespace naab
 
-#endif // NAAB_SANDBOX_H

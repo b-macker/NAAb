@@ -1,5 +1,4 @@
-#ifndef NAAB_BLOCK_TESTER_H
-#define NAAB_BLOCK_TESTER_H
+#pragma once
 
 // NAAb Block Testing Framework
 // Tests individual blocks in isolation before using them
@@ -102,4 +101,3 @@ private:
 } // namespace testing
 } // namespace naab
 
-#endif // NAAB_BLOCK_TESTER_H

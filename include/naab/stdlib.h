@@ -1,5 +1,4 @@
-#ifndef NAAB_STDLIB_H
-#define NAAB_STDLIB_H
+#pragma once
 
 // NAAb Standard Library
 // Built-in modules for common operations
@@ -158,4 +157,3 @@ private:
 } // namespace stdlib
 } // namespace naab
 
-#endif // NAAB_STDLIB_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_AST_H
-#define NAAB_AST_H
+#pragma once
 
 // NAAb Block Assembly Language - Abstract Syntax Tree
 // Adapted from Clang AST blocks (BLOCK-CPP-07000+)
@@ -1148,4 +1147,3 @@ public:
 } // namespace ast
 } // namespace naab
 
-#endif // NAAB_AST_H

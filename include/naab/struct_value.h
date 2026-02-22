@@ -1,5 +1,4 @@
-#ifndef NAAB_STRUCT_VALUE_H
-#define NAAB_STRUCT_VALUE_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -110,4 +109,3 @@ struct StructValue {
 } // namespace interpreter
 } // namespace naab
 
-#endif // NAAB_STRUCT_VALUE_H

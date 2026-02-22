@@ -1,5 +1,4 @@
-#ifndef NAAB_CPP_EXECUTOR_ADAPTER_H
-#define NAAB_CPP_EXECUTOR_ADAPTER_H
+#pragma once
 
 // NAAb C++ Executor Adapter
 // Adapts CppExecutor to the Executor interface for the language registry
@@ -63,4 +62,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_CPP_EXECUTOR_ADAPTER_H

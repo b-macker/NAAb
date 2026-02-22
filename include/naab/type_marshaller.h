@@ -1,5 +1,4 @@
-#ifndef NAAB_TYPE_MARSHALLER_H
-#define NAAB_TYPE_MARSHALLER_H
+#pragma once
 
 // Type Marshaller - Convert between NAAb Value and C++ types
 // Handles marshalling for dynamic C++ function calls
@@ -67,4 +66,3 @@ public:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_TYPE_MARSHALLER_H

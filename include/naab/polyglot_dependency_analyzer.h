@@ -1,9 +1,8 @@
+#pragma once
 // NAAb Polyglot Dependency Analyzer
 // Analyzes dependencies between polyglot blocks to enable parallel execution
 // Part of parallel polyglot execution implementation
 
-#ifndef NAAB_POLYGLOT_DEPENDENCY_ANALYZER_H
-#define NAAB_POLYGLOT_DEPENDENCY_ANALYZER_H
 
 #include <cstddef>
 #include <memory>
@@ -73,4 +72,3 @@ private:
 } // namespace interpreter
 } // namespace naab
 
-#endif // NAAB_POLYGLOT_DEPENDENCY_ANALYZER_H

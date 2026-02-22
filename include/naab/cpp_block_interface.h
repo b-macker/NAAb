@@ -1,5 +1,4 @@
-#ifndef NAAB_CPP_BLOCK_INTERFACE_H
-#define NAAB_CPP_BLOCK_INTERFACE_H
+#pragma once
 
 // NAAb C++ Block Interface Standard v1.0
 // Defines the contract between NAAb interpreter and dynamically loaded C++ blocks
@@ -156,4 +155,3 @@ void* naab_value_create_struct(const char* type_name);
 }
 #endif
 
-#endif // NAAB_CPP_BLOCK_INTERFACE_H

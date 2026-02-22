@@ -1,5 +1,4 @@
-#ifndef NAAB_STACK_TRACER_H
-#define NAAB_STACK_TRACER_H
+#pragma once
 
 #include "naab/stack_frame.h"
 #include <vector>
@@ -106,4 +105,3 @@ private:
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_STACK_TRACER_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_CYCLE_DETECTOR_H
-#define NAAB_CYCLE_DETECTOR_H
+#pragma once
 
 // Phase 3.2: Cycle Detection and Garbage Collection
 // Mark-and-sweep algorithm for detecting and breaking reference cycles
@@ -64,4 +63,3 @@ private:
 } // namespace interpreter
 } // namespace naab
 
-#endif // NAAB_CYCLE_DETECTOR_H

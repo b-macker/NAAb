@@ -1,5 +1,4 @@
-#ifndef NAAB_PROFILER_H
-#define NAAB_PROFILER_H
+#pragma once
 
 // NAAb Performance Profiler
 // Tracks execution time and statistics for functions and blocks
@@ -122,4 +121,3 @@ private:
 } // namespace profiling
 } // namespace naab
 
-#endif // NAAB_PROFILER_H

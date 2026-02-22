@@ -1,3 +1,4 @@
+#pragma once
 // NAAb Safe Time Operations
 // Phase 1: Path to 97% - Time/Counter Wraparound Detection
 //
@@ -7,8 +8,6 @@
 // - Safe time arithmetic
 // - Monotonic counter validation
 
-#ifndef NAAB_SAFE_TIME_H
-#define NAAB_SAFE_TIME_H
 
 #include "naab/safe_math.h"
 #include <cstdint>
@@ -287,4 +286,3 @@ private:
 } // namespace time
 } // namespace naab
 
-#endif // NAAB_SAFE_TIME_H

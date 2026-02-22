@@ -1,5 +1,4 @@
-#ifndef NAAB_SYMBOL_TABLE_SNAPSHOT_H
-#define NAAB_SYMBOL_TABLE_SNAPSHOT_H
+#pragma once
 
 #include <string>
 #include <unordered_map>
@@ -34,4 +33,3 @@ struct SymbolTableSnapshot {
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_SYMBOL_TABLE_SNAPSHOT_H

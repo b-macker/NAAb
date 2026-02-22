@@ -1,5 +1,4 @@
-#ifndef NAAB_CPP_BLOCK_LOADER_H
-#define NAAB_CPP_BLOCK_LOADER_H
+#pragma once
 
 // NAAb C++ Block Loader
 // Dynamically loads C++ blocks (.so files) and manages their lifecycle
@@ -83,4 +82,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_CPP_BLOCK_LOADER_H

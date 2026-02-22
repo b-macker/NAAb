@@ -1,5 +1,4 @@
-#ifndef NAAB_SUGGESTION_SYSTEM_H
-#define NAAB_SUGGESTION_SYSTEM_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -73,4 +72,3 @@ private:
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_SUGGESTION_SYSTEM_H

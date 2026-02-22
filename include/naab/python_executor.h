@@ -1,5 +1,4 @@
-#ifndef NAAB_PYTHON_EXECUTOR_H
-#define NAAB_PYTHON_EXECUTOR_H
+#pragma once
 
 // NAAb Python Block Executor
 // Uses Python C API sub-interpreters for true isolation
@@ -117,4 +116,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_PYTHON_EXECUTOR_H

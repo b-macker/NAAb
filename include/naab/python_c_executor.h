@@ -1,5 +1,4 @@
-#ifndef NAAB_PYTHON_C_EXECUTOR_H
-#define NAAB_PYTHON_C_EXECUTOR_H
+#pragma once
 
 /**
  * C++ Adapter for Python C API Wrapper
@@ -107,4 +106,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_PYTHON_C_EXECUTOR_H

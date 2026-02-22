@@ -1,9 +1,8 @@
+#pragma once
 // NAAb Language Security Limits
 // Week 1, Task 1.2: Input Size Caps
 // Prevents DoS attacks via unbounded inputs
 
-#ifndef NAAB_LIMITS_H
-#define NAAB_LIMITS_H
 
 #include <stdexcept>
 #include <string>
@@ -137,4 +136,3 @@ inline void checkDictSize(size_t size) {
 } // namespace limits
 } // namespace naab
 
-#endif // NAAB_LIMITS_H

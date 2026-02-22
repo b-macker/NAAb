@@ -1,3 +1,4 @@
+#pragma once
 // NAAb Path Security
 // Week 4, Task 4.2: Path Canonicalization and Traversal Prevention
 //
@@ -7,8 +8,6 @@
 // - Validating paths are within allowed directories
 // - Preventing symlink attacks
 
-#ifndef NAAB_PATH_SECURITY_H
-#define NAAB_PATH_SECURITY_H
 
 #include <string>
 #include <filesystem>
@@ -161,4 +160,3 @@ private:
 } // namespace security
 } // namespace naab
 
-#endif // NAAB_PATH_SECURITY_H

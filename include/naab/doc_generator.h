@@ -1,5 +1,4 @@
-#ifndef NAAB_DOC_GENERATOR_H
-#define NAAB_DOC_GENERATOR_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -103,4 +102,3 @@ private:
 } // namespace doc
 } // namespace naab
 
-#endif // NAAB_DOC_GENERATOR_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_STACK_FORMATTER_H
-#define NAAB_STACK_FORMATTER_H
+#pragma once
 
 // Phase 4.2.6: Unified Stack Trace Formatting
 // Enhanced formatting with color coding and JSON export
@@ -42,4 +41,3 @@ private:
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_STACK_FORMATTER_H

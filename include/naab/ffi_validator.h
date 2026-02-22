@@ -1,3 +1,4 @@
+#pragma once
 // NAAb FFI Input Validator
 // Week 4, Task 4.1: FFI Input Validation
 //
@@ -7,8 +8,6 @@
 // - Invalid data crossing language boundaries
 // - Memory safety violations
 
-#ifndef NAAB_FFI_VALIDATOR_H
-#define NAAB_FFI_VALIDATOR_H
 
 #include "naab/interpreter.h"
 #include "naab/limits.h"
@@ -181,4 +180,3 @@ private:
 } // namespace ffi
 } // namespace naab
 
-#endif // NAAB_FFI_VALIDATOR_H

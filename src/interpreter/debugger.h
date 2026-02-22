@@ -1,5 +1,4 @@
-#ifndef NAAB_INTERPRETER_DEBUGGER_H
-#define NAAB_INTERPRETER_DEBUGGER_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -98,4 +97,3 @@ private:
 } // namespace interpreter
 } // namespace naab
 
-#endif // NAAB_INTERPRETER_DEBUGGER_H

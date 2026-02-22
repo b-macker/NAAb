@@ -1,5 +1,4 @@
-#ifndef NAAB_CSHARP_EXECUTOR_H
-#define NAAB_CSHARP_EXECUTOR_H
+#pragma once
 
 #include "naab/language_registry.h"
 #include "naab/output_buffer.h"
@@ -42,4 +41,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_CSHARP_EXECUTOR_H

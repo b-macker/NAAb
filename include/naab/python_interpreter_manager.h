@@ -1,5 +1,4 @@
-#ifndef NAAB_PYTHON_INTERPRETER_MANAGER_H
-#define NAAB_PYTHON_INTERPRETER_MANAGER_H
+#pragma once
 
 // Global Python Interpreter Manager
 // Ensures Python interpreter is initialized once and accessible from all threads
@@ -70,4 +69,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_PYTHON_INTERPRETER_MANAGER_H

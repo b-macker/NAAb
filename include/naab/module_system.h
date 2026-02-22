@@ -1,5 +1,4 @@
-#ifndef NAAB_MODULE_SYSTEM_H
-#define NAAB_MODULE_SYSTEM_H
+#pragma once
 
 // NAAb Module System - Multi-file project support
 // Phase 4.0: Build System implementation
@@ -167,4 +166,3 @@ private:
 } // namespace modules
 } // namespace naab
 
-#endif // NAAB_MODULE_SYSTEM_H

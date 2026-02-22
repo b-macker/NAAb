@@ -1,3 +1,4 @@
+#pragma once
 // NAAb Secure String
 // Phase 1: Path to 97% - Sensitive Data Zeroization
 //
@@ -7,8 +8,6 @@
 // - Swap file leakage
 // - Use-after-free information disclosure
 
-#ifndef NAAB_SECURE_STRING_H
-#define NAAB_SECURE_STRING_H
 
 #include <string>
 #include <vector>
@@ -327,4 +326,3 @@ inline SecureString getSecureInput(const std::string& prompt) {
 } // namespace secure
 } // namespace naab
 
-#endif // NAAB_SECURE_STRING_H

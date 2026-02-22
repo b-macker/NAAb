@@ -1,5 +1,4 @@
-#ifndef NAAB_STDLIB_NEW_MODULES_H
-#define NAAB_STDLIB_NEW_MODULES_H
+#pragma once
 
 // New stdlib modules declarations
 // Implementations are in src/stdlib/*_impl.cpp files
@@ -171,4 +170,3 @@ public:
 } // namespace stdlib
 } // namespace naab
 
-#endif // NAAB_STDLIB_NEW_MODULES_H

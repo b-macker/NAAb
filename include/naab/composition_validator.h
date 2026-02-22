@@ -1,5 +1,4 @@
-#ifndef NAAB_COMPOSITION_VALIDATOR_H
-#define NAAB_COMPOSITION_VALIDATOR_H
+#pragma once
 
 // NAAb Composition Validator - Phase 2.4
 // Validates block chains and suggests adapter blocks for type mismatches
@@ -122,4 +121,3 @@ std::string formatAdapterSuggestion(const std::vector<std::string>& adapters);
 } // namespace validator
 } // namespace naab
 
-#endif // NAAB_COMPOSITION_VALIDATOR_H

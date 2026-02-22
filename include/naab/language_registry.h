@@ -1,5 +1,4 @@
-#ifndef NAAB_LANGUAGE_REGISTRY_H
-#define NAAB_LANGUAGE_REGISTRY_H
+#pragma once
 
 // NAAb Language Registry
 // Centralized registry for language-specific block executors
@@ -79,4 +78,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_LANGUAGE_REGISTRY_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_RUST_EXECUTOR_H
-#define NAAB_RUST_EXECUTOR_H
+#pragma once
 
 #include "naab/language_registry.h"
 #include "naab/rust_ffi.h"
@@ -109,4 +108,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_RUST_EXECUTOR_H

@@ -1,10 +1,9 @@
+#pragma once
 //
 // NAAb Error Formatter Utility
 // Provides standardized error message formatting for consistent, helpful errors
 //
 
-#ifndef NAAB_UTILS_ERROR_FORMATTER_H
-#define NAAB_UTILS_ERROR_FORMATTER_H
 
 #include <string>
 #include <vector>
@@ -121,4 +120,3 @@ private:
 } // namespace utils
 } // namespace naab
 
-#endif // NAAB_UTILS_ERROR_FORMATTER_H

@@ -1,8 +1,7 @@
+#pragma once
 // Phase 1 Item 10 Day 5: Polyglot Async Integration
 // Thread-safe async execution for Python/JavaScript/C++ polyglot blocks
 
-#ifndef NAAB_POLYGLOT_ASYNC_EXECUTOR_H
-#define NAAB_POLYGLOT_ASYNC_EXECUTOR_H
 
 #include "naab/ffi_async_callback.h"
 #include "naab/value.h"
@@ -509,4 +508,3 @@ inline std::future<ffi::AsyncCallbackResult> executeShellAsync(
 } // namespace polyglot
 } // namespace naab
 
-#endif // NAAB_POLYGLOT_ASYNC_EXECUTOR_H

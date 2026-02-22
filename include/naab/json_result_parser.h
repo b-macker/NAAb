@@ -1,5 +1,4 @@
-#ifndef NAAB_JSON_RESULT_PARSER_H
-#define NAAB_JSON_RESULT_PARSER_H
+#pragma once
 
 #include "naab/value.h"
 #include <memory>
@@ -34,4 +33,3 @@ PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_JSON_RESULT_PARSER_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_TYPE_CHECKER_H
-#define NAAB_TYPE_CHECKER_H
+#pragma once
 
 // NAAb Type Checker - Static type analysis
 // Provides type inference, checking, and error reporting
@@ -192,4 +191,3 @@ private:
 } // namespace typecheck
 } // namespace naab
 
-#endif // NAAB_TYPE_CHECKER_H

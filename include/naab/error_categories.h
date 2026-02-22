@@ -1,5 +1,4 @@
-#ifndef NAAB_ERROR_CATEGORIES_H
-#define NAAB_ERROR_CATEGORIES_H
+#pragma once
 
 #include <string>
 
@@ -143,4 +142,3 @@ inline std::string formatInvalidImportPath(const std::string& path) {
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_ERROR_CATEGORIES_H

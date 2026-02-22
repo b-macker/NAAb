@@ -1,5 +1,4 @@
-#ifndef NAAB_BLOCK_VALUE_H
-#define NAAB_BLOCK_VALUE_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -52,4 +51,3 @@ struct BlockValue {
 } // namespace interpreter
 } // namespace naab
 
-#endif // NAAB_BLOCK_VALUE_H

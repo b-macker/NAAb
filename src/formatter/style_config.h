@@ -1,5 +1,4 @@
-#ifndef NAAB_STYLE_CONFIG_H
-#define NAAB_STYLE_CONFIG_H
+#pragma once
 
 #include <string>
 #include <map>
@@ -36,4 +35,3 @@ private:
 } // namespace formatter
 } // namespace naab
 
-#endif // NAAB_STYLE_CONFIG_H

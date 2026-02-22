@@ -1,5 +1,4 @@
-#ifndef NAAB_ERROR_CONTEXT_H
-#define NAAB_ERROR_CONTEXT_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -37,4 +36,3 @@ struct ErrorContext {
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_ERROR_CONTEXT_H

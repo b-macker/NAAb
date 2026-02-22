@@ -1,5 +1,4 @@
-#ifndef NAAB_CROSS_LANGUAGE_BRIDGE_H
-#define NAAB_CROSS_LANGUAGE_BRIDGE_H
+#pragma once
 
 // Cross-Language Type Marshalling Bridge
 // Provides unified type conversion between Python, C++, and JavaScript
@@ -123,4 +122,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_CROSS_LANGUAGE_BRIDGE_H

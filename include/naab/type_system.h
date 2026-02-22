@@ -1,5 +1,4 @@
-#ifndef NAAB_TYPE_SYSTEM_H
-#define NAAB_TYPE_SYSTEM_H
+#pragma once
 
 // NAAb Type System - Phase 2.3
 // Provides complete type checking and generic type support
@@ -125,4 +124,3 @@ using TypeMap = std::unordered_map<std::string, Type>;
 } // namespace types
 } // namespace naab
 
-#endif // NAAB_TYPE_SYSTEM_H

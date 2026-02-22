@@ -1,5 +1,4 @@
-#ifndef NAAB_LINTER_QUALITY_HINTS_H
-#define NAAB_LINTER_QUALITY_HINTS_H
+#pragma once
 
 #include "llm_patterns.h"
 #include <string>
@@ -89,4 +88,3 @@ private:
 } // namespace linter
 } // namespace naab
 
-#endif // NAAB_LINTER_QUALITY_HINTS_H

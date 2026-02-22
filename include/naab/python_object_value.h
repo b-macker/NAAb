@@ -1,5 +1,4 @@
-#ifndef NAAB_PYTHON_OBJECT_VALUE_H
-#define NAAB_PYTHON_OBJECT_VALUE_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -57,4 +56,3 @@ public:
 } // namespace interpreter
 } // namespace naab
 
-#endif // NAAB_PYTHON_OBJECT_VALUE_H

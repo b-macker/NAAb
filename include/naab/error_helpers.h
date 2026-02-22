@@ -1,5 +1,4 @@
-#ifndef NAAB_ERROR_HELPERS_H
-#define NAAB_ERROR_HELPERS_H
+#pragma once
 
 // NAAb Error Helpers - Fuzzy matching and "Did you mean?" suggestions
 // Provides intelligent suggestions for common typos and mistakes
@@ -55,4 +54,3 @@ std::string suggestForKeywordTypo(const std::string& token);
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_ERROR_HELPERS_H

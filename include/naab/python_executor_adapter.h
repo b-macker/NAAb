@@ -1,5 +1,4 @@
-#ifndef NAAB_PYTHON_EXECUTOR_ADAPTER_H
-#define NAAB_PYTHON_EXECUTOR_ADAPTER_H
+#pragma once
 
 // NAAb Python Executor Adapter
 // Adapts PythonCExecutor to the Executor interface for the language registry
@@ -47,4 +46,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_PYTHON_EXECUTOR_ADAPTER_H

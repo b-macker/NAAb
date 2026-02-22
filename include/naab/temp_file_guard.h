@@ -1,5 +1,4 @@
-#ifndef NAAB_TEMP_FILE_GUARD_H
-#define NAAB_TEMP_FILE_GUARD_H
+#pragma once
 
 #include <filesystem>
 #include <string>
@@ -32,4 +31,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_TEMP_FILE_GUARD_H

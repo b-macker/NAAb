@@ -1,5 +1,4 @@
-#ifndef NAAB_OUTPUT_BUFFER_H
-#define NAAB_OUTPUT_BUFFER_H
+#pragma once
 
 #include <string>
 #include <sstream>
@@ -52,4 +51,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_OUTPUT_BUFFER_H

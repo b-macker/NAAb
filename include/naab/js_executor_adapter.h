@@ -1,5 +1,4 @@
-#ifndef NAAB_JS_EXECUTOR_ADAPTER_H
-#define NAAB_JS_EXECUTOR_ADAPTER_H
+#pragma once
 
 // NAAb JavaScript Executor Adapter
 // Adapts JsExecutor to the Executor interface for the language registry
@@ -50,4 +49,3 @@ private:
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_JS_EXECUTOR_ADAPTER_H

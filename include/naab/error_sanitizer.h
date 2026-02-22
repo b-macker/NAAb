@@ -1,3 +1,4 @@
+#pragma once
 // NAAb Error Sanitizer
 // Week 5, Task 5.2: Error Message Scrubbing
 //
@@ -7,8 +8,6 @@
 // - Removing internal implementation details
 // - Preventing sensitive data exposure
 
-#ifndef NAAB_ERROR_SANITIZER_H
-#define NAAB_ERROR_SANITIZER_H
 
 #include <string>
 #include <vector>
@@ -211,4 +210,3 @@ inline const char* QUOTED_VALUE = R"((?:value|content|data)['"]?\s*[:=]\s*['"]([
 } // namespace error
 } // namespace naab
 
-#endif // NAAB_ERROR_SANITIZER_H

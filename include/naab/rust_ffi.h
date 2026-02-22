@@ -1,5 +1,4 @@
-#ifndef NAAB_RUST_FFI_H
-#define NAAB_RUST_FFI_H
+#pragma once
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -56,4 +55,3 @@ void naab_rust_error_free(NaabRustError* error);
 }
 #endif
 
-#endif // NAAB_RUST_FFI_H

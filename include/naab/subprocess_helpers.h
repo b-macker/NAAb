@@ -1,5 +1,4 @@
-#ifndef NAAB_SUBPROCESS_HELPERS_H
-#define NAAB_SUBPROCESS_HELPERS_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -22,4 +21,3 @@ int execute_subprocess_with_pipes(
 } // namespace runtime
 } // namespace naab
 
-#endif // NAAB_SUBPROCESS_HELPERS_H

@@ -1,5 +1,4 @@
-#ifndef NAAB_LEXER_H
-#define NAAB_LEXER_H
+#pragma once
 
 // NAAb Block Assembly Language - Lexer
 // Ported from Python implementation (naab/compiler/lexer.py)
@@ -136,4 +135,3 @@ private:
 } // namespace lexer
 } // namespace naab
 
-#endif // NAAB_LEXER_H
