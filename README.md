@@ -1,12 +1,10 @@
 # NAAb Programming Language
 
-**Created by Brandon Mackert**
-
 A polyglot programming language that seamlessly integrates Python, JavaScript, Rust, C++, and other languages through an innovative block system. Write once, execute in any language.
 
 ---
 
-## ✨ Features
+## Features
 
 ### Core Language
 - **Type System** - Union types, type inference, type annotations
@@ -41,7 +39,7 @@ A polyglot programming language that seamlessly integrates Python, JavaScript, R
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -99,7 +97,7 @@ See the [examples/](examples/) directory for:
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 - **[The NAAb Book](docs/book/)** - Comprehensive language reference (21 chapters)
 - **[Quick Start](docs/book/QUICK_START.md)** - Get up and running fast
@@ -108,7 +106,7 @@ See the [examples/](examples/) directory for:
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 - **Parser** - Hand-written recursive descent parser with full AST
 - **Type Checker** - Bidirectional type inference
@@ -126,7 +124,7 @@ See the [examples/](examples/) directory for:
 
 ---
 
-## 🛠️ Development
+## Development
 
 ### Build Requirements
 - CMake 3.15+
@@ -168,7 +166,7 @@ cmake --build build --target naab-lsp
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
@@ -189,19 +187,19 @@ Contributions are welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) f
 
 ---
 
-## 📊 Project Status
+## Project Status
 
-**Phase 1:** ✅ Syntax & Parser - 100% Complete
-**Phase 2:** ✅ Type System - 100% Complete
-**Phase 3:** ✅ Memory Management - 100% Complete
-**Phase 4:** ✅ Tooling (LSP, Formatter, Linter, Debugger) - 80% Complete
-**Phase 5:** ✅ Standard Library - 100% Complete (12 modules)
+**Phase 1:**  Syntax & Parser - 100% Complete
+**Phase 2:**  Type System - 100% Complete
+**Phase 3:**  Memory Management - 100% Complete
+**Phase 4:**  Tooling (LSP, Formatter, Linter, Debugger) - 80% Complete
+**Phase 5:**  Standard Library - 100% Complete (12 modules)
 
 See [docs/](docs/) for detailed documentation.
 
 ---
 
-## 📜 License
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
@@ -209,7 +207,7 @@ Copyright © 2026 Brandon Mackert
 
 ---
 
-## 👤 Author
+## Author
 
 **Brandon Mackert**
 
@@ -219,7 +217,7 @@ Copyright © 2026 Brandon Mackert
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Implementation Assistance:** Claude (Anthropic)
 - **Inspiration:** Rust, Python, TypeScript, Go
@@ -230,7 +228,7 @@ Copyright © 2026 Brandon Mackert
 
 ---
 
-## 🔗 Links
+## Links
 
 - **Documentation:** [docs/](docs/)
 - **Examples:** [examples/](examples/)
@@ -239,7 +237,7 @@ Copyright © 2026 Brandon Mackert
 
 ---
 
-## ⭐ Star History
+## Star History
 
 If you find NAAb useful, please consider giving it a star on GitHub!
 
