@@ -20,6 +20,7 @@ class StructLiteralExpr;
 class InlineCodeExpr;
 class IfExpr;
 class LambdaExpr;
+class MatchExpr;
 
 // Source location for error reporting
 struct SourceLocation {
@@ -79,6 +80,7 @@ enum class NodeKind {
     InlineCodeExpr,       // Inline polyglot code: <<language code >>
     IfExpr,               // If expression: if cond { expr } else { expr }
     LambdaExpr,           // Anonymous function: function(params) { body }
+    MatchExpr,            // Match expression: match value { pattern => expr, ... }
 };
 
 class ASTNode {
@@ -1002,6 +1004,33 @@ private:
     std::unique_ptr<CompoundStmt> body_;
 };
 
+// Match arm: pattern => body
+struct MatchArm {
+    std::unique_ptr<Expr> pattern;  // nullptr means wildcard (_)
+    std::unique_ptr<Expr> body;
+};
+
+// Match expression: match subject { pattern => expr, ... }
+class MatchExpr : public Expr {
+public:
+    MatchExpr(std::unique_ptr<Expr> subject,
+              std::vector<MatchArm> arms,
+              SourceLocation loc = SourceLocation())
+        : Expr(NodeKind::MatchExpr, loc),
+          subject_(std::move(subject)),
+          arms_(std::move(arms)) {}
+
+    Expr* getSubject() { return subject_.get(); }
+    std::vector<MatchArm>& getArms() { return arms_; }
+
+    Type getType() const override { return Type::makeVoid(); }
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::unique_ptr<Expr> subject_;
+    std::vector<MatchArm> arms_;
+};
+
 // ============================================================================
 // Program (top-level)
 // ============================================================================
@@ -1136,6 +1165,10 @@ public:
     virtual void visit(LambdaExpr& node) {
         (void)node;
         throw std::runtime_error("LambdaExpr not supported by this visitor");
+    }
+    virtual void visit(MatchExpr& node) {
+        (void)node;
+        throw std::runtime_error("MatchExpr not supported by this visitor");
     }
     // Phase 2.4.3: Enum support
     virtual void visit(EnumDecl& node) {

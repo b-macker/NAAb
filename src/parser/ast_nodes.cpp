@@ -193,6 +193,10 @@ void LambdaExpr::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void MatchExpr::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 void Program::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }

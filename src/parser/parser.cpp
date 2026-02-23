@@ -1199,30 +1199,11 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
         return parseRuntimeDeclStmt();
     }
 
-    // Detect 'match' keyword and provide helpful error
+    // Match expression used as statement
     if (check(lexer::TokenType::MATCH)) {
-        auto& tok = current();
-        throw std::runtime_error(
-            fmt::format(
-                "Parse error {}: 'match' statements are not yet supported in NAAb.\n\n"
-                "  Use if/else if/else instead:\n\n"
-                "  \xE2\x9C\x97 Not supported:\n"
-                "    match value {{\n"
-                "        \"a\" => doA()\n"
-                "        \"b\" => doB()\n"
-                "        _ => doDefault()\n"
-                "    }}\n\n"
-                "  \xE2\x9C\x93 Use this instead:\n"
-                "    if value == \"a\" {{\n"
-                "        doA()\n"
-                "    }} else if value == \"b\" {{\n"
-                "        doB()\n"
-                "    }} else {{\n"
-                "        doDefault()\n"
-                "    }}",
-                formatLocation(tok.line, tok.column)
-            )
-        );
+        auto expr = parseMatchExpr();
+        optionalSemicolon();
+        return std::make_unique<ast::ExprStmt>(std::move(expr), ast::SourceLocation());
     }
 
     // Detect 'var' keyword and suggest 'let'
@@ -2137,6 +2118,7 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         current().type != lexer::TokenType::CATCH &&
         current().type != lexer::TokenType::THROW &&
         current().type != lexer::TokenType::FINALLY &&
+        current().type != lexer::TokenType::MATCH &&
         isAllowedNameToken(current().type)) {
         // Keyword token being used as a variable name in expression context
         auto& token = current();
@@ -2199,6 +2181,11 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         parser_context_->in_dict_literal = false;
 
         return std::make_unique<ast::DictExpr>(std::move(pairs), ast::SourceLocation());
+    }
+
+    // Match expression: match value { pattern => expr, ... }
+    if (check(lexer::TokenType::MATCH)) {
+        return parseMatchExpr();
     }
 
     // If expression: if condition { expr } else { expr }
@@ -2327,6 +2314,68 @@ std::unique_ptr<ast::Expr> Parser::parseIfExpr() {
         std::move(condition),
         std::move(then_expr),
         std::move(else_expr),
+        ast::SourceLocation(start.line, start.column, filename_)
+    );
+}
+
+// Match expression: match subject { pattern => expr, ... }
+std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
+    auto start = current();
+    expect(lexer::TokenType::MATCH, "Expected 'match'");
+
+    auto subject = parseExpression();
+    skipNewlines();
+
+    expect(lexer::TokenType::LBRACE, "Expected '{' after match subject");
+    skipNewlines();
+
+    std::vector<ast::MatchArm> arms;
+
+    while (!check(lexer::TokenType::RBRACE) && !check(lexer::TokenType::END_OF_FILE)) {
+        std::unique_ptr<ast::Expr> pattern;
+
+        // Check for wildcard '_'
+        if (check(lexer::TokenType::IDENTIFIER) && current().value == "_") {
+            advance();  // consume '_'
+            pattern = nullptr;  // nullptr signals wildcard
+        } else {
+            // Use parseLogicalOr to avoid consuming across newlines (parsePipeline skips newlines)
+            pattern = parseLogicalOr();
+        }
+
+        expect(lexer::TokenType::FAT_ARROW, "Expected '=>' after match pattern");
+        skipNewlines();
+
+        // Use parseLogicalOr for body to avoid greedy newline consumption
+        auto body = parseLogicalOr();
+        skipNewlines();
+
+        arms.push_back(ast::MatchArm{std::move(pattern), std::move(body)});
+
+        // Optional comma or newline between arms
+        if (check(lexer::TokenType::COMMA)) {
+            advance();
+            skipNewlines();
+        }
+    }
+
+    expect(lexer::TokenType::RBRACE, "Expected '}' to close match expression");
+
+    if (arms.empty()) {
+        throw ParseError(formatError(
+            "Match error: match expression must have at least one arm\n\n"
+            "  Example:\n"
+            "    match value {\n"
+            "        1 => \"one\"\n"
+            "        _ => \"other\"\n"
+            "    }\n",
+            start
+        ));
+    }
+
+    return std::make_unique<ast::MatchExpr>(
+        std::move(subject),
+        std::move(arms),
         ast::SourceLocation(start.line, start.column, filename_)
     );
 }

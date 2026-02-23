@@ -1947,6 +1947,60 @@ void Interpreter::visit(ast::IfExpr& node) {
     // last_value_ is set by whichever branch expression was evaluated
 }
 
+void Interpreter::visit(ast::MatchExpr& node) {
+    auto subject = eval(*node.getSubject());
+
+    for (auto& arm : node.getArms()) {
+        if (!arm.pattern) {
+            // Wildcard (_) — always matches
+            arm.body->accept(*this);
+            return;
+        }
+
+        auto pattern_val = eval(*arm.pattern);
+
+        // Compare subject to pattern using same logic as BinaryOp::Eq
+        bool matches = false;
+        bool subj_null = isNull(subject);
+        bool pat_null = isNull(pattern_val);
+
+        if (subj_null && pat_null) {
+            matches = true;
+        } else if (!subj_null && !pat_null) {
+            bool subj_numeric = std::holds_alternative<int>(subject->data) ||
+                                std::holds_alternative<double>(subject->data);
+            bool pat_numeric = std::holds_alternative<int>(pattern_val->data) ||
+                               std::holds_alternative<double>(pattern_val->data);
+
+            if (subj_numeric && pat_numeric) {
+                matches = subject->toFloat() == pattern_val->toFloat();
+            } else if (std::holds_alternative<std::string>(subject->data) &&
+                       std::holds_alternative<std::string>(pattern_val->data)) {
+                matches = subject->toString() == pattern_val->toString();
+            } else if (std::holds_alternative<bool>(subject->data) &&
+                       std::holds_alternative<bool>(pattern_val->data)) {
+                matches = subject->toBool() == pattern_val->toBool();
+            }
+        }
+
+        if (matches) {
+            arm.body->accept(*this);
+            return;
+        }
+    }
+
+    throw std::runtime_error(
+        "Match error: no matching arm for value: " + subject->toString() + "\n\n"
+        "  Help:\n"
+        "  - Add a wildcard arm to handle all other cases:\n\n"
+        "  Example:\n"
+        "    match value {\n"
+        "        1 => \"one\"\n"
+        "        _ => \"default\"\n"
+        "    }\n"
+    );
+}
+
 void Interpreter::visit(ast::LambdaExpr& node) {
     // Create an anonymous FunctionValue with closure capture
     static int lambda_counter = 0;

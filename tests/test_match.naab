@@ -1,0 +1,99 @@
+// Test: Pattern matching (match expressions)
+
+main {
+    let pass = 0
+    let fail = 0
+
+    // Test 1: Basic integer matching
+    let x = 2
+    let r1 = match x {
+        1 => "one"
+        2 => "two"
+        3 => "three"
+        _ => "other"
+    }
+    if r1 == "two" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 1: got " + r1) }
+
+    // Test 2: Wildcard default
+    let y = 99
+    let r2 = match y {
+        1 => "one"
+        _ => "default"
+    }
+    if r2 == "default" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 2: got " + r2) }
+
+    // Test 3: String matching
+    let s = "hello"
+    let r3 = match s {
+        "hi" => 1
+        "hello" => 2
+        _ => 0
+    }
+    if r3 == 2 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 3: got " + "" + r3) }
+
+    // Test 4: First arm wins
+    let z = 5
+    let r4 = match z {
+        5 => "first"
+        5 => "second"
+        _ => "default"
+    }
+    if r4 == "first" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 4: got " + r4) }
+
+    // Test 5: Match with expressions in patterns
+    let a = 10
+    let r5 = match a {
+        5 + 5 => "ten"
+        _ => "not ten"
+    }
+    if r5 == "ten" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 5: got " + r5) }
+
+    // Test 6: Match with expressions in body
+    let b = 3
+    let r6 = match b {
+        1 => 10 + 1
+        2 => 20 + 2
+        3 => 30 + 3
+        _ => 0
+    }
+    if r6 == 33 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 6: got " + "" + r6) }
+
+    // Test 7: Nested match
+    let c = 1
+    let d = "a"
+    let r7 = match c {
+        1 => match d {
+            "a" => "1a"
+            _ => "1other"
+        }
+        _ => "other"
+    }
+    if r7 == "1a" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 7: got " + r7) }
+
+    // Test 8: Match with only wildcard
+    let r8 = match 42 {
+        _ => "always"
+    }
+    if r8 == "always" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 8: got " + r8) }
+
+    // Test 9: Match boolean
+    let r9 = match true {
+        true => "yes"
+        false => "no"
+    }
+    if r9 == "yes" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 9: got " + r9) }
+
+    // Test 10: Match float
+    let r10 = match 3.14 {
+        2.71 => "e"
+        3.14 => "pi"
+        _ => "unknown"
+    }
+    if r10 == "pi" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 10: got " + r10) }
+
+    print("")
+    print("=== Match Expression Tests ===")
+    print("PASS: " + "" + pass)
+    print("FAIL: " + "" + fail)
+    if fail == 0 { print("All tests passed!") }
+}
