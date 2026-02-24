@@ -378,6 +378,7 @@ if(EXISTS "${QUICKJS_DIR}/libquickjs.a")
 else()
     add_library(quickjs STATIC
         ${QUICKJS_DIR}/quickjs.c
+        ${QUICKJS_DIR}/quickjs-libc.c
         ${QUICKJS_DIR}/libregexp.c
         ${QUICKJS_DIR}/libunicode.c
         ${QUICKJS_DIR}/cutils.c

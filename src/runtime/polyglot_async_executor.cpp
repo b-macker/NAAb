@@ -2,8 +2,10 @@
 // Implementation of thread-safe async execution for polyglot blocks
 
 #include "naab/polyglot_async_executor.h"
+#ifdef HAVE_PYBIND11
 #include "naab/python_c_executor.h"  // Pure C API executor (5x faster, no CFI crashes)
 #include "naab/python_interpreter_manager.h"  // Global Python interpreter manager
+#endif
 #include "naab/js_executor.h"
 #include "naab/cpp_executor_adapter.h"  // Expression-oriented inline C++ executor
 #include "naab/rust_executor.h"
@@ -57,6 +59,7 @@ void initializePolyglotThreadPool() {
 // Python executor - using global interpreter manager
 // Interpreter initialized once globally, each thread creates its own executor with GIL
 
+#ifdef HAVE_PYBIND11
 std::future<ffi::AsyncCallbackResult> PythonAsyncExecutor::executeAsync(
     const std::string& code,
     const std::vector<interpreter::Value>& args,
@@ -164,6 +167,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc PythonAsyncExecutor::makePythonCallback(
         // Lambda about to exit (silent)
     };
 }
+#endif // HAVE_PYBIND11
 
 // ============================================================================
 // JavaScript Async Executor Implementation
@@ -668,7 +672,11 @@ std::future<ffi::AsyncCallbackResult> PolyglotAsyncExecutor::executeAsync(
 
     switch (language) {
         case Language::Python:
+#ifdef HAVE_PYBIND11
             return python_executor_.executeAsync(code, args, timeout);
+#else
+            throw std::runtime_error("Python executor not available (built without pybind11)");
+#endif
 
         case Language::JavaScript:
             return js_executor_.executeAsync(code, args, timeout);
@@ -703,7 +711,11 @@ ffi::AsyncCallbackResult PolyglotAsyncExecutor::executeBlocking(
 ) {
     switch (language) {
         case Language::Python:
+#ifdef HAVE_PYBIND11
             return python_executor_.executeBlocking(code, args, timeout);
+#else
+            throw std::runtime_error("Python executor not available (built without pybind11)");
+#endif
 
         case Language::JavaScript:
             return js_executor_.executeBlocking(code, args, timeout);

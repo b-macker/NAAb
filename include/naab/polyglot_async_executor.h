@@ -29,6 +29,7 @@ namespace polyglot {
 // Python Async Executor
 // ============================================================================
 
+#ifdef HAVE_PYBIND11
 /**
  * @brief Executes Python code asynchronously with proper GIL handling.
  *
@@ -81,6 +82,7 @@ private:
         const std::vector<interpreter::Value>& args
     );
 };
+#endif // HAVE_PYBIND11
 
 // ============================================================================
 // JavaScript Async Executor
@@ -406,7 +408,9 @@ public:
     );
 
 private:
+#ifdef HAVE_PYBIND11
     PythonAsyncExecutor python_executor_;
+#endif
     JavaScriptAsyncExecutor js_executor_;
     CppAsyncExecutor cpp_executor_;
     RustAsyncExecutor rust_executor_;
@@ -433,6 +437,7 @@ void initializePolyglotThreadPool();
 // Helper Functions
 // ============================================================================
 
+#ifdef HAVE_PYBIND11
 /**
  * @brief Execute Python code asynchronously (convenience function).
  */
@@ -444,6 +449,7 @@ inline std::future<ffi::AsyncCallbackResult> executePythonAsync(
     PythonAsyncExecutor executor;
     return executor.executeAsync(code, args, timeout);
 }
+#endif // HAVE_PYBIND11
 
 /**
  * @brief Execute JavaScript code asynchronously (convenience function).
