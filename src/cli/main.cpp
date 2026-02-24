@@ -22,6 +22,7 @@
 #include "naab/polyglot_async_executor.h"
 #include "naab/rust_executor.h"
 #include "naab/csharp_executor.h"
+#include "naab/go_executor.h"
 #include "naab/shell_executor.h"
 #include "naab/generic_subprocess_executor.h"
 #include "naab/rest_api.h"
@@ -112,9 +113,9 @@ void initialize_executors() {
     registry.registerExecutor("ruby",
         std::make_unique<naab::runtime::GenericSubprocessExecutor>("ruby", "ruby {}", ".rb"));
 
-    // Polyglot Phase 7: Register Go executor (via GenericSubprocessExecutor)
-    registry.registerExecutor("go",
-        std::make_unique<naab::runtime::GenericSubprocessExecutor>("go", "go run {}", ".go"));
+    // Issue #3: Register dedicated Go executor
+    registry.registerExecutor("go", std::make_unique<naab::runtime::GoExecutor>());
+    registry.registerExecutor("golang", std::make_unique<naab::runtime::GoExecutor>());
 
     // Polyglot Phase 11: Register C# executor
     registry.registerExecutor("csharp", std::make_unique<naab::runtime::CSharpExecutor>());

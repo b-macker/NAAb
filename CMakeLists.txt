@@ -399,6 +399,7 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/rust_ffi_bridge.cpp  # Phase 3.1: Rust FFI bridge
     src/runtime/rust_executor.cpp  # Phase 3.1: Rust executor
     src/runtime/csharp_executor.cpp  # Phase 11: C# executor
+    src/runtime/go_executor.cpp  # Issue #3: Go executor
     src/runtime/stack_tracer.cpp  # Phase 4.2: Cross-language stack traces
     src/runtime/stack_formatter.cpp  # Phase 4.2.6: Enhanced stack trace formatting
     src/runtime/inline_code_cache.cpp  # Phase 3.3.1: Inline code caching
