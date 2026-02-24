@@ -367,13 +367,31 @@ message(STATUS "  ✓ Interpreter")
 message(STATUS "  ✓ Runtime error enhancement (Phase 4.2)")
 
 # QuickJS library for JavaScript execution
-add_library(quickjs STATIC IMPORTED)
-set_target_properties(quickjs PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27/libquickjs.a"
-)
-target_include_directories(quickjs INTERFACE
-    "${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27"
-)
+# Build from source if pre-built .a doesn't exist (e.g., CI on different architecture)
+set(QUICKJS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27")
+if(EXISTS "${QUICKJS_DIR}/libquickjs.a")
+    add_library(quickjs STATIC IMPORTED)
+    set_target_properties(quickjs PROPERTIES
+        IMPORTED_LOCATION "${QUICKJS_DIR}/libquickjs.a"
+    )
+    target_include_directories(quickjs INTERFACE "${QUICKJS_DIR}")
+else()
+    add_library(quickjs STATIC
+        ${QUICKJS_DIR}/quickjs.c
+        ${QUICKJS_DIR}/libregexp.c
+        ${QUICKJS_DIR}/libunicode.c
+        ${QUICKJS_DIR}/cutils.c
+        ${QUICKJS_DIR}/libbf.c
+    )
+    target_include_directories(quickjs PUBLIC "${QUICKJS_DIR}")
+    target_compile_definitions(quickjs PRIVATE
+        _GNU_SOURCE
+        CONFIG_VERSION="2021-03-27"
+        CONFIG_BIGNUM
+    )
+    # Suppress warnings from third-party C code
+    target_compile_options(quickjs PRIVATE -w)
+endif()
 message(STATUS "  ✓ QuickJS library")
 
 # Runtime + block loader
