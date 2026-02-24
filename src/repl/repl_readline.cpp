@@ -10,6 +10,7 @@
 #include <vector>
 #include <cstring>
 #include <new>  // For placement new
+#include <unordered_map>
 
 // Linenoise for line editing
 extern "C" {
@@ -21,30 +22,160 @@ namespace repl {
 
 // Global state for auto-completion
 static interpreter::Interpreter* g_interpreter = nullptr;
+
 static std::vector<std::string> g_keywords = {
-    "let", "fn", "if", "else", "for", "while", "return",
-    "true", "false", "null", "use", "as", "main", "print"
+    // Control flow
+    "let", "const", "fn", "func", "function", "def", "return",
+    "if", "else", "for", "while", "break", "continue", "in",
+    "match", "async", "await",
+    // Error handling
+    "try", "catch", "throw", "finally",
+    // Types & structures
+    "struct", "enum", "class", "new",
+    // Modules
+    "use", "as", "import", "export", "from", "module",
+    // Literals
+    "true", "false", "null",
+    // Other
+    "main", "print", "runtime", "ref", "config", "init",
 };
+
+static std::vector<std::string> g_stdlib_modules = {
+    "array", "string", "math", "time", "env", "file",
+    "io", "json", "http", "debug", "csv", "regex", "crypto",
+};
+
+static std::unordered_map<std::string, std::vector<std::string>> g_stdlib_functions = {
+    {"math", {"abs", "sqrt", "pow", "floor", "ceil", "round", "min", "max", "sin", "cos", "tan", "PI", "E", "pi", "e"}},
+    {"string", {"length", "upper", "lower", "trim", "split", "contains", "replace", "starts_with", "ends_with", "char_at", "reverse", "repeat", "pad_left", "pad_right", "index_of", "substring"}},
+    {"array", {"length", "push", "pop", "shift", "unshift", "first", "last", "map_fn", "filter_fn", "reduce_fn", "find", "slice", "slice_arr", "reverse", "sort", "contains", "join"}},
+    {"time", {"now", "sleep", "format", "elapsed"}},
+    {"env", {"get_var", "set_var", "args"}},
+    {"file", {"read", "write", "exists", "delete", "list_dir", "mkdir"}},
+    {"io", {"read_file", "write_file", "exists", "list_dir", "read_line", "write", "output"}},
+    {"json", {"parse", "stringify", "is_valid", "pretty"}},
+    {"http", {"get", "post", "put", "delete"}},
+    {"debug", {"inspect", "type", "env"}},
+    {"csv", {"parse", "stringify"}},
+    {"regex", {"match", "replace", "split", "test"}},
+    {"crypto", {"hash", "hmac", "random_bytes"}},
+};
+
+static std::vector<std::string> g_repl_commands = {
+    ":help", ":exit", ":quit", ":clear", ":cls",
+    ":history", ":blocks", ":reset", ":stats",
+};
+
+// Track user-defined symbols across REPL sessions
+static std::vector<std::string> g_user_symbols;
+
+// Extract symbol names from user input (let x, const y, fn foo, func bar)
+static void extractUserSymbols(const std::string& input) {
+    std::istringstream stream(input);
+    std::string token;
+    while (stream >> token) {
+        if (token == "let" || token == "const") {
+            std::string name;
+            if (stream >> name) {
+                // Remove trailing : or = if present
+                size_t end = name.find_first_of(":=");
+                if (end != std::string::npos) name = name.substr(0, end);
+                if (!name.empty()) {
+                    // Avoid duplicates
+                    bool found = false;
+                    for (const auto& s : g_user_symbols) {
+                        if (s == name) { found = true; break; }
+                    }
+                    if (!found) g_user_symbols.push_back(name);
+                }
+            }
+        } else if (token == "fn" || token == "func" || token == "function" || token == "def") {
+            std::string name;
+            if (stream >> name) {
+                // Remove trailing ( if present
+                size_t paren = name.find('(');
+                if (paren != std::string::npos) name = name.substr(0, paren);
+                if (!name.empty()) {
+                    bool found = false;
+                    for (const auto& s : g_user_symbols) {
+                        if (s == name) { found = true; break; }
+                    }
+                    if (!found) g_user_symbols.push_back(name);
+                }
+            }
+        }
+    }
+}
 
 // Auto-completion callback
 void completion(const char* buf, linenoiseCompletions* lc) {
     std::string input(buf);
 
-    // Extract the last word being typed
-    size_t last_space = input.find_last_of(" \t\n");
-    std::string prefix = (last_space == std::string::npos) ? input : input.substr(last_space + 1);
+    // Extract the last token being typed
+    size_t last_delim = input.find_last_of(" \t\n(,=");
+    std::string prefix = (last_delim == std::string::npos) ? input : input.substr(last_delim + 1);
+    std::string before = (last_delim == std::string::npos) ? "" : input.substr(0, last_delim + 1);
 
     if (prefix.empty()) return;
 
-    // Suggest keywords
-    for (const auto& keyword : g_keywords) {
-        if (keyword.find(prefix) == 0) {  // Starts with prefix
-            linenoiseAddCompletion(lc, (input.substr(0, last_space + 1) + keyword).c_str());
+    // REPL commands (when input starts with :)
+    if (input[0] == ':') {
+        for (const auto& cmd : g_repl_commands) {
+            if (cmd.find(input) == 0) {
+                linenoiseAddCompletion(lc, cmd.c_str());
+            }
+        }
+        return;
+    }
+
+    // Dot notation: "module.func"
+    size_t dot_pos = prefix.find('.');
+    if (dot_pos != std::string::npos) {
+        std::string module_name = prefix.substr(0, dot_pos);
+        std::string func_prefix = prefix.substr(dot_pos + 1);
+        auto it = g_stdlib_functions.find(module_name);
+        if (it != g_stdlib_functions.end()) {
+            for (const auto& func : it->second) {
+                if (func.find(func_prefix) == 0) {
+                    linenoiseAddCompletion(lc, (before + module_name + "." + func).c_str());
+                }
+            }
+        }
+        return;
+    }
+
+    // Keywords
+    for (const auto& kw : g_keywords) {
+        if (kw.find(prefix) == 0) {
+            linenoiseAddCompletion(lc, (before + kw).c_str());
         }
     }
 
-    // TODO: Suggest variable names from environment when accessible
-    // TODO: Suggest function names
+    // Stdlib module names
+    for (const auto& mod : g_stdlib_modules) {
+        if (mod.find(prefix) == 0) {
+            linenoiseAddCompletion(lc, (before + mod).c_str());
+        }
+    }
+
+    // User-defined symbols from REPL history
+    for (const auto& sym : g_user_symbols) {
+        if (sym.find(prefix) == 0) {
+            linenoiseAddCompletion(lc, (before + sym).c_str());
+        }
+    }
+
+    // User-defined symbols from interpreter environment
+    if (g_interpreter) {
+        auto env = g_interpreter->getGlobalEnv();
+        if (env) {
+            for (const auto& name : env->getAllNames()) {
+                if (name.find(prefix) == 0) {
+                    linenoiseAddCompletion(lc, (before + name).c_str());
+                }
+            }
+        }
+    }
 }
 
 // History hints callback
@@ -138,6 +269,7 @@ public:
             in_multiline_ = false;
 
             if (!accumulated_input.empty()) {
+                extractUserSymbols(accumulated_input);
                 executeInputIncremental(accumulated_input);
             }
 
@@ -192,6 +324,7 @@ private:
             new (&interpreter_) interpreter::Interpreter();
             statement_count_ = 0;
             total_exec_time_ms_ = 0;
+            g_user_symbols.clear();
             fmt::print("State reset complete\n");
         } else if (cmd == ":stats") {
             printStats();

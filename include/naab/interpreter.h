@@ -448,6 +448,7 @@ public:
     // Phase 6: Async execution support
     void setGlobalEnv(std::shared_ptr<Environment> env) { global_env_ = env; }
     void setCurrentEnv(std::shared_ptr<Environment> env) { current_env_ = env; }
+    std::shared_ptr<Environment> getGlobalEnv() const { return global_env_; }
     std::shared_ptr<Value> executeBodyInEnv(ast::CompoundStmt& body, std::shared_ptr<Environment> env);
 
     // Call a function value with arguments (for higher-order functions)
