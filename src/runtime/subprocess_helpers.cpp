@@ -1,27 +1,24 @@
 // NAAb Subprocess Helpers Implementation
 // Contains common utility functions for executing subprocesses
 //
-// Uses system() with temp file output capture. On Android, system() is the
-// most reliable way to run subprocesses from a multi-threaded process because
-// bionic's system() implementation handles CFI shadow memory correctly.
-// Both posix_spawn() and popen() fail with SIGABRT in the same context.
+// Uses fork()/execvp() for subprocess execution. This avoids shell
+// interpretation entirely, preventing command injection vulnerabilities.
+// Arguments are passed directly to the kernel via execvp's argv array.
 
 #include "naab/subprocess_helpers.h"
 #include "naab/paths.h"
-#include <cstdio>       // For FILE, fopen, fclose, fprintf, tmpnam
-#include <array>        // For std::array
-#include <stdexcept>    // For std::runtime_error
-#include <fmt/core.h>   // For fmt::print
-#include <sstream>      // For std::istringstream
+#include <cstdio>       // For FILE, fopen, fclose, fprintf
+#include <fmt/core.h>   // For fmt::format
+#include <sstream>      // For std::ostringstream
 #include <fstream>      // For std::ifstream
 
-#include <unistd.h>     // For unlink, getpid
-#include <sys/wait.h>   // For WIFEXITED, WEXITSTATUS, WIFSIGNALED
+#include <unistd.h>     // For fork, execvp, dup2, unlink, getpid, _exit
+#include <sys/wait.h>   // For waitpid, WIFEXITED, WEXITSTATUS, WIFSIGNALED
 #include <sys/resource.h> // For getrlimit, RLIMIT_AS
 #include <vector>       // For std::vector
 #include <map>          // For std::map
 #include <cstring>      // For strsignal
-#include <cstdlib>      // For system, mkstemp
+#include <cstdlib>      // For mkstemp, environ
 #include <cerrno>       // For errno
 
 namespace naab {
@@ -110,8 +107,8 @@ static std::string buildMemoryLimitError(
 // Helper to execute a subprocess and capture its stdout/stderr
 // Returns exit code, fills stdout_str and stderr_str
 //
-// Uses system() which is the most reliable subprocess mechanism on Android.
-// Output is captured via temp files to avoid pipe-related issues.
+// Uses fork()/execvp() to avoid shell interpretation (no command injection).
+// Output is captured via temp files redirected with dup2().
 //
 // IMPORTANT: If this function returns -1 with SIGABRT, check stderr for
 // memory limit diagnostics. Process-wide RLIMIT_AS is the #1 cause of
@@ -140,36 +137,68 @@ int execute_subprocess_with_pipes(
         close(stderr_fd);
     }
 
-    // Build full command string
-    std::string full_command;
-
-    // If custom environment provided, prepend env vars
-    if (env) {
-        for (const auto& pair : *env) {
-            full_command += pair.first + "='" + pair.second + "' ";
-        }
-    }
-
-    // Add command path
-    full_command += command_path;
-
-    // Add arguments with single-quote escaping
+    // Build argv array for execvp (no shell interpretation)
+    std::vector<const char*> argv;
+    argv.push_back(command_path.c_str());
     for (const auto& arg : args) {
-        full_command += " '";
-        for (char c : arg) {
-            if (c == '\'') {
-                full_command += "'\\''";
-            } else {
-                full_command += c;
-            }
+        argv.push_back(arg.c_str());
+    }
+    argv.push_back(nullptr);
+
+    // Build envp array if custom environment provided
+    std::vector<std::string> env_strings;
+    std::vector<const char*> envp;
+    bool use_custom_env = false;
+    if (env && !env->empty()) {
+        use_custom_env = true;
+        // Inherit current environment
+        for (char** e = environ; *e != nullptr; ++e) {
+            env_strings.push_back(*e);
         }
-        full_command += "'";
+        // Add/override with custom vars
+        for (const auto& pair : *env) {
+            env_strings.push_back(pair.first + "=" + pair.second);
+        }
+        for (const auto& s : env_strings) {
+            envp.push_back(s.c_str());
+        }
+        envp.push_back(nullptr);
     }
 
-    // Redirect stdout and stderr to temp files
-    full_command += " >" + stdout_tmp + " 2>" + stderr_tmp;
+    // Fork and exec (avoids shell interpretation — no command injection possible)
+    pid_t pid = fork();
+    if (pid == -1) {
+        // Fork failed
+        unlink(stdout_tmp.c_str());
+        unlink(stderr_tmp.c_str());
+        size_t mem_limit = getActiveMemoryLimitMB();
+        std::string error_msg = buildMemoryLimitError(command_path, 0, mem_limit);
+        fprintf(stderr, "%s\n", error_msg.c_str());
+        return -1;
+    }
 
-    int status = system(full_command.c_str());
+    if (pid == 0) {
+        // Child process: redirect stdout/stderr to temp files
+        FILE* out = fopen(stdout_tmp.c_str(), "w");
+        FILE* err = fopen(stderr_tmp.c_str(), "w");
+        if (out) { dup2(fileno(out), STDOUT_FILENO); fclose(out); }
+        if (err) { dup2(fileno(err), STDERR_FILENO); fclose(err); }
+
+        if (use_custom_env) {
+            execve(command_path.c_str(),
+                   const_cast<char* const*>(argv.data()),
+                   const_cast<char* const*>(envp.data()));
+        } else {
+            execvp(command_path.c_str(),
+                   const_cast<char* const*>(argv.data()));
+        }
+        // exec failed
+        _exit(127);
+    }
+
+    // Parent process: wait for child
+    int status = 0;
+    waitpid(pid, &status, 0);
 
     // Read captured output
     stdout_str = readFileContents(stdout_tmp);
@@ -178,15 +207,6 @@ int execute_subprocess_with_pipes(
     // Clean up temp files
     unlink(stdout_tmp.c_str());
     unlink(stderr_tmp.c_str());
-
-    if (status == -1) {
-        // system() itself failed (couldn't fork)
-        // Check if a process-wide memory limit is blocking fork/exec
-        size_t mem_limit = getActiveMemoryLimitMB();
-        std::string error_msg = buildMemoryLimitError(command_path, 0, mem_limit);
-        fprintf(stderr, "%s\n", error_msg.c_str());
-        return -1;
-    }
 
     if (WIFEXITED(status)) {
         return WEXITSTATUS(status);
