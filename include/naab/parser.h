@@ -118,6 +118,7 @@ private:
     std::unique_ptr<ast::Expr> parsePrimary();
     std::unique_ptr<ast::Expr> parseIfExpr();
     std::unique_ptr<ast::Expr> parseMatchExpr();
+    std::unique_ptr<ast::Expr> parseAwaitExpr();
     std::unique_ptr<ast::Expr> parseLambdaExpr();
 
     // Type parsing

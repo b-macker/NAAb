@@ -197,6 +197,10 @@ void MatchExpr::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void AwaitExpr::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 void Program::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }

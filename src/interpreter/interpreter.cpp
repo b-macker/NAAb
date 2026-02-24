@@ -69,6 +69,8 @@ static std::string getTypeName(const std::shared_ptr<Value>& val) {
             return "function";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
             return "struct";
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) {
+            return "future";
         }
         return "unknown";
     }, val->data);
@@ -231,6 +233,8 @@ std::string Value::toString() const {
             }
             result += " }";
             return result;
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) {
+            return "<Future:" + arg->description + ">";
         }
         return "unknown";
     }, data);
@@ -674,6 +678,59 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     }
     auto& func = *func_ptr;
 
+    // Phase 6: Async function — launch on separate thread, return FutureValue
+    if (func->is_async) {
+        // Validate args synchronously first
+        size_t min_args_check = 0;
+        for (size_t i = 0; i < func->params.size(); i++) {
+            if (!func->defaults[i]) min_args_check = i + 1;
+        }
+        if (args.size() < min_args_check || args.size() > func->params.size()) {
+            throw std::runtime_error(
+                "Function " + func->name + " expects " + std::to_string(min_args_check) +
+                "-" + std::to_string(func->params.size()) + " arguments, got " + std::to_string(args.size())
+            );
+        }
+
+        // Build environment for async execution
+        auto parent_env = func->closure ? func->closure : global_env_;
+        auto func_env = std::make_shared<Environment>(parent_env);
+        for (size_t i = 0; i < args.size(); i++) {
+            func_env->define(func->params[i], args[i]);
+        }
+        // Bind defaults for missing args
+        for (size_t i = args.size(); i < func->params.size(); i++) {
+            if (func->defaults[i]) {
+                auto saved_env = current_env_;
+                current_env_ = func_env;
+                func->defaults[i]->accept(*this);
+                auto default_val = result_;
+                current_env_ = saved_env;
+                func_env->define(func->params[i], default_val);
+            }
+        }
+
+        // Capture what the async body needs
+        auto body = func->body;
+        auto global = global_env_;
+        auto func_name = func->name;
+
+        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name]() -> std::shared_ptr<Value> {
+            Interpreter async_interp;
+            async_interp.setGlobalEnv(global);
+            try {
+                return async_interp.executeBodyInEnv(*body, func_env);
+            } catch (const std::exception& e) {
+                throw std::runtime_error("Error in async " + func_name + ": " + e.what());
+            }
+        }).share();
+
+        auto future_val = std::make_shared<FutureValue>();
+        future_val->future = shared_future;
+        future_val->description = "async fn " + func->name;
+        return std::make_shared<Value>(future_val);
+    }
+
     // Check parameter count
     size_t min_args = 0;
     for (size_t i = 0; i < func->params.size(); i++) {
@@ -771,6 +828,27 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     auto return_value = result_;
     returning_ = saved_returning;
 
+    return return_value;
+}
+
+// Phase 6: Execute a function body in a given environment (for async)
+std::shared_ptr<Value> Interpreter::executeBodyInEnv(ast::CompoundStmt& body, std::shared_ptr<Environment> env) {
+    auto saved_env = current_env_;
+    auto saved_returning = returning_;
+    current_env_ = env;
+    returning_ = false;
+
+    try {
+        executeStmt(body);
+    } catch (...) {
+        current_env_ = saved_env;
+        returning_ = saved_returning;
+        throw;
+    }
+
+    current_env_ = saved_env;
+    auto return_value = result_;
+    returning_ = saved_returning;
     return return_value;
 }
 
@@ -1578,7 +1656,8 @@ void Interpreter::visit(ast::FunctionDecl& node) {
         return_type,   // Phase 2.4.4 Phase 2: Use inferred return type
         node.getLocation().filename,  // Phase 3.1: Source file for stack traces
         node.getLocation().line,  // Phase 3.1: Line number for stack traces
-        current_env_  // ISS-022: Capture closure for module imports
+        current_env_,  // ISS-022: Capture closure for module imports
+        node.isAsync()  // Phase 6: async function flag
     );
 
     // Store in environment
@@ -1999,6 +2078,27 @@ void Interpreter::visit(ast::MatchExpr& node) {
         "        _ => \"default\"\n"
         "    }\n"
     );
+}
+
+void Interpreter::visit(ast::AwaitExpr& node) {
+    auto value = eval(*node.getExpr());
+
+    // If it's a FutureValue, block until resolved
+    auto* future_ptr = std::get_if<std::shared_ptr<FutureValue>>(&value->data);
+    if (future_ptr && *future_ptr) {
+        try {
+            result_ = (*future_ptr)->future.get();
+        } catch (const std::exception& e) {
+            throw std::runtime_error(
+                "Await error: " + (*future_ptr)->description + " failed\n\n"
+                "  Cause: " + std::string(e.what()) + "\n"
+            );
+        }
+        return;
+    }
+
+    // Await on non-future = pass through (identity)
+    result_ = value;
 }
 
 void Interpreter::visit(ast::LambdaExpr& node) {

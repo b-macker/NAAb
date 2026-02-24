@@ -16,6 +16,7 @@
 #include <Python.h>
 #include <chrono>
 #include <filesystem>
+#include <future>
 #include <memory>
 #include <string>
 #include <vector>
@@ -82,6 +83,7 @@ struct FunctionValue {
     std::string source_file;  // Phase 3.1: Source file for stack traces
     int source_line;  // Phase 3.1: Line number for stack traces
     std::shared_ptr<Environment> closure;  // ISS-022: Closure environment for lexical scoping
+    bool is_async = false;  // Phase 6: async function flag
 
     FunctionValue(const std::string& n,
                   const std::vector<std::string>& p,
@@ -92,8 +94,9 @@ struct FunctionValue {
                   ast::Type rt = ast::Type::makeAny(),
                   std::string sf = "",
                   int sl = 0,
-                  std::shared_ptr<Environment> cls = nullptr)
-        : name(n), params(p), param_types(std::move(pt)), defaults(std::move(d)), body(b), type_parameters(std::move(tp)), return_type(std::move(rt)), source_file(std::move(sf)), source_line(sl), closure(cls) {}
+                  std::shared_ptr<Environment> cls = nullptr,
+                  bool async = false)
+        : name(n), params(p), param_types(std::move(pt)), defaults(std::move(d)), body(b), type_parameters(std::move(tp)), return_type(std::move(rt)), source_file(std::move(sf)), source_line(sl), closure(cls), is_async(async) {}
 };
 
 // Python object wrapper for method chaining
@@ -312,6 +315,12 @@ struct EnumDef {
     }
 };
 
+// Future value for async function results
+struct FutureValue {
+    std::shared_future<std::shared_ptr<Value>> future;
+    std::string description;  // for error messages (e.g., "async fn fetch_data")
+};
+
 // Runtime value types
 using ValueData = std::variant<
     std::monostate,  // void/null (index 0)
@@ -324,7 +333,8 @@ using ValueData = std::variant<
     std::shared_ptr<BlockValue>,  // block (index 7)
     std::shared_ptr<FunctionValue>,  // function (index 8)
     std::shared_ptr<PythonObjectValue>,  // python object (index 9)
-    std::shared_ptr<StructValue>  // struct (index 10)
+    std::shared_ptr<StructValue>,  // struct (index 10)
+    std::shared_ptr<FutureValue>  // future (index 11) - Phase 6: async/await
 >;
 
 class Value {
@@ -342,6 +352,7 @@ public:
     explicit Value(std::shared_ptr<FunctionValue> v) : data(std::move(v)) {}
     explicit Value(std::shared_ptr<PythonObjectValue> v) : data(std::move(v)) {}
     explicit Value(std::shared_ptr<StructValue> v) : data(std::move(v)) {}
+    explicit Value(std::shared_ptr<FutureValue> v) : data(std::move(v)) {}
 
     std::string toString() const;
     bool toBool() const;
@@ -410,6 +421,7 @@ public:
     void visit(ast::IfStmt& node) override;
     void visit(ast::IfExpr& node) override;
     void visit(ast::MatchExpr& node) override;
+    void visit(ast::AwaitExpr& node) override;
     void visit(ast::LambdaExpr& node) override;
     void visit(ast::ForStmt& node) override;
     void visit(ast::WhileStmt& node) override;
@@ -432,6 +444,11 @@ public:
 
     // Get last evaluated value
     std::shared_ptr<Value> getResult() const { return result_; }
+
+    // Phase 6: Async execution support
+    void setGlobalEnv(std::shared_ptr<Environment> env) { global_env_ = env; }
+    void setCurrentEnv(std::shared_ptr<Environment> env) { current_env_ = env; }
+    std::shared_ptr<Value> executeBodyInEnv(ast::CompoundStmt& body, std::shared_ptr<Environment> env);
 
     // Call a function value with arguments (for higher-order functions)
     std::shared_ptr<Value> callFunction(std::shared_ptr<Value> fn,

@@ -1,0 +1,67 @@
+// Test: async/await support
+
+main {
+    let pass = 0
+    let fail = 0
+
+    // Test 1: Basic async function
+    async fn compute() {
+        return 42
+    }
+    let future = compute()
+    let result = await future
+    if result == 42 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 1: got " + result) }
+
+    // Test 2: Await on non-future (identity)
+    let x = await 10
+    if x == 10 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 2: got " + x) }
+
+    // Test 3: Async function with parameters
+    async fn add(a, b) {
+        return a + b
+    }
+    let f3 = add(3, 4)
+    let r3 = await f3
+    if r3 == 7 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 3: got " + r3) }
+
+    // Test 4: Multiple async calls
+    let f4a = add(10, 20)
+    let f4b = add(30, 40)
+    let r4a = await f4a
+    let r4b = await f4b
+    if r4a == 30 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 4a: got " + r4a) }
+    if r4b == 70 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 4b: got " + r4b) }
+
+    // Test 5: Await inline (no intermediate variable)
+    let r5 = await compute()
+    if r5 == 42 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 5: got " + r5) }
+
+    // Test 6: Async with string return
+    async fn greet(name) {
+        return "Hello, " + name + "!"
+    }
+    let r6 = await greet("World")
+    if r6 == "Hello, World!" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 6: got " + r6) }
+
+    // Test 7: Async with conditional
+    async fn classify(n) {
+        if n > 0 { return "positive" }
+        if n < 0 { return "negative" }
+        return "zero"
+    }
+    let r7 = await classify(-5)
+    if r7 == "negative" { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 7: got " + r7) }
+
+    // Test 8: Multiple awaits on same future (shared_future)
+    let shared = compute()
+    let r8a = await shared
+    let r8b = await shared
+    if r8a == 42 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 8a: got " + r8a) }
+    if r8b == 42 { pass = pass + 1 } else { fail = fail + 1; print("FAIL test 8b: got " + r8b) }
+
+    print("")
+    print("=== Async/Await Tests ===")
+    print("PASS: " + ("" + pass))
+    print("FAIL: " + ("" + fail))
+    if fail == 0 { print("All tests passed!") }
+}

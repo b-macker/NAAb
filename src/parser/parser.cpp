@@ -1164,6 +1164,12 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
         }
         // Otherwise fall through to expression statement (lambda or variable call)
     }
+    // Handle async function declarations inside blocks
+    if (check(lexer::TokenType::ASYNC)) {
+        auto func_decl = parseFunctionDecl();
+        auto loc = func_decl->getLocation();
+        return std::make_unique<ast::FunctionDeclStmt>(std::move(func_decl), loc);
+    }
     // Handle nested struct declarations
     if (check(lexer::TokenType::STRUCT)) {
         auto struct_decl = parseStructDecl();
@@ -2119,6 +2125,8 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         current().type != lexer::TokenType::THROW &&
         current().type != lexer::TokenType::FINALLY &&
         current().type != lexer::TokenType::MATCH &&
+        current().type != lexer::TokenType::ASYNC &&
+        current().type != lexer::TokenType::AWAIT &&
         isAllowedNameToken(current().type)) {
         // Keyword token being used as a variable name in expression context
         auto& token = current();
@@ -2181,6 +2189,28 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         parser_context_->in_dict_literal = false;
 
         return std::make_unique<ast::DictExpr>(std::move(pairs), ast::SourceLocation());
+    }
+
+    // Await expression: await expr
+    // Disambiguate: `await expr` = await expression, `await` alone (followed by ), }, ,, newline) = variable name
+    if (check(lexer::TokenType::AWAIT)) {
+        if (pos_ + 1 < tokens_.size()) {
+            auto next_type = tokens_[pos_ + 1].type;
+            if (next_type != lexer::TokenType::RPAREN &&
+                next_type != lexer::TokenType::RBRACE &&
+                next_type != lexer::TokenType::COMMA &&
+                next_type != lexer::TokenType::NEWLINE &&
+                next_type != lexer::TokenType::SEMICOLON &&
+                next_type != lexer::TokenType::END_OF_FILE) {
+                return parseAwaitExpr();
+            }
+        }
+        // `await` used as a variable name (e.g., `let await = "pending"; print(await)`)
+        auto& tok = current();
+        std::string name = tok.value;
+        ast::SourceLocation loc(tok.line, tok.column, filename_);
+        advance();
+        return std::make_unique<ast::IdentifierExpr>(name, loc);
     }
 
     // Match expression: match value { pattern => expr, ... }
@@ -2314,6 +2344,19 @@ std::unique_ptr<ast::Expr> Parser::parseIfExpr() {
         std::move(condition),
         std::move(then_expr),
         std::move(else_expr),
+        ast::SourceLocation(start.line, start.column, filename_)
+    );
+}
+
+// Await expression: await expr
+std::unique_ptr<ast::Expr> Parser::parseAwaitExpr() {
+    auto start = current();
+    expect(lexer::TokenType::AWAIT, "Expected 'await'");
+
+    auto expr = parseLogicalOr();
+
+    return std::make_unique<ast::AwaitExpr>(
+        std::move(expr),
         ast::SourceLocation(start.line, start.column, filename_)
     );
 }

@@ -21,6 +21,7 @@ class InlineCodeExpr;
 class IfExpr;
 class LambdaExpr;
 class MatchExpr;
+class AwaitExpr;
 
 // Source location for error reporting
 struct SourceLocation {
@@ -81,6 +82,7 @@ enum class NodeKind {
     IfExpr,               // If expression: if cond { expr } else { expr }
     LambdaExpr,           // Anonymous function: function(params) { body }
     MatchExpr,            // Match expression: match value { pattern => expr, ... }
+    AwaitExpr,            // Await expression: await future_expr
 };
 
 class ASTNode {
@@ -1031,6 +1033,23 @@ private:
     std::vector<MatchArm> arms_;
 };
 
+// Await expression: await expr
+class AwaitExpr : public Expr {
+public:
+    AwaitExpr(std::unique_ptr<Expr> expr,
+              SourceLocation loc = SourceLocation())
+        : Expr(NodeKind::AwaitExpr, loc),
+          expr_(std::move(expr)) {}
+
+    Expr* getExpr() { return expr_.get(); }
+
+    Type getType() const override { return Type::makeVoid(); }
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::unique_ptr<Expr> expr_;
+};
+
 // ============================================================================
 // Program (top-level)
 // ============================================================================
@@ -1169,6 +1188,10 @@ public:
     virtual void visit(MatchExpr& node) {
         (void)node;
         throw std::runtime_error("MatchExpr not supported by this visitor");
+    }
+    virtual void visit(AwaitExpr& node) {
+        (void)node;
+        throw std::runtime_error("AwaitExpr not supported by this visitor");
     }
     // Phase 2.4.3: Enum support
     virtual void visit(EnumDecl& node) {
