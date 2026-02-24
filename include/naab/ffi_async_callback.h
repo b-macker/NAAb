@@ -5,6 +5,7 @@
 
 #include "naab/value.h"
 #include <string>
+#include <stdexcept>
 #include <functional>
 #include <future>
 #include <chrono>

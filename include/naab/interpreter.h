@@ -5,6 +5,7 @@
 
 #include "naab/ast.h"
 #include "naab/block_loader.h"
+#include <stdexcept>
 #include "naab/stdlib.h"
 #include "naab/cpp_executor.h"
 #include "naab/language_registry.h"

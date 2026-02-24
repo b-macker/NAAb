@@ -7,6 +7,7 @@
 #include <vector>
 #include <unordered_set>
 #include <memory>
+#include <stdexcept>
 
 namespace naab {
 namespace security {

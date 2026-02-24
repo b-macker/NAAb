@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <stdexcept>
 #include <functional>
 
 namespace naab {
