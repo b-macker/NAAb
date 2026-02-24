@@ -5,202 +5,217 @@
 [![CodeQL](https://github.com/b-macker/NAAb/actions/workflows/codeql.yml/badge.svg)](https://github.com/b-macker/NAAb/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A polyglot programming language that seamlessly integrates Python, JavaScript, Rust, C++, and other languages through an innovative block system. Write once, execute in any language.
+**A polyglot programming language** that seamlessly integrates Python, JavaScript, Rust, C++, Go, and more through an innovative block system. Use the best language for each task — in a single file.
+
+```naab
+main {
+    // Use Python's ML libraries directly
+    let prediction = <<python
+import numpy as np
+model = np.array([1.2, 3.4, 5.6])
+float(model.mean())
+>>
+
+    // Process with Rust for performance
+    let formatted = <<rust
+fn main() {
+    let val = std::env::args().last().unwrap();
+    println!("Result: {:.2}", val.parse::<f64>().unwrap());
+}
+>>
+
+    print(prediction)  // 3.4
+}
+```
 
 ---
 
-## Features
+## Why NAAb?
 
-### Core Language
-- **Type System** - Union types, type inference, type annotations
-- **Modern Syntax** - Clean, expressive syntax with automatic semicolon insertion
-- **Structs & Enums** - First-class data structures
-- **Module System** - Clean imports with alias support
-
-### Polyglot Blocks
-- **Multi-Language Execution** - Seamlessly call Python, JavaScript, Rust, C++, Go, Ruby, Shell, and more
-- **Block Library** - Pre-built block registry for common operations across languages
-- **Type-Safe Bridges** - Automatic marshalling between language boundaries
-
-### Developer Experience
-- **LSP Server** - Full IDE support with autocomplete, hover, go-to-definition, diagnostics
-- **VS Code Extension** - Syntax highlighting, IntelliSense, debugging support
-- **Auto-Formatter** - `naab-lang fmt` for consistent code style
-- **Linter** - Static analysis and code quality checks
-- **Debugger** - Built-in debugging with breakpoints and variable inspection
-
-### Standard Library
-- **File I/O** - Read, write, list directories
-- **HTTP Client** - RESTful API calls with request/response handling
-- **JSON** - Parse and stringify with full type conversion
-- **String Utilities** - Split, join, trim, replace, regex support
-- **Math** - Comprehensive math functions and constants
-- **Time** - High-precision timing, timestamps, sleep functions
-- **Collections** - Advanced array and dictionary operations
-- **CSV** - Parse and generate CSV files
-- **Crypto** - Hashing (MD5, SHA-256), HMAC, Base64
-- **Regex** - Full regular expression support
-- **Environment** - Access environment variables and process info
+- **Use any language where it shines** — Python for data science, Rust for performance, JavaScript for web, Go for concurrency
+- **No FFI boilerplate** — Variables flow between languages automatically
+- **One project, many languages** — No microservices needed for polyglot architectures
+- **Modern language features** — Pattern matching, async/await, lambdas, closures
+- **325 tests passing** across 12 stdlib modules
 
 ---
 
 ## Quick Start
 
-### Installation
-
 ```bash
-# Clone the repository
-git clone https://github.com/b-macker/NAAb.git
+# Clone and build
+git clone --recursive https://github.com/b-macker/NAAb.git
 cd NAAb
-
-# Build
 mkdir build && cd build
-cmake ..
-make -j$(nproc)
+cmake .. -G Ninja
+ninja naab-lang -j$(nproc)
 
-# Install (optional)
-sudo make install
+# Run a file
+./naab-lang hello.naab
 ```
 
 ### Hello World
 
 ```naab
-fn greet(name: string) -> string {
-    return "Hello, " + name + "!"
-}
-
 main {
-    let message = greet("World")
-    print(message)
+    let name = "World"
+    print("Hello, " + name + "!")
 }
 ```
 
-### Polyglot Example
+### Pattern Matching
 
 ```naab
 main {
-    let data = [1, 2, 3, 4, 5]
+    let status = 404
 
-    // Execute Python code with variable binding
-    let result = <<python[data]
-import statistics
-statistics.mean(data)
->>
+    let message = match status {
+        200 => "OK"
+        404 => "Not Found"
+        500 => "Server Error"
+        _ => "Unknown"
+    }
 
-    print("Average: " + result)
+    print(message)  // "Not Found"
 }
 ```
 
-### More Examples
+### Async/Await
 
-See the [examples/](examples/) directory for:
-- Multi-language analytics
-- API server
-- Web scraper
-- Data pipeline
-- Enterprise applications
+```naab
+main {
+    async fn fetch_data() {
+        return "data loaded"
+    }
+
+    async fn process() {
+        return "processed"
+    }
+
+    let data = await fetch_data()
+    let result = await process()
+    print(data + " -> " + result)
+}
+```
+
+### Polyglot Blocks
+
+```naab
+main {
+    let numbers = [10, 20, 30, 40, 50]
+
+    // Python: statistical analysis
+    let stats = <<python[numbers]
+import statistics
+result = {
+    "mean": statistics.mean(numbers),
+    "stdev": statistics.stdev(numbers)
+}
+str(result)
+>>
+
+    // JavaScript: format as HTML
+    let html = <<javascript
+const data = "Stats: mean=30, stdev=15.81";
+`<div class="result">${data}</div>`;
+>>
+
+    print(stats)
+    print(html)
+}
+```
+
+### Standard Library
+
+```naab
+main {
+    // JSON
+    let data = json.parse('{"name": "NAAb", "version": "0.2.0"}')
+    print(data["name"])
+
+    // HTTP
+    let response = http.get("https://api.github.com/repos/b-macker/NAAb")
+    print(json.parse(response)["stargazers_count"])
+
+    // File I/O
+    file.write("output.txt", "Hello from NAAb!")
+
+    // Math
+    print(math.sqrt(144))  // 12
+
+    // String operations
+    let words = string.split("hello world", " ")
+    print(string.upper(words[0]))  // "HELLO"
+}
+```
 
 ---
 
-## Documentation
+## Features
 
-- **[The NAAb Book](docs/book/)** - Comprehensive language reference (21 chapters)
-- **[Quick Start](docs/book/QUICK_START.md)** - Get up and running fast
-- **[User Guide](USER_GUIDE.md)** - Complete language guide
-- **[Contributing](docs/CONTRIBUTING.md)** - Contributor guidelines
+### Language
+- Variables, constants, functions, closures, lambdas
+- Pattern matching with `match` expressions
+- Async/await for concurrent execution
+- If expressions (`let x = if cond { a } else { b }`)
+- Structs, enums, classes
+- Module system with imports
+- Error handling with try/catch/throw
+
+### Polyglot Execution
+- **9 languages:** Python, JavaScript, Rust, C++, Go, C#, Ruby, PHP, Shell
+- Variable binding between languages
+- Parallel polyglot execution with dependency analysis
+- Persistent sub-runtime contexts
+- JSON sovereign pipe for structured data return
+- Automatic error mapping with source locations
+
+### Standard Library (12 modules)
+`array` `string` `math` `time` `env` `file` `io` `json` `http` `csv` `regex` `crypto`
+
+### Developer Tools
+- Interactive REPL with tab completion and history
+- "Did you mean?" suggestions for typos
+- Detailed error messages with examples
+- LLM-friendly syntax (keyword aliases, semicolons optional)
 
 ---
 
 ## Architecture
 
-- **Parser** - Hand-written recursive descent parser with full AST
-- **Type Checker** - Bidirectional type inference
-- **Interpreter** - Tree-walking interpreter with optimized execution
-- **Memory Model** - Automatic memory management with RAII and smart pointers
-- **Cross-Language Bridge** - FFI layer with type-safe marshalling
-- **LSP Server** - JSON-RPC protocol with caching and debouncing
+```
+Source Code (.naab)
+    |
+  Lexer ──> Tokens
+    |
+  Parser ──> AST (recursive descent)
+    |
+  Interpreter (visitor pattern)
+    |
+  ├── Native execution (NAAb code)
+  ├── Python executor (C API)
+  ├── JavaScript executor (QuickJS)
+  ├── Go/Rust/C++/C# executors (compile & run)
+  └── Shell executor (subprocess)
+```
 
-### Statistics
-- **10,000+** lines of C++ code
-- **308/350** tests passing (308 pass + 42 expected failures = 100%)
-- **325** mono test assertions passing (0 failures)
-- **7** LSP capabilities implemented
+- **15,000+** lines of C++17
+- **185** test files, **325** mono test assertions
 - **12** standard library modules
-
----
-
-## Development
-
-### Build Requirements
-- CMake 3.15+
-- C++17 compiler (GCC 7+, Clang 5+, MSVC 2017+)
-- Python 3.7+ (for polyglot blocks)
-- Node.js 14+ (for JavaScript blocks)
-- Rust 1.50+ (optional, for Rust blocks)
-
-### Running Tests
-
-```bash
-cd build
-ctest --output-on-failure
-
-# Or run specific test suites
-./naab_unit_tests
-./lsp_integration_test
-```
-
-### Code Formatting
-
-```bash
-# Format all NAAb code
-naab-lang fmt src/**/*.naab
-
-# Format specific file
-naab-lang fmt examples/hello_world.naab
-```
-
-### LSP Server
-
-```bash
-# Build LSP server
-cmake --build build --target naab-lsp
-
-# Use with VS Code
-# Install the vscode-naab extension
-```
+- Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
-
-### How to Contribute
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions and guidelines.
 
 ### Areas for Contribution
-- Standard library modules
-- Language features (pattern matching, async/await)
 - Performance optimizations
-- Documentation and examples
+- New standard library modules
+- Documentation and tutorials
 - IDE integrations (Vim, Emacs, IntelliJ)
 - Package manager implementation
-
----
-
-## Project Status
-
-**Phase 1:**  Syntax & Parser - 100% Complete
-**Phase 2:**  Type System - 100% Complete
-**Phase 3:**  Memory Management - 100% Complete
-**Phase 4:**  Tooling (LSP, Formatter, Linter, Debugger) - 80% Complete
-**Phase 5:**  Standard Library - 100% Complete (12 modules)
-
-See [docs/](docs/) for detailed documentation.
 
 ---
 
@@ -208,44 +223,8 @@ See [docs/](docs/) for detailed documentation.
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-Copyright © 2026 Brandon Mackert
+**Brandon Mackert** - [@b-macker](https://github.com/b-macker)
 
 ---
 
-## Author
-
-**Brandon Mackert**
-
-- GitHub: [@b-macker](https://github.com/b-macker)
-- Repository: [NAAb](https://github.com/b-macker/NAAb)
-- Created: 2026
-
----
-
-## Acknowledgments
-
-- **Implementation Assistance:** Claude (Anthropic)
-- **Inspiration:** Rust, Python, TypeScript, Go
-- **Dependencies:**
-  - nlohmann/json - JSON parsing
-  - fmtlib - String formatting
-  - Google Test - Testing framework
-
----
-
-## Links
-
-- **Documentation:** [docs/](docs/)
-- **Examples:** [examples/](examples/)
-- **Issue Tracker:** GitHub Issues
-- **Discussions:** GitHub Discussions
-
----
-
-## Star History
-
-If you find NAAb useful, please consider giving it a star on GitHub!
-
----
-
-**NAAb** - _Because polyglot programming should be seamless._
+_NAAb - Because polyglot programming should be seamless._
