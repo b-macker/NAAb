@@ -4,6 +4,7 @@
 #include "naab/profiler.h"
 #include <fmt/core.h>
 #include <algorithm>
+#include <limits>
 #include <sstream>
 
 namespace naab {

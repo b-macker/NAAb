@@ -13,6 +13,7 @@
 #include "naab/cross_language_bridge.h"  // For struct serialization
 #include "naab/python_interpreter_manager.h"  // For main interpreter management
 #include <fmt/core.h>
+#include <sstream>
 #include <stdexcept>
 #include <unordered_map>
 

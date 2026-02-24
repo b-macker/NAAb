@@ -1,6 +1,7 @@
 #include "naab/tamper_evident_logger.h"
 #include "naab/audit_logger.h"
 #include "naab/crypto_utils.h"
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <iomanip>

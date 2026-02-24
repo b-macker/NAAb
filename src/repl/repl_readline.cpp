@@ -7,6 +7,7 @@
 #include "naab/paths.h"
 #include <fmt/core.h>
 #include <string>
+#include <sstream>
 #include <vector>
 #include <cstring>
 #include <new>  // For placement new
