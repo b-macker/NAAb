@@ -17,7 +17,9 @@
 #include <Python.h>
 #include <chrono>
 #include <filesystem>
+#include <functional>
 #include <future>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
