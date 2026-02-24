@@ -1130,67 +1130,72 @@ message(STATUS "  ✓ Exception handling test")
 # ============================================================================
 message(STATUS "Configuring GoogleTest...")
 
-# Disable GoogleTest warnings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
-set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
-
-# Add GoogleTest
-add_subdirectory(external/googletest EXCLUDE_FROM_ALL)
-
-enable_testing()
+# Add GoogleTest (optional - submodule may not be initialized)
+if(EXISTS "${CMAKE_SOURCE_DIR}/external/googletest/CMakeLists.txt")
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+    add_subdirectory(external/googletest EXCLUDE_FROM_ALL)
+    set(HAVE_GOOGLETEST ON)
+    enable_testing()
+else()
+    message(STATUS "  ⚠ GoogleTest not found (unit tests disabled)")
+    set(HAVE_GOOGLETEST OFF)
+endif()
 
 # ============================================================================
 # Unit Tests with GoogleTest
 # ============================================================================
-message(STATUS "Configuring unit tests...")
+if(HAVE_GOOGLETEST)
+    message(STATUS "Configuring unit tests...")
 
-# Create test executable
-add_executable(naab_unit_tests
-    tests/unit/lexer_test.cpp
-    tests/unit/parser_test.cpp
-    tests/unit/interpreter_test.cpp
-    tests/unit/type_system_test.cpp
-    tests/unit/stdlib_test.cpp
-    tests/unit/struct_test.cpp
-    tests/unit/interpreter_struct_test.cpp
-    tests/unit/parser_struct_test.cpp
-    tests/unit/rust_ffi_test.cpp
-    tests/unit/error_categories_test.cpp
-    tests/unit/suggestion_system_test.cpp
-    tests/unit/stack_tracer_test.cpp
-    tests/unit/safe_time_test.cpp
-    tests/unit/secure_string_test.cpp
-    tests/unit/safe_regex_test.cpp  # Phase 1 Item 7: Regex timeout tests
-    tests/unit/tamper_evident_logger_test.cpp  # Phase 1 Item 8: Tamper-evident logging tests
-    tests/unit/ffi_callback_validator_test.cpp  # Phase 1 Item 9: FFI callback safety tests
-    tests/unit/ffi_async_callback_test.cpp  # Phase 1 Item 10 Day 4: FFI async callback safety tests
-    tests/unit/polyglot_async_test.cpp  # Phase 1 Item 10 Day 5: Polyglot async integration tests
-)
+    # Create test executable
+    add_executable(naab_unit_tests
+        tests/unit/lexer_test.cpp
+        tests/unit/parser_test.cpp
+        tests/unit/interpreter_test.cpp
+        tests/unit/type_system_test.cpp
+        tests/unit/stdlib_test.cpp
+        tests/unit/struct_test.cpp
+        tests/unit/interpreter_struct_test.cpp
+        tests/unit/parser_struct_test.cpp
+        tests/unit/rust_ffi_test.cpp
+        tests/unit/error_categories_test.cpp
+        tests/unit/suggestion_system_test.cpp
+        tests/unit/stack_tracer_test.cpp
+        tests/unit/safe_time_test.cpp
+        tests/unit/secure_string_test.cpp
+        tests/unit/safe_regex_test.cpp  # Phase 1 Item 7: Regex timeout tests
+        tests/unit/tamper_evident_logger_test.cpp  # Phase 1 Item 8: Tamper-evident logging tests
+        tests/unit/ffi_callback_validator_test.cpp  # Phase 1 Item 9: FFI callback safety tests
+        tests/unit/ffi_async_callback_test.cpp  # Phase 1 Item 10 Day 4: FFI async callback safety tests
+        tests/unit/polyglot_async_test.cpp  # Phase 1 Item 10 Day 5: Polyglot async integration tests
+    )
 
-# Link GoogleTest and NAAb libraries
-target_link_libraries(naab_unit_tests
-    gtest_main
-    gtest
-    naab_lexer
-    naab_parser
-    naab_interpreter
-    naab_runtime
-    naab_stdlib
-    naab_semantic
-    naab_security  # For SafeRegex tests
-    naab_manifest  # For manifest loader
-    fmt::fmt
-    spdlog::spdlog
-)
+    # Link GoogleTest and NAAb libraries
+    target_link_libraries(naab_unit_tests
+        gtest_main
+        gtest
+        naab_lexer
+        naab_parser
+        naab_interpreter
+        naab_runtime
+        naab_stdlib
+        naab_semantic
+        naab_security  # For SafeRegex tests
+        naab_manifest  # For manifest loader
+        fmt::fmt
+        spdlog::spdlog
+    )
 
-# Add test discovery
-# Note: gtest_discover_tests disabled due to Termux permission issues
-# include(GoogleTest)
-# gtest_discover_tests(naab_unit_tests)
+    # Add test discovery
+    # Note: gtest_discover_tests disabled due to Termux permission issues
+    # include(GoogleTest)
+    # gtest_discover_tests(naab_unit_tests)
 
-message(STATUS "  ✓ Unit tests configured")
-message(STATUS "  Run tests with: ./build/naab_unit_tests")
+    message(STATUS "  ✓ Unit tests configured")
+    message(STATUS "  Run tests with: ./build/naab_unit_tests")
+endif()
 
 # ============================================================================
 # Fuzzing Infrastructure (Week 2: Security Hardening Sprint)
