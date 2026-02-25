@@ -251,4 +251,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-_NAAb — I'm not hallucinating, I'm polyglot._
+_NAAb — Polyglot without the trip._
