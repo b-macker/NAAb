@@ -251,4 +251,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-_NAAb - Because polyglot programming should be seamless._
+_NAAb — I'm not hallucinating, I'm polyglot._
