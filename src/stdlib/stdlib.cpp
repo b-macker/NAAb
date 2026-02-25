@@ -362,6 +362,7 @@ void StdLib::registerModules() {
     modules_["crypto"] = std::make_shared<CryptoModule>();
     modules_["file"] = std::make_shared<FileModule>();
     modules_["debug"] = std::make_shared<DebugModule>();
+    modules_["bolo"] = std::make_shared<BoloModule>();
 }
 
 std::shared_ptr<Module> StdLib::getModule(const std::string& name) const {

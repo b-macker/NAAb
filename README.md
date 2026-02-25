@@ -203,6 +203,31 @@ main {
 
 See [Chapter 21: Governance](docs/book/chapter21.md) for the full reference.
 
+### NAAb BOLO — Standalone Governance Tool
+
+**[NAAb BOLO](https://github.com/b-macker/naab-bolo)** ("Be On the Lookout") is a standalone code governance platform built 100% in NAAb. It uses polyglot blocks to pick the best language for every task:
+
+- **Rust** for fast parallel file walking (10x faster than Python `os.walk`)
+- **C++** for regex pattern matching (50+ checks at native speed)
+- **Python** for tool orchestration (flake8, bandit, pytest), HTML reports, and AI governance
+- **NAAb** for CLI parsing, profile management, and orchestration
+
+```bash
+# Scan for governance violations
+naab-lang bolo.naab scan ./src --profile enterprise
+
+# Generate SARIF report for CI
+naab-lang bolo.naab report ./src --format sarif --output results.sarif
+
+# Run enforcement pipeline
+naab-lang bolo.naab enforce ./src --stage ci
+
+# AI governance validation
+naab-lang bolo.naab ai-check ./ml-models
+```
+
+5 scripts, 4 languages, 50+ checks, 64 regression tests. [Get started](https://github.com/b-macker/naab-bolo).
+
 ---
 
 ## Architecture

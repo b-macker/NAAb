@@ -526,7 +526,7 @@ Interpreter::Interpreter()
                stdlib_->listModules().size());
 
     // Auto-import stdlib prelude (core modules available without 'use')
-    std::vector<std::string> prelude_modules = {"array", "string", "io", "file", "debug"};
+    std::vector<std::string> prelude_modules = {"array", "string", "io", "file", "debug", "bolo", "env"};
     for (const auto& mod_name : prelude_modules) {
         if (stdlib_->hasModule(mod_name)) {
             auto module = stdlib_->getModule(mod_name);
@@ -5958,8 +5958,13 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     if (code_uses_naab_return) {
         std::string helper;
         if (language == "python") {
-            // Python: naab_return returns data directly — CPython eval captures the return value
-            helper = "def naab_return(data):\n    return data\n";
+            if (!return_type.empty()) {
+                // Python with -> JSON: naab_return prints to stdout for StringIO capture
+                helper = "def naab_return(data):\n    import json as __nrj\n    print(__nrj.dumps(data) if not isinstance(data, str) else data)\n";
+            } else {
+                // Python without -> JSON: naab_return returns data for CPython eval capture
+                helper = "def naab_return(data):\n    return data\n";
+            }
         } else if (language == "javascript" || language == "js") {
             // JS/QuickJS: naab_return just returns data — IIFE wrapping makes it the return value
             helper = "function naab_return(data) { return data; }\n";
