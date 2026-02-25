@@ -14,6 +14,7 @@
 #include "naab/module_system.h"    // Phase 4.0: Module registry
 #include "naab/error_reporter.h"    // Phase 3.1: Enhanced error messages
 #include "naab/suggestion_system.h" // Phase 3.1: "Did you mean?" suggestions
+#include "naab/governance.h"        // Governance engine for govern.json enforcement
 #include <Python.h>
 #include <chrono>
 #include <filesystem>
@@ -500,6 +501,12 @@ public:
     void setScriptArgs(const std::vector<std::string>& args) { script_args_ = args; }
     const std::vector<std::string>& getScriptArgs() const { return script_args_; }
 
+    // Governance engine support
+    governance::GovernanceEngine* getGovernance() const { return governance_.get(); }
+    void setGovernanceOverride(bool enabled) {
+        if (governance_) governance_->setOverrideEnabled(enabled);
+    }
+
 private:
     std::shared_ptr<Environment> global_env_;
     std::shared_ptr<Environment> current_env_;
@@ -574,6 +581,9 @@ private:
 
     // Loop depth tracking for break/continue validation
     int loop_depth_;
+
+    // Governance engine (loaded from govern.json)
+    std::unique_ptr<governance::GovernanceEngine> governance_;
 
     // Phase 12: Persistent sub-runtime contexts
     // Maps runtime name -> {language, executor, code_buffer (for subprocess langs)}

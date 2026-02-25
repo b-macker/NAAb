@@ -1,0 +1,8 @@
+// Test: Governance v3.0 - path traversal detection (should error)
+main {
+    let result = <<python
+path = "../../etc/passwd"
+print("Reading: " + path)
+>>
+    print(result)
+}

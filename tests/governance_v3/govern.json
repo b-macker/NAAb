@@ -1,0 +1,215 @@
+{
+  "version": "3.0",
+  "mode": "enforce",
+  "description": "Comprehensive v3.0 governance test config",
+
+  "languages": {
+    "allowed": ["python", "javascript"],
+    "blocked": ["shell"],
+    "per_language": {
+      "python": {
+        "timeout": 15,
+        "max_lines": 100,
+        "banned_functions": ["eval(", "exec(", "compile("],
+        "imports": {
+          "mode": "blocklist",
+          "blocked": ["subprocess", "ctypes", "os.system"]
+        }
+      },
+      "javascript": {
+        "timeout": 10,
+        "max_lines": 80,
+        "banned_functions": ["eval(", "Function("],
+        "imports": {
+          "mode": "blocklist",
+          "blocked": ["child_process", "fs"]
+        }
+      }
+    }
+  },
+
+  "capabilities": {
+    "network": {
+      "enabled": false
+    },
+    "filesystem": {
+      "mode": "read"
+    },
+    "shell": {
+      "enabled": false
+    }
+  },
+
+  "limits": {
+    "timeout": {
+      "global": 30,
+      "per_block": 15
+    },
+    "execution": {
+      "call_depth": 50,
+      "polyglot_blocks": 20
+    },
+    "data": {
+      "array_size": 10000,
+      "string_length": 100000
+    },
+    "code": {
+      "max_lines_per_block": 200,
+      "max_nesting_depth": 8
+    }
+  },
+
+  "requirements": {
+    "main_block": {
+      "level": "soft",
+      "message": "Programs should have a main block"
+    }
+  },
+
+  "restrictions": {
+    "dangerous_calls": {
+      "level": "hard"
+    },
+    "shell_injection": {
+      "level": "hard"
+    },
+    "privilege_escalation": {
+      "level": "hard"
+    },
+    "imports": {
+      "level": "soft",
+      "mode": "blocklist",
+      "blocked": {
+        "python": ["subprocess", "ctypes", "pickle"],
+        "javascript": ["child_process", "fs", "net"]
+      }
+    }
+  },
+
+  "code_quality": {
+    "no_secrets": {
+      "level": "hard",
+      "entropy_check": {
+        "enabled": true,
+        "threshold": 4.5,
+        "min_length": 20
+      }
+    },
+    "no_placeholders": {
+      "level": "soft",
+      "markers": ["TODO", "FIXME", "STUB", "PLACEHOLDER", "HACK"]
+    },
+    "no_hardcoded_results": {
+      "level": "advisory"
+    },
+    "no_pii": {
+      "level": "advisory",
+      "detect_ssn": true,
+      "detect_credit_card": true,
+      "detect_email": true
+    },
+    "no_temporary_code": {
+      "level": "soft"
+    },
+    "no_simulation_markers": {
+      "level": "hard"
+    },
+    "no_debug_artifacts": {
+      "level": "soft"
+    },
+    "no_unsafe_deserialization": {
+      "level": "hard"
+    },
+    "no_sql_injection": {
+      "level": "hard"
+    },
+    "no_path_traversal": {
+      "level": "hard"
+    },
+    "no_mock_data": {
+      "level": "advisory"
+    },
+    "no_dead_code": {
+      "level": "advisory"
+    },
+    "encoding": {
+      "level": "advisory",
+      "block_null_bytes": true,
+      "block_unicode_bidi": true
+    },
+    "no_oversimplification": {
+      "level": "hard",
+      "check_empty_bodies": true,
+      "check_trivial_returns": true,
+      "check_identity_functions": true,
+      "check_not_implemented": true,
+      "check_comment_only_bodies": true,
+      "check_fabricated_results": true
+    },
+    "no_incomplete_logic": {
+      "level": "hard",
+      "check_empty_catch": true,
+      "check_swallowed_exceptions": true,
+      "check_generic_errors": true,
+      "check_bare_raise": true,
+      "check_always_true_false": true
+    },
+    "no_hallucinated_apis": {
+      "level": "soft",
+      "check_cross_language": true,
+      "check_made_up_functions": true,
+      "check_wrong_syntax": true
+    }
+  },
+
+  "custom_rules": [
+    {
+      "id": "CUSTOM-001",
+      "name": "no_eval_python",
+      "description": "Prevent eval() in Python",
+      "pattern": "\\beval\\s*\\(",
+      "languages": ["python"],
+      "level": "hard",
+      "message": "eval() is forbidden - use ast.literal_eval() or json.loads()",
+      "enabled": true
+    },
+    {
+      "id": "CUSTOM-002",
+      "name": "no_print_debug",
+      "description": "No debug print statements",
+      "pattern": "print\\(.*[Dd]ebug",
+      "languages": [],
+      "level": "advisory",
+      "message": "Debug print statements should be removed",
+      "enabled": true
+    }
+  ],
+
+  "output": {
+    "summary": {
+      "enabled": true,
+      "format": "detailed",
+      "show_passing": true
+    },
+    "errors": {
+      "verbose": true,
+      "show_help": true,
+      "max_errors_per_rule": 3
+    }
+  },
+
+  "audit": {
+    "level": "basic",
+    "log_events": {
+      "checks_passed": true,
+      "checks_failed": true
+    }
+  },
+
+  "meta": {
+    "schema_validation": {
+      "warn_unknown_keys": true,
+      "suggest_corrections": true
+    }
+  }
+}

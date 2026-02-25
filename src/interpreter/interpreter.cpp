@@ -592,6 +592,9 @@ Interpreter::Interpreter()
     cycle_detector_ = std::make_unique<CycleDetector>();
     LOG_DEBUG("[INFO] Garbage collector initialized (threshold: {} allocations)\n", gc_threshold_);
 
+    // Initialize governance engine (will be loaded when setSourceCode is called)
+    governance_ = std::make_unique<governance::GovernanceEngine>();
+
     // Issue #3: Set global interpreter pointer for stdlib path resolution
     g_current_interpreter = this;
 
@@ -630,6 +633,19 @@ void Interpreter::setSourceCode(const std::string& source, const std::string& fi
     if (!filename.empty() && file_context_stack_.empty()) {
         pushFileContext(filename);
     }
+
+    // Governance: Discover and load govern.json from script directory
+    if (governance_ && !filename.empty()) {
+        auto dir = std::filesystem::path(current_file_).parent_path();
+        if (governance_->discoverAndLoad(dir.string())) {
+            auto mode = governance_->getMode();
+            std::string mode_str = (mode == governance::GovernanceMode::ENFORCE) ? "enforce"
+                                 : (mode == governance::GovernanceMode::AUDIT)   ? "audit"
+                                 : "off";
+            fprintf(stderr, "[governance] Loaded: %s (mode: %s)\n",
+                    governance_->getLoadedPath().c_str(), mode_str.c_str());
+        }
+    }
 }
 
 void Interpreter::execute(ast::Program& program) {
@@ -645,11 +661,21 @@ std::shared_ptr<Value> Interpreter::eval(ast::Expr& expr) {
 std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
                                                   const std::vector<std::shared_ptr<Value>>& args) {
     // Week 1, Task 1.3: Check call depth to prevent stack overflow
-    if (++call_depth_ > limits::MAX_CALL_STACK_DEPTH) {
+    // Governance: Use governance call depth limit if configured
+    size_t max_depth = limits::MAX_CALL_STACK_DEPTH;
+    if (governance_ && governance_->isActive()) {
+        auto& rules = governance_->getRules();
+        if (rules.max_call_depth > 0) {
+            max_depth = static_cast<size_t>(rules.max_call_depth);
+        }
+        std::string err = governance_->checkCallDepth(call_depth_ + 1);
+        if (!err.empty()) throw std::runtime_error(err);
+    }
+    if (++call_depth_ > max_depth) {
         --call_depth_;
         throw limits::RecursionLimitException(
             "Call stack depth exceeded: " +
-            std::to_string(call_depth_) + " > " + std::to_string(limits::MAX_CALL_STACK_DEPTH)
+            std::to_string(call_depth_) + " > " + std::to_string(max_depth)
         );
     }
 
@@ -945,9 +971,51 @@ void Interpreter::visit(ast::Program& node) {
         export_stmt->accept(*this);
     }
 
+    // Governance: Check require_main_block before execution
+    if (governance_ && governance_->isActive() && governance_->requiresMainBlock()) {
+        if (!node.getMainBlock()) {
+            auto level = governance_->getRules().main_block_level;
+            std::string err = governance_->checkLanguageAllowed("__main_block_check__");
+            // Use enforce directly via a check
+            std::string msg = "Governance error: Program requires a main {{ }} block ["
+                + std::string(level == governance::EnforcementLevel::HARD ? "HARD-MANDATORY" :
+                              level == governance::EnforcementLevel::SOFT ? "SOFT-MANDATORY" : "ADVISORY")
+                + "]\n\n"
+                "  Rule (govern.json): requirements.main_block\n\n"
+                "  Help:\n"
+                "  - All programs must have a main {{ }} block when governance requires it\n"
+                "  - Wrap your top-level code in: main {{ ... }}\n\n"
+                "  Example:\n"
+                "    main {{\n"
+                "        let x = 42\n"
+                "        print(x)\n"
+                "    }}\n";
+            if (level == governance::EnforcementLevel::HARD) {
+                throw std::runtime_error(msg);
+            } else if (level == governance::EnforcementLevel::SOFT) {
+                if (!governance_->isOverrideEnabled()) {
+                    throw std::runtime_error(msg + "\n  To override: run with --governance-override\n");
+                }
+                fprintf(stderr, "[governance] OVERRIDE requirements.main_block: %s\n", msg.c_str());
+            } else {
+                fprintf(stderr, "[governance] WARNING requirements.main_block: Program has no main block\n");
+            }
+        }
+    }
+
     // Execute main block if present
     if (node.getMainBlock()) {
         node.getMainBlock()->accept(*this);
+    }
+
+    // Governance: Print execution summary and write reports
+    if (governance_ && governance_->isActive()) {
+        std::string summary = governance_->formatSummary();
+        if (!summary.empty()) {
+            fprintf(stderr, "\n%s\n", summary.c_str());
+        }
+        // Write any configured report files (JSON, SARIF, JUnit, CSV, HTML)
+        governance_->writeReports();
     }
 }
 
@@ -4051,6 +4119,24 @@ void Interpreter::visit(ast::CallExpr& node) {
                     LOG_TRACE("[STDLIB] Calling {}.{}() with {} args\n",
                               module_alias, func_name, args.size());
 
+                    // Governance: Check capability restrictions on stdlib calls
+                    if (governance_ && governance_->isActive()) {
+                        // Network check for http module
+                        if (module_alias == "http") {
+                            std::string err = governance_->checkNetworkAllowed();
+                            if (!err.empty()) throw std::runtime_error(err);
+                        }
+                        // Filesystem check for file module
+                        if (module_alias == "file") {
+                            // file.read → read mode, everything else → write mode
+                            std::string fs_mode = (func_name == "read" || func_name == "read_lines"
+                                                   || func_name == "exists" || func_name == "size")
+                                                  ? "read" : "write";
+                            std::string err = governance_->checkFilesystemAllowed(fs_mode);
+                            if (!err.empty()) throw std::runtime_error(err);
+                        }
+                    }
+
                     // Call the stdlib function
                     result_ = module->call(func_name, args);
                     LOG_TRACE("[SUCCESS] Stdlib function returned\n");
@@ -5805,6 +5891,14 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         throw std::runtime_error("No executor found for language: " + language);
     }
 
+    // Governance v3.0: Comprehensive polyglot block check
+    if (governance_ && governance_->isActive()) {
+        int line = node.getLocation().line;
+        std::string err = governance_->checkPolyglotBlock(
+            language, raw_code, current_file_, line);
+        if (!err.empty()) throw std::runtime_error(err);
+    }
+
     // Phase 2.2: Bind variables using string serialization
     std::string var_declarations;
 
@@ -5971,6 +6065,11 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     // Enterprise Security: Activate sandbox for polyglot execution
     auto& sandbox_manager = security::SandboxManager::instance();
     security::SandboxConfig sandbox_config = sandbox_manager.getDefaultConfig();
+
+    // Governance: Override timeout if governance specifies one
+    if (governance_ && governance_->isActive() && governance_->getTimeoutSeconds() > 0) {
+        sandbox_config.max_cpu_seconds = governance_->getTimeoutSeconds();
+    }
 
     security::ScopedSandbox scoped_sandbox(sandbox_config);
 

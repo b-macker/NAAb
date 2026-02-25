@@ -1,0 +1,9 @@
+// Test: Governance v3.0 - custom rule detection (should error from CUSTOM-001)
+main {
+    let result = <<python
+user_input = "{'key': 'value'}"
+data = eval(user_input)
+print(data)
+>>
+    print(result)
+}

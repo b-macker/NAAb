@@ -1,0 +1,4 @@
+// Test: No govern.json = no restrictions
+main {
+    print("PASS: no_governance_restrictions")
+}

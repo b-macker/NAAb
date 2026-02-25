@@ -48,6 +48,17 @@ NAAb provides sandboxing controls for running untrusted code:
 | `--memory-limit <MB>` | `512` | Memory limit per polyglot block |
 | `--allow-network` | disabled | Enable network access for polyglot blocks |
 
+### 16.1.4 Governance Options
+
+NAAb includes a built-in governance engine for enforcing project policies. See [Chapter 21](chapter21.md) for the full reference.
+
+| Flag | Description |
+|------|-------------|
+| `--governance-override` | Override SOFT-level governance rules (HARD rules cannot be overridden) |
+| `--governance-report <path>` | Write JSON governance report to file |
+| `--governance-sarif <path>` | Write SARIF report (for GitHub Code Scanning / IDE integration) |
+| `--governance-junit <path>` | Write JUnit XML report (for CI pipelines) |
+
 **Example Usage:**
 
 ```bash

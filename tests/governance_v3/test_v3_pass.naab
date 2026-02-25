@@ -1,0 +1,10 @@
+// Test: Governance v3.0 - clean code passes all checks
+main {
+    let result = <<python
+import json
+data = {"name": "test", "value": 42}
+print(json.dumps(data))
+>>
+    print("Result: " + result)
+    print("PASS: governance_v3_clean")
+}

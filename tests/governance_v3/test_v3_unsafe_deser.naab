@@ -1,0 +1,9 @@
+// Test: Governance v3.0 - unsafe deserialization detection (should error)
+main {
+    let result = <<python
+import pickle
+data = pickle.loads(b"test")
+print(data)
+>>
+    print(result)
+}

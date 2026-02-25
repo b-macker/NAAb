@@ -1,0 +1,9 @@
+// Test: Governance v3.0 - blocked import detection (should error)
+main {
+    let result = <<python
+import subprocess
+output = subprocess.check_output(["ls"])
+print(output)
+>>
+    print(result)
+}

@@ -31,6 +31,7 @@
 #include "naab/sandbox.h"
 #include "naab/resource_limits.h"
 #include "naab/stdlib.h"  // For setPipeMode()
+#include "naab/governance.h"  // For governance report CLI flags
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -169,6 +170,11 @@ void print_usage() {
     fmt::print("  --no-color                          Disable colored error messages\n");
     fmt::print("  --pipe                              Pipe mode: io.write() → stderr,\n");
     fmt::print("                                      io.output() → stdout (for JSON)\n");
+    fmt::print("\nGovernance Options:\n");
+    fmt::print("  --governance-override               Override soft-mandatory governance rules\n");
+    fmt::print("  --governance-report <path>          Write JSON governance report to file\n");
+    fmt::print("  --governance-sarif <path>           Write SARIF governance report to file\n");
+    fmt::print("  --governance-junit <path>           Write JUnit governance report to file\n");
     fmt::print("\nSecurity Options:\n");
     fmt::print("  --sandbox-level <level>             Security: restricted|standard|elevated|unrestricted\n");
     fmt::print("                                      (default: standard - safe for enterprise)\n");
@@ -203,14 +209,18 @@ int main(int argc, char** argv) {
     }
 
     // Pre-scan for global flags that can appear before the command
-    // e.g., `naab-lang --pipe script.naab` or `naab-lang --pipe run script.naab`
+    // e.g., `naab-lang --pipe script.naab` or `naab-lang --governance-override script.naab`
     bool global_pipe_mode = false;
+    bool global_governance_override = false;
     int command_arg_index = 1;  // Index of the actual command/file in argv
 
     while (command_arg_index < argc) {
         std::string arg(argv[command_arg_index]);
         if (arg == "--pipe") {
             global_pipe_mode = true;
+            command_arg_index++;
+        } else if (arg == "--governance-override") {
+            global_governance_override = true;
             command_arg_index++;
         } else {
             break;  // Found the command or file
@@ -260,6 +270,10 @@ int main(int argc, char** argv) {
         bool no_color = false;
         bool debug = false;
         bool pipe_mode = global_pipe_mode;  // Inherit from global pre-scan
+        bool governance_override = global_governance_override;
+        std::string governance_report_json;
+        std::string governance_report_sarif;
+        std::string governance_report_junit;
         std::string sandbox_level = "unrestricted";  // Default: full language power
         unsigned int timeout = 30;
         size_t memory_limit = 512;
@@ -292,6 +306,14 @@ int main(int argc, char** argv) {
                 memory_limit = std::stoull(argv[++i]);
             } else if (arg == "--allow-network") {
                 network_enabled = true;
+            } else if (arg == "--governance-override") {
+                governance_override = true;
+            } else if (arg == "--governance-report" && i + 1 < argc) {
+                governance_report_json = argv[++i];
+            } else if (arg == "--governance-sarif" && i + 1 < argc) {
+                governance_report_sarif = argv[++i];
+            } else if (arg == "--governance-junit" && i + 1 < argc) {
+                governance_report_junit = argv[++i];
             } else if (arg.substr(0, 2) == "--") {
                 // Unknown flag — give helpful error instead of treating as filename
                 fmt::print("Error: Unknown flag '{}'\n\n"
@@ -305,7 +327,11 @@ int main(int argc, char** argv) {
                            "    --sandbox-level <L>   Security level\n"
                            "    --timeout <seconds>   Execution timeout per block\n"
                            "    --memory-limit <MB>   Memory limit per block\n"
-                           "    --allow-network       Enable network access\n\n"
+                           "    --allow-network       Enable network access\n"
+                           "    --governance-override Override soft-mandatory governance rules\n"
+                           "    --governance-report <path>  Write JSON governance report\n"
+                           "    --governance-sarif <path>   Write SARIF governance report\n"
+                           "    --governance-junit <path>   Write JUnit governance report\n\n"
                            "  Note: There is no --path flag. NAAb resolves modules relative to\n"
                            "  the script's directory. To use modules from another location,\n"
                            "  place the script in or near the modules directory, or use\n"
@@ -415,6 +441,9 @@ int main(int argc, char** argv) {
             interpreter.setProfileMode(profile);
             interpreter.setExplainMode(explain);
             interpreter.setScriptArgs(script_args);  // ISS-028: Pass script arguments
+            if (governance_override) {
+                interpreter.setGovernanceOverride(true);
+            }
 
             // Phase 4.2: Enable interactive debugger
             if (debug) {
@@ -431,6 +460,21 @@ int main(int argc, char** argv) {
 
             // Phase 3.1: Set source code for enhanced error messages
             interpreter.setSourceCode(source, filename);
+
+            // CLI governance report path overrides (after govern.json is loaded)
+            if (!governance_report_json.empty() || !governance_report_sarif.empty() ||
+                !governance_report_junit.empty()) {
+                auto* gov = interpreter.getGovernance();
+                if (gov) {
+                    auto& rules = gov->getMutableRules();
+                    if (!governance_report_json.empty())
+                        rules.output.file_output.report_json = governance_report_json;
+                    if (!governance_report_sarif.empty())
+                        rules.output.file_output.report_sarif = governance_report_sarif;
+                    if (!governance_report_junit.empty())
+                        rules.output.file_output.report_junit = governance_report_junit;
+                }
+            }
 
             interpreter.execute(*program);
 

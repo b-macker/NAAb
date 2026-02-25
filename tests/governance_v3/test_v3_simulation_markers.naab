@@ -1,0 +1,9 @@
+// Test: Governance v3.0 - simulation marker detection (should error)
+main {
+    let result = <<python
+# Simulated execution for testing
+data = "fake data that would be real in production"
+print(data)
+>>
+    print(result)
+}

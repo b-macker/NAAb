@@ -1,0 +1,31 @@
+{
+  "mode": "enforce",
+
+  "languages": {
+    "allowed": ["python", "javascript"],
+    "blocked": ["shell"]
+  },
+  "capabilities": {
+    "network": false,
+    "filesystem": "read",
+    "shell": false
+  },
+  "limits": {
+    "timeout": 10,
+    "call_depth": 50
+  },
+  "requirements": {
+    "main_block": "soft"
+  },
+  "restrictions": {
+    "dangerous_calls": "hard"
+  },
+  "code_quality": {
+    "no_secrets": "hard",
+    "no_placeholders": "soft",
+    "no_hardcoded_results": "advisory"
+  },
+  "audit": {
+    "level": "basic"
+  }
+}

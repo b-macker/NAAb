@@ -1,0 +1,9 @@
+// Test: Governance v3.0 - SQL injection detection (should error)
+main {
+    let result = <<python
+user_input = "admin"
+query = "SELECT * FROM users WHERE name = '" + user_input + "'"
+print(query)
+>>
+    print(result)
+}

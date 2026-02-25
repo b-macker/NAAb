@@ -1,0 +1,8 @@
+// Test: Governance v3.0 - banned function detection (should error)
+main {
+    let result = <<python
+data = eval("1 + 2")
+print(data)
+>>
+    print(result)
+}

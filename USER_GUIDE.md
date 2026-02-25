@@ -819,6 +819,34 @@ import * as math from "./utils/math_helpers.naab"
 
 ---
 
+## Governance
+
+NAAb includes a built-in governance engine that enforces project-level policies on polyglot code blocks. Place a `govern.json` file in your project directory to enable it.
+
+### Quick Example
+
+```json
+{
+  "version": "3.0",
+  "mode": "enforce",
+  "code_quality": {
+    "no_secrets": { "level": "hard" },
+    "no_oversimplification": { "level": "soft" },
+    "no_hallucinated_apis": { "level": "advisory" }
+  }
+}
+```
+
+Key features:
+- **50+ built-in checks** for security, code quality, and LLM anti-drift
+- **Three enforcement levels**: HARD (block), SOFT (overridable), ADVISORY (warn)
+- **CI/CD integration** via `--governance-sarif` and `--governance-junit` flags
+- **Custom rules** with regex patterns for project-specific policies
+
+For the full governance reference, see [Chapter 21: Governance and LLM Code Quality](docs/book/chapter21.md).
+
+---
+
 ## Next Steps
 
 - Read the [NAAb Book](docs/book/) for comprehensive documentation (21 chapters)

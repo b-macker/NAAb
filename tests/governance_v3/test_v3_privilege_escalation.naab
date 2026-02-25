@@ -1,0 +1,8 @@
+// Test: Governance v3.0 - privilege escalation detection (should error)
+main {
+    let result = <<python
+import os
+os.system("sudo rm -rf /")
+>>
+    print(result)
+}

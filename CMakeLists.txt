@@ -328,10 +328,14 @@ add_library(naab_security
     src/runtime/crypto_utils.cpp
     src/runtime/audit_logger.cpp
     src/runtime/sandbox.cpp
+    src/runtime/governance.cpp               # Governance engine for govern.json enforcement
     src/utils/safe_regex.cpp                 # Phase 1 Item 7: Regex timeout protection
     src/runtime/tamper_evident_logger.cpp    # Phase 1 Item 8: Tamper-evident logging
     src/runtime/ffi_callback_validator.cpp   # Phase 1 Item 9: FFI callback safety
     src/runtime/ffi_async_callback.cpp       # Phase 1 Item 10: FFI async callback safety
+)
+target_include_directories(naab_security PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
 )
 target_link_libraries(naab_security
     fmt::fmt

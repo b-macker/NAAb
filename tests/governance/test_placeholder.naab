@@ -1,0 +1,8 @@
+// Test: Governance - placeholder detection (soft-mandatory)
+main {
+    let result = <<python
+# TODO: implement real logic
+print("placeholder test")
+>>
+    print(result)
+}

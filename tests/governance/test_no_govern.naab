@@ -1,0 +1,5 @@
+// Test: No govern.json = no restrictions
+// This file is in a directory without govern.json (run from parent)
+main {
+    print("PASS: no_governance_restrictions")
+}

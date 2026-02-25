@@ -1,0 +1,8 @@
+// Test: Governance - blocked language should produce error
+main {
+    // Shell is blocked in govern.json
+    let result = <<shell
+    echo "this should be blocked"
+    >>
+    print(result)
+}

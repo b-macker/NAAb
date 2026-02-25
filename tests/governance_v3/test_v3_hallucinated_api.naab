@@ -1,0 +1,9 @@
+// Test: Governance v3.0 - hallucinated API detection (should warn/error)
+main {
+    let result = <<python
+data = [1, 2, 3]
+data.push(4)
+length = data.length
+>>
+    print(result)
+}

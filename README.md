@@ -36,6 +36,7 @@ fn main() {
 - **No FFI boilerplate** — Variables flow between languages automatically
 - **One project, many languages** — No microservices needed for polyglot architectures
 - **Modern language features** — Pattern matching, async/await, lambdas, closures
+- **Built-in LLM governance** — Detect oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code
 - **325 tests passing** across 12 stdlib modules
 
 ---
@@ -178,6 +179,29 @@ main {
 - "Did you mean?" suggestions for typos
 - Detailed error messages with examples
 - LLM-friendly syntax (keyword aliases, semicolons optional)
+
+### Governance Engine
+- **Policy-as-code** via `govern.json` — control languages, APIs, code quality
+- **LLM anti-drift checks** — detect stubs, hallucinated APIs, incomplete error handling
+- **Three enforcement levels** — HARD (block), SOFT (overridable), ADVISORY (warn)
+- **50+ built-in checks** — secrets, SQL injection, path traversal, privilege escalation, and more
+- **Custom rules** — define your own regex-based governance rules
+- **CI/CD integration** — SARIF, JUnit XML, and JSON report output
+
+```json
+// govern.json — detect common LLM failures
+{
+  "version": "3.0",
+  "mode": "enforce",
+  "code_quality": {
+    "no_oversimplification": { "level": "hard" },
+    "no_incomplete_logic": { "level": "hard" },
+    "no_hallucinated_apis": { "level": "soft" }
+  }
+}
+```
+
+See [Chapter 21: Governance](docs/book/chapter21.md) for the full reference.
 
 ---
 

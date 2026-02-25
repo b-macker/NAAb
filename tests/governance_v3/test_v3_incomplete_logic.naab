@@ -1,0 +1,10 @@
+// Test: Governance v3.0 - incomplete logic detection (should error)
+main {
+    let result = <<python
+try:
+    data = open("file.txt").read()
+except:
+    pass
+>>
+    print(result)
+}

@@ -26,6 +26,18 @@ Currently, NAAb supports defining and using generic structs and functions with t
 *   **Variadic Generics**: Support functions that accept a variable number of type arguments.
 *   **Advanced Type Inference**: Further reduce the need for explicit type annotations in complex scenarios.
 
+### 20.1.4 Governance Engine (Implemented)
+
+The governance engine is now available in NAAb v3.0. It provides policy-as-code enforcement for polyglot blocks via `govern.json`, with 50+ built-in checks including:
+
+- **Security checks**: Secret detection, SQL injection, path traversal, privilege escalation, shell injection, unsafe deserialization
+- **Code quality checks**: Placeholder detection, dead code, debug artifacts, mock data, simulation markers
+- **LLM anti-drift checks**: Oversimplification detection, incomplete logic detection, hallucinated API detection with "did you mean?" suggestions
+- **Custom rules**: User-defined regex-based governance rules
+- **CI/CD integration**: SARIF, JUnit XML, and JSON report output
+
+See [Chapter 21: Governance and LLM Code Quality](chapter21.md) for the full reference.
+
 ## 20.2 The Tooling Roadmap
 
 A rich tooling ecosystem is paramount for developer productivity. NAAb has ambitious plans to provide a comprehensive suite of development tools.

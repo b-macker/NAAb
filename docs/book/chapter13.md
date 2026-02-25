@@ -205,3 +205,9 @@ NAAb's implementation addresses these safety categories:
 | Cryptographic Safety | Deferred to host language implementations | N/A |
 
 For the complete safety checklist with 192 individual items across 14 categories, see the project's security documentation.
+
+## 13.6 Policy-Based Governance
+
+In addition to the security architecture described above, NAAb provides a **governance engine** that enforces project-level policies via a `govern.json` configuration file. The governance system provides 50+ configurable checks including secret detection, SQL injection prevention, privilege escalation blocking, and LLM-specific anti-drift checks that detect oversimplified code, incomplete logic, and hallucinated APIs.
+
+For the complete governance reference, see [Chapter 21: Governance and LLM Code Quality](chapter21.md).

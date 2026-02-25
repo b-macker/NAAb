@@ -1,0 +1,7 @@
+// Test: Governance - compliant program (all rules pass)
+// This program uses only allowed languages and follows all rules
+main {
+    let x = 42
+    print("Governance test: " + x)
+    print("PASS: governance_compliant")
+}
