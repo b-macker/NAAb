@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAAb — Polyglot Programming Language with Built-in LLM Governance</title>
+    <meta name="description" content="NAAb is a polyglot programming language that integrates Python, JavaScript, Rust, C++ and more with built-in LLM governance — detecting oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.">
+    <meta name="keywords" content="polyglot programming language, LLM governance, AI code quality, hallucinated APIs, code generation, Python, JavaScript, Rust, C++, static analysis, polyglot">
+    <meta name="author" content="Brandon Mackert">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="NAAb — Polyglot Without the Trip">
+    <meta property="og:description" content="A polyglot programming language with built-in LLM governance. Integrates Python, JavaScript, Rust, C++ and 5 more languages. 50+ governance checks catch oversimplified stubs, hallucinated APIs, and incomplete logic.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://b-macker.github.io/NAAb/">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="NAAb — Polyglot Without the Trip">
+    <meta name="twitter:description" content="A polyglot programming language with built-in LLM governance. 9 languages, 50+ checks, zero hallucinations.">
+
+    <!-- JSON-LD structured data for Google -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "NAAb",
+        "description": "A polyglot programming language with built-in LLM governance that integrates Python, JavaScript, Rust, C++ and more. Detects oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Linux, macOS",
+        "programmingLanguage": ["C++", "Python", "JavaScript", "Rust", "Go", "Ruby", "PHP", "C#", "Shell"],
+        "license": "https://opensource.org/licenses/MIT",
+        "url": "https://github.com/b-macker/NAAb",
+        "codeRepository": "https://github.com/b-macker/NAAb",
+        "author": {
+            "@type": "Person",
+            "name": "Brandon Mackert",
+            "url": "https://github.com/b-macker"
+        },
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        }
+    }
+    </script>
+
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --orange: #d29922;
+            --purple: #bc8cff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 80px 0 60px;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            letter-spacing: -1px;
+        }
+
+        .hero .tagline {
+            font-size: 1.3rem;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-bottom: 24px;
+        }
+
+        .hero .subtitle {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            max-width: 640px;
+            margin: 0 auto 32px;
+        }
+
+        .hero .cta {
+            display: inline-flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 28px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: opacity 0.15s;
+        }
+
+        .btn:hover { opacity: 0.85; }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg);
+        }
+
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        /* Features */
+        .features {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 40px 0;
+        }
+
+        .feature {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .feature h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .feature p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Code block */
+        .code-section {
+            padding: 40px 0;
+        }
+
+        .code-section h2 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 24px;
+        }
+
+        pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            overflow-x: auto;
+            font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .kw { color: var(--purple); }
+        .str { color: #a5d6ff; }
+        .cm { color: var(--text-muted); }
+        .fn { color: #d2a8ff; }
+        .err { color: var(--red); }
+        .ok { color: var(--green); }
+        .warn { color: var(--orange); }
+
+        /* Governance section */
+        .governance {
+            padding: 40px 0;
+            text-align: center;
+        }
+
+        .governance h2 {
+            font-size: 1.8rem;
+            margin-bottom: 12px;
+        }
+
+        .governance .desc {
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 32px;
+            font-size: 1.05rem;
+        }
+
+        .checks {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            text-align: left;
+        }
+
+        .check {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .check h4 {
+            font-size: 0.95rem;
+            margin-bottom: 6px;
+            color: var(--accent);
+        }
+
+        .check p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* Stats */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            padding: 40px 0;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat .num {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        .stat .label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        footer a { color: var(--accent); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 640px) {
+            .hero h1 { font-size: 2rem; }
+            .features, .checks { grid-template-columns: 1fr; }
+            .stats { gap: 24px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <section class="hero">
+        <h1>NAAb</h1>
+        <p class="tagline">Polyglot without the trip.</p>
+        <p class="subtitle">
+            A programming language that integrates Python, JavaScript, Rust, C++ and 5 more languages
+            through an innovative block system — with built-in LLM governance that catches
+            hallucinated APIs, oversimplified stubs, and incomplete logic.
+        </p>
+        <div class="cta">
+            <a href="https://github.com/b-macker/NAAb" class="btn btn-primary">View on GitHub</a>
+            <a href="https://github.com/b-macker/NAAb/blob/master/docs/book/chapter21.md" class="btn btn-secondary">Governance Docs</a>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="feature">
+            <h3>9 Languages, One File</h3>
+            <p>Python, JavaScript, Rust, C++, Go, Ruby, PHP, C#, Shell — use each where it shines. Variables flow between languages automatically.</p>
+        </div>
+        <div class="feature">
+            <h3>LLM Governance Built In</h3>
+            <p>50+ checks detect secrets, SQL injection, hallucinated APIs, oversimplified stubs, and incomplete error handling. Policy-as-code via govern.json.</p>
+        </div>
+        <div class="feature">
+            <h3>Modern Language Features</h3>
+            <p>Pattern matching, async/await, lambdas with closures, if-expressions, pipeline operator, and 12 stdlib modules.</p>
+        </div>
+        <div class="feature">
+            <h3>LLM-Friendly Syntax</h3>
+            <p>Keyword aliases (fn/function/func/def), optional semicolons, "Did you mean?" suggestions, and detailed error messages with examples.</p>
+        </div>
+    </section>
+
+    <section class="code-section">
+        <h2>Polyglot in Action</h2>
+<pre><span class="kw">main</span> {
+    <span class="cm">// Use Python for data science</span>
+    <span class="kw">let</span> stats = <span class="fn">&lt;&lt;python</span>[numbers]
+<span class="kw">import</span> statistics
+result = {
+    <span class="str">"mean"</span>: statistics.mean(numbers),
+    <span class="str">"stdev"</span>: statistics.stdev(numbers)
+}
+str(result)
+<span class="fn">&gt;&gt;</span>
+
+    <span class="cm">// Use Rust for performance</span>
+    <span class="kw">let</span> hash = <span class="fn">&lt;&lt;rust</span>
+<span class="kw">fn</span> main() {
+    <span class="kw">let</span> data = std::env::args().last().unwrap();
+    println!(<span class="str">"{:x}"</span>, md5::compute(data.as_bytes()));
+}
+<span class="fn">&gt;&gt;</span>
+
+    print(stats)
+    print(hash)
+}</pre>
+    </section>
+
+    <section class="governance">
+        <h2>LLM Governance Engine</h2>
+        <p class="desc">
+            Drop a <code>govern.json</code> in your project. NAAb checks every polyglot block
+            against your rules before execution. Three enforcement levels: HARD, SOFT, ADVISORY.
+        </p>
+
+        <div class="checks">
+            <div class="check">
+                <h4>Hallucinated APIs</h4>
+                <p>Catches .push() in Python, print() in JS, json.stringify() instead of json.dumps() — with "did you mean?" suggestions.</p>
+            </div>
+            <div class="check">
+                <h4>Oversimplified Code</h4>
+                <p>Detects stub functions, pass-only bodies, validate() that always returns True, and fabricated status responses.</p>
+            </div>
+            <div class="check">
+                <h4>Incomplete Logic</h4>
+                <p>Catches except:pass, bare raises, vague error messages, degenerate loops, and always-true conditions.</p>
+            </div>
+            <div class="check">
+                <h4>Secret Detection</h4>
+                <p>Entropy-based scanning catches API keys, passwords, and tokens — even without matching known patterns.</p>
+            </div>
+            <div class="check">
+                <h4>Security Checks</h4>
+                <p>SQL injection, path traversal, shell injection, privilege escalation, unsafe deserialization, and more.</p>
+            </div>
+            <div class="check">
+                <h4>CI/CD Integration</h4>
+                <p>Export results as SARIF (GitHub Code Scanning), JUnit XML (Jenkins/GitLab), or JSON for custom tooling.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="code-section">
+        <h2>Governance in Action</h2>
+<pre><span class="cm">// govern.json</span>
+{
+  <span class="str">"version"</span>: <span class="str">"3.0"</span>,
+  <span class="str">"mode"</span>: <span class="str">"enforce"</span>,
+  <span class="str">"code_quality"</span>: {
+    <span class="str">"no_oversimplification"</span>: { <span class="str">"level"</span>: <span class="str">"hard"</span> },
+    <span class="str">"no_incomplete_logic"</span>:    { <span class="str">"level"</span>: <span class="str">"hard"</span> },
+    <span class="str">"no_hallucinated_apis"</span>:   { <span class="str">"level"</span>: <span class="str">"soft"</span> }
+  }
+}
+
+<span class="cm">$ naab-lang my_program.naab</span>
+
+<span class="err">Error: Hallucinated API in python block: ".push()"</span>
+  <span class="warn">Help: .push() is JavaScript — in Python, use .append()</span></pre>
+    </section>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="num">9</div>
+            <div class="label">Languages</div>
+        </div>
+        <div class="stat">
+            <div class="num">50+</div>
+            <div class="label">Governance Checks</div>
+        </div>
+        <div class="stat">
+            <div class="num">186</div>
+            <div class="label">Tests Passing</div>
+        </div>
+        <div class="stat">
+            <div class="num">12</div>
+            <div class="label">Stdlib Modules</div>
+        </div>
+    </div>
+
+</div>
+
+<footer>
+    <p>
+        <a href="https://github.com/b-macker/NAAb">GitHub</a> &middot;
+        <a href="https://github.com/b-macker/NAAb/blob/master/docs/book/chapter21.md">Governance Docs</a> &middot;
+        <a href="https://github.com/b-macker/NAAb/blob/master/docs/book/QUICK_START.md">Quick Start</a> &middot;
+        MIT License
+    </p>
+    <p style="margin-top: 8px;"><em>NAAb — Polyglot without the trip.</em></p>
+</footer>
+
+</body>
+</html>
