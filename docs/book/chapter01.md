@@ -2,7 +2,7 @@
 
 ## 1.1 What is NAAb? The Orchestration Philosophy
 
-NAAb (Not Another Assembly Block) is a modern, high-performance programming language designed from the ground up to excel in **polyglot orchestration**. In today's complex software landscape, no single language is perfectly suited for every task. NAAb embraces this reality by providing a seamless, type-safe environment to integrate and execute code written in multiple programming languages—all within a single, cohesive application.
+NAAb is a modern, high-performance programming language designed from the ground up to excel in **polyglot orchestration**. In today's complex software landscape, no single language is perfectly suited for every task. NAAb embraces this reality by providing a seamless, type-safe environment to integrate and execute code written in multiple programming languages—all within a single, cohesive application.
 
 The core philosophy of NAAb can be summarized as: **Orchestrate in NAAb, Compute in the Best Language for the Task.**
 
