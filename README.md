@@ -203,14 +203,21 @@ main {
 
 See [Chapter 21: Governance](docs/book/chapter21.md) for the full reference.
 
-### NAAb BOLO — Standalone Governance Tool
+---
 
-**[NAAb BOLO](https://github.com/b-macker/naab-bolo)** ("Be On the Lookout") is a standalone code governance platform built 100% in NAAb. It uses polyglot blocks to pick the best language for every task:
+## NAAb Ecosystem
 
-- **Rust** for fast parallel file walking (10x faster than Python `os.walk`)
-- **C++** for regex pattern matching (50+ checks at native speed)
-- **Python** for tool orchestration (flake8, bandit, pytest), HTML reports, and AI governance
-- **NAAb** for CLI parsing, profile management, and orchestration
+Three powerful tools built with NAAb — code governance, performance optimization, and data security:
+
+| Project | Purpose | Key Features |
+|---------|---------|--------------|
+| **[NAAb BOLO](https://github.com/b-macker/naab-bolo)** | Code governance & validation | 50+ checks, SARIF reports, AI drift detection |
+| **[NAAb Pivot](https://github.com/b-macker/naab-pivot)** | Code evolution & optimization | 3-60x speedups, proven correctness, 8 languages |
+| **[NAAb Passage](https://github.com/b-macker/naab-passage)** | Data gateway & PII protection | Zero leakage, sovereign architecture, HIPAA/GDPR |
+
+### 🔍 NAAb BOLO — Code Governance & Validation
+
+**[NAAb BOLO](https://github.com/b-macker/naab-bolo)** ("Be On the Lookout") catches oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.
 
 ```bash
 # Scan for governance violations
@@ -219,14 +226,42 @@ naab-lang bolo.naab scan ./src --profile enterprise
 # Generate SARIF report for CI
 naab-lang bolo.naab report ./src --format sarif --output results.sarif
 
-# Run enforcement pipeline
-naab-lang bolo.naab enforce ./src --stage ci
-
 # AI governance validation
 naab-lang bolo.naab ai-check ./ml-models
 ```
 
-5 scripts, 4 languages, 50+ checks, 64 regression tests. [Get started](https://github.com/b-macker/naab-bolo).
+**50+ checks · 4 languages · 64 regression tests** → [Get started](https://github.com/b-macker/naab-bolo)
+
+### ⚡ NAAb Pivot — Code Evolution & Optimization
+
+**[NAAb Pivot](https://github.com/b-macker/naab-pivot)** automatically rewrites slow code in faster languages with mathematical proof of correctness.
+
+```bash
+# Analyze hotspots (Python → Rust candidates)
+naab-lang pivot.naab analyze app.py
+
+# Rewrite with proof
+naab-lang pivot.naab rewrite app.py:expensive_loop --target rust --prove
+
+# Result: 45x faster, semantically identical
+```
+
+**3-60x speedups · 8 source languages · Proven correct** → [Get started](https://github.com/b-macker/naab-pivot)
+
+### 🔒 NAAb Passage — Data Gateway & PII Protection
+
+**[NAAb Passage](https://github.com/b-macker/naab-passage)** ensures zero PII leakage to LLMs, APIs, or untrusted systems with sovereign architecture.
+
+```bash
+# Start secure gateway
+naab-lang main.naab
+
+# All requests validated, PII blocked
+curl -X POST http://localhost:8091/ -d '{"prompt": "SSN: 123-45-6789"}'
+# → {"error": "POLICY_VIOLATION"}
+```
+
+**Zero leakage · Self-synthesizing · HIPAA/GDPR compliant** → [Get started](https://github.com/b-macker/naab-passage)
 
 ---
 
