@@ -1,0 +1,570 @@
+// modules/data_validator.naab
+// Enterprise Data Validation & Quality Assurance
+// Uses: try/catch, throw, lambdas, array.filter_fn, array.map_fn,
+//       array.for_each, array.length, array.push, array.find,
+//       string.contains, string.length, string.upper, string.trim,
+//       if-expressions, pipeline operator, math module
+
+use io
+use json
+use array
+use string
+use math
+use time
+
+// ── Validation Result Struct ────────────────────────────────────
+
+fn make_validation_entry(source, field, status, message, severity) {
+    return {
+        "source": source,
+        "field": field,
+        "status": status,
+        "message": message,
+        "severity": severity,
+        "timestamp": time.now()
+    }
+}
+
+// ── Weather Validation ──────────────────────────────────────────
+
+fn validate_weather(weather_list, config) {
+    let issues = []
+    let valid_count = 0
+    let total_checks = 0
+    let vconf = config["validation"]
+
+    let check_temp = fn(w) {
+        let ok = true
+        if w.temperature < vconf["temp_min"] {
+            array.push(issues, make_validation_entry(
+                "weather", w.city + ".temperature", "FAIL",
+                "Temperature " + w.temperature + "C below minimum " + vconf["temp_min"] + "C",
+                "critical"
+            ))
+            ok = false
+        }
+        if w.temperature > vconf["temp_max"] {
+            array.push(issues, make_validation_entry(
+                "weather", w.city + ".temperature", "FAIL",
+                "Temperature " + w.temperature + "C above maximum " + vconf["temp_max"] + "C",
+                "critical"
+            ))
+            ok = false
+        }
+        return ok
+    }
+
+    let check_humidity = fn(w) {
+        let ok = true
+        if w.humidity < vconf["humidity_min"] {
+            array.push(issues, make_validation_entry(
+                "weather", w.city + ".humidity", "FAIL",
+                "Humidity " + w.humidity + "% below 0%",
+                "critical"
+            ))
+            ok = false
+        }
+        if w.humidity > vconf["humidity_max"] {
+            array.push(issues, make_validation_entry(
+                "weather", w.city + ".humidity", "FAIL",
+                "Humidity " + w.humidity + "% above 100%",
+                "critical"
+            ))
+            ok = false
+        }
+        return ok
+    }
+
+    let check_wind = fn(w) {
+        let ok = true
+        if w.wind_speed < vconf["wind_min"] {
+            array.push(issues, make_validation_entry(
+                "weather", w.city + ".wind_speed", "FAIL",
+                "Negative wind speed: " + w.wind_speed,
+                "critical"
+            ))
+            ok = false
+        }
+        if w.wind_speed > vconf["wind_max"] {
+            array.push(issues, make_validation_entry(
+                "weather", w.city + ".wind_speed", "WARN",
+                "Extreme wind: " + w.wind_speed + " km/h",
+                "warning"
+            ))
+        }
+        return ok
+    }
+
+    let i = 0
+    while i < array.length(weather_list) {
+        let w = weather_list[i]
+        total_checks = total_checks + 3
+
+        let t_ok = check_temp(w)
+        let h_ok = check_humidity(w)
+        let w_ok = check_wind(w)
+
+        if t_ok { valid_count = valid_count + 1 }
+        if h_ok { valid_count = valid_count + 1 }
+        if w_ok { valid_count = valid_count + 1 }
+
+        i = i + 1
+    }
+
+    let score = if total_checks > 0 { math.round(valid_count * 100.0 / total_checks) } else { 0 }
+
+    return {
+        "source": "weather",
+        "total_checks": total_checks,
+        "passed": valid_count,
+        "failed": total_checks - valid_count,
+        "score": score,
+        "issues": issues
+    }
+}
+
+// ── Crypto Validation ───────────────────────────────────────────
+
+fn validate_crypto(crypto_list, config) {
+    let issues = []
+    let valid_count = 0
+    let total_checks = 0
+    let vconf = config["validation"]
+
+    let i = 0
+    while i < array.length(crypto_list) {
+        let c = crypto_list[i]
+
+        // Check price > 0
+        total_checks = total_checks + 1
+        if c.price_usd > vconf["price_min"] {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "crypto", c.id + ".price", "FAIL",
+                "Non-positive price: $" + c.price_usd,
+                "critical"
+            ))
+        }
+
+        // Check market cap non-negative
+        total_checks = total_checks + 1
+        if c.market_cap >= 0.0 {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "crypto", c.id + ".market_cap", "FAIL",
+                "Negative market cap: " + c.market_cap,
+                "critical"
+            ))
+        }
+
+        // Check volume non-negative
+        total_checks = total_checks + 1
+        if c.volume_24h >= 0.0 {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "crypto", c.id + ".volume", "FAIL",
+                "Negative volume: " + c.volume_24h,
+                "critical"
+            ))
+        }
+
+        // Check 24h change within reasonable bounds (< 100%)
+        total_checks = total_checks + 1
+        if math.abs(c.change_24h) < 100.0 {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "crypto", c.id + ".change_24h", "WARN",
+                "Extreme 24h change: " + c.change_24h + "%",
+                "warning"
+            ))
+        }
+
+        // Check ID is non-empty
+        total_checks = total_checks + 1
+        if string.length(c.id) > 0 {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "crypto", "id", "FAIL",
+                "Empty crypto ID at index " + i,
+                "critical"
+            ))
+        }
+
+        i = i + 1
+    }
+
+    let score = if total_checks > 0 { math.round(valid_count * 100.0 / total_checks) } else { 0 }
+
+    return {
+        "source": "crypto",
+        "total_checks": total_checks,
+        "passed": valid_count,
+        "failed": total_checks - valid_count,
+        "score": score,
+        "issues": issues
+    }
+}
+
+// ── Currency Validation ─────────────────────────────────────────
+
+fn validate_currency(currency_data, config) {
+    let issues = []
+    let valid_count = 0
+    let total_checks = 0
+    let vconf = config["validation"]
+
+    // Validate each rate
+    let i = 0
+    while i < array.length(currency_data.rates) {
+        let rate = currency_data.rates[i]
+        let name = currency_data.rate_names[i]
+
+        total_checks = total_checks + 1
+        if rate > vconf["rate_min"] {
+            if rate < vconf["rate_max"] {
+                valid_count = valid_count + 1
+            } else {
+                array.push(issues, make_validation_entry(
+                    "currency", name + ".rate", "FAIL",
+                    "Rate exceeds maximum: " + rate,
+                    "critical"
+                ))
+            }
+        } else {
+            array.push(issues, make_validation_entry(
+                "currency", name + ".rate", "FAIL",
+                "Rate below minimum: " + rate,
+                "critical"
+            ))
+        }
+
+        i = i + 1
+    }
+
+    // Validate base currency
+    total_checks = total_checks + 1
+    if currency_data.base == "USD" {
+        valid_count = valid_count + 1
+    } else {
+        array.push(issues, make_validation_entry(
+            "currency", "base", "WARN",
+            "Unexpected base currency: " + currency_data.base,
+            "warning"
+        ))
+    }
+
+    let score = if total_checks > 0 { math.round(valid_count * 100.0 / total_checks) } else { 0 }
+
+    return {
+        "source": "currency",
+        "total_checks": total_checks,
+        "passed": valid_count,
+        "failed": total_checks - valid_count,
+        "score": score,
+        "issues": issues
+    }
+}
+
+// ── GitHub Validation ───────────────────────────────────────────
+
+fn validate_github(repo_list, config) {
+    let issues = []
+    let valid_count = 0
+    let total_checks = 0
+
+    let i = 0
+    while i < array.length(repo_list) {
+        let r = repo_list[i]
+
+        // Stars non-negative
+        total_checks = total_checks + 1
+        if r.stars >= 0 {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "github", r.full_name + ".stars", "FAIL",
+                "Negative stars: " + r.stars, "critical"
+            ))
+        }
+
+        // Forks non-negative
+        total_checks = total_checks + 1
+        if r.forks >= 0 {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "github", r.full_name + ".forks", "FAIL",
+                "Negative forks: " + r.forks, "critical"
+            ))
+        }
+
+        // Name contains /
+        total_checks = total_checks + 1
+        if string.contains(r.full_name, "/") {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "github", r.full_name + ".name", "WARN",
+                "Repo name missing org/name format", "warning"
+            ))
+        }
+
+        // Language not empty
+        total_checks = total_checks + 1
+        if string.length(r.language) > 0 {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "github", r.full_name + ".language", "WARN",
+                "Missing language field", "warning"
+            ))
+        }
+
+        i = i + 1
+    }
+
+    let score = if total_checks > 0 { math.round(valid_count * 100.0 / total_checks) } else { 0 }
+
+    return {
+        "source": "github",
+        "total_checks": total_checks,
+        "passed": valid_count,
+        "failed": total_checks - valid_count,
+        "score": score,
+        "issues": issues
+    }
+}
+
+// ── Geo Validation ──────────────────────────────────────────────
+
+fn validate_geo(geo_data, config) {
+    let issues = []
+    let valid_count = 0
+    let total_checks = 0
+
+    // Latitude range
+    total_checks = total_checks + 1
+    if geo_data.latitude >= -90.0 {
+        if geo_data.latitude <= 90.0 {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "geo", "latitude", "FAIL",
+                "Latitude out of range: " + geo_data.latitude, "critical"
+            ))
+        }
+    } else {
+        array.push(issues, make_validation_entry(
+            "geo", "latitude", "FAIL",
+            "Latitude out of range: " + geo_data.latitude, "critical"
+        ))
+    }
+
+    // Longitude range
+    total_checks = total_checks + 1
+    if geo_data.longitude >= -180.0 {
+        if geo_data.longitude <= 180.0 {
+            valid_count = valid_count + 1
+        } else {
+            array.push(issues, make_validation_entry(
+                "geo", "longitude", "FAIL",
+                "Longitude out of range: " + geo_data.longitude, "critical"
+            ))
+        }
+    } else {
+        array.push(issues, make_validation_entry(
+            "geo", "longitude", "FAIL",
+            "Longitude out of range: " + geo_data.longitude, "critical"
+        ))
+    }
+
+    // IP not empty
+    total_checks = total_checks + 1
+    if string.length(geo_data.ip) > 0 {
+        valid_count = valid_count + 1
+    } else {
+        array.push(issues, make_validation_entry(
+            "geo", "ip", "WARN", "Empty IP address", "warning"
+        ))
+    }
+
+    // Timezone not empty
+    total_checks = total_checks + 1
+    if string.length(geo_data.timezone) > 0 {
+        valid_count = valid_count + 1
+    } else {
+        array.push(issues, make_validation_entry(
+            "geo", "timezone", "WARN", "Empty timezone", "warning"
+        ))
+    }
+
+    let score = if total_checks > 0 { math.round(valid_count * 100.0 / total_checks) } else { 0 }
+
+    return {
+        "source": "geo",
+        "total_checks": total_checks,
+        "passed": valid_count,
+        "failed": total_checks - valid_count,
+        "score": score,
+        "issues": issues
+    }
+}
+
+// ── Anomaly Detection ───────────────────────────────────────────
+// Flag values > threshold stdevs from mean
+
+fn detect_anomalies(values, labels, threshold) {
+    let n = array.length(values)
+    if n < 2 {
+        return []
+    }
+
+    // Compute mean
+    let sum = 0.0
+    let i = 0
+    while i < n {
+        sum = sum + values[i]
+        i = i + 1
+    }
+    let mean = sum / n
+
+    // Compute stdev
+    let sq_sum = 0.0
+    i = 0
+    while i < n {
+        let diff = values[i] - mean
+        sq_sum = sq_sum + diff * diff
+        i = i + 1
+    }
+    let stdev = math.sqrt(sq_sum / (n - 1))
+
+    // Find anomalies
+    let anomalies = []
+    if stdev > 0.0 {
+        i = 0
+        while i < n {
+            let z = math.abs(values[i] - mean) / stdev
+            if z > threshold {
+                array.push(anomalies, {
+                    "label": labels[i],
+                    "value": values[i],
+                    "z_score": math.round(z * 1000.0) / 1000.0,
+                    "mean": math.round(mean * 100.0) / 100.0,
+                    "stdev": math.round(stdev * 100.0) / 100.0,
+                    "direction": if values[i] > mean { "above" } else { "below" }
+                })
+            }
+            i = i + 1
+        }
+    }
+
+    return anomalies
+}
+
+// ── Main Validation Entry Point ─────────────────────────────────
+
+export fn validate_all(weather_list, crypto_list, currency_data, repo_list, geo_data, config) {
+    io.write("  [Validator] Running data quality checks...\n")
+    let start_ms = time.now()
+
+    // Validate each source
+    let w_result = validate_weather(weather_list, config)
+    io.write("    Weather:  ", w_result["passed"], "/", w_result["total_checks"], " checks passed (score: ", w_result["score"], ")\n")
+
+    let c_result = validate_crypto(crypto_list, config)
+    io.write("    Crypto:   ", c_result["passed"], "/", c_result["total_checks"], " checks passed (score: ", c_result["score"], ")\n")
+
+    let cur_result = validate_currency(currency_data, config)
+    io.write("    Currency: ", cur_result["passed"], "/", cur_result["total_checks"], " checks passed (score: ", cur_result["score"], ")\n")
+
+    let g_result = validate_github(repo_list, config)
+    io.write("    GitHub:   ", g_result["passed"], "/", g_result["total_checks"], " checks passed (score: ", g_result["score"], ")\n")
+
+    let geo_result = validate_geo(geo_data, config)
+    io.write("    Geo:      ", geo_result["passed"], "/", geo_result["total_checks"], " checks passed (score: ", geo_result["score"], ")\n")
+
+    // Anomaly detection on weather temperatures
+    let threshold = config["risk_thresholds"]["anomaly_stdev_threshold"]
+    let temp_values = []
+    let temp_labels = []
+    let ti = 0
+    while ti < array.length(weather_list) {
+        array.push(temp_values, weather_list[ti].temperature)
+        array.push(temp_labels, weather_list[ti].city)
+        ti = ti + 1
+    }
+    let temp_anomalies = detect_anomalies(temp_values, temp_labels, threshold)
+
+    // Anomaly detection on crypto prices
+    let price_values = []
+    let price_labels = []
+    let pi = 0
+    while pi < array.length(crypto_list) {
+        array.push(price_values, crypto_list[pi].price_usd)
+        array.push(price_labels, crypto_list[pi].id)
+        pi = pi + 1
+    }
+    let price_anomalies = detect_anomalies(price_values, price_labels, threshold)
+
+    if array.length(temp_anomalies) > 0 {
+        io.write("    Temperature anomalies: ", array.length(temp_anomalies), "\n")
+    }
+    if array.length(price_anomalies) > 0 {
+        io.write("    Price anomalies: ", array.length(price_anomalies), "\n")
+    }
+
+    // Composite quality score (weighted average)
+    let total_passed = w_result["passed"] + c_result["passed"] + cur_result["passed"] + g_result["passed"] + geo_result["passed"]
+    let total_checks = w_result["total_checks"] + c_result["total_checks"] + cur_result["total_checks"] + g_result["total_checks"] + geo_result["total_checks"]
+    let overall_score = if total_checks > 0 { math.round(total_passed * 100.0 / total_checks) } else { 0 }
+
+    // Count total issues
+    let all_issues = []
+    let merge_issues = fn(source_issues) {
+        let mi = 0
+        while mi < array.length(source_issues) {
+            array.push(all_issues, source_issues[mi])
+            mi = mi + 1
+        }
+    }
+    merge_issues(w_result["issues"])
+    merge_issues(c_result["issues"])
+    merge_issues(cur_result["issues"])
+    merge_issues(g_result["issues"])
+    merge_issues(geo_result["issues"])
+
+    let quality_grade = if overall_score >= 95 { "A+" } else { if overall_score >= 90 { "A" } else { if overall_score >= 80 { "B" } else { if overall_score >= 70 { "C" } else { "D" } } } }
+
+    let end_ms = time.now()
+    let elapsed = end_ms - start_ms
+
+    io.write("    Overall quality: ", overall_score, "% (Grade: ", quality_grade, ")\n")
+    io.write("    Total issues: ", array.length(all_issues), " | Anomalies: ", array.length(temp_anomalies) + array.length(price_anomalies), "\n")
+
+    return {
+        "overall_score": overall_score,
+        "quality_grade": quality_grade,
+        "total_checks": total_checks,
+        "total_passed": total_passed,
+        "total_issues": array.length(all_issues),
+        "sources": {
+            "weather": w_result,
+            "crypto": c_result,
+            "currency": cur_result,
+            "github": g_result,
+            "geo": geo_result
+        },
+        "anomalies": {
+            "temperature": temp_anomalies,
+            "crypto_price": price_anomalies,
+            "total_count": array.length(temp_anomalies) + array.length(price_anomalies)
+        },
+        "all_issues": all_issues,
+        "validation_time_ms": elapsed
+    }
+}

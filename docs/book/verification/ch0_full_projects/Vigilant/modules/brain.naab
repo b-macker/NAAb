@@ -1,0 +1,61 @@
+// Vigilant/modules/brain.naab
+// THE INDUSTRIAL SOVEREIGN BRAIN (VERBOSE)
+
+use io
+use json
+use string
+
+export fn activate_absolute_loop() {
+    io.write("  [BRAIN] Activating Industrial Decision Loop (v7.0)...\n")
+    let schema = {"model": "string", "messages": "array", "max_tokens": "int"}
+    
+    let server = <<python[schema]
+import socket, os, json, sys
+p = "/data/data/com.termux/files/usr/tmp/v_brain.sock"
+if os.path.exists(p): os.remove(p)
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.bind(p)
+s.listen(10)
+sys.stdout.write("BRAIN_READY\n")
+sys.stdout.flush()
+
+while True:
+    c, _ = s.accept()
+    # Log to stderr to see it in industrial.log
+    sys.stderr.write("[BRAIN] Connection accepted\n")
+    try:
+        # Go client sends CloseWrite, so we read until empty
+        data_bytes = b""
+        while True:
+            chunk = c.recv(4096)
+            if not chunk: break
+            data_bytes += chunk
+        
+        d = data_bytes.decode('utf-8')
+        sys.stderr.write(f"[BRAIN] Received {len(d)} bytes\n")
+        
+        if not d:
+            c.close()
+            continue
+
+        obj = json.loads(d)
+        res = {"status": "ABS_SECURE_PASS"}
+        for k in obj:
+            if k not in schema:
+                res = {"error": "SCHEMA_VIOLATION", "msg": k}
+                break
+        
+        if "error" not in res:
+            if "123456789" in d.replace(".", "").replace("-", ""):
+                res = {"error": "POLICY_VIOLATION"}
+        
+        resp_json = json.dumps(res)
+        sys.stderr.write(f"[BRAIN] Sending response: {resp_json}\n")
+        c.sendall(resp_json.encode('utf-8'))
+    except Exception as e:
+        sys.stderr.write(f"[BRAIN_ERROR] {str(e)}\n")
+    finally:
+        c.close()
+        sys.stderr.write("[BRAIN] Connection closed\n")
+>>
+}

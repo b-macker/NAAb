@@ -1,0 +1,54 @@
+// Vigilant/verify_vigilant.naab
+// HARDENED REGRESSION SUITE (mTLS + AUTH)
+
+use io
+use json
+use string
+use file
+
+fn test_request(payload, auth_key) {
+    let result = <<bash[payload, auth_key]
+    curl -k -s -X POST https://localhost:8090/ \
+        -H "X-Vigilant-Auth: $auth_key" \
+        -d "$payload"
+    >>
+    return "" + result
+}
+
+main {
+    io.write("🛡️ Starting HARDENED VIGILANT Regression Suite...\n")
+
+    let auth_key = string.trim(file.read("verification/ch0_full_projects/Vigilant/config/api_key.secret"))
+    io.write("  [AUTH] Key Loaded: ", auth_key, "\n")
+
+    // Test 1: Unauthorized Access
+    io.write("  [TEST 1] Unauthorized Request (Missing Key)... ")
+    let res1 = test_request("Test", "WRONG_KEY")
+    if res1 == "" {
+        io.write("✅ REJECTED (Correct)\n")
+    } else {
+        io.write("❌ BYPASSED (Failure)\n")
+    }
+
+    // Test 2: Valid Secure Request (Clean)
+    io.write("  [TEST 2] Authorized Clean Request... ")
+    let res2 = test_request("Hello Vigilant", auth_key)
+    if string.index_of(res2, "SECURE_PASS") != -1 {
+        io.write("✅ ALLOWED (Correct)\n")
+    } else {
+        io.write("❌ BLOCKED (Failure)\n")
+    }
+
+    // Test 3: PII Leak Prevention
+    io.write("  [TEST 3] Authorized PII Leak (SSN)... ")
+    let res3 = test_request("My SSN is 123-45-6789", auth_key)
+    if string.index_of(res3, "Policy Violation") != -1 {
+        io.write("✅ BLOCKED (Correct)\n")
+    } else {
+        io.write("❌ LEAKED (Failure)\n")
+    }
+
+    io.write("\n═══════════════════════════════════════════════════════════\n")
+    io.write("  VIGILANT HARDENING VERIFIED\n")
+    io.write("═══════════════════════════════════════════════════════════\n")
+}

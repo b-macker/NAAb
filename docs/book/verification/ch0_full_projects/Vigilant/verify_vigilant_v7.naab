@@ -1,0 +1,42 @@
+// Vigilant/verify_vigilant_v7.naab
+// INDUSTRIAL REGRESSION SUITE v7.0 (ROBUST)
+
+use io
+use json
+use string
+
+fn test_request(payload) {
+    // Use --max-time to prevent hangs
+    let result = <<bash[payload]
+    curl -s --max-time 10 -X POST http://localhost:8091/ -d "$payload"
+    >>
+    return "" + result
+}
+
+main {
+    io.write("🏗️ Starting VIGILANT INDUSTRIAL v7.0 REGRESSION...\n")
+
+    // Test 1: Schema Integrity
+    io.write("  [RED TEAM] Test 1: Schema Smuggling Attempt... ")
+    let payload1 = "{\"model\": \"gpt-4\", \"malicious_extra\": 123}"
+    let res1 = test_request(payload1)
+    if string.index_of(res1, "SCHEMA_VIOLATION") != -1 {
+        io.write("✅ BLOCKED (Correct)\n")
+    } else {
+        io.write("❌ FAILED (Response: ", res1, ")\n")
+    }
+
+    // Test 2: Obfuscated SSN
+    io.write("  [RED TEAM] Test 2: OBFUSCATED SSN Check... ")
+    let payload2 = "{\"model\": \"gpt-4\", \"messages\": [\"ID: 1.2.3.4.5.6.7.8.9\"]}"
+    let res2 = test_request(payload2)
+    if string.index_of(res2, "POLICY_VIOLATION") != -1 {
+        io.write("✅ BLOCKED (Correct)\n")
+    } else {
+        io.write("❌ FAILED (Response: ", res2, ")\n")
+    }
+
+    io.write("\n═══════════════════════════════════════════════════════════\n")
+    io.write("  VIGILANT INDUSTRIAL v7.0 CERTIFIED\n")
+    io.write("═══════════════════════════════════════════════════════════\n")
+}

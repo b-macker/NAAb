@@ -1,0 +1,36 @@
+// Vigilant/main.naab
+// PROJECT VIGILANT v7.0: THE INDUSTRIAL SOVEREIGN (DIRECT BRAIN)
+
+use io
+use json
+use modules.synthesizer
+use modules.brain
+use modules.gateway
+
+main {
+    io.write("╔═══════════════════════════════════════════════════════════╗\n")
+    io.write("║           VIGILANT INDUSTRIAL v7.0                        ║\n")
+    io.write("║           (Zero-Trust Sovereign Appliance)                 ║\n")
+    io.write("╚═══════════════════════════════════════════════════════════╝\n\n")
+
+    let profile = {"mode": "INDUSTRIAL"}
+    let workers = synthesizer.synthesize_absolute(json.stringify(profile))
+    
+    io.write("  [SOVEREIGN] Mobilizing Isolated Worker Swarm...\n")
+    let shield_bin = workers["shield"]
+    
+    <<bash[shield_bin]
+    unshare -n taskset -c 1 "$shield_bin" &
+>>
+    
+    io.write("  [SOVEREIGN] Core 1: Shield Isolated. Launching Gateway...\n")
+    gateway.start_service(profile, workers)
+
+    io.write("  [SOVEREIGN] Core 0: Activating Decision Brain...\n")
+    // Set affinity for current process via Python
+    <<python
+import os
+os.sched_setaffinity(0, {0})
+>>
+    brain.activate_absolute_loop()
+}

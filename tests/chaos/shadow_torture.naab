@@ -1,0 +1,23 @@
+// verification/chaos_tests/shadow_torture.naab
+// Goal: Test variable shadowing of stdlib modules.
+
+main {
+    print("--- SHADOW TORTURE ---")
+
+    // Shadow a stdlib module name with a local variable
+    let io = "I AM A STRING NOW"
+    try {
+        // io.write should fail since io is now a string
+        io.write("Should fail")
+        print("FAIL: Shadowed io.write didn't error")
+    } catch (e) {
+        print("PASS: Caught shadow error (io is now a string)")
+    }
+
+    // Shadow json with an integer
+    let json = 123
+    print("Shadowed json: " + json)
+
+    // Verify print still works (it's a builtin, not a module)
+    print("PASS: Builtins survive module shadowing")
+}

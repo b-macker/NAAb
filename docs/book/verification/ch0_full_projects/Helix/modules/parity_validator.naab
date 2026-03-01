@@ -1,0 +1,79 @@
+// Helix/modules/parity_validator.naab
+// Omni-Vessel Batch Directory Validator (v10.0)
+use io
+use json
+use time
+use file
+use string
+use array
+
+export fn validate_directory(legacy_path, vessel_dir, input_dir) {
+    io.write("  [OMNI-VALIDATOR] Scanning directory for batch processing: ", input_dir, "\n")
+    
+    let files_raw = <<bash[input_dir] ls "$input_dir"/*.json
+    >>
+    let file_list = string.split(string.trim(files_raw), "\n")
+    
+    let start_a = time.now()
+    let legacy_results = <<python[legacy_path, input_dir]
+import json, sys, os
+sys.path.append(os.path.dirname(legacy_path))
+from legacy_vortex import process_vortex
+res = {}
+for f in os.listdir(input_dir):
+    if f.endswith(".json"):
+        with open(os.path.join(input_dir, f), 'r') as j:
+            res[f] = process_vortex(j.read())
+json.dumps(res)
+   
+    >>
+    let end_a = time.now()
+    let latency_a = end_a - start_a
+
+    let start_b = time.now()
+    let fabric_results = {}
+    let vessel_bin = vessel_dir + "heavy_calculation_vessel"
+    
+    for f_path in file_list {
+        let raw_data = file.read(f_path)
+        let items = json.parse(raw_data)
+        let batch_sum = 0.0
+        
+        for item in items {
+            let val = "" + item[1]
+            let res_str = <<bash[vessel_bin, val] "$vessel_bin" "$val"
+    >>
+            batch_sum = batch_sum + json.parse(res_str)
+        }
+        
+        let fname_raw = <<bash[f_path] basename "$f_path"
+    >>
+        let fname = string.trim(fname_raw)
+        fabric_results[fname] = {"total_value": batch_sum}
+    }
+    let end_b = time.now()
+    let latency_b = end_b - start_b
+
+    let parity_raw = <<python[legacy_results, fabric_results]
+import json
+leg = json.loads(legacy_results)
+fab = fabric_results
+certified = True
+for k in leg:
+    diff = abs(leg[k]["total_value"] - fab[k]["total_value"])
+    if diff > 0.001: print(f"FAIL: {k} diff={diff}"); certified = False
+json.dumps({"certified": certified, "count": len(leg)})
+   
+    >>
+    let p = json.parse(parity_raw)
+
+    return {
+        "certified": p["certified"],
+        "files_processed": p["count"],
+        "performance": {
+            "legacy_ms": latency_a,
+            "fabric_ms": latency_b,
+            "speedup": (1.0 * latency_a) / (1.0 * latency_b)
+        }
+    }
+}

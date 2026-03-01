@@ -1,0 +1,11 @@
+// Test synthesizer fix
+use io
+use json
+use modules.synthesizer
+
+main {
+    io.write("Testing synthesizer...\n")
+    let profile = {"mode": "TEST"}
+    let result = synthesizer.synthesize_absolute(json.stringify(profile))
+    io.write("Result: ", json.stringify(result), "\n")
+}

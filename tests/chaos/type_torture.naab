@@ -1,0 +1,56 @@
+// verification/chaos_tests/type_torture.naab
+// Goal: Break the type system or find null-safety regressions.
+
+main {
+    print("--- TYPE TORTURE ---")
+
+    // 1. Extreme Nesting
+    let deep = {"a": {"b": {"c": {"d": {"e": [1, 2, [3, 4], {"f": null}]}}}}}
+    let nested_val = deep["a"]["b"]["c"]["d"]["e"][2][1]
+    if nested_val == 4 {
+        print("PASS: Deep nesting (5 levels + array + dict)")
+    } else {
+        print("FAIL: Deep nesting returned " + nested_val)
+    }
+
+    // 2. Null Safety Edge Cases
+    let n = null
+    let fallback = "works"
+    if n != null { fallback = n }
+    if fallback == "works" {
+        print("PASS: Null check fallback works")
+    } else {
+        print("FAIL: Null check broken")
+    }
+
+    // 3. Type Coercion — mixed array
+    let mixed = [1, 2.5, "3", true, null]
+    let types_ok = true
+    for item in mixed {
+        // Just iterate — no crash = pass
+        let dummy = "" + item
+    }
+    print("PASS: Mixed type array iteration stable")
+
+    // 4. Dictionary Key Shadowing
+    let shadow = {"x": 1, "x": 2, "X": 3}
+    if shadow["x"] == 2 {
+        print("PASS: Key shadowing (last value wins)")
+    } else {
+        print("FAIL: Key shadowing — got " + shadow["x"])
+    }
+    if shadow["X"] == 3 {
+        print("PASS: Key case sensitivity")
+    } else {
+        print("FAIL: Key case sensitivity — got " + shadow["X"])
+    }
+
+    // 5. Array Out of Bounds
+    try {
+        let arr = [1, 2]
+        let x = arr[5]
+        print("FAIL: Array OOB did not throw!")
+    } catch (e) {
+        print("PASS: Array OOB caught correctly")
+    }
+}

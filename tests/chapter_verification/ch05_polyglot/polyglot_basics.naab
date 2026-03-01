@@ -1,0 +1,112 @@
+# Chapter 5: Polyglot Basics Verification
+
+use json
+
+main {
+    print(">>> Chapter 5 Verification: Polyglot Basics <<<")
+
+    # 1. Basic Hello World for core languages
+    print("--- Polyglot Hello World Examples ---")
+    <<python
+    print("Hello from Python!")
+    >>
+    <<javascript
+    console.log("Hello from JavaScript!")
+    >>
+    <<cpp
+    #include <iostream>
+    std::cout << "Hello from C++!" << std::endl;
+    >>
+    <<bash
+    echo "Hello from Bash!"
+    >>
+    print("--- End Polyglot Hello World Examples ---")
+
+    # 2. Passing Variables to Blocks
+    print("--- Passing Variables to Blocks ---")
+    let username = "NAAbMaster"
+    let user_id = 12345
+    let is_admin = true
+    let settings = {"theme": "dark", "notifications": ["email", "sms"]}
+
+    <<python[username, user_id, is_admin, settings]
+    print(f"Python: User '{username}' (ID: {user_id}), Admin: {is_admin}")
+    print(f"Python: Settings: {settings['theme']}")
+    True # Return value to avoid warning
+    >>
+
+    <<javascript[username, settings]
+    console.log(`JS: User '${username}', Theme: ${settings.theme}`);
+    >>
+
+    # C++ block accessing NAAb variables
+    # ISS-004 Fixed: Headers should be auto-injected
+    <<cpp[user_id]
+    std::cout << "C++: User ID: " << user_id << std::endl;
+    >>
+
+    <<bash[username]
+    echo "Bash: Current User is $username"
+    >>
+    print("--- End Passing Variables ---")
+
+    # 3. Capturing Return Values from Blocks
+    print("--- Capturing Return Values ---")
+
+    let py_int_result: int = <<python
+    10 * 5 + 2
+    >>
+    print("Python int result:", py_int_result) # Expected: 52
+
+    # ISS-005 Fixed: JS return values work for strings/numbers
+    let js_string_result: string = <<javascript
+    "Value: " + (100 / 4)
+    >>
+    print("JavaScript string result:", js_string_result) # Expected: "Value: 25"
+
+    # C++ float result (ISS-006 Fixed)
+    let cpp_float_result: float? = <<cpp
+    #include <iostream>
+    #include <iomanip>
+    int main() {
+        std::cout << std::fixed << std::setprecision(2) << 3.14159 * 2.0;
+        return 0;
+    }
+    >>
+    print("C++ float result:", cpp_float_result) # Expected: 6.28
+
+    let py_dict_result: dict<string, any> = <<python
+    {"status": "success", "code": 200}
+    >>
+    print("Python dict result:", py_dict_result)
+    print("Dict status:", py_dict_result["status"])
+
+    # Workaround for JS Array return: use JSON string
+    let js_array_json: string = <<javascript
+    JSON.stringify(["alpha", "beta", "gamma"].reverse())
+    >>
+    let js_array_result = json.parse(js_array_json)
+    print("JavaScript array result:", js_array_result) # Expected: ["gamma", "beta", "alpha"]
+
+    print("--- End Capturing Return Values ---")
+
+    # 4. Multi-line Code Support (ISS-018)
+    print("--- Multi-line Code Support ---")
+    
+    let py_multiline = <<python
+    import math
+    x = 3
+    y = 4
+    math.sqrt(x*x + y*y)
+    >>
+    print("Python multi-line result (sqrt(3^2+4^2)):", py_multiline) # Expected: 5.0
+
+    let js_multiline = <<javascript
+    const a = 10;
+    const b = 20;
+    a * b
+    >>
+    print("JavaScript multi-line result (10*20):", js_multiline) # Expected: 200
+
+    print(">>> Chapter 5 Verification: COMPLETE <<<")
+}

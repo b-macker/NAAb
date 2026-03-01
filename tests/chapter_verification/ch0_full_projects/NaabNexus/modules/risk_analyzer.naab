@@ -1,0 +1,292 @@
+// modules/risk_analyzer.naab
+// Quantitative Risk Analysis & Anomaly Detection
+// Uses: <<python>> rolling volatility/drawdown, <<cpp>> Monte Carlo simulation,
+//       pure NAAb composite scoring, math module, array module,
+//       pipeline operator, if-expressions, lambdas
+
+use io
+use json
+use array
+use math
+use string
+
+// ── Python: Advanced Volatility Analysis ────────────────────────
+
+fn python_volatility_analysis(crypto_json, currency_json) {
+    let result_json = <<python[crypto_json, currency_json]
+import json
+import math
+
+crypto = json.loads(crypto_json)
+currency = json.loads(currency_json)
+
+assets = crypto.get("assets", [])
+var_data = crypto.get("var", {})
+
+# Compute rolling volatility metrics per asset
+asset_risk = []
+for a in assets:
+    change = abs(a["change_24h"])
+    vol_class = a["volatility_class"]
+
+    # Annualized volatility estimate (from daily)
+    daily_vol = change / 100.0
+    annual_vol = daily_vol * math.sqrt(365)
+
+    # Risk classification
+    risk_level = "LOW"
+    if annual_vol > 1.0:
+        risk_level = "EXTREME"
+    elif annual_vol > 0.5:
+        risk_level = "HIGH"
+    elif annual_vol > 0.2:
+        risk_level = "MODERATE"
+
+    asset_risk.append({
+        "name": a["name"],
+        "daily_vol": round(daily_vol * 100, 4),
+        "annual_vol": round(annual_vol * 100, 2),
+        "risk_level": risk_level,
+        "z_score": a.get("z_score", 0)
+    })
+
+# Currency stability index (lower = more stable)
+pairs = currency.get("pairs", [])
+rate_deviations = []
+for p in pairs:
+    rate = p["rate"]
+    # Deviation from 1.0 (parity) as instability measure
+    dev = abs(math.log(max(rate, 0.001)))
+    rate_deviations.append(round(dev, 4))
+
+currency_stability = 0
+if rate_deviations:
+    currency_stability = round(sum(rate_deviations) / len(rate_deviations) * 100, 2)
+
+# Market stress indicator (composite)
+avg_crypto_vol = 0
+if asset_risk:
+    avg_crypto_vol = sum(a["annual_vol"] for a in asset_risk) / len(asset_risk)
+
+sharpe = var_data.get("sharpe_ratio", 0)
+max_dd = var_data.get("max_drawdown", 0)
+
+market_stress = round(min(avg_crypto_vol * 0.4 + currency_stability * 0.3 + max_dd * 0.3, 100), 2)
+
+result = json.dumps({
+    "asset_risk": asset_risk,
+    "currency_stability": currency_stability,
+    "avg_annual_vol": round(avg_crypto_vol, 2),
+    "market_stress": market_stress,
+    "sharpe": round(sharpe, 4),
+    "max_drawdown": round(max_dd, 4)
+})
+result
+    >>
+
+    return json.parse(result_json)
+}
+
+// ── C++ Monte Carlo Price Confidence Intervals ──────────────────
+
+fn cpp_monte_carlo(prices_json, changes_json, iterations_str) {
+    let mc_json = <<cpp[prices_json, changes_json, iterations_str]
+    #include <vector>
+    #include <cmath>
+    #include <algorithm>
+    #include <sstream>
+    #include <string>
+    #include <iomanip>
+    #include <numeric>
+
+    auto parse_array = [](const std::string& s) -> std::vector<double> {
+        std::string input = s;
+        if (!input.empty() && input.front() == '[') input = input.substr(1);
+        if (!input.empty() && input.back() == ']') input = input.substr(0, input.size() - 1);
+        std::vector<double> vals;
+        std::stringstream ss(input);
+        std::string token;
+        while (std::getline(ss, token, ',')) {
+            try { vals.push_back(std::stod(token)); } catch(...) {}
+        }
+        return vals;
+    };
+
+    std::vector<double> prices = parse_array(prices_json);
+    std::vector<double> changes = parse_array(changes_json);
+    int iterations = std::stoi(iterations_str);
+
+    // Compute mean and stdev of changes
+    double mean_change = 0.0;
+    double stdev_change = 1.0;
+    if (!changes.empty()) {
+        double sum = std::accumulate(changes.begin(), changes.end(), 0.0);
+        mean_change = sum / changes.size();
+        double sq = 0.0;
+        for (double c : changes) sq += (c - mean_change) * (c - mean_change);
+        stdev_change = (changes.size() > 1) ? std::sqrt(sq / (changes.size() - 1)) : 1.0;
+    }
+
+    // Simple LCG pseudo-random for deterministic simulation
+    unsigned long seed = 42;
+    auto next_random = [&seed]() -> double {
+        seed = seed * 6364136223846793005ULL + 1442695040888963407ULL;
+        return ((seed >> 33) & 0x7FFFFFFF) / (double)0x7FFFFFFF;
+    };
+
+    // Box-Muller transform for normal distribution
+    auto normal_random = [&next_random, &mean_change, &stdev_change]() -> double {
+        double u1 = next_random();
+        double u2 = next_random();
+        if (u1 < 1e-10) u1 = 1e-10;
+        double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
+        return mean_change + z * stdev_change;
+    };
+
+    // Simulate for each asset
+    std::stringstream result;
+    result << "[";
+    for (int p = 0; p < (int)prices.size(); ++p) {
+        if (p > 0) result << ",";
+        double price = prices[p];
+
+        // Run Monte Carlo simulations
+        std::vector<double> final_prices;
+        for (int iter = 0; iter < iterations; ++iter) {
+            double sim_price = price;
+            // Simulate 30 days
+            for (int day = 0; day < 30; ++day) {
+                double daily_return = normal_random() / 100.0;
+                sim_price *= (1.0 + daily_return);
+            }
+            final_prices.push_back(sim_price);
+        }
+
+        std::sort(final_prices.begin(), final_prices.end());
+
+        double p5 = final_prices[(int)(0.05 * final_prices.size())];
+        double p25 = final_prices[(int)(0.25 * final_prices.size())];
+        double p50 = final_prices[(int)(0.50 * final_prices.size())];
+        double p75 = final_prices[(int)(0.75 * final_prices.size())];
+        double p95 = final_prices[(int)(0.95 * final_prices.size())];
+
+        result << std::fixed << std::setprecision(2);
+        result << "{\"current\":" << price;
+        result << ",\"p5\":" << p5;
+        result << ",\"p25\":" << p25;
+        result << ",\"median\":" << p50;
+        result << ",\"p75\":" << p75;
+        result << ",\"p95\":" << p95;
+        result << ",\"simulations\":" << iterations;
+        result << ",\"horizon_days\":30}";
+    }
+    result << "]";
+
+    std::string res = result.str();
+    res
+    >>
+
+    return json.parse(mc_json)
+}
+
+// ── Pure NAAb: Composite Risk Score ─────────────────────────────
+
+fn compute_composite_risk(weather_stats, vol_analysis, var_data, validation) {
+    // Weather disruption component (0-30)
+    let weather_risk = math.min(weather_stats["avg_disruption"] * 0.5, 30.0)
+
+    // Crypto volatility component (0-35)
+    let crypto_risk = math.min(vol_analysis["avg_annual_vol"] * 0.35, 35.0)
+
+    // Currency instability component (0-20)
+    let currency_risk = math.min(vol_analysis["currency_stability"] * 0.2, 20.0)
+
+    // Data quality penalty (0-15): lower quality = higher risk
+    let quality_score = validation["overall_score"]
+    let quality_risk = math.max(0.0, (100.0 - quality_score) * 0.15)
+
+    let total = weather_risk + crypto_risk + currency_risk + quality_risk
+    total = math.round(math.min(total, 100.0) * 100.0) / 100.0
+
+    let alert_level = if total > 70.0 { "RED" } else { if total > 40.0 { "YELLOW" } else { "GREEN" } }
+
+    let alert_message = if total > 70.0 {
+        "HIGH RISK: Multiple risk factors elevated. Review portfolio exposure and contingency plans."
+    } else {
+        if total > 40.0 {
+            "MODERATE RISK: Some risk indicators above normal. Monitor conditions closely."
+        } else {
+            "LOW RISK: All systems within normal parameters. Standard operating procedures apply."
+        }
+    }
+
+    return {
+        "total_score": total,
+        "alert_level": alert_level,
+        "alert_message": alert_message,
+        "components": {
+            "weather_risk": math.round(weather_risk * 100.0) / 100.0,
+            "crypto_risk": math.round(crypto_risk * 100.0) / 100.0,
+            "currency_risk": math.round(currency_risk * 100.0) / 100.0,
+            "quality_risk": math.round(quality_risk * 100.0) / 100.0
+        }
+    }
+}
+
+// ── Main Risk Analysis Entry Point ──────────────────────────────
+
+export fn analyze_risk(weather_stats, crypto_analysis, currency_analysis, validation, config) {
+    io.write("  [RiskAnalyzer] Running quantitative risk analysis...\n")
+
+    // Python volatility analysis
+    io.write("    [Python] Computing volatility metrics...\n")
+    let crypto_json = json.stringify(crypto_analysis)
+    let currency_json = json.stringify(currency_analysis)
+    let vol_analysis = python_volatility_analysis(crypto_json, currency_json)
+    io.write("    Market stress: ", vol_analysis["market_stress"], " | Avg annual vol: ", vol_analysis["avg_annual_vol"], "%\n")
+
+    // C++ Monte Carlo simulation
+    io.write("    [C++] Running Monte Carlo simulation (", config["risk_thresholds"]["monte_carlo_iterations"], " iterations)...\n")
+    let prices = []
+    let changes = []
+    let i = 0
+    while i < array.length(crypto_analysis["assets"]) {
+        let a = crypto_analysis["assets"][i]
+        array.push(prices, a["price_usd"])
+        array.push(changes, a["change_24h"])
+        i = i + 1
+    }
+    let mc_results = cpp_monte_carlo(
+        json.stringify(prices),
+        json.stringify(changes),
+        "" + config["risk_thresholds"]["monte_carlo_iterations"]
+    )
+
+    // Log Monte Carlo results
+    i = 0
+    while i < array.length(mc_results) {
+        let mc = mc_results[i]
+        let asset_name = crypto_analysis["assets"][i]["name"]
+        io.write("    ", asset_name, " 30d forecast: $", mc["p5"], " - $", mc["p95"], " (90% CI)\n")
+        i = i + 1
+    }
+
+    // Composite risk score
+    io.write("    Computing composite risk score...\n")
+    let risk = compute_composite_risk(weather_stats, vol_analysis, crypto_analysis["var"], validation)
+
+    io.write("    Risk Score: ", risk["total_score"], "/100 [", risk["alert_level"], "]\n")
+    io.write("    ", risk["alert_message"], "\n")
+    io.write("    Components: Weather=", risk["components"]["weather_risk"])
+    io.write(" Crypto=", risk["components"]["crypto_risk"])
+    io.write(" Currency=", risk["components"]["currency_risk"])
+    io.write(" Quality=", risk["components"]["quality_risk"], "\n")
+
+    return {
+        "composite_risk": risk,
+        "volatility": vol_analysis,
+        "monte_carlo": mc_results,
+        "alert_level": risk["alert_level"],
+        "risk_score": risk["total_score"]
+    }
+}

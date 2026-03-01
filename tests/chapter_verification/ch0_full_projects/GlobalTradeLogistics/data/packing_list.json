@@ -1,0 +1,20 @@
+[
+  {
+    "item_id": "ITEM-A1",
+    "dims": [1.2, 0.8, 1.0],
+    "weight": 500,
+    "quantity": 150
+  },
+  {
+    "item_id": "ITEM-B2",
+    "dims": [2.0, 1.0, 1.5],
+    "weight": 1200,
+    "quantity": 40
+  },
+  {
+    "item_id": "ITEM-C3",
+    "dims": [0.5, 0.5, 0.5],
+    "weight": 20,
+    "quantity": 500
+  }
+]

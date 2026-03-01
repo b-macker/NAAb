@@ -1,0 +1,14 @@
+// legacy_logic.naab
+fn heavy_task(iterations) {
+    let result = 0.0
+    for i in 0..iterations {
+        result = result + math.sqrt(i * i + 0.5)
+    }
+    return result
+}
+
+main {
+    let r = heavy_task(1000)
+    io.write("Result: ", r, "
+")
+}

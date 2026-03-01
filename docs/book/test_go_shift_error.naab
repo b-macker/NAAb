@@ -1,0 +1,11 @@
+main {
+    let x = 10
+    let result = <<go[x]
+package main
+import "fmt"
+func main() {
+    fmt.Println(x >> 1)
+}
+>>
+    io.write(result, "\n")
+}

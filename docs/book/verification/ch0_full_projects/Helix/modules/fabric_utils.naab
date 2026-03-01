@@ -1,0 +1,40 @@
+// Helix/modules/fabric_utils.naab
+use string
+use json
+use io
+
+export fn extract_json(raw_output, context_id) {
+    let s = "" + raw_output
+    
+    // Debug: Print raw length
+    // io.write("[DEBUG] Raw length: ", string.length(s), "\n")
+
+    let start = string.index_of(s, "{")
+    if start == -1 { start = string.index_of(s, "[") }
+    
+    if start == -1 {
+        return {"error": "NO_JSON_START", "raw": s}
+    }
+    
+    // Manual substring to cut off prefix
+    // We can't rely on reverse search if there is trailing garbage
+    // But usually trailing garbage is just a newline.
+    
+    let rev_s = string.reverse(s)
+    let rev_end = string.index_of(rev_s, "}")
+    if rev_end == -1 { rev_end = string.index_of(rev_s, "]") }
+    
+    if rev_end == -1 {
+        return {"error": "NO_JSON_END", "raw": s}
+    }
+    
+    let end = string.length(s) - rev_end
+    let clean = string.substring(s, start, end)
+    
+    // Try parse
+    try {
+        return json.parse(clean)
+    } catch (e) {
+        return {"error": "PARSE_FAILED", "clean_attempt": clean, "msg": e}
+    }
+}

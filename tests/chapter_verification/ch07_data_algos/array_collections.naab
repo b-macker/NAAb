@@ -1,0 +1,71 @@
+# Chapter 7: Data Structures & Algorithms Verification
+
+use array as arr
+use collections as col
+
+// Define helper functions for higher-order array functions
+fn double(x: int) -> int {
+    return x * 2
+}
+
+fn is_even(x: int) -> bool {
+    return x % 2 == 0
+}
+
+fn sum_reducer(accumulator: int, current_value: int) -> int {
+    return accumulator + current_value
+}
+
+main {
+    print(">>> Chapter 7 Verification: Data Structures & Algorithms <<<")
+
+    # 1. Array Module Basics
+    print("--- Array Module Basics ---")
+    let numbers = [42, 17, 8, 91, 23, 56, 3]
+    print("Original numbers:", numbers)
+    let sorted_numbers = arr.sort(numbers)
+    print("Sorted numbers:", sorted_numbers)
+    let reversed_numbers = arr.reverse(numbers)
+    print("Reversed numbers:", reversed_numbers)
+    let len = arr.length(numbers)
+    print("Length of numbers:", len)
+    let has_42 = arr.contains(numbers, 42)
+    let has_999 = arr.contains(numbers, 999)
+    print("Contains 42:", has_42)
+    print("Contains 999:", has_999)
+
+    # 2. Higher-Order Array Functions
+    print("--- Higher-Order Array Functions ---")
+    let original_numbers_hof = [1, 2, 3, 4, 5]
+    let doubled = arr.map_fn(original_numbers_hof, double)
+    print("Doubled numbers:", doubled)
+    let evens = arr.filter_fn(original_numbers_hof, is_even)
+    print("Even numbers:", evens)
+    let total_sum = arr.reduce_fn(original_numbers_hof, sum_reducer, 0)
+    print("Total sum:", total_sum)
+
+    # 3. Collections Module (Sets)
+    print("--- Collections Module (Sets) ---")
+    # FIXME: ISS-008 - collections module Set functions are called, but internal state is not updated/retrieved correctly.
+    # Note: Sets are functional - set_add returns a NEW set.
+    let set1 = col.Set()
+    set1 = col.set_add(set1, "apple")
+    set1 = col.set_add(set1, "banana")
+    set1 = col.set_add(set1, "apple") # Adding "apple" again should not change size (uniqueness)
+    print("Set 1 after adds (manual check): unique elements (apple, banana)")
+
+    let set2 = col.Set()
+    set2 = col.set_add(set2, "banana")
+    set2 = col.set_add(set2, "orange")
+    print("Set 2 after adds (manual check): unique elements (banana, orange)")
+
+    print("Size of Set 1:", col.set_size(set1)) # Expected: 2
+    print("Set 1 contains 'apple':", col.set_contains(set1, "apple")) # Expected: true
+    print("Set 1 contains 'grape':", col.set_contains(set1, "grape")) # Expected: false
+
+    set1 = col.set_remove(set1, "banana")
+    print("Set 1 after removing 'banana' (manual check): only apple left")
+    print("Size of Set 1 after removal:", col.set_size(set1)) # Expected: 1
+
+    print(">>> Chapter 7 Verification: COMPLETE <<<")
+}

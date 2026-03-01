@@ -1,0 +1,17 @@
+main {
+    let val = 1.5
+    let compounded = <<go[val]
+    package main
+    import "math"
+    import "fmt"
+    func main() {
+        v := val
+        for i := 0; i < 100; i++ {
+            v = math.Sqrt(v*v + 0.01)
+        }
+        fmt.Print(v)
+    }
+    >>
+    io.write(compounded, "
+")
+}

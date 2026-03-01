@@ -1,0 +1,97 @@
+// ============================================================================
+// Alert Manager Module - Phase 4: Module System
+// Centralized alert management and routing
+// ============================================================================
+
+// Alert configuration
+export struct AlertConfig {
+    enabled: bool,
+    rate_limit_minutes: int,
+    max_alerts_per_hour: int,
+    escalation_enabled: bool
+}
+
+// Alert queue for batching
+export struct AlertQueue {
+    pending_alerts: list,
+    sent_count: int,
+    failed_count: int
+}
+
+// Create new alert queue
+export fn create_queue() -> AlertQueue {
+    return new AlertQueue {
+        pending_alerts: [],
+        sent_count: 0,
+        failed_count: 0
+    }
+}
+
+// Add alert to queue
+export fn enqueue_alert(queue: AlertQueue, alert_message: string) {
+    array.push(queue.pending_alerts, alert_message)
+}
+
+// Process alert queue and send via webhook
+export fn process_queue(queue: AlertQueue, webhook_url: string) -> int {
+    let processed = 0
+    let count = array.length(queue.pending_alerts)
+
+    if count == 0 {
+        return 0
+    }
+
+    // Batch send alerts using JavaScript
+    let batch_result = <<javascript[count, webhook_url]
+// Simulate batch alert sending
+const sent = Math.min(count, 10);  // Max 10 at a time
+const result = {
+    sent: sent,
+    failed: 0,
+    message: `Batch sent ${sent} alerts to ${webhook_url}`
+};
+JSON.stringify(result);
+    >>
+
+    let result = json.parse(batch_result)
+    processed = result.sent
+
+    // Update queue statistics
+    queue.sent_count = queue.sent_count + processed
+
+    return processed
+}
+
+// Check if alert should be throttled (rate limiting)
+export fn should_throttle(last_sent_timestamp: int, current_timestamp: int, rate_limit_minutes: int) -> bool {
+    let diff_seconds = current_timestamp - last_sent_timestamp
+    let diff_minutes = diff_seconds / 60
+
+    return diff_minutes < rate_limit_minutes
+}
+
+// Format alert message with metadata
+export fn format_alert(severity: string, server: string, message: string) -> string {
+    let timestamp = time.now()
+
+    let formatted = <<javascript[severity, server, message, timestamp]
+`[${new Date(timestamp * 1000).toISOString()}] ${severity.toUpperCase()}: ${message}
+Server: ${server}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    >>
+
+    return formatted
+}
+
+// Escalate critical alerts
+export fn escalate_alert(alert_message: string) {
+    // Simulate escalation using multiple channels
+    <<python[alert_message]
+import json
+
+# Simulate PagerDuty/Opsgenie escalation
+escalation_channels = ["pagerduty", "opsgenie", "phone"]
+for channel in escalation_channels:
+    print(f"  📢 Escalated via {channel}")
+    >>
+}

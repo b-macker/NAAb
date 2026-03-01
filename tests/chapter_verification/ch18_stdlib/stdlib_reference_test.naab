@@ -1,0 +1,91 @@
+// Chapter 18 Stdlib Reference Verification Test
+// Tests json and csv modules (http skipped — requires external API)
+
+use json
+use csv
+use string
+
+main {
+    let pass = 0
+    let fail = 0
+
+    // ============================================
+    // 18.2 JSON Module
+    // ============================================
+
+    // Parse JSON
+    let json_str = "{\"name\": \"Alice\", \"scores\": [10, 20, 30]}"
+    let data = json.parse(json_str)
+    if data["name"] == "Alice" {
+        print("PASS: json.parse name")
+        pass = pass + 1
+    } else {
+        print("FAIL: json.parse name")
+        fail = fail + 1
+    }
+
+    if data["scores"][0] == 10 {
+        print("PASS: json.parse nested array")
+        pass = pass + 1
+    } else {
+        print("FAIL: json.parse nested array")
+        fail = fail + 1
+    }
+
+    // Serialize to JSON
+    let my_data = {
+        "id": 123,
+        "active": true,
+        "tags": ["user", "new"]
+    }
+    let output_str = json.stringify(my_data)
+    if string.contains(output_str, "123") {
+        print("PASS: json.stringify")
+        pass = pass + 1
+    } else {
+        print("FAIL: json.stringify - got " + output_str)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 18.3 CSV Module
+    // ============================================
+
+    let csv_content = "name,age,role\nAlice,30,Engineer\nBob,25,Designer"
+    let rows = csv.parse(csv_content)
+
+    if array.length(rows) >= 2 {
+        print("PASS: csv.parse row count")
+        pass = pass + 1
+    } else {
+        print("FAIL: csv.parse row count - got " + array.length(rows))
+        fail = fail + 1
+    }
+
+    // Check header row and data row
+    let headers = rows[0]
+    if headers[0] == "name" {
+        print("PASS: csv.parse headers")
+        pass = pass + 1
+    } else {
+        print("FAIL: csv.parse headers - got " + headers)
+        fail = fail + 1
+    }
+
+    let first_data = rows[1]
+    if first_data[0] == "Alice" {
+        print("PASS: csv.parse first data row")
+        pass = pass + 1
+    } else {
+        print("FAIL: csv.parse first data row - got " + first_data)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // Summary
+    // ============================================
+    print("")
+    print("=== Chapter 18 Stdlib Reference Results ===")
+    print("PASS: " + pass)
+    print("FAIL: " + fail)
+}

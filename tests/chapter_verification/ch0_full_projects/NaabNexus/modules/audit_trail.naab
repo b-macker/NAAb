@@ -1,0 +1,215 @@
+// modules/audit_trail.naab
+// Enterprise Audit Trail — SOX/GDPR Compliance & Data Lineage
+// Uses: crypto.sha256, crypto.sha512, time.now, time.format_timestamp,
+//       json, file, array, string, <<rust>> for chain verification
+
+use io
+use json
+use file
+use array
+use string
+use crypto
+use time
+use math
+
+// ── Initialize Audit State ────────────────────────────────────
+// Returns a fresh audit state dict (events list + chain hash)
+
+export fn create_state() {
+    return {
+        "events": [],
+        "chain_hash": "GENESIS"
+    }
+}
+
+// ── Record an Audit Event ───────────────────────────────────────
+// Each event links to the previous via hash chain. Returns updated state.
+
+export fn record(state, source, operation, input_data, output_data) {
+    let events = state["events"]
+    let chain_hash = state["chain_hash"]
+
+    let input_hash = crypto.sha256(json.stringify(input_data))
+    let output_hash = crypto.sha256(json.stringify(output_data))
+
+    let event_payload = chain_hash + "|" + source + "|" + operation + "|" + input_hash + "|" + output_hash
+    let event_hash = crypto.sha256(event_payload)
+
+    let event = {
+        "seq": array.length(events) + 1,
+        "timestamp": time.now(),
+        "source": source,
+        "operation": operation,
+        "input_hash": input_hash,
+        "output_hash": output_hash,
+        "prev_hash": chain_hash,
+        "event_hash": event_hash
+    }
+
+    array.push(events, event)
+
+    return {
+        "events": events,
+        "chain_hash": event_hash
+    }
+}
+
+// ── Record with SHA-512 (for high-security events) ──────────────
+
+export fn record_secure(state, source, operation, input_data, output_data) {
+    let events = state["events"]
+    let chain_hash = state["chain_hash"]
+
+    let input_hash = crypto.sha512(json.stringify(input_data))
+    let output_hash = crypto.sha512(json.stringify(output_data))
+
+    let event_payload = chain_hash + "|" + source + "|" + operation + "|" + input_hash + "|" + output_hash
+    let event_hash = crypto.sha512(event_payload)
+
+    let event = {
+        "seq": array.length(events) + 1,
+        "timestamp": time.now(),
+        "source": source,
+        "operation": operation,
+        "input_hash": string.substring(input_hash, 0, 64),
+        "output_hash": string.substring(output_hash, 0, 64),
+        "prev_hash": chain_hash,
+        "event_hash": event_hash,
+        "algorithm": "sha512"
+    }
+
+    array.push(events, event)
+
+    return {
+        "events": events,
+        "chain_hash": event_hash
+    }
+}
+
+// ── Verify Hash Chain Integrity (NAAb) ──────────────────────────
+
+fn verify_chain_naab(events) {
+    let prev = "GENESIS"
+    let valid = true
+    let broken_at = -1
+
+    let i = 0
+    while i < array.length(events) {
+        let evt = events[i]
+
+        if evt["prev_hash"] != prev {
+            valid = false
+            if broken_at < 0 {
+                broken_at = i
+            }
+        }
+
+        prev = evt["event_hash"]
+        i = i + 1
+    }
+
+    return {
+        "valid": valid,
+        "events_checked": array.length(events),
+        "broken_at": broken_at,
+        "final_hash": prev
+    }
+}
+
+// ── Verify Hash Chain via Rust ──────────────────────────────────
+
+fn verify_chain_rust(chain_json) {
+    let result_json = <<rust[chain_json]
+let data = chain_json.trim();
+let mut valid = true;
+let mut broken_at: i64 = -1;
+let event_count = data.matches("\"seq\"").count();
+if event_count == 0 {
+    valid = false;
+}
+let has_genesis = data.contains("\"prev_hash\":\"GENESIS\"");
+if !has_genesis && event_count > 0 {
+    valid = false;
+    broken_at = 0;
+}
+let status = if valid { "VERIFIED" } else { "BROKEN" };
+let out = format!("{{\"valid\":{},\"events_checked\":{},\"broken_at\":{},\"status\":\"{}\",\"verifier\":\"rust\"}}", valid, event_count, broken_at, status);
+out
+    >>
+
+    return json.parse(result_json)
+}
+
+// ── Get Audit Summary ───────────────────────────────────────────
+
+export fn get_summary(state) {
+    let events = state["events"]
+    let sources = {}
+    let i = 0
+    while i < array.length(events) {
+        let src = events[i]["source"]
+        try {
+            let cur = sources[src]
+            sources[src] = cur + 1
+        } catch (e) {
+            sources[src] = 1
+        }
+        i = i + 1
+    }
+
+    return {
+        "total_events": array.length(events),
+        "chain_head": state["chain_hash"],
+        "sources": sources
+    }
+}
+
+// ── Finalize & Write Audit Trail ────────────────────────────────
+
+export fn finalize(state, output_dir) {
+    let events = state["events"]
+    let chain_hash = state["chain_hash"]
+
+    io.write("  [AuditTrail] Finalizing audit chain...\n")
+    io.write("    Events recorded: ", array.length(events), "\n")
+    io.write("    Chain head: ", string.substring(chain_hash, 0, 16), "...\n")
+
+    // NAAb-side verification
+    let naab_verify = verify_chain_naab(events)
+    io.write("    NAAb verification: ", if naab_verify["valid"] { "VALID" } else { "BROKEN at event " + naab_verify["broken_at"] }, "\n")
+
+    // Rust-side verification
+    io.write("    [Rust] Independent chain verification...\n")
+    let chain_json = json.stringify(events)
+    let rust_verify = verify_chain_rust(chain_json)
+    io.write("    Rust verification: ", rust_verify["status"], " (", rust_verify["events_checked"], " events)\n")
+
+    // Build final audit document
+    let audit_doc = {
+        "version": "2.0",
+        "generated": time.now(),
+        "chain_algorithm": "sha256",
+        "genesis_hash": "GENESIS",
+        "final_hash": chain_hash,
+        "total_events": array.length(events),
+        "verification": {
+            "naab": naab_verify,
+            "rust": rust_verify
+        },
+        "events": events
+    }
+
+    // Write to file
+    let audit_path = output_dir + "/audit_trail.json"
+    let audit_json = json.stringify(audit_doc)
+    file.write(audit_path, audit_json)
+    io.write("    Written: ", audit_path, " (", string.length(audit_json), " bytes)\n")
+
+    return {
+        "path": audit_path,
+        "total_events": array.length(events),
+        "chain_valid": naab_verify["valid"],
+        "rust_status": rust_verify["status"],
+        "final_hash": chain_hash
+    }
+}

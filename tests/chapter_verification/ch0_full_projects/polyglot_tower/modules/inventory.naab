@@ -1,0 +1,119 @@
+// polyglot_tower/modules/inventory.naab
+use io
+use json
+use types
+use array // Required for array manipulation
+
+// Python filters the inventory to find potions
+export fn count_potions(inventory: list<types.Item>) -> int {
+    let inv_json = json.stringify(inventory)
+    
+    let count = <<python[inv_json]
+import json
+items = json.loads(inv_json)
+potions = [item for item in items if item.get("type") == "potion"]
+len(potions)
+    >>
+    
+    return count
+}
+
+// Python can also list inventory contents for display
+export fn list_inventory(inventory: list<types.Item>) -> string {
+    let inv_json = json.stringify(inventory)
+    
+    let display_str = <<python[inv_json]
+import json
+items = json.loads(inv_json)
+if not items:
+    print("  (Inventory Empty)")
+else:
+    output = ""
+    for idx, item in enumerate(items):
+        output += f"  {idx + 1}. {item.get('name')} ({item.get('type')}) - Value: {item.get('value')})\n"
+        if item.get("attack_bonus"): output += f"     Attack +{item['attack_bonus']}\n"
+        if item.get("defense_bonus"): output += f"     Defense +{item['defense_bonus']}\n"
+        if item.get("effect"): output += f"     Effect: {item['effect']}\n"
+    print(output)
+    >>
+    
+    return display_str
+}
+
+
+// Python manages complex equipment rules and applies stats
+// This function takes player base stats and equipped items, returns total stats
+export fn calculate_total_stats(
+    base_attack: int, 
+    base_defense: int, 
+    equipped_weapon: types.Item?, 
+    equipped_armor: types.Item?
+) -> dict<string, int> {
+    io.write("  [C#] Calculating total player stats...\n")
+
+    let weapon_json = ""
+    if equipped_weapon != null { weapon_json = json.stringify(equipped_weapon) } else { weapon_json = "null" }
+    let armor_json = ""
+    if equipped_armor != null { armor_json = json.stringify(equipped_armor) } else { armor_json = "null" }
+
+    let stats_json = <<csharp[base_attack, base_defense, weapon_json, armor_json]
+    using System;
+    using System.Text.Json;
+    using System.Collections.Generic;
+
+    int totalAttack = (int)base_attack;
+    int totalDefense = (int)base_defense;
+
+    if (weapon_json != "null")
+    {
+        using (JsonDocument doc = JsonDocument.Parse(weapon_json))
+        {
+            JsonElement root = doc.RootElement;
+            if (root.TryGetProperty("attack_bonus", out JsonElement attackBonusElement) && attackBonusElement.ValueKind == JsonValueKind.Number)
+            {
+                totalAttack += attackBonusElement.GetInt32();
+            }
+        }
+    }
+
+    if (armor_json != "null")
+    {
+        using (JsonDocument doc = JsonDocument.Parse(armor_json))
+        {
+            JsonElement root = doc.RootElement;
+            if (root.TryGetProperty("defense_bonus", out JsonElement defenseBonusElement) && defenseBonusElement.ValueKind == JsonValueKind.Number)
+            {
+                totalDefense += defenseBonusElement.GetInt32();
+            }
+        }
+    }
+
+    var result = new Dictionary<string, int>
+    {
+        { "attack", totalAttack },
+        { "defense", totalDefense }
+    };
+
+    JsonSerializer.Serialize(result);
+    >>
+
+    let parsed_stats = json.parse(stats_json)
+    
+    return {
+        "attack": parsed_stats["attack"],
+        "defense": parsed_stats["defense"]
+    }
+}
+
+// Go simulates fetching a "Daily Rare Drop" from a server
+export fn check_daily_drop() -> string {
+    io.write("  [Go] Contacting loot server...\n")
+    
+    // Go expression
+    let drop = <<go
+    // Simulate network delay logic if we could, but here just return string
+    "Legendary Sword of Polyglot"
+    >>
+    
+    return drop
+}

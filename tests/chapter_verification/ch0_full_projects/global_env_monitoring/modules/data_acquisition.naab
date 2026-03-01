@@ -1,0 +1,93 @@
+// modules/data_acquisition.naab
+// Responsible for simulating the acquisition of environmental data from external sources.
+// Refactored to export a factory function that returns a map of its API.
+
+// --- Factory Function: createDataAcquisitionModule ---
+// This function returns a map of functions that constitute the module's public API.
+export func createDataAcquisitionModule(): Map<String, Any> {
+
+    // --- Internal Function: init ---
+    // Initializes the data acquisition module with global configuration and configured logger.
+    let initFunc = func(globalConfig: Map<String, Any>, configuredLogger: Map<String, Any>) {
+        configuredLogger.logInfo("DataAcquisitionModule initialized.");
+    };
+
+    // --- Internal Function: mockFetchApiResponse ---
+    // Simulates fetching data from an external API and returning a structured response.
+    let mockFetchApiResponseFunc = func(sourceId: String, endpoint: String, apiKey: String, params: Map<String, Any>, configuredLogger: Map<String, Any>) {
+        configuredLogger.logInfo("Simulating API call to ${endpoint} for ${sourceId} with params: ${params}");
+
+        let currentTimestamp = configuredLogger.getCurrentTimestamp();
+
+        if sourceId == "weather_api" {
+            return {
+                "source": "GlobalWeatherData",
+                "timestamp": currentTimestamp,
+                "location": params.getString("latitude", "N/A") + "," + params.getString("longitude", "N/A"),
+                "temperature_celsius": 25.5,
+                "humidity_percent": 65,
+                "wind_speed_kph": 15.2,
+                "conditions": "Partly Cloudy",
+                "pressure_hpa": 1012
+            };
+        } else if sourceId == "air_quality_api" {
+            return {
+                "source": "CityAirQualityData",
+                "timestamp": currentTimestamp,
+                "city": params.getString("city", "N/A"),
+                "country": params.getString("country", "N/A"),
+                "aqi": 75,
+                "main_pollutant": "PM2.5",
+                "pm2_5_ug_m3": 28.3,
+                "o3_ug_m3": 55.1
+            };
+        } else {
+            configuredLogger.logWarn("Unknown data source ID: ${sourceId}. Returning empty mock data.");
+            return {};
+        }
+    };
+
+    // --- Internal Function: fetchEnvironmentalData ---
+    // Orchestrates the fetching of data from all configured sources.
+    let fetchEnvironmentalDataFunc = func(dataSourcesConfig: List<Map<String, Any>>, configuredLogger: Map<String, Any>) {
+        let allRawData: List<Map<String, Any>> = [];
+
+        for source in dataSourcesConfig {
+            let sourceId = source.getString("id", "unknown_source");
+            let fetchEnabled = source.getBool("fetch_enabled", false);
+            let endpoint = source.getString("endpoint", "");
+            let apiKey = source.getString("api_key", "");
+            let parameters = source.getMap("parameters", {});
+
+            if (!fetchEnabled) {
+                configuredLogger.logInfo("Data source '${sourceId}' is disabled. Skipping.");
+                continue;
+            }
+
+            if (endpoint.isEmpty()) {
+                configuredLogger.logError("Data source '${sourceId}' has no endpoint configured.", "Missing endpoint");
+                continue;
+            }
+
+            try {
+                // Call internal mockFetchApiResponseFunc, passing configuredLogger
+                let rawData = mockFetchApiResponseFunc(sourceId, endpoint, apiKey, parameters, configuredLogger);
+                if (!rawData.isEmpty()) {
+                    allRawData.add(rawData);
+                    configuredLogger.logInfo("Successfully acquired data from '${sourceId}'.");
+                } else {
+                    configuredLogger.logWarn("Acquisition from '${sourceId}' returned empty data.");
+                }
+            } catch (e) {
+                configuredLogger.logError("Failed to acquire data from '${sourceId}'.", e.message);
+            }
+        }
+        return allRawData;
+    };
+
+    // Return the public API of the module as a map of functions
+    return {
+        "init": initFunc,
+        "fetchEnvironmentalData": fetchEnvironmentalDataFunc
+    };
+}

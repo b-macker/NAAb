@@ -1,0 +1,420 @@
+// modules/data_fetcher.naab
+// HTTP collection from all 5 APIs with synthetic fallback on failure
+// Uses: http, json, io, array, time, string, try/catch, struct, export
+
+use io
+use json
+use http
+use array
+use time
+use string
+
+// ── Structs ──────────────────────────────────────────────────────
+
+export struct WeatherData {
+    city: string,
+    lat: float,
+    lon: float,
+    temperature: float,
+    humidity: float,
+    wind_speed: float,
+    weather_code: int,
+    is_live: bool
+}
+
+export struct CryptoData {
+    id: string,
+    name: string,
+    price_usd: float,
+    change_24h: float,
+    market_cap: float,
+    volume_24h: float,
+    is_live: bool
+}
+
+export struct CurrencyData {
+    base: string,
+    rates: list,
+    rate_names: list,
+    is_live: bool
+}
+
+export struct RepoData {
+    full_name: string,
+    stars: int,
+    forks: int,
+    open_issues: int,
+    language: string,
+    description: string,
+    is_live: bool
+}
+
+export struct GeoData {
+    ip: string,
+    city: string,
+    region: string,
+    country: string,
+    latitude: float,
+    longitude: float,
+    timezone: string,
+    is_live: bool
+}
+
+// ── Weather Fetcher (Open-Meteo) ─────────────────────────────────
+
+export fn fetch_weather(config) {
+    let cities = config["cities"]
+    let base_url = config["apis"]["weather"]
+    let results = []
+    let i = 0
+
+    while i < array.length(cities) {
+        let city = cities[i]
+        let city_name = city["name"]
+        let lat = city["lat"]
+        let lon = city["lon"]
+
+        io.write("  [Weather] Fetching ", city_name, "...")
+
+        let weather = null
+        try {
+            let url = base_url + "?latitude=" + lat + "&longitude=" + lon + "&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code"
+            let resp = http.get(url)
+            if resp["ok"] {
+                let body = json.parse(resp["body"])
+                let current = body["current"]
+                weather = new WeatherData {
+                    city: city_name,
+                    lat: lat * 1.0,
+                    lon: lon * 1.0,
+                    temperature: current["temperature_2m"] * 1.0,
+                    humidity: current["relative_humidity_2m"] * 1.0,
+                    wind_speed: current["wind_speed_10m"] * 1.0,
+                    weather_code: current["weather_code"],
+                    is_live: true
+                }
+                io.write(" LIVE\n")
+            } else {
+                io.write(" HTTP ", resp["status"], "\n")
+            }
+        } catch (e) {
+            io.write(" FAILED: ", e, "\n")
+        }
+
+        if weather == null {
+            weather = make_synthetic_weather(city_name, lat * 1.0, lon * 1.0, i)
+            io.write("    -> Using synthetic fallback\n")
+        }
+
+        array.push(results, weather)
+        i = i + 1
+    }
+
+    return results
+}
+
+fn make_synthetic_weather(city_name, lat, lon, seed) {
+    let temps = [22.5, 15.3, 28.1, 20.7, 35.2]
+    let humids = [65.0, 78.0, 55.0, 70.0, 40.0]
+    let winds = [12.5, 8.3, 15.7, 10.2, 6.8]
+    let codes = [1, 3, 0, 2, 0]
+    let idx = seed % 5
+    return new WeatherData {
+        city: city_name,
+        lat: lat,
+        lon: lon,
+        temperature: temps[idx],
+        humidity: humids[idx],
+        wind_speed: winds[idx],
+        weather_code: codes[idx],
+        is_live: false
+    }
+}
+
+// ── Crypto Fetcher (CoinGecko) ───────────────────────────────────
+
+export fn fetch_crypto(config) {
+    let crypto_ids = config["crypto_ids"]
+    let base_url = config["apis"]["crypto"]
+    let results = []
+
+    // Build comma-separated ID list
+    let ids_str = ""
+    let i = 0
+    while i < array.length(crypto_ids) {
+        if i > 0 {
+            ids_str = ids_str + ","
+        }
+        ids_str = ids_str + crypto_ids[i]
+        i = i + 1
+    }
+
+    io.write("  [Crypto] Fetching ", ids_str, "...")
+
+    let fetched = false
+    try {
+        let url = base_url + "/simple/price?ids=" + ids_str + "&vs_currencies=usd&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true"
+        let resp = http.get(url)
+        if resp["ok"] {
+            let body = json.parse(resp["body"])
+            i = 0
+            while i < array.length(crypto_ids) {
+                let cid = crypto_ids[i]
+                let coin = body[cid]
+                let price = coin["usd"] * 1.0
+                let change = 0.0
+                let mcap = 0.0
+                let vol = 0.0
+
+                // CoinGecko keys use underscores
+                try {
+                    change = coin["usd_24h_change"] * 1.0
+                } catch (e2) {
+                    change = 0.0
+                }
+                try {
+                    mcap = coin["usd_market_cap"] * 1.0
+                } catch (e3) {
+                    mcap = 0.0
+                }
+                try {
+                    vol = coin["usd_24h_vol"] * 1.0
+                } catch (e4) {
+                    vol = 0.0
+                }
+
+                array.push(results, new CryptoData {
+                    id: cid,
+                    name: string.upper(cid),
+                    price_usd: price,
+                    change_24h: change,
+                    market_cap: mcap,
+                    volume_24h: vol,
+                    is_live: true
+                })
+                i = i + 1
+            }
+            fetched = true
+            io.write(" LIVE\n")
+        } else {
+            io.write(" HTTP ", resp["status"], "\n")
+        }
+    } catch (e) {
+        io.write(" FAILED: ", e, "\n")
+    }
+
+    if !fetched {
+        results = make_synthetic_crypto(crypto_ids)
+        io.write("    -> Using synthetic fallback\n")
+    }
+
+    return results
+}
+
+fn make_synthetic_crypto(crypto_ids) {
+    let prices = [67432.50, 3521.80, 142.65]
+    let changes = [2.35, -1.12, 5.67]
+    let mcaps = [1320000000000.0, 423000000000.0, 62000000000.0]
+    let vols = [28000000000.0, 15000000000.0, 3200000000.0]
+    let names = ["BITCOIN", "ETHEREUM", "SOLANA"]
+    let results = []
+    let i = 0
+    while i < array.length(crypto_ids) {
+        let idx = i % 3
+        array.push(results, new CryptoData {
+            id: crypto_ids[i],
+            name: names[idx],
+            price_usd: prices[idx],
+            change_24h: changes[idx],
+            market_cap: mcaps[idx],
+            volume_24h: vols[idx],
+            is_live: false
+        })
+        i = i + 1
+    }
+    return results
+}
+
+// ── Currency Fetcher (Exchange Rate API) ─────────────────────────
+
+export fn fetch_currencies(config) {
+    let currency_list = config["currencies"]
+    let url = config["apis"]["currency"]
+
+    io.write("  [Currency] Fetching USD rates...")
+
+    try {
+        let resp = http.get(url)
+        if resp["ok"] {
+            let body = json.parse(resp["body"])
+            let all_rates = body["rates"]
+            let rates = []
+            let names = []
+            let i = 0
+            while i < array.length(currency_list) {
+                let code = currency_list[i]
+                let rate = all_rates[code] * 1.0
+                array.push(rates, rate)
+                array.push(names, code)
+                i = i + 1
+            }
+            io.write(" LIVE\n")
+            return new CurrencyData {
+                base: "USD",
+                rates: rates,
+                rate_names: names,
+                is_live: true
+            }
+        }
+        io.write(" HTTP error\n")
+    } catch (e) {
+        io.write(" FAILED: ", e, "\n")
+    }
+
+    io.write("    -> Using synthetic fallback\n")
+    return make_synthetic_currencies(currency_list)
+}
+
+fn make_synthetic_currencies(currency_list) {
+    let synth_rates = [0.92, 0.79, 149.50, 1.53, 1.36, 0.88, 7.24, 83.12, 4.97, 1325.0]
+    let rates = []
+    let names = []
+    let i = 0
+    while i < array.length(currency_list) {
+        let idx = i % 10
+        array.push(rates, synth_rates[idx])
+        array.push(names, currency_list[i])
+        i = i + 1
+    }
+    return new CurrencyData {
+        base: "USD",
+        rates: rates,
+        rate_names: names,
+        is_live: false
+    }
+}
+
+// ── GitHub Fetcher ───────────────────────────────────────────────
+
+export fn fetch_github(config) {
+    let repos = config["github_repos"]
+    let base_url = config["apis"]["github"]
+    let results = []
+    let i = 0
+
+    while i < array.length(repos) {
+        let repo_name = repos[i]
+        io.write("  [GitHub] Fetching ", repo_name, "...")
+
+        let repo_data = null
+        try {
+            let url = base_url + "/repos/" + repo_name
+            let resp = http.get(url)
+            if resp["ok"] {
+                let body = json.parse(resp["body"])
+                let lang = "Unknown"
+                try {
+                    lang = body["language"]
+                } catch (le) {
+                    lang = "Unknown"
+                }
+                let desc = ""
+                try {
+                    desc = body["description"]
+                } catch (de) {
+                    desc = "No description"
+                }
+                repo_data = new RepoData {
+                    full_name: repo_name,
+                    stars: body["stargazers_count"],
+                    forks: body["forks_count"],
+                    open_issues: body["open_issues_count"],
+                    language: lang,
+                    description: desc,
+                    is_live: true
+                }
+                io.write(" LIVE\n")
+            } else {
+                io.write(" HTTP ", resp["status"], "\n")
+            }
+        } catch (e) {
+            io.write(" FAILED: ", e, "\n")
+        }
+
+        if repo_data == null {
+            repo_data = make_synthetic_repo(repo_name, i)
+            io.write("    -> Using synthetic fallback\n")
+        }
+
+        array.push(results, repo_data)
+        i = i + 1
+    }
+
+    return results
+}
+
+fn make_synthetic_repo(repo_name, seed) {
+    let stars_list = [185000, 167000, 98000]
+    let forks_list = [55000, 42000, 15000]
+    let issues_list = [350, 5800, 9200]
+    let langs = ["C", "TypeScript", "Rust"]
+    let descs = ["Linux kernel source tree", "Visual Studio Code", "Empowering everyone to build reliable and efficient software"]
+    let idx = seed % 3
+    return new RepoData {
+        full_name: repo_name,
+        stars: stars_list[idx],
+        forks: forks_list[idx],
+        open_issues: issues_list[idx],
+        language: langs[idx],
+        description: descs[idx],
+        is_live: false
+    }
+}
+
+// ── Geolocation Fetcher ──────────────────────────────────────────
+
+export fn fetch_geo(config) {
+    let url = config["apis"]["geo"]
+    io.write("  [Geo] Fetching IP geolocation...")
+
+    try {
+        let resp = http.get(url)
+        if resp["ok"] {
+            let body = json.parse(resp["body"])
+            io.write(" LIVE\n")
+            let city_val = "Unknown"
+            let region_val = "Unknown"
+            let country_val = "Unknown"
+            let tz_val = "UTC"
+            try { city_val = body["city"] } catch (ce) { city_val = "Unknown" }
+            try { region_val = body["region"] } catch (re) { region_val = "Unknown" }
+            try { country_val = body["country_name"] } catch (cne) { country_val = "Unknown" }
+            try { tz_val = body["timezone"] } catch (te) { tz_val = "UTC" }
+            return new GeoData {
+                ip: body["ip"],
+                city: city_val,
+                region: region_val,
+                country: country_val,
+                latitude: body["latitude"] * 1.0,
+                longitude: body["longitude"] * 1.0,
+                timezone: tz_val,
+                is_live: true
+            }
+        }
+        io.write(" HTTP error\n")
+    } catch (e) {
+        io.write(" FAILED: ", e, "\n")
+    }
+
+    io.write("    -> Using synthetic fallback\n")
+    return new GeoData {
+        ip: "192.168.1.1",
+        city: "Unknown",
+        region: "Unknown",
+        country: "Unknown",
+        latitude: 0.0,
+        longitude: 0.0,
+        timezone: "UTC",
+        is_live: false
+    }
+}

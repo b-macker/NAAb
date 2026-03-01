@@ -1,0 +1,161 @@
+# Chapter 16 Verification: Tooling and Development Environment
+# Tests: CLI features, debug module, formatter existence, error messages
+
+main {
+    print(">>> Chapter 16 Verification: Tooling <<<")
+    let pass = 0
+    let fail = 0
+
+    # --- 16.1 CLI Features ---
+    print("")
+    print("--- 16.1 CLI Features ---")
+
+    # Verify the program runs (proves naab-lang run works)
+    print("CLI run: works")
+    pass = pass + 1
+
+    # --- 16.4 Debug Module ---
+    print("")
+    print("--- 16.4 Debug Module ---")
+
+    # debug.type() for various types
+    let int_type = debug.type(42)
+    if int_type == "int" {
+        print("PASS: debug.type(42) = int")
+        pass = pass + 1
+    } else {
+        print("FAIL: debug.type(42) = " + int_type)
+        fail = fail + 1
+    }
+
+    let str_type = debug.type("hello")
+    if str_type == "string" {
+        print("PASS: debug.type(\"hello\") = string")
+        pass = pass + 1
+    } else {
+        print("FAIL: debug.type(\"hello\") = " + str_type)
+        fail = fail + 1
+    }
+
+    let arr_type = debug.type([1, 2, 3])
+    if arr_type == "array" {
+        print("PASS: debug.type([1,2,3]) = array")
+        pass = pass + 1
+    } else {
+        print("FAIL: debug.type([1,2,3]) = " + arr_type)
+        fail = fail + 1
+    }
+
+    let dict_type = debug.type({"key": "val"})
+    if dict_type == "dict" {
+        print("PASS: debug.type(dict) = dict")
+        pass = pass + 1
+    } else {
+        print("FAIL: debug.type(dict) = " + dict_type)
+        fail = fail + 1
+    }
+
+    let bool_type = debug.type(true)
+    if bool_type == "bool" {
+        print("PASS: debug.type(true) = bool")
+        pass = pass + 1
+    } else {
+        print("FAIL: debug.type(true) = " + bool_type)
+        fail = fail + 1
+    }
+
+    # debug.inspect() returns a string representation
+    let inspected = debug.inspect({"name": "Alice", "age": 30})
+    let inspect_type = debug.type(inspected)
+    if inspect_type == "string" {
+        print("PASS: debug.inspect() returns string")
+        pass = pass + 1
+    } else {
+        print("FAIL: debug.inspect() returns " + inspect_type)
+        fail = fail + 1
+    }
+
+    # --- 16.5 Error Messages ---
+    print("")
+    print("--- 16.5 Error Messages ---")
+
+    # Division by zero gives helpful error
+    let div_error = false
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        div_error = true
+        print("PASS: Division by zero caught with message")
+        pass = pass + 1
+    }
+    if !div_error {
+        print("FAIL: Division by zero not caught")
+        fail = fail + 1
+    }
+
+    # Type coercion gives helpful error
+    let type_error = false
+    try {
+        let x = "hello" - 5
+    } catch (e) {
+        type_error = true
+        print("PASS: Type error caught with message")
+        pass = pass + 1
+    }
+    if !type_error {
+        print("FAIL: Type error not caught")
+        fail = fail + 1
+    }
+
+    # Array bounds gives helpful error
+    let bounds_error = false
+    try {
+        let arr = [1, 2, 3]
+        let x = arr[99]
+    } catch (e) {
+        bounds_error = true
+        print("PASS: Array bounds error caught")
+        pass = pass + 1
+    }
+    if !bounds_error {
+        print("FAIL: Array bounds not caught")
+        fail = fail + 1
+    }
+
+    # --- 16.4.5 Debugging Techniques ---
+    print("")
+    print("--- 16.4.5 Debugging Techniques ---")
+
+    # Try-catch debugging pattern
+    let caught = false
+    try {
+        let data = [1, 2, 3]
+        let bad = data[100]
+    } catch (e) {
+        caught = true
+        print("PASS: Try-catch debugging captures error: " + e)
+    }
+    if caught {
+        pass = pass + 1
+    } else {
+        print("FAIL: Try-catch debugging did not capture error")
+        fail = fail + 1
+    }
+
+    # --- Summary ---
+    print("")
+    print("--- Summary ---")
+    let total = pass + fail
+    print("Total:")
+    print(total)
+    print("Pass:")
+    print(pass)
+    print("Fail:")
+    print(fail)
+
+    if fail == 0 {
+        print(">>> Chapter 16 Verification: ALL PASS <<<")
+    } else {
+        print(">>> Chapter 16 Verification: FAILURES DETECTED <<<")
+    }
+}

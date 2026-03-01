@@ -1,0 +1,76 @@
+// Chapter 19: Cryptography Module Verification
+
+use crypto
+use string
+
+main {
+    let pass = 0
+    let fail = 0
+
+    // ============================================
+    // 19.1 Hashing
+    // ============================================
+
+    let data = "secret_password"
+
+    // SHA-256
+    let hash256 = crypto.sha256(data)
+    if string.length(hash256) == 64 {
+        print("PASS: crypto.sha256 produces 64-char hex")
+        pass = pass + 1
+    } else {
+        print("FAIL: crypto.sha256 length - got " + string.length(hash256))
+        fail = fail + 1
+    }
+
+    // SHA-512
+    let hash512 = crypto.sha512(data)
+    if string.length(hash512) == 128 {
+        print("PASS: crypto.sha512 produces 128-char hex")
+        pass = pass + 1
+    } else {
+        print("FAIL: crypto.sha512 length - got " + string.length(hash512))
+        fail = fail + 1
+    }
+
+    // MD5
+    let md5_hash = crypto.md5(data)
+    if string.length(md5_hash) == 32 {
+        print("PASS: crypto.md5 produces 32-char hex")
+        pass = pass + 1
+    } else {
+        print("FAIL: crypto.md5 length - got " + string.length(md5_hash))
+        fail = fail + 1
+    }
+
+    // Deterministic: same input = same hash
+    let hash2 = crypto.sha256(data)
+    if hash256 == hash2 {
+        print("PASS: crypto.sha256 is deterministic")
+        pass = pass + 1
+    } else {
+        print("FAIL: sha256 not deterministic")
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 19.2 Secure Randomness
+    // ============================================
+
+    let random_hex = crypto.random_bytes(16)
+    if string.length(random_hex) > 0 {
+        print("PASS: crypto.random_bytes returns data")
+        pass = pass + 1
+    } else {
+        print("FAIL: crypto.random_bytes empty")
+        fail = fail + 1
+    }
+
+    // ============================================
+    // Summary
+    // ============================================
+    print("")
+    print("=== Chapter 19 Crypto Results ===")
+    print("PASS: " + pass)
+    print("FAIL: " + fail)
+}

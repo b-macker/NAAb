@@ -1,0 +1,11 @@
+main {
+    let result = << go
+package main
+import "fmt"
+func main() {
+    fmt.Print("Space")
+}
+>>
+    io.write(result, "
+")
+}

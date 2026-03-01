@@ -1,0 +1,16 @@
+main {
+    let x = "Hello"
+    let result = <<go[x]
+    package main
+    import (
+        "fmt"
+        "os"
+    )
+    func main() {
+        fmt.Println(x)
+        fmt.Println(os.Getenv("PATH"))
+    }
+    >>
+    io.write(result, "
+")
+}

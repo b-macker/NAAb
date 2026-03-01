@@ -1,0 +1,88 @@
+// modules/data_processor.naab
+// Responsible for cleaning, validating, and transforming raw environmental data.
+// Refactored to export a factory function that returns a map of its API.
+
+// (Note: No direct import "modules/logger.naab" here. Configured logger is passed.)
+
+// --- Factory Function: createDataProcessorModule ---
+// This function returns a map of functions that constitute the module's public API.
+export func createDataProcessorModule(): Map<String, Any> {
+
+    // --- Internal Function: init ---
+    // Initializes the data processor module with global configuration and configured logger.
+    let initFunc = func(globalConfig: Map<String, Any>, configuredLogger: Map<String, Any>) {
+        configuredLogger.logInfo("DataProcessorModule initialized.");
+    };
+
+    // --- Internal Function: validateAndCleanDataPoint ---
+    // Validates a single data point and applies basic cleaning rules.
+    let validateAndCleanDataPointFunc = func(rawDataPoint: Map<String, Any>, configuredLogger: Map<String, Any>) {
+        let processedDataPoint = rawDataPoint.clone();
+
+        let source = processedDataPoint.getString("source", "unknown");
+
+        if source == "GlobalWeatherData" {
+            let tempCelsius = processedDataPoint.getFloat("temperature_celsius", -999.0);
+            if tempCelsius < -50.0 || tempCelsius > 60.0 {
+                configuredLogger.logWarn("Invalid temperature value for weather data: ${tempCelsius}. Setting to null.");
+                processedDataPoint.put("temperature_celsius", null);
+            }
+            if tempCelsius != -999.0 {
+                processedDataPoint.put("temperature_kelvin", tempCelsius + 273.15);
+            }
+        }
+
+        if source == "CityAirQualityData" {
+            let aqi = processedDataPoint.getInt("aqi", -1);
+            if aqi < 0 || aqi > 500 {
+                configuredLogger.logWarn("Invalid AQI value for air quality data: ${aqi}. Setting to null.");
+                processedDataPoint.put("aqi", null);
+            }
+        }
+
+        let getCurrentTimestamp = configuredLogger.getCurrentTimestamp;
+        processedDataPoint.put("processed_timestamp", getCurrentTimestamp());
+
+        processedDataPoint.remove("api_key");
+        processedDataPoint.remove("endpoint");
+
+        return processedDataPoint;
+    };
+
+    // --- Internal Function: processRawData ---
+    // Processes a list of raw data points, applying validation, cleaning, and transformation.
+    let processRawDataFunc = func(rawDataSet: List<Map<String, Any>>, configuredLogger: Map<String, Any>) {
+        let processedDataSet: List<Map<String, Any>> = [];
+        let errorCount = 0;
+
+        for rawDataPoint in rawDataSet {
+            try {
+                // Call internal validateAndCleanDataPointFunc, passing configuredLogger
+                let processedPoint = validateAndCleanDataPointFunc(rawDataPoint, configuredLogger);
+                if (!processedPoint.isEmpty()) {
+                    processedDataSet.add(processedPoint);
+                } else {
+                    errorCount += 1;
+                    configuredLogger.logError("Failed to process raw data point.", "Empty processed point returned for: ${rawDataPoint}");
+                }
+            } catch (e) {
+                errorCount += 1;
+                configuredLogger.logError("Error processing data point.", e.message + " Data: ${rawDataPoint}");
+            }
+        }
+
+        if (errorCount > 0) {
+            configuredLogger.logWarn("Completed data processing with ${errorCount} errors.");
+        } else {
+            configuredLogger.logInfo("Successfully processed all raw data points.");
+        }
+
+        return processedDataSet;
+    };
+
+    // Return the public API of the module as a map of functions
+    return {
+        "init": initFunc,
+        "processRawData": processRawDataFunc
+    };
+}

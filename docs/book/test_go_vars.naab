@@ -1,0 +1,12 @@
+main {
+    let count = 42
+    let result = <<go[count]
+package main
+import "fmt"
+import "os"
+func main() {
+    fmt.Print(os.Getenv("count"))
+}
+>>
+    io.write("Result from NAAb: ", result, "\n")
+}

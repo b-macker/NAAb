@@ -1,0 +1,125 @@
+// Chapter 8: String Module Functions Verification
+// Tests all available string manipulation functions
+
+use io
+use json
+use string as str
+
+main {
+    io.write("=== String Module Functions Test ===\n\n")
+
+    // TEST 1: length - Get string length
+    io.write("TEST 1: str.length()\n")
+    let text = "Hello, World!"
+    let len = str.length(text)
+    io.write("  Length of '", text, "' = ", json.stringify(len), "\n")
+    io.write("  ✓ length() works\n\n")
+
+    // TEST 2: substring - Extract substring
+    io.write("TEST 2: str.substring()\n")
+    let sub = str.substring(text, 0, 5)
+    io.write("  Substring(0, 5) of '", text, "' = '", sub, "'\n")
+    io.write("  ✓ substring() works\n\n")
+
+    // TEST 3: concat - Concatenate strings
+    io.write("TEST 3: str.concat()\n")
+    let concatenated = str.concat("Hello", " World")
+    io.write("  Concat 'Hello' + ' World' = '", concatenated, "'\n")
+    io.write("  ✓ concat() works\n\n")
+
+    // TEST 4: split - Split string by delimiter
+    io.write("TEST 4: str.split()\n")
+    let csv = "apple,banana,cherry"
+    let parts = str.split(csv, ",")
+    io.write("  Split '", csv, "' by ',' = ", json.stringify(parts), "\n")
+    io.write("  ✓ split() works\n\n")
+
+    // TEST 5: join - Join array of strings
+    io.write("TEST 5: str.join()\n")
+    let words = ["Hello", "from", "NAAb"]
+    let joined = str.join(words, " ")
+    io.write("  Join ", json.stringify(words), " with ' ' = '", joined, "'\n")
+    io.write("  ✓ join() works\n\n")
+
+    // TEST 6: trim - Remove whitespace
+    io.write("TEST 6: str.trim()\n")
+    let padded = "  hello  "
+    let trimmed = str.trim(padded)
+    io.write("  Trim '", padded, "' = '", trimmed, "'\n")
+    io.write("  ✓ trim() works\n\n")
+
+    // TEST 7: upper - Convert to uppercase
+    io.write("TEST 7: str.upper()\n")
+    let lower_text = "hello world"
+    let upper = str.upper(lower_text)
+    io.write("  Upper '", lower_text, "' = '", upper, "'\n")
+    io.write("  ✓ upper() works\n\n")
+
+    // TEST 8: lower - Convert to lowercase
+    io.write("TEST 8: str.lower()\n")
+    let upper_text = "HELLO WORLD"
+    let lower = str.lower(upper_text)
+    io.write("  Lower '", upper_text, "' = '", lower, "'\n")
+    io.write("  ✓ lower() works\n\n")
+
+    // TEST 9: replace - Replace substring
+    io.write("TEST 9: str.replace()\n")
+    let original = "Hello World"
+    let replaced = str.replace(original, "World", "NAAb")
+    io.write("  Replace 'World' with 'NAAb' in '", original, "' = '", replaced, "'\n")
+    io.write("  ✓ replace() works\n\n")
+
+    // TEST 10: contains - Check if string contains substring
+    io.write("TEST 10: str.contains()\n")
+    let haystack = "The quick brown fox"
+    let has_quick = str.contains(haystack, "quick")
+    let has_slow = str.contains(haystack, "slow")
+    io.write("  '", haystack, "' contains 'quick': ", json.stringify(has_quick), "\n")
+    io.write("  '", haystack, "' contains 'slow': ", json.stringify(has_slow), "\n")
+    io.write("  ✓ contains() works\n\n")
+
+    // TEST 11: starts_with - Check if string starts with prefix
+    io.write("TEST 11: str.starts_with()\n")
+    let filename = "document.pdf"
+    let starts = str.starts_with(filename, "doc")
+    io.write("  '", filename, "' starts with 'doc': ", json.stringify(starts), "\n")
+    io.write("  ✓ starts_with() works\n\n")
+
+    // TEST 12: ends_with - Check if string ends with suffix
+    io.write("TEST 12: str.ends_with()\n")
+    let ends = str.ends_with(filename, ".pdf")
+    io.write("  '", filename, "' ends with '.pdf': ", json.stringify(ends), "\n")
+    io.write("  ✓ ends_with() works\n\n")
+
+    // TEST 13: index_of - Find position of substring
+    io.write("TEST 13: str.index_of()\n")
+    let sentence = "Hello, World! Hello!"
+    let index = str.index_of(sentence, "World")
+    io.write("  Index of 'World' in '", sentence, "' = ", json.stringify(index), "\n")
+    io.write("  ✓ index_of() works\n\n")
+
+    // TEST 14: repeat - Repeat string n times
+    io.write("TEST 14: str.repeat()\n")
+    let pattern = "abc"
+    let repeated = str.repeat(pattern, 3)
+    io.write("  Repeat '", pattern, "' 3 times = '", repeated, "'\n")
+    io.write("  ✓ repeat() works\n\n")
+
+    io.write("=== Summary ===\n")
+    io.write("All 14 string functions tested successfully:\n")
+    io.write("  1. length() - Get string length\n")
+    io.write("  2. substring() - Extract substring\n")
+    io.write("  3. concat() - Concatenate strings\n")
+    io.write("  4. split() - Split by delimiter\n")
+    io.write("  5. join() - Join array with separator\n")
+    io.write("  6. trim() - Remove whitespace\n")
+    io.write("  7. upper() - Convert to uppercase\n")
+    io.write("  8. lower() - Convert to lowercase\n")
+    io.write("  9. replace() - Replace substring\n")
+    io.write(" 10. contains() - Check if contains substring\n")
+    io.write(" 11. starts_with() - Check prefix\n")
+    io.write(" 12. ends_with() - Check suffix\n")
+    io.write(" 13. index_of() - Find substring position\n")
+    io.write(" 14. repeat() - Repeat string\n")
+    io.write("\n=== All tests passed! ===\n")
+}

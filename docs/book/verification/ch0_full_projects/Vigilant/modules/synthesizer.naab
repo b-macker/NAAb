@@ -1,0 +1,47 @@
+// Vigilant/modules/synthesizer.naab
+// THE INDUSTRIAL MASTER SYNTHESIZER (TYPE FIX)
+
+use io
+use file
+use json
+
+fn shred_file(path) {
+    io.write("    [FORENSIC] Shredding source: ", path, "\n")
+    <<bash[path]
+    dd if=/dev/urandom of="$path" bs=1k count=1 conv=notrunc 2>/dev/null && dd if=/dev/zero of="$path" bs=1k count=1 conv=notrunc 2>/dev/null && rm -f "$path"
+>>
+}
+
+export fn synthesize_absolute(risk_profile) {
+    io.write("  [ABS-SYNTH] Initializing Hardware-Aware Transmutation...\n")
+    
+    let bin_dir = "verification/ch0_full_projects/Vigilant/bin/"
+    let src_dir = "verification/ch0_full_projects/Vigilant/src/"
+    
+    let rust_template = "// Absolute Hardened Shield\nuse std::io::{Read, Write};\nuse std::os::unix::net::UnixListener;\nuse std::fs;\nfn main() {\n    let sock = \"/data/data/com.termux/files/usr/tmp/v_s.sock\";\n    let _ = fs::remove_file(sock);\n    let listener = UnixListener::bind(sock).unwrap();\n    for stream in listener.incoming() {\n        if let Ok(mut s) = stream {\n            let mut buf = String::new();\n            if let Ok(_) = s.read_to_string(&mut buf) {\n                s.write_all(b\"[]\").unwrap();\n            }\n        }\n    }\n}\n"
+
+    let rust_bin = bin_dir + "shield_vessel"
+    let rust_src = src_dir + "shield.rs"
+
+    let needs_compile = <<python[rust_template, rust_bin]
+import hashlib, os
+h = hashlib.sha256(rust_template.encode()).hexdigest()
+res = "YES"
+if os.path.exists(rust_bin): res = "NO"
+res
+>>
+
+    if needs_compile == "YES" {
+        <<bash[bin_dir, src_dir] mkdir -p "$bin_dir" "$src_dir" >>
+        file.write(rust_src, rust_template)
+        io.write("    [ABS-SYNTH] Compiling Hardened Rust Muscle...\n")
+        <<bash[rust_src, rust_bin]
+        rustc -C opt-level=3 -o "$rust_bin" "$rust_src"
+>>
+        shred_file(rust_src)
+    } else {
+        io.write("    [ABS-SYNTH] Caching layer verified.\n")
+    }
+
+    return {"status": "ABS_SUCCESS", "shield": rust_bin}
+}

@@ -1,0 +1,16 @@
+fn run_go() {
+    let result = <<go
+package main
+import "fmt"
+func main() {
+    fmt.Print("Inside function")
+}
+>>
+    return result
+}
+
+main {
+    let r = run_go()
+    io.write(r, "
+")
+}

@@ -1,0 +1,16 @@
+main {
+    let p = async <<go
+package main
+import "fmt"
+import "time"
+func main() {
+    time.Sleep(100 * time.Millisecond)
+    fmt.Print("Async Go")
+}
+>>
+    io.write("Waiting...
+")
+    let result = await p
+    io.write("Result: ", result, "
+")
+}

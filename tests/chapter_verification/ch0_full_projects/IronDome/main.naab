@@ -1,0 +1,104 @@
+// ===================================================================
+// IRON DOME v12.0: The Enterprise Governance Plane
+// ===================================================================
+
+use io
+use json
+use file
+use time
+use array
+
+// ── Sovereign Core Hubs ─────────────────────────────────────────
+use modules.config_loader
+use modules.deep_scan_cpp
+use modules.quantum_enforcer
+use modules.core_brain
+use modules.integrity_sealer
+use modules.audit_log_go
+use modules.provenance_naab
+use modules.hegemonic_consortium
+use modules.self_improvement_hub
+use modules.historical_oracle
+use modules.remediation_alchemist
+use modules.quantum_mirror
+use modules.protocol_arbiter
+use modules.fabric_utils
+use modules.feed_ingester
+use modules.dashboard_server
+use modules.visualizer_core
+
+// ── Main Entry Point ─────────────────────────────────────────────
+main {
+    let start_time = time.now()
+    io.write("╔═══════════════════════════════════════════════════════════╗\n")
+    io.write("║           IRON DOME v12.0 - Sovereign Command             ║\n")
+    io.write("║           (Enterprise Governance Plane)                   ║\n")
+    io.write("╚═══════════════════════════════════════════════════════════╝\n\n")
+
+    // 0. Information Feed Acquisition
+    io.write("  [0/9] Acquiring Sovereign Information Feeds...\n")
+    let feeds = feed_ingester.acquire_feeds({})
+
+    // 1. Context & Adversarial Consensus
+    io.write("  [1/9] Mapping Topology & Engaging Consortium...\n")
+    let policy = config_loader.load_policy("tests/chapter verification/ch0_full_projects/IronDome/config/governance_policy.json")
+    let scan_results = deep_scan_cpp.scan_workspace(".", policy["scanner"])
+    let consortium = hegemonic_consortium.validate_consensus(scan_results["files"])
+    fabric_utils.verify_consensus(consortium)
+
+    // 2. Quantum Enforcement
+    io.write("  [2/9] Running Enforcement & Protocol Arbitration...\n")
+    let enforcement = quantum_enforcer.execute_scan(policy["gates"], scan_results["files"])
+    let e_cert = protocol_arbiter.validate_contract(json.stringify(enforcement), "ENFORCEMENT")
+    if !e_cert["certified"] { throw "PROTOCOL_BREACH" }
+    
+    // 3. Temporal Oracle
+    io.write("  [3/9] Consulted Historical Oracle...\n")
+    let oracle = historical_oracle.analyze_recurrence(enforcement["violations"])
+
+    // 4. Cognitive Deliberation
+    let decision = {"recommendation": "PROCEED", "risk_index": 0, "consensus_status": "STABLE"}
+    let fix = {"ready_for_apply": false}
+    
+    if enforcement["failed"] > 0 {
+        io.write("  [4/9] Anomalies Detected! Activating Cognitive Core...\n")
+        decision = core_brain.deliberate(enforcement["violations"])
+        decision["risk_index"] = decision["risk_index"] * oracle["temporal_analysis"]["risk_escalation"]
+        
+        io.write("  [5/9] Synthesizing Remediation via Alchemist...\n")
+        fix = remediation_alchemist.synthesize_fix(enforcement["violations"][0])
+        
+        io.write("  [6/9] Stress-Testing Fix in Quantum Mirror Sim...\n")
+        let simulation = quantum_mirror.simulate_rule({"id": "fix_test", "cmd": fix["patch"]["remediation_cmd"]})
+    }
+
+    // 5. Final Sealing
+    io.write("  [7/9] Committing to Sovereign History & Sealing Fabric...\n")
+    let prov = provenance_naab.record_provenance(policy["provenance"])
+    let final_data = {
+        "feeds": feeds,
+        "provenance": prov,
+        "consortium": consortium,
+        "enforcement": enforcement,
+        "oracle": oracle,
+        "remediation": fix,
+        "decision": decision
+    }
+    let seal_obj = integrity_sealer.seal(final_data)
+    final_data["seal"] = seal_obj
+    audit_log_go.log_event(final_data, {"log_path": "tests/chapter verification/ch0_full_projects/IronDome/logs/audit.jsonl", "buffer_size": 100})
+
+    // 8. Command Center Activation
+    io.write("  [8/9] Launching Enterprise Governance Plane (v12.0)...\n")
+    let topology = visualizer_core.generate_topology(scan_results["files"])
+    let server = dashboard_server.serve_console(final_data, topology, 8080)
+    io.write("    GOVERNANCE PLANE LIVE: ", server["path"], "\n")
+
+    // Final Sovereign Decision
+    let end_time = time.now()
+    io.write("\n═══════════════════════════════════════════════════════════\n")
+    io.write("  ✅ FABRIC SEALED: Sovereign Autonomy Maintained\n")
+    io.write("  Global Signature: ", seal_obj["signature"], "\n")
+    io.write("  Total Fabric Latency: ", end_time - start_time, "ms\n")
+    io.write("═══════════════════════════════════════════════════════════\n")
+}

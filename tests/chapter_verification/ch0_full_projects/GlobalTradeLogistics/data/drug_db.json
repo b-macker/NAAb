@@ -1,0 +1,7 @@
+{
+  "Warfarin": { "class": "Anticoagulant", "interactions": ["Aspirin", "Ibuprofen", "Antibiotics"] },
+  "Aspirin": { "class": "NSAID", "interactions": ["Warfarin", "Heparin"] },
+  "Ibuprofen": { "class": "NSAID", "interactions": ["Warfarin", "Methotrexate"] },
+  "Simvastatin": { "class": "Statin", "interactions": ["Clarithromycin", "Grapefruit"] },
+  "Clarithromycin": { "class": "Antibiotic", "interactions": ["Simvastatin"] }
+}

@@ -1,0 +1,123 @@
+// Helix/modules/vessel_synthesizer.naab
+// Omni-Synthesizer for Helix (v10.2)
+use io
+use json
+use file
+use fabric_utils
+
+export fn synthesize_vessels(blueprint) {
+    let b_json = json.stringify(blueprint)
+    io.write("  [SYNTHESIZER] Blueprint: ", b_json, "\n")
+    io.write("  [SYNTHESIZER] Transmuting blueprints into full-spectrum vessels...\n")
+    
+    let raw_output = <<python[b_json]
+import json
+
+def get_go(name):
+    return f"""package main
+import ("fmt"; "math"; "os"; "strconv")
+func main() {{
+    if len(os.Args) < 2 {{ fmt.Println("READY"); return }}
+    val, _ := strconv.ParseFloat(os.Args[1], 64)
+    v := math.Sqrt(math.Pow(val, 2) + 0.5)
+    for i := 0; i < 100; i++ {{ v = math.Sqrt(v + 0.01) }}
+    fmt.Printf("%.15f", v)
+}}"""
+
+def get_cpp(name):
+    return f"""#include <iostream>
+#include <cmath>
+#include <iomanip>
+#include <string>
+int main(int argc, char** argv) {{
+    if (argc < 2) {{ std::cout << "READY" << std::endl; return 0; }}
+    double v = std::stod(argv[1]);
+    v = std::sqrt(std::pow(v, 2) + 0.5);
+    for(int i=0; i<100; i++) {{ v = std::sqrt(v + 0.01); }}
+    std::cout << std::fixed << std::setprecision(15) << v;
+    return 0;
+}}"""
+
+def get_rust(name):
+    return f"""use std::env;
+fn main() {{
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {{ println!("READY"); return; }}
+    let mut v: f64 = args[1].parse().unwrap();
+    v = (v.powi(2) + 0.5).sqrt();
+    for _ in 0..100 {{ v = (v + 0.01).sqrt(); }}
+    print!("{{:.15}}", v);
+}}"""
+
+def get_ruby(name):
+    return f"""v = ARGV[0].to_f
+if v == 0.0 && ARGV[0] != "0"
+    puts "READY"
+else
+    res = Math.sqrt(v**2 + 0.5)
+    100.times {{ res = Math.sqrt(res + 0.01) }}
+    printf("%.15f", res)
+end"""
+
+def get_js(name):
+    return f"""const v = parseFloat(process.argv[2]);
+if (isNaN(v)) {{
+    console.log("READY");
+}} else {{
+    let res = Math.sqrt(Math.pow(v, 2) + 0.5);
+    for(let i=0; i<100; i++) {{ res = Math.sqrt(res + 0.01); }}
+    console.log(res.toFixed(15));
+}}"""
+
+bp = json.loads(b_json)
+generated = []
+for func in bp.get("functions", []):
+    name = func["name"]
+    target = func["target"]
+    code = ""
+    ext = ""
+    if target == "GO": code, ext = get_go(name), "go"
+    elif target == "CPP": code, ext = get_cpp(name), "cpp"
+    elif target == "RUST": code, ext = get_rust(name), "rs"
+    elif target == "RUBY": code, ext = get_ruby(name), "rb"
+    elif target == "JAVASCRIPT": code, ext = get_js(name), "js"
+    
+    if code:
+        generated.append({"name": name, "target": target, "ext": ext, "content": code})
+
+json.dumps(generated)
+    >>
+    
+    let vessels = json.parse(raw_output)
+    let out_dir = "verification/ch0_full_projects/Helix/vessels/"
+    
+    for v in vessels {
+        let name = v["name"]
+        let target = v["target"]
+        let ext = v["ext"]
+        let src_path = out_dir + name + "_" + target + "." + ext
+        let bin_path = out_dir + name + "_vessel"
+        
+        file.write(src_path, v["content"])
+        io.write("    SYNTHESIZED: ", src_path, "\n")
+        
+        if target == "GO" {
+            io.write("    COMPILING (GO) -> ", bin_path, "\n")
+            <<bash[src_path, bin_path]
+            go build -o "$bin_path" "$src_path"
+            >>
+        } else if target == "CPP" {
+            io.write("    COMPILING (CPP) -> ", bin_path, "\n")
+            <<bash[src_path, bin_path]
+            g++ -O3 -o "$bin_path" "$src_path"
+            >>
+        } else if target == "RUST" {
+            io.write("    COMPILING (RUST) -> ", bin_path, "\n")
+            <<bash[src_path, bin_path]
+            rustc -C opt-level=3 -o "$bin_path" "$src_path"
+            >>
+        }
+    }
+    
+    return {"status": "SYNTHESIZED"}
+}

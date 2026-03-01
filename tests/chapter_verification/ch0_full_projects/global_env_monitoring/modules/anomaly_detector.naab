@@ -1,0 +1,117 @@
+// modules/anomaly_detector.naab
+// Responsible for detecting anomalies in processed environmental data based on configured thresholds.
+// Refactored to export a factory function that returns a map of its API.
+
+// (Note: No direct import "modules/logger.naab" here. Configured logger is passed.)
+
+// --- Factory Function: createAnomalyDetectorModule ---
+// This function returns a map of functions that constitute the module's public API.
+export func createAnomalyDetectorModule(): Map<String, Any> {
+
+    // --- Internal Function: init ---
+    // Initializes the anomaly detector module with global configuration and configured logger.
+    let initFunc = func(globalConfig: Map<String, Any>, configuredLogger: Map<String, Any>) {
+        configuredLogger.logInfo("AnomalyDetectorModule initialized.");
+    };
+
+    // --- Internal Function: checkThresholds ---
+    // Checks if a given metric value exceeds warning or critical thresholds.
+    let checkThresholdsFunc = func(metricName: String, value: Float, thresholds: Map<String, Any>) {
+        let anomalyDetails: Map<String, Any> = {};
+
+        if thresholds.has("warning_high") && value > thresholds.getFloat("warning_high") {
+            anomalyDetails.put("level", "WARNING");
+            anomalyDetails.put("type", "Threshold Exceeded (High)");
+            anomalyDetails.put("metric", metricName);
+            anomalyDetails.put("value", value);
+            anomalyDetails.put("threshold", thresholds.getFloat("warning_high"));
+            return anomalyDetails;
+        }
+
+        if thresholds.has("critical_high") && value > thresholds.getFloat("critical_high") {
+            anomalyDetails.put("level", "CRITICAL");
+            anomalyDetails.put("type", "Threshold Exceeded (High)");
+            anomalyDetails.put("metric", metricName);
+            anomalyDetails.put("value", value);
+            anomalyDetails.put("threshold", thresholds.getFloat("critical_high"));
+            return anomalyDetails;
+        }
+
+        if thresholds.has("warning_low") && value < thresholds.getFloat("warning_low") {
+            anomalyDetails.put("level", "WARNING");
+            anomalyDetails.put("type", "Threshold Exceeded (Low)");
+            anomalyDetails.put("metric", metricName);
+            anomalyDetails.put("value", value);
+            anomalyDetails.put("threshold", thresholds.getFloat("warning_low"));
+            return anomalyDetails;
+        }
+
+        if thresholds.has("critical_low") && value < thresholds.getFloat("critical_low") {
+            anomalyDetails.put("level", "CRITICAL");
+            anomalyDetails.put("type", "Threshold Exceeded (Low)");
+            anomalyDetails.put("metric", metricName);
+            anomalyDetails.put("value", value);
+            anomalyDetails.put("threshold", thresholds.getFloat("critical_low"));
+            return anomalyDetails;
+        }
+
+        return {}; // No anomaly detected
+    };
+
+    // --- Internal Function: detectAnomalies ---
+    // Detects anomalies in a list of processed data points.
+    let detectAnomaliesFunc = func(processedDataSet: List<Map<String, Any>>, monitoringThresholds: Map<String, Any>, configuredLogger: Map<String, Any>) {
+        let detectedAnomalies: List<Map<String, Any>> = [];
+
+        for dataPoint in processedDataSet {
+            let source = dataPoint.getString("source", "unknown");
+            let timestamp = dataPoint.getString("processed_timestamp", "unknown_time");
+
+            if source == "GlobalWeatherData" {
+                if dataPoint.has("temperature_celsius") && monitoringThresholds.has("temperature_celsius") {
+                    let temp = dataPoint.getFloat("temperature_celsius");
+                    let thresholds = monitoringThresholds.getMap("temperature_celsius");
+                    let anomaly = checkThresholdsFunc( // Call internal function
+                        "temperature_celsius", temp, thresholds
+                    );
+                    if (!anomaly.isEmpty()) {
+                        anomaly.put("data_point_timestamp", timestamp);
+                        anomaly.put("location", dataPoint.getString("location", "N/A"));
+                        detectedAnomalies.add(anomaly);
+                        configuredLogger.logWarn("Anomaly detected: ${anomaly.getString("level")} ${anomaly.getString("metric")} ${anomaly.getString("type")} at ${anomaly.getString("data_point_timestamp")}");
+                    }
+                }
+            }
+
+            if source == "CityAirQualityData" {
+                if dataPoint.has("aqi") && monitoringThresholds.has("aqi") {
+                    let aqi = dataPoint.getFloat("aqi");
+                    let thresholds = monitoringThresholds.getMap("aqi");
+                    let anomaly = checkThresholdsFunc( // Call internal function
+                        "aqi", aqi, thresholds
+                    );
+                    if (!anomaly.isEmpty()) {
+                        anomaly.put("data_point_timestamp", timestamp);
+                        anomaly.put("city", dataPoint.getString("city", "N/A"));
+                        detectedAnomalies.add(anomaly);
+                        configuredLogger.logWarn("Anomaly detected: ${anomaly.getString("level")} ${anomaly.getString("metric")} ${anomaly.getString("type")} at ${anomaly.getString("data_point_timestamp")}");
+                    }
+                }
+            }
+        }
+
+        if (!detectedAnomalies.isEmpty()) {
+            configuredLogger.logError("Detected ${detectedAnomalies.size()} anomalies in this cycle.", "Review details for severity.");
+        } else {
+            configuredLogger.logInfo("No anomalies detected in the current data set.");
+        }
+
+        return detectedAnomalies;
+    };
+
+    // Return the public API of the module as a map of functions
+    return {
+        "init": initFunc,
+        "detectAnomalies": detectAnomaliesFunc
+    };
+}

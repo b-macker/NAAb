@@ -1,0 +1,37 @@
+// stats_module.naab
+// Module demonstrating polyglot blocks in exported functions
+
+// Exported function with Python polyglot block
+export fn calculate_mean(numbers: list<float>) -> float {
+    let mean = <<python[numbers]
+sum(numbers) / len(numbers)
+    >>
+    return mean
+}
+
+// Exported function with multi-line Python polyglot
+export fn calculate_stats(data: list<float>) -> dict<string, float> {
+    let stats = <<python[data]
+    result = {
+        "mean": sum(data) / len(data),
+        "min": min(data),
+        "max": max(data),
+        "count": len(data)
+    }
+    result
+    >>
+    return stats
+}
+
+// Exported function with JavaScript polyglot block
+export fn reverse_text(text: string) -> string {
+    let reversed = <<javascript[text]
+text.split('').reverse().join('')
+    >>
+    return reversed
+}
+
+// Regular exported function (no polyglot)
+export fn double(x: int) -> int {
+    return x * 2
+}

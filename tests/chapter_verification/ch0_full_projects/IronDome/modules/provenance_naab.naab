@@ -1,0 +1,28 @@
+// IronDome/modules/provenance_naab.naab
+// Provenance Tracking using NAAb Native
+// Uses: env, crypto, time
+
+use env
+use crypto
+use time
+
+export fn record_provenance(config) {
+    let identity = "Unknown Agent"
+    if config["track_identity"] {
+        if env.has("USER") {
+            identity = env.get("USER")
+        } else if env.has("USERNAME") {
+            identity = env.get("USERNAME")
+        }
+    }
+    
+    let ts = time.now()
+    let event_id = crypto.generate_token(12)
+    
+    return {
+        "event_id": event_id,
+        "executor": identity,
+        "timestamp": ts,
+        "system": "IronDome_v1.1"
+    }
+}

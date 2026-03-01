@@ -1,0 +1,12 @@
+{
+    "policies": [
+        {"type": "ID_SSN", "score": 100, "action": "BLOCK"},
+        {"type": "FIN_CREDIT_CARD", "score": 80, "action": "BLOCK"},
+        {"type": "SEC_HIGH_ENTROPY", "score": 40, "action": "REDACT"},
+        {"type": "ID_EMAIL", "score": 20, "action": "AUDIT"}
+    ],
+    "thresholds": {
+        "block": 90,
+        "redact": 40
+    }
+}

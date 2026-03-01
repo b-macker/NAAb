@@ -1,0 +1,82 @@
+// Vigilant/modules/gateway.naab
+// THE INDUSTRIAL SOVEREIGN GATEWAY (HARDENED)
+
+use io
+use json
+use file
+use string
+
+export fn start_service(config, workers) {
+    io.write("  [GATEWAY] Initializing Industrial Interceptor on :8091...\n")
+    
+    let go_src = "verification/ch0_full_projects/Vigilant/src/gateway.go"
+    let go_bin = "verification/ch0_full_projects/Vigilant/bin/gateway_vessel"
+    
+    let go_code = <<python
+src = """package main
+import (
+    "net/http"
+    "io"
+    "net"
+    "sync/atomic"
+    "log"
+    "time"
+)
+
+var shards = []string{
+    "/data/data/com.termux/files/usr/tmp/v_brain.sock",
+}
+var counter uint64
+
+func handle(w http.ResponseWriter, r *http.Request) {
+    idx := atomic.AddUint64(&counter, 1) % uint64(len(shards))
+    sock := shards[idx]
+    
+    // Dial with a short timeout to prevent hangs
+    conn, err := net.DialTimeout("unix", sock, 2*time.Second)
+    if err != nil {
+        http.Error(w, "Security Fabric Offline", 503)
+        return
+    }
+    defer conn.Close()
+
+    body, _ := io.ReadAll(r.Body)
+    conn.Write(body)
+    
+    // Signal EOF to the brain
+    if cw, ok := conn.(*net.UnixConn); ok {
+        cw.CloseWrite()
+    }
+
+    resp, _ := io.ReadAll(conn)
+    w.Header().Set("Content-Type", "application/json")
+    w.Write(resp)
+}
+
+func main() {
+    log.Println("[GATEWAY] Listening on :8091...")
+    http.HandleFunc("/", handle)
+    log.Fatal(http.ListenAndServe(":8091", nil))
+}
+"""
+src # Return the source
+>>
+
+    // Ensure directories exist before writing
+    <<bash
+    mkdir -p verification/ch0_full_projects/Vigilant/src verification/ch0_full_projects/Vigilant/bin
+>>
+
+    file.write(go_src, go_code)
+    
+    io.write("    [GATEWAY] Compiling Sovereign Pipe...\n")
+    <<bash[go_src, go_bin]
+    export CGO_ENABLED=0
+    go build -o "$go_bin" "$go_src"
+>>
+
+    io.write("    [GATEWAY] Launching Pipe Binary...\n")
+    <<bash[go_bin]
+    "$go_bin" &
+>>
+}

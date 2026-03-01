@@ -1,0 +1,36 @@
+// polyglot_tower/modules/combat.naab
+use io
+use types
+
+// Rust calculates the raw damage numbers safely
+export fn calculate_damage(attacker_atk: int, defender_hp: int) -> int {
+    
+    // Rust block for safe math
+    let damage = <<rust[attacker_atk]
+    let atk = attacker_atk;
+    // Simulate a critical hit chance
+    let mult = if (atk % 2) == 0 { 2 } else { 1 }; 
+    let dmg = atk * mult;
+    dmg
+    >>
+    
+    return damage
+}
+
+// Ruby generates the narrative description of the attack
+export fn describe_attack(attacker_name: string, damage: int) -> string {
+    
+    // Ruby is great for text generation
+    // We use puts to output the result which NAAb captures
+    let description = <<ruby[attacker_name, damage]
+    adjectives = ["viciously", "swiftly", "clumsily", "heroically"]
+    verbs = ["strikes", "slashes", "bonks", "pokes"]
+    
+    adj = adjectives.sample
+    verb = verbs.sample
+    
+    puts "#{attacker_name} #{adj} #{verb} for #{damage} damage!"
+    >>
+    
+    return description
+}

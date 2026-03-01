@@ -1,0 +1,62 @@
+// IronDome/modules/audit_log_go.naab
+// Audit Logging using Go
+// Uses: <<go>>, json, io, file, env
+
+use io
+use json
+use file
+use env
+
+fn go_audit_log(payload_json) {
+    env.set_var("NAAB_GO_PAYLOAD", payload_json)
+    
+    let result = <<go
+package main
+import (
+    "encoding/json"
+    "fmt"
+    "os"
+    "time"
+)
+
+func main() {
+    payloadString := os.Getenv("NAAB_GO_PAYLOAD")
+    
+    var rawPayload map[string]interface{}
+    json.Unmarshal([]byte(payloadString), &rawPayload)
+
+    eventsJson := rawPayload["events_json"].(string)
+    logPath := rawPayload["log_path"].(string)
+
+    var event_data interface{}
+    json.Unmarshal([]byte(eventsJson), &event_data)
+
+    entry := map[string]interface{}{
+        "timestamp": time.Now(),
+        "source":    "IronDome",
+        "data":      event_data,
+    }
+
+    bytes, _ := json.Marshal(entry)
+
+    f, _ := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+    f.Write(append(bytes, '\n'))
+    f.Close()
+
+    fmt.Printf("{\"status\": \"success\", \"bytes_written\": %d}", len(bytes))
+}
+>>
+    env.delete_var("NAAB_GO_PAYLOAD")
+    
+    return json.parse(result)
+}
+
+export fn log_event(data, config) {
+    let events_json = json.stringify(data)
+    let log_path = config["log_path"]
+    
+    let payload = {"events_json": events_json, "log_path": log_path}
+    let payload_json = json.stringify(payload)
+
+    return go_audit_log(payload_json)
+}

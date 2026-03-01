@@ -1,0 +1,75 @@
+// ============================================================================
+// HTTP Monitor Module - Phase 4: Module System
+// Provides HTTP endpoint monitoring capabilities
+// ============================================================================
+
+// Struct for HTTP health check result
+export struct HealthCheckResult {
+    endpoint: string,
+    status_code: int,
+    response_time_ms: int,
+    is_healthy: bool,
+    error_message: string?
+}
+
+// Check HTTP endpoint health
+export fn check_endpoint(url: string) -> HealthCheckResult {
+    // Simulate HTTP health check using JavaScript fetch
+    let response_data = <<javascript[url]
+// Simulate endpoint check (in production, use actual fetch)
+const result = {
+    status_code: Math.random() > 0.1 ? 200 : 503,
+    response_time_ms: Math.floor(Math.random() * 500) + 50
+};
+JSON.stringify(result);
+    >>
+
+    let parsed = json.parse(response_data)
+    let status = parsed.status_code
+    let response_time = parsed.response_time_ms
+
+    let is_healthy = status >= 200 && status < 300
+    let err_msg = null
+    if !is_healthy {
+        err_msg = "HTTP request failed"
+    }
+
+    return new HealthCheckResult {
+        endpoint: url,
+        status_code: status,
+        response_time_ms: response_time,
+        is_healthy: is_healthy,
+        error_message: err_msg
+    }
+}
+
+// Batch check multiple endpoints
+export fn check_multiple_endpoints(urls: list) -> list {
+    let results = []
+    let i = 0
+    while i < array.length(urls) {
+        let result = check_endpoint(urls[i])
+        array.push(results, result)
+        i = i + 1
+    }
+    return results
+}
+
+// Calculate average response time
+export fn calculate_average_response_time(results: list) -> float {
+    let total = 0
+    let count = array.length(results)
+
+    if count == 0 {
+        return 0.0
+    }
+
+    let i = 0
+    while i < count {
+        let result = results[i]
+        total = total + result.response_time_ms
+        i = i + 1
+    }
+
+    return total / count
+}

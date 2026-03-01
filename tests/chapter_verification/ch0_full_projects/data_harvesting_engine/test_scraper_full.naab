@@ -1,0 +1,36 @@
+// Test full scraper module using config file
+
+use io
+use json
+use array
+use app_config
+use web_scraper
+
+main {
+    io.write("Testing full web_scraper module\n")
+
+    io.write("Loading config...\n")
+    let cfg = app_config.load_engine_config("engine_config.json")
+
+    if cfg == null {
+        io.write_error("❌ Failed to load config\n")
+        return
+    }
+
+    io.write("Calling web_scraper.scrape_data...\n")
+    let result = web_scraper.scrape_data(cfg.harvesting)
+
+    if result == null {
+        io.write_error("❌ Result is null\n")
+    } else {
+        io.write("✅ Got result\n")
+        let len = array.length(result)
+        io.write("Length: ", len, "\n")
+
+        if len > 0 {
+            io.write("First item:\n")
+            io.write("  Name: ", result[0].name, "\n")
+            io.write("  Description: ", result[0].description, "\n")
+        }
+    }
+}

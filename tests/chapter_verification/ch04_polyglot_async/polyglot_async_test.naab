@@ -1,0 +1,171 @@
+// Chapter 4.5 Polyglot Async Verification Test
+// Tests runnable code blocks from chapter04_polyglot_async.md
+
+use io
+use string
+use json
+
+main {
+    let pass = 0
+    let fail = 0
+
+    // ============================================
+    // 4.5.2 Block 1: Basic Python execution
+    // ============================================
+    let result = <<python
+42 + 8
+>>
+    if result == 50 {
+        print("PASS: basic python (42 + 8 = 50)")
+        pass = pass + 1
+    } else {
+        print("FAIL: basic python - got " + result)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 4.5.2 Block 2: Multiple languages
+    // ============================================
+    let python_result = <<python
+import math
+math.sqrt(144)
+>>
+    if python_result == 12 {
+        print("PASS: python math.sqrt(144) = 12")
+        pass = pass + 1
+    } else {
+        print("FAIL: python math.sqrt - got " + python_result)
+        fail = fail + 1
+    }
+
+    let js_result = <<javascript
+const data = {name: "NAAb", version: 1};
+JSON.stringify(data)
+>>
+    if string.contains(js_result, "NAAb") {
+        print("PASS: javascript JSON.stringify")
+        pass = pass + 1
+    } else {
+        print("FAIL: javascript JSON - got " + js_result)
+        fail = fail + 1
+    }
+
+    let shell_result = <<bash
+echo "Hello from shell"
+>>
+    // Note: Bash returns a plain string, NOT a struct with .stdout
+    if string.contains(shell_result, "Hello from shell") {
+        print("PASS: bash echo")
+        pass = pass + 1
+    } else {
+        print("FAIL: bash echo - got " + shell_result)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 4.5.5 Block 7: Variable binding
+    // ============================================
+    let multiplier = 10
+    let values = [1, 2, 3, 4, 5]
+
+    let bound_result = <<python[multiplier, values]
+[x * multiplier for x in values]
+>>
+    if array.length(bound_result) == 5 {
+        print("PASS: variable binding to python")
+        pass = pass + 1
+    } else {
+        print("FAIL: variable binding - got " + bound_result)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 4.5.6 Block 8-9: Shell execution
+    // Note: Bash returns string, not struct
+    // ============================================
+    let shell_test = <<bash
+echo "test output"
+>>
+    if string.length(shell_test) > 0 {
+        print("PASS: shell returns string")
+        pass = pass + 1
+    } else {
+        print("FAIL: shell empty result")
+        fail = fail + 1
+    }
+
+    let shell_ops = <<bash
+echo "test" && echo "done"
+>>
+    if string.contains(shell_ops, "done") {
+        print("PASS: shell && operator")
+        pass = pass + 1
+    } else {
+        print("FAIL: shell && - got " + shell_ops)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 4.5.7 Block 11: Type conversion
+    // ============================================
+    let naab_list = [1, 2, 3, 4, 5]
+    let sum_result = <<python[naab_list]
+sum(naab_list)
+>>
+    if sum_result == 15 {
+        print("PASS: type conversion list -> python -> int")
+        pass = pass + 1
+    } else {
+        print("FAIL: type conversion - got " + sum_result)
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 4.5.8 Block 12: Error handling
+    // ============================================
+    let caught_error = false
+    try {
+        let err_result = <<python
+raise ValueError("Something went wrong!")
+>>
+    } catch (e) {
+        caught_error = true
+        print("PASS: polyglot error propagation")
+        pass = pass + 1
+    }
+    if caught_error == false {
+        print("FAIL: error not caught")
+        fail = fail + 1
+    }
+
+    // ============================================
+    // 4.5.11 Block 15: Map-reduce pattern
+    // ============================================
+    let data = [1, 2, 3, 4, 5, 6, 7, 8]
+    let chunk1 = <<python[data]
+[x * 2 for x in data[0:len(data)//2]]
+>>
+    let chunk2 = <<python[data]
+[x * 2 for x in data[len(data)//2:]]
+>>
+    if array.length(chunk1) == 4 {
+        if array.length(chunk2) == 4 {
+            print("PASS: map-reduce chunking")
+            pass = pass + 1
+        } else {
+            print("FAIL: chunk2 wrong length")
+            fail = fail + 1
+        }
+    } else {
+        print("FAIL: chunk1 wrong length")
+        fail = fail + 1
+    }
+
+    // ============================================
+    // Summary
+    // ============================================
+    print("")
+    print("=== Chapter 4.5 Polyglot Async Results ===")
+    print("PASS: " + pass)
+    print("FAIL: " + fail)
+}

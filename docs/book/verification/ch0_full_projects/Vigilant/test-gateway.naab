@@ -1,0 +1,15 @@
+// Test gateway fix
+use io
+use json
+use modules.synthesizer
+use modules.gateway
+
+main {
+    io.write("Testing gateway...\n")
+    let profile = {"mode": "TEST"}
+    let workers = synthesizer.synthesize_absolute(json.stringify(profile))
+    io.write("Synthesizer result: ", json.stringify(workers), "\n")
+
+    io.write("Starting gateway...\n")
+    gateway.start_service(profile, workers)
+}
