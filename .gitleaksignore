@@ -1,0 +1,21 @@
+# Gitleaks ignore file
+# Excludes test fixtures and demo files from secret scanning
+
+# Test certificates and keys for Vigilant demo project
+docs/book/verification/ch0_full_projects/Vigilant/config/*.pem
+docs/book/verification/ch0_full_projects/Vigilant/config/*.csr
+docs/book/verification/ch0_full_projects/Vigilant/config/*.key
+docs/book/verification/ch0_full_projects/Vigilant/config/*.secret
+
+# All verification/test project configs
+docs/book/verification/**/config/*.pem
+docs/book/verification/**/config/*.key
+docs/book/verification/**/config/*.secret
+tests/chapter_verification/**/config/*.pem
+tests/chapter_verification/**/config/*.key
+
+# Test data files
+**/test_*.json
+**/example_*.json
+tests/**/*.pem
+tests/**/*.key
