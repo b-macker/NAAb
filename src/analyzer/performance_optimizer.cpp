@@ -1,6 +1,7 @@
 // Performance Optimizer for Pattern Detection System
 // Implements caching, parallelization, and hot path optimizations
 
+#include <optional>
 #include <regex>
 #include <unordered_map>
 #include <mutex>
