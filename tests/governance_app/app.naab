@@ -1,0 +1,47 @@
+// Governance App Test - Main Application
+// This file should ALWAYS PASS all governance checks
+
+main {
+    print("╔═══════════════════════════════════════════╗")
+    print("║  Governance App Test - Phase 6           ║")
+    print("╚═══════════════════════════════════════════╝")
+
+    // Test 1: Complete implementation (no oversimplification)
+    let py_complete = <<python
+def calculate_total(items):
+    total = 0
+    for item in items:
+        total += item['price'] * item['quantity']
+    return total
+
+items = [{'price': 10, 'quantity': 2}, {'price': 5, 'quantity': 3}]
+result = calculate_total(items)
+str(result)
+    >>
+    print("✓ Complete implementation: " + py_complete)
+
+    // Test 2: Proper error handling (no incomplete logic)
+    let py_errors = <<python
+try:
+    value = 10 / 2
+    result = value * 2
+except ZeroDivisionError as e:
+    result = f"Error: {e}"
+except Exception as e:
+    result = f"Unexpected error: {e}"
+
+str(result)
+    >>
+    print("✓ Proper error handling: " + py_errors)
+
+    // Test 3: Real APIs (no hallucinated functions)
+    let py_real = <<python
+import json
+data = {"name": "test", "value": 42}
+result = json.dumps(data)
+result
+    >>
+    print("✓ Real APIs used: " + py_real)
+
+    print("\n✓ Phase 6 Complete: LLM anti-drift checks enforced")
+}

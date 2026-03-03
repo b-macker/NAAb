@@ -4782,11 +4782,28 @@ void Interpreter::visit(ast::CallExpr& node) {
                 debugger_->pushFrame(frame);
             }
 
+            // Governance: Check and track call depth for direct function calls
+            if (governance_ && governance_->isActive()) {
+                std::string depth_err = governance_->checkCallDepth(call_depth_ + 1);
+                if (!depth_err.empty()) {
+                    popStackFrame();
+                    if (!func->source_file.empty()) popFileContext();
+                    current_env_ = saved_env;
+                    returning_ = saved_returning;
+                    current_function_ = saved_function;
+                    current_type_substitutions_ = saved_type_subst;
+                    current_file_ = saved_file;
+                    throw std::runtime_error(depth_err);
+                }
+            }
+            ++call_depth_;
+
             // Phase 4.1: Execute function body with proper error propagation
             try {
                 func->body->accept(*this);
             } catch (...) {
                 // Clean up before re-throwing
+                --call_depth_;
                 if (debugger_ && debugger_->isActive()) {
                     debugger_->popFrame();
                 }
@@ -4802,6 +4819,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                 current_file_ = saved_file;  // Phase 3.1: Restore file
                 throw;  // Re-throw with stack frame info already captured
             }
+
+            --call_depth_;
 
             // Pop call frame if debugger is active
             if (debugger_ && debugger_->isActive()) {
@@ -5897,6 +5916,10 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         std::string err = governance_->checkPolyglotBlock(
             language, raw_code, current_file_, line);
         if (!err.empty()) throw std::runtime_error(err);
+
+        // Check polyglot block count limit
+        std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+        if (!count_err.empty()) throw std::runtime_error(count_err);
     }
 
     // Phase 2.2: Bind variables using string serialization

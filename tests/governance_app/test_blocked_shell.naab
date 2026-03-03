@@ -1,0 +1,7 @@
+// Test: Shell language should be blocked
+main {
+    let result = <<shell
+echo "This should fail"
+    >>
+    print(result)
+}

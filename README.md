@@ -7,7 +7,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Discussions](https://img.shields.io/badge/Discussions-enabled-blue.svg)](https://github.com/b-macker/NAAb/discussions)
 
-**A polyglot programming language** that seamlessly integrates Python, JavaScript, Rust, C++, Go, and more through an innovative block system. Use the best language for each task — in a single file.
+**A polyglot programming language** that seamlessly integrates Python, JavaScript, Rust, C++, Go, Nim, and more through an innovative block system. Use the best language for each task — in a single file.
 
 ```naab
 main {
@@ -166,7 +166,7 @@ main {
 - Error handling with try/catch/throw
 
 ### Polyglot Execution
-- **9 languages:** Python, JavaScript, Rust, C++, Go, C#, Ruby, PHP, Shell
+- **12 languages:** Python, JavaScript, Rust, C++, Go, C#, Nim, Zig, Julia, Ruby, PHP, Shell
 - Variable binding between languages
 - Parallel polyglot execution with dependency analysis
 - Persistent sub-runtime contexts

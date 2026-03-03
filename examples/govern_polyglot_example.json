@@ -1,0 +1,100 @@
+{
+  "version": "3.0",
+  "description": "Example governance config with polyglot optimization",
+
+  "polyglot_optimization": {
+    "enabled": true,
+    "enforcement_level": "soft",
+
+    "pattern_detection": {
+      "enabled": true,
+      "task_inference": {
+        "numerical_operations": {
+          "patterns": [
+            "\\bmatrix\\b", "\\beigenval", "\\blinear\\s*algebra\\b",
+            "\\bstatistics\\b", "\\bmean\\b", "\\bstd\\b", "\\bsvd\\b"
+          ],
+          "optimal_languages": ["julia", "nim"],
+          "suboptimal_languages": ["javascript", "shell"],
+          "message": "Numerical operations perform 10-100x faster in Julia or Nim"
+        },
+        "string_processing": {
+          "patterns": [
+            "\\bregex\\b", "\\bmatch\\b", "\\bsplit\\b", "\\bjoin\\b",
+            "\\breplace\\b", "\\bstrip\\b"
+          ],
+          "optimal_languages": ["python", "ruby", "nim"],
+          "suboptimal_languages": ["zig", "cpp"],
+          "message": "String operations benefit from high-level language built-ins"
+        },
+        "file_operations": {
+          "patterns": [
+            "\\bfind\\b", "\\bgrep\\b", "\\bsed\\b", "\\bawk\\b",
+            "\\bglob\\b", "\\bwalk\\b"
+          ],
+          "optimal_languages": ["shell", "bash"],
+          "suboptimal_languages": ["javascript", "zig"],
+          "message": "Shell tools are purpose-built for file operations"
+        }
+      }
+    },
+
+    "language_diversity": {
+      "enabled": true,
+      "min_languages": 2,
+      "max_single_language_percent": 70,
+      "message": "Consider using specialized languages for performance-critical sections"
+    },
+
+    "helper_errors": {
+      "enabled": true,
+      "show_alternative_language": true,
+      "show_example_code": true,
+      "fuzzy_match_threshold": 0.7
+    },
+
+    "ai_guidance": {
+      "enabled": true,
+      "include_in_errors": true,
+      "suggest_refactoring": true,
+      "show_benchmarks": false
+    },
+
+    "task_language_matrix": {
+      "numerical_operations": {
+        "julia": {"score": 100, "reason": "JIT-compiled math, built-in BLAS/LAPACK"},
+        "nim": {"score": 95, "reason": "Fast compiled code, good math libraries"},
+        "python": {"score": 70, "reason": "NumPy/SciPy good but slower"},
+        "javascript": {"score": 30, "reason": "Limited precision, slow"},
+        "shell": {"score": 10, "reason": "Not designed for computation"}
+      },
+      "string_processing": {
+        "python": {"score": 100, "reason": "Rich string API, regex built-in"},
+        "ruby": {"score": 95, "reason": "Excellent string handling"},
+        "nim": {"score": 90, "reason": "Fast + good stdlib"},
+        "javascript": {"score": 85, "reason": "Good string methods"},
+        "go": {"score": 70, "reason": "Decent but verbose"},
+        "zig": {"score": 40, "reason": "Low-level, manual"}
+      },
+      "file_operations": {
+        "shell": {"score": 100, "reason": "grep/find/sed optimized"},
+        "bash": {"score": 100, "reason": "Same as shell"},
+        "python": {"score": 80, "reason": "Good pathlib, os modules"},
+        "nim": {"score": 75, "reason": "Fast filesystem access"},
+        "javascript": {"score": 40, "reason": "Node.js fs limited"}
+      },
+      "web_apis": {
+        "javascript": {"score": 100, "reason": "Native fetch, JSON support"},
+        "python": {"score": 90, "reason": "requests library excellent"},
+        "go": {"score": 85, "reason": "net/http production-grade"},
+        "zig": {"score": 40, "reason": "Low-level HTTP"}
+      },
+      "concurrency": {
+        "go": {"score": 100, "reason": "Goroutines and channels"},
+        "rust": {"score": 95, "reason": "Fearless concurrency"},
+        "julia": {"score": 85, "reason": "Tasks and channels"},
+        "python": {"score": 50, "reason": "GIL limits parallelism"}
+      }
+    }
+  }
+}

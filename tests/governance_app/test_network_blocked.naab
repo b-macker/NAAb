@@ -1,0 +1,10 @@
+// Test: Network capability disabled - urllib should be blocked
+main {
+    let result = <<python
+import urllib.request
+response = urllib.request.urlopen("https://httpbin.org/get")
+data = response.read().decode()
+data
+    >>
+    print(result)
+}

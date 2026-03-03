@@ -1,0 +1,491 @@
+// Polyglot Anti-Patterns and Corrections
+// Common mistakes when composing multi-language scripts
+
+// ============================================================================
+// ANTI-PATTERN 1: Python for Everything
+// ============================================================================
+
+function antipattern1_bad() {
+    print("❌ ANTI-PATTERN: Using Python for everything")
+
+    let result = <<python
+import subprocess
+import numpy as np
+import os
+
+# BAD: File operations (shell is 2-3x faster)
+files = subprocess.check_output(['find', '.', '-name', '*.txt']).decode()
+
+# BAD: Heavy math (Julia is 10-100x faster)
+matrix = np.random.randn(5000, 5000)
+eigenvalues = np.linalg.eigvals(matrix)
+
+# BAD: Systems calls (Zig/Rust safer and faster)
+os.system('chmod +x script.sh')
+
+# BAD: JSON (JavaScript more natural)
+import json
+data = json.loads('{"key": "value"}')
+
+"All done in Python - suboptimal!"
+    >>
+    print(result)
+}
+
+function antipattern1_good() {
+    print("✓ CORRECTED: Use optimal language for each task")
+
+    // Shell for file operations
+    let files = <<shell find . -name "*.txt" >>
+
+    // Julia for heavy math
+    let eigenvalues = <<julia
+using LinearAlgebra
+eigvals(randn(5000, 5000))
+    >>
+
+    // Zig for safe systems calls
+    let perms = <<zig
+const std = @import("std");
+// Safe file permissions
+    >>
+
+    // JavaScript for JSON
+    let data = <<javascript JSON.parse('{"key": "value"}') >>
+
+    print("Each task uses optimal language - 10-50x faster overall!")
+}
+
+// ============================================================================
+// ANTI-PATTERN 2: Excessive Language Switching
+// ============================================================================
+
+function antipattern2_bad() {
+    print("❌ ANTI-PATTERN: Too many language transitions")
+
+    let a = <<python "hello" >>
+    let b = <<julia uppercase(a) >>      // Serialization overhead
+    let c = <<nim len(b) >>              // Another serialization
+    let d = <<go fmt.Println(c) >>       // Yet another
+    let e = <<rust println!("{}", d) >>  // Excessive
+
+    print("5 language switches - high serialization cost!")
+}
+
+function antipattern2_good() {
+    print("✓ CORRECTED: Group operations by language")
+
+    let result = <<python
+text = "hello"
+upper = text.upper()
+length = len(upper)
+print(f"Result: {length}")
+length
+    >>
+
+    print("Single language block - minimal overhead!")
+}
+
+// ============================================================================
+// ANTI-PATTERN 3: Wrong Language for Task
+// ============================================================================
+
+function antipattern3_bad() {
+    print("❌ ANTI-PATTERN: JavaScript for numerical computation")
+
+    let result = <<javascript
+// BAD: Limited precision, slow
+const matrix = [[1,2,3], [4,5,6], [7,8,9]];
+let sum = 0;
+for (let row of matrix) {
+    for (let val of row) {
+        sum += val * val;  // Very slow for large matrices
+    }
+}
+sum;
+    >>
+
+    print("Result: " + result + " (slow JavaScript math)")
+}
+
+function antipattern3_good() {
+    print("✓ CORRECTED: Julia for numerical computation")
+
+    let result = <<julia
+using LinearAlgebra
+matrix = [1 2 3; 4 5 6; 7 8 9]
+sum(matrix .^ 2)
+    >>
+
+    print("Result: " + result + " (fast Julia math - 100x faster!)")
+}
+
+// ============================================================================
+// ANTI-PATTERN 4: Shell for Complex Logic
+// ============================================================================
+
+function antipattern4_bad() {
+    print("❌ ANTI-PATTERN: Shell for complex conditional logic")
+
+    let result = <<bash
+# BAD: Hard to read and maintain
+if [ -f "data.txt" ]; then
+    sum=0
+    count=0
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^[0-9]+$ ]]; then
+            sum=$((sum + line))
+            count=$((count + 1))
+        fi
+    done < data.txt
+    if [ $count -gt 0 ]; then
+        echo "scale=2; $sum / $count" | bc
+    else
+        echo "0"
+    fi
+else
+    echo "File not found"
+fi
+    >>
+
+    print("Complex shell script - hard to maintain!")
+}
+
+function antipattern4_good() {
+    print("✓ CORRECTED: Python for complex logic")
+
+    let result = <<python
+import os
+
+if os.path.exists("data.txt"):
+    with open("data.txt") as f:
+        numbers = [int(line) for line in f if line.strip().isdigit()]
+    average = sum(numbers) / len(numbers) if numbers else 0
+    print(f"Average: {average}")
+else:
+    print("File not found")
+"Done"
+    >>
+
+    print("Clean Python code - much more maintainable!")
+}
+
+// ============================================================================
+// ANTI-PATTERN 5: Using High-Level Language for Systems Code
+// ============================================================================
+
+function antipattern5_bad() {
+    print("❌ ANTI-PATTERN: Python for memory-critical systems code")
+
+    let result = <<python
+# BAD: No manual memory control, GC overhead
+class MemoryPool:
+    def __init__(self, size):
+        self.buffer = bytearray(size)  # GC will manage this
+        self.allocated = 0
+
+    def allocate(self, size):
+        if self.allocated + size > len(self.buffer):
+            return None
+        ptr = self.allocated
+        self.allocated += size
+        return ptr
+
+"Memory pool in Python - no real control"
+    >>
+
+    print(result)
+}
+
+function antipattern5_good() {
+    print("✓ CORRECTED: Zig for explicit memory management")
+
+    let result = <<zig
+const std = @import("std");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // Explicit allocation and deallocation
+    const memory = try allocator.alloc(u8, 1024);
+    defer allocator.free(memory);
+
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print("Explicit memory control in Zig\n", .{});
+}
+    >>
+}
+
+// ============================================================================
+// ANTI-PATTERN 6: Ignoring Language Strengths
+// ============================================================================
+
+function antipattern6_bad() {
+    print("❌ ANTI-PATTERN: Not using language-specific features")
+
+    let result = <<python
+# BAD: Manual async implementation instead of using Go
+import threading
+import queue
+
+q = queue.Queue()
+
+def worker():
+    while True:
+        item = q.get()
+        if item is None:
+            break
+        process(item)
+        q.task_done()
+
+threads = [threading.Thread(target=worker) for _ in range(5)]
+# Complex threading code...
+"Manual threading"
+    >>
+
+    print(result)
+}
+
+function antipattern6_good() {
+    print("✓ CORRECTED: Use Go's goroutines")
+
+    let result = <<go
+package main
+import "sync"
+
+func main() {
+    var wg sync.WaitGroup
+    jobs := make(chan int, 100)
+
+    // Spawn workers
+    for w := 1; w <= 5; w++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            for job := range jobs {
+                process(job)
+            }
+        }()
+    }
+
+    // Send jobs
+    for j := 1; j <= 100; j++ {
+        jobs <- j
+    }
+    close(jobs)
+
+    wg.Wait()
+}
+    >>
+}
+
+// ============================================================================
+// ANTI-PATTERN 7: Cross-Language Idiom Confusion
+// ============================================================================
+
+function antipattern7_bad() {
+    print("❌ ANTI-PATTERN: Using Python idioms in JavaScript")
+
+    let result = <<javascript
+// BAD: Trying to use Python-style list comprehension
+// [x for x in range(10)]  // This doesn't work in JS!
+
+// BAD: Using Python's string methods
+// text.strip()  // Should be text.trim()
+
+// BAD: Python-style dictionary
+// data = {"key": value}  // Missing const/let
+
+"Python patterns in JavaScript - syntax errors!"
+    >>
+
+    print(result)
+}
+
+function antipattern7_good() {
+    print("✓ CORRECTED: Use proper JavaScript idioms")
+
+    let result = <<javascript
+// Use array methods
+const numbers = Array.from({length: 10}, (_, i) => i);
+
+// Use JavaScript string methods
+const text = "  hello  ";
+const trimmed = text.trim();
+
+// Use proper JS variable declaration
+const data = {key: "value"};
+
+"Proper JavaScript idioms!"
+    >>
+
+    print(result)
+}
+
+// ============================================================================
+// ANTI-PATTERN 8: Premature Optimization
+// ============================================================================
+
+function antipattern8_bad() {
+    print("❌ ANTI-PATTERN: Over-optimizing trivial code")
+
+    let result = <<zig
+const std = @import("std");
+
+// BAD: Using Zig for a simple hello world
+pub fn main() !void {
+    const stdout = std.io.getStdOut().writer();
+    try stdout.print("Hello, World!\n", .{});
+}
+    >>
+
+    print("Using systems language for trivial task - overkill!")
+}
+
+function antipattern8_good() {
+    print("✓ CORRECTED: Use simple language for simple tasks")
+
+    let result = <<python
+# For simple scripts, Python is fine
+print("Hello, World!")
+    >>
+
+    print("Python for simple task - appropriate choice!")
+}
+
+// ============================================================================
+// ANTI-PATTERN 9: Not Considering Team Skills
+// ============================================================================
+
+function antipattern9_bad() {
+    print("❌ ANTI-PATTERN: Using unfamiliar language without reason")
+
+    let result = <<rust
+// BAD: Team doesn't know Rust, Python would work fine
+use std::collections::HashMap;
+
+fn main() {
+    let mut map = HashMap::new();
+    map.insert("key", "value");
+    println!("{:?}", map);
+}
+    >>
+
+    print("Using Rust when team only knows Python - maintenance nightmare!")
+}
+
+function antipattern9_good() {
+    print("✓ CORRECTED: Balance performance with team expertise")
+
+    let result = <<python
+# Team knows Python well, performance is acceptable
+data = {"key": "value"}
+print(data)
+    >>
+
+    print("Using familiar language - better long-term maintainability!")
+}
+
+// ============================================================================
+// ANTI-PATTERN 10: Ignoring Data Transfer Costs
+// ============================================================================
+
+function antipattern10_bad() {
+    print("❌ ANTI-PATTERN: Multiple small operations across languages")
+
+    let step1 = <<python [1, 2, 3] >>
+    let step2 = <<julia step1 .+ 1 >>         // Serialize
+    let step3 = <<nim step2.map(x => x * 2) >> // Serialize
+    let step4 = <<go for _, x := range step3 >> // Serialize
+
+    print("4 serializations - overhead dominates!")
+}
+
+function antipattern10_good() {
+    print("✓ CORRECTED: Minimize language boundaries")
+
+    let result = <<julia
+# Do all operations in one language
+data = [1, 2, 3]
+data = data .+ 1
+data = data .* 2
+sum(data)
+    >>
+
+    print("Single language block - no serialization overhead!")
+}
+
+// ============================================================================
+// SUMMARY
+// ============================================================================
+
+main {
+    print("╔═══════════════════════════════════════════════════════╗")
+    print("║        Polyglot Anti-Patterns and Corrections        ║")
+    print("╚═══════════════════════════════════════════════════════╝\n")
+
+    print("══════ Anti-Pattern 1 ══════")
+    antipattern1_bad()
+    antipattern1_good()
+    print("")
+
+    print("══════ Anti-Pattern 2 ══════")
+    antipattern2_bad()
+    antipattern2_good()
+    print("")
+
+    print("══════ Anti-Pattern 3 ══════")
+    antipattern3_bad()
+    antipattern3_good()
+    print("")
+
+    print("══════ Anti-Pattern 4 ══════")
+    antipattern4_bad()
+    antipattern4_good()
+    print("")
+
+    print("══════ Anti-Pattern 5 ══════")
+    antipattern5_bad()
+    antipattern5_good()
+    print("")
+
+    print("══════ Anti-Pattern 6 ══════")
+    antipattern6_bad()
+    antipattern6_good()
+    print("")
+
+    print("══════ Anti-Pattern 7 ══════")
+    antipattern7_bad()
+    antipattern7_good()
+    print("")
+
+    print("══════ Anti-Pattern 8 ══════")
+    antipattern8_bad()
+    antipattern8_good()
+    print("")
+
+    print("══════ Anti-Pattern 9 ══════")
+    antipattern9_bad()
+    antipattern9_good()
+    print("")
+
+    print("══════ Anti-Pattern 10 ══════")
+    antipattern10_bad()
+    antipattern10_good()
+    print("")
+
+    print("╔═══════════════════════════════════════════════════════╗")
+    print("║                  Key Takeaways                        ║")
+    print("╠═══════════════════════════════════════════════════════╣")
+    print("║ ✓ Use the right language for each task               ║")
+    print("║ ✓ Minimize language transitions                      ║")
+    print("║ ✓ Group related operations                           ║")
+    print("║ ✓ Consider team expertise                            ║")
+    print("║ ✓ Don't over-optimize simple code                    ║")
+    print("║ ✓ Use language-specific idioms correctly             ║")
+    print("║ ✓ Account for serialization costs                    ║")
+    print("║ ✓ Profile before optimizing                          ║")
+    print("╚═══════════════════════════════════════════════════════╝")
+}

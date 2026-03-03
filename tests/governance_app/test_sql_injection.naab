@@ -1,0 +1,9 @@
+// Test: SQL injection pattern should be blocked
+main {
+    let result = <<python
+user_input = "admin"
+query = "SELECT * FROM users WHERE username = '" + user_input + "'"
+print(query)
+    >>
+    print(result)
+}

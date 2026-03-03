@@ -919,6 +919,67 @@ struct PolyglotConfig {
 };
 
 // ============================================================================
+// Section 14: Polyglot Optimization
+// ============================================================================
+
+struct TaskInferencePattern {
+    std::vector<std::string> patterns;          // Regex patterns to detect task type
+    std::vector<std::string> optimal_languages;  // Best languages for this task
+    std::vector<std::string> suboptimal_languages; // Languages to avoid
+    std::string message;                         // Help message
+};
+
+struct PatternDetectionConfig {
+    bool enabled = true;
+    std::map<std::string, TaskInferencePattern> task_inference;
+    // task_inference contains entries like:
+    // "numerical_operations": { patterns: [...], optimal_languages: ["julia", "nim"], ... }
+    // "string_processing": { patterns: [...], optimal_languages: ["python", "ruby"], ... }
+    // "file_operations": { patterns: [...], optimal_languages: ["shell", "bash"], ... }
+    // etc.
+};
+
+struct LanguageDiversityConfig {
+    bool enabled = true;
+    int min_languages = 2;                 // Minimum languages for complex scripts
+    int max_single_language_percent = 70;  // Max % of one language
+    std::string message = "Consider using specialized languages for performance-critical sections";
+};
+
+struct HelperErrorConfig {
+    bool enabled = true;
+    bool show_alternative_language = true;
+    bool show_example_code = true;
+    double fuzzy_match_threshold = 0.7;
+};
+
+struct AIGuidanceConfig {
+    bool enabled = true;
+    bool include_in_errors = true;
+    bool suggest_refactoring = true;
+    bool show_benchmarks = false;
+};
+
+struct TaskLanguageScore {
+    int score = 0;            // 0-100 score
+    std::string reason;       // Why this score
+};
+
+struct PolyglotOptimizationConfig {
+    bool enabled = true;
+    std::string enforcement_level = "soft";  // "none" | "advisory" | "soft" | "hard"
+
+    PatternDetectionConfig pattern_detection;
+    LanguageDiversityConfig language_diversity;
+    HelperErrorConfig helper_errors;
+    AIGuidanceConfig ai_guidance;
+
+    // Task→Language scoring matrix loaded from JSON
+    // Structure: task_language_matrix[task_name][language] = TaskLanguageScore
+    std::map<std::string, std::map<std::string, TaskLanguageScore>> task_language_matrix;
+};
+
+// ============================================================================
 // Master Rules Structure
 // ============================================================================
 
@@ -941,6 +1002,7 @@ struct GovernanceRules {
     MetaConfig meta;
     HooksConfig hooks;
     PolyglotConfig polyglot;
+    PolyglotOptimizationConfig polyglot_optimization;
 
     // --- Legacy flat fields (kept for backward compatibility) ---
     std::unordered_set<std::string> allowed_languages;
@@ -1121,6 +1183,10 @@ public:
                                      const std::string& code, int line = 0);
     std::string checkCryptoWeakness(const std::string& code, int line = 0);
 
+    // Capability checks for polyglot blocks
+    std::string checkNetworkImports(const std::string& language,
+                                     const std::string& code, int line = 0);
+
     // Per-language checks
     std::string checkImports(const std::string& language,
                               const std::string& code, int line = 0);
@@ -1138,6 +1204,7 @@ public:
     // Resource limits
     std::string checkLoopIterations(size_t count);
     std::string checkPolyglotBlockCount(size_t count);
+    std::string incrementAndCheckPolyglotBlockCount();
     std::string checkStringLength(size_t length);
     std::string checkNestingDepth(size_t depth);
     std::string checkOutputSize(size_t size);
@@ -1153,6 +1220,18 @@ public:
                                     const std::string& code,
                                     const std::string& source_file,
                                     int line = 0);
+
+    // --- Polyglot Optimization Checks ---
+    std::string checkPolyglotOptimization(const std::string& language,
+                                          const std::string& code,
+                                          int line = 0);
+
+    void suggestBetterLanguage(const std::string& current_lang,
+                               const std::string& code,
+                               const std::string& task_type,
+                               const std::vector<std::string>& optimal_langs,
+                               int improvement_percent,
+                               const std::vector<std::string>& reasons);
 
     // --- Summary & Reporting ---
     const std::vector<CheckResult>& getCheckResults() const { return check_results_; }

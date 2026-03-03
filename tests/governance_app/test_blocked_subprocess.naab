@@ -1,0 +1,9 @@
+// Test: subprocess import is blocked in Python
+main {
+    let result = <<python
+import subprocess
+output = subprocess.check_output(["echo", "hello"])
+print(output.decode())
+    >>
+    print(result)
+}

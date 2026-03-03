@@ -1,0 +1,213 @@
+{
+  "version": "3.1",
+  "mode": "enforce",
+  "description": "Comprehensive polyglot optimization governance config",
+
+  "polyglot_optimization": {
+    "enabled": true,
+    "enforcement_level": "soft",
+
+    "pattern_detection": {
+      "enabled": true,
+      "task_inference": {
+        "numerical_operations": {
+          "patterns": [
+            "\\bnp\\.",
+            "\\bmath\\.",
+            "\\bmatrix\\b",
+            "\\bsum\\(",
+            "\\bmean\\(",
+            "\\bstd\\(",
+            "\\blinear\\b",
+            "\\beigen",
+            "\\bsvd\\b",
+            "\\bfft\\b"
+          ],
+          "optimal_languages": ["julia", "nim"],
+          "suboptimal_languages": ["javascript", "shell"],
+          "message": "Numerical operations perform 10-100x faster in Julia or Nim"
+        },
+        "string_processing": {
+          "patterns": [
+            "\\b(split|join|replace|regex|match)\\b",
+            "string\\.",
+            "str\\.",
+            "\\bsubstr\\b",
+            "\\bupper\\(",
+            "\\blower\\("
+          ],
+          "optimal_languages": ["python", "ruby", "nim"],
+          "suboptimal_languages": ["zig", "cpp"],
+          "message": "String operations benefit from high-level language built-ins"
+        },
+        "file_operations": {
+          "patterns": [
+            "\\b(find|grep|sed|awk|ls|cat)\\b",
+            "\\bglob\\b",
+            "\\bwalk\\b",
+            "\\breadlines\\b",
+            "\\blistdir\\b"
+          ],
+          "optimal_languages": ["shell", "bash"],
+          "suboptimal_languages": ["javascript", "zig"],
+          "message": "Shell tools are purpose-built for file operations"
+        },
+        "systems_calls": {
+          "patterns": [
+            "\\bmalloc\\b",
+            "\\bfree\\b",
+            "\\bpointer\\b",
+            "\\bunsafe\\b",
+            "\\bsyscall\\b",
+            "\\bmmap\\b"
+          ],
+          "optimal_languages": ["zig", "rust", "cpp"],
+          "suboptimal_languages": ["python", "javascript"],
+          "message": "Systems operations need low-level control and memory safety"
+        },
+        "web_apis": {
+          "patterns": [
+            "\\bfetch\\(",
+            "\\bhttp\\.",
+            "\\burl\\.",
+            "\\bapi\\b",
+            "\\brequest\\(",
+            "\\bget\\(.*http"
+          ],
+          "optimal_languages": ["javascript", "python", "go"],
+          "suboptimal_languages": ["zig", "cpp"],
+          "message": "Web APIs best handled by languages with rich HTTP libraries"
+        },
+        "json_processing": {
+          "patterns": [
+            "JSON\\.parse",
+            "json\\.",
+            "\\bparse_json\\b",
+            "\\bdumps\\(",
+            "\\bstringify\\("
+          ],
+          "optimal_languages": ["javascript", "python", "nim"],
+          "suboptimal_languages": ["cpp", "shell"],
+          "message": "JSON processing best in languages with native JSON support"
+        },
+        "concurrency": {
+          "patterns": [
+            "\\bgoroutine\\b",
+            "\\basync\\b",
+            "\\bawait\\b",
+            "\\bthread\\b",
+            "\\bparallel\\b",
+            "\\bchannel\\b"
+          ],
+          "optimal_languages": ["go", "rust", "julia"],
+          "suboptimal_languages": ["python", "ruby"],
+          "message": "Concurrency best in languages with first-class async support"
+        }
+      }
+    },
+
+    "language_diversity": {
+      "enabled": true,
+      "min_languages": 2,
+      "max_single_language_percent": 70,
+      "message": "Consider using specialized languages for performance-critical sections"
+    },
+
+    "helper_errors": {
+      "enabled": true,
+      "show_alternative_language": true,
+      "show_example_code": true,
+      "fuzzy_match_threshold": 0.7
+    },
+
+    "ai_guidance": {
+      "enabled": true,
+      "include_in_errors": true,
+      "suggest_refactoring": true,
+      "show_benchmarks": false
+    },
+
+    "task_language_matrix": {
+      "numerical_computation": {
+        "julia": {"score": 100, "reason": "JIT-compiled for math, built-in BLAS/LAPACK"},
+        "nim": {"score": 95, "reason": "Fast compiled code, math libraries"},
+        "python": {"score": 70, "reason": "NumPy/SciPy good but slower"},
+        "rust": {"score": 65, "reason": "Fast but lacks math ecosystem"},
+        "go": {"score": 50, "reason": "No operator overloading, limited math libs"},
+        "javascript": {"score": 30, "reason": "Slow, limited numerical precision"},
+        "shell": {"score": 10, "reason": "Not designed for computation"}
+      },
+      "string_manipulation": {
+        "python": {"score": 100, "reason": "Rich string API, regex built-in"},
+        "ruby": {"score": 95, "reason": "Excellent string handling"},
+        "nim": {"score": 90, "reason": "Fast + good stdlib"},
+        "javascript": {"score": 85, "reason": "Good string methods"},
+        "go": {"score": 70, "reason": "Decent but verbose"},
+        "rust": {"score": 60, "reason": "Powerful but complex"},
+        "zig": {"score": 40, "reason": "Low-level, manual"},
+        "cpp": {"score": 35, "reason": "std::string verbose"}
+      },
+      "file_operations": {
+        "shell": {"score": 100, "reason": "Built for file ops, grep/find/sed"},
+        "python": {"score": 80, "reason": "Good pathlib, os modules"},
+        "nim": {"score": 75, "reason": "Fast filesystem access"},
+        "go": {"score": 70, "reason": "Good stdlib"},
+        "ruby": {"score": 70, "reason": "File and Dir classes"},
+        "rust": {"score": 65, "reason": "Safe but verbose"},
+        "javascript": {"score": 40, "reason": "Node.js fs module limited"}
+      },
+      "systems_programming": {
+        "zig": {"score": 100, "reason": "C replacement, explicit memory"},
+        "rust": {"score": 95, "reason": "Memory safe, zero-cost abstractions"},
+        "cpp": {"score": 85, "reason": "Low-level control"},
+        "nim": {"score": 80, "reason": "Can compile to C, fast"},
+        "go": {"score": 60, "reason": "GC limits low-level control"},
+        "python": {"score": 20, "reason": "Too high-level"},
+        "javascript": {"score": 10, "reason": "Not designed for systems"}
+      },
+      "web_apis": {
+        "javascript": {"score": 100, "reason": "fetch API, JSON native"},
+        "python": {"score": 90, "reason": "requests library, great"},
+        "go": {"score": 85, "reason": "net/http excellent"},
+        "ruby": {"score": 80, "reason": "HTTP libs good"},
+        "nim": {"score": 70, "reason": "httpclient available"},
+        "rust": {"score": 65, "reason": "reqwest/hyper but verbose"},
+        "zig": {"score": 40, "reason": "Low-level HTTP"},
+        "cpp": {"score": 35, "reason": "libcurl complex"}
+      },
+      "concurrency": {
+        "go": {"score": 100, "reason": "Goroutines and channels built-in"},
+        "rust": {"score": 95, "reason": "Fearless concurrency"},
+        "julia": {"score": 85, "reason": "Tasks and channels"},
+        "nim": {"score": 75, "reason": "async/await support"},
+        "python": {"score": 50, "reason": "asyncio but GIL limits"},
+        "javascript": {"score": 70, "reason": "async/await good"},
+        "ruby": {"score": 40, "reason": "Threads limited by GIL"},
+        "shell": {"score": 60, "reason": "& and pipes simple"}
+      },
+      "json_processing": {
+        "javascript": {"score": 100, "reason": "JSON.parse/stringify native"},
+        "python": {"score": 95, "reason": "json module excellent"},
+        "go": {"score": 90, "reason": "encoding/json good"},
+        "nim": {"score": 85, "reason": "json module fast"},
+        "ruby": {"score": 80, "reason": "JSON class built-in"},
+        "rust": {"score": 75, "reason": "serde powerful but verbose"},
+        "julia": {"score": 70, "reason": "JSON.jl available"},
+        "cpp": {"score": 50, "reason": "nlohmann/json good but not stdlib"},
+        "shell": {"score": 30, "reason": "jq external tool"}
+      }
+    }
+  },
+
+  "languages": {
+    "allowed": ["python", "javascript", "julia", "nim", "zig", "go", "rust", "ruby", "shell"],
+    "blocked": []
+  },
+
+  "output": {
+    "summary": {
+      "enabled": true,
+      "format": "detailed"
+    }
+  }
+}

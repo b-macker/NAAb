@@ -1,0 +1,8 @@
+// Test: Path traversal should be blocked
+main {
+    let result = <<python
+filepath = "../../../etc/passwd"
+print(f"Reading: {filepath}")
+    >>
+    print(result)
+}

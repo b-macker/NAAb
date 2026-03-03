@@ -1,0 +1,12 @@
+// Test: Placeholder markers (TODO) should be blocked
+main {
+    let result = <<python
+def process_data(data):
+    # TODO: implement actual processing logic
+    return data
+
+result = process_data("test")
+result
+    >>
+    print(result)
+}

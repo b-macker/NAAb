@@ -1,0 +1,11 @@
+// Test: Oversimplified code (stub functions) should be blocked
+main {
+    let result = <<python
+def validate_user(user):
+    return True
+
+def process_data(data):
+    pass
+>>
+    print(result)
+}

@@ -1,0 +1,12 @@
+// Test: Exceeds call_depth limit (max 10)
+main {
+    function deep(n) {
+        if n <= 0 {
+            return 0
+        }
+        return 1 + deep(n - 1)
+    }
+    // Call depth of 100 should definitely exceed limit of 10
+    let result = deep(100)
+    print(result)
+}

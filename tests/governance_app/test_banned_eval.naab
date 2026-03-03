@@ -1,0 +1,9 @@
+// Test: eval() is banned in Python
+main {
+    let result = <<python
+user_input = "2 + 2"
+result = eval(user_input)
+print(result)
+    >>
+    print(result)
+}

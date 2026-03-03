@@ -1,0 +1,22 @@
+// Test: Exceeds polyglot_blocks limit (max 5 blocks)
+main {
+    let b1 = <<python
+"block1"
+    >>
+    let b2 = <<python
+"block2"
+    >>
+    let b3 = <<python
+"block3"
+    >>
+    let b4 = <<python
+"block4"
+    >>
+    let b5 = <<python
+"block5"
+    >>
+    let b6 = <<python
+"block6"
+    >>
+    print(b1 + b2 + b3 + b4 + b5 + b6)
+}

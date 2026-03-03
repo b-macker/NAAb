@@ -287,6 +287,22 @@ message(STATUS "  ✓ Type checker")
 message(STATUS "  ✓ Error reporter")
 message(STATUS "  ✓ Error helpers (fuzzy matching)")
 
+# Analyzer library (Polyglot Optimization System)
+add_library(naab_analyzer
+    src/analyzer/lexical_detector.cpp
+    src/analyzer/syntactic_analyzer.cpp
+    src/analyzer/semantic_analyzer.cpp
+    src/analyzer/detection_types.cpp
+    src/analyzer/language_mismatch_detector.cpp
+    src/analyzer/language_scorer.cpp
+    src/analyzer/task_pattern_detector.cpp
+    src/analyzer/performance_optimizer.cpp
+)
+target_link_libraries(naab_analyzer
+    fmt::fmt
+)
+message(STATUS "  ✓ Code analyzer (polyglot optimization + performance)")
+
 # Formatter library (Phase 4.2: Auto-formatter)
 add_library(naab_formatter
     src/formatter/formatter.cpp
@@ -338,6 +354,7 @@ target_include_directories(naab_security PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
 )
 target_link_libraries(naab_security
+    naab_analyzer
     fmt::fmt
 )
 # Link OpenSSL if available
@@ -423,6 +440,9 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/rust_executor.cpp  # Phase 3.1: Rust executor
     src/runtime/csharp_executor.cpp  # Phase 11: C# executor
     src/runtime/go_executor.cpp  # Issue #3: Go executor
+    src/runtime/nim_executor.cpp  # Nim executor
+    src/runtime/zig_executor.cpp  # Zig executor
+    src/runtime/julia_executor.cpp  # Julia executor
     src/runtime/stack_tracer.cpp  # Phase 4.2: Cross-language stack traces
     src/runtime/stack_formatter.cpp  # Phase 4.2.6: Enhanced stack trace formatting
     src/runtime/inline_code_cache.cpp  # Phase 3.3.1: Inline code caching

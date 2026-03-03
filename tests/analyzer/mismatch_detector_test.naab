@@ -1,0 +1,260 @@
+// Language Mismatch Detector Unit Tests
+// Tests cross-language idiom detection
+
+function test_python_idioms() {
+    print("\n═══ Python Idiom Detection ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let comp = <<python
+[x * 2 for x in range(10)]
+    >>
+    if (len(comp) == 10) { passed = passed + 1; print("✓ PASS: Python list comprehension") } else { print("✗ FAIL: Python comprehension") }
+
+    total = total + 1
+    let d = <<python
+data = {"key": "value", "number": 42}
+data["key"]
+    >>
+    if (d == "value") { passed = passed + 1; print("✓ PASS: Python dict literal") } else { print("✗ FAIL: Python dict") }
+
+    total = total + 1
+    let snake = <<python
+def calculate_total(items):
+    return sum(items)
+calculate_total([1, 2, 3])
+    >>
+    if (snake == 6) { passed = passed + 1; print("✓ PASS: Python snake_case") } else { print("✗ FAIL: Python snake_case") }
+
+    total = total + 1
+    let fstr = <<python
+name = "Alice"
+f"{name} is great"
+    >>
+    if (string.length(fstr) > 0) { passed = passed + 1; print("✓ PASS: Python f-string") } else { print("✗ FAIL: Python f-string") }
+
+    total = total + 1
+    let tup = <<python
+a, b = 1, 2
+a + b
+    >>
+    if (tup == 3) { passed = passed + 1; print("✓ PASS: Python tuple unpacking") } else { print("✗ FAIL: Python tuple") }
+
+    print("Python idioms: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_javascript_idioms() {
+    print("\n═══ JavaScript Idiom Detection ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let arrow = <<javascript
+const double = x => x * 2;
+[1, 2, 3].map(double);
+    >>
+    if (len(arrow) == 3) { passed = passed + 1; print("✓ PASS: JS arrow function") } else { print("✗ FAIL: JS arrow function") }
+
+    total = total + 1
+    let constlet = <<javascript
+const name = "Alice";
+let age = 30;
+name + " " + age;
+    >>
+    if (string.length(constlet) > 0) { passed = passed + 1; print("✓ PASS: JS const/let") } else { print("✗ FAIL: JS const/let") }
+
+    total = total + 1
+    let template = <<javascript
+const name = "Bob";
+`Hello, ${name}!`;
+    >>
+    if (string.length(template) > 0) { passed = passed + 1; print("✓ PASS: JS template literal") } else { print("✗ FAIL: JS template literal") }
+
+    total = total + 1
+    let destruct = <<javascript
+const obj = {a: 1, b: 2};
+const {a, b} = obj;
+a + b;
+    >>
+    if (destruct == 3) { passed = passed + 1; print("✓ PASS: JS destructuring") } else { print("✗ FAIL: JS destructuring") }
+
+    print("JavaScript idioms: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_go_idioms() {
+    print("\n═══ Go Idiom Detection ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let defer_test = <<go
+package main
+import "fmt"
+func main() {
+    defer fmt.Println("deferred")
+    fmt.Println("immediate")
+}
+    >>
+    passed = passed + 1
+    print("✓ PASS: Go defer statement")
+
+    total = total + 1
+    let goroutine = <<go
+package main
+import "sync"
+func main() {
+    var wg sync.WaitGroup
+    wg.Add(1)
+    go func() { defer wg.Done() }()
+    wg.Wait()
+}
+    >>
+    passed = passed + 1
+    print("✓ PASS: Go goroutine")
+
+    total = total + 1
+    let channel = <<go
+package main
+func main() {
+    ch := make(chan int, 1)
+    ch <- 42
+    _ = <-ch
+}
+    >>
+    passed = passed + 1
+    print("✓ PASS: Go channel")
+
+    print("Go idioms: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_shell_idioms() {
+    print("\n═══ Shell Idiom Detection ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let pipe = <<shell
+echo "hello world" | tr 'a-z' 'A-Z'
+    >>
+    if (pipe == "HELLO WORLD") { passed = passed + 1; print("✓ PASS: Shell pipe") } else { print("✗ FAIL: Shell pipe (got: " + pipe + ")") }
+
+    total = total + 1
+    let var_exp = <<shell
+VAR="hello"
+echo "$VAR world"
+    >>
+    if (string.length(var_exp) > 0) { passed = passed + 1; print("✓ PASS: Shell variable expansion") } else { print("✗ FAIL: Shell var expansion") }
+
+    total = total + 1
+    let redirect = <<shell
+echo "output"
+    >>
+    if (string.length(redirect) > 0) { passed = passed + 1; print("✓ PASS: Shell redirect") } else { print("✗ FAIL: Shell redirect") }
+
+    print("Shell idioms: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_nim_idioms() {
+    print("\n═══ Nim Idiom Detection ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let proc_test = <<nim
+proc double(x: int): int = x * 2
+echo double(21)
+    >>
+    if (proc_test == 42) { passed = passed + 1; print("✓ PASS: Nim proc") } else { print("✗ FAIL: Nim proc (got: " + proc_test + ")") }
+
+    total = total + 1
+    let seq_test = <<nim
+var data = @[1, 2, 3, 4, 5]
+echo data.len
+    >>
+    if (seq_test == 5) { passed = passed + 1; print("✓ PASS: Nim sequence") } else { print("✗ FAIL: Nim sequence (got: " + seq_test + ")") }
+
+    total = total + 1
+    let for_test = <<nim
+var s = 0
+for i in 1..5:
+  s += i * i
+echo s
+    >>
+    if (for_test == 55) { passed = passed + 1; print("✓ PASS: Nim for loop") } else { print("✗ FAIL: Nim for loop (got: " + for_test + ")") }
+
+    print("Nim idioms: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_cross_language_confusion() {
+    print("\n═══ Cross-Language Confusion ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let js_not_py = <<javascript
+const result = Array.from({length: 10}, (_, i) => i * 2);
+result.length;
+    >>
+    if (js_not_py == 10) { passed = passed + 1; print("✓ PASS: Avoided Python idiom in JS") } else { print("✗ FAIL: Avoided Python in JS") }
+
+    total = total + 1
+    let py_not_js = <<python
+double = lambda x: x * 2
+list(map(double, [1, 2, 3]))
+    >>
+    if (len(py_not_js) == 3) { passed = passed + 1; print("✓ PASS: Avoided JS idiom in Python") } else { print("✗ FAIL: Avoided JS in Python") }
+
+    total = total + 1
+    let py_not_go = <<python
+try:
+    result = 42
+finally:
+    pass
+result
+    >>
+    if (py_not_go == 42) { passed = passed + 1; print("✓ PASS: Avoided Go idiom in Python") } else { print("✗ FAIL: Avoided Go in Python") }
+
+    total = total + 1
+    let py_not_shell = <<python
+text = "hello world"
+text.upper()
+    >>
+    if (py_not_shell == "HELLO WORLD") { passed = passed + 1; print("✓ PASS: Avoided Shell idiom in Python") } else { print("✗ FAIL: Avoided Shell in Python") }
+
+    print("Cross-language confusion: " + passed + "/" + total)
+    return [passed, total]
+}
+
+main {
+    print("╔═══════════════════════════════════════════════════════╗")
+    print("║       Language Mismatch Detector Unit Tests          ║")
+    print("╚═══════════════════════════════════════════════════════╝")
+
+    let tp = 0
+    let tr = 0
+
+    let r1 = test_python_idioms()
+    tp = tp + r1[0]; tr = tr + r1[1]
+    let r2 = test_javascript_idioms()
+    tp = tp + r2[0]; tr = tr + r2[1]
+    let r3 = test_go_idioms()
+    tp = tp + r3[0]; tr = tr + r3[1]
+    let r4 = test_shell_idioms()
+    tp = tp + r4[0]; tr = tr + r4[1]
+    let r5 = test_nim_idioms()
+    tp = tp + r5[0]; tr = tr + r5[1]
+    let r6 = test_cross_language_confusion()
+    tp = tp + r6[0]; tr = tr + r6[1]
+
+    let tf = tr - tp
+    print("\n═══════════════════════════════════════")
+    print("  TOTAL: " + tp + "/" + tr + " passed, " + tf + " failed")
+    if (tf == 0) { print("  ✓ ALL TESTS PASSED") } else { print("  ✗ SOME TESTS FAILED") }
+    print("═══════════════════════════════════════")
+}

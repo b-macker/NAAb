@@ -1,0 +1,89 @@
+# NAAb Nim Executor Test Suite
+
+# Test 1: Simple expression
+print("Test 1: Simple Nim expression")
+let result1 = <<nim
+2 + 3
+>>
+print("Result: " + string.str(result1))
+assert(result1 == 5, "Test 1 FAIL: Expected 5")
+print("✓ Test 1 PASS\n")
+
+# Test 2: Multi-line with variables
+print("Test 2: Multi-line Nim code")
+let result2 = <<nim
+let x = 10
+let y = 20
+x + y
+>>
+print("Result: " + string.str(result2))
+assert(result2 == 30, "Test 2 FAIL: Expected 30")
+print("✓ Test 2 PASS\n")
+
+# Test 3: Nim proc (function)
+print("Test 3: Nim proc")
+let result3 = <<nim
+proc greet(name: string): string =
+  "Hello, " & name & "!"
+
+echo greet("NAAb")
+>>
+print("Result: " + result3)
+assert(result3 == "Hello, NAAb!", "Test 3 FAIL: Expected 'Hello, NAAb!'")
+print("✓ Test 3 PASS\n")
+
+# Test 4: Standalone execution (no return)
+print("Test 4: Standalone execution")
+<<nim
+echo "Direct Nim execution"
+for i in 1..3:
+  echo "Count: ", i
+>>
+print("✓ Test 4 PASS\n")
+
+# Test 5: Nim with imports
+print("Test 5: Nim with imports")
+let result5 = <<nim
+import strutils
+
+let text = "hello world"
+echo text.capitalizeAscii()
+>>
+print("Result: " + result5)
+assert(result5 == "Hello World", "Test 5 FAIL: Expected 'Hello World'")
+print("✓ Test 5 PASS\n")
+
+# Test 6: Error handling
+print("Test 6: Error handling")
+try {
+    let bad = <<nim
+    this is not valid Nim code
+    >>
+    print("✗ Test 6 FAIL: Should have caught compilation error")
+} catch (e) {
+    print("✓ Test 6 PASS: Caught compilation error as expected\n")
+}
+
+# Test 7: Nim with arithmetic
+print("Test 7: Nim arithmetic")
+let result7 = <<nim
+let a = 15
+let b = 7
+a * b
+>>
+print("Result: " + string.str(result7))
+assert(result7 == 105, "Test 7 FAIL: Expected 105")
+print("✓ Test 7 PASS\n")
+
+# Test 8: String concatenation
+print("Test 8: String operations")
+let result8 = <<nim
+let first = "Nim"
+let second = "Language"
+echo first & " " & second
+>>
+print("Result: " + result8)
+assert(result8 == "Nim Language", "Test 8 FAIL: Expected 'Nim Language'")
+print("✓ Test 8 PASS\n")
+
+print("\n=== All Nim Executor Tests Passed! ===")

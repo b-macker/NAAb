@@ -1,0 +1,12 @@
+// Test: Incomplete logic (empty except block) should be blocked
+main {
+    let result = <<python
+try:
+    value = 10 / 2
+except:
+    pass
+
+str(value)
+    >>
+    print(result)
+}

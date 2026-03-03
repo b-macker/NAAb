@@ -23,6 +23,9 @@
 #include "naab/rust_executor.h"
 #include "naab/csharp_executor.h"
 #include "naab/go_executor.h"
+#include "naab/nim_executor.h"
+#include "naab/zig_executor.h"
+#include "naab/julia_executor.h"
 #include "naab/shell_executor.h"
 #include "naab/generic_subprocess_executor.h"
 #include "naab/rest_api.h"
@@ -117,6 +120,15 @@ void initialize_executors() {
     // Issue #3: Register dedicated Go executor
     registry.registerExecutor("go", std::make_unique<naab::runtime::GoExecutor>());
     registry.registerExecutor("golang", std::make_unique<naab::runtime::GoExecutor>());
+
+    // Register Nim executor
+    registry.registerExecutor("nim", std::make_unique<naab::runtime::NimExecutor>());
+
+    // Register Zig executor
+    registry.registerExecutor("zig", std::make_unique<naab::runtime::ZigExecutor>());
+
+    // Register Julia executor
+    registry.registerExecutor("julia", std::make_unique<naab::runtime::JuliaExecutor>());
 
     // Polyglot Phase 11: Register C# executor
     registry.registerExecutor("csharp", std::make_unique<naab::runtime::CSharpExecutor>());

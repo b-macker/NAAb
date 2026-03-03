@@ -7,6 +7,7 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/analyzer/task_pattern_detector.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -89,6 +90,28 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
     // Any language
     {"any", "\\bsudo\\s",                 "sudo (privilege escalation)",
      "Avoid privilege escalation in polyglot blocks"},
+};
+
+// Network library import patterns (for capabilities.network enforcement in polyglot blocks)
+static const std::vector<DangerousPattern> NETWORK_IMPORT_PATTERNS = {
+    // Python
+    {"python", "\\bimport\\s+urllib",            "urllib import (network access)", ""},
+    {"python", "\\bfrom\\s+urllib",              "urllib import (network access)", ""},
+    {"python", "\\bimport\\s+requests",          "requests import (network access)", ""},
+    {"python", "\\bimport\\s+http\\.client",     "http.client import (network access)", ""},
+    {"python", "\\bimport\\s+aiohttp",           "aiohttp import (network access)", ""},
+    {"python", "\\bimport\\s+socket",            "socket import (network access)", ""},
+    {"python", "\\bimport\\s+httpx",             "httpx import (network access)", ""},
+    // JavaScript
+    {"javascript", "require\\s*\\(\\s*['\"]https?['\"]", "http/https require (network access)", ""},
+    {"javascript", "require\\s*\\(\\s*['\"]node-fetch['\"]", "node-fetch require (network access)", ""},
+    {"javascript", "\\bfetch\\s*\\(",            "fetch() call (network access)", ""},
+    {"javascript", "XMLHttpRequest",             "XMLHttpRequest (network access)", ""},
+    // Ruby
+    {"ruby", "require\\s+['\"]net/http['\"]",    "net/http require (network access)", ""},
+    {"ruby", "require\\s+['\"]open-uri['\"]",    "open-uri require (network access)", ""},
+    // Go
+    {"go", "\"net/http\"",                        "net/http import (network access)", ""},
 };
 
 static const std::vector<std::string> PLACEHOLDER_PATTERNS_DB = {
@@ -1060,6 +1083,94 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
     }
 
+    // V3 Polyglot Optimization (Section 14)
+    if (j.contains("polyglot_optimization") && j["polyglot_optimization"].is_object()) {
+        auto& po = j["polyglot_optimization"];
+
+        if (po.contains("enabled")) rules_.polyglot_optimization.enabled = po["enabled"].get<bool>();
+        if (po.contains("enforcement_level")) rules_.polyglot_optimization.enforcement_level = po["enforcement_level"].get<std::string>();
+
+        // Pattern detection
+        if (po.contains("pattern_detection") && po["pattern_detection"].is_object()) {
+            auto& pd = po["pattern_detection"];
+            if (pd.contains("enabled")) rules_.polyglot_optimization.pattern_detection.enabled = pd["enabled"].get<bool>();
+
+            // Task inference patterns
+            if (pd.contains("task_inference") && pd["task_inference"].is_object()) {
+                for (auto& [task_name, task_config] : pd["task_inference"].items()) {
+                    if (!task_config.is_object()) continue;
+
+                    TaskInferencePattern pattern;
+                    if (task_config.contains("patterns") && task_config["patterns"].is_array()) {
+                        for (auto& p : task_config["patterns"]) {
+                            pattern.patterns.push_back(p.get<std::string>());
+                        }
+                    }
+                    if (task_config.contains("optimal_languages") && task_config["optimal_languages"].is_array()) {
+                        for (auto& lang : task_config["optimal_languages"]) {
+                            pattern.optimal_languages.push_back(lang.get<std::string>());
+                        }
+                    }
+                    if (task_config.contains("suboptimal_languages") && task_config["suboptimal_languages"].is_array()) {
+                        for (auto& lang : task_config["suboptimal_languages"]) {
+                            pattern.suboptimal_languages.push_back(lang.get<std::string>());
+                        }
+                    }
+                    if (task_config.contains("message")) pattern.message = task_config["message"].get<std::string>();
+
+                    rules_.polyglot_optimization.pattern_detection.task_inference[task_name] = pattern;
+                }
+            }
+        }
+
+        // Language diversity
+        if (po.contains("language_diversity") && po["language_diversity"].is_object()) {
+            auto& ld = po["language_diversity"];
+            if (ld.contains("enabled")) rules_.polyglot_optimization.language_diversity.enabled = ld["enabled"].get<bool>();
+            if (ld.contains("min_languages")) rules_.polyglot_optimization.language_diversity.min_languages = ld["min_languages"].get<int>();
+            if (ld.contains("max_single_language_percent")) rules_.polyglot_optimization.language_diversity.max_single_language_percent = ld["max_single_language_percent"].get<int>();
+            if (ld.contains("message")) rules_.polyglot_optimization.language_diversity.message = ld["message"].get<std::string>();
+        }
+
+        // Helper errors
+        if (po.contains("helper_errors") && po["helper_errors"].is_object()) {
+            auto& he = po["helper_errors"];
+            if (he.contains("enabled")) rules_.polyglot_optimization.helper_errors.enabled = he["enabled"].get<bool>();
+            if (he.contains("show_alternative_language")) rules_.polyglot_optimization.helper_errors.show_alternative_language = he["show_alternative_language"].get<bool>();
+            if (he.contains("show_example_code")) rules_.polyglot_optimization.helper_errors.show_example_code = he["show_example_code"].get<bool>();
+            if (he.contains("fuzzy_match_threshold")) rules_.polyglot_optimization.helper_errors.fuzzy_match_threshold = he["fuzzy_match_threshold"].get<double>();
+        }
+
+        // AI guidance
+        if (po.contains("ai_guidance") && po["ai_guidance"].is_object()) {
+            auto& ag = po["ai_guidance"];
+            if (ag.contains("enabled")) rules_.polyglot_optimization.ai_guidance.enabled = ag["enabled"].get<bool>();
+            if (ag.contains("include_in_errors")) rules_.polyglot_optimization.ai_guidance.include_in_errors = ag["include_in_errors"].get<bool>();
+            if (ag.contains("suggest_refactoring")) rules_.polyglot_optimization.ai_guidance.suggest_refactoring = ag["suggest_refactoring"].get<bool>();
+            if (ag.contains("show_benchmarks")) rules_.polyglot_optimization.ai_guidance.show_benchmarks = ag["show_benchmarks"].get<bool>();
+        }
+
+        // Task→Language scoring matrix
+        if (po.contains("task_language_matrix") && po["task_language_matrix"].is_object()) {
+            for (auto& [task_name, lang_scores] : po["task_language_matrix"].items()) {
+                if (!lang_scores.is_object()) continue;
+
+                for (auto& [lang_name, score_obj] : lang_scores.items()) {
+                    TaskLanguageScore score;
+                    if (score_obj.is_object()) {
+                        if (score_obj.contains("score")) score.score = score_obj["score"].get<int>();
+                        if (score_obj.contains("reason")) score.reason = score_obj["reason"].get<std::string>();
+                    } else if (score_obj.is_number()) {
+                        // Allow simple numeric scores
+                        score.score = score_obj.get<int>();
+                    }
+
+                    rules_.polyglot_optimization.task_language_matrix[task_name][lang_name] = score;
+                }
+            }
+        }
+    }
+
     // V3 Hooks
     if (j.contains("hooks") && j["hooks"].is_object()) {
         auto loadHook = [](const nlohmann::json& hj, HookConfig& hc) {
@@ -1240,6 +1351,34 @@ std::string GovernanceEngine::checkNetworkAllowed() {
                 "This prevents outbound connections from polyglot blocks",
                 "http.get(\"https://api.example.com\")",
                 "let data = json.parse(file.read(\"cached_data.json\"))"));
+    }
+    recordPass("capabilities.network", EnforcementLevel::HARD);
+    return "";
+}
+
+std::string GovernanceEngine::checkNetworkImports(
+    const std::string& language, const std::string& code, int line) {
+    if (rules_.network_allowed) {
+        recordPass("capabilities.network", EnforcementLevel::HARD);
+        return "";
+    }
+    // Scan polyglot code for network library usage patterns
+    for (const auto& pat : NETWORK_IMPORT_PATTERNS) {
+        if (pat.language != language && pat.language != "any") continue;
+        try {
+            std::regex re(pat.pattern);
+            if (std::regex_search(code, re)) {
+                return enforce("capabilities.network", EnforcementLevel::HARD,
+                    formatError(EnforcementLevel::HARD,
+                        fmt::format("Network access blocked: {} in {} block",
+                                    pat.description, language),
+                        fmt::format("line {}", line),
+                        "capabilities.network = false",
+                        "Network operations are disabled by governance.\n"
+                        "This prevents outbound connections from polyglot blocks.",
+                        "", "Use cached/local data or NAAb stdlib instead"));
+            }
+        } catch (...) {}
     }
     recordPass("capabilities.network", EnforcementLevel::HARD);
     return "";
@@ -2629,6 +2768,11 @@ std::string GovernanceEngine::checkPolyglotBlockCount(size_t count) {
     return "";
 }
 
+std::string GovernanceEngine::incrementAndCheckPolyglotBlockCount() {
+    ++polyglot_block_count_;
+    return checkPolyglotBlockCount(polyglot_block_count_);
+}
+
 std::string GovernanceEngine::checkStringLength(size_t length) {
     int max = rules_.limits.data.string_length;
     if (max > 0 && static_cast<int>(length) > max) {
@@ -2790,6 +2934,10 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkCryptoWeakness(code, line);
     if (!err.empty()) return err;
 
+    // Capability checks for polyglot blocks
+    err = checkNetworkImports(language, code, line);
+    if (!err.empty()) return err;
+
     // Per-language checks
     err = checkImports(language, code, line);
     if (!err.empty()) return err;
@@ -2838,7 +2986,7 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "version", "mode", "extends", "description",
         "languages", "capabilities", "limits", "requirements",
         "restrictions", "code_quality", "custom_rules", "scopes",
-        "output", "audit", "meta", "hooks", "polyglot"
+        "output", "audit", "meta", "hooks", "polyglot", "polyglot_optimization"
     };
 
     try {
@@ -3104,6 +3252,174 @@ void GovernanceEngine::loadInheritedConfig(const std::string& base_dir, int dept
         // In child_wins strategy, child values already set — nothing to merge back
         // The parent is loaded only for any values NOT set in child
     }
+}
+
+// ============================================================================
+// Polyglot Optimization Checks
+// ============================================================================
+
+std::string GovernanceEngine::checkPolyglotOptimization(
+    const std::string& language,
+    const std::string& code,
+    int line
+) {
+    if (!active_) return "";
+    if (!rules_.polyglot_optimization.enabled) return "";
+
+    // Create detector with task→language matrix from config
+    std::map<std::string, std::map<std::string, int>> matrix;
+    for (const auto& [task, lang_scores] : rules_.polyglot_optimization.task_language_matrix) {
+        for (const auto& [lang, score_data] : lang_scores) {
+            matrix[task][lang] = score_data.score;
+        }
+    }
+
+    analyzer::ComprehensiveTaskDetector detector(matrix);
+
+    // Analyze code
+    auto result = detector.analyze(code, language);
+
+    // Check enforcement level
+    std::string level = rules_.polyglot_optimization.enforcement_level;
+
+    // Helper errors config
+    bool show_suggestions = rules_.polyglot_optimization.helper_errors.enabled;
+    bool show_alternative = rules_.polyglot_optimization.helper_errors.show_alternative_language;
+    bool show_example = rules_.polyglot_optimization.helper_errors.show_example_code;
+
+    // Determine if we should suggest different language
+    bool should_suggest = false;
+    std::string message;
+
+    // Thresholds for suggestion
+    if (result.improvement_percent > 20) {
+        should_suggest = true;
+    } else if (result.current_language_score < 60 && result.optimal_language_score > 80) {
+        should_suggest = true;
+    } else if (!result.mismatches.empty()) {
+        // Check for high-confidence mismatches
+        for (const auto& mismatch : result.mismatches) {
+            if (mismatch.confidence > 80) {
+                should_suggest = true;
+                break;
+            }
+        }
+    }
+
+    if (should_suggest && show_suggestions) {
+        suggestBetterLanguage(
+            language, code,
+            analyzer::taskIntentToString(result.primary_task),
+            {result.optimal_language},
+            result.improvement_percent,
+            result.reasons
+        );
+
+        // Build enforcement message based on level
+        if (level == "hard") {
+            message = fmt::format(
+                "HARD violation: Suboptimal language choice\n"
+                "  Current: {} (score: {}/100)\n"
+                "  Optimal: {} (score: {}/100)\n"
+                "  Improvement: +{}%\n\n"
+                "  This code MUST use a more appropriate language.",
+                language, result.current_language_score,
+                result.optimal_language, result.optimal_language_score,
+                result.improvement_percent
+            );
+        } else if (level == "soft") {
+            message = fmt::format(
+                "SOFT violation: Suboptimal language choice\n"
+                "  Current: {} (score: {}/100)\n"
+                "  Optimal: {} (score: {}/100)\n"
+                "  Improvement: +{}%\n\n"
+                "  Override with --governance-override if needed.",
+                language, result.current_language_score,
+                result.optimal_language, result.optimal_language_score,
+                result.improvement_percent
+            );
+        } else if (level == "advisory") {
+            message = fmt::format(
+                "Advisory: Consider using {} instead of {} for +{}% improvement",
+                result.optimal_language, language, result.improvement_percent
+            );
+        }
+
+        // Record check result
+        CheckResult check;
+        check.rule_name = "polyglot_optimization";
+        check.level = level == "hard" ? EnforcementLevel::HARD :
+                     level == "soft" ? EnforcementLevel::SOFT :
+                                      EnforcementLevel::ADVISORY;
+        check.passed = false;
+        check.message = message;
+        check.category = "polyglot";
+        check.severity = result.improvement_percent > 50 ? "high" :
+                        result.improvement_percent > 30 ? "medium" : "low";
+        check.line = line;
+        check_results_.push_back(check);
+
+        // Return message based on enforcement level
+        if (level != "none" && level != "advisory") {
+            return message;
+        }
+    }
+
+    return "";
+}
+
+void GovernanceEngine::suggestBetterLanguage(
+    const std::string& current_lang,
+    const std::string& code,
+    const std::string& task_type,
+    const std::vector<std::string>& optimal_langs,
+    int improvement_percent,
+    const std::vector<std::string>& reasons
+) {
+    if (!rules_.polyglot_optimization.helper_errors.enabled) return;
+
+    bool show_example = rules_.polyglot_optimization.helper_errors.show_example_code;
+
+    // Format helper error similar to stdlib helper errors
+    fmt::print("\n  💡 Hint: Language optimization opportunity detected.\n\n");
+    fmt::print("  Current language: {} (for {} task)\n", current_lang, task_type);
+
+    if (!optimal_langs.empty()) {
+        if (optimal_langs.size() == 1) {
+            fmt::print("  Optimal language: {}\n", optimal_langs[0]);
+        } else {
+            std::string langs_str;
+            for (size_t i = 0; i < optimal_langs.size(); ++i) {
+                if (i > 0) langs_str += ", ";
+                langs_str += optimal_langs[i];
+            }
+            fmt::print("  Optimal languages: {}\n", langs_str);
+        }
+    }
+
+    if (improvement_percent > 0) {
+        fmt::print("  Potential improvement: +{}%\n\n", improvement_percent);
+    }
+
+    // Show reasons
+    if (!reasons.empty()) {
+        fmt::print("  Reasons:\n");
+        int count = 0;
+        for (const auto& reason : reasons) {
+            if (count++ >= 3) break;  // Show top 3 reasons
+            fmt::print("    • {}\n", reason);
+        }
+        fmt::print("\n");
+    }
+
+    // Show example if enabled
+    if (show_example && !optimal_langs.empty()) {
+        fmt::print("  Example refactoring:\n");
+        fmt::print("    ✗ Current: <<{}  [code] >>\n", current_lang);
+        fmt::print("    ✓ Better:  <<{}  [code] >>\n\n", optimal_langs[0]);
+    }
+
+    fmt::print("  For more: docs/polyglot/optimization_guide.md\n\n");
 }
 
 } // namespace governance

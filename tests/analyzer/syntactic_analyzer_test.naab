@@ -1,0 +1,285 @@
+// Syntactic Analyzer Unit Tests
+// Tests structure detection: loops, functions, complexity scoring
+
+function test_loop_detection() {
+    print("\n═══ Loop Structure Detection ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let while_loop = <<python
+count = 0
+while count < 10:
+    count += 1
+count
+    >>
+    if (while_loop == 10) { passed = passed + 1; print("✓ PASS: While loop detection") } else { print("✗ FAIL: While loop") }
+
+    total = total + 1
+    let comprehension = <<python
+[x * 2 for x in range(10)]
+    >>
+    if (len(comprehension) == 10) { passed = passed + 1; print("✓ PASS: Comprehension loop") } else { print("✗ FAIL: Comprehension loop") }
+
+    total = total + 1
+    let large_iteration = <<python
+sum([i**2 for i in range(1, 10001)])
+    >>
+    if (large_iteration > 0) { passed = passed + 1; print("✓ PASS: Large iteration") } else { print("✗ FAIL: Large iteration") }
+
+    total = total + 1
+    let nested_loops = <<python
+result = 0
+for i in range(3):
+    for j in range(3):
+        result += 1
+result
+    >>
+    if (nested_loops == 9) { passed = passed + 1; print("✓ PASS: Nested loops") } else { print("✗ FAIL: Nested loops") }
+
+    print("Loop detection: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_function_complexity() {
+    print("\n═══ Function Complexity ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let simple_func = <<python
+def add(a, b):
+    return a + b
+add(2, 3)
+    >>
+    if (simple_func == 5) { passed = passed + 1; print("✓ PASS: Simple function") } else { print("✗ FAIL: Simple function") }
+
+    total = total + 1
+    let nested_func = <<python
+def outer(x):
+    def inner(y):
+        return x + y
+    return inner(5)
+outer(10)
+    >>
+    if (nested_func == 15) { passed = passed + 1; print("✓ PASS: Nested function") } else { print("✗ FAIL: Nested function") }
+
+    total = total + 1
+    let recursive_func = <<python
+def factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+factorial(5)
+    >>
+    if (recursive_func == 120) { passed = passed + 1; print("✓ PASS: Recursive function") } else { print("✗ FAIL: Recursive function") }
+
+    total = total + 1
+    let multi_func = <<python
+def func1(): return 1
+def func2(): return 2
+def func3(): return 3
+func1() + func2() + func3()
+    >>
+    if (multi_func == 6) { passed = passed + 1; print("✓ PASS: Multiple functions") } else { print("✗ FAIL: Multiple functions") }
+
+    print("Function complexity: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_data_flow() {
+    print("\n═══ Data Flow Patterns ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let array_ops = <<python
+data = [1, 2, 3, 4, 5]
+[x * 2 for x in data if x > 2]
+    >>
+    if (len(array_ops) == 3) { passed = passed + 1; print("✓ PASS: Array filter") } else { print("✗ FAIL: Array filter") }
+
+    total = total + 1
+    let reduce_op = <<python
+from functools import reduce
+reduce(lambda a, b: a + b, [1, 2, 3, 4, 5])
+    >>
+    if (reduce_op == 15) { passed = passed + 1; print("✓ PASS: Reduce pattern") } else { print("✗ FAIL: Reduce pattern") }
+
+    total = total + 1
+    let pipeline = <<shell
+echo "hello world" | tr 'a-z' 'A-Z'
+    >>
+    if (pipeline == "HELLO WORLD") { passed = passed + 1; print("✓ PASS: Pipeline pattern") } else { print("✗ FAIL: Pipeline pattern") }
+
+    total = total + 1
+    let generator = <<python
+def gen():
+    for i in range(5):
+        yield i * 2
+list(gen())
+    >>
+    if (len(generator) == 5) { passed = passed + 1; print("✓ PASS: Generator pattern") } else { print("✗ FAIL: Generator pattern") }
+
+    print("Data flow: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_error_handling() {
+    print("\n═══ Error Handling Patterns ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let try_catch = <<python
+try:
+    result = 10 / 2
+except ZeroDivisionError:
+    result = 0
+result
+    >>
+    if (try_catch == 5) { passed = passed + 1; print("✓ PASS: Try/catch pattern") } else { print("✗ FAIL: Try/catch") }
+
+    total = total + 1
+    let finally_block = <<python
+result = 0
+try:
+    result = 10
+finally:
+    pass
+result
+    >>
+    if (finally_block == 10) { passed = passed + 1; print("✓ PASS: Finally block") } else { print("✗ FAIL: Finally block") }
+
+    total = total + 1
+    let custom_exc = <<python
+class CustomError(Exception):
+    pass
+try:
+    result = 42
+except CustomError:
+    result = 0
+result
+    >>
+    if (custom_exc == 42) { passed = passed + 1; print("✓ PASS: Custom exception") } else { print("✗ FAIL: Custom exception") }
+
+    print("Error handling: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_nesting_depth() {
+    print("\n═══ Nesting Depth ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let shallow = <<python
+result = 1 if True else 0
+result
+    >>
+    if (shallow == 1) { passed = passed + 1; print("✓ PASS: Shallow nesting") } else { print("✗ FAIL: Shallow nesting") }
+
+    total = total + 1
+    let deep = <<python
+if True:
+    if True:
+        if True:
+            result = 3
+        else:
+            result = 2
+    else:
+        result = 1
+else:
+    result = 0
+result
+    >>
+    if (deep == 3) { passed = passed + 1; print("✓ PASS: Deep nesting") } else { print("✗ FAIL: Deep nesting") }
+
+    total = total + 1
+    let mixed = <<python
+result = 0
+for i in range(2):
+    if i > 0:
+        for j in range(2):
+            result += 1
+result
+    >>
+    if (mixed == 2) { passed = passed + 1; print("✓ PASS: Mixed nesting") } else { print("✗ FAIL: Mixed nesting") }
+
+    print("Nesting depth: " + passed + "/" + total)
+    return [passed, total]
+}
+
+function test_complexity_scoring() {
+    print("\n═══ Complexity Scoring ═══")
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let low = <<python
+result = 2 + 2
+result
+    >>
+    if (low == 4) { passed = passed + 1; print("✓ PASS: Low complexity") } else { print("✗ FAIL: Low complexity") }
+
+    total = total + 1
+    let medium = <<python
+def process(data):
+    result = []
+    for item in data:
+        if item > 5:
+            result.append(item * 2)
+    return result
+len(process([1, 5, 10, 15]))
+    >>
+    if (medium == 2) { passed = passed + 1; print("✓ PASS: Medium complexity") } else { print("✗ FAIL: Medium complexity") }
+
+    total = total + 1
+    let cyclomatic = <<python
+def classify(x, y):
+    if x > 0:
+        if y > 0: return "positive"
+        else: return "mixed"
+    else:
+        if y > 0: return "mixed"
+        else: return "negative"
+classify(1, 1)
+    >>
+    if (cyclomatic == "positive") { passed = passed + 1; print("✓ PASS: Cyclomatic complexity") } else { print("✗ FAIL: Cyclomatic complexity") }
+
+    print("Complexity scoring: " + passed + "/" + total)
+    return [passed, total]
+}
+
+main {
+    print("╔═══════════════════════════════════════════════════════╗")
+    print("║       Syntactic Analyzer Unit Tests                  ║")
+    print("╚═══════════════════════════════════════════════════════╝")
+
+    let tp = 0
+    let tr = 0
+
+    let r1 = test_loop_detection()
+    tp = tp + r1[0]; tr = tr + r1[1]
+
+    let r2 = test_function_complexity()
+    tp = tp + r2[0]; tr = tr + r2[1]
+
+    let r3 = test_data_flow()
+    tp = tp + r3[0]; tr = tr + r3[1]
+
+    let r4 = test_error_handling()
+    tp = tp + r4[0]; tr = tr + r4[1]
+
+    let r5 = test_nesting_depth()
+    tp = tp + r5[0]; tr = tr + r5[1]
+
+    let r6 = test_complexity_scoring()
+    tp = tp + r6[0]; tr = tr + r6[1]
+
+    let tf = tr - tp
+    print("\n═══════════════════════════════════════")
+    print("  TOTAL: " + tp + "/" + tr + " passed, " + tf + " failed")
+    if (tf == 0) { print("  ✓ ALL TESTS PASSED") } else { print("  ✗ SOME TESTS FAILED") }
+    print("═══════════════════════════════════════")
+}

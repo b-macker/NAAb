@@ -1,0 +1,123 @@
+{
+  "version": "3.0",
+  "mode": "enforce",
+  "description": "Governance App Test - Phase 6: Code Quality (LLM Anti-Drift)",
+
+  "languages": {
+    "allowed": ["python", "javascript"],
+    "blocked": ["shell"],
+    "per_language": {
+      "python": {
+        "timeout": 15,
+        "max_lines": 100,
+        "banned_functions": ["eval(", "exec(", "compile(", "__import__("],
+        "imports": {
+          "mode": "blocklist",
+          "blocked": ["subprocess", "ctypes", "os.system"]
+        }
+      },
+      "javascript": {
+        "timeout": 10,
+        "max_lines": 80,
+        "banned_functions": ["eval(", "Function("],
+        "imports": {
+          "mode": "blocklist",
+          "blocked": ["child_process", "fs"]
+        }
+      }
+    }
+  },
+
+  "capabilities": {
+    "network": {
+      "enabled": false
+    },
+    "filesystem": {
+      "mode": "read"
+    },
+    "shell": {
+      "enabled": false
+    }
+  },
+
+  "limits": {
+    "timeout": {
+      "global": 30,
+      "per_block": 15
+    },
+    "execution": {
+      "call_depth": 10,
+      "polyglot_blocks": 5
+    },
+    "data": {
+      "array_size": 1000,
+      "string_length": 10000
+    },
+    "code": {
+      "max_lines_per_block": 50,
+      "max_nesting_depth": 8
+    }
+  },
+
+  "restrictions": {
+    "dangerous_calls": {
+      "level": "hard"
+    },
+    "imports": {
+      "level": "soft",
+      "mode": "blocklist",
+      "blocked": {
+        "python": ["subprocess", "ctypes", "os.system"],
+        "javascript": ["child_process", "fs"]
+      }
+    },
+    "shell_injection": {
+      "level": "hard"
+    },
+    "privilege_escalation": {
+      "level": "hard"
+    }
+  },
+
+  "code_quality": {
+    "no_secrets": {
+      "level": "hard",
+      "entropy_check": {
+        "enabled": true,
+        "threshold": 4.5,
+        "min_length": 20
+      }
+    },
+    "no_sql_injection": {
+      "level": "hard"
+    },
+    "no_path_traversal": {
+      "level": "hard"
+    },
+    "no_unsafe_deserialization": {
+      "level": "hard"
+    },
+    "no_placeholders": {
+      "level": "soft",
+      "markers": ["TODO", "FIXME", "STUB", "PLACEHOLDER", "HACK"]
+    },
+    "no_oversimplification": {
+      "level": "hard",
+      "check_empty_bodies": true,
+      "check_trivial_returns": true,
+      "check_identity_functions": true,
+      "check_not_implemented": true
+    },
+    "no_incomplete_logic": {
+      "level": "hard",
+      "check_empty_catch": true,
+      "check_swallowed_exceptions": true,
+      "check_generic_errors": true
+    },
+    "no_hallucinated_apis": {
+      "level": "soft",
+      "check_cross_language": true,
+      "check_made_up_functions": true
+    }
+  }
+}
