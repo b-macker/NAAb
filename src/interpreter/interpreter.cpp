@@ -6886,6 +6886,17 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 }
             }
 
+            // Governance: Validate polyglot output format if configured
+            if (governance_ && governance_->isActive()) {
+                if (auto* str_val = std::get_if<std::string>(&value->data)) {
+                    std::string output_err = governance_->checkPolyglotOutput(*str_val);
+                    if (!output_err.empty()) {
+                        gc_suspended_ = false;
+                        throw std::runtime_error(output_err);
+                    }
+                }
+            }
+
             // Store result value
             if (!block.assigned_var.empty()) {
                 current_env_->define(block.assigned_var, value);
