@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NAAb — The Polyglot Programming Language with Built-in LLM Governance</title>
-    <meta name="description" content="NAAb is a polyglot programming language that integrates Python, JavaScript, Rust, C++ and more with built-in LLM governance — detecting oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.">
+    <meta name="description" content="NAAb is a polyglot programming language that integrates Python, JavaScript, Rust, C++, Go, Nim, Zig, Julia and more with built-in LLM governance — detecting oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.">
     <meta name="keywords" content="polyglot programming language, LLM governance, AI code quality, hallucinated APIs, code generation, Python, JavaScript, Rust, C++, static analysis, polyglot, code review, enterprise">
     <meta name="author" content="Brandon Mackert">
     <meta name="google-site-verification" content="Kk_M0y4J--TlKqyGB6rQmunZK2Fu4bPQv1f1bbH4P_c" />
@@ -14,22 +14,22 @@
     <meta name="yandex-verification" content="84af87a37b679873" />
 
     <meta property="og:title" content="NAAb — Polyglot Without the Trip">
-    <meta property="og:description" content="A polyglot programming language with built-in LLM governance. Integrates 9 languages. 50+ governance checks catch hallucinated APIs, oversimplified stubs, and incomplete logic.">
+    <meta property="og:description" content="A polyglot programming language with built-in LLM governance. Integrates 12 languages. 50+ governance checks catch hallucinated APIs, oversimplified stubs, and incomplete logic.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://b-macker.github.io/NAAb/">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="NAAb — Polyglot Without the Trip">
-    <meta name="twitter:description" content="A polyglot programming language with built-in LLM governance. 9 languages, 50+ checks, zero hallucinations.">
+    <meta name="twitter:description" content="A polyglot programming language with built-in LLM governance. 12 languages, 50+ checks, zero hallucinations.">
 
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "NAAb",
-        "description": "A polyglot programming language with built-in LLM governance that integrates Python, JavaScript, Rust, C++ and more. Detects oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.",
+        "description": "A polyglot programming language with built-in LLM governance that integrates 12 languages including Python, JavaScript, Rust, C++, Go, Nim, Zig, and Julia. Detects oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Linux, macOS",
-        "programmingLanguage": ["C++", "Python", "JavaScript", "Rust", "Go", "Ruby", "PHP", "C#", "Shell"],
+        "programmingLanguage": ["C++", "Python", "JavaScript", "Rust", "Go", "Ruby", "PHP", "C#", "Shell", "Nim", "Zig", "Julia"],
         "license": "https://opensource.org/licenses/MIT",
         "url": "https://github.com/b-macker/NAAb",
         "codeRepository": "https://github.com/b-macker/NAAb",
@@ -346,6 +346,9 @@
         .dot-php { background: #4F5D95; }
         .dot-csharp { background: #178600; }
         .dot-shell { background: #89e051; }
+        .dot-nim { background: #ffc200; }
+        .dot-zig { background: #f7a41d; }
+        .dot-julia { background: #9558b2; }
 
         /* ─── Feature Cards ─── */
         .features-grid {
@@ -651,7 +654,7 @@
             <span class="gradient">built for the AI era</span>
         </h1>
         <p class="subtitle">
-            Write Python, JavaScript, Rust, C++ and 5 more languages in a single file.
+            Write Python, JavaScript, Rust, C++ and 8 more languages in a single file.
             Ship with confidence — NAAb's governance engine catches hallucinated APIs,
             incomplete logic, and oversimplified stubs before they reach production.
         </p>
@@ -668,11 +671,11 @@
 <!-- ─── Stats Bar ─── -->
 <div class="container" style="padding-bottom: 60px;">
     <div class="stats-bar">
-        <div class="stat"><div class="num">9</div><div class="label">Languages</div></div>
+        <div class="stat"><div class="num">12</div><div class="label">Languages</div></div>
         <div class="stat"><div class="num">50+</div><div class="label">Governance Checks</div></div>
         <div class="stat"><div class="num">12</div><div class="label">Stdlib Modules</div></div>
         <div class="stat"><div class="num">15k+</div><div class="label">Lines of C++17</div></div>
-        <div class="stat"><div class="num">186</div><div class="label">Tests Passing</div></div>
+        <div class="stat"><div class="num">183</div><div class="label">Tests Passing</div></div>
     </div>
 </div>
 
@@ -683,7 +686,7 @@
     <div class="container">
         <div class="section-header">
             <div class="label">Polyglot Execution</div>
-            <h2>Nine languages. One file. Zero boilerplate.</h2>
+            <h2>Twelve languages. One file. Zero boilerplate.</h2>
             <p>Use each language where it shines. Variables flow between languages automatically — no FFI, no serialization, no microservices.</p>
         </div>
 
@@ -697,6 +700,9 @@
             <div class="lang-pill"><span class="dot dot-ruby"></span> Ruby</div>
             <div class="lang-pill"><span class="dot dot-php"></span> PHP</div>
             <div class="lang-pill"><span class="dot dot-shell"></span> Shell</div>
+            <div class="lang-pill"><span class="dot dot-nim"></span> Nim</div>
+            <div class="lang-pill"><span class="dot dot-zig"></span> Zig</div>
+            <div class="lang-pill"><span class="dot dot-julia"></span> Julia</div>
         </div>
 
         <div class="code-showcase">
@@ -955,7 +961,7 @@ mean=30, stdev=15.8
             </div>
             <div class="f-card" style="text-align:center;">
                 <h3 style="color: var(--purple);">Compiled</h3>
-                <p>Rust, C++, Go, C# compile to native binaries. Thread-safe temp files.</p>
+                <p>Rust, C++, Go, C#, Nim, Zig compile to native binaries. Julia JIT-compiled. Thread-safe temp files.</p>
             </div>
         </div>
     </div>
