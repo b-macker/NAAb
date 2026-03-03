@@ -1,7 +1,7 @@
 {
   "version": "3.0",
   "mode": "enforce",
-  "description": "Governance App Test - Phase 6: Code Quality (LLM Anti-Drift)",
+  "description": "Governance App Test - Phase 7: Polyglot Optimization",
 
   "languages": {
     "allowed": ["python", "javascript"],
@@ -118,6 +118,37 @@
       "level": "soft",
       "check_cross_language": true,
       "check_made_up_functions": true
+    }
+  },
+
+  "polyglot_optimization": {
+    "enabled": true,
+    "enforcement_level": "soft",
+    "pattern_detection": {
+      "enabled": true
+    },
+    "helper_errors": {
+      "enabled": true,
+      "show_alternative_language": true,
+      "show_example_code": true
+    },
+    "task_language_matrix": {
+      "numerical_operations": {
+        "python": {"score": 95, "reason": "NumPy, SciPy, native numerical libraries"},
+        "javascript": {"score": 35, "reason": "No native numerical computing support"}
+      },
+      "web_apis": {
+        "javascript": {"score": 95, "reason": "Native browser language"},
+        "python": {"score": 60, "reason": "Requests library works but not native"}
+      },
+      "systems_operations": {
+        "python": {"score": 25, "reason": "Too slow for systems work"},
+        "javascript": {"score": 20, "reason": "No systems-level access"}
+      },
+      "string_processing": {
+        "python": {"score": 85, "reason": "Excellent string handling"},
+        "javascript": {"score": 80, "reason": "Good string support"}
+      }
     }
   }
 }

@@ -1,0 +1,19 @@
+// Test: Polyglot optimization - numerical computing in JavaScript should be flagged
+// The analyzer should detect that matrix/vector/numerical computing belongs in Python
+main {
+    let result = <<javascript
+var matrix = [[1,2],[3,4]];
+var vector = [5,6];
+var mean = 0;
+for (var i = 0; i < vector.length; i++) {
+    mean += vector[i];
+}
+mean = mean / vector.length;
+var norm = Math.sqrt(vector[0]*vector[0] + vector[1]*vector[1]);
+var dot = matrix[0][0]*vector[0] + matrix[0][1]*vector[1];
+var eigenvalue = (matrix[0][0] + matrix[1][1]) / 2;
+var gradient = [2*vector[0], 2*vector[1]];
+"mean=" + mean + " norm=" + norm + " dot=" + dot;
+    >>
+    print(result)
+}

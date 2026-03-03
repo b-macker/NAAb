@@ -2870,6 +2870,12 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkLanguageAllowed(language, line);
     if (!err.empty()) return err;
 
+    // Shell capability check
+    if (language == "shell" || language == "bash" || language == "sh") {
+        err = checkShellAllowed();
+        if (!err.empty()) return err;
+    }
+
     // Code quality checks
     err = checkSecrets(code, line);
     if (!err.empty()) return err;

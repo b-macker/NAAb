@@ -6604,6 +6604,8 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
     // Track which blocks from group.parallel_blocks were submitted for parallel execution
     // Sequential blocks (lang_supported=false) are executed inline and skipped from tasks
     std::vector<size_t> parallel_block_indices;
+    // Track return types for JSON Sovereign Pipe handling in result processing
+    std::vector<std::string> parallel_return_types;
 
     for (size_t i = 0; i < group.parallel_blocks.size(); ++i) {
         const auto& block = group.parallel_blocks[i];
@@ -6689,6 +6691,18 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 
         // Get raw code and strip common indentation
         std::string raw_code = inline_code->getCode();
+
+        // Governance v3.0: Check polyglot block in parallel execution path
+        if (governance_ && governance_->isActive()) {
+            int gov_line = inline_code->getLocation().line;
+            std::string gov_err = governance_->checkPolyglotBlock(
+                lang_str, raw_code, current_file_, gov_line);
+            if (!gov_err.empty()) throw std::runtime_error(gov_err);
+
+            std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+            if (!count_err.empty()) throw std::runtime_error(count_err);
+        }
+
         std::vector<std::string> lines;
         std::istringstream stream(raw_code);
         std::string line;
@@ -6718,12 +6732,20 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             }
         }
 
+        // Phase 12: Get return type for JSON Sovereign Pipe support
+        std::string return_type = inline_code->getReturnType();
+
         // Phase 12: Inject naab_return() helper for parallel execution path
         // Only inject if naab_return is actually used in the code (avoids breaking IIFE wrapping)
         if (raw_code.find("naab_return") != std::string::npos) {
             std::string helper;
             if (lang_str == "python") {
-                helper = "def naab_return(data):\n    return data\n";
+                if (!return_type.empty()) {
+                    // Python with -> JSON: naab_return prints to stdout for StringIO capture
+                    helper = "def naab_return(data):\n    import json as __nrj\n    print(__nrj.dumps(data) if not isinstance(data, str) else data)\n";
+                } else {
+                    helper = "def naab_return(data):\n    return data\n";
+                }
             } else if (lang_str == "javascript" || lang_str == "js") {
                 helper = "function naab_return(data) { return data; }\n";
             } else if (lang_str == "typescript" || lang_str == "ts") {
@@ -6754,15 +6776,55 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             final_code = var_declarations + code;
         }
 
+        // Phase 12: For Python with -> JSON, wrap code to capture stdout and extract last JSON line
+        if (!return_type.empty() && (lang_str == "python")) {
+            std::string preamble =
+                "import sys as __naab_sys, io as __naab_io, json as __naab_json\n"
+                "__naab_buf = __naab_io.StringIO()\n"
+                "__naab_orig = __naab_sys.stdout\n"
+                "__naab_sys.stdout = __naab_buf\n";
+            std::string postamble =
+                "\n__naab_sys.stdout = __naab_orig\n"
+                "__naab_captured = __naab_buf.getvalue().strip().split('\\n')\n"
+                "__naab_result = None\n"
+                "for __naab_l in reversed(__naab_captured):\n"
+                "    __naab_l = __naab_l.strip()\n"
+                "    if not __naab_l:\n"
+                "        continue\n"
+                "    try:\n"
+                "        __naab_result = __naab_json.loads(__naab_l)\n"
+                "        break\n"
+                "    except:\n"
+                "        __naab_sys.stdout.write(__naab_l + '\\n')\n"
+                "__naab_result\n";
+            final_code = preamble + final_code + postamble;
+        }
+
         // Create task with empty args (variables are injected into code)
         std::vector<interpreter::Value> args;
         tasks.emplace_back(lang, final_code, args);
         parallel_block_indices.push_back(i);
+        parallel_return_types.push_back(return_type);
     }
 
     // Step 3: Execute in parallel using PolyglotAsyncExecutor
+    // Suspend GC during polyglot execution to prevent collecting live values
+    gc_suspended_ = true;
+
     polyglot::PolyglotAsyncExecutor executor;
-    auto results = executor.executeParallel(tasks, std::chrono::milliseconds(30000));
+    int timeout_ms = 30000; // default
+    if (governance_ && governance_->isActive() && governance_->getTimeoutSeconds() > 0) {
+        timeout_ms = governance_->getTimeoutSeconds() * 1000;
+    }
+
+    auto results = [&]() {
+        try {
+            return executor.executeParallel(tasks, std::chrono::milliseconds(timeout_ms));
+        } catch (...) {
+            gc_suspended_ = false;
+            throw;
+        }
+    }();
 
     // Step 4: Store results back to environment (sequential, thread-safe)
     // IMPORTANT: results[j] corresponds to parallel_block_indices[j], NOT group.parallel_blocks[j]
@@ -6772,11 +6834,60 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         const auto& block = group.parallel_blocks[block_idx];
         const auto& result = results[j];
 
+        std::string return_type = parallel_return_types[j];
+        std::string lang_str = block.node ? block.node->getLanguage() : "unknown";
+
         if (result.success) {
+            auto value = std::make_shared<Value>(result.value);
+
+            // Phase 12: Check for sentinel/JSON return values in parallel path
+            if (auto* str_val = std::get_if<std::string>(&value->data)) {
+                if (str_val->find("__NAAB_RETURN__:") != std::string::npos) {
+                    auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
+                    if (polyglot_result.return_value) {
+                        value = polyglot_result.return_value;
+                    }
+                    if (!polyglot_result.log_output.empty()) {
+                        std::cout << polyglot_result.log_output << std::flush;
+                    }
+                } else if (!return_type.empty()) {
+                    // -> JSON header: try parsing result as JSON
+                    auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
+                    if (polyglot_result.return_value) {
+                        value = polyglot_result.return_value;
+                    }
+                }
+            }
+
+            // Phase 12: BLOCK_CONTRACT_VIOLATION — -> JSON declared but no JSON produced
+            if (!return_type.empty() && return_type == "JSON") {
+                bool has_valid_result = value && !std::holds_alternative<std::monostate>(value->data);
+                if (!has_valid_result) {
+                    std::ostringstream oss;
+                    oss << "Block contract violation: <<" << lang_str << " -> JSON>> expected a JSON return value, "
+                        << "but no valid JSON was found in stdout.\n\n"
+                        << "  Help:\n"
+                        << "  - Use naab_return({...}) to explicitly return JSON data\n"
+                        << "  - Or print valid JSON as the last line of output\n\n"
+                        << "  Example:\n"
+                        << "    let data = <<" << lang_str << " -> JSON\n";
+                    if (lang_str == "python") {
+                        oss << "    import json\n"
+                            << "    result = {\"key\": [1, 2, 3]}\n"
+                            << "    naab_return(result)\n";
+                    } else if (lang_str == "javascript" || lang_str == "js") {
+                        oss << "    naab_return({key: [1, 2, 3]})\n";
+                    } else {
+                        oss << "    naab_return(your_data)\n";
+                    }
+                    oss << "    >>\n";
+                    gc_suspended_ = false;
+                    throw std::runtime_error(oss.str());
+                }
+            }
+
             // Store result value
             if (!block.assigned_var.empty()) {
-                // Result already contains interpreter::Value
-                auto value = std::make_shared<Value>(result.value);
                 current_env_->define(block.assigned_var, value);
             }
         } else {
@@ -6784,7 +6895,6 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             std::string error_msg = result.error_message;
             bool is_undefined_var = false;
             std::string var_name;
-            std::string language = block.node ? block.node->getLanguage() : "unknown";
 
             // Python: "NameError: name 'x' is not defined"
             if (error_msg.find("NameError") != std::string::npos &&
@@ -6827,11 +6937,11 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 
                 if (!var_name.empty()) {
                     oss << "  ✗ Wrong - variable not bound:\n";
-                    oss << "    let result = <<" << language << "\n";
+                    oss << "    let result = <<" << lang_str << "\n";
                     oss << "    " << var_name << " * 2\n";
                     oss << "    >>\n\n";
                     oss << "  ✓ Right - explicit variable binding:\n";
-                    oss << "    let result = <<" << language << "[" << var_name << "]\n";
+                    oss << "    let result = <<" << lang_str << "[" << var_name << "]\n";
                     oss << "    " << var_name << " * 2\n";
                     oss << "    >>\n\n";
                 } else {
@@ -6843,11 +6953,22 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 oss << "  Example with multiple variables:\n";
                 oss << "    let a = 10\n";
                 oss << "    let b = 20\n";
-                oss << "    let sum = <<" << language << "[a, b]\n";
+                oss << "    let sum = <<" << lang_str << "[a, b]\n";
                 oss << "    a + b\n";
                 oss << "    >>\n";
 
+                gc_suspended_ = false;
                 throw std::runtime_error(oss.str());
+            }
+
+            // Phase 12: Translate temp file paths to NAAb source locations
+            if (block.node) {
+                runtime::SourceMapper source_mapper(current_file_,
+                    block.node->getLocation().line, block.node->getLocation().column);
+                std::string translated = source_mapper.translateError(error_msg);
+                if (!translated.empty() && translated != error_msg) {
+                    error_msg = translated + "\n  Original error: " + error_msg;
+                }
             }
 
             // Detect common polyglot errors and add helpful context
@@ -6860,7 +6981,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                     << "  All lines should use consistent indentation (spaces, not tabs).\n"
                     << "  NAAb strips common leading whitespace, but mixed indentation breaks Python.\n";
             }
-            else if (language == "python" && error_msg.find("SyntaxError") != std::string::npos) {
+            else if (lang_str == "python" && error_msg.find("SyntaxError") != std::string::npos) {
                 oss << "\n  Help: Python syntax error. Check colons, brackets, and Python 3 syntax.\n"
                     << "  The last expression in the block is the return value.\n";
             }
@@ -6869,10 +6990,10 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 oss << "\n  Help: Missing Python module. Install with: pip install <module>\n";
             }
             else if (error_msg.find("compilation failed") != std::string::npos) {
-                oss << "\n  Help: " << language << " compilation failed. Check syntax and compiler installation.\n";
+                oss << "\n  Help: " << lang_str << " compilation failed. Check syntax and compiler installation.\n";
             }
             // JavaScript: 'return' keyword in expression
-            else if (language == "javascript" &&
+            else if (lang_str == "javascript" &&
                      (error_msg.find("unexpected token") != std::string::npos ||
                       error_msg.find("SyntaxError") != std::string::npos) &&
                      error_msg.find("return") != std::string::npos) {
@@ -6882,9 +7003,12 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                     << "  ✓ Right:  42\n";
             }
 
+            gc_suspended_ = false;
             throw std::runtime_error(oss.str());
         }
     }
+
+    gc_suspended_ = false;
 }
 
 // Phase 2.2: Serialize a value for injection into target language

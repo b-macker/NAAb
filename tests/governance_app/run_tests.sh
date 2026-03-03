@@ -28,7 +28,8 @@ expect_pass() {
 expect_fail() {
     TOTAL=$((TOTAL + 1))
     output=$($NAAB "$1" 2>&1)
-    if echo "$output" | grep -q "Governance error"; then
+    exit_code=$?
+    if [ $exit_code -ne 0 ] && (echo "$output" | grep -qE "Governance error|violation:"); then
         PASS=$((PASS + 1))
         echo -e "${GREEN}✓ PASS${NC}: $2 (correctly blocked)"
     else
@@ -78,6 +79,11 @@ echo "═══ Phase 6: Code Quality (LLM Anti-Drift) ═══"
 expect_fail test_oversimplified.naab "Oversimplified code blocked"
 expect_fail test_incomplete.naab "Incomplete logic blocked"
 expect_fail test_placeholder.naab "Placeholder marker blocked"
+echo
+
+# Phase 7: Polyglot Optimization
+echo "═══ Phase 7: Polyglot Optimization ═══"
+expect_fail test_polyglot_optimization.naab "Numerical computing in JS flagged (suggests Python)"
 echo
 
 echo "═══════════════════════════════════════════════════════"
