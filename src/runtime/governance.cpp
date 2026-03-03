@@ -2770,7 +2770,7 @@ std::string GovernanceEngine::checkPolyglotBlockCount(size_t count) {
 
 std::string GovernanceEngine::incrementAndCheckPolyglotBlockCount() {
     ++polyglot_block_count_;
-    return checkPolyglotBlockCount(polyglot_block_count_);
+    return checkPolyglotBlockCount(static_cast<size_t>(polyglot_block_count_));
 }
 
 std::string GovernanceEngine::checkStringLength(size_t length) {
@@ -2950,6 +2950,10 @@ std::string GovernanceEngine::checkPolyglotBlock(
 
     // Custom rules
     err = checkCustomRules(language, code, line);
+    if (!err.empty()) return err;
+
+    // Polyglot optimization (language choice suggestions)
+    err = checkPolyglotOptimization(language, code, line);
     if (!err.empty()) return err;
 
     return "";
@@ -3284,8 +3288,6 @@ std::string GovernanceEngine::checkPolyglotOptimization(
 
     // Helper errors config
     bool show_suggestions = rules_.polyglot_optimization.helper_errors.enabled;
-    bool show_alternative = rules_.polyglot_optimization.helper_errors.show_alternative_language;
-    bool show_example = rules_.polyglot_optimization.helper_errors.show_example_code;
 
     // Determine if we should suggest different language
     bool should_suggest = false;
@@ -3370,7 +3372,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
 
 void GovernanceEngine::suggestBetterLanguage(
     const std::string& current_lang,
-    const std::string& code,
+    const std::string& /* code */,
     const std::string& task_type,
     const std::vector<std::string>& optimal_langs,
     int improvement_percent,
