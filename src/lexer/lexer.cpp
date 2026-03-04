@@ -761,9 +761,40 @@ std::vector<Token> Lexer::tokenize() {
             case ',': tokens_.emplace_back(TokenType::COMMA, ",", line, col); break;
             case ';': tokens_.emplace_back(TokenType::SEMICOLON, ";", line, col); break;
             default: {
+                unsigned char uc = static_cast<unsigned char>(ch);
+
+                // FIX 27: Detect multi-byte UTF-8 characters and show helpful error
+                if (uc >= 0x80) {
+                    std::string utf8_seq(1, ch);
+                    size_t expected_bytes = 0;
+                    if ((uc & 0xE0) == 0xC0) expected_bytes = 1;       // 2-byte
+                    else if ((uc & 0xF0) == 0xE0) expected_bytes = 2;  // 3-byte
+                    else if ((uc & 0xF8) == 0xF0) expected_bytes = 3;  // 4-byte
+
+                    for (size_t b = 0; b < expected_bytes && pos_ < source_.size(); b++) {
+                        utf8_seq += source_[pos_];
+                        advance();
+                    }
+
+                    throw std::runtime_error(
+                        "Unexpected Unicode character '" + utf8_seq +
+                        "' at line " + std::to_string(line_) +
+                        ", column " + std::to_string(column_) + "\n\n"
+                        "  Help:\n"
+                        "  - NAAb source code should use ASCII characters\n"
+                        "  - Unicode characters are allowed inside string literals: \"" + utf8_seq + "\"\n"
+                        "  - If this is decorative text (box-drawing, emoji), wrap it in a string:\n"
+                        "    io.write(\"" + utf8_seq + "\")\n\n"
+                        "  - Common LLM pattern: Use ASCII art instead:\n"
+                        "    Wrong: special Unicode characters outside strings\n"
+                        "    Right: +-------+  (ASCII equivalent)\n"
+                    );
+                }
+
+                // ASCII non-printable — show hex
                 std::string char_display = (std::isprint(ch)) ?
                     std::string(1, ch) :
-                    "\\x" + std::to_string(static_cast<int>(static_cast<unsigned char>(ch)));
+                    "\\x" + std::to_string(static_cast<int>(uc));
 
                 throw std::runtime_error(
                     "Unexpected character '" + char_display +
@@ -772,7 +803,6 @@ std::vector<Token> Lexer::tokenize() {
                     "  Help:\n"
                     "  - Check for typos or invalid characters\n"
                     "  - Special characters in strings must be quoted: \"" + char_display + "\"\n"
-                    "  - Some Unicode characters may not be supported\n"
                 );
             }
         }

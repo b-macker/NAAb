@@ -57,9 +57,30 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         }
         std::string path = getString(args[0]);
         std::string content = getString(args[1]);
+
+        // FIX 26: Auto-create parent directories
+        auto parent = fs::path(path).parent_path();
+        if (!parent.empty() && !fs::exists(parent)) {
+            std::error_code ec;
+            fs::create_directories(parent, ec);
+            if (ec) {
+                throw std::runtime_error(
+                    "Failed to create directory for file: " + path + "\n"
+                    "  Directory: " + parent.string() + "\n"
+                    "  Error: " + ec.message() + "\n\n"
+                    "  Help: Ensure the parent directory path is valid and writable.\n"
+                );
+            }
+        }
+
         std::ofstream file(path);
         if (!file.is_open()) {
-            throw std::runtime_error("Failed to open file for writing: " + path);
+            throw std::runtime_error(
+                "Failed to open file for writing: " + path + "\n\n"
+                "  Help:\n"
+                "  - Check that the path is valid and writable\n"
+                "  - Parent directory: " + parent.string() + "\n"
+            );
         }
         file << content;
         return std::make_shared<interpreter::Value>();
@@ -71,9 +92,30 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         }
         std::string path = getString(args[0]);
         std::string content = getString(args[1]);
+
+        // FIX 26: Auto-create parent directories (same as write)
+        auto parent = fs::path(path).parent_path();
+        if (!parent.empty() && !fs::exists(parent)) {
+            std::error_code ec;
+            fs::create_directories(parent, ec);
+            if (ec) {
+                throw std::runtime_error(
+                    "Failed to create directory for file: " + path + "\n"
+                    "  Directory: " + parent.string() + "\n"
+                    "  Error: " + ec.message() + "\n\n"
+                    "  Help: Ensure the parent directory path is valid and writable.\n"
+                );
+            }
+        }
+
         std::ofstream file(path, std::ios::app);
         if (!file.is_open()) {
-            throw std::runtime_error("Failed to open file for appending: " + path);
+            throw std::runtime_error(
+                "Failed to open file for appending: " + path + "\n\n"
+                "  Help:\n"
+                "  - Check that the path is valid and writable\n"
+                "  - Parent directory: " + parent.string() + "\n"
+            );
         }
         file << content;
         return std::make_shared<interpreter::Value>();

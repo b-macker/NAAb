@@ -2326,6 +2326,57 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
                "    let x = a +\n"
                "        b\n";
     }
+    // FIX 21: & or && operators — common shell/C patterns
+    else if (tok.value == "&") {
+        hint = "\n\n  Help: NAAb doesn't support the '&' background operator.\n"
+               "  To run something in the background, use a shell block:\n\n"
+               "    ✗ Wrong:\n"
+               "      my_function() &\n\n"
+               "    ✓ Right (background via shell):\n"
+               "      <<shell\n"
+               "      naab-lang my_script.naab &\n"
+               "      >>\n\n"
+               "    ✓ Right (parallel polyglot):\n"
+               "      parallel {\n"
+               "          <<python ... >>  // runs in parallel\n"
+               "          <<go ... >>      // runs in parallel\n"
+               "      }\n";
+    }
+    else if (tok.value == "&&") {
+        hint = "\n\n  Help: NAAb uses 'and' for logical AND, not '&&':\n\n"
+               "    ✗ Wrong: if a && b { ... }\n"
+               "    ✓ Right: if a and b { ... }\n";
+    }
+    else if (tok.value == "||") {
+        hint = "\n\n  Help: NAAb uses 'or' for logical OR, not '||':\n\n"
+               "    ✗ Wrong: if a || b { ... }\n"
+               "    ✓ Right: if a or b { ... }\n";
+    }
+    // FIX 28: Check if this could be orphaned code after premature >> block close
+    else if (tok.type == lexer::TokenType::NUMBER || tok.type == lexer::TokenType::IDENTIFIER) {
+        // Check if there's a >> nearby that might have closed a polyglot block early
+        if (pos_ > 0 && pos_ < tokens_.size()) {
+            // Look back for a recent INLINE_CODE token suggesting we just exited a block
+            bool near_block = false;
+            for (size_t back = 1; back <= 3 && back <= pos_; back++) {
+                if (tokens_[pos_ - back].type == lexer::TokenType::INLINE_CODE) {
+                    near_block = true;
+                    break;
+                }
+            }
+            if (near_block) {
+                hint = "\n\n  Likely cause: A >> at the start of a line closed a polyglot block\n"
+                       "  prematurely, and '" + tok.value + "' is code that was meant to be inside the block.\n\n"
+                       "  If >> is a bitwise right-shift operator in your polyglot code, indent it:\n"
+                       "    ✗ Wrong (at line start — closes block):\n"
+                       "      >> 7\n\n"
+                       "    ✓ Right (indented — stays inside block):\n"
+                       "        >> 7\n"
+                       "      or:\n"
+                       "        result = value >> 7\n";
+            }
+        }
+    }
 
     throw ParseError(formatError("Unexpected token in expression", tok) + hint);
 }

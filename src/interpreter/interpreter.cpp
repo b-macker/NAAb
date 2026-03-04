@@ -225,6 +225,21 @@ std::string Value::toString() const {
         } else if constexpr (std::is_same_v<T, std::shared_ptr<PythonObjectValue>>) {
             return arg->repr;
         } else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
+            // FIX 30: ShellResult toString — return stdout for success, error context for failure
+            if (arg->type_name == "ShellResult" && arg->field_values.size() >= 3) {
+                auto exit_code_val = arg->field_values[0];
+                auto stdout_val = arg->field_values[1];
+                auto stderr_val = arg->field_values[2];
+                int exit_code = std::holds_alternative<int>(exit_code_val->data) ?
+                    std::get<int>(exit_code_val->data) : -1;
+                if (exit_code == 0) {
+                    return stdout_val ? stdout_val->toString() : "";
+                }
+                // Non-zero exit: return stdout if available, otherwise stderr
+                std::string out = stdout_val ? stdout_val->toString() : "";
+                if (!out.empty()) return out;
+                return stderr_val ? stderr_val->toString() : "";
+            }
             std::string result = arg->type_name + " { ";
             for (size_t i = 0; i < arg->definition->fields.size(); ++i) {
                 if (i > 0) result += ", ";
@@ -6420,20 +6435,72 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         final_code = preamble + final_code + postamble;
     }
 
-    // Pre-execution advisory: check if code references NAAb variables not in binding list
+    // FIX 19: Pre-execution advisory — check if code references NAAb variables not in binding list
+    // Rewritten to eliminate false positives from module names, function names, and common words
     {
         auto all_env_names = current_env_->getAllNames();
         int warn_count = 0;
+
+        // Strip string literals from code to avoid matching names inside strings
+        std::string code_stripped;
+        {
+            bool in_sq = false, in_dq = false, in_bt = false, esc = false;
+            for (size_t ci = 0; ci < code.size(); ++ci) {
+                char c = code[ci];
+                if (esc) { esc = false; continue; }
+                if (c == '\\' && (in_sq || in_dq)) { esc = true; continue; }
+                if (c == '"' && !in_sq && !in_bt) { in_dq = !in_dq; continue; }
+                if (c == '\'' && !in_dq && !in_bt) { in_sq = !in_sq; continue; }
+                if (c == '`' && !in_dq && !in_sq) { in_bt = !in_bt; continue; }
+                if (!in_sq && !in_dq && !in_bt) code_stripped += c;
+            }
+        }
+
+        // Common names that appear in every programming language — skip these
+        static const std::unordered_set<std::string> SKIP_NAMES = {
+            // Common programming identifiers
+            "result", "data", "value", "error", "output", "input", "status",
+            "count", "index", "size", "type", "name", "path", "file", "line",
+            "code", "text", "list", "map", "set", "key", "var", "arg", "cmd",
+            "buf", "len", "str", "num", "msg", "log", "tmp", "dir", "src",
+            "dst", "ret", "err", "res", "req", "url", "pid", "bin", "env",
+            "config", "options", "params", "args", "info", "mode", "port",
+            "host", "body", "head", "response", "request", "server", "client",
+            "test", "temp", "flag", "done", "init", "item", "next", "prev",
+            "start", "stop", "state", "event", "task", "user", "help",
+            // NAAb stdlib module names (modules, not variables)
+            "io", "file", "json", "string", "array", "math", "time", "http",
+            "env", "debug", "csv", "regex", "crypto", "os",
+            // Shell/Python/Go/Rust builtins
+            "true", "false", "null", "nil", "none", "self", "this",
+            "print", "echo", "read", "write", "open", "close", "exit",
+            "main", "func", "class", "struct", "enum", "match", "case",
+        };
+
         for (const auto& env_name : all_env_names) {
-            if (env_name.size() < 3) continue;  // Skip short names (i, j, k, x)
+            if (env_name.size() < 4) continue;  // Skip short names
+            if (SKIP_NAMES.count(env_name)) continue;
             if (std::find(bound_vars.begin(), bound_vars.end(), env_name) != bound_vars.end()) continue;
-            // Check if the variable name appears in the code as a whole word
-            size_t pos = code.find(env_name);
+
+            // Skip modules and functions (not bindable variables)
+            auto val = current_env_->get(env_name);
+            if (val) {
+                // Skip if it holds a stdlib module marker string
+                if (std::holds_alternative<std::string>(val->data)) {
+                    const auto& s = std::get<std::string>(val->data);
+                    if (s.size() >= 18 && s.substr(0, 18) == "__stdlib_module__:") continue;
+                }
+                // Skip if it holds a function
+                if (std::holds_alternative<std::shared_ptr<FunctionValue>>(val->data)) continue;
+            }
+
+            // Check if the variable name appears as a whole word in STRIPPED code
+            size_t pos = code_stripped.find(env_name);
             while (pos != std::string::npos) {
-                bool word_start = (pos == 0 || (!std::isalnum(code[pos - 1]) && code[pos - 1] != '_'));
-                bool word_end = (pos + env_name.size() >= code.size() ||
-                               (!std::isalnum(code[pos + env_name.size()]) && code[pos + env_name.size()] != '_'));
-                if (word_start && word_end) {
+                bool ws = (pos == 0 || (!std::isalnum(code_stripped[pos - 1]) && code_stripped[pos - 1] != '_'));
+                bool we = (pos + env_name.size() >= code_stripped.size() ||
+                           (!std::isalnum(code_stripped[pos + env_name.size()]) && code_stripped[pos + env_name.size()] != '_'));
+                if (ws && we) {
                     fmt::print(stderr, "[WARN] Variable '{}' appears in <<{}>> block but is not in the binding list.\n"
                               "  If you need this NAAb variable, use: <<{}[{}{}]>>\n",
                               env_name, language, language,
@@ -6442,9 +6509,9 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                     warn_count++;
                     break;
                 }
-                pos = code.find(env_name, pos + 1);
+                pos = code_stripped.find(env_name, pos + 1);
             }
-            if (warn_count >= 3) break;  // Max 3 warnings per block
+            if (warn_count >= 2) break;  // Max 2 warnings per block
         }
     }
 
@@ -7621,17 +7688,18 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
     if (std::holds_alternative<std::string>(value->data)) {
         const auto& str = std::get<std::string>(value->data);
 
-        // Shell doesn't need quotes for simple values
+        // FIX 20: Shell — use single-quote wrapping (ZERO metacharacter expansion)
+        // Only ' itself needs escaping: ' → '\'' (end quote, escaped literal, restart)
         if (language == "shell" || language == "sh" || language == "bash") {
-            // Escape shell special characters
             std::string escaped;
             for (char c : str) {
-                if (c == ' ' || c == '$' || c == '`' || c == '"' || c == '\'' || c == '\\') {
-                    escaped += '\\';
+                if (c == '\'') {
+                    escaped += "'\\''";
+                } else {
+                    escaped += c;
                 }
-                escaped += c;
             }
-            return escaped;
+            return "'" + escaped + "'";
         }
 
         // Other languages need quoted strings with escaping

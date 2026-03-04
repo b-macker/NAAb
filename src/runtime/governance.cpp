@@ -78,13 +78,13 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
      "Use NAAb file module for safe file operations"},
     {"shell", "\\bmkfs\\.",               "mkfs (format filesystem)",
      "Extremely dangerous — do not format filesystems in polyglot blocks"},
-    {"shell", ">\\s*/dev/",               "Writing to device files",
-     "Avoid writing to device files"},
+    {"shell", ">\\s*/dev/(?!null\\b)",     "Writing to device files (excluding /dev/null)",
+     "Avoid writing to device files (> /dev/null is safe and common)"},
     {"shell", "chmod\\s+777",             "chmod 777 (world-writable)",
      "Use specific permissions (644 for files, 755 for executables)"},
-    {"shell", "curl.*\\|\\s*sh",          "curl | sh (remote code execution)",
+    {"shell", "curl[^|]*\\|\\s*(?:ba)?sh\\b", "curl | sh (remote code execution)",
      "Download and inspect scripts before executing"},
-    {"shell", "wget.*\\|\\s*sh",          "wget | sh (remote code execution)",
+    {"shell", "wget[^|]*\\|\\s*(?:ba)?sh\\b", "wget | sh (remote code execution)",
      "Download and inspect scripts before executing"},
 
     // Any language
@@ -1489,10 +1489,15 @@ std::string GovernanceEngine::checkDangerousCall(
 
         try {
             std::regex re(pattern.pattern, std::regex::icase);
-            if (std::regex_search(code, re)) {
+            std::smatch match;
+            if (std::regex_search(code, match, re)) {
                 std::string location = line > 0
                     ? fmt::format("line {}: {} block", line, language)
                     : fmt::format("{} block", language);
+
+                // FIX 29: Include matched text for easier debugging
+                std::string matched_text = match[0].str();
+                if (matched_text.size() > 60) matched_text = matched_text.substr(0, 60) + "...";
 
                 return enforce("restrictions.dangerous_calls",
                     rules_.dangerous_calls_level,
@@ -1502,7 +1507,8 @@ std::string GovernanceEngine::checkDangerousCall(
                         location,
                         fmt::format("restrictions.dangerous_calls = \"{}\"",
                             levelToString(rules_.dangerous_calls_level)),
-                        fmt::format("{}\n{}", pattern.description,
+                        fmt::format("{}\n  Matched: \"{}\"\n{}",
+                            pattern.description, matched_text,
                             pattern.safe_alternative),
                         "", ""));
             }
@@ -1729,6 +1735,67 @@ std::string GovernanceEngine::formatSummary() const {
 // ============================================================================
 // V3.0 New Check Implementations
 // ============================================================================
+
+// FIX 16: Strip string literal contents to prevent false positive pattern matches
+// This prevents governance checks from triggering on code/paths inside strings
+static std::string stripStringLiterals(const std::string& code) {
+    std::string result;
+    result.reserve(code.size());
+    bool in_single = false, in_double = false, in_backtick = false;
+    bool escaped = false;
+    for (size_t i = 0; i < code.size(); ++i) {
+        char c = code[i];
+        if (escaped) { escaped = false; continue; }
+        if (c == '\\' && (in_single || in_double)) { escaped = true; continue; }
+        if (c == '"' && !in_single && !in_backtick) { in_double = !in_double; continue; }
+        if (c == '\'' && !in_double && !in_backtick) { in_single = !in_single; continue; }
+        if (c == '`' && !in_double && !in_single) { in_backtick = !in_backtick; continue; }
+        if (!in_single && !in_double && !in_backtick) {
+            result += c;
+        }
+    }
+    return result;
+}
+
+// FIX 16: Strip comments (Python #, JS //, C /* */) for checks that shouldn't trigger on comments
+static std::string stripComments(const std::string& code) {
+    std::string result;
+    result.reserve(code.size());
+    bool in_line_comment = false;
+    bool in_block_comment = false;
+    for (size_t i = 0; i < code.size(); ++i) {
+        if (in_line_comment) {
+            if (code[i] == '\n') { in_line_comment = false; result += '\n'; }
+            continue;
+        }
+        if (in_block_comment) {
+            if (code[i] == '*' && i+1 < code.size() && code[i+1] == '/') {
+                in_block_comment = false; i++;
+            }
+            continue;
+        }
+        if (code[i] == '/' && i+1 < code.size()) {
+            if (code[i+1] == '/') { in_line_comment = true; continue; }
+            if (code[i+1] == '*') { in_block_comment = true; i++; continue; }
+        }
+        if (code[i] == '#') { in_line_comment = true; continue; }
+        result += code[i];
+    }
+    return result;
+}
+
+// FIX 18: Normalize language aliases for consistent governance matching
+static std::string normalizeLanguage(const std::string& language) {
+    if (language == "bash" || language == "sh") return "shell";
+    if (language == "golang") return "go";
+    if (language == "cs") return "csharp";
+    if (language == "ts") return "typescript";
+    if (language == "c++") return "cpp";
+    if (language == "rb") return "ruby";
+    if (language == "js") return "javascript";
+    if (language == "node") return "javascript";
+    return language;
+}
 
 // Helper: regex search against a list of patterns
 static std::string searchPatterns(const std::string& code,
@@ -2024,7 +2091,11 @@ std::string GovernanceEngine::checkSqlInjection(const std::string& code, int lin
 
 // --- Path Traversal ---
 static const std::vector<std::string> DEFAULT_PATH_PATTERNS = {
-    "\\.\\./", "\\.\\.\\\\", "%2e%2e%2f", "%2e%2e/", "\\.\\.%2f",
+    // FIX 23: Require path context to avoid ellipsis false positives
+    // "Initializing... /tmp" no longer triggers (g before .., 3 dots)
+    "(?:^|[/\\\\\"'\\s])\\.\\.(?:/|\\\\)",  // ../ or ..\ preceded by path separator, quote, or space
+    "%2e%2e(?:%2f|/)",                       // URL-encoded traversal
+    "\\.\\.%2f",                             // Partial URL-encoding
 };
 
 std::string GovernanceEngine::checkPathTraversal(const std::string& code, int line) {
@@ -2033,8 +2104,10 @@ std::string GovernanceEngine::checkPathTraversal(const std::string& code, int li
     auto& pats = cfg.patterns.empty() ? DEFAULT_PATH_PATTERNS : cfg.patterns;
     std::string found = searchPatterns(code, pats);
     if (!found.empty()) {
+        // FIX 29: Include matched text in error for easier debugging
         return enforce("code_quality.no_path_traversal", cfg.level,
-            formatError(cfg.level, "Path traversal pattern detected",
+            formatError(cfg.level,
+                fmt::format("Path traversal pattern detected: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_path_traversal",
                 "Use absolute paths or os.path.realpath() to prevent traversal", "", ""));
     }
@@ -2928,14 +3001,18 @@ int GovernanceEngine::getTimeoutForLanguage(const std::string& lang) const {
 }
 
 int GovernanceEngine::getMaxLinesForLanguage(const std::string& lang) const {
-    auto it = rules_.languages.per_language.find(lang);
+    // FIX 18: Normalize language alias before lookup
+    std::string normalized = normalizeLanguage(lang);
+    auto it = rules_.languages.per_language.find(normalized);
     if (it != rules_.languages.per_language.end() && it->second.max_lines > 0)
         return it->second.max_lines;
     return rules_.limits.code.max_lines_per_block;
 }
 
 const LanguageConfig* GovernanceEngine::getLanguageConfig(const std::string& lang) const {
-    auto it = rules_.languages.per_language.find(lang);
+    // FIX 18: Normalize language alias before lookup
+    std::string normalized = normalizeLanguage(lang);
+    auto it = rules_.languages.per_language.find(normalized);
     if (it != rules_.languages.per_language.end()) return &it->second;
     return nullptr;
 }
@@ -2945,102 +3022,112 @@ std::string GovernanceEngine::checkPolyglotBlock(
     const std::string& language, const std::string& code,
     const std::string& /*source_file*/, int line) {
 
+    // FIX 18: Normalize language aliases (bash→shell, js→javascript, etc.)
+    std::string lang = normalizeLanguage(language);
+
+    // FIX 16: Pre-process code — strip string literals for pattern matching
+    // This prevents false positives from code/paths inside strings
+    std::string stripped = stripStringLiterals(code);
+    std::string stripped_all = stripComments(stripped);  // Also strip comments
+
     std::string err;
 
-    // Language allowed?
-    err = checkLanguageAllowed(language, line);
+    // Language allowed? (uses normalized name)
+    err = checkLanguageAllowed(lang, line);
     if (!err.empty()) return err;
 
     // Shell capability check
-    if (language == "shell" || language == "bash" || language == "sh") {
+    if (lang == "shell") {
         err = checkShellAllowed();
         if (!err.empty()) return err;
     }
 
-    // Code quality checks
+    // Code quality checks — secrets/PII use RAW code (secrets CAN be in strings)
     err = checkSecrets(code, line);
     if (!err.empty()) return err;
-    err = checkPlaceholders(code, line);
-    if (!err.empty()) return err;
-    err = checkHardcodedResults(code, line);
-    if (!err.empty()) return err;
-    err = checkDangerousCall(language, code, line);
-    if (!err.empty()) return err;
-
-    // New v3.0 checks
     err = checkPii(code, line);
     if (!err.empty()) return err;
-    err = checkTemporaryCode(code, line);
+
+    // Pattern-based checks use STRIPPED code to avoid string-content false positives
+    err = checkPlaceholders(stripped_all, line);
     if (!err.empty()) return err;
-    err = checkSimulationMarkers(code, line);
+    err = checkHardcodedResults(stripped, line);
     if (!err.empty()) return err;
-    err = checkMockData(code, line);
+    err = checkDangerousCall(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkApologeticLanguage(code, line);
+
+    // New v3.0 checks — use stripped code
+    err = checkTemporaryCode(stripped_all, line);
     if (!err.empty()) return err;
-    err = checkDeadCode(code, line);
+    err = checkSimulationMarkers(stripped_all, line);
     if (!err.empty()) return err;
-    err = checkDebugArtifacts(language, code, line);
+    err = checkMockData(code, line);  // Mock data: literals ARE in strings, keep raw
     if (!err.empty()) return err;
-    err = checkUnsafeDeserialization(code, line);
+    err = checkApologeticLanguage(stripped_all, line);
     if (!err.empty()) return err;
-    err = checkSqlInjection(code, line);
+    err = checkDeadCode(stripped, line);
     if (!err.empty()) return err;
-    err = checkPathTraversal(code, line);
+    err = checkDebugArtifacts(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkHardcodedUrls(code, line);
+    err = checkUnsafeDeserialization(stripped, line);
     if (!err.empty()) return err;
-    err = checkHardcodedIps(code, line);
+    err = checkSqlInjection(code, line);  // SQL queries ARE in strings, keep raw
     if (!err.empty()) return err;
-    err = checkEncoding(code, line);
+    err = checkPathTraversal(stripped, line);  // FIX 16: No more false positives from string paths
     if (!err.empty()) return err;
-    err = checkComplexity(code, line);
+    err = checkHardcodedUrls(code, line);  // URLs ARE in strings
+    if (!err.empty()) return err;
+    err = checkHardcodedIps(code, line);   // IPs ARE in strings
+    if (!err.empty()) return err;
+    err = checkEncoding(stripped, line);
+    if (!err.empty()) return err;
+    err = checkComplexity(stripped, line);
     if (!err.empty()) return err;
 
     // LLM anti-drift checks
-    err = checkOversimplification(code, line);
+    err = checkOversimplification(stripped, line);
     if (!err.empty()) return err;
-    err = checkIncompleteLogic(code, line);
+    err = checkIncompleteLogic(stripped, line);
     if (!err.empty()) return err;
-    err = checkHallucinatedApis(language, code, line);
+    err = checkHallucinatedApis(lang, code, line);  // Has its own stripping
     if (!err.empty()) return err;
 
-    // Security checks
-    err = checkShellInjection(code, line);
+    // Security checks — use stripped code
+    err = checkShellInjection(stripped, line);
     if (!err.empty()) return err;
-    err = checkCodeInjection(language, code, line);
+    err = checkCodeInjection(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkPrivilegeEscalation(code, line);
+    err = checkPrivilegeEscalation(stripped, line);
     if (!err.empty()) return err;
-    err = checkDataExfiltration(code, line);
+    err = checkDataExfiltration(stripped, line);
     if (!err.empty()) return err;
-    err = checkResourceAbuse(code, line);
+    err = checkResourceAbuse(stripped, line);
     if (!err.empty()) return err;
-    err = checkInfoDisclosure(language, code, line);
+    err = checkInfoDisclosure(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkCryptoWeakness(code, line);
+    err = checkCryptoWeakness(stripped, line);
     if (!err.empty()) return err;
 
     // Capability checks for polyglot blocks
-    err = checkNetworkImports(language, code, line);
+    err = checkNetworkImports(lang, stripped, line);
     if (!err.empty()) return err;
 
     // Per-language checks
-    err = checkImports(language, code, line);
+    err = checkImports(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkBannedFunctions(language, code, line);
+    err = checkBannedFunctions(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkLanguageStyle(language, code, line);
+    err = checkLanguageStyle(lang, stripped, line);
     if (!err.empty()) return err;
-    err = checkCodeSize(language, code, line);
+    err = checkCodeSize(lang, code, line);  // Code size counts raw lines
     if (!err.empty()) return err;
 
-    // Custom rules
-    err = checkCustomRules(language, code, line);
+    // Custom rules — use both raw and stripped
+    err = checkCustomRules(lang, code, line);
     if (!err.empty()) return err;
 
     // Polyglot optimization (language choice suggestions)
-    err = checkPolyglotOptimization(language, code, line);
+    err = checkPolyglotOptimization(lang, code, line);
     if (!err.empty()) return err;
 
     return "";

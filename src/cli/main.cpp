@@ -376,6 +376,23 @@ int main(int argc, char** argv) {
             return 1;
         }
 
+        // FIX 22: Helpful error for common flags from other languages (-e, -c, --eval)
+        if (!filename.empty() && filename[0] == '-' && filename != "--") {
+            if (filename == "-e" || filename == "--eval" || filename == "--exec" ||
+                filename == "-c" || filename == "--command") {
+                fmt::print(stderr,
+                    "Error: NAAb doesn't support inline code execution with '{}'.\n\n"
+                    "  Help: Write your code to a file and run it:\n"
+                    "    echo 'main {{ io.write(\"hello\") }}' > /tmp/eval.naab\n"
+                    "    naab-lang /tmp/eval.naab\n\n"
+                    "  Or use a process substitution:\n"
+                    "    naab-lang <(echo 'main {{ io.write(\"hello\") }}')\n",
+                    filename);
+                fflush(stderr);
+                return 1;
+            }
+        }
+
         // Configure logger based on verbosity
         naab::logging::Logger::instance().setVerbose(verbose);
 
@@ -445,6 +462,14 @@ int main(int argc, char** argv) {
         // Use --pipe when calling NAAb as a subprocess and parsing stdout as JSON
         if (pipe_mode) {
             naab::stdlib::setPipeMode(true);
+        }
+
+        // FIX 25: Resolve filename to absolute path for correct module resolution
+        // When launched as background process, CWD may differ from script location
+        {
+            std::error_code ec;
+            auto abs = std::filesystem::absolute(filename, ec);
+            if (!ec) filename = abs.string();
         }
 
         try {
@@ -1435,6 +1460,20 @@ int main(int argc, char** argv) {
         print_usage();
 
     } else {
+        // FIX 22: Helpful error for -e/-c/--eval flags from other languages
+        if (command == "-e" || command == "--eval" || command == "--exec" ||
+            command == "-c" || command == "--command") {
+            fmt::print(stderr,
+                "Error: NAAb doesn't support inline code execution with '{}'.\n\n"
+                "  Help: Write your code to a file and run it:\n"
+                "    echo 'main {{ io.write(\"hello\") }}' > /tmp/eval.naab\n"
+                "    naab-lang /tmp/eval.naab\n\n"
+                "  Or use process substitution:\n"
+                "    naab-lang <(echo 'main {{ io.write(\"hello\") }}')\n",
+                command);
+            fflush(stderr);
+            _exit(1);
+        }
         fmt::print("Unknown command: {}\n\n", command);
         print_usage();
         fflush(stdout);
