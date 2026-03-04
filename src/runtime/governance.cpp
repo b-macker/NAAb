@@ -2464,7 +2464,7 @@ static const std::vector<std::pair<std::string, std::string>> RUBY_HALLUCINATION
 static const std::vector<std::pair<std::string, std::string>> SHELL_HALLUCINATION_PATTERNS = {
     {"\\bprint\\(", "print() is Python — in Shell, use echo"},
     {"\\bconsole\\.log\\(", "console.log() is JavaScript — in Shell, use echo"},
-    {"\\bnull\\b", "null is JavaScript — in Shell, variables are unset or empty strings"},
+    {"(?:^|[=\\s(,])null(?:\\s|$|[);,])", "null is JavaScript — in Shell, variables are unset or empty strings"},
     {"\\bNone\\b", "None is Python — in Shell, use empty string or unset"},
     {"\\bTrue\\b", "True is Python — in Shell, use true (lowercase command)"},
     {"\\bFalse\\b", "False is Python — in Shell, use false (lowercase command)"},

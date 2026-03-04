@@ -6489,6 +6489,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 if (std::holds_alternative<std::string>(val->data)) {
                     const auto& s = std::get<std::string>(val->data);
                     if (s.size() >= 18 && s.substr(0, 18) == "__stdlib_module__:") continue;
+                    if (s.size() >= 10 && s.substr(0, 10) == "__module__:") continue;
                 }
                 // Skip if it holds a function
                 if (std::holds_alternative<std::shared_ptr<FunctionValue>>(val->data)) continue;

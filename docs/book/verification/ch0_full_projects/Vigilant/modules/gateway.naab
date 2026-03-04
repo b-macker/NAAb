@@ -1,82 +1,62 @@
 // Vigilant/modules/gateway.naab
-// THE INDUSTRIAL SOVEREIGN GATEWAY (HARDENED)
+// THE SOVEREIGN GATEWAY (HARDENED v3)
 
 use io
 use json
-use file
-use string
+use synthesizer
 
-export fn start_service(config, workers) {
-    io.write("  [GATEWAY] Initializing Industrial Interceptor on :8091...\n")
-    
-    let go_src = "verification/ch0_full_projects/Vigilant/src/gateway.go"
-    let go_bin = "verification/ch0_full_projects/Vigilant/bin/gateway_vessel"
-    
-    let go_code = <<python
-src = """package main
-import (
-    "net/http"
-    "io"
-    "net"
-    "sync/atomic"
-    "log"
-    "time"
-)
+export fn start_service(config) {
+    let go_source = "
+    package main
+    import (
+        \"net/http\"; \"io\"; \"net\"; \"time\"; \"log\"; \"fmt\"
+    )
 
-var shards = []string{
-    "/data/data/com.termux/files/usr/tmp/v_brain.sock",
-}
-var counter uint64
+    func handle(w http.ResponseWriter, r *http.Request) {
+        conn, err := net.DialTimeout(\"unix\", \"/data/data/com.termux/files/usr/tmp/v_brain.sock\", 3*time.Second)
+        if err != nil {
+            http.Error(w, \"Security Fabric Offline\", 503)
+            return
+        }
+        defer conn.Close()
 
-func handle(w http.ResponseWriter, r *http.Request) {
-    idx := atomic.AddUint64(&counter, 1) % uint64(len(shards))
-    sock := shards[idx]
-    
-    // Dial with a short timeout to prevent hangs
-    conn, err := net.DialTimeout("unix", sock, 2*time.Second)
-    if err != nil {
-        http.Error(w, "Security Fabric Offline", 503)
-        return
-    }
-    defer conn.Close()
+        conn.SetDeadline(time.Now().Add(5 * time.Second))
+        body, _ := io.ReadAll(r.Body)
+        conn.Write(body)
+        
+        if cw, ok := conn.(*net.UnixConn); ok {
+            cw.CloseWrite()
+        }
 
-    body, _ := io.ReadAll(r.Body)
-    conn.Write(body)
-    
-    // Signal EOF to the brain
-    if cw, ok := conn.(*net.UnixConn); ok {
-        cw.CloseWrite()
+        resp := make([]byte, 1024)
+        n, _ := conn.Read(resp)
+        verdict := string(resp[:n])
+
+        if verdict == \"ALLOW\" {
+            fmt.Fprintf(w, \"{\\\"status\\\": \\\"SUCCESS\\\"}\")
+        } else {
+            http.Error(w, \"VIGILANT VETO\", 403)
+        }
     }
 
-    resp, _ := io.ReadAll(conn)
-    w.Header().Set("Content-Type", "application/json")
-    w.Write(resp)
-}
+    func main() {
+        log.Println(\"GATEWAY STARTING ON :8091\")
+        server := &http.Server{
+            Addr: \":8091\",
+            ReadTimeout: 10 * time.Second,
+            WriteTimeout: 10 * time.Second,
+        }
+        http.HandleFunc(\"/\", handle)
+        log.Fatal(server.ListenAndServe())
+    }
+    "
 
-func main() {
-    log.Println("[GATEWAY] Listening on :8091...")
-    http.HandleFunc("/", handle)
-    log.Fatal(http.ListenAndServe(":8091", nil))
-}
-"""
-src # Return the source
->>
-
-    // Ensure directories exist before writing
-    <<bash
-    mkdir -p verification/ch0_full_projects/Vigilant/src verification/ch0_full_projects/Vigilant/bin
->>
-
-    file.write(go_src, go_code)
+    let bin_path = synthesizer.synthesize_vessel("go", go_source, "gateway_vessel")
+    let log_file = "/data/data/com.termux/files/home/.naab/language/docs/book/verification/ch0_full_projects/Vigilant/logs/gateway.log"
     
-    io.write("    [GATEWAY] Compiling Sovereign Pipe...\n")
-    <<bash[go_src, go_bin]
-    export CGO_ENABLED=0
-    go build -o "$go_bin" "$go_src"
->>
-
-    io.write("    [GATEWAY] Launching Pipe Binary...\n")
-    <<bash[go_bin]
-    "$go_bin" &
+    let pid_file = "/data/data/com.termux/files/usr/tmp/v_gateway.pid"
+    <<shell[bin_path, log_file, pid_file]
+    setsid "$bin_path" > "$log_file" 2>&1 &
+    echo $! > "$pid_file"
 >>
 }

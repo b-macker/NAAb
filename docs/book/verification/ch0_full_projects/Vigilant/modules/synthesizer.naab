@@ -1,47 +1,55 @@
 // Vigilant/modules/synthesizer.naab
-// THE INDUSTRIAL MASTER SYNTHESIZER (TYPE FIX)
+// THE INDUSTRIAL MASTER SYNTHESIZER (GOVERNANCE SAFE)
 
 use io
 use file
 use json
+use string
 
 fn shred_file(path) {
-    io.write("    [FORENSIC] Shredding source: ", path, "\n")
-    <<bash[path]
-    dd if=/dev/urandom of="$path" bs=1k count=1 conv=notrunc 2>/dev/null && dd if=/dev/zero of="$path" bs=1k count=1 conv=notrunc 2>/dev/null && rm -f "$path"
+    io.write("    [FORENSIC] Removing source: ", path, "\n")
+    <<shell[path]
+    rm -f "$path"
 >>
 }
 
-export fn synthesize_absolute(risk_profile) {
-    io.write("  [ABS-SYNTH] Initializing Hardware-Aware Transmutation...\n")
+export fn synthesize_vessel(language, source_code, vessel_name) {
+    let bin_dir = "/data/data/com.termux/files/home/.naab/language/docs/book/verification/ch0_full_projects/Vigilant/bin/"
+    let src_dir = "/data/data/com.termux/files/home/.naab/language/docs/book/verification/ch0_full_projects/Vigilant/src/"
     
-    let bin_dir = "verification/ch0_full_projects/Vigilant/bin/"
-    let src_dir = "verification/ch0_full_projects/Vigilant/src/"
-    
-    let rust_template = "// Absolute Hardened Shield\nuse std::io::{Read, Write};\nuse std::os::unix::net::UnixListener;\nuse std::fs;\nfn main() {\n    let sock = \"/data/data/com.termux/files/usr/tmp/v_s.sock\";\n    let _ = fs::remove_file(sock);\n    let listener = UnixListener::bind(sock).unwrap();\n    for stream in listener.incoming() {\n        if let Ok(mut s) = stream {\n            let mut buf = String::new();\n            if let Ok(_) = s.read_to_string(&mut buf) {\n                s.write_all(b\"[]\").unwrap();\n            }\n        }\n    }\n}\n"
+    let bin_path = bin_dir + vessel_name
+    let src_ext = ".rs"
+    if language == "go" { src_ext = ".go" }
+    let src_path = src_dir + vessel_name + src_ext
 
-    let rust_bin = bin_dir + "shield_vessel"
-    let rust_src = src_dir + "shield.rs"
+    let needs_compile = !file.exists(bin_path)
 
-    let needs_compile = <<python[rust_template, rust_bin]
-import hashlib, os
-h = hashlib.sha256(rust_template.encode()).hexdigest()
-res = "YES"
-if os.path.exists(rust_bin): res = "NO"
-res
+    if needs_compile {
+        io.write("  [SYNTH] Forging ", vessel_name, " (", language, ")...\n")
+        file.write(src_path, source_code)
+        
+        if language == "rust" {
+            <<shell[src_path, bin_path]
+            rustc -C opt-level=3 -o "$bin_path" "$src_path"
 >>
-
-    if needs_compile == "YES" {
-        <<bash[bin_dir, src_dir] mkdir -p "$bin_dir" "$src_dir" >>
-        file.write(rust_src, rust_template)
-        io.write("    [ABS-SYNTH] Compiling Hardened Rust Muscle...\n")
-        <<bash[rust_src, rust_bin]
-        rustc -C opt-level=3 -o "$rust_bin" "$rust_src"
+        } else if language == "go" {
+            <<shell[src_path, bin_path]
+            export CGO_ENABLED=0
+            go build -ldflags="-s -w" -o "$bin_path" "$src_path"
 >>
-        shred_file(rust_src)
+        }
+        
+        // Use a safe multi-line shell block for permissions
+        <<shell[bin_path]
+        chmod 755 "$bin_path"
+>>
+        shred_file(src_path)
     } else {
-        io.write("    [ABS-SYNTH] Caching layer verified.\n")
+        io.write("  [SYNTH] Using cached vessel: ", vessel_name, "\n")
+        <<shell[bin_path]
+        chmod 755 "$bin_path"
+>>
     }
 
-    return {"status": "ABS_SUCCESS", "shield": rust_bin}
+    return bin_path
 }

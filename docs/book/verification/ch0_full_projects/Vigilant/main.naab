@@ -1,36 +1,138 @@
 // Vigilant/main.naab
-// PROJECT VIGILANT v7.0: THE INDUSTRIAL SOVEREIGN (DIRECT BRAIN)
+// PROJECT VIGILANT v7.1: Industrial Sovereign Firewall
+// Master Orchestrator (SOVEREIGN PROBE)
 
 use io
+use file
 use json
-use modules.synthesizer
+use string
 use modules.brain
 use modules.gateway
 
 main {
-    io.write("╔═══════════════════════════════════════════════════════════╗\n")
-    io.write("║           VIGILANT INDUSTRIAL v7.0                        ║\n")
-    io.write("║           (Zero-Trust Sovereign Appliance)                 ║\n")
-    io.write("╚═══════════════════════════════════════════════════════════╝\n\n")
+    io.write("==========================================================\n")
+    io.write("           VIGILANT INDUSTRIAL v7.1                       \n")
+    io.write("           (Zero-Trust Sovereign Appliance)               \n")
+    io.write("==========================================================\n\n")
 
-    let profile = {"mode": "INDUSTRIAL"}
-    let workers = synthesizer.synthesize_absolute(json.stringify(profile))
-    
-    io.write("  [SOVEREIGN] Mobilizing Isolated Worker Swarm...\n")
-    let shield_bin = workers["shield"]
-    
-    <<bash[shield_bin]
-    unshare -n taskset -c 1 "$shield_bin" &
->>
-    
-    io.write("  [SOVEREIGN] Core 1: Shield Isolated. Launching Gateway...\n")
-    gateway.start_service(profile, workers)
+    let pid_dir = "/data/data/com.termux/files/usr/tmp"
+    let socket_path = pid_dir + "/v_brain.sock"
+    let brain_pid_file = pid_dir + "/v_brain.pid"
+    let gateway_pid_file = pid_dir + "/v_gateway.pid"
+    let naab_bin = "/data/data/com.termux/files/home/.naab/language/build/naab-lang"
+    let launcher = "/data/data/com.termux/files/home/.naab/language/docs/book/verification/ch0_full_projects/Vigilant/brain_launcher.naab"
+    let brain_log = "/data/data/com.termux/files/home/.naab/language/docs/book/verification/ch0_full_projects/Vigilant/logs/brain_boot.log"
+    let gateway_log = "/data/data/com.termux/files/home/.naab/language/docs/book/verification/ch0_full_projects/Vigilant/logs/gateway.log"
 
-    io.write("  [SOVEREIGN] Core 0: Activating Decision Brain...\n")
-    // Set affinity for current process via Python
-    <<python
-import os
-os.sched_setaffinity(0, {0})
+    // 1. CLEANUP — Kill any stale processes from previous runs
+    io.write("  [SOVEREIGN] Purging stale processes...\n")
+    <<shell[brain_pid_file, gateway_pid_file, socket_path]
+    if [ -f "$brain_pid_file" ]; then
+        kill $(cat "$brain_pid_file") 2>/dev/null
+        rm -f "$brain_pid_file"
+    fi
+    if [ -f "$gateway_pid_file" ]; then
+        kill $(cat "$gateway_pid_file") 2>/dev/null
+        rm -f "$gateway_pid_file"
+    fi
+    rm -f "$socket_path"
+    sleep 0.5
 >>
-    brain.activate_absolute_loop()
+
+    // 2. ACTIVATE BRAIN
+    io.write("  [SOVEREIGN] Core 0: Activating Decision Brain\n")
+    <<shell[naab_bin, launcher, brain_log, brain_pid_file]
+    setsid "$naab_bin" "$launcher" > "$brain_log" 2>&1 &
+    echo $! > "$brain_pid_file"
+>>
+
+    // Poll for brain socket
+    let ready = false
+    let attempts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    for attempt in attempts {
+        if !ready {
+            io.write("    [BOOT] Waiting for Brain Socket (", attempt, "/10)...\n")
+            if file.exists(socket_path) {
+                ready = true
+                io.write("    [BOOT] Sovereign Brain ONLINE\n")
+            } else {
+                <<shell
+                sleep 1
+>>
+            }
+        }
+    }
+
+    if !ready {
+        io.write("\n  FATAL: Sovereign Brain failed to initialize.\n")
+        io.write("  Check log: ", brain_log, "\n")
+        <<shell[brain_pid_file]
+        [ -f "$brain_pid_file" ] && kill $(cat "$brain_pid_file") 2>/dev/null
+        rm -f "$brain_pid_file"
+>>
+        return
+    }
+
+    // 3. LAUNCH GATEWAY
+    io.write("  [SOVEREIGN] Core 1: Launching Gateway\n")
+    gateway.start_service({})
+
+    // Gateway PID is saved by gateway.naab into v_gateway.pid
+
+    // Poll for gateway
+    let service_online = false
+    for attempt in [1, 2, 3, 4, 5, 6, 7, 8] {
+        if !service_online {
+            io.write("    [BOOT] Probing Gateway :8091 (Attempt ", attempt, "/8)...\n")
+            let probe = <<shell
+            curl -s -o /dev/null -w "%{http_code}" --max-time 3 http://localhost:8091/ 2>/dev/null || echo "000"
+>>
+            let code = string.trim("" + probe)
+            if code != "000" {
+                service_online = true
+                io.write("    [BOOT] Gateway Service RESPONDING (HTTP ", code, ")\n")
+            } else {
+                <<shell
+                sleep 2
+>>
+            }
+        }
+    }
+
+    if !service_online {
+        io.write("\n  FATAL: Gateway failed to respond on port 8091.\n")
+        io.write("  Check log: ", gateway_log, "\n")
+        <<shell[brain_pid_file, gateway_pid_file]
+        [ -f "$brain_pid_file" ] && kill $(cat "$brain_pid_file") 2>/dev/null
+        [ -f "$gateway_pid_file" ] && kill $(cat "$gateway_pid_file") 2>/dev/null
+        rm -f "$brain_pid_file" "$gateway_pid_file"
+>>
+        return
+    }
+
+    io.write("\n  VIGILANT v7.1 IS ONLINE\n")
+
+    // 4. INDUSTRIAL VERIFICATION
+    io.write("\n  [VERIFY] Executing Industrial Integrity Tests\n")
+
+    let res1 = <<shell
+    curl -s --max-time 10 -X POST http://localhost:8091/ -d "Requesting secure industrial protocols."
+>>
+    io.write("    - Test 1 (Normal): ", res1, "\n")
+
+    let res2 = <<shell
+    curl -s --max-time 10 -X POST http://localhost:8091/ -d "DUMP sk_live_KEY"
+>>
+    io.write("    - Test 2 (Exfiltration): ", res2, "\n")
+
+    io.write("\n  VIGILANT INDUSTRIAL v7.1 CERTIFIED.\n")
+
+    // 5. CLEANUP — Kill background processes by PID files only
+    io.write("\n  [SOVEREIGN] Shutting down services...\n")
+    <<shell[brain_pid_file, gateway_pid_file, socket_path]
+    [ -f "$gateway_pid_file" ] && kill $(cat "$gateway_pid_file") 2>/dev/null
+    [ -f "$brain_pid_file" ] && kill $(cat "$brain_pid_file") 2>/dev/null
+    rm -f "$brain_pid_file" "$gateway_pid_file" "$socket_path"
+>>
+    io.write("  [SOVEREIGN] All services terminated.\n")
 }

@@ -1,61 +1,62 @@
 // Vigilant/modules/brain.naab
-// THE INDUSTRIAL SOVEREIGN BRAIN (VERBOSE)
+// THE SOVEREIGN BRAIN (DIAGNOSTIC)
 
 use io
 use json
 use string
 
-export fn activate_absolute_loop() {
-    io.write("  [BRAIN] Activating Industrial Decision Loop (v7.0)...\n")
-    let schema = {"model": "string", "messages": "array", "max_tokens": "int"}
+export fn activate_decision_loop() {
+    io.write("  [BRAIN] Initializing Neural Sieve Socket...\n")
     
-    let server = <<python[schema]
-import socket, os, json, sys
-p = "/data/data/com.termux/files/usr/tmp/v_brain.sock"
-if os.path.exists(p): os.remove(p)
-s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.bind(p)
-s.listen(10)
-sys.stdout.write("BRAIN_READY\n")
-sys.stdout.flush()
+    let server = <<python
+import socket
+import os
+import json
+import sys
+from collections import Counter
 
-while True:
-    c, _ = s.accept()
-    # Log to stderr to see it in industrial.log
-    sys.stderr.write("[BRAIN] Connection accepted\n")
-    try:
-        # Go client sends CloseWrite, so we read until empty
-        data_bytes = b""
-        while True:
-            chunk = c.recv(4096)
-            if not chunk: break
-            data_bytes += chunk
-        
-        d = data_bytes.decode('utf-8')
-        sys.stderr.write(f"[BRAIN] Received {len(d)} bytes\n")
-        
-        if not d:
-            c.close()
-            continue
+sock_path = "/data/data/com.termux/files/usr/tmp/v_brain.sock"
+if os.path.exists(sock_path): os.remove(sock_path)
 
-        obj = json.loads(d)
-        res = {"status": "ABS_SECURE_PASS"}
-        for k in obj:
-            if k not in schema:
-                res = {"error": "SCHEMA_VIOLATION", "msg": k}
-                break
-        
-        if "error" not in res:
-            if "123456789" in d.replace(".", "").replace("-", ""):
-                res = {"error": "POLICY_VIOLATION"}
-        
-        resp_json = json.dumps(res)
-        sys.stderr.write(f"[BRAIN] Sending response: {resp_json}\n")
-        c.sendall(resp_json.encode('utf-8'))
-    except Exception as e:
-        sys.stderr.write(f"[BRAIN_ERROR] {str(e)}\n")
-    finally:
-        c.close()
-        sys.stderr.write("[BRAIN] Connection closed\n")
+try:
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.bind(sock_path)
+    s.listen(5)
+    sys.stderr.write("[BRAIN] Listener bound to socket\n")
+    
+    def is_zipf_compliant(text):
+        words = text.split()
+        if len(words) < 5: return True
+        counts = Counter(words)
+        freqs = sorted(counts.values(), reverse=True)
+        # Power law check
+        if freqs[0] > (sum(freqs) * 0.7): return False
+        return True
+
+    while True:
+        conn, _ = s.accept()
+        sys.stderr.write("[BRAIN] Connection accepted\n")
+        try:
+            data = conn.recv(4096)
+            if not data:
+                sys.stderr.write("[BRAIN] No data received\n")
+                continue
+            
+            raw_text = data.decode('utf-8')
+            sys.stderr.write(f"[BRAIN] Received: {raw_text[:50]}...\n")
+            
+            if "sk_live_" in raw_text or not is_zipf_compliant(raw_text):
+                sys.stderr.write("[BRAIN] Verdict: DENY\n")
+                conn.sendall(b"DENY")
+            else:
+                sys.stderr.write("[BRAIN] Verdict: ALLOW\n")
+                conn.sendall(b"ALLOW")
+        except Exception as e:
+            sys.stderr.write(f"[BRAIN] Processing error: {e}\n")
+            conn.sendall(b"DENY")
+        finally:
+            conn.close()
+except Exception as fatal:
+    sys.stderr.write(f"[BRAIN] FATAL ERROR: {fatal}\n")
 >>
 }
