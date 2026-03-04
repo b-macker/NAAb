@@ -183,6 +183,7 @@ void print_usage() {
     fmt::print("  --pipe                              Pipe mode: io.write() → stderr,\n");
     fmt::print("                                      io.output() → stdout (for JSON)\n");
     fmt::print("\nGovernance Options:\n");
+    fmt::print("  --no-governance                     Completely disable governance engine\n");
     fmt::print("  --governance-override               Override soft-mandatory governance rules\n");
     fmt::print("  --governance-report <path>          Write JSON governance report to file\n");
     fmt::print("  --governance-sarif <path>           Write SARIF governance report to file\n");
@@ -224,6 +225,7 @@ int main(int argc, char** argv) {
     // e.g., `naab-lang --pipe script.naab` or `naab-lang --governance-override script.naab`
     bool global_pipe_mode = false;
     bool global_governance_override = false;
+    bool global_no_governance = false;
     int command_arg_index = 1;  // Index of the actual command/file in argv
 
     while (command_arg_index < argc) {
@@ -233,6 +235,9 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--governance-override") {
             global_governance_override = true;
+            command_arg_index++;
+        } else if (arg == "--no-governance") {
+            global_no_governance = true;
             command_arg_index++;
         } else {
             break;  // Found the command or file
@@ -283,6 +288,7 @@ int main(int argc, char** argv) {
         bool debug = false;
         bool pipe_mode = global_pipe_mode;  // Inherit from global pre-scan
         bool governance_override = global_governance_override;
+        bool no_governance = global_no_governance;
         std::string governance_report_json;
         std::string governance_report_sarif;
         std::string governance_report_junit;
@@ -318,6 +324,8 @@ int main(int argc, char** argv) {
                 memory_limit = std::stoull(argv[++i]);
             } else if (arg == "--allow-network") {
                 network_enabled = true;
+            } else if (arg == "--no-governance") {
+                no_governance = true;
             } else if (arg == "--governance-override") {
                 governance_override = true;
             } else if (arg == "--governance-report" && i + 1 < argc) {
@@ -453,7 +461,9 @@ int main(int argc, char** argv) {
             interpreter.setProfileMode(profile);
             interpreter.setExplainMode(explain);
             interpreter.setScriptArgs(script_args);  // ISS-028: Pass script arguments
-            if (governance_override) {
+            if (no_governance) {
+                interpreter.disableGovernance();
+            } else if (governance_override) {
                 interpreter.setGovernanceOverride(true);
             }
 

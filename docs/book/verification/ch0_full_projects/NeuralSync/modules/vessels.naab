@@ -1,0 +1,77 @@
+// NeuralSync/modules/vessels.naab
+// THE ACCEPTOR SWARM: Polyglot Distributed Data Plane (NATIVE TYPES)
+
+use io
+use json
+use string
+
+// NODE A: THE HIGH-PERFORMANCE LEDGER (GO)
+export fn node_a_call(method, prop_id, val, state): any? {
+    let result = <<go[method, prop_id, val, state]
+    package main
+    import ("fmt"; "encoding/json")
+    func main() {
+        // Variables injected as native types: string, int, map
+        res := map[string]interface{}{"node": "A_GO", "status": "REJECTED"}
+        
+        max_id := 0.0
+        if v, ok := state["max_id"].(float64); ok { max_id = v }
+        
+        if method == "PREPARE" && float64(prop_id) > max_id {
+            state["max_id"] = float64(prop_id)
+            res["status"], res["max_id"], res["last_val"] = "PROMISED", prop_id, state["accepted_val"]
+        } else if method == "ACCEPT" && float64(prop_id) >= max_id {
+            state["max_id"] = float64(prop_id)
+            state["accepted_val"] = val
+            res["status"] = "ACCEPTED"
+        }
+        res["new_state"] = state
+        out, _ := json.Marshal(res); fmt.Print(string(out))
+    }
+>>
+    if result == null { return null }
+    return json.parse("" + result)
+}
+
+// NODE B: THE ANALYTICAL NODE (PYTHON)
+export fn node_b_call(method, prop_id, val, state): any? {
+    let result = <<python[method, prop_id, val, state]
+import json
+# Variables injected as: str, int, dict
+res = {"node": "B_PYTHON", "status": "REJECTED"}
+max_id = state.get("max_id", 0)
+if method == "PREPARE" and prop_id > max_id:
+    state["max_id"] = prop_id
+    res.update({"status": "PROMISED", "max_id": prop_id, "last_val": state.get("accepted_val", "")})
+elif method == "ACCEPT" and prop_id >= max_id:
+    state["max_id"] = prop_id
+    state["accepted_val"] = val
+    res["status"] = "ACCEPTED"
+res["new_state"] = state
+print(json.dumps(res))
+>>
+    if result == null { return null }
+    return json.parse("" + result)
+}
+
+// NODE C: THE INTEGRITY GUARD (RUBY)
+export fn node_c_call(method, prop_id, val, state): any? {
+    let result = <<ruby[method, prop_id, val, state]
+require 'json'
+# Variables injected as: String, Integer, Hash
+res = {"node" => "C_RUBY", "status" => "REJECTED"}
+max_id = state["max_id"].to_i
+if method == "PREPARE" && prop_id > max_id
+    state["max_id"] = prop_id
+    res.merge!({"status" => "PROMISED", "max_id" => prop_id, "last_val" => state["accepted_val"] || ""})
+elsif method == "ACCEPT" && prop_id >= max_id
+    state["max_id"] = prop_id
+    state["accepted_val"] = val
+    res["status"] = "ACCEPTED"
+end
+res["new_state"] = state
+print JSON.generate(res)
+>>
+    if result == null { return null }
+    return json.parse("" + result)
+}

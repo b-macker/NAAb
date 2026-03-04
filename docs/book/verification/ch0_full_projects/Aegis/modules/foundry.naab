@@ -1,0 +1,112 @@
+// Aegis/modules/foundry.naab
+// THE BIO-REACTOR: Genetic Mutation Engine (IMPORT CLEAN)
+
+use io
+use file
+use json
+use string
+
+export fn generate_shield_source(mutation_seed) {
+    // Using Go with correct imports
+    let rust_source = <<go[mutation_seed]
+    package main
+    import (
+        "fmt"
+        "crypto/sha256"
+        "math/rand"
+        "time"
+        "os"
+    )
+
+    func main() {
+        seedInt := mutation_seed
+        seedStr := fmt.Sprintf("%d", seedInt)
+        
+        rand.Seed(int64(seedInt) + time.Now().UnixNano())
+        
+        h := sha256.New()
+        h.Write([]byte(seedStr))
+        fnID := fmt.Sprintf("%x", h.Sum(nil))[:8]
+        entryFn := "secure_entry_" + fnID
+        
+        junk := ""
+        for i := 0; i < 5; i++ {
+            pad := rand.Intn(200) + 32
+            // Use PascalCase for Rust structs to avoid warnings
+            junk += fmt.Sprintf("struct Junk%d { _pad: [u8; %d] }\n", rand.Intn(9000)+1000, pad)
+        }
+
+        out := os.Stdout
+
+        fmt.Fprintf(out, "// AEGIS SHIELD v%s\n", seedStr)
+        fmt.Fprintf(out, "// AUTO-GENERATED MUTATION. DO NOT EDIT.\n\n")
+        fmt.Fprintf(out, "use std::net::UdpSocket;\n")
+        fmt.Fprintf(out, "use std::io::Write;\n")
+        fmt.Fprintf(out, "use std::fs::OpenOptions;\n")
+        fmt.Fprintf(out, "use std::time::{SystemTime, UNIX_EPOCH};\n\n")
+        fmt.Fprintf(out, "%s\n", junk)
+
+        fmt.Fprintf(out, "fn log_traffic(size: usize, src: String) {\n")
+        fmt.Fprintf(out, "    let mut file = OpenOptions::new()\n")
+        fmt.Fprintf(out, "        .create(true)\n")
+        fmt.Fprintf(out, "        .append(true)\n")
+        fmt.Fprintf(out, "        .open(\"verification/ch0_full_projects/Aegis/logs/traffic.log\")\n")
+        fmt.Fprintf(out, "        .unwrap();\n")
+        
+        fmt.Fprintf(out, "    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();\n")
+        // Double-escaped braces for Rust format string: {{ and }}
+        fmt.Fprintf(out, "    let log_entry = format!(\"{{\\\"ts\\\": {}, \\\"size\\\": {}, \\\"src\\\": \\\"{}\\\"}}\\n\", now, size, src);\n")
+        fmt.Fprintf(out, "    file.write_all(log_entry.as_bytes()).unwrap();\n")
+        
+        fmt.Fprintf(out, "    // Self-Defense Trigger\n")
+        fmt.Fprintf(out, "    if size > 1000 {\n")
+        fmt.Fprintf(out, "        println!(\"ANOMALY_DETECTED: Payload size {} exceeds threshold\", size);\n")
+        fmt.Fprintf(out, "    }\n")
+        fmt.Fprintf(out, "}\n\n")
+        
+        fmt.Fprintf(out, "fn %s() {\n", entryFn)
+        fmt.Fprintf(out, "    let socket = UdpSocket::bind(\"127.0.0.1:9000\").expect(\"Failed to bind socket\");\n")
+        fmt.Fprintf(out, "    socket.set_nonblocking(true).unwrap();\n")
+        
+        fmt.Fprintf(out, "    println!(\"AEGIS SHIELD LISTENING ON :9000 (Variant: %s)\");\n", fnID)
+        
+        fmt.Fprintf(out, "    let mut buf = [0; 2048];\n")
+        fmt.Fprintf(out, "    loop {\n")
+        fmt.Fprintf(out, "        match socket.recv_from(&mut buf) {\n")
+        fmt.Fprintf(out, "            Ok((size, src)) => {\n")
+        fmt.Fprintf(out, "                log_traffic(size, src.to_string());\n")
+        fmt.Fprintf(out, "            },\n")
+        fmt.Fprintf(out, "            Err(_) => {\n")
+        fmt.Fprintf(out, "                // Non-blocking sleep equivalent\n")
+        fmt.Fprintf(out, "                std::thread::sleep(std::time::Duration::from_millis(100));\n")
+        fmt.Fprintf(out, "            }\n")
+        fmt.Fprintf(out, "        }\n")
+        fmt.Fprintf(out, "    }\n")
+        fmt.Fprintf(out, "}\n\n")
+        
+        fmt.Fprintf(out, "fn main() {\n")
+        fmt.Fprintf(out, "    %s();\n", entryFn)
+        fmt.Fprintf(out, "}\n")
+    }
+>>
+    return string.trim(rust_source)
+}
+
+export fn compile_shield(source_code, generation_id) {
+    let src_path = "verification/ch0_full_projects/Aegis/vessels/shield_" + generation_id + ".rs"
+    let bin_path = "verification/ch0_full_projects/Aegis/vessels/shield_bin_" + generation_id
+    
+    file.write(src_path, source_code)
+    
+    io.write("    [FOUNDRY] Forging Shield Gen-", generation_id, "...\n")
+    
+    // Compile with optimization
+    <<shell[src_path, bin_path]
+    rustc -O -o "$bin_path" "$src_path"
+>>
+    
+    // Forensic Cleanup: Shred source immediately
+    file.delete(src_path)
+    
+    return bin_path
+}

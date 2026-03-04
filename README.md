@@ -281,7 +281,8 @@ Source Code (.naab)
   ├── Native execution (NAAb code)
   ├── Python executor (C API)
   ├── JavaScript executor (QuickJS)
-  ├── Go/Rust/C++/C# executors (compile & run)
+  ├── Go/Rust/C++/C#/Nim/Zig/Julia executors (compile & run)
+  ├── Ruby/PHP executors (interpreted)
   └── Shell executor (subprocess)
 ```
 

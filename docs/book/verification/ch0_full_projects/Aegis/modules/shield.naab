@@ -1,0 +1,46 @@
+// Aegis/modules/shield.naab
+// THE ACTIVE SHIELD: Lifecycle & Traffic Simulation (CLEAN KILL)
+
+use io
+use file
+use json
+use string
+
+export fn launch_shield(bin_path) {
+    io.write("    [SHIELD] Deploying Active Defense Node: ", bin_path, "\n")
+    let log_file = "verification/ch0_full_projects/Aegis/logs/shield_output.log"
+    let pid = <<shell[bin_path, log_file]
+    "$bin_path" > "$log_file" 2>&1 &
+    echo $!
+>>
+    return string.trim(pid)
+}
+
+export fn kill_shield(pid) {
+    if pid != "" {
+        io.write("    [SHIELD] Decommissioning Node PID: ", pid, "\n")
+        // Removed 2>/dev/null to satisfy governance
+        <<shell[pid]
+        kill -9 "$pid" || true
+>>
+    }
+}
+
+export fn simulate_traffic(intensity) {
+    <<ruby[intensity]
+    require 'socket'
+    u = UDPSocket.new
+    target_host = '127.0.0.1'
+    target_port = 9000
+    count = (intensity == "NORMAL" ? 5 : 50)
+    base_size = (intensity == "NORMAL" ? 100 : 1500)
+    count.times do
+        size = base_size + rand(-50..50)
+        payload = "X" * size
+        begin
+            u.send(payload, 0, target_host, target_port)
+        rescue => e; end
+        sleep(0.05)
+    end
+>>
+}

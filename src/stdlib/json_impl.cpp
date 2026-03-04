@@ -61,6 +61,27 @@ std::shared_ptr<interpreter::Value> JSONModule::call(
             "    let data = json.parse(json_string)\n"
         );
     }
+    if (function_name == "to_string" || function_name == "serialize" || function_name == "toString") {
+        throw std::runtime_error(
+            "Unknown JSON function: " + function_name + "\n\n"
+            "  Did you mean: json.stringify()?\n"
+            "  Example: json.stringify({\"key\": \"value\"})\n"
+        );
+    }
+    if (function_name == "from_string" || function_name == "deserialize" || function_name == "fromString") {
+        throw std::runtime_error(
+            "Unknown JSON function: " + function_name + "\n\n"
+            "  Did you mean: json.parse()?\n"
+            "  Example: json.parse(json_string)\n"
+        );
+    }
+    if (function_name == "format" || function_name == "prettify" || function_name == "indent") {
+        throw std::runtime_error(
+            "Unknown JSON function: " + function_name + "\n\n"
+            "  Did you mean: json.pretty()?\n"
+            "  Example: json.pretty(data, 2)  // 2-space indent\n"
+        );
+    }
 
     // Fuzzy matching for typos
     static const std::vector<std::string> FUNCTIONS = {

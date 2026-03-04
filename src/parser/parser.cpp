@@ -2139,6 +2139,16 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         auto& token = tokens_[pos_ - 1];
         std::string name = token.value;
         ast::SourceLocation loc(token.line, token.column, filename_);
+
+        // HELPER-2: elif -> else if (parse-time, since elif is never valid)
+        if (name == "elif") {
+            throw ParseError(
+                "NAAb uses 'else if', not 'elif' (Python-style)\n\n"
+                "  \xE2\x9C\x97 Wrong: elif condition { ... }\n"
+                "  \xE2\x9C\x93 Right: else if condition { ... }"
+            );
+        }
+
         return std::make_unique<ast::IdentifierExpr>(name, loc);
     }
 
@@ -2146,6 +2156,14 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
     if (match(lexer::TokenType::LPAREN)) {
         auto expr = parseExpression();
         expect(lexer::TokenType::RPAREN, "Expected ')' after expression");
+        // HELPER-6: Arrow function => syntax detection
+        if (check(lexer::TokenType::FAT_ARROW)) {
+            throw ParseError(
+                "NAAb uses fn(x) { ... } for lambdas, not arrow syntax (x) => x\n\n"
+                "  \xE2\x9C\x97 Wrong: let double = (x) => x * 2\n"
+                "  \xE2\x9C\x93 Right: let double = fn(x) { return x * 2 }"
+            );
+        }
         return expr;
     }
 

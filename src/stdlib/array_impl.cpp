@@ -519,6 +519,28 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         );
     }
 
+    if (function_name == "insert") {
+        throw std::runtime_error(
+            "Unknown array function: insert\n\n"
+            "  Did you mean: array.push()?\n"
+            "  NAAb arrays use push() to add elements.\n"
+            "  Example: array.push(my_array, new_item)\n"
+        );
+    }
+    if (function_name == "concat" || function_name == "extend" || function_name == "merge") {
+        throw std::runtime_error(
+            "Unknown array function: " + function_name + "\n\n"
+            "  NAAb doesn't have array concat. Use the + operator:\n"
+            "    let combined = arr1 + arr2\n"
+        );
+    }
+    if (function_name == "flat" || function_name == "flatten") {
+        throw std::runtime_error(
+            "Unknown array function: " + function_name + "\n\n"
+            "  NAAb doesn't have flatten. Use a polyglot block:\n"
+            "    let flat = <<python\n[x for sub in nested for x in sub]\n    >>\n"
+        );
+    }
     if (function_name == "forEach" || function_name == "for_each" || function_name == "each") {
         throw std::runtime_error(
             "Unknown array function: " + function_name + "\n\n"

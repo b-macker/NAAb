@@ -1,0 +1,64 @@
+// NeuralSync/main.naab
+// PROJECT NEURAL-SYNC: The Sovereign Paxos Engine
+// Master Orchestrator & Persistent Proposal ID Generator (FIXED JSON)
+
+use io
+use file
+use json
+use string
+use modules.paxos
+use modules.chaos
+
+// PERSISTENCE HELPER: Monotonic Proposal ID
+fn get_next_proposal_id() {
+    let id_file = "verification/ch0_full_projects/NeuralSync/.oracle_id"
+    let current_id = 1
+    
+    if file.exists(id_file) {
+        let raw = file.read(id_file)
+        current_id = json.parse(string.trim(raw)) + 1
+    }
+    
+    file.write(id_file, json.stringify(current_id))
+    return current_id
+}
+
+main {
+    io.write("╔═══════════════════════════════════════════════════════════╗\n")
+    io.write("║           PROJECT NEURAL-SYNC: SOVEREIGN PAXOS            ║\n")
+    io.write("║           (Fault-Tolerant Distributed State)              ║\n")
+    io.write("╚═══════════════════════════════════════════════════════════╝\n\n")
+
+    // Node state maintained in the orchestrator
+    let nodes_state = {
+        "node_a": {"max_id": 0, "accepted_val": "null"},
+        "node_b": {"max_id": 0, "accepted_val": "null"},
+        "node_c": {"max_id": 0, "accepted_val": "null"}
+    }
+
+    let consensus_ledger = []
+    let updates = ["SYSTEM_SHIELD=ACTIVE", "USER_AUTH=GRANTED", "CORE_TEMPERATURE=STABLE"]
+    
+    for update in updates {
+        let prop_id = get_next_proposal_id()
+        io.write("  [ORCHESTRATOR] Round initiated. Proposal ID: ", prop_id, "\n")
+        io.write("  [ORCHESTRATOR] Target Update: ", update, "\n")
+        
+        // CONSENSUS SEEK: Call Paxos Engine (20% chaos)
+        let result = paxos.propose_value(prop_id, update, 0.2, nodes_state)
+        
+        // Update local state tracking even on failure
+        nodes_state = result["nodes"]
+
+        if result["status"] == "COMMITTED" {
+            io.write("    ✅ CONSENSUS REACHED: Value Committed across Quorum.\n")
+            consensus_ledger = consensus_ledger + [result["final_state"]]
+        } else {
+            io.write("    ❌ CONSENSUS FAILED: ", result["reason"], "\n")
+        }
+        io.write("  -----------------------------------------------------------\n")
+    }
+
+    io.write("\n  ✅ NEURAL-SYNC ADJUDICATION CYCLE COMPLETE.\n")
+    io.write("  Final Sovereign Ledger: ", json.stringify(consensus_ledger), "\n")
+}

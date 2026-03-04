@@ -1,0 +1,79 @@
+// Oracle/modules/synthesizer.naab
+// THE SOVEREIGN SYNTHESIZER
+// Dynamically generates the Council of Three Experts.
+
+use io
+use file
+use json
+
+export fn synthesize_council() {
+    io.write("  [SYNTHESIZER] Summoning the Council of Experts...
+")
+    
+    let bin_dir = "verification/ch0_full_projects/3/Oracle/bin/"
+    let src_dir = "verification/ch0_full_projects/3/Oracle/src/"
+    
+    // 1. THE AUDITOR (RUST) - Constraint Integrity
+    let rust_src = src_dir + "auditor.rs"
+    let rust_bin = bin_dir + "auditor_vessel"
+    let rust_code = "// Oracle Auditor (Rust)
+use std::env;
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 { return; }
+    let val: f64 = args[1].parse().unwrap_or(0.0);
+    // Constraint Logic: Valid between 10.0 and 1000.0
+    let valid = val >= 10.0 && val <= 1000.0;
+    print!("{{"role":"AUDITOR","approved":{}}}", valid);
+}
+"
+    
+    file.write(rust_src, rust_code)
+    io.write("    [SYNTHESIZER] Forging the Auditor (Rust)...
+")
+    <<bash[rust_src, rust_bin] rustc -O -o "$rust_bin" "$rust_src" >>
+
+    // 2. THE PHYSICIST (C++) - Signal Projection
+    let cpp_src = src_dir + "physicist.cpp"
+    let cpp_bin = bin_dir + "physicist_vessel"
+    let cpp_code = "// Oracle Physicist (C++)
+#include <iostream>
+#include <string>
+int main(int argc, char** argv) {
+    if (argc < 2) return 0;
+    double val = std::stod(argv[1]);
+    // Projection Logic: Simple Momentum (val * 1.05)
+    double projected = val * 1.05;
+    std::cout << "{"role":"PHYSICIST","projection":" << projected << "}";
+    return 0;
+}
+"
+    
+    file.write(cpp_src, cpp_code)
+    io.write("    [SYNTHESIZER] Awakening the Physicist (C++)...
+")
+    <<bash[cpp_src, cpp_bin] g++ -O3 -o "$cpp_bin" "$cpp_src" >>
+
+    // 3. THE STATISTICIAN (PYTHON) - Variance Analysis
+    let py_src = src_dir + "statistician.py"
+    let py_code = "# Oracle Statistician (Python)
+import sys, json
+try:
+    val = float(sys.argv[1])
+    # Variance Logic: Deviation from 'norm' (500)
+    confidence = 1.0 - (abs(val - 500) / 1000.0)
+    print(json.dumps({"role": "STATISTICIAN", "confidence": round(confidence, 4)}))
+except:
+    print(json.dumps({"error": "Input Error"}))
+"
+    
+    file.write(py_src, py_code)
+    io.write("    [SYNTHESIZER] Summoning the Statistician (Python)...
+")
+
+    return {
+        "auditor": rust_bin,
+        "physicist": cpp_bin,
+        "statistician": py_src
+    }
+}

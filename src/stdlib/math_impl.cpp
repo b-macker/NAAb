@@ -181,6 +181,14 @@ std::shared_ptr<interpreter::Value> MathModule::call(
             "    crypto.random_string(16)     // random string\n"
         );
     }
+    if (function_name == "sum" || function_name == "avg" || function_name == "average" || function_name == "mean") {
+        throw std::runtime_error(
+            "Unknown math function: " + function_name + "\n\n"
+            "  NAAb math module doesn't have " + function_name + "().\n"
+            "  Use array.reduce_fn() or a polyglot block:\n"
+            "    let total = array.reduce_fn(nums, fn(a, b) { return a + b }, 0)\n"
+        );
+    }
     if (function_name == "log" || function_name == "ln" || function_name == "log2" || function_name == "log10") {
         throw std::runtime_error(
             "Unknown math function: " + function_name + "\n\n"

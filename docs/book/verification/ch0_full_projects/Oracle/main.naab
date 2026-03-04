@@ -1,0 +1,49 @@
+// Oracle/main.naab
+// PROJECT ORACLE: Probabilistic Consensus Fabric
+// 100% NAAb Orchestrated.
+
+use io
+use json
+use modules.brain
+
+main {
+    io.write("╔═══════════════════════════════════════════════════════════╗
+")
+    io.write("║           PROJECT ORACLE - THE SOVEREIGN BRAIN            ║
+")
+    io.write("║           (Zero-File Polyglot Consensus)                  ║
+")
+    io.write("╚═══════════════════════════════════════════════════════════╝
+
+")
+
+    // Input Stream: A set of values requiring consensus
+    let data_stream = ["450.50", "1200.00", "75.25", "500.00"]
+
+    for data_point in data_stream {
+        io.write("  [STREAM] Ingesting Signal: ", data_point, "
+")
+        
+        let truth = brain.consult_oracle(data_point)
+        
+        if truth["status"] == "VETOED" {
+            io.write("    ❌ ", truth["reason"], "
+")
+        } else {
+            io.write("    ✅ CONSENSUS REACHED
+")
+            io.write("       - Physics Projection : ", truth["experts"]["projection"], "
+")
+            io.write("       - Stat Confidence    : ", truth["experts"]["confidence"], "
+")
+            io.write("       - SOVEREIGN TRUTH    : ", truth["consensus_value"], "
+")
+        }
+        io.write("  -----------------------------------------------------------
+")
+    }
+
+    io.write("
+  ✅ ORACLE ADJUDICATION COMPLETE.
+")
+}

@@ -1,0 +1,37 @@
+// NeuralSync/modules/chaos.naab
+// THE ENTROPY INJECTOR: Sovereign Chaos Layer (STRICT INDENT)
+
+use io
+use json
+
+// Injects random packet loss and latency
+export fn sovereign_call(vessel_fn, method, prop_id, val, state, entropy_level) {
+    let outcome = <<python[entropy_level]
+import random
+def get_outcome(p):
+    roll = random.random()
+    if roll < float(p):
+        return "DROP"
+    elif roll < (float(p) + 0.1):
+        return "JITTER"
+    else:
+        return "PASS"
+print(get_outcome(entropy_level))
+>>
+
+    if outcome == "DROP" {
+        io.write("    [CHAOS] Packet DROPPED by Network Partition.\n")
+        return null
+    }
+    
+    if outcome == "JITTER" {
+        io.write("    [CHAOS] Latency SPIKE injected.\n")
+        <<python
+import time
+time.sleep(1.0)
+>>
+    }
+
+    // Call the actual vessel function
+    return vessel_fn(method, prop_id, val, state)
+}

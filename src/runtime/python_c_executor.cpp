@@ -108,6 +108,45 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
         throw std::runtime_error("Python execution error: Failed to get globals dict");
     }
 
+    // Redirect sys.stdout to capture print() output
+    PyRun_SimpleString(
+        "import sys as _naab_sys, io as _naab_io\n"
+        "_naab_stdout = _naab_io.StringIO()\n"
+        "_naab_old_stdout = _naab_sys.stdout\n"
+        "_naab_sys.stdout = _naab_stdout\n"
+    );
+
+    // Helper lambda: restore stdout and get captured output
+    auto captureAndRestoreStdout = [&globals]() -> std::string {
+        PyRun_SimpleString("_naab_sys.stdout = _naab_old_stdout");
+        std::string captured;
+        PyObject* captured_obj = PyRun_String("_naab_stdout.getvalue()", Py_eval_input, globals, globals);
+        if (captured_obj && PyUnicode_Check(captured_obj)) {
+            const char* s = PyUnicode_AsUTF8(captured_obj);
+            if (s) captured = s;
+            // Trim trailing newline
+            while (!captured.empty() && (captured.back() == '\n' || captured.back() == '\r')) {
+                captured.pop_back();
+            }
+        }
+        Py_XDECREF(captured_obj);
+        PyRun_SimpleString("del _naab_stdout, _naab_old_stdout, _naab_io, _naab_sys");
+        return captured;
+    };
+
+    // Helper lambda: restore stdout on error (no capture needed)
+    auto restoreStdoutOnly = []() {
+        PyRun_SimpleString(
+            "import sys as _naab_sys\n"
+            "if hasattr(_naab_sys, '_naab_old_stdout') and _naab_sys._naab_old_stdout is not None:\n"
+            "    _naab_sys.stdout = _naab_sys._naab_old_stdout\n"
+            "for _n in ['_naab_stdout', '_naab_old_stdout', '_naab_io', '_naab_sys']:\n"
+            "    try:\n"
+            "        exec(f'del {_n}', globals())\n"
+            "    except: pass\n"
+        );
+    };
+
     // Step 1: Try evaluating as a single expression (Py_eval_input)
     PyObject* py_result = PyRun_String(code.c_str(), Py_eval_input, globals, globals);
 
@@ -129,7 +168,18 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
             if (!py_result) {
                 PyErr_Fetch(&ptype, &pvalue, &ptraceback);
                 std::string error_msg = "Unknown Python error";
-                if (pvalue) {
+                if (ptype && pvalue) {
+                    PyObject* type_name = PyObject_GetAttrString(ptype, "__name__");
+                    PyObject* str_exc = PyObject_Str(pvalue);
+                    if (type_name && str_exc) {
+                        error_msg = std::string(PyUnicode_AsUTF8(type_name)) + ": " + PyUnicode_AsUTF8(str_exc);
+                    } else if (str_exc) {
+                        const char* err = PyUnicode_AsUTF8(str_exc);
+                        if (err) error_msg = err;
+                    }
+                    Py_XDECREF(type_name);
+                    Py_XDECREF(str_exc);
+                } else if (pvalue) {
                     PyObject* str_exc = PyObject_Str(pvalue);
                     if (str_exc) {
                         const char* err = PyUnicode_AsUTF8(str_exc);
@@ -140,6 +190,7 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
                 Py_XDECREF(ptype);
                 Py_XDECREF(pvalue);
                 Py_XDECREF(ptraceback);
+                restoreStdoutOnly();
                 python_c_gil_release(gil_handle);
                 throw std::runtime_error("Python execution error: " + error_msg);
             }
@@ -153,7 +204,18 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
                 if (!exec_result) {
                     PyErr_Fetch(&ptype, &pvalue, &ptraceback);
                     std::string error_msg = "Unknown Python error";
-                    if (pvalue) {
+                    if (ptype && pvalue) {
+                        PyObject* type_name = PyObject_GetAttrString(ptype, "__name__");
+                        PyObject* str_exc = PyObject_Str(pvalue);
+                        if (type_name && str_exc) {
+                            error_msg = std::string(PyUnicode_AsUTF8(type_name)) + ": " + PyUnicode_AsUTF8(str_exc);
+                        } else if (str_exc) {
+                            const char* err = PyUnicode_AsUTF8(str_exc);
+                            if (err) error_msg = err;
+                        }
+                        Py_XDECREF(type_name);
+                        Py_XDECREF(str_exc);
+                    } else if (pvalue) {
                         PyObject* str_exc = PyObject_Str(pvalue);
                         if (str_exc) {
                             const char* err = PyUnicode_AsUTF8(str_exc);
@@ -164,6 +226,7 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
                     Py_XDECREF(ptype);
                     Py_XDECREF(pvalue);
                     Py_XDECREF(ptraceback);
+                    restoreStdoutOnly();
                     python_c_gil_release(gil_handle);
                     throw std::runtime_error("Python execution error: " + error_msg);
                 }
@@ -179,7 +242,18 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
                     if (!exec_result) {
                         PyErr_Fetch(&ptype, &pvalue, &ptraceback);
                         std::string error_msg = "Unknown Python error";
-                        if (pvalue) {
+                        if (ptype && pvalue) {
+                            PyObject* type_name = PyObject_GetAttrString(ptype, "__name__");
+                            PyObject* str_exc = PyObject_Str(pvalue);
+                            if (type_name && str_exc) {
+                                error_msg = std::string(PyUnicode_AsUTF8(type_name)) + ": " + PyUnicode_AsUTF8(str_exc);
+                            } else if (str_exc) {
+                                const char* err = PyUnicode_AsUTF8(str_exc);
+                                if (err) error_msg = err;
+                            }
+                            Py_XDECREF(type_name);
+                            Py_XDECREF(str_exc);
+                        } else if (pvalue) {
                             PyObject* str_exc = PyObject_Str(pvalue);
                             if (str_exc) {
                                 const char* err = PyUnicode_AsUTF8(str_exc);
@@ -190,13 +264,18 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
                         Py_XDECREF(ptype);
                         Py_XDECREF(pvalue);
                         Py_XDECREF(ptraceback);
+                        restoreStdoutOnly();
                         python_c_gil_release(gil_handle);
                         throw std::runtime_error("Python execution error: " + error_msg);
                     }
                     Py_DECREF(exec_result);
 
-                    // Return None for statement-only blocks
+                    // Statement-only block: check for captured stdout (print() output)
+                    std::string captured = captureAndRestoreStdout();
                     python_c_gil_release(gil_handle);
+                    if (!captured.empty()) {
+                        return std::make_shared<interpreter::Value>(captured);
+                    }
                     return std::make_shared<interpreter::Value>();
                 }
             } else {
@@ -206,7 +285,18 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
                 if (!exec_result) {
                     PyErr_Fetch(&ptype, &pvalue, &ptraceback);
                     std::string error_msg = "Unknown Python error";
-                    if (pvalue) {
+                    if (ptype && pvalue) {
+                        PyObject* type_name = PyObject_GetAttrString(ptype, "__name__");
+                        PyObject* str_exc = PyObject_Str(pvalue);
+                        if (type_name && str_exc) {
+                            error_msg = std::string(PyUnicode_AsUTF8(type_name)) + ": " + PyUnicode_AsUTF8(str_exc);
+                        } else if (str_exc) {
+                            const char* err = PyUnicode_AsUTF8(str_exc);
+                            if (err) error_msg = err;
+                        }
+                        Py_XDECREF(type_name);
+                        Py_XDECREF(str_exc);
+                    } else if (pvalue) {
                         PyObject* str_exc = PyObject_Str(pvalue);
                         if (str_exc) {
                             const char* err = PyUnicode_AsUTF8(str_exc);
@@ -217,12 +307,18 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
                     Py_XDECREF(ptype);
                     Py_XDECREF(pvalue);
                     Py_XDECREF(ptraceback);
+                    restoreStdoutOnly();
                     python_c_gil_release(gil_handle);
                     throw std::runtime_error("Python execution error: " + error_msg);
                 }
                 Py_DECREF(exec_result);
 
+                // Single-line statement: check for captured stdout (print() output)
+                std::string captured = captureAndRestoreStdout();
                 python_c_gil_release(gil_handle);
+                if (!captured.empty()) {
+                    return std::make_shared<interpreter::Value>(captured);
+                }
                 return std::make_shared<interpreter::Value>();
             }
         }
@@ -234,8 +330,14 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
     // Release the Python object
     Py_DECREF(py_result);
 
-    // Release GIL
+    // Check: if result is None/null, check for captured stdout
+    bool is_null = std::holds_alternative<std::monostate>(value->data);
+    std::string captured = captureAndRestoreStdout();
     python_c_gil_release(gil_handle);
+
+    if (is_null && !captured.empty()) {
+        return std::make_shared<interpreter::Value>(captured);
+    }
 
     return value;
 }

@@ -12,7 +12,7 @@ int levenshteinDistance(const std::string& s1, const std::string& s2);
 // Find similar strings based on edit distance
 std::vector<std::string> findSimilar(const std::string& target,
                                      const std::vector<std::string>& candidates,
-                                     int max_distance = 2);
+                                     int max_distance = 3);
 
 // Format suggestions for error messages
 std::string formatSuggestions(const std::string& wrong_name,

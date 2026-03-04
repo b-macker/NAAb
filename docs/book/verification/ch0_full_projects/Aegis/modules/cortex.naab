@@ -1,0 +1,58 @@
+// Aegis/modules/cortex.naab
+// THE NEURAL CORTEX: Statistical Anomaly Detection (RUBY SYNC)
+
+use io
+use file
+use json
+use string
+
+export fn analyze_traffic() {
+    let log_path = "verification/ch0_full_projects/Aegis/logs/traffic.log"
+    
+    if !file.exists(log_path) {
+        return {"status": "CALIBRATING", "z_score": 0.0}
+    }
+
+    let analysis = <<ruby[log_path]
+    require 'json'
+    
+    lines = File.readlines(log_path).last(50)
+    
+    if lines.length < 10
+        print JSON.generate({"status" => "CALIBRATING", "z_score" => 0.0})
+        exit
+    end
+    
+    sizes = []
+    lines.each do |line|
+        begin
+            entry = JSON.parse(line)
+            sizes << entry['size'].to_f
+        rescue
+            # Ignore malformed lines
+        end
+    end
+    
+    if sizes.empty?
+        print JSON.generate({"status" => "IDLE", "z_score" => 0.0})
+        exit
+    end
+    
+    # Calculate Z-Score
+    mean = sizes.sum / sizes.length
+    sum_sq = sizes.map { |x| (x - mean)**2 }.sum
+    std_dev = Math.sqrt(sum_sq / sizes.length)
+    
+    if std_dev == 0
+        z_score = 0.0
+    else
+        last_pkt = sizes.last
+        z_score = (last_pkt - mean) / std_dev
+    end
+    
+    status = (z_score > 3.0 ? "ATTACK_DETECTED" : "NORMAL")
+    
+    print JSON.generate({"status" => status, "z_score" => z_score.round(4)})
+>>
+    return json.parse(analysis)
+}

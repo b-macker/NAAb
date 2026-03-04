@@ -15,6 +15,7 @@
 #include <thread>
 #include <atomic>
 #include <sstream>  // Phase 4.2.3: For parsing JS stack traces
+#include <cstring>  // For strlen
 
 // Include QuickJS headers
 extern "C" {
@@ -252,6 +253,24 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
     // Phase 2.3: Fixed multi-line code handling
     // Strategy: Just evaluate the code directly - QuickJS eval returns the last expression value
 
+    // Set up console.log capture so print output becomes the return value
+    const char* capture_setup =
+        "if (typeof __naab_captured === 'undefined') {"
+        "  var __naab_captured = [];"
+        "  var console = { log: function() {"
+        "    __naab_captured.push(Array.prototype.slice.call(arguments).join(' '));"
+        "  }, warn: function() {"
+        "    __naab_captured.push(Array.prototype.slice.call(arguments).join(' '));"
+        "  }, error: function() {"
+        "    __naab_captured.push(Array.prototype.slice.call(arguments).join(' '));"
+        "  }};"
+        "} else {"
+        "  __naab_captured = [];"
+        "}";
+    JSValue setup_result = JS_Eval(ctx_, capture_setup, strlen(capture_setup),
+                                    "<capture-setup>", JS_EVAL_TYPE_GLOBAL);
+    JS_FreeValue(ctx_, setup_result);
+
     std::string code = expression;
 
     // Trim leading/trailing whitespace
@@ -385,6 +404,24 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
 
         auto naab_result = fromJSValue(ctx_, result);
         JS_FreeValue(ctx_, result);
+
+        // If result is null/undefined, check for captured console.log output
+        if (std::holds_alternative<std::monostate>(naab_result->data)) {
+            const char* get_captured = "__naab_captured.join('\\n')";
+            JSValue cap = JS_Eval(ctx_, get_captured, strlen(get_captured), "<capture>", JS_EVAL_TYPE_GLOBAL);
+            if (JS_IsString(cap)) {
+                const char* s = JS_ToCString(ctx_, cap);
+                if (s && strlen(s) > 0) {
+                    auto captured_result = std::make_shared<interpreter::Value>(std::string(s));
+                    JS_FreeCString(ctx_, s);
+                    JS_FreeValue(ctx_, cap);
+                    return captured_result;
+                }
+                if (s) JS_FreeCString(ctx_, s);
+            }
+            JS_FreeValue(ctx_, cap);
+        }
+
         return naab_result;
     } else {
         // Single-line code: strip trailing semicolons, then evaluate
@@ -428,6 +465,24 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
 
         auto naab_result = fromJSValue(ctx_, result);
         JS_FreeValue(ctx_, result);
+
+        // If result is null/undefined, check for captured console.log output
+        if (std::holds_alternative<std::monostate>(naab_result->data)) {
+            const char* get_captured = "__naab_captured.join('\\n')";
+            JSValue cap = JS_Eval(ctx_, get_captured, strlen(get_captured), "<capture>", JS_EVAL_TYPE_GLOBAL);
+            if (JS_IsString(cap)) {
+                const char* s = JS_ToCString(ctx_, cap);
+                if (s && strlen(s) > 0) {
+                    auto captured_result = std::make_shared<interpreter::Value>(std::string(s));
+                    JS_FreeCString(ctx_, s);
+                    JS_FreeValue(ctx_, cap);
+                    return captured_result;
+                }
+                if (s) JS_FreeCString(ctx_, s);
+            }
+            JS_FreeValue(ctx_, cap);
+        }
+
         return naab_result;
     }
 }

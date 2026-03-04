@@ -506,6 +506,9 @@ public:
     void setGovernanceOverride(bool enabled) {
         if (governance_) governance_->setOverrideEnabled(enabled);
     }
+    void disableGovernance() {
+        governance_.reset();
+    }
 
 private:
     std::shared_ptr<Environment> global_env_;

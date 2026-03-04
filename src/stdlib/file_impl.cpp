@@ -219,6 +219,23 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             "  Example: file.delete(\"/path/to/file\")\n"
         );
     }
+    if (function_name == "open" || function_name == "fopen") {
+        throw std::runtime_error(
+            "Unknown file function: " + function_name + "\n\n"
+            "  NAAb file operations are one-shot (no file handles).\n"
+            "  Use file.read(path) or file.write(path, content) directly.\n\n"
+            "  Example:\n"
+            "    let content = file.read(\"/path/to/file\")\n"
+            "    file.write(\"/path/to/file\", \"new content\")\n"
+        );
+    }
+    if (function_name == "close" || function_name == "fclose") {
+        throw std::runtime_error(
+            "Unknown file function: " + function_name + "\n\n"
+            "  NAAb file operations are one-shot — no file handles to close.\n"
+            "  file.read() and file.write() handle opening/closing automatically.\n"
+        );
+    }
     if (function_name == "readdir" || function_name == "listdir" || function_name == "ls") {
         throw std::runtime_error(
             "Unknown file function: " + function_name + "\n\n"

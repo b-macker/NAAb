@@ -1,0 +1,51 @@
+// NeuralSync/modules/paxos.naab
+// THE PAXOS ENGINE: Sovereign Consensus Adjudicator (FIXED IMPORT)
+
+use io
+use json
+use vessels
+use chaos
+
+// Helper to manage persistent state (passed in from main if needed, 
+// or maintained via a closure-like pattern in NAAb functions)
+export fn propose_value(prop_id, val, entropy, current_nodes_state) {
+    io.write("  [PAXOS] Phase 1: SEEKING PROMISES (Quorum: 2/3)...\n")
+    
+    let promises = 0
+    let updated_nodes = current_nodes_state
+    
+    // 1. BROADCAST PREPARE
+    let res_a = chaos.sovereign_call(vessels.node_a_call, "PREPARE", prop_id, val, current_nodes_state["node_a"], entropy)
+    let res_b = chaos.sovereign_call(vessels.node_b_call, "PREPARE", prop_id, val, current_nodes_state["node_b"], entropy)
+    let res_c = chaos.sovereign_call(vessels.node_c_call, "PREPARE", prop_id, val, current_nodes_state["node_c"], entropy)
+    
+    if res_a != null && res_a["status"] == "PROMISED" { promises = promises + 1; updated_nodes["node_a"] = res_a["new_state"] }
+    if res_b != null && res_b["status"] == "PROMISED" { promises = promises + 1; updated_nodes["node_b"] = res_b["new_state"] }
+    if res_c != null && res_c["status"] == "PROMISED" { promises = promises + 1; updated_nodes["node_c"] = res_c["new_state"] }
+    
+    if promises < 2 {
+        return {"status": "FAILED", "reason": "No Quorum in Phase 1 (Promises: " + promises + ")", "nodes": updated_nodes}
+    }
+    
+    io.write("  [PAXOS] Phase 2: BROADCASTING ACCEPTANCE (Quorum: 2/3)...\n")
+    let accepted = 0
+    
+    // 2. BROADCAST ACCEPT
+    let acc_a = chaos.sovereign_call(vessels.node_a_call, "ACCEPT", prop_id, val, updated_nodes["node_a"], entropy)
+    let acc_b = chaos.sovereign_call(vessels.node_b_call, "ACCEPT", prop_id, val, updated_nodes["node_b"], entropy)
+    let acc_c = chaos.sovereign_call(vessels.node_c_call, "ACCEPT", prop_id, val, updated_nodes["node_c"], entropy)
+
+    if acc_a != null && acc_a["status"] == "ACCEPTED" { accepted = accepted + 1; updated_nodes["node_a"] = acc_a["new_state"] }
+    if acc_b != null && acc_b["status"] == "ACCEPTED" { accepted = accepted + 1; updated_nodes["node_b"] = acc_b["new_state"] }
+    if acc_c != null && acc_c["status"] == "ACCEPTED" { accepted = accepted + 1; updated_nodes["node_c"] = acc_c["new_state"] }
+
+    if accepted < 2 {
+        return {"status": "FAILED", "reason": "No Quorum in Phase 2 (Accepted: " + accepted + ")", "nodes": updated_nodes}
+    }
+
+    return {
+        "status": "COMMITTED",
+        "final_state": val,
+        "nodes": updated_nodes
+    }
+}

@@ -277,6 +277,69 @@ std::shared_ptr<interpreter::Value> StringModule::call(
         );
     }
 
+    // Python/Ruby naming conventions
+    if (function_name == "to_upper" || function_name == "upcase") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Did you mean: string.upper()?\n"
+            "  Example: string.upper(\"hello\")  // \"HELLO\"\n"
+            "  Or use dot notation: \"hello\".upper()\n"
+        );
+    }
+    if (function_name == "to_lower" || function_name == "downcase") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Did you mean: string.lower()?\n"
+            "  Example: string.lower(\"HELLO\")  // \"hello\"\n"
+            "  Or use dot notation: \"HELLO\".lower()\n"
+        );
+    }
+    if (function_name == "capitalize" || function_name == "title") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  NAAb doesn't have capitalize/title. Use string.upper() for uppercase,\n"
+            "  or use a polyglot block:\n"
+            "    let result = <<python\n\"hello world\".title()\n    >>\n"
+        );
+    }
+    if (function_name == "to_int" || function_name == "to_i" || function_name == "parseInt") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Use the built-in int() function:\n"
+            "    let n = int(\"42\")  // 42\n"
+        );
+    }
+    if (function_name == "to_float" || function_name == "to_f" || function_name == "parseFloat") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Use the built-in float() function:\n"
+            "    let f = float(\"3.14\")  // 3.14\n"
+        );
+    }
+    if (function_name == "len" || function_name == "size" || function_name == "count") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Did you mean: string.length()?\n"
+            "  Example: string.length(\"hello\")  // 5\n"
+            "  Or use dot notation: \"hello\".length()\n"
+        );
+    }
+    if (function_name == "strip" || function_name == "lstrip" || function_name == "rstrip") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Did you mean: string.trim()?\n"
+            "  NAAb uses 'trim' (like JavaScript), not 'strip' (Python).\n"
+            "  Example: string.trim(\"  hello  \")  // \"hello\"\n"
+        );
+    }
+    if (function_name == "find" || function_name == "search") {
+        throw std::runtime_error(
+            "Unknown string function: " + function_name + "\n\n"
+            "  Did you mean: string.index_of()?\n"
+            "  Example: string.index_of(\"hello\", \"ll\")  // 2\n"
+        );
+    }
+
     // camelCase → snake_case helpers
     if (function_name == "charAt") {
         throw std::runtime_error(
