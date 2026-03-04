@@ -256,6 +256,20 @@ std::shared_ptr<interpreter::Value> TimeModule::call(
             "  Example: time.parse_datetime(\"2024-01-15 10:00:00\", \"%Y-%m-%d %H:%M:%S\")\n"
         );
     }
+    if (function_name == "current" || function_name == "timestamp" || function_name == "get_time") {
+        throw std::runtime_error(
+            "Unknown time function: " + function_name + "\n\n"
+            "  Did you mean: time.now()?\n"
+            "  Example: let t = time.now()\n"
+        );
+    }
+    if (function_name == "wait" || function_name == "delay" || function_name == "pause") {
+        throw std::runtime_error(
+            "Unknown time function: " + function_name + "\n\n"
+            "  Did you mean: time.sleep()?\n"
+            "  Example: time.sleep(1.0)  // sleep for 1 second\n"
+        );
+    }
 
     // Fuzzy matching for typos
     static const std::vector<std::string> FUNCTIONS = {

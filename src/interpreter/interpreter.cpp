@@ -357,7 +357,7 @@ std::shared_ptr<Value> Environment::get(const std::string& name) {
                      "    Sys.print(msg)             -> print(msg)\n"
                      "    Sys.exit(code)             -> // just return or end the block\n\n"
                      "  Built-in functions: print, len, type, typeof, int, float, string, bool\n"
-                     "  For sleep: import time; time.sleep(milliseconds)\n"
+                     "  For sleep: import time; time.sleep(seconds)\n"
                      "  For exit:  NAAb has no exit(). End the main block or return from functions.";
     } else if (name == "Console" || name == "console") {
         error_msg += "\n\n  NAAb does not have a 'Console' object. Use:\n"
@@ -383,7 +383,7 @@ std::shared_ptr<Value> Environment::get(const std::string& name) {
     } else if (name == "sleep") {
         error_msg += "\n\n  'sleep' is not a global built-in. It's in the time module:\n"
                      "    import time\n"
-                     "    time.sleep(1000)         // sleep for 1000 milliseconds";
+                     "    time.sleep(1.0)          // sleep for 1 second";
     } else if (name == "exit") {
         error_msg += "\n\n  NAAb has no exit() function. To stop execution:\n"
                      "    return              // from a function\n"
@@ -414,9 +414,15 @@ std::shared_ptr<Value> Environment::get(const std::string& name) {
         error_msg += "\n\n  NAAb does not use 'new'. Create struct instances directly:\n"
                      "    let p = Point { x: 1, y: 2 }\n"
                      "  For dicts: let d = {\"key\": \"value\"}";
+    } else if (name == "True" || name == "False") {
+        std::string correct = (name == "True") ? "true" : "false";
+        error_msg += "\n\n  NAAb uses '" + correct + "' (lowercase), not Python's '" + name + "':\n"
+                     "    let x = " + correct + "\n"
+                     "  Inside <<python>> blocks, use Python's " + name + ".";
     } else if (name == "None" || name == "nil" || name == "undefined") {
         error_msg += "\n\n  NAAb uses 'null' (not '" + name + "'):\n"
-                     "    let x = null";
+                     "    let x = null\n"
+                     "  Inside <<python>> blocks, use Python's None.";
     } else if (name == "Object" || name == "Map") {
         error_msg += "\n\n  NAAb dicts are created with literal syntax:\n"
                      "    let d = {\"key\": \"value\"}\n"
@@ -1215,6 +1221,48 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
     // Load module (this will parse it if not already loaded)
     modules::NaabModule* module = module_registry_->loadModule(module_path, current_dir);
     if (!module) {
+        // Check if dropping the first path component finds the module (sibling import)
+        // e.g., "modules.vessels" from within modules/ → try "vessels"
+        auto dot_pos = module_path.find('.');
+        if (dot_pos != std::string::npos) {
+            std::string shortened = module_path.substr(dot_pos + 1);
+            modules::NaabModule* alt = module_registry_->loadModule(shortened, current_dir);
+            if (alt) {
+                std::string parent_dir = module_path.substr(0, dot_pos);
+                throw std::runtime_error(
+                    fmt::format("Failed to load module: {}\n\n"
+                        "  Help: Your script is already inside the '{}' directory.\n"
+                        "  Sibling modules don't need the parent directory prefix:\n\n"
+                        "    ✗ Wrong: use {}\n"
+                        "    ✓ Right: use {}\n",
+                        module_path, parent_dir, module_path, shortened)
+                );
+            }
+        }
+
+        // Check reverse: "paxos" not found, but "modules/paxos.naab" exists
+        // Try prepending each subdirectory
+        if (module_path.find('.') == std::string::npos) {
+            // Simple name — check if it exists in a subdirectory
+            for (const auto& entry : std::filesystem::directory_iterator(current_dir)) {
+                if (entry.is_directory()) {
+                    std::string subdir = entry.path().filename().string();
+                    std::string qualified = subdir + "." + module_path;
+                    modules::NaabModule* alt = module_registry_->loadModule(qualified, current_dir);
+                    if (alt) {
+                        throw std::runtime_error(
+                            fmt::format("Failed to load module: {}\n\n"
+                                "  Help: Module '{}' exists in the '{}' subdirectory.\n"
+                                "  Include the directory prefix:\n\n"
+                                "    ✗ Wrong: use {}\n"
+                                "    ✓ Right: use {}\n",
+                                module_path, module_path, subdir, module_path, qualified)
+                        );
+                    }
+                }
+            }
+        }
+
         throw std::runtime_error(
             fmt::format("Failed to load module: {}\n"
                        "  Searched in: {}\n"
@@ -1985,6 +2033,7 @@ void Interpreter::visit(ast::CompoundStmt& node) {
 
         // Execute any remaining non-polyglot statements after the last group
         for (size_t i = last_executed; i < statements.size(); ++i) {
+            if (returning_ || breaking_ || continuing_) break;
             if (polyglot_indices.find(i) == polyglot_indices.end()) {
                 statements[i]->accept(*this);
                 if (returning_ || breaking_ || continuing_) break;
@@ -2257,8 +2306,22 @@ void Interpreter::visit(ast::ForStmt& node) {
                     }
                 }
             }
+            --loop_depth_;
             return;
         }
+    }
+
+    // Check if it's a dict (iterate over keys)
+    if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&iterable->data)) {
+        for (const auto& [key, val] : *dict) {
+            current_env_->define(node.getVar(), std::make_shared<Value>(key));
+            node.getBody()->accept(*this);
+            if (returning_) break;
+            if (breaking_) { breaking_ = false; break; }
+            if (continuing_) { continuing_ = false; continue; }
+        }
+        --loop_depth_;
+        return;
     }
 
     // Otherwise, handle as list
@@ -2276,10 +2339,19 @@ void Interpreter::visit(ast::ForStmt& node) {
                 continue;
             }
         }
+        --loop_depth_;
+        return;
     }
 
-    // Decrement loop depth after loop completes
+    // Non-iterable type - error
     --loop_depth_;
+    throw std::runtime_error(
+        "Type error: Cannot iterate over " + getTypeName(iterable) + "\n\n"
+        "  for loops work with:\n"
+        "  - Arrays:  for item in [1, 2, 3] { ... }\n"
+        "  - Ranges:  for i in 0..10 { ... }\n"
+        "  - Dicts:   for key in {\"a\": 1} { ... }  (iterates keys)\n"
+    );
 }
 
 void Interpreter::visit(ast::WhileStmt& node) {
@@ -3082,23 +3154,21 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             } else {
                 // Neither is null - proceed with type-specific comparisons
                 bool left_is_numeric = std::holds_alternative<int>(left->data) ||
-                                      std::holds_alternative<double>(left->data) ||
-                                      std::holds_alternative<bool>(left->data);
+                                      std::holds_alternative<double>(left->data);
                 bool right_is_numeric = std::holds_alternative<int>(right->data) ||
-                                       std::holds_alternative<double>(right->data) ||
-                                       std::holds_alternative<bool>(right->data);
+                                       std::holds_alternative<double>(right->data);
 
-                if (left_is_numeric && right_is_numeric) {
+                if (std::holds_alternative<bool>(left->data) &&
+                    std::holds_alternative<bool>(right->data)) {
+                    // Both bools: compare as bools
+                    result_ = std::make_shared<Value>(left->toBool() == right->toBool());
+                } else if (left_is_numeric && right_is_numeric) {
                     // Both numeric: compare as numbers
                     result_ = std::make_shared<Value>(left->toFloat() == right->toFloat());
                 } else if (std::holds_alternative<std::string>(left->data) &&
                            std::holds_alternative<std::string>(right->data)) {
                     // Both strings: compare as strings
                     result_ = std::make_shared<Value>(left->toString() == right->toString());
-                } else if (std::holds_alternative<bool>(left->data) &&
-                           std::holds_alternative<bool>(right->data)) {
-                    // Both bools: compare as bools
-                    result_ = std::make_shared<Value>(left->toBool() == right->toBool());
                 } else {
                     // Different types: not equal
                     result_ = std::make_shared<Value>(false);
@@ -3123,23 +3193,21 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             } else {
                 // Neither is null - proceed with type-specific comparisons
                 bool left_is_numeric = std::holds_alternative<int>(left->data) ||
-                                      std::holds_alternative<double>(left->data) ||
-                                      std::holds_alternative<bool>(left->data);
+                                      std::holds_alternative<double>(left->data);
                 bool right_is_numeric = std::holds_alternative<int>(right->data) ||
-                                       std::holds_alternative<double>(right->data) ||
-                                       std::holds_alternative<bool>(right->data);
+                                       std::holds_alternative<double>(right->data);
 
-                if (left_is_numeric && right_is_numeric) {
+                if (std::holds_alternative<bool>(left->data) &&
+                    std::holds_alternative<bool>(right->data)) {
+                    // Both bools: compare as bools
+                    result_ = std::make_shared<Value>(left->toBool() != right->toBool());
+                } else if (left_is_numeric && right_is_numeric) {
                     // Both numeric: compare as numbers
                     result_ = std::make_shared<Value>(left->toFloat() != right->toFloat());
                 } else if (std::holds_alternative<std::string>(left->data) &&
                            std::holds_alternative<std::string>(right->data)) {
                     // Both strings: compare as strings
                     result_ = std::make_shared<Value>(left->toString() != right->toString());
-                } else if (std::holds_alternative<bool>(left->data) &&
-                           std::holds_alternative<bool>(right->data)) {
-                    // Both bools: compare as bools
-                    result_ = std::make_shared<Value>(left->toBool() != right->toBool());
                 } else {
                     // Different types: not equal
                     result_ = std::make_shared<Value>(true);
@@ -3776,7 +3844,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     return;
                 }
                 // indexOf(item) - find index of item, -1 if not found
-                if (method_name == "indexOf" || method_name == "findIndex") {
+                if (method_name == "indexOf" || method_name == "findIndex" || method_name == "index_of") {
                     if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
                     for (int i = 0; i < static_cast<int>(arr.size()); i++) {
                         if (arr[i]->toString() == args[0]->toString()) {
@@ -3786,6 +3854,83 @@ void Interpreter::visit(ast::CallExpr& node) {
                     }
                     result_ = std::make_shared<Value>(-1);
                     return;
+                }
+                // DOT-2: first, last, sort, shift, unshift, find, slice, for_each
+                if (method_name == "first") {
+                    if (arr.empty()) throw std::runtime_error("array.first() called on empty array");
+                    result_ = arr[0];
+                    return;
+                }
+                if (method_name == "last") {
+                    if (arr.empty()) throw std::runtime_error("array.last() called on empty array");
+                    result_ = arr[arr.size() - 1];
+                    return;
+                }
+                if (method_name == "sort") {
+                    std::vector<std::shared_ptr<Value>> sorted = arr;
+                    std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
+                        return a->toFloat() < b->toFloat();
+                    });
+                    result_ = std::make_shared<Value>(sorted);
+                    return;
+                }
+                if (method_name == "shift") {
+                    if (arr.empty()) throw std::runtime_error("array.shift() called on empty array");
+                    auto first = arr[0];
+                    arr.erase(arr.begin());
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    result_ = first;
+                    return;
+                }
+                if (method_name == "unshift") {
+                    if (args.empty()) throw std::runtime_error("array.unshift() requires 1 argument");
+                    arr.insert(arr.begin(), args[0]);
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    result_ = obj_val;
+                    return;
+                }
+                if (method_name == "find") {
+                    if (args.empty()) throw std::runtime_error("array.find() requires 1 argument (predicate function)");
+                    for (const auto& item : arr) {
+                        auto res = callFunction(args[0], {item});
+                        if (res && res->toBool()) {
+                            result_ = item;
+                            return;
+                        }
+                    }
+                    result_ = std::make_shared<Value>(); // null if not found
+                    return;
+                }
+                if (method_name == "for_each" || method_name == "forEach") {
+                    if (args.empty()) throw std::runtime_error("array.forEach() requires 1 argument (function)");
+                    for (const auto& item : arr) {
+                        callFunction(args[0], {item});
+                    }
+                    result_ = std::make_shared<Value>(); // void
+                    return;
+                }
+                if (method_name == "slice") {
+                    if (args.empty()) throw std::runtime_error("array.slice() requires at least 1 argument (start)");
+                    int start = args[0]->toInt();
+                    int end = static_cast<int>(arr.size());
+                    if (args.size() >= 2) end = args[1]->toInt();
+                    if (start < 0) start = 0;
+                    if (end > static_cast<int>(arr.size())) end = static_cast<int>(arr.size());
+                    std::vector<std::shared_ptr<Value>> sliced(arr.begin() + start, arr.begin() + end);
+                    result_ = std::make_shared<Value>(sliced);
+                    return;
+                }
+                // HELPER-5: .len() -> .length()
+                if (method_name == "len") {
+                    throw std::runtime_error(
+                        "Unknown method: .len()\n  Did you mean: .length() or the builtin len(x)?"
+                    );
                 }
                 // Not a built-in array method - fall through
             }
@@ -3891,12 +4036,12 @@ void Interpreter::visit(ast::CallExpr& node) {
                     result_ = std::make_shared<Value>(parts);
                     return;
                 }
-                if (method_name == "startsWith") {
+                if (method_name == "startsWith" || method_name == "starts_with") {
                     if (args.empty()) throw std::runtime_error("string.startsWith() requires 1 argument");
                     result_ = std::make_shared<Value>(str.find(args[0]->toString()) == 0);
                     return;
                 }
-                if (method_name == "endsWith") {
+                if (method_name == "endsWith" || method_name == "ends_with") {
                     if (args.empty()) throw std::runtime_error("string.endsWith() requires 1 argument");
                     std::string suffix = args[0]->toString();
                     result_ = std::make_shared<Value>(
@@ -3904,6 +4049,41 @@ void Interpreter::visit(ast::CallExpr& node) {
                         str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0
                     );
                     return;
+                }
+                if (method_name == "index_of") {
+                    if (args.empty()) throw std::runtime_error("string.index_of() requires 1 argument");
+                    auto pos = str.find(args[0]->toString());
+                    result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                    return;
+                }
+                // DOT-1: char_at, reverse, repeat
+                if (method_name == "char_at") {
+                    if (args.empty()) throw std::runtime_error("string.char_at() requires 1 argument (index)");
+                    int idx = args[0]->toInt();
+                    if (idx < 0 || idx >= static_cast<int>(str.size())) {
+                        throw std::runtime_error("String index out of bounds: " + std::to_string(idx) + " (length: " + std::to_string(str.size()) + ")");
+                    }
+                    result_ = std::make_shared<Value>(std::string(1, str[static_cast<size_t>(idx)]));
+                    return;
+                }
+                if (method_name == "reverse") {
+                    std::string rev(str.rbegin(), str.rend());
+                    result_ = std::make_shared<Value>(rev);
+                    return;
+                }
+                if (method_name == "repeat") {
+                    if (args.empty()) throw std::runtime_error("string.repeat() requires 1 argument (count)");
+                    int count = args[0]->toInt();
+                    std::string repeated;
+                    for (int i = 0; i < count; i++) repeated += str;
+                    result_ = std::make_shared<Value>(repeated);
+                    return;
+                }
+                // HELPER-5: .len() -> .length()
+                if (method_name == "len") {
+                    throw std::runtime_error(
+                        "Unknown method: .len()\n  Did you mean: .length() or the builtin len(x)?"
+                    );
                 }
                 // Not a built-in string method - fall through
             }
@@ -4388,7 +4568,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 return;
             }
             // indexOf(item)
-            if (method_name == "indexOf" || method_name == "findIndex") {
+            if (method_name == "indexOf" || method_name == "findIndex" || method_name == "index_of") {
                 if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
                 for (int i = 0; i < static_cast<int>(arr.size()); i++) {
                     if (arr[i]->toString() == args[0]->toString()) {
@@ -4398,6 +4578,83 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 result_ = std::make_shared<Value>(-1);
                 return;
+            }
+            // DOT-2: first, last, sort, shift, unshift, find, slice, for_each
+            if (method_name == "first") {
+                if (arr.empty()) throw std::runtime_error("array.first() called on empty array");
+                result_ = arr[0];
+                return;
+            }
+            if (method_name == "last") {
+                if (arr.empty()) throw std::runtime_error("array.last() called on empty array");
+                result_ = arr[arr.size() - 1];
+                return;
+            }
+            if (method_name == "sort") {
+                std::vector<std::shared_ptr<Value>> sorted = arr;
+                std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
+                    return a->toFloat() < b->toFloat();
+                });
+                result_ = std::make_shared<Value>(sorted);
+                return;
+            }
+            if (method_name == "shift") {
+                if (arr.empty()) throw std::runtime_error("array.shift() called on empty array");
+                auto first_elem = arr[0];
+                arr.erase(arr.begin());
+                auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                if (obj_id && current_env_->has(obj_id->getName())) {
+                    current_env_->set(obj_id->getName(), obj);
+                }
+                result_ = first_elem;
+                return;
+            }
+            if (method_name == "unshift") {
+                if (args.empty()) throw std::runtime_error("array.unshift() requires 1 argument");
+                arr.insert(arr.begin(), args[0]);
+                auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                if (obj_id && current_env_->has(obj_id->getName())) {
+                    current_env_->set(obj_id->getName(), obj);
+                }
+                result_ = obj;
+                return;
+            }
+            if (method_name == "find") {
+                if (args.empty()) throw std::runtime_error("array.find() requires 1 argument (predicate function)");
+                for (const auto& item : arr) {
+                    auto res = callFunction(args[0], {item});
+                    if (res && res->toBool()) {
+                        result_ = item;
+                        return;
+                    }
+                }
+                result_ = std::make_shared<Value>(); // null if not found
+                return;
+            }
+            if (method_name == "for_each" || method_name == "forEach") {
+                if (args.empty()) throw std::runtime_error("array.forEach() requires 1 argument (function)");
+                for (const auto& item : arr) {
+                    callFunction(args[0], {item});
+                }
+                result_ = std::make_shared<Value>(); // void
+                return;
+            }
+            if (method_name == "slice") {
+                if (args.empty()) throw std::runtime_error("array.slice() requires at least 1 argument (start)");
+                int start = args[0]->toInt();
+                int end = static_cast<int>(arr.size());
+                if (args.size() >= 2) end = args[1]->toInt();
+                if (start < 0) start = 0;
+                if (end > static_cast<int>(arr.size())) end = static_cast<int>(arr.size());
+                std::vector<std::shared_ptr<Value>> sliced(arr.begin() + start, arr.begin() + end);
+                result_ = std::make_shared<Value>(sliced);
+                return;
+            }
+            // HELPER-5: .len() -> .length()
+            if (method_name == "len") {
+                throw std::runtime_error(
+                    "Unknown method: .len()\n  Did you mean: .length() or the builtin len(x)?"
+                );
             }
             // Not a built-in array method - fall through to normal handling
         }
@@ -4502,12 +4759,12 @@ void Interpreter::visit(ast::CallExpr& node) {
                 result_ = std::make_shared<Value>(parts);
                 return;
             }
-            if (method_name == "startsWith") {
+            if (method_name == "startsWith" || method_name == "starts_with") {
                 if (args.empty()) throw std::runtime_error("string.startsWith() requires 1 argument");
                 result_ = std::make_shared<Value>(str.find(args[0]->toString()) == 0);
                 return;
             }
-            if (method_name == "endsWith") {
+            if (method_name == "endsWith" || method_name == "ends_with") {
                 if (args.empty()) throw std::runtime_error("string.endsWith() requires 1 argument");
                 std::string suffix = args[0]->toString();
                 result_ = std::make_shared<Value>(
@@ -4515,6 +4772,41 @@ void Interpreter::visit(ast::CallExpr& node) {
                     str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0
                 );
                 return;
+            }
+            if (method_name == "index_of") {
+                if (args.empty()) throw std::runtime_error("string.index_of() requires 1 argument");
+                auto pos = str.find(args[0]->toString());
+                result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                return;
+            }
+            // DOT-1: char_at, reverse, repeat
+            if (method_name == "char_at") {
+                if (args.empty()) throw std::runtime_error("string.char_at() requires 1 argument (index)");
+                int idx = args[0]->toInt();
+                if (idx < 0 || idx >= static_cast<int>(str.size())) {
+                    throw std::runtime_error("String index out of bounds: " + std::to_string(idx) + " (length: " + std::to_string(str.size()) + ")");
+                }
+                result_ = std::make_shared<Value>(std::string(1, str[static_cast<size_t>(idx)]));
+                return;
+            }
+            if (method_name == "reverse") {
+                std::string rev(str.rbegin(), str.rend());
+                result_ = std::make_shared<Value>(rev);
+                return;
+            }
+            if (method_name == "repeat") {
+                if (args.empty()) throw std::runtime_error("string.repeat() requires 1 argument (count)");
+                int count = args[0]->toInt();
+                std::string repeated;
+                for (int ri = 0; ri < count; ri++) repeated += str;
+                result_ = std::make_shared<Value>(repeated);
+                return;
+            }
+            // HELPER-5: .len() -> .length()
+            if (method_name == "len") {
+                throw std::runtime_error(
+                    "Unknown method: .len()\n  Did you mean: .length() or the builtin len(x)?"
+                );
             }
             // Not a built-in string method - fall through to normal handling
         }
@@ -5049,19 +5341,23 @@ void Interpreter::visit(ast::CallExpr& node) {
         result_ = std::make_shared<Value>();
     }
     else if (func_name == "len") {
-        if (!args.empty()) {
-            if (auto* str = std::get_if<std::string>(&args[0]->data)) {
-                result_ = std::make_shared<Value>(static_cast<int>(str->length()));
-            } else if (auto* list = std::get_if<std::vector<std::shared_ptr<Value>>>(&args[0]->data)) {
-                result_ = std::make_shared<Value>(static_cast<int>(list->size()));
-            } else if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&args[0]->data)) {
-                result_ = std::make_shared<Value>(static_cast<int>(dict->size()));
-            } else {
-                result_ = std::make_shared<Value>(0);
-            }
+        if (args.empty()) {
+            throw std::runtime_error("len() requires exactly 1 argument\n  Example: len([1, 2, 3])  // 3");
+        }
+        if (auto* str = std::get_if<std::string>(&args[0]->data)) {
+            result_ = std::make_shared<Value>(static_cast<int>(str->length()));
+        } else if (auto* list = std::get_if<std::vector<std::shared_ptr<Value>>>(&args[0]->data)) {
+            result_ = std::make_shared<Value>(static_cast<int>(list->size()));
+        } else if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&args[0]->data)) {
+            result_ = std::make_shared<Value>(static_cast<int>(dict->size()));
+        } else {
+            result_ = std::make_shared<Value>(0);
         }
     }
     else if (func_name == "type") {
+        if (args.empty()) {
+            throw std::runtime_error("type() requires exactly 1 argument\n  Example: type(42)  // \"int\"");
+        }
         if (!args.empty()) {
             std::string type_name = std::visit([](auto&& arg) -> std::string {
                 using T = std::decay_t<decltype(arg)>;
@@ -5139,6 +5435,41 @@ void Interpreter::visit(ast::CallExpr& node) {
 
         result_ = std::make_shared<Value>(result);
     }
+    // Type cast builtins
+    else if (func_name == "int") {
+        if (args.size() != 1) throw std::runtime_error("int() takes exactly 1 argument");
+        if (auto* str = std::get_if<std::string>(&args[0]->data)) {
+            try {
+                // Try parsing as double first to handle "3.14" -> 3
+                double d = std::stod(*str);
+                result_ = std::make_shared<Value>(static_cast<int>(d));
+            } catch (...) {
+                throw std::runtime_error("int() cannot convert \"" + *str + "\" to int");
+            }
+        } else {
+            result_ = std::make_shared<Value>(args[0]->toInt());
+        }
+    }
+    else if (func_name == "float") {
+        if (args.size() != 1) throw std::runtime_error("float() takes exactly 1 argument");
+        if (auto* str = std::get_if<std::string>(&args[0]->data)) {
+            try {
+                result_ = std::make_shared<Value>(std::stod(*str));
+            } catch (...) {
+                throw std::runtime_error("float() cannot convert \"" + *str + "\" to float");
+            }
+        } else {
+            result_ = std::make_shared<Value>(args[0]->toFloat());
+        }
+    }
+    else if (func_name == "string") {
+        if (args.size() != 1) throw std::runtime_error("string() takes exactly 1 argument");
+        result_ = std::make_shared<Value>(args[0]->toString());
+    }
+    else if (func_name == "bool") {
+        if (args.size() != 1) throw std::runtime_error("bool() takes exactly 1 argument");
+        result_ = std::make_shared<Value>(args[0]->toBool());
+    }
     // Phase 3.2: Manual garbage collection trigger
     else if (func_name == "gc_collect") {
         runGarbageCollection(current_env_);  // Pass current environment
@@ -5154,7 +5485,7 @@ void Interpreter::visit(ast::CallExpr& node) {
         if (func_name == "sleep") {
             oss << "  'sleep' is in the time module, not a global function:\n";
             oss << "    import time\n";
-            oss << "    time.sleep(1000)  // sleep for 1000 milliseconds\n";
+            oss << "    time.sleep(1.0)  // sleep for 1 second\n";
         } else if (func_name == "exit") {
             oss << "  NAAb has no exit() function.\n";
             oss << "  To stop: return from functions, or let main block end.\n";
@@ -5423,11 +5754,13 @@ void Interpreter::visit(ast::MemberExpr& node) {
             }
 
             if (!module_env->has(member_name)) {
-                // Check if it's marked as exported
-                // For now, we allow access to all items in the module
-                // TODO: Enforce export visibility
                 throw std::runtime_error(
-                    fmt::format("Module '{}' has no member '{}'", module_path, member_name)
+                    fmt::format("Module '{}' has no member '{}'\n\n", module_path, member_name) +
+                    "  Help:\n"
+                    "  - Did you forget 'export' on the function?\n"
+                    "  - Only exported functions are visible from other files:\n"
+                    "    export function " + member_name + "() { ... }\n\n"
+                    "  - Check for typos in the member name\n"
                 );
             }
 
@@ -6087,6 +6420,34 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         final_code = preamble + final_code + postamble;
     }
 
+    // Pre-execution advisory: check if code references NAAb variables not in binding list
+    {
+        auto all_env_names = current_env_->getAllNames();
+        int warn_count = 0;
+        for (const auto& env_name : all_env_names) {
+            if (env_name.size() < 3) continue;  // Skip short names (i, j, k, x)
+            if (std::find(bound_vars.begin(), bound_vars.end(), env_name) != bound_vars.end()) continue;
+            // Check if the variable name appears in the code as a whole word
+            size_t pos = code.find(env_name);
+            while (pos != std::string::npos) {
+                bool word_start = (pos == 0 || (!std::isalnum(code[pos - 1]) && code[pos - 1] != '_'));
+                bool word_end = (pos + env_name.size() >= code.size() ||
+                               (!std::isalnum(code[pos + env_name.size()]) && code[pos + env_name.size()] != '_'));
+                if (word_start && word_end) {
+                    fmt::print(stderr, "[WARN] Variable '{}' appears in <<{}>> block but is not in the binding list.\n"
+                              "  If you need this NAAb variable, use: <<{}[{}{}]>>\n",
+                              env_name, language, language,
+                              (bound_vars.empty() ? "" : bound_vars[0] + ", "),
+                              env_name);
+                    warn_count++;
+                    break;
+                }
+                pos = code.find(env_name, pos + 1);
+            }
+            if (warn_count >= 3) break;  // Max 3 warnings per block
+        }
+    }
+
     explain("Executing inline " + language + " code" +
             (bound_vars.empty() ? "" : " with " + std::to_string(bound_vars.size()) + " bound variables"));
 
@@ -6111,6 +6472,27 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     gc_suspended_ = true;
     try {
         result_ = executor->executeWithReturn(final_code);
+
+        // ShellResult transparent handling: extract stdout or throw on failure
+        if (result_ && std::holds_alternative<std::shared_ptr<StructValue>>(result_->data)) {
+            auto& struct_val = std::get<std::shared_ptr<StructValue>>(result_->data);
+            if (struct_val->type_name == "ShellResult" && struct_val->field_values.size() >= 3) {
+                auto exit_code_val = struct_val->field_values[0];
+                auto stdout_val = struct_val->field_values[1];
+                auto stderr_val = struct_val->field_values[2];
+                int exit_code = std::holds_alternative<int>(exit_code_val->data) ?
+                    std::get<int>(exit_code_val->data) : -1;
+                if (exit_code != 0) {
+                    throw std::runtime_error(
+                        "Shell command failed with exit code " + std::to_string(exit_code) + "\n"
+                        "  stderr: " + stderr_val->toString() + "\n"
+                        "  stdout: " + stdout_val->toString()
+                    );
+                }
+                // Success: unwrap to just stdout value
+                result_ = stdout_val;
+            }
+        }
 
         // Phase 12: Check for sentinel/JSON return values
         // Strategy 1: Check executor's captured output buffer (works for Python)
@@ -6224,7 +6606,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         // JavaScript: "ReferenceError: x is not defined"
-        if (error_msg.find("ReferenceError") != std::string::npos &&
+        if (!is_undefined_var && error_msg.find("ReferenceError") != std::string::npos &&
             error_msg.find("is not defined") != std::string::npos) {
             is_undefined_var = true;
             // Extract variable name before "is not defined"
@@ -6239,6 +6621,44 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                     var_name.erase(0, var_name.find_first_not_of(" \t"));
                     var_name.erase(var_name.find_last_not_of(" \t") + 1);
                 }
+            }
+        }
+
+        // Python fallback: "name 'x' is not defined" (without NameError: prefix)
+        if (!is_undefined_var && error_msg.find("name '") != std::string::npos &&
+            error_msg.find("' is not defined") != std::string::npos) {
+            is_undefined_var = true;
+            size_t q1 = error_msg.find("name '") + 6;
+            size_t q2 = error_msg.find("'", q1);
+            if (q2 != std::string::npos) var_name = error_msg.substr(q1, q2 - q1);
+        }
+
+        // Go: "undefined: x"
+        if (!is_undefined_var && error_msg.find("undefined: ") != std::string::npos) {
+            is_undefined_var = true;
+            size_t pos = error_msg.find("undefined: ");
+            var_name = error_msg.substr(pos + 11);
+            size_t end = var_name.find_first_of(" \t\n\r");
+            if (end != std::string::npos) var_name = var_name.substr(0, end);
+        }
+
+        // Ruby: "undefined local variable or method 'x'"
+        if (!is_undefined_var && error_msg.find("undefined local variable") != std::string::npos) {
+            is_undefined_var = true;
+            size_t q1 = error_msg.find("'");
+            if (q1 != std::string::npos) {
+                size_t q2 = error_msg.find("'", q1 + 1);
+                if (q2 != std::string::npos) var_name = error_msg.substr(q1 + 1, q2 - q1 - 1);
+            }
+        }
+
+        // Nim: "undeclared identifier: 'x'"
+        if (!is_undefined_var && error_msg.find("undeclared identifier") != std::string::npos) {
+            is_undefined_var = true;
+            size_t q1 = error_msg.find("'");
+            if (q1 != std::string::npos) {
+                size_t q2 = error_msg.find("'", q1 + 1);
+                if (q2 != std::string::npos) var_name = error_msg.substr(q1 + 1, q2 - q1 - 1);
             }
         }
 
@@ -6320,12 +6740,21 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 << "  For JavaScript: npm install <module_name>\n\n"
                 << "  Note: Only standard library modules are available by default.\n";
         }
-        // Compilation errors (Rust, C++, C#)
+        // Compilation errors (Rust, C++, C#, Go, Nim, Zig)
         else if (error_msg.find("compilation failed") != std::string::npos) {
+            // Map language to compiler name
+            std::string compiler = "g++";
+            if (language == "rust") compiler = "rustc";
+            else if (language == "csharp" || language == "cs") compiler = "mcs";
+            else if (language == "go") compiler = "go build";
+            else if (language == "nim") compiler = "nim c";
+            else if (language == "zig") compiler = "zig build-exe";
+            else if (language == "julia") compiler = "julia";
+
             oss << "\n  Help: Compilation error in " << language << " polyglot block.\n"
                 << "  The " << language << " compiler rejected the generated code.\n"
                 << "  Check that the code is valid " << language << " and that\n"
-                << "  the compiler (" << (language == "rust" ? "rustc" : language == "csharp" ? "mcs" : "g++") << ") is installed.\n\n"
+                << "  the compiler (" << compiler << ") is installed.\n\n"
                 << "  Tip: NAAb wraps single expressions automatically.\n"
                 << "  For multi-statement blocks, write a complete program.\n";
         }
@@ -6422,6 +6851,118 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 << "        println!(\"{}\", x * 2);\n"
                 << "    }\n"
                 << "    >>\n";
+        }
+        // Go: undefined: print → suggest fmt.Println
+        else if (language == "go" && error_msg.find("undefined: print") != std::string::npos) {
+            oss << "\n  Help: Go doesn't have a built-in print() function.\n"
+                << "  Use fmt.Println() instead:\n\n"
+                << "    \xE2\x9C\x97 Wrong: print(\"hello\")\n"
+                << "    \xE2\x9C\x93 Right: fmt.Println(\"hello\")\n";
+        }
+        // Go: undefined: console → JS idiom
+        else if (language == "go" && error_msg.find("undefined: console") != std::string::npos) {
+            oss << "\n  Help: console.log() is JavaScript, not Go.\n"
+                << "  Use fmt.Println() instead.\n";
+        }
+        // Go: type mismatch from variable injection
+        else if (language == "go" && error_msg.find("cannot use") != std::string::npos &&
+                 error_msg.find("as type") != std::string::npos) {
+            oss << "\n  Help: Go type mismatch with bound variable.\n"
+                << "  You may need a type assertion:\n\n"
+                << "    val := boundVar.(int)  // assert concrete type\n"
+                << "  Or use fmt.Sprint(boundVar) for string conversion.\n";
+        }
+        // Ruby: unexpected end-of-input → missing 'end'
+        else if (language == "ruby" && error_msg.find("unexpected end-of-input") != std::string::npos) {
+            oss << "\n  Help: Ruby requires 'end' to close blocks (def, if, do, class).\n"
+                << "  Unlike Python, indentation doesn't define blocks in Ruby.\n\n"
+                << "    \xE2\x9C\x97 Wrong (Python-style):\n"
+                << "      def greet(name)\n"
+                << "        puts \"Hello #{name}\"\n\n"
+                << "    \xE2\x9C\x93 Right (Ruby-style):\n"
+                << "      def greet(name)\n"
+                << "        puts \"Hello #{name}\"\n"
+                << "      end\n";
+        }
+        // Nim: undeclared identifier: 'print' → use echo
+        else if (language == "nim" && error_msg.find("undeclared identifier") != std::string::npos &&
+                 error_msg.find("print") != std::string::npos) {
+            oss << "\n  Help: Nim uses 'echo' for output, not 'print()':\n"
+                << "    \xE2\x9C\x97 Wrong: print(\"hello\")\n"
+                << "    \xE2\x9C\x93 Right: echo \"hello\"\n";
+        }
+        // Shell: print not found → use echo
+        else if ((language == "shell" || language == "bash" || language == "sh") &&
+                 error_msg.find("not found") != std::string::npos &&
+                 error_msg.find("print") != std::string::npos) {
+            oss << "\n  Help: Shell uses 'echo' for output, not 'print()':\n"
+                << "    \xE2\x9C\x97 Wrong: print(\"hello\")\n"
+                << "    \xE2\x9C\x93 Right: echo \"hello\"\n";
+        }
+        // C#: compilation errors
+        else if ((language == "csharp" || language == "cs") &&
+                 (error_msg.find("error CS") != std::string::npos ||
+                  error_msg.find("compilation failed") != std::string::npos)) {
+            oss << "\n  Help: C# compilation error in polyglot block.\n"
+                << "  NAAb injects bound variables as `var name = value;` before your code.\n\n"
+                << "  Common causes:\n"
+                << "  - Missing using directives (add at top of block)\n"
+                << "  - NAAb uses Mono's mcs compiler - ensure compatibility\n"
+                << "  - For return values, use Console.Write() (not Console.WriteLine)\n";
+        }
+        // Nim: compilation errors
+        else if (language == "nim" &&
+                 error_msg.find("Error:") != std::string::npos) {
+            oss << "\n  Help: Nim compilation error in polyglot block.\n"
+                << "  Nim is indentation-sensitive (like Python).\n\n"
+                << "  Common causes:\n"
+                << "  - Inconsistent indentation (use spaces, not tabs)\n"
+                << "  - Missing imports (import strutils, json, etc.)\n"
+                << "  - Use 'echo' for output, not 'print'\n";
+        }
+        // Julia: errors
+        else if (language == "julia" &&
+                 error_msg.find("ERROR:") != std::string::npos) {
+            oss << "\n  Help: Julia error in polyglot block.\n\n"
+                << "  Common causes:\n"
+                << "  - Missing 'using' for packages\n"
+                << "  - Julia uses 'println()' for output\n"
+                << "  - Julia uses 'nothing' instead of null/None\n"
+                << "  - Arrays are 1-indexed in Julia\n";
+        }
+        // Ruby: common errors
+        else if (language == "ruby" &&
+                 (error_msg.find("SyntaxError") != std::string::npos ||
+                  error_msg.find("NameError") != std::string::npos ||
+                  error_msg.find("NoMethodError") != std::string::npos)) {
+            oss << "\n  Help: Ruby error in polyglot block.\n\n"
+                << "  Common causes:\n"
+                << "  - Missing 'end' for blocks (def, if, do, class)\n"
+                << "  - Use 'puts' for output (not print() like Python)\n"
+                << "  - Ruby uses 'nil' instead of null/None\n"
+                << "  - String interpolation: \"Hello #{name}\" (not f-strings)\n";
+        }
+        // PHP: errors
+        else if (language == "php" &&
+                 (error_msg.find("Parse error") != std::string::npos ||
+                  error_msg.find("Fatal error") != std::string::npos)) {
+            oss << "\n  Help: PHP error in polyglot block.\n"
+                << "  NAAb adds <?php automatically for variable injection.\n\n"
+                << "  Common causes:\n"
+                << "  - Don't add <?php if NAAb already injected variables\n"
+                << "  - Variables use $name syntax in PHP\n"
+                << "  - Use echo for output\n"
+                << "  - Statements need semicolons\n";
+        }
+        // Zig: errors
+        else if (language == "zig" &&
+                 error_msg.find("error:") != std::string::npos) {
+            oss << "\n  Help: Zig compilation error in polyglot block.\n\n"
+                << "  Common causes:\n"
+                << "  - All errors must be handled (try/catch or |_| syntax)\n"
+                << "  - Use std.debug.print() for output\n"
+                << "  - Zig uses 'null' for optional values\n"
+                << "  - Type annotations are often required\n";
         }
         // Generic: Python None return causing null
         else if (error_msg.find("Cannot infer type") != std::string::npos &&
@@ -6922,7 +7463,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             }
 
             // JavaScript: "ReferenceError: x is not defined"
-            if (error_msg.find("ReferenceError") != std::string::npos &&
+            if (!is_undefined_var && error_msg.find("ReferenceError") != std::string::npos &&
                 error_msg.find("is not defined") != std::string::npos) {
                 is_undefined_var = true;
                 // Extract variable name before "is not defined"
@@ -6937,6 +7478,44 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                         var_name.erase(0, var_name.find_first_not_of(" \t"));
                         var_name.erase(var_name.find_last_not_of(" \t") + 1);
                     }
+                }
+            }
+
+            // Python fallback: "name 'x' is not defined" (without NameError: prefix)
+            if (!is_undefined_var && error_msg.find("name '") != std::string::npos &&
+                error_msg.find("' is not defined") != std::string::npos) {
+                is_undefined_var = true;
+                size_t q1 = error_msg.find("name '") + 6;
+                size_t q2 = error_msg.find("'", q1);
+                if (q2 != std::string::npos) var_name = error_msg.substr(q1, q2 - q1);
+            }
+
+            // Go: "undefined: x"
+            if (!is_undefined_var && error_msg.find("undefined: ") != std::string::npos) {
+                is_undefined_var = true;
+                size_t pos = error_msg.find("undefined: ");
+                var_name = error_msg.substr(pos + 11);
+                size_t end = var_name.find_first_of(" \t\n\r");
+                if (end != std::string::npos) var_name = var_name.substr(0, end);
+            }
+
+            // Ruby: "undefined local variable or method 'x'"
+            if (!is_undefined_var && error_msg.find("undefined local variable") != std::string::npos) {
+                is_undefined_var = true;
+                size_t q1 = error_msg.find("'");
+                if (q1 != std::string::npos) {
+                    size_t q2 = error_msg.find("'", q1 + 1);
+                    if (q2 != std::string::npos) var_name = error_msg.substr(q1 + 1, q2 - q1 - 1);
+                }
+            }
+
+            // Nim: "undeclared identifier: 'x'"
+            if (!is_undefined_var && error_msg.find("undeclared identifier") != std::string::npos) {
+                is_undefined_var = true;
+                size_t q1 = error_msg.find("'");
+                if (q1 != std::string::npos) {
+                    size_t q2 = error_msg.find("'", q1 + 1);
+                    if (q2 != std::string::npos) var_name = error_msg.substr(q1 + 1, q2 - q1 - 1);
                 }
             }
 
@@ -7069,19 +7648,27 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
         return "\"" + escaped + "\"";
     }
 
-    // Bool
+    // Bool — language-specific true/false literals
     if (std::holds_alternative<bool>(value->data)) {
         bool b = std::get<bool>(value->data);
-        if (language == "python") {
-            return b ? "True" : "False";
-        }
-        return b ? "true" : "false";
+        if (language == "python") return b ? "True" : "False";
+        if (language == "shell" || language == "sh" || language == "bash") return b ? "1" : "0";
+        return b ? "true" : "false";  // JS, Go, Ruby, Nim, Julia, Rust, C#, PHP, default
     }
 
-    // Null/void
+    // Null/void — language-specific null literals
     if (std::holds_alternative<std::monostate>(value->data)) {
         if (language == "python") return "None";
-        return "null";
+        if (language == "go") return "nil";
+        if (language == "ruby") return "nil";
+        if (language == "nim") return "\"\"";       // Nim's nil is pointer-only; use empty string
+        if (language == "julia") return "nothing";
+        if (language == "rust") return "\"\"";       // Rust has no generic null; use empty string
+        if (language == "shell" || language == "sh" || language == "bash") return "\"\"";
+        if (language == "cpp" || language == "c++") return "\"\"";
+        if (language == "php") return "null";
+        if (language == "csharp" || language == "cs") return "null";
+        return "null";  // JS, TS, and default
     }
 
     // List - language-specific array serialization

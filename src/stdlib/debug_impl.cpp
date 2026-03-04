@@ -145,7 +145,19 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
         return std::make_shared<interpreter::Value>(type_name);
     }
 
-    throw std::runtime_error("Unknown debug function: " + function_name);
+    // Common LLM mistakes
+    if (function_name == "log" || function_name == "print" || function_name == "dump") {
+        throw std::runtime_error(
+            "Unknown debug function: " + function_name + "\n\n"
+            "  Did you mean: debug.inspect()?\n"
+            "  Example: let info = debug.inspect(value)\n"
+        );
+    }
+
+    throw std::runtime_error(
+        "Unknown debug function: " + function_name + "\n\n"
+        "  Available: inspect, type\n"
+    );
 }
 
 } // namespace stdlib

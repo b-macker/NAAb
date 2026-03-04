@@ -190,9 +190,9 @@ std::shared_ptr<interpreter::Value> GoExecutor::executeWithReturn(
             exec_stdout, exec_stderr, nullptr
         );
 
-        // Print output
-        if (!exec_stdout.empty()) fmt::print("{}", exec_stdout);
-        if (!exec_stderr.empty()) fmt::print("[Go stderr]: {}", exec_stderr);
+        // Buffer output for interpreter to handle (avoid double-printing)
+        if (!exec_stdout.empty()) stdout_buffer_.append(exec_stdout);
+        if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
         // Cleanup
         std::filesystem::remove(temp_go);
@@ -204,20 +204,38 @@ std::shared_ptr<interpreter::Value> GoExecutor::executeWithReturn(
             result.pop_back();
         }
 
-        // Try to parse as number
-        if (!result.empty()) {
-            try {
-                size_t pos;
-                int i = std::stoi(result, &pos);
-                if (pos == result.size()) return std::make_shared<interpreter::Value>(i);
-            } catch (...) {}
-
-            try {
-                size_t pos;
-                double d = std::stod(result, &pos);
-                if (pos == result.size()) return std::make_shared<interpreter::Value>(d);
-            } catch (...) {}
+        // Empty result → null
+        if (result.empty()) {
+            return std::make_shared<interpreter::Value>();
         }
+
+        // Null representations
+        if (result == "null" || result == "NULL" || result == "None" ||
+            result == "nil" || result == "Nil" || result == "<nil>" ||
+            result == "nothing" || result == "undefined" || result == "()") {
+            return std::make_shared<interpreter::Value>();
+        }
+
+        // Boolean representations
+        if (result == "true" || result == "True" || result == "TRUE") {
+            return std::make_shared<interpreter::Value>(true);
+        }
+        if (result == "false" || result == "False" || result == "FALSE") {
+            return std::make_shared<interpreter::Value>(false);
+        }
+
+        // Try to parse as number
+        try {
+            size_t pos;
+            int i = std::stoi(result, &pos);
+            if (pos == result.size()) return std::make_shared<interpreter::Value>(i);
+        } catch (...) {}
+
+        try {
+            size_t pos;
+            double d = std::stod(result, &pos);
+            if (pos == result.size()) return std::make_shared<interpreter::Value>(d);
+        } catch (...) {}
 
         return std::make_shared<interpreter::Value>(result);
 

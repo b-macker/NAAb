@@ -36,7 +36,8 @@ bool IOModule::hasFunction(const std::string& name) const {
     return name == "read_file" || name == "write_file" ||
            name == "exists" || name == "list_dir" ||
            name == "write" || name == "write_error" || name == "read_line" ||
-           name == "output";
+           name == "output" ||
+           name == "print" || name == "println" || name == "log";
 }
 
 std::shared_ptr<interpreter::Value> IOModule::call(
@@ -99,14 +100,24 @@ std::shared_ptr<interpreter::Value> IOModule::call(
         return std::make_shared<interpreter::Value>("");  // Return empty string on EOF
     }
 
-    // Common LLM mistakes
+    // Aliases: io.print(), io.println(), io.log() → same as io.write()
     if (function_name == "print" || function_name == "println" || function_name == "log") {
-        throw std::runtime_error(
-            "Unknown io function: " + function_name + "\n\n"
-            "  Did you mean: io.write() or the built-in print()?\n"
-            "    io.write(\"hello\")  // module function\n"
-            "    print(\"hello\")     // built-in (simpler)\n"
-        );
+        auto& out = g_pipe_mode ? std::cerr : std::cout;
+        if (args.empty()) {
+            if (function_name == "println") {
+                out << "\n";
+                out.flush();
+            }
+            return std::make_shared<interpreter::Value>();
+        }
+        for (const auto& arg : args) {
+            out << arg->toString();
+        }
+        if (function_name == "println") {
+            out << "\n";
+        }
+        out.flush();
+        return std::make_shared<interpreter::Value>();
     }
     throw std::runtime_error(
         "Unknown io function: " + function_name + "\n\n"

@@ -177,7 +177,7 @@ std::shared_ptr<interpreter::Value> HTTPModule::call(
     }
 
     // Common LLM mistakes
-    if (function_name == "fetch" || function_name == "request") {
+    if (function_name == "fetch" || function_name == "request" || function_name == "call") {
         throw std::runtime_error(
             "Unknown http function: " + function_name + "\n\n"
             "  Use the specific HTTP method:\n"
@@ -217,8 +217,11 @@ std::shared_ptr<interpreter::Value> HTTPModule::get(
     // Optional: headers dict
     std::unordered_map<std::string, std::string> headers;
     if (args.size() >= 2) {
-        // Parse headers from dict
-        // TODO: Implement when dict access is available
+        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[1]->data)) {
+            for (const auto& [k, v] : *dict) {
+                headers[k] = v->toString();
+            }
+        }
     }
 
     // Optional: timeout
@@ -244,8 +247,11 @@ std::shared_ptr<interpreter::Value> HTTPModule::post(
     std::unordered_map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";  // Default to JSON
     if (args.size() >= 3) {
-        // Parse headers from dict
-        // TODO: Implement when dict access is available
+        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[2]->data)) {
+            for (const auto& [k, v] : *dict) {
+                headers[k] = v->toString();
+            }
+        }
     }
 
     // Optional: timeout
@@ -271,7 +277,11 @@ std::shared_ptr<interpreter::Value> HTTPModule::put(
     std::unordered_map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";
     if (args.size() >= 3) {
-        // TODO: Parse headers
+        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[2]->data)) {
+            for (const auto& [k, v] : *dict) {
+                headers[k] = v->toString();
+            }
+        }
     }
 
     // Optional: timeout
@@ -295,7 +305,11 @@ std::shared_ptr<interpreter::Value> HTTPModule::del(
     // Optional: headers
     std::unordered_map<std::string, std::string> headers;
     if (args.size() >= 2) {
-        // TODO: Parse headers
+        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[1]->data)) {
+            for (const auto& [k, v] : *dict) {
+                headers[k] = v->toString();
+            }
+        }
     }
 
     // Optional: timeout

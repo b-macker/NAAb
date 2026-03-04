@@ -245,21 +245,44 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
     // For simple successful cases (exit_code == 0 and no stderr), return just stdout
     // This makes shell execution more intuitive for common cases
     if (exit_code == 0 && stderr_output.empty()) {
-        // Try to parse stdout as a number for better interop
-        // If it's a valid integer, return as int; otherwise return as string
-        if (!stdout_output.empty()) {
-            try {
-                // Try parsing as integer
-                size_t pos;
-                int int_val = std::stoi(stdout_output, &pos);
-                // Check if entire string was consumed (it's a pure integer)
-                if (pos == stdout_output.length()) {
-                    return std::make_shared<interpreter::Value>(int_val);
-                }
-            } catch (...) {
-                // Not an integer, fall through to return as string
-            }
+        // Empty result → null
+        if (stdout_output.empty()) {
+            return std::make_shared<interpreter::Value>();
         }
+
+        // Null representations
+        if (stdout_output == "null" || stdout_output == "NULL" || stdout_output == "None" ||
+            stdout_output == "nil" || stdout_output == "Nil" || stdout_output == "<nil>" ||
+            stdout_output == "nothing" || stdout_output == "undefined" || stdout_output == "()") {
+            return std::make_shared<interpreter::Value>();
+        }
+
+        // Boolean representations
+        if (stdout_output == "true" || stdout_output == "True" || stdout_output == "TRUE") {
+            return std::make_shared<interpreter::Value>(true);
+        }
+        if (stdout_output == "false" || stdout_output == "False" || stdout_output == "FALSE") {
+            return std::make_shared<interpreter::Value>(false);
+        }
+
+        // Try to parse as integer
+        try {
+            size_t pos;
+            int int_val = std::stoi(stdout_output, &pos);
+            if (pos == stdout_output.length()) {
+                return std::make_shared<interpreter::Value>(int_val);
+            }
+        } catch (...) {}
+
+        // Try to parse as float
+        try {
+            size_t pos;
+            double d = std::stod(stdout_output, &pos);
+            if (pos == stdout_output.length()) {
+                return std::make_shared<interpreter::Value>(d);
+            }
+        } catch (...) {}
+
         // Return stdout as string
         return std::make_shared<interpreter::Value>(stdout_output);
     }

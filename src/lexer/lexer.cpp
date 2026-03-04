@@ -6,6 +6,7 @@
 #include <cctype>
 #include <stdexcept>
 #include <iostream>
+#include <sstream>
 
 namespace naab {
 namespace lexer {
@@ -320,7 +321,14 @@ std::string Lexer::readInlineCode() {
     //
 
     size_t start = pos_;
+    size_t start_line = line_;  // Save where the block started
     bool at_line_start = true;  // We start right after the newline following language name
+
+    // Diagnostics for better error messages
+    std::vector<size_t> misplaced_closers;  // Lines where >> appears NOT at line start
+    std::vector<size_t> nested_openers;     // Lines where another << appears
+    std::vector<std::pair<size_t, std::string>> naab_code_inside;  // NAAb keywords inside block
+    std::string current_line_text;  // Track current line text for keyword detection
 
     while (currentChar()) {
         char ch = *currentChar();
@@ -332,14 +340,43 @@ std::string Lexer::readInlineCode() {
             return code;
         }
 
+        // Track mid-line >> occurrences
+        if (!at_line_start && ch == '>' && peekChar() && *peekChar() == '>') {
+            misplaced_closers.push_back(line_);
+        }
+
+        // Track nested << occurrences at line start
+        if (at_line_start && ch == '<' && peekChar() && *peekChar() == '<') {
+            nested_openers.push_back(line_);
+        }
+
         // Update line start tracking
         if (ch == '\n') {
+            // Check if the completed line starts with a NAAb keyword
+            std::string trimmed = current_line_text;
+            size_t first_non_space = trimmed.find_first_not_of(" \t");
+            if (first_non_space != std::string::npos) {
+                trimmed = trimmed.substr(first_non_space);
+                static const std::vector<std::string> naab_keywords = {
+                    "main ", "main{", "fn ", "function ", "let ", "use ", "import ", "export "
+                };
+                for (const auto& kw : naab_keywords) {
+                    if (trimmed.size() >= kw.size() && trimmed.substr(0, kw.size()) == kw) {
+                        naab_code_inside.push_back({line_, kw.substr(0, kw.size() - 1)});
+                        break;
+                    }
+                }
+            }
+            current_line_text.clear();
+
             at_line_start = true;  // Next char will be at line start
             advance();
         } else if (ch == ' ' || ch == '\t' || ch == '\r') {
+            if (!at_line_start) current_line_text += ch;
             // Whitespace doesn't change line start status
             advance();
         } else {
+            current_line_text += ch;
             // Non-whitespace character - no longer at line start
             at_line_start = false;
             advance();
@@ -347,19 +384,40 @@ std::string Lexer::readInlineCode() {
     }
 
     // If we get here, we never found the closing >>
-    throw std::runtime_error(
-        "Unclosed polyglot code block starting at line " + std::to_string(line_) + "\n\n"
-        "  Help:\n"
-        "  - Make sure your polyglot block has a closing >> at the start of a line\n"
-        "  - The closing >> must be at the beginning of a line (optionally after spaces/tabs)\n"
-        "  - If you have >> in your code (like bitwise shift or bash redirect), that's OK!\n"
-        "  - Only >> at line start closes the block\n\n"
-        "  Example:\n"
-        "    let result = <<python\n"
-        "    x = 8 >> 1  # This >> is fine (not at line start)\n"
-        "    result = x * 2\n"
-        "    >>  # This >> closes the block (at line start)\n"
-    );
+    std::ostringstream err;
+    err << "Unterminated inline code block starting at line " << start_line
+        << " (current position: line " << line_ << ")\n\n"
+        << "  Help:\n"
+        << "  - The >> closing delimiter MUST be at the START of a new line\n"
+        << "  - It cannot appear at the end of a code line\n";
+
+    if (!misplaced_closers.empty()) {
+        err << "\n  Likely issue: Found >> on line " << misplaced_closers[0]
+            << " but it's NOT at the start of the line.\n"
+            << "  Move >> to its own line:\n\n"
+            << "    \xE2\x9C\x97 Wrong:  code here >>\n"
+            << "    \xE2\x9C\x93 Fix:    code here\n"
+            << "             >>\n";
+    }
+
+    if (!nested_openers.empty()) {
+        err << "\n  Warning: Another <<block>> appears to start at line " << nested_openers[0] << ".\n"
+            << "  This block probably should have ended before line " << nested_openers[0] << ".\n";
+    }
+
+    if (!naab_code_inside.empty()) {
+        err << "\n  Warning: NAAb code detected inside this block (line " << naab_code_inside[0].first
+            << ": \"" << naab_code_inside[0].second << " ...\").\n"
+            << "  The block likely consumed NAAb code because >> was misplaced.\n";
+    }
+
+    err << "\n  \xE2\x9C\x97 Wrong: code here >>\n"
+        << "  \xE2\x9C\x93 Right: code here\n"
+        << "  >>\n\n"
+        << "  Note: >> inside code (bitwise shift, bash redirect) is fine\n"
+        << "  as long as it's not at the start of a line.\n";
+
+    throw std::runtime_error(err.str());
 }
 
 std::vector<Token> Lexer::tokenize() {
@@ -517,6 +575,30 @@ std::vector<Token> Lexer::tokenize() {
                 // Read return type identifier
                 if (currentChar() && std::isalpha(*currentChar())) {
                     return_type = readIdentifier();
+                }
+            }
+
+            // Detect single-line block attempt: <<python "hello" >> all on one line
+            // Check if >> appears on the same line before any newline
+            {
+                size_t peek_pos = pos_;
+                std::string same_line_content;
+                while (peek_pos < source_.size() && source_[peek_pos] != '\n') {
+                    same_line_content += source_[peek_pos];
+                    peek_pos++;
+                }
+                if (same_line_content.find(">>") != std::string::npos && same_line_content.size() < 200) {
+                    throw std::runtime_error(
+                        "Single-line polyglot blocks are not supported at line " + std::to_string(line_) + "\n\n"
+                        "  Help: Polyglot blocks must span multiple lines.\n"
+                        "  The >> closer must be on its own line.\n\n"
+                        "  \xE2\x9C\x97 Wrong:\n"
+                        "    let x = <<" + language + " \"hello\" >>\n\n"
+                        "  \xE2\x9C\x93 Right:\n"
+                        "    let x = <<" + language + "\n"
+                        "    \"hello\"\n"
+                        "    >>\n"
+                    );
                 }
             }
 

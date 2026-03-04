@@ -238,7 +238,7 @@ std::shared_ptr<interpreter::Value> CryptoModule::call(
     }
 
     // Common LLM mistakes
-    if (function_name == "hash") {
+    if (function_name == "hash" || function_name == "digest" || function_name == "checksum") {
         throw std::runtime_error(
             "Unknown crypto function: " + function_name + "\n\n"
             "  Specify the hash algorithm directly:\n"

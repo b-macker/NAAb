@@ -255,7 +255,8 @@ std::shared_ptr<interpreter::Value> EnvModule::call(
     }
 
     // Common LLM mistakes
-    if (function_name == "get_env" || function_name == "getenv" || function_name == "getEnv") {
+    if (function_name == "get_env" || function_name == "getenv" || function_name == "getEnv" ||
+        function_name == "get_var" || function_name == "getVar") {
         throw std::runtime_error(
             "Unknown env function: " + function_name + "\n\n"
             "  Did you mean: env.get()?\n"

@@ -202,6 +202,15 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
         return std::make_shared<interpreter::Value>(result);
     }
 
+    // Common LLM mistakes
+    if (function_name == "load" || function_name == "read_file" || function_name == "open") {
+        throw std::runtime_error(
+            "Unknown csv function: " + function_name + "\n\n"
+            "  Did you mean: csv.read(filepath) or csv.parse(string)?\n"
+            "  Example: let data = csv.read(\"data.csv\")\n"
+        );
+    }
+
     // Fuzzy matching for typos
     static const std::vector<std::string> FUNCTIONS = {
         "read", "read_dict", "parse", "parse_dict",

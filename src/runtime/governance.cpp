@@ -1936,10 +1936,13 @@ std::string GovernanceEngine::checkDeadCode(const std::string& code, int line) {
 
 // --- Debug Artifacts ---
 static const std::vector<std::string> DEFAULT_DEBUG_PATTERNS = {
-    "print\\(.*debug", "console\\.log\\(", "console\\.debug\\(",
-    "System\\.out\\.println\\(", "fmt\\.Println\\(",
+    // Only flag print/log when clearly debug-related (contains "debug" keyword)
+    "print\\(.*debug", "console\\.debug\\(",
+    // Actual debug tools — these ARE debug artifacts
     "import\\s+pdb", "import\\s+ipdb", "breakpoint\\(\\)",
     "debugger;?", "binding\\.pry",
+    // NOTE: fmt.Println, console.log, System.out.println are standard I/O,
+    // NOT debug artifacts. They are the normal output mechanism in polyglot blocks.
 };
 
 std::string GovernanceEngine::checkDebugArtifacts(const std::string& language,
@@ -2357,6 +2360,56 @@ static const std::vector<std::pair<std::string, std::string>> JS_HALLUCINATION_P
     {"\\basync\\s+def\\b", "async def is Python — in JavaScript, use async function"},
 };
 
+// Go patterns: Python/JS idioms in Go
+static const std::vector<std::pair<std::string, std::string>> GO_HALLUCINATION_PATTERNS = {
+    {"\\bprint\\(", "print() is Python — in Go, use fmt.Print() or fmt.Println()"},
+    {"\\bconsole\\.log\\(", "console.log() is JavaScript — in Go, use fmt.Println()"},
+    {"\\bNone\\b", "None is Python — in Go, use nil"},
+    {"\\bTrue\\b", "True is Python — in Go, use true (lowercase)"},
+    {"\\bFalse\\b", "False is Python — in Go, use false (lowercase)"},
+    {"\\bnull\\b", "null is JavaScript — in Go, use nil"},
+    {"\\blen\\(", "len() is a builtin in Go too, but ensure you import fmt for printing"},
+    {"\\.append\\(", ".append() is Python — in Go, use append(slice, elem)"},
+    {"\\.push\\(", ".push() is JavaScript — in Go, use append(slice, elem)"},
+    {"\\bdef\\s+\\w+", "def is Python — in Go, use func"},
+    {"\\bfunction\\s+\\w+", "function is JavaScript — in Go, use func"},
+};
+
+// Ruby patterns: Python/JS idioms in Ruby
+static const std::vector<std::pair<std::string, std::string>> RUBY_HALLUCINATION_PATTERNS = {
+    {"\\bconsole\\.log\\(", "console.log() is JavaScript — in Ruby, use puts or print"},
+    {"\\bnull\\b", "null is JavaScript — in Ruby, use nil"},
+    {"\\bNone\\b", "None is Python — in Ruby, use nil"},
+    {"\\bTrue\\b", "True is Python — in Ruby, use true (lowercase)"},
+    {"\\bFalse\\b", "False is Python — in Ruby, use false (lowercase)"},
+    {"\\bdef\\s+\\w+\\s*\\(", "Python-style def — in Ruby, use def without parens in definition"},
+    {"\\blen\\(", "len() is Python — in Ruby, use .length or .size"},
+    {"\\bprint\\(", "print() with parens — in Ruby, use puts (adds newline) or print without parens"},
+};
+
+// Shell patterns: Python/JS idioms in Shell
+static const std::vector<std::pair<std::string, std::string>> SHELL_HALLUCINATION_PATTERNS = {
+    {"\\bprint\\(", "print() is Python — in Shell, use echo"},
+    {"\\bconsole\\.log\\(", "console.log() is JavaScript — in Shell, use echo"},
+    {"\\bnull\\b", "null is JavaScript — in Shell, variables are unset or empty strings"},
+    {"\\bNone\\b", "None is Python — in Shell, use empty string or unset"},
+    {"\\bTrue\\b", "True is Python — in Shell, use true (lowercase command)"},
+    {"\\bFalse\\b", "False is Python — in Shell, use false (lowercase command)"},
+    {"\\bdef\\s+\\w+", "def is Python — in Shell, use function_name() { ... }"},
+    {"\\bimport\\s+", "import is Python — in Shell, use source or . to include files"},
+};
+
+// Nim patterns: Python/JS idioms in Nim
+static const std::vector<std::pair<std::string, std::string>> NIM_HALLUCINATION_PATTERNS = {
+    {"\\bconsole\\.log\\(", "console.log() is JavaScript — in Nim, use echo"},
+    {"\\bnull\\b", "null is JavaScript — in Nim, use nil"},
+    {"\\bNone\\b", "None is Python — in Nim, use nil"},
+    {"\\bTrue\\b", "True is Python — in Nim, use true (lowercase)"},
+    {"\\bFalse\\b", "False is Python — in Nim, use false (lowercase)"},
+    {"\\bdef\\s+\\w+", "def is Python — in Nim, use proc or func"},
+    {"\\blen\\(", "len() is also valid in Nim — make sure to use it without import"},
+};
+
 // Cross-language confusion patterns
 static const std::vector<std::pair<std::string, std::string>> CROSS_LANG_PATTERNS = {
     {"#\\s+\\w", "# comments are Python/Ruby — in JavaScript, use //"},
@@ -2373,18 +2426,46 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
     if (language == "python") lang_patterns = &PYTHON_HALLUCINATION_PATTERNS;
     else if (language == "javascript" || language == "js" || language == "node")
         lang_patterns = &JS_HALLUCINATION_PATTERNS;
+    else if (language == "go" || language == "golang")
+        lang_patterns = &GO_HALLUCINATION_PATTERNS;
+    else if (language == "ruby" || language == "rb")
+        lang_patterns = &RUBY_HALLUCINATION_PATTERNS;
+    else if (language == "shell" || language == "bash" || language == "sh")
+        lang_patterns = &SHELL_HALLUCINATION_PATTERNS;
+    else if (language == "nim")
+        lang_patterns = &NIM_HALLUCINATION_PATTERNS;
 
-    // Check language-specific patterns
+    // Strip string literal contents before checking patterns.
+    // This prevents false positives when code generates source code for
+    // another language inside strings (e.g., Go code that builds Rust source).
+    std::string code_no_strings;
+    {
+        bool in_single = false, in_double = false, in_backtick = false;
+        bool escaped = false;
+        for (size_t i = 0; i < code.size(); ++i) {
+            char c = code[i];
+            if (escaped) { escaped = false; continue; }
+            if (c == '\\' && (in_single || in_double)) { escaped = true; continue; }
+            if (c == '"' && !in_single && !in_backtick) { in_double = !in_double; continue; }
+            if (c == '\'' && !in_double && !in_backtick) { in_single = !in_single; continue; }
+            if (c == '`' && !in_double && !in_single) { in_backtick = !in_backtick; continue; }
+            if (!in_single && !in_double && !in_backtick) {
+                code_no_strings += c;
+            }
+        }
+    }
+
+    // Check language-specific patterns (on code with strings stripped)
     if (lang_patterns) {
         for (const auto& [pattern, suggestion] : *lang_patterns) {
             try {
                 auto flags = cfg.case_sensitive ? std::regex::ECMAScript : (std::regex::ECMAScript | std::regex::icase);
                 std::regex re(pattern, flags);
                 std::smatch match;
-                if (std::regex_search(code, match, re)) {
+                if (std::regex_search(code_no_strings, match, re)) {
                     return enforce("code_quality.no_hallucinated_apis", cfg.level,
                         formatError(cfg.level,
-                            fmt::format("Hallucinated API in {} block: \"{}\"", language, match[0].str()),
+                            fmt::format("Cross-language syntax in {} block: \"{}\"", language, match[0].str()),
                             line > 0 ? fmt::format("line {}", line) : "",
                             "code_quality.no_hallucinated_apis",
                             suggestion, "", ""));
@@ -3299,19 +3380,20 @@ std::string GovernanceEngine::checkPolyglotOptimization(
     bool should_suggest = false;
     std::string message;
 
-    // Thresholds for suggestion
-    if (result.improvement_percent > 20) {
+    // Never suggest switching to the same language or when there's no real improvement
+    if (result.optimal_language == language ||
+        result.improvement_percent <= 0 ||
+        result.optimal_language_score <= result.current_language_score) {
+        should_suggest = false;
+    }
+    // Only suggest when improvement is substantial (>50%) to avoid
+    // driving LLMs into infinite language-switching loops over marginal gains.
+    // A 25% improvement (40→50) is not worth the code rewrite.
+    else if (result.improvement_percent > 50) {
         should_suggest = true;
-    } else if (result.current_language_score < 60 && result.optimal_language_score > 80) {
+    } else if (result.current_language_score < 40 && result.optimal_language_score > 80) {
+        // Only flag truly bad choices (score < 40 vs optimal > 80)
         should_suggest = true;
-    } else if (!result.mismatches.empty()) {
-        // Check for high-confidence mismatches
-        for (const auto& mismatch : result.mismatches) {
-            if (mismatch.confidence > 80) {
-                should_suggest = true;
-                break;
-            }
-        }
     }
 
     if (should_suggest && show_suggestions) {
@@ -3336,16 +3418,16 @@ std::string GovernanceEngine::checkPolyglotOptimization(
                 result.improvement_percent
             );
         } else if (level == "soft") {
+            // SOFT optimization violations are advisory-only (warn, don't block).
+            // Blocking on language choice causes LLMs to enter infinite
+            // language-switching loops, which is worse than a suboptimal choice.
             message = fmt::format(
-                "SOFT violation: Suboptimal language choice\n"
-                "  Current: {} (score: {}/100)\n"
-                "  Optimal: {} (score: {}/100)\n"
-                "  Improvement: +{}%\n\n"
-                "  Override with --governance-override if needed.",
-                language, result.current_language_score,
-                result.optimal_language, result.optimal_language_score,
+                "Note: Consider using {} instead of {} (score: {}/100 vs {}/100, +{}% improvement)",
+                result.optimal_language, language,
+                result.optimal_language_score, result.current_language_score,
                 result.improvement_percent
             );
+            fmt::print(stderr, "[governance] {}\n", message);
         } else if (level == "advisory") {
             message = fmt::format(
                 "Advisory: Consider using {} instead of {} for +{}% improvement",
@@ -3368,7 +3450,8 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         check_results_.push_back(check);
 
         // Return message based on enforcement level
-        if (level != "none" && level != "advisory") {
+        // Only HARD blocks execution. SOFT optimization is advisory (printed above).
+        if (level == "hard") {
             return message;
         }
     }
@@ -3420,8 +3503,8 @@ void GovernanceEngine::suggestBetterLanguage(
         fmt::print("\n");
     }
 
-    // Show example if enabled
-    if (show_example && !optimal_langs.empty()) {
+    // Show example if enabled (only if optimal differs from current)
+    if (show_example && !optimal_langs.empty() && optimal_langs[0] != current_lang) {
         fmt::print("  Example refactoring:\n");
         fmt::print("    ✗ Current: <<{}  [code] >>\n", current_lang);
         fmt::print("    ✓ Better:  <<{}  [code] >>\n\n", optimal_langs[0]);

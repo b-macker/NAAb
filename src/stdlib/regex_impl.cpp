@@ -272,7 +272,7 @@ std::shared_ptr<interpreter::Value> RegexModule::call(
             "  NAAb uses 'matches' (full) or 'search' (partial), not 'test'.\n"
         );
     }
-    if (function_name == "findAll" || function_name == "find_all_matches") {
+    if (function_name == "findAll" || function_name == "find_all_matches" || function_name == "match_all") {
         throw std::runtime_error(
             "Unknown regex function: " + function_name + "\n\n"
             "  Did you mean: regex.find_all()? NAAb uses snake_case.\n"

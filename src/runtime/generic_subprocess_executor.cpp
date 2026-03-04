@@ -343,22 +343,40 @@ std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn
         result.pop_back();
     }
 
+    // Empty result → null
+    if (result.empty()) {
+        return std::make_shared<naab::interpreter::Value>();
+    }
+
+    // Null representations
+    if (result == "null" || result == "NULL" || result == "None" ||
+        result == "nil" || result == "Nil" || result == "<nil>" ||
+        result == "nothing" || result == "undefined" || result == "()") {
+        return std::make_shared<naab::interpreter::Value>();
+    }
+
+    // Boolean representations
+    if (result == "true" || result == "True" || result == "TRUE") {
+        return std::make_shared<naab::interpreter::Value>(true);
+    }
+    if (result == "false" || result == "False" || result == "FALSE") {
+        return std::make_shared<naab::interpreter::Value>(false);
+    }
+
     // Try to parse as number
     // Try double first to avoid int overflow for large numbers
-    if (!result.empty()) {
-        try {
-            size_t pos;
-            double d = std::stod(result, &pos);
-            if (pos == result.size()) {
-                // Check if it's actually an integer that fits in int range
-                if (d == static_cast<int>(d) && d >= INT_MIN && d <= INT_MAX) {
-                    return std::make_shared<naab::interpreter::Value>(static_cast<int>(d));
-                }
-                // Return as double if too large or has decimal part
-                return std::make_shared<naab::interpreter::Value>(d);
+    try {
+        size_t pos;
+        double d = std::stod(result, &pos);
+        if (pos == result.size()) {
+            // Check if it's actually an integer that fits in int range
+            if (d == static_cast<int>(d) && d >= INT_MIN && d <= INT_MAX) {
+                return std::make_shared<naab::interpreter::Value>(static_cast<int>(d));
             }
-        } catch (...) {}
-    }
+            // Return as double if too large or has decimal part
+            return std::make_shared<naab::interpreter::Value>(d);
+        }
+    } catch (...) {}
 
     // Return as string
     return std::make_shared<naab::interpreter::Value>(result);
