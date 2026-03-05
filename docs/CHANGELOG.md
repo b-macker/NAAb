@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Empirical Polyglot Optimization**
+  - Runtime profiler: automatic timing of every polyglot block execution
+  - `naab-lang calibrate` command: benchmark installed languages against 8 task categories
+  - `naab-lang race` command: compare a specific polyglot block against language alternatives
+  - Confidence labels (MEASURED/CALIBRATED/ESTIMATED/UNKNOWN) in governance suggestions
+  - 93 benchmark scripts across numerical, string, file I/O, JSON, concurrency, CLI, web APIs, and systems categories
+  - Calibration data fusion: measured scores override built-in defaults
+  - New govern.json sections: `profiling`, `calibration`, `confidence`
+- **New Polyglot Executors**
+  - Nim executor: compiled via C backend, thread-safe temp files, 5 error hints
+  - Zig executor: systems language support, 4 error hints
+  - Julia executor: JIT-compiled scientific computing, 5 error hints
+
 ## [0.2.0] - 2026-02-21
 
 ### Added

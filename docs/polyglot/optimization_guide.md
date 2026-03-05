@@ -10,8 +10,9 @@ Complete guide to using NAAb's polyglot optimization system for maximum performa
 4. [Interpreting Suggestions](#interpreting-suggestions)
 5. [Enforcement Levels](#enforcement-levels)
 6. [Tuning for Your Project](#tuning-for-your-project)
-7. [Best Practices](#best-practices)
-8. [Troubleshooting](#troubleshooting)
+7. [Empirical Measurement](#empirical-measurement)
+8. [Best Practices](#best-practices)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -436,43 +437,110 @@ Use scopes for different rules in different parts:
 
 ---
 
-## Best Practices
+## Empirical Measurement
 
-### 1. Profile Before Optimizing
+The optimization system can go beyond static analysis by measuring actual performance on your machine. All empirical features are opt-in via `govern.json`.
 
-Use NAAb's profiler to find hot paths:
+### Runtime Profiling
 
-```naab
-import profiling
+When enabled, every polyglot block execution is timed automatically:
 
-profiling.start()
-main {
-    // your code
+```json
+{
+  "polyglot_optimization": {
+    "profiling": {
+      "enabled": true,
+      "profile_path": "~/.naab/profile.json",
+      "max_entries": 10000
+    }
+  }
 }
-profiling.stop()
-profiling.report()
 ```
 
-Focus optimization on the 20% of code that takes 80% of time.
+Profile entries record the language, task category, code hash, and execution time in microseconds. This data accumulates over time, giving the system real measurements to draw from.
+
+### Calibrating Your Machine
+
+Run `naab-lang calibrate` to benchmark all installed languages against standardized micro-tasks:
+
+```bash
+# Full calibration (all languages, all tasks, 3 iterations)
+naab-lang calibrate
+
+# Targeted calibration
+naab-lang calibrate --languages python,go,rust --tasks numerical,string --iterations 1
+```
+
+This produces `~/.naab/calibration.json` with measured scores per language per task category. Calibrated scores override the built-in defaults, so governance suggestions reflect your actual hardware.
+
+```json
+{
+  "polyglot_optimization": {
+    "calibration": {
+      "enabled": true,
+      "calibration_path": "~/.naab/calibration.json"
+    }
+  }
+}
+```
+
+**Score priority:** runtime profile > calibration > govern.json matrix > built-in defaults.
+
+### Racing Alternatives
+
+Use `naab-lang race` to inspect how a specific polyglot block compares against alternatives:
+
+```bash
+# List all polyglot blocks in a file
+naab-lang race my_script.naab
+
+# Race a specific block (0-indexed)
+naab-lang race my_script.naab --block 2
+```
+
+The race command detects the task type from the code, highlights the relevant calibration category, marks your current language with `<-- YOU`, and shows the speedup of the fastest alternative.
+
+### Confidence Labels
+
+When calibration or profiling data is available, governance messages include a confidence level:
+
+| Level | Source | Example |
+|-------|--------|---------|
+| **MEASURED** | Runtime profile (10+ samples) | "Julia 2.3x faster (measured, 47 runs)" |
+| **CALIBRATED** | Calibration benchmark | "Julia 3.8x faster (calibrated on this machine)" |
+| **ESTIMATED** | Built-in matrix only | "Julia estimated faster (no measurements)" |
+| **UNKNOWN** | Language not installed | "Julia may be faster (not installed)" |
+
+Control what gets shown:
+
+```json
+{
+  "polyglot_optimization": {
+    "confidence": {
+      "min_display_level": "estimated",
+      "suppress_unknown": true,
+      "show_measurement_details": true
+    }
+  }
+}
+```
+
+Set `min_display_level` to `"calibrated"` to only show suggestions backed by real measurements.
+
+---
+
+## Best Practices
+
+### 1. Calibrate Before Enforcing
+
+Run `naab-lang calibrate` before moving to `soft` or `hard` enforcement. This ensures suggestions are grounded in your machine's actual performance, not estimates.
 
 ### 2. Measure Actual Impact
 
-Don't just trust scores - measure:
+Use `naab-lang race` to verify suggestions for specific blocks:
 
-```naab
-import time
-
-let start = time.now()
-let result_python = <<python [operation] >>
-let time_python = time.since(start)
-
-let start2 = time.now()
-let result_julia = <<julia [operation] >>
-let time_julia = time.since(start2)
-
-println("Python: " + time_python + "ms")
-println("Julia: " + time_julia + "ms")
-println("Speedup: " + (time_python / time_julia) + "x")
+```bash
+naab-lang race my_script.naab --block 0
 ```
 
 ### 3. Consider the Full Pipeline

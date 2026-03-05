@@ -675,7 +675,7 @@
         <div class="stat"><div class="num">50+</div><div class="label">Governance Checks</div></div>
         <div class="stat"><div class="num">12</div><div class="label">Stdlib Modules</div></div>
         <div class="stat"><div class="num">15k+</div><div class="label">Lines of C++17</div></div>
-        <div class="stat"><div class="num">183</div><div class="label">Tests Passing</div></div>
+        <div class="stat"><div class="num">195</div><div class="label">Tests Passing</div></div>
     </div>
 </div>
 
@@ -892,6 +892,57 @@ mean=30, stdev=15.8
             <div class="gov-card">
                 <h4><span class="tag tag-advisory">Info</span> CI/CD Integration</h4>
                 <p>Export governance results as SARIF for GitHub Code Scanning, JUnit XML for Jenkins/GitLab CI, or JSON for custom tooling. Three enforcement levels: HARD, SOFT, ADVISORY.</p>
+            </div>
+        </div>
+
+        <!-- Empirical Optimization -->
+        <div style="margin-top: 48px;">
+            <h3 style="text-align: center; font-size: 1.3rem; margin-bottom: 8px;">Measure, don't guess</h3>
+            <p style="text-align: center; color: var(--text-secondary); font-size: 0.95rem; max-width: 560px; margin: 0 auto 28px;">Governance suggestions are backed by real benchmarks on your machine. Calibrate once, get measured recommendations with confidence labels.</p>
+
+            <div class="code-showcase">
+                <div class="code-panel">
+                    <div class="tab-bar">
+                        <div class="tab active">Calibrate</div>
+                    </div>
+<pre><span class="ok">$ naab-lang calibrate</span>
+
+<span class="cm">Languages: python, go, rust, nim, shell
+Iterations: 3</span>
+
+<span class="warn">numerical:</span>
+  #1        go       879 us  <span class="ok">####################</span>  100
+  #2      rust     8,963 us  <span class="ok">##</span>                      9
+  #3    python    51,800 us                          1
+
+<span class="warn">string:</span>
+  #1  javascript  63,000 us  <span class="ok">####################</span>  100
+  #2      rust    80,270 us  <span class="ok">################</span>     78
+  #3    python   105,816 us  <span class="ok">############</span>         59
+
+<span class="cm">Calibration saved to ~/.naab/calibration.json</span></pre>
+                </div>
+                <div class="code-panel">
+                    <div class="tab-bar">
+                        <div class="tab active">Race</div>
+                    </div>
+<pre><span class="ok">$ naab-lang race app.naab --block 2</span>
+
+<span class="cm">Racing block [2]: &lt;&lt;python&gt;&gt; at line 38
+Code: sum(range(100))</span>
+
+<span class="warn">Detected task: numerical</span>
+
+  <span class="cm">RACE RESULTS (calibrated)</span>
+  #1        go       879 us  <span class="ok">####################</span>  100
+  #2      rust     8,963 us  <span class="ok">##</span>                      9
+  #7    python    51,800 us                          1  <span class="err">&lt;-- YOU</span>
+
+  <span class="cm">Your block: python (score: 1/100)</span>
+  <span class="ok">Fastest:    go (58.9x faster)</span>
+
+<span class="cm">Confidence: CALIBRATED</span></pre>
+                </div>
             </div>
         </div>
     </div>

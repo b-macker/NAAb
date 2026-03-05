@@ -43,6 +43,8 @@
 #include <cstdlib>
 #include <unistd.h>  // _exit()
 #include <filesystem>
+#include <chrono>        // Calibration timing
+#include <map>           // Calibration data
 
 // Enterprise security configuration for polyglot blocks
 naab::security::SandboxConfig createEnterpriseConfig() {
@@ -171,6 +173,8 @@ void print_usage() {
     fmt::print("  naab-lang api [port]                Start REST API server\n");
     fmt::print("  naab-lang init                      Create naab.toml manifest\n");
     fmt::print("  naab-lang manifest check            Validate naab.toml\n");
+    fmt::print("  naab-lang calibrate                 Benchmark installed languages\n");
+    fmt::print("  naab-lang race <file> --block N     Race polyglot block alternatives\n");
     fmt::print("  naab-lang version                   Show version\n");
     fmt::print("  naab-lang help                      Show this help\n");
     fmt::print("\n");
@@ -1454,6 +1458,592 @@ int main(int argc, char** argv) {
         } else {
             fmt::print("Unknown manifest subcommand: {}\n", subcommand);
             return 1;
+        }
+
+    } else if (command == "calibrate") {
+        // ================================================================
+        // naab-lang calibrate — Benchmark installed languages
+        // ================================================================
+        namespace fs = std::filesystem;
+
+        // Parse options
+        std::vector<std::string> filter_languages;
+        std::vector<std::string> filter_tasks;
+        int iterations = 3;
+        std::string output_path;
+
+        for (int i = command_arg_index + 1; i < argc; ++i) {
+            std::string arg(argv[i]);
+            if (arg == "--languages" && i + 1 < argc) {
+                std::string langs = argv[++i];
+                std::istringstream iss(langs);
+                std::string lang;
+                while (std::getline(iss, lang, ',')) filter_languages.push_back(lang);
+            } else if (arg == "--tasks" && i + 1 < argc) {
+                std::string tasks = argv[++i];
+                std::istringstream iss(tasks);
+                std::string task;
+                while (std::getline(iss, task, ',')) filter_tasks.push_back(task);
+            } else if (arg == "--iterations" && i + 1 < argc) {
+                iterations = std::stoi(argv[++i]);
+            } else if (arg == "--output" && i + 1 < argc) {
+                output_path = argv[++i];
+            }
+        }
+
+        // Find benchmark directory
+        std::string exe_dir;
+        {
+            std::error_code ec;
+            auto exe = fs::canonical(argv[0], ec);
+            exe_dir = exe.parent_path().parent_path().string(); // up from build/
+        }
+        std::string bench_dir = exe_dir + "/benchmarks";
+        if (!fs::exists(bench_dir)) {
+            fmt::print(stderr, "Error: Benchmark directory not found: {}\n", bench_dir);
+            fmt::print(stderr, "  Expected at: {}\n", bench_dir);
+            _exit(1);
+        }
+
+        // Detect installed languages
+        struct LangInfo {
+            std::string name;
+            std::string ext;
+            std::string runner;  // empty = compiled
+        };
+        std::vector<LangInfo> languages = {
+            {"python", ".py", "python3"},
+            {"javascript", ".js", "node"},
+            {"ruby", ".rb", "ruby"},
+            {"go", ".go", ""},
+            {"rust", ".rs", ""},
+            {"nim", ".nim", ""},
+            {"shell", ".sh", "bash"},
+        };
+
+        // Check which languages are available
+        std::vector<LangInfo> available;
+        for (auto& lang : languages) {
+            if (!filter_languages.empty()) {
+                bool found = false;
+                for (auto& fl : filter_languages)
+                    if (fl == lang.name) found = true;
+                if (!found) continue;
+            }
+            // Check if runner/compiler exists
+            std::string check_cmd;
+            if (!lang.runner.empty())
+                check_cmd = "which " + lang.runner + " >/dev/null 2>&1";
+            else if (lang.name == "go")
+                check_cmd = "which go >/dev/null 2>&1";
+            else if (lang.name == "rust")
+                check_cmd = "which rustc >/dev/null 2>&1";
+            else if (lang.name == "nim")
+                check_cmd = "which nim >/dev/null 2>&1";
+            else
+                continue;
+            if (system(check_cmd.c_str()) == 0) {
+                available.push_back(lang);
+            }
+        }
+
+        if (available.empty()) {
+            fmt::print("No supported languages found. Install python3, node, go, rustc, nim, or ruby.\n");
+            _exit(1);
+        }
+
+        fmt::print("NAAb Calibration\n");
+        fmt::print("================\n");
+        fmt::print("Languages: ");
+        for (size_t i = 0; i < available.size(); ++i) {
+            if (i > 0) fmt::print(", ");
+            fmt::print("{}", available[i].name);
+        }
+        fmt::print("\nIterations: {}\n\n", iterations);
+
+        // Task categories = subdirectories in benchmarks/
+        std::vector<std::string> task_categories;
+        for (auto& entry : fs::directory_iterator(bench_dir)) {
+            if (entry.is_directory()) {
+                std::string name = entry.path().filename().string();
+                if (!filter_tasks.empty()) {
+                    bool found = false;
+                    for (auto& ft : filter_tasks)
+                        if (ft == name) found = true;
+                    if (!found) continue;
+                }
+                task_categories.push_back(name);
+            }
+        }
+        std::sort(task_categories.begin(), task_categories.end());
+
+        // Results structure: results[task/bench][lang] = median_us
+        struct BenchResult { int64_t us; };
+        std::map<std::string, std::map<std::string, BenchResult>> results;
+
+        for (auto& task : task_categories) {
+            fmt::print("Task: {}\n", task);
+            std::string task_dir = bench_dir + "/" + task;
+
+            for (auto& lang : available) {
+                for (auto& bench_entry : fs::directory_iterator(task_dir)) {
+                    std::string bench_file = bench_entry.path().string();
+                    if (bench_file.size() < lang.ext.size()) continue;
+                    if (bench_file.substr(bench_file.size() - lang.ext.size()) != lang.ext) continue;
+
+                    std::string bench_name = bench_entry.path().stem().string();
+
+                    std::vector<int64_t> times;
+                    for (int iter = 0; iter < iterations; ++iter) {
+                        std::string cmd;
+                        std::string tmp_bin;
+
+                        if (!lang.runner.empty()) {
+                            cmd = lang.runner + " " + bench_file + " 2>/dev/null";
+                        } else if (lang.name == "go") {
+                            cmd = "go run " + bench_file + " 2>/dev/null";
+                        } else if (lang.name == "rust") {
+                            tmp_bin = "/data/data/com.termux/files/usr/tmp/naab_bench_" +
+                                      std::to_string(getpid());
+                            cmd = "rustc -o " + tmp_bin + " " + bench_file +
+                                  " 2>/dev/null && " + tmp_bin;
+                        } else if (lang.name == "nim") {
+                            tmp_bin = "/data/data/com.termux/files/usr/tmp/naab_bench_" +
+                                      std::to_string(getpid());
+                            cmd = "nim c --hints:off -o:" + tmp_bin + " " + bench_file +
+                                  " 2>/dev/null && " + tmp_bin;
+                        }
+
+                        FILE* pipe = popen(cmd.c_str(), "r");
+                        if (!pipe) continue;
+                        char buf[256];
+                        std::string output;
+                        while (fgets(buf, sizeof(buf), pipe))
+                            output += buf;
+                        int status = pclose(pipe);
+
+                        if (!tmp_bin.empty()) std::remove(tmp_bin.c_str());
+
+                        if (status == 0 && !output.empty()) {
+                            try {
+                                output.erase(output.find_last_not_of(" \t\n\r") + 1);
+                                int64_t us = std::stoll(output);
+                                if (us > 0) times.push_back(us);
+                            } catch (...) {}
+                        }
+                    }
+
+                    if (times.empty()) {
+                        fmt::print("  {} / {} — FAILED\n", lang.name, bench_name);
+                        continue;
+                    }
+
+                    std::sort(times.begin(), times.end());
+                    int64_t median = times[times.size() / 2];
+                    fmt::print("  {} / {} — {} us\n", lang.name, bench_name, median);
+
+                    std::string key = task + "/" + bench_name;
+                    results[key][lang.name] = {median};
+                }
+            }
+            fmt::print("\n");
+        }
+
+        // Aggregate results by task category
+        struct CatScore { int64_t us; int score; };
+        std::map<std::string, std::map<std::string, CatScore>> cat_results;
+
+        for (auto& task : task_categories) {
+            std::map<std::string, std::vector<int64_t>> lang_times;
+            for (auto& [key, lang_map] : results) {
+                if (key.substr(0, task.size() + 1) == task + "/") {
+                    for (auto& [lang, br] : lang_map) {
+                        lang_times[lang].push_back(br.us);
+                    }
+                }
+            }
+
+            std::map<std::string, int64_t> avg_times;
+            int64_t fastest = INT64_MAX;
+            for (auto& [lang, tvec] : lang_times) {
+                int64_t sum = 0;
+                for (auto t : tvec) sum += t;
+                avg_times[lang] = sum / (int64_t)tvec.size();
+                if (avg_times[lang] < fastest) fastest = avg_times[lang];
+            }
+
+            for (auto& [lang, avg] : avg_times) {
+                int score = (fastest > 0) ? (int)(100.0 * (double)fastest / (double)avg) : 0;
+                cat_results[task][lang] = {avg, score};
+            }
+        }
+
+        // Build machine string
+        std::string machine_str =
+#ifdef __aarch64__
+            "aarch64"
+#elif defined(__x86_64__)
+            "x86_64"
+#else
+            "unknown"
+#endif
+#ifdef __ANDROID__
+            "-android"
+#elif defined(__linux__)
+            "-linux"
+#elif defined(__APPLE__)
+            "-macos"
+#endif
+        ;
+
+        auto now = std::chrono::system_clock::now();
+        auto ts = std::chrono::duration_cast<std::chrono::seconds>(
+            now.time_since_epoch()).count();
+
+        // Write calibration file as JSON manually
+        if (output_path.empty()) {
+            const char* home = std::getenv("HOME");
+            if (home) {
+                output_path = std::string(home) + "/.naab/calibration.json";
+            } else {
+                output_path = "calibration.json";
+            }
+        }
+
+        {
+            auto parent = fs::path(output_path).parent_path();
+            if (!parent.empty()) fs::create_directories(parent);
+        }
+
+        std::ofstream out(output_path);
+        if (!out.is_open()) {
+            fmt::print(stderr, "Error: Could not write to {}\n", output_path);
+            _exit(1);
+        }
+
+        out << "{\n";
+        out << "  \"machine\": \"" << machine_str << "\",\n";
+        out << "  \"timestamp\": " << ts << ",\n";
+        out << "  \"languages_tested\": [";
+        for (size_t i = 0; i < available.size(); ++i) {
+            if (i > 0) out << ", ";
+            out << "\"" << available[i].name << "\"";
+        }
+        out << "],\n";
+        out << "  \"results\": {\n";
+        bool first_task = true;
+        for (auto& [task, lang_map] : cat_results) {
+            if (!first_task) out << ",\n";
+            first_task = false;
+            out << "    \"" << task << "\": {\n";
+            bool first_lang = true;
+            for (auto& [lang, cs] : lang_map) {
+                if (!first_lang) out << ",\n";
+                first_lang = false;
+                out << "      \"" << lang << "\": {\"us\": " << cs.us
+                    << ", \"score\": " << cs.score << "}";
+            }
+            out << "\n    }";
+        }
+        out << "\n  }\n}\n";
+        out.close();
+
+        fmt::print("Calibration saved to: {}\n", output_path);
+
+        // Print summary
+        fmt::print("\nCalibration Summary\n");
+        fmt::print("===================\n");
+        for (auto& [task, lang_map] : cat_results) {
+            fmt::print("\n{}:\n", task);
+            std::vector<std::pair<std::string, int>> scored;
+            for (auto& [lang, cs] : lang_map) {
+                scored.push_back({lang, cs.score});
+            }
+            std::sort(scored.begin(), scored.end(),
+                [](auto& a, auto& b) { return a.second > b.second; });
+
+            int rank = 1;
+            for (auto& [lang, score] : scored) {
+                int64_t us = cat_results[task][lang].us;
+                size_t bar_len = (size_t)(score / 5);
+                std::string bar(bar_len, '#');
+                std::string pad(20 - bar_len, ' ');
+                fmt::print("  #{} {:>12} {:>8} us  {}{}  {}\n",
+                    rank++, lang, us, bar, pad, score);
+            }
+        }
+
+    } else if (command == "race") {
+        // ================================================================
+        // naab-lang race — Race languages against each other
+        // ================================================================
+
+        // Parse options
+        std::vector<std::string> race_languages;
+        int block_index = -1;
+        std::string race_file;
+
+        for (int i = command_arg_index + 1; i < argc; ++i) {
+            std::string arg(argv[i]);
+            if (arg == "--languages" && i + 1 < argc) {
+                std::string langs = argv[++i];
+                std::istringstream iss(langs);
+                std::string lang;
+                while (std::getline(iss, lang, ',')) race_languages.push_back(lang);
+            } else if (arg == "--block" && i + 1 < argc) {
+                block_index = std::stoi(argv[++i]);
+            } else if (arg.size() > 5 && arg.substr(arg.size()-5) == ".naab") {
+                race_file = arg;
+            }
+        }
+
+        if (race_file.empty()) {
+            fmt::print("Usage: naab-lang race <file.naab> --block N [--languages python,go,rust]\n\n");
+            fmt::print("  Races a specific polyglot block from your script against alternative languages.\n");
+            fmt::print("  Uses calibration data from ~/.naab/calibration.json if available.\n\n");
+            fmt::print("  Options:\n");
+            fmt::print("    --block N        Block index (0-based) to race\n");
+            fmt::print("    --languages L    Comma-separated list of languages to race\n\n");
+            fmt::print("  Example:\n");
+            fmt::print("    naab-lang race my_script.naab --block 0 --languages python,go,nim\n");
+            _exit(0);
+        }
+
+        // Load calibration data using GovernanceEngine's loader
+        naab::governance::GovernanceEngine cal_engine;
+        // Temporarily set calibration config to load from default path
+        cal_engine.getMutableRules().polyglot_optimization.calibration.enabled = true;
+        bool has_cal = cal_engine.loadCalibration();
+
+        const char* home = std::getenv("HOME");
+        std::string cal_path = home ? std::string(home) + "/.naab/calibration.json" : "calibration.json";
+
+        if (!has_cal) {
+            fmt::print("No calibration data found at {}\n", cal_path);
+            fmt::print("Run 'naab-lang calibrate' first to benchmark your machine.\n\n");
+            fmt::print("This will measure actual performance of installed languages\n");
+            fmt::print("so race results are based on your hardware, not estimates.\n");
+            _exit(1);
+        }
+
+        // Parse the .naab file to find polyglot blocks
+        try {
+            std::string source = read_file(race_file);
+            naab::lexer::Lexer lexer(source);
+            auto tokens = lexer.tokenize();
+
+            struct PolyglotBlock {
+                std::string language;
+                std::string code;
+                int line;
+            };
+            std::vector<PolyglotBlock> blocks;
+            for (size_t i = 0; i < tokens.size(); ++i) {
+                if (tokens[i].type == naab::lexer::TokenType::INLINE_CODE) {
+                    std::string val = tokens[i].value;
+                    // Token format is "language[vars]->TYPE:code" or "language:code"
+                    // Find the first ':' that separates language header from code
+                    auto colon = val.find(':');
+                    std::string lang, code;
+                    if (colon != std::string::npos) {
+                        std::string header = val.substr(0, colon);
+                        code = val.substr(colon + 1);
+                        // Extract just the language name (before [ or ->)
+                        auto bracket = header.find('[');
+                        auto arrow = header.find("->");
+                        size_t end = header.size();
+                        if (bracket != std::string::npos && bracket < end) end = bracket;
+                        if (arrow != std::string::npos && arrow < end) end = arrow;
+                        lang = header.substr(0, end);
+                    } else {
+                        lang = val;
+                        code = "";
+                    }
+                    // Strip leading/trailing whitespace from code
+                    while (!code.empty() && (code[0] == ' ' || code[0] == '\n' || code[0] == '\r'))
+                        code.erase(code.begin());
+                    while (!code.empty() && (code.back() == ' ' || code.back() == '\n' || code.back() == '\r'))
+                        code.pop_back();
+                    blocks.push_back({lang, code, tokens[i].line});
+                }
+            }
+
+            if (blocks.empty()) {
+                fmt::print("No polyglot blocks found in {}\n", race_file);
+                _exit(1);
+            }
+
+            if (block_index < 0) {
+                fmt::print("Polyglot blocks in {}:\n\n", race_file);
+                for (size_t i = 0; i < blocks.size(); ++i) {
+                    std::string preview = blocks[i].code.substr(0, 60);
+                    if (preview.find('\n') != std::string::npos)
+                        preview = preview.substr(0, preview.find('\n'));
+                    fmt::print("  [{}] <<{}>> line {} — {}\n",
+                        i, blocks[i].language, blocks[i].line, preview);
+                }
+                fmt::print("\nUse --block N to race a specific block.\n");
+                _exit(0);
+            }
+
+            if (block_index >= (int)blocks.size()) {
+                fmt::print("Block index {} out of range (0-{})\n",
+                    block_index, blocks.size() - 1);
+                _exit(1);
+            }
+
+            auto& block = blocks[(size_t)block_index];
+            fmt::print("Racing block [{}]: <<{}>> at line {}\n", block_index,
+                block.language, block.line);
+            std::string code_preview = block.code.substr(0, 80);
+            // Show first line only for preview
+            if (code_preview.find('\n') != std::string::npos)
+                code_preview = code_preview.substr(0, code_preview.find('\n')) + "...";
+            fmt::print("Code: {}\n\n", code_preview);
+
+            // Detect task category from code content
+            std::string code_lower = block.code;
+            for (auto& c : code_lower) c = (char)tolower(c);
+            std::string detected_task;
+            // Numerical detection
+            if (code_lower.find("sort") != std::string::npos ||
+                code_lower.find("matrix") != std::string::npos ||
+                code_lower.find("sum(") != std::string::npos ||
+                code_lower.find("range(") != std::string::npos ||
+                code_lower.find("math.") != std::string::npos ||
+                code_lower.find("sqrt") != std::string::npos ||
+                code_lower.find("float") != std::string::npos)
+                detected_task = "numerical";
+            else if (code_lower.find("regex") != std::string::npos ||
+                code_lower.find("split") != std::string::npos ||
+                code_lower.find("concat") != std::string::npos ||
+                code_lower.find("replace") != std::string::npos ||
+                code_lower.find("strip") != std::string::npos ||
+                code_lower.find("upper") != std::string::npos ||
+                code_lower.find("lower") != std::string::npos ||
+                code_lower.find("string") != std::string::npos)
+                detected_task = "string";
+            else if (code_lower.find("open(") != std::string::npos ||
+                code_lower.find("readfile") != std::string::npos ||
+                code_lower.find("writefile") != std::string::npos ||
+                code_lower.find("fs.") != std::string::npos ||
+                code_lower.find("os.walk") != std::string::npos ||
+                code_lower.find("readdir") != std::string::npos)
+                detected_task = "file_io";
+            else if (code_lower.find("json") != std::string::npos ||
+                code_lower.find("parse") != std::string::npos ||
+                code_lower.find("stringify") != std::string::npos)
+                detected_task = "json";
+            else if (code_lower.find("thread") != std::string::npos ||
+                code_lower.find("worker") != std::string::npos ||
+                code_lower.find("async") != std::string::npos ||
+                code_lower.find("goroutine") != std::string::npos ||
+                code_lower.find("channel") != std::string::npos)
+                detected_task = "concurrency";
+            else if (code_lower.find("http") != std::string::npos ||
+                code_lower.find("fetch") != std::string::npos ||
+                code_lower.find("socket") != std::string::npos ||
+                code_lower.find("request") != std::string::npos)
+                detected_task = "web_apis";
+            else if (code_lower.find("echo") != std::string::npos ||
+                code_lower.find("pipe") != std::string::npos ||
+                code_lower.find("stdin") != std::string::npos ||
+                code_lower.find("argv") != std::string::npos ||
+                code_lower.find("csv") != std::string::npos)
+                detected_task = "cli";
+            else if (code_lower.find("alloc") != std::string::npos ||
+                code_lower.find("malloc") != std::string::npos ||
+                code_lower.find("subprocess") != std::string::npos ||
+                code_lower.find("spawn") != std::string::npos)
+                detected_task = "systems";
+
+            auto& cal_data = cal_engine.getCalibrationData();
+
+            // Helper to print a task category
+            auto print_task = [&](const std::string& task, bool is_primary) {
+                auto it = cal_data.find(task);
+                if (it == cal_data.end()) return;
+                auto& lang_entries = it->second;
+
+                std::vector<std::pair<std::string, int>> scored;
+                for (auto& [lang, entry] : lang_entries) {
+                    if (!race_languages.empty()) {
+                        bool found = (lang == block.language);
+                        for (auto& rl : race_languages) if (rl == lang) found = true;
+                        if (!found) continue;
+                    }
+                    scored.push_back({lang, entry.score});
+                }
+                std::sort(scored.begin(), scored.end(),
+                    [](auto& a, auto& b) { return a.second > b.second; });
+
+                if (is_primary) {
+                    fmt::print("  RACE RESULTS: {} (calibrated on this machine)\n", task);
+                    fmt::print("  {}\n\n", std::string(50, '='));
+                } else {
+                    fmt::print("  {}:\n", task);
+                }
+
+                int rank = 1;
+                int current_rank = 0;
+                int current_score = 0;
+                std::string best_lang;
+                int64_t best_us = 0;
+                int64_t current_us = 0;
+
+                for (auto& [lang, score] : scored) {
+                    int64_t us = lang_entries.at(lang).us;
+                    size_t bar_len = (size_t)(score / 5);
+                    std::string bar(bar_len, '#');
+                    std::string pad(20 - bar_len, ' ');
+                    bool is_current = (lang == block.language);
+                    std::string marker = is_current ? "  <-- YOU" : "";
+                    if (is_current) {
+                        current_rank = rank;
+                        current_score = score;
+                        current_us = us;
+                    }
+                    if (rank == 1) { best_lang = lang; best_us = us; }
+                    fmt::print("  #{} {:>12} {:>8} us  {}{}  {}{}\n",
+                        rank++, lang, us, bar, pad, score, marker);
+                }
+
+                if (is_primary && current_rank > 0) {
+                    fmt::print("\n");
+                    if (current_rank == 1) {
+                        fmt::print("  You're using the fastest language for this task!\n");
+                    } else {
+                        double speedup = (current_us > 0 && best_us > 0) ?
+                            (double)current_us / (double)best_us : 0;
+                        fmt::print("  Your block uses: {} (score: {}/100, rank: #{})\n",
+                            block.language, current_score, current_rank);
+                        fmt::print("  Fastest option:  {} ({:.1f}x faster)\n",
+                            best_lang, speedup);
+                    }
+                }
+                fmt::print("\n");
+            };
+
+            // Show primary detected task first
+            if (!detected_task.empty()) {
+                fmt::print("Detected task type: {}\n\n", detected_task);
+                print_task(detected_task, true);
+
+                // Show other categories briefly
+                fmt::print("Other categories (for reference):\n\n");
+                for (auto& [task, _] : cal_data) {
+                    if (task != detected_task) print_task(task, false);
+                }
+            } else {
+                fmt::print("Could not auto-detect task type. Showing all categories:\n\n");
+                for (auto& [task, _] : cal_data) {
+                    print_task(task, false);
+                }
+            }
+
+        } catch (const std::exception& e) {
+            fmt::print("Error: {}\n", e.what());
+            _exit(1);
         }
 
     } else if (command == "help") {

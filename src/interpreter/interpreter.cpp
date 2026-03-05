@@ -34,6 +34,8 @@
 #include <unordered_set>  // For constant lookup in stdlib modules
 #include <map>  // Polyglot: Issue #2 - Shell environment variables
 #include <algorithm>  // For std::transform in string methods
+#include <chrono>     // Phase 1: Empirical profiling timing
+#include <functional> // For std::hash
 
 // Python embedding support
 #ifdef __has_include
@@ -6538,8 +6540,32 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     // Phase 2.3: Execute the code and capture return value
     // Suspend GC during polyglot execution to prevent collecting live values
     gc_suspended_ = true;
+
+    // Phase 1 Profiling: Start timing
+    bool should_profile = governance_ && governance_->isProfilingEnabled();
+    auto profile_start = should_profile ?
+        std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+
     try {
         result_ = executor->executeWithReturn(final_code);
+
+        // Phase 1 Profiling: Record timing on successful execution
+        if (should_profile) {
+            auto profile_end = std::chrono::steady_clock::now();
+            auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                profile_end - profile_start).count();
+
+            // Compute simple code hash for dedup
+            std::size_t hash_val = std::hash<std::string>{}(raw_code);
+            char hash_buf[16];
+            snprintf(hash_buf, sizeof(hash_buf), "%06zx", hash_val & 0xFFFFFF);
+
+            // Task category: use "unknown" here, governance already classified it
+            // during checkPolyglotBlock above
+            std::string task_cat = "general";
+
+            governance_->writeProfileEntry(language, task_cat, hash_buf, duration_us);
+        }
 
         // ShellResult transparent handling: extract stdout or throw on failure
         if (result_ && std::holds_alternative<std::shared_ptr<StructValue>>(result_->data)) {

@@ -960,6 +960,30 @@ struct AIGuidanceConfig {
     bool show_benchmarks = false;
 };
 
+// Empirical profiling config — times every polyglot block execution
+struct ProfilingConfig {
+    bool enabled = false;
+    std::string profile_path = "~/.naab/profile.json";
+    int max_entries = 10000;        // Ring buffer
+    bool include_code_hash = true;  // For dedup
+};
+
+// Calibration config — machine-specific benchmark data
+struct CalibrationConfig {
+    bool enabled = true;
+    bool auto_calibrate = false;
+    std::string calibration_path = "~/.naab/calibration.json";
+    int max_age_days = 30;
+    int iterations = 3;
+};
+
+// Confidence labeling config — evidence basis for suggestions
+struct ConfidenceConfig {
+    std::string min_display_level = "estimated";  // "measured"|"calibrated"|"estimated"|"unknown"
+    bool suppress_unknown = true;
+    bool show_measurement_details = true;
+};
+
 struct TaskLanguageScore {
     int score = 0;            // 0-100 score
     std::string reason;       // Why this score
@@ -973,6 +997,11 @@ struct PolyglotOptimizationConfig {
     LanguageDiversityConfig language_diversity;
     HelperErrorConfig helper_errors;
     AIGuidanceConfig ai_guidance;
+
+    // Empirical optimization (Phases 1-3)
+    ProfilingConfig profiling;
+    CalibrationConfig calibration;
+    ConfidenceConfig confidence;
 
     // Task→Language scoring matrix loaded from JSON
     // Structure: task_language_matrix[task_name][language] = TaskLanguageScore
@@ -1107,6 +1136,12 @@ struct RateLimiter {
 
 class GovernanceEngine {
 public:
+    // Calibration entry (public for getCalibrationData() return type)
+    struct CalibrationEntry {
+        int64_t us = 0;   // Median microseconds
+        int score = 0;    // Normalized 0-100
+    };
+
     GovernanceEngine() = default;
 
     // --- Loading ---
@@ -1226,6 +1261,16 @@ public:
                                           const std::string& code,
                                           int line = 0);
 
+    // --- Empirical Profiling ---
+    void writeProfileEntry(const std::string& language,
+                           const std::string& task_category,
+                           const std::string& code_hash,
+                           int64_t duration_us);
+    bool loadCalibration();
+    bool isProfilingEnabled() const;
+    const std::map<std::string, std::map<std::string, CalibrationEntry>>&
+        getCalibrationData() const { return calibration_data_; }
+
     void suggestBetterLanguage(const std::string& current_lang,
                                const std::string& code,
                                const std::string& task_type,
@@ -1279,6 +1324,10 @@ private:
     // Audit trail
     std::string last_audit_hash_;
     mutable std::mutex audit_mutex_;
+
+    // Calibration data (loaded from calibration.json)
+    std::map<std::string, std::map<std::string, CalibrationEntry>> calibration_data_;
+    bool calibration_loaded_ = false;
 
     // --- Core enforcement ---
     std::string enforce(const std::string& rule_name,

@@ -14,6 +14,8 @@
 #include <iostream>
 #include <sstream>
 #include <regex>
+#include <chrono>
+#include <functional>
 #include <fmt/core.h>
 
 namespace naab {
@@ -1148,6 +1150,33 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (ag.contains("include_in_errors")) rules_.polyglot_optimization.ai_guidance.include_in_errors = ag["include_in_errors"].get<bool>();
             if (ag.contains("suggest_refactoring")) rules_.polyglot_optimization.ai_guidance.suggest_refactoring = ag["suggest_refactoring"].get<bool>();
             if (ag.contains("show_benchmarks")) rules_.polyglot_optimization.ai_guidance.show_benchmarks = ag["show_benchmarks"].get<bool>();
+        }
+
+        // Empirical profiling
+        if (po.contains("profiling") && po["profiling"].is_object()) {
+            auto& pf = po["profiling"];
+            if (pf.contains("enabled")) rules_.polyglot_optimization.profiling.enabled = pf["enabled"].get<bool>();
+            if (pf.contains("profile_path")) rules_.polyglot_optimization.profiling.profile_path = pf["profile_path"].get<std::string>();
+            if (pf.contains("max_entries")) rules_.polyglot_optimization.profiling.max_entries = pf["max_entries"].get<int>();
+            if (pf.contains("include_code_hash")) rules_.polyglot_optimization.profiling.include_code_hash = pf["include_code_hash"].get<bool>();
+        }
+
+        // Calibration
+        if (po.contains("calibration") && po["calibration"].is_object()) {
+            auto& cb = po["calibration"];
+            if (cb.contains("enabled")) rules_.polyglot_optimization.calibration.enabled = cb["enabled"].get<bool>();
+            if (cb.contains("auto_calibrate")) rules_.polyglot_optimization.calibration.auto_calibrate = cb["auto_calibrate"].get<bool>();
+            if (cb.contains("calibration_path")) rules_.polyglot_optimization.calibration.calibration_path = cb["calibration_path"].get<std::string>();
+            if (cb.contains("max_age_days")) rules_.polyglot_optimization.calibration.max_age_days = cb["max_age_days"].get<int>();
+            if (cb.contains("iterations")) rules_.polyglot_optimization.calibration.iterations = cb["iterations"].get<int>();
+        }
+
+        // Confidence labels
+        if (po.contains("confidence") && po["confidence"].is_object()) {
+            auto& cf = po["confidence"];
+            if (cf.contains("min_display_level")) rules_.polyglot_optimization.confidence.min_display_level = cf["min_display_level"].get<std::string>();
+            if (cf.contains("suppress_unknown")) rules_.polyglot_optimization.confidence.suppress_unknown = cf["suppress_unknown"].get<bool>();
+            if (cf.contains("show_measurement_details")) rules_.polyglot_optimization.confidence.show_measurement_details = cf["show_measurement_details"].get<bool>();
         }
 
         // Task→Language scoring matrix
@@ -3452,6 +3481,19 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         }
     }
 
+    // Phase 2: Fuse calibration data — measured scores override hardcoded defaults
+    // Priority: calibration > govern.json matrix > hardcoded defaults
+    if (rules_.polyglot_optimization.calibration.enabled) {
+        const_cast<GovernanceEngine*>(this)->loadCalibration();
+        for (const auto& [task, lang_entries] : calibration_data_) {
+            for (const auto& [lang, entry] : lang_entries) {
+                if (entry.score > 0) {
+                    matrix[task][lang] = entry.score;
+                }
+            }
+        }
+    }
+
     analyzer::ComprehensiveTaskDetector detector(matrix);
 
     // Analyze code
@@ -3558,8 +3600,70 @@ void GovernanceEngine::suggestBetterLanguage(
 
     bool show_example = rules_.polyglot_optimization.helper_errors.show_example_code;
 
+    // Phase 3: Determine confidence level
+    std::string confidence = "ESTIMATED";
+    std::string confidence_detail;
+
+    // Check calibration data for this task type
+    if (!calibration_data_.empty()) {
+        // Map semantic task types to calibration categories
+        // Calibration uses directory names (numerical, string, etc.)
+        // Analyzer uses intent strings (numerical_computation, string_manipulation, etc.)
+        std::string cal_task;
+        if (task_type.find("numerical") != std::string::npos ||
+            task_type.find("linear") != std::string::npos ||
+            task_type.find("statistical") != std::string::npos)
+            cal_task = "numerical";
+        else if (task_type.find("string") != std::string::npos)
+            cal_task = "string";
+        else if (task_type.find("file") != std::string::npos)
+            cal_task = "file_io";
+        else if (task_type.find("json") != std::string::npos ||
+                 task_type.find("data_serialization") != std::string::npos ||
+                 task_type.find("data_parsing") != std::string::npos)
+            cal_task = "json";
+        else if (task_type.find("concurrent") != std::string::npos ||
+                 task_type.find("async") != std::string::npos ||
+                 task_type.find("parallel") != std::string::npos)
+            cal_task = "concurrency";
+        else if (task_type.find("cli") != std::string::npos ||
+                 task_type.find("batch") != std::string::npos)
+            cal_task = "cli";
+        else if (task_type.find("web") != std::string::npos ||
+                 task_type.find("network") != std::string::npos)
+            cal_task = "web_apis";
+        else if (task_type.find("system") != std::string::npos ||
+                 task_type.find("memory") != std::string::npos ||
+                 task_type.find("process") != std::string::npos)
+            cal_task = "systems";
+
+        if (!cal_task.empty() && calibration_data_.count(cal_task)) {
+            auto& cal_cat = calibration_data_.at(cal_task);
+            bool have_current = cal_cat.count(current_lang) > 0;
+            bool have_optimal = !optimal_langs.empty() && cal_cat.count(optimal_langs[0]) > 0;
+
+            if (have_current && have_optimal) {
+                confidence = "CALIBRATED";
+                auto& cur = cal_cat.at(current_lang);
+                auto& opt = cal_cat.at(optimal_langs[0]);
+                if (cur.us > 0 && opt.us > 0) {
+                    double speedup = (double)cur.us / (double)opt.us;
+                    confidence_detail = fmt::format("{} {:.1f}x faster (calibrated on this machine)",
+                        optimal_langs[0], speedup);
+                }
+            }
+        }
+    }
+
+    // Check confidence display level
+    const auto& conf_cfg = rules_.polyglot_optimization.confidence;
+    if (conf_cfg.min_display_level == "measured" && confidence != "MEASURED") return;
+    if (conf_cfg.min_display_level == "calibrated" &&
+        confidence != "MEASURED" && confidence != "CALIBRATED") return;
+    if (conf_cfg.suppress_unknown && confidence == "UNKNOWN") return;
+
     // Format helper error similar to stdlib helper errors
-    fmt::print("\n  💡 Hint: Language optimization opportunity detected.\n\n");
+    fmt::print("\n  Hint: Language optimization opportunity detected.\n\n");
     fmt::print("  Current language: {} (for {} task)\n", current_lang, task_type);
 
     if (!optimal_langs.empty()) {
@@ -3573,6 +3677,12 @@ void GovernanceEngine::suggestBetterLanguage(
             }
             fmt::print("  Optimal languages: {}\n", langs_str);
         }
+    }
+
+    // Phase 3: Show confidence level
+    fmt::print("  Confidence: {}\n", confidence);
+    if (conf_cfg.show_measurement_details && !confidence_detail.empty()) {
+        fmt::print("  Detail: {}\n", confidence_detail);
     }
 
     if (improvement_percent > 0) {
@@ -3598,6 +3708,127 @@ void GovernanceEngine::suggestBetterLanguage(
     }
 
     fmt::print("  For more: docs/polyglot/optimization_guide.md\n\n");
+}
+
+// ============================================================================
+// Empirical Profiling
+// ============================================================================
+
+bool GovernanceEngine::isProfilingEnabled() const {
+    return active_ && rules_.polyglot_optimization.enabled &&
+           rules_.polyglot_optimization.profiling.enabled;
+}
+
+void GovernanceEngine::writeProfileEntry(const std::string& language,
+                                         const std::string& task_category,
+                                         const std::string& code_hash,
+                                         int64_t duration_us) {
+    if (!isProfilingEnabled()) return;
+
+    auto& cfg = rules_.polyglot_optimization.profiling;
+
+    // Expand ~ in path
+    std::string path = cfg.profile_path;
+    if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
+        const char* home = std::getenv("HOME");
+        if (home) path = std::string(home) + path.substr(1);
+    }
+
+    // Ensure parent directory exists
+    auto parent = std::filesystem::path(path).parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent);
+    }
+
+    // Read existing entries (ring buffer)
+    nlohmann::json entries = nlohmann::json::array();
+    {
+        std::ifstream in(path);
+        if (in.is_open()) {
+            try {
+                nlohmann::json existing;
+                in >> existing;
+                if (existing.is_array()) entries = existing;
+            } catch (...) {
+                // Corrupted file — start fresh
+            }
+        }
+    }
+
+    // Build new entry
+    auto now = std::chrono::system_clock::now();
+    auto ts = std::chrono::duration_cast<std::chrono::seconds>(
+        now.time_since_epoch()).count();
+
+    nlohmann::json entry;
+    entry["lang"] = language;
+    entry["task"] = task_category;
+    if (cfg.include_code_hash && !code_hash.empty()) {
+        entry["hash"] = code_hash;
+    }
+    entry["us"] = duration_us;
+    entry["ts"] = ts;
+
+    entries.push_back(entry);
+
+    // Ring buffer: trim to max_entries
+    if (cfg.max_entries > 0 && (int)entries.size() > cfg.max_entries) {
+        int excess = (int)entries.size() - cfg.max_entries;
+        entries.erase(entries.begin(), entries.begin() + excess);
+    }
+
+    // Write back
+    std::ofstream out(path);
+    if (out.is_open()) {
+        out << entries.dump(2);
+    }
+}
+
+bool GovernanceEngine::loadCalibration() {
+    if (calibration_loaded_) return !calibration_data_.empty();
+    calibration_loaded_ = true;
+
+    auto& cfg = rules_.polyglot_optimization.calibration;
+    if (!cfg.enabled) return false;
+
+    // Expand ~ in path
+    std::string path = cfg.calibration_path;
+    if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
+        const char* home = std::getenv("HOME");
+        if (home) path = std::string(home) + path.substr(1);
+    }
+
+    std::ifstream in(path);
+    if (!in.is_open()) return false;
+
+    try {
+        nlohmann::json j;
+        in >> j;
+
+        if (!j.contains("results") || !j["results"].is_object()) return false;
+
+        // Check age
+        if (cfg.max_age_days > 0 && j.contains("timestamp") && j["timestamp"].is_string()) {
+            // Simple age check: compare epoch-based if available
+            // For now, just load the data regardless of age
+        }
+
+        for (auto& [task, lang_scores] : j["results"].items()) {
+            if (!lang_scores.is_object()) continue;
+            for (auto& [lang, data] : lang_scores.items()) {
+                CalibrationEntry entry;
+                if (data.is_object()) {
+                    if (data.contains("us")) entry.us = data["us"].get<int64_t>();
+                    if (data.contains("score")) entry.score = data["score"].get<int>();
+                }
+                calibration_data_[task][lang] = entry;
+            }
+        }
+
+        return !calibration_data_.empty();
+    } catch (...) {
+        return false;
+    }
 }
 
 } // namespace governance

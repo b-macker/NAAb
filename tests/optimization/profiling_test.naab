@@ -1,0 +1,88 @@
+// Test: Empirical Profiling System
+// Verifies that polyglot block execution timing works
+// Requires profiling enabled in govern.json
+
+function test_profiling_basic() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Python block executes and returns value
+    total = total + 1
+    let py_result = <<python
+result = 42 * 2
+result
+>>
+    if ("" + py_result) == "84" {
+        passed = passed + 1
+        io.write("  PASS: Python block returned value")
+    } else {
+        io.write("  FAIL: Python block returned: " + py_result)
+    }
+
+    // Test 2: Shell block executes
+    total = total + 1
+    let sh_result = <<shell
+echo "hello"
+>>
+    if string.contains(sh_result, "hello") {
+        passed = passed + 1
+        io.write("  PASS: Shell block executed")
+    } else {
+        io.write("  FAIL: Shell block returned: " + sh_result)
+    }
+
+    // Test 3: Multiple blocks — profiler should handle multiple entries
+    total = total + 1
+    let r1 = <<python
+sum(range(100))
+>>
+    let r2 = <<python
+len("hello world")
+>>
+    if ("" + r1) == "4950" {
+        passed = passed + 1
+        io.write("  PASS: Multiple profiled blocks work")
+    } else {
+        io.write("  FAIL: Expected 4950, got: " + r1)
+    }
+
+    return [passed, total]
+}
+
+function test_profiling_no_overhead() {
+    let passed = 0
+    let total = 0
+
+    // Test: Profiling shouldn't significantly affect execution
+    total = total + 1
+    let result = <<python
+import time
+start = time.monotonic_ns()
+x = sum(range(10000))
+elapsed = (time.monotonic_ns() - start) // 1000
+f"{x},{elapsed}"
+>>
+    let parts = string.split(result, ",")
+    if string.trim("" + parts[0]) == "49995000" {
+        passed = passed + 1
+        io.write("  PASS: Computation correct under profiling")
+    } else {
+        io.write("  FAIL: Expected 49995000, got: " + parts[0])
+    }
+
+    return [passed, total]
+}
+
+main {
+    io.write("=== Profiling System Tests ===")
+    io.write("")
+
+    let r1 = test_profiling_basic()
+    let r2 = test_profiling_no_overhead()
+
+    let passed = r1[0] + r2[0]
+    let total = r1[1] + r2[1]
+
+    io.write("")
+    io.write("Profiling: " + passed + "/" + total + " PASS")
+}

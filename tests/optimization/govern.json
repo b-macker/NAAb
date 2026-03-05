@@ -1,0 +1,37 @@
+{
+    "version": "3.0",
+    "description": "Test governance for empirical optimization",
+    "mode": "enforce",
+
+    "languages": {
+        "allowed": ["python", "javascript", "shell", "go", "rust", "nim", "ruby"]
+    },
+
+    "polyglot_optimization": {
+        "enabled": true,
+        "enforcement_level": "advisory",
+
+        "profiling": {
+            "enabled": true,
+            "profile_path": "/data/data/com.termux/files/usr/tmp/naab_test_profile.json",
+            "max_entries": 100
+        },
+
+        "calibration": {
+            "enabled": true,
+            "calibration_path": "~/.naab/calibration.json"
+        },
+
+        "confidence": {
+            "min_display_level": "estimated",
+            "suppress_unknown": true,
+            "show_measurement_details": true
+        },
+
+        "helper_errors": {
+            "enabled": true,
+            "show_alternative_language": true,
+            "show_example_code": true
+        }
+    }
+}

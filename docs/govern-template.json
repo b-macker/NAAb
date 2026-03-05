@@ -807,6 +807,26 @@
       }
     },
 
+    "profiling": {
+      "enabled": true,
+      "profile_path": "~/.naab/profile.json",
+      "max_entries": 10000,
+      "include_code_hash": true
+    },
+
+    "calibration": {
+      "enabled": true,
+      "calibration_path": "~/.naab/calibration.json",
+      "max_age_days": 30,
+      "iterations": 3
+    },
+
+    "confidence": {
+      "min_display_level": "estimated",
+      "suppress_unknown": true,
+      "show_measurement_details": true
+    },
+
     "language_diversity": {
       "enabled": true,
       "min_languages": 2,

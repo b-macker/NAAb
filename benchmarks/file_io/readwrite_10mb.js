@@ -1,0 +1,10 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const data = 'x'.repeat(10 * 1024 * 1024);
+const tmp = path.join(os.tmpdir(), 'bench_' + process.pid + '.tmp');
+const start = Date.now();
+fs.writeFileSync(tmp, data);
+fs.readFileSync(tmp, 'utf8');
+console.log((Date.now() - start) * 1000);
+fs.unlinkSync(tmp);
