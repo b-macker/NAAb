@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <!-- Terminal window -->
+  <rect width="1200" height="720" rx="12" fill="#0a0e17"/>
+  <!-- Title bar -->
+  <rect width="1200" height="40" rx="12" fill="#1a2332"/>
+  <rect y="28" width="1200" height="12" fill="#1a2332"/>
+  <circle cx="24" cy="20" r="6" fill="#ef4444"/>
+  <circle cx="48" cy="20" r="6" fill="#f59e0b"/>
+  <circle cx="72" cy="20" r="6" fill="#10b981"/>
+  <text x="600" y="26" text-anchor="middle" font-family="SF Mono, Fira Code, monospace" font-size="13" fill="#64748b">naab-lang app.naab</text>
+
+  <!-- Code content -->
+  <text font-family="SF Mono, Fira Code, Consolas, monospace" font-size="15" y="0">
+    <!-- Line 1 -->
+    <tspan x="24" dy="72" fill="#64748b">// app.naab — best language for each task</tspan>
+    <!-- Line 2 -->
+    <tspan x="24" dy="28" fill="#8b5cf6">main</tspan><tspan fill="#e2e8f0"> {</tspan>
+    <!-- Line 3 -->
+    <tspan x="48" dy="28" fill="#64748b">// Python: data analysis</tspan>
+    <!-- Line 4 -->
+    <tspan x="48" dy="28" fill="#8b5cf6">let</tspan><tspan fill="#e2e8f0"> stats = </tspan><tspan fill="#c4b5fd">&lt;&lt;python</tspan>
+    <!-- Line 5 -->
+    <tspan x="48" dy="28" fill="#3572A5">import statistics</tspan>
+    <!-- Line 6 -->
+    <tspan x="48" dy="28" fill="#3572A5">statistics.mean([10, 20, 30, 40, 50])</tspan>
+    <!-- Line 7 -->
+    <tspan x="48" dy="28" fill="#c4b5fd">&gt;&gt;</tspan>
+    <!-- Line 8 blank -->
+    <tspan x="48" dy="28" fill="#64748b">// Go: concurrent processing</tspan>
+    <!-- Line 9 -->
+    <tspan x="48" dy="28" fill="#8b5cf6">let</tspan><tspan fill="#e2e8f0"> workers = </tspan><tspan fill="#c4b5fd">&lt;&lt;go</tspan>
+    <!-- Line 10 -->
+    <tspan x="48" dy="28" fill="#00ADD8">var wg sync.WaitGroup</tspan>
+    <!-- Line 11 -->
+    <tspan x="48" dy="28" fill="#00ADD8">for i := 0; i &lt; 100; i++ { go work() }</tspan>
+    <!-- Line 12 -->
+    <tspan x="48" dy="28" fill="#c4b5fd">&gt;&gt;</tspan>
+    <!-- Line 13 -->
+    <tspan x="48" dy="28" fill="#e2e8f0">io.write(</tspan><tspan fill="#7dd3fc">"Mean: "</tspan><tspan fill="#e2e8f0"> + stats)</tspan>
+    <!-- Line 14 -->
+    <tspan x="24" dy="28" fill="#e2e8f0">}</tspan>
+  </text>
+
+  <!-- Divider -->
+  <line x1="24" y1="480" x2="1176" y2="480" stroke="#1e2d3d" stroke-width="1"/>
+
+  <!-- Governance output -->
+  <text font-family="SF Mono, Fira Code, Consolas, monospace" font-size="14" y="0">
+    <tspan x="24" dy="508" fill="#10b981">$ naab-lang app.naab</tspan>
+    <tspan x="24" dy="24" fill="#e2e8f0">Mean: 30.0</tspan>
+    <tspan x="24" dy="32" fill="#3b82f6">[governance]</tspan><tspan fill="#e2e8f0"> Summary: 8 passed, 0 warnings, 0 blocked</tspan>
+    <tspan x="24" dy="24" fill="#10b981">  ✓ languages              [hard]  PASS</tspan>
+    <tspan x="24" dy="24" fill="#10b981">  ✓ code_quality           [soft]  PASS</tspan>
+    <tspan x="24" dy="24" fill="#10b981">  ✓ capabilities.network   [hard]  PASS</tspan>
+  </text>
+
+  <!-- Calibrate output hint -->
+  <text font-family="SF Mono, Fira Code, Consolas, monospace" font-size="13" y="0">
+    <tspan x="24" dy="660" fill="#f59e0b">Hint:</tspan><tspan fill="#94a3b8"> Run </tspan><tspan fill="#06b6d4">naab-lang calibrate</tspan><tspan fill="#94a3b8"> to benchmark languages on your machine</tspan>
+  </text>
+
+  <!-- Bottom language bar -->
+  <rect x="600" y="56" width="576" height="28" rx="4" fill="#111827"/>
+  <text font-family="SF Mono, monospace" font-size="11" y="74">
+    <tspan x="612" fill="#3572A5">Python</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#f1e05a">JS</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#dea584">Rust</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#f34b7d">C++</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#00ADD8">Go</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#ffc200">Nim</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#f7a41d">Zig</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#9558b2">Julia</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#701516">Ruby</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#4F5D95">PHP</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#178600">C#</tspan>
+    <tspan dx="8" fill="#64748b">|</tspan>
+    <tspan dx="8" fill="#89e051">Shell</tspan>
+  </text>
+</svg>
