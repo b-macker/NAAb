@@ -17,12 +17,14 @@ useDefault = true
 [allowlist]
 description = "Allowed patterns that are not secrets"
 
-# Test files can have dummy secrets
+# Test files, demo projects, and block library can have dummy secrets
 paths = [
     '''tests/.*''',
     '''examples/.*''',
     '''fuzz/corpus/.*''',
-    '''docs/.*\.md''',
+    '''docs/.*''',
+    '''blocks/library/.*''',
+    '''include/naab/secure_string\.h''',
 ]
 
 # Specific known false positives
