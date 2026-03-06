@@ -1,0 +1,10 @@
+// Test: Basic Project Context Extraction
+// Expects: extraction report on stderr, script runs normally
+// govern.json in this directory enables project_context
+
+main {
+    let x = <<python
+2 + 2
+>>
+    io.write("PASS: basic_test x=" + x)
+}

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 # Project with semantic versioning
 project(naab_lang
-    VERSION 0.2.0
+    VERSION 0.3.0
     DESCRIPTION "NAAb Block Assembly Language"
     LANGUAGES C CXX
 )
@@ -345,6 +345,7 @@ add_library(naab_security
     src/runtime/audit_logger.cpp
     src/runtime/sandbox.cpp
     src/runtime/governance.cpp               # Governance engine for govern.json enforcement
+    src/runtime/project_context.cpp          # Project context awareness (LLM files, linters, manifests)
     src/utils/safe_regex.cpp                 # Phase 1 Item 7: Regex timeout protection
     src/runtime/tamper_evident_logger.cpp    # Phase 1 Item 8: Tamper-evident logging
     src/runtime/ffi_callback_validator.cpp   # Phase 1 Item 9: FFI callback safety

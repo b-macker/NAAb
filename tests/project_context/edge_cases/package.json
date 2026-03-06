@@ -1,0 +1,4 @@
+{
+  "name": "edge-test",
+  "engines": { "node": ">=20" }
+}

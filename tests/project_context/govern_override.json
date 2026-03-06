@@ -1,0 +1,9 @@
+{
+  "languages": {
+    "allowed": ["javascript"]
+  },
+  "project_context": {
+    "enabled": true,
+    "show_extractions": true
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "project_context": {
+    "enabled": true,
+    "dry_run": true,
+    "show_extractions": true
+  }
+}

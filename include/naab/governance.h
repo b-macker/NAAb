@@ -20,6 +20,8 @@
 #include <regex>
 #include <mutex>
 
+#include "naab/project_context.h"
+
 namespace naab {
 namespace governance {
 
@@ -1045,6 +1047,7 @@ struct GovernanceRules {
     HooksConfig hooks;
     PolyglotConfig polyglot;
     PolyglotOptimizationConfig polyglot_optimization;
+    ProjectContextConfig project_context;
 
     // --- Legacy flat fields (kept for backward compatibility) ---
     std::unordered_set<std::string> allowed_languages;

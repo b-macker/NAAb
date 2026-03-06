@@ -2,153 +2,66 @@
 
 All notable changes to NAAb will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-03-05
 
 ### Added
-- **Empirical Polyglot Optimization**
-  - Runtime profiler: automatic timing of every polyglot block execution
-  - `naab-lang calibrate` command: benchmark installed languages against 8 task categories
-  - `naab-lang race` command: compare a specific polyglot block against language alternatives
-  - Confidence labels (MEASURED/CALIBRATED/ESTIMATED/UNKNOWN) in governance suggestions
-  - 93 benchmark scripts across numerical, string, file I/O, JSON, concurrency, CLI, web APIs, and systems categories
-  - Calibration data fusion: measured scores override built-in defaults
-  - New govern.json sections: `profiling`, `calibration`, `confidence`
-- **New Polyglot Executors**
-  - Nim executor: compiled via C backend, thread-safe temp files, 5 error hints
-  - Zig executor: systems language support, 4 error hints
-  - Julia executor: JIT-compiled scientific computing, 5 error hints
+- **Project Context Awareness** — governance reads project files to supplement `govern.json`
+  - Layer 1: LLM instruction files (CLAUDE.md, .cursorrules, copilot-instructions.md, gemini.md)
+  - Layer 2: Linter/formatter configs (.editorconfig, .eslintrc, .prettierrc, biome.json)
+  - Layer 3: Package manifests (package.json, go.mod, Cargo.toml, pyproject.toml)
+  - Opt-in (`"project_context": { "enabled": true }` in govern.json), off by default
+  - govern.json always overrides — project context supplements, never conflicts
+  - Each layer independently toggleable, dry-run mode, surgical rule suppression
+  - Extracted language preferences feed into polyglot optimization scoring
+  - Manifest detection is advisory-only — never blocks new languages
+  - Full extraction report with source file + line number for every rule
+  - 29 edge case tests covering conflicts, priority_source, code block skipping, and more
+- Nim, Zig, Julia polyglot executors (3 new languages, 15 total)
+- Governance v3.0 — 50+ checks, 13 config sections, per-language rules, custom rules engine
+- Polyglot optimization system — 7 detection layers, 205+ patterns, task-language scoring
+- Empirical profiling and calibration for governance suggestions
+- Cross-language consensus verification
 
-## [0.2.0] - 2026-02-21
+## [0.2.0] - 2025-02-24
 
 ### Added
-- **Polyglot Enhancements**
-  - Native data binding for Ruby, PHP, compiled languages (context file serialization)
-  - JSON Sovereign Pipe (`naab_return()`, `-> JSON` header, sentinel parsing)
-  - Persistent sub-runtime contexts (`runtime` keyword, `.exec()` method)
-  - Block header first-line awareness (Go `package main`, PHP `<?php`)
-  - Error mapping with SourceMapper wired into polyglot catch blocks
-  - Polyglot error context (code preview in error messages)
-  - Exception propagation from polyglot blocks to try/catch
-  - Configurable polyglot timeouts
-  - Parallel polyglot execution with dependency analysis
-  - Thread-safe temp files for C++, Rust, C# executors
-  - Python indentation fix for embedded blocks
-- **Language Features**
-  - Lambda expressions with closure capture (`fn(x) { return x * 2 }`)
-  - If expressions (`let x = if cond { a } else { b }`)
-  - Pipeline operator fix (evaluate right side lazily)
-  - Copy-on-assignment value semantics for arrays and dicts
-  - Assignment-in-condition detection
-  - Control flow validation (break/continue outside loops)
-  - Type coercion errors (strict arithmetic, permissive string concat)
-  - Silent bug detection (div-by-zero, modulo-by-zero, overflow)
-- **Error Messages & Developer Experience**
-  - "Did you mean?" suggestions using Levenshtein distance (all 12 stdlib modules)
-  - Common mistake helpers (~35 patterns: camelCase, Python/JS naming conventions)
-  - Better function argument count/type errors
-  - Arrow function syntax helper errors
-  - Debug module (debug.inspect, debug.type)
-  - LLM-friendly parser (keyword aliases `func`/`function`, semicolons, helper errors)
-- **Standard Library**
-  - 204 error messages across 12 modules with fuzzy matching
-  - Missing functions: string.reverse, string.char_at, env.set_var
-  - Type naming consistency ("array" not "list")
-- **CLI & REPL**
-  - Auto-detect `.naab` extension (no `run` subcommand needed)
-  - `--help` flag support
-  - Buffered output fix (fflush)
-- **Infrastructure**
-  - Sandboxing and permissions (capability-based access control)
-  - Block versioning and deprecation warnings
-  - Semantic version parser and comparator
-  - Comprehensive mono test suite (325 PASS, 0 FAIL across 12 sections)
-  - Portable path resolution (no hardcoded platform paths)
-
-### Changed
-- All hardcoded Termux paths replaced with portable path resolution
-- CMakeLists.txt uses `project(VERSION ...)` for version management
-- Version display shows git commit hash and build timestamps
-- Security library includes sandboxing infrastructure
-- README updated to reflect accurate feature set and test counts
-- All GitHub URLs updated to `github.com/b-macker/NAAb`
-- SECURITY.md contact info updated to use GitHub Security Advisories
+- Pattern matching with `match` expressions
+- Async/await support for concurrent function execution
+- Dedicated Go executor for polyglot blocks
+- REPL tab completion (keywords, stdlib, user symbols, dot notation)
+- Lambda expressions with closure capture
+- If expressions (`let x = if cond { a } else { b }`)
+- Parallel polyglot execution with dependency analysis
+- Persistent sub-runtime contexts (`runtime` keyword)
+- JSON sovereign pipe (`naab_return()`, `-> JSON` header)
+- Native data binding for polyglot blocks (Ruby, PHP, compiled langs)
+- Debug module (`debug.inspect`, `debug.type`)
+- "Did you mean?" suggestions with fuzzy matching
+- Common mistake helper errors (~35 patterns)
+- Polyglot error mapping with source location
+- Polyglot timeout configuration
+- CI workflows: Build & Test, Sanitizers (ASan/UBSan), CodeQL, Supply Chain, Release
 
 ### Fixed
-- `>>` polyglot block delimiter now only closes at line start
+- Pipeline operator evaluates right side lazily
+- Polyglot `>>` delimiter only closes at line start
 - JavaScript type conversion in polyglot blocks
 - Python large integer handling
-- Pipeline operator evaluation order
-- String.reverse and string.char_at dispatch
-- Debug module registration
+- Python indentation preservation in polyglot blocks
+- Thread-safe temp files for C++, Rust, C# executors
+- Copy-on-assignment semantics for arrays and dicts
+- Break/continue validation outside loops
+- Assignment-in-condition detection
 
-## [0.1.0] - 2024-12-27
-
-### Added
-- Phase 1: Security Hardening
-  - Resource limits with 30-second execution timeout
-  - Input validation and path canonicalization
-  - SHA256 code integrity verification (crypto_utils.h/cpp)
-  - Security audit logging with JSON format and rotation
-  - Timeout protection for C++, JavaScript, and Python executors
-  - Path traversal prevention
-  - Command injection protection
-- Phase 4: Debugging and Performance (completed first)
-  - Lazy block loading for faster startup
-  - Modern C++ syntax support
-  - Test organization into tests/ directory
-
-### Fixed
-- Interpreter performance issues
-- Block loading errors
-- Debugger include path (debugger.h → naab/debugger.h)
-- Type mismatch in executeStmt (simplified breakpoint handling)
-
-### Security
-- POSIX signal-based timeout mechanism using `alarm()` and `SIGALRM`
-- QuickJS interrupt handler for JavaScript timeout enforcement
-- Path validation using `realpath()` before library loading
-- 30s compilation timeout, 5s dlopen timeout, 10s FFI call timeout
-- Security audit logs written to `~/.naab/logs/security.log`
-
-## [0.0.1] - 2024-12-15
+## [0.1.0] - 2024-12-01
 
 ### Added
-- Multi-language block support (C++, JavaScript, Python)
-- REPL with readline support (naab-repl, naab-repl-rl)
-- Standard library with 13 modules:
-  - Core: io, json, http
-  - String/Data: string, array, math
-  - System: time, env, csv
-  - Advanced: regex, crypto, file, collections
-- Cross-language type marshalling
-- 24,491 blocks across 15 languages
-- Block registry with SQLite backend
-- Dynamic C++ compilation and loading
-- QuickJS integration for JavaScript
-- pybind11 integration for Python (optional)
-- Comprehensive documentation:
-  - USER_GUIDE.md
-  - API_REFERENCE.md
-  - ARCHITECTURE.md
-  - QUICK_REFERENCE.md
-  - Tutorial series
-- Lexer, Parser, AST, Type Checker, Interpreter
-- Language Registry for executor management
-- C++ executor with libffi for function calls
-- JavaScript executor with QuickJS
-- Python executor with pybind11
-
-### Infrastructure
-- CMake build system (C++17, CMake 3.15+)
-- External dependencies: Abseil, fmt, spdlog, SQLite3
-- Build script: build-and-install.sh
-- Test suite with multiple test executables
-- Example programs for cross-language integration
-
-[Unreleased]: https://github.com/b-macker/NAAb/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/b-macker/NAAb/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/b-macker/NAAb/releases/tag/v0.1.0
-[0.0.1]: https://github.com/b-macker/NAAb/releases/tag/v0.0.1
+- Core language: variables, functions, control flow, loops
+- Polyglot block execution (Python, JavaScript, Rust, C++, C#, Shell, Ruby, PHP)
+- Standard library: array, string, math, time, env, file, io, json, http, csv, regex, crypto
+- REPL with linenoise (arrow keys, history, Ctrl+R search)
+- Block registry with SQLite storage
+- Error reporting with source locations

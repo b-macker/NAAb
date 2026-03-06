@@ -1,0 +1,4 @@
+Always use TypeScript
+Prefer JavaScript for web APIs
+Never use eval()
+Use 2 spaces for indentation

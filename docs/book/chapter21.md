@@ -764,3 +764,37 @@ Start with `audit` mode to understand what would be flagged, then switch to `enf
 3. Add LLM checks at `"advisory"` level, then promote to `"soft"` or `"hard"` as confidence grows
 4. Use `custom_rules` for project-specific patterns
 5. Generate reports with `--governance-sarif` for CI integration
+
+---
+
+## 21.10 Project Context Awareness
+
+NAAb governance can read your existing project files and use them to supplement `govern.json`. This turns governance from a static config into an adaptive partner that understands your project holistically.
+
+**Key principle:** `govern.json` always wins. Project context supplements, never overrides.
+
+### Enabling
+
+```json
+{
+  "project_context": {
+    "enabled": true
+  }
+}
+```
+
+NAAb scans upward from the script directory for known files and extracts rules from three layers:
+
+| Layer | Files | What Gets Extracted |
+|-------|-------|---------------------|
+| LLM files | CLAUDE.md, .cursorrules, copilot-instructions.md, gemini.md | Language preferences, banned functions, style rules |
+| Linter configs | .editorconfig, .eslintrc.json, .prettierrc, biome.json | Indent style/size, banned patterns |
+| Package manifests | package.json, go.mod, Cargo.toml, pyproject.toml | Language detection (advisory only) |
+
+Each layer is independently toggleable via `sources.llm`, `sources.linters`, `sources.manifests`.
+
+NAAb extracts clear directives from LLM files using strong verbs ("always use", "never use", "prefer X for Y"). Ambiguous text and content inside code blocks is skipped. Extracted language preferences feed into polyglot optimization scoring.
+
+Conflicts are resolved by `priority_source` (if set), otherwise linter configs win over LLM files, which win over manifests. Every skipped directive is reported with source and reason. Use `suppress_rules` to surgically suppress specific extractions by ID, or `dry_run: true` to preview without applying.
+
+See `docs/govern-template.json` for the full configuration reference.

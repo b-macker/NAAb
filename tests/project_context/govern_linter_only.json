@@ -1,0 +1,11 @@
+{
+  "project_context": {
+    "enabled": true,
+    "sources": {
+      "llm": false,
+      "linters": true,
+      "manifests": false
+    },
+    "show_extractions": true
+  }
+}

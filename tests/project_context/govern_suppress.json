@@ -1,0 +1,7 @@
+{
+  "project_context": {
+    "enabled": true,
+    "suppress_rules": ["ctx-llm-ban-eval"],
+    "show_extractions": true
+  }
+}

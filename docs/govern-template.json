@@ -934,5 +934,30 @@
         "shell":      { "score": 45, "reason": "awk/sed for simple parsing" }
       }
     }
+  },
+
+  "_comment_project_context": "Project Context Awareness — supplement governance with rules from project files",
+  "project_context": {
+    "enabled": false,
+    "enforcement_level": "advisory",
+    "priority_source": "",
+    "sources": {
+      "llm": true,
+      "linters": true,
+      "manifests": true
+    },
+    "watch_files": [],
+    "ignore_files": [],
+    "suppress_rules": [],
+    "extract": {
+      "language_preferences": true,
+      "banned_patterns": true,
+      "style_rules": true,
+      "custom_directives": true
+    },
+    "feed_optimization": true,
+    "show_extractions": true,
+    "dry_run": false,
+    "max_file_size_kb": 100
   }
 }

@@ -1245,6 +1245,40 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (hk.contains("pre_check")) loadHook(hk["pre_check"], rules_.hooks.pre_check);
         if (hk.contains("post_check")) loadHook(hk["post_check"], rules_.hooks.post_check);
     }
+
+    // Project Context Awareness
+    if (j.contains("project_context") && j["project_context"].is_object()) {
+        auto& pc = j["project_context"];
+        if (pc.contains("enabled")) rules_.project_context.enabled = pc["enabled"].get<bool>();
+        if (pc.contains("enforcement_level")) rules_.project_context.enforcement_level = pc["enforcement_level"].get<std::string>();
+        if (pc.contains("priority_source")) rules_.project_context.priority_source = pc["priority_source"].get<std::string>();
+        if (pc.contains("sources") && pc["sources"].is_object()) {
+            auto& src = pc["sources"];
+            if (src.contains("llm")) rules_.project_context.sources.llm = src["llm"].get<bool>();
+            if (src.contains("linters")) rules_.project_context.sources.linters = src["linters"].get<bool>();
+            if (src.contains("manifests")) rules_.project_context.sources.manifests = src["manifests"].get<bool>();
+        }
+        if (pc.contains("watch_files")) {
+            for (auto& f : pc["watch_files"]) rules_.project_context.watch_files.push_back(f.get<std::string>());
+        }
+        if (pc.contains("ignore_files")) {
+            for (auto& f : pc["ignore_files"]) rules_.project_context.ignore_files.push_back(f.get<std::string>());
+        }
+        if (pc.contains("suppress_rules")) {
+            for (auto& r : pc["suppress_rules"]) rules_.project_context.suppress_rules.push_back(r.get<std::string>());
+        }
+        if (pc.contains("extract") && pc["extract"].is_object()) {
+            auto& ex = pc["extract"];
+            if (ex.contains("language_preferences")) rules_.project_context.extract_language_prefs = ex["language_preferences"].get<bool>();
+            if (ex.contains("banned_patterns")) rules_.project_context.extract_banned_patterns = ex["banned_patterns"].get<bool>();
+            if (ex.contains("style_rules")) rules_.project_context.extract_style_rules = ex["style_rules"].get<bool>();
+            if (ex.contains("custom_directives")) rules_.project_context.extract_custom_directives = ex["custom_directives"].get<bool>();
+        }
+        if (pc.contains("feed_optimization")) rules_.project_context.feed_optimization = pc["feed_optimization"].get<bool>();
+        if (pc.contains("show_extractions")) rules_.project_context.show_extractions = pc["show_extractions"].get<bool>();
+        if (pc.contains("dry_run")) rules_.project_context.dry_run = pc["dry_run"].get<bool>();
+        if (pc.contains("max_file_size_kb")) rules_.project_context.max_file_size_kb = pc["max_file_size_kb"].get<int>();
+    }
 }
 
 bool GovernanceEngine::loadFromFile(const std::string& path) {
@@ -1284,7 +1318,46 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
     while (true) {
         fs::path candidate = dir / "govern.json";
         if (fs::exists(candidate)) {
-            return loadFromFile(candidate.string());
+            bool loaded = loadFromFile(candidate.string());
+            if (!loaded) return false;
+
+            // Project Context Awareness — load supplemental rules from project files
+            if (rules_.project_context.enabled) {
+                ProjectContextLoader loader;
+                auto extractions = loader.loadContext(start_dir, rules_.project_context);
+
+                if (!extractions.empty()) {
+                    if (!rules_.project_context.dry_run) {
+                        // Parse enforcement level
+                        EnforcementLevel ctx_level = EnforcementLevel::ADVISORY;
+                        if (rules_.project_context.enforcement_level == "soft")
+                            ctx_level = EnforcementLevel::SOFT;
+                        else if (rules_.project_context.enforcement_level == "hard")
+                            ctx_level = EnforcementLevel::HARD;
+
+                        loader.applyToRules(rules_, extractions, ctx_level);
+
+                        if (rules_.project_context.feed_optimization) {
+                            loader.applyOptimizationHints(
+                                rules_.polyglot_optimization, extractions);
+                        }
+                    } else {
+                        // Dry run: mark all as dry_run status
+                        for (auto& ext : extractions) {
+                            if (ext.status.empty()) ext.status = "dry_run";
+                        }
+                    }
+
+                    if (rules_.project_context.show_extractions) {
+                        std::string report = loader.formatReport(extractions);
+                        if (!report.empty()) {
+                            fprintf(stderr, "%s", report.c_str());
+                        }
+                    }
+                }
+            }
+
+            return true;
         }
 
         fs::path parent = dir.parent_path();

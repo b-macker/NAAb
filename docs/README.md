@@ -27,6 +27,7 @@ All documentation lives in the **book/** directory as a comprehensive reference 
 | [Chapter 18](book/chapter18.md) | Networking and Data Formats |
 | [Chapter 19](book/chapter19.md) | Cryptography and Security Modules |
 | [Chapter 20](book/chapter20.md) | Future Roadmap |
+| [Chapter 21](book/chapter21.md) | Governance and LLM Code Quality |
 
 ## Quick Start
 

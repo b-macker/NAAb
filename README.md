@@ -187,6 +187,7 @@ main {
 - **LLM anti-drift checks** — detect stubs, hallucinated APIs, incomplete error handling
 - **Three enforcement levels** — HARD (block), SOFT (overridable), ADVISORY (warn)
 - **50+ built-in checks** — secrets, SQL injection, path traversal, privilege escalation, and more
+- **Project context awareness** — auto-reads CLAUDE.md, .editorconfig, package.json and more to supplement governance rules
 - **Custom rules** — define your own regex-based governance rules
 - **CI/CD integration** — SARIF, JUnit XML, and JSON report output
 
