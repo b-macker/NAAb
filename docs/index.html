@@ -893,6 +893,48 @@ mean=30, stdev=15.8
                 <h4><span class="tag tag-advisory">Info</span> CI/CD Integration</h4>
                 <p>Export governance results as SARIF for GitHub Code Scanning, JUnit XML for Jenkins/GitLab CI, or JSON for custom tooling. Three enforcement levels: HARD, SOFT, ADVISORY.</p>
             </div>
+            <div class="gov-card">
+                <h4><span class="tag tag-soft">Soft</span> Cross-Language Verification</h4>
+                <p>Automatically re-runs polyglot blocks through additional language runtimes and compares results. Catches silent computation errors, floating-point drift, and off-by-one bugs that a single runtime would miss.</p>
+            </div>
+        </div>
+
+        <!-- Consensus Verification -->
+        <div style="margin-top: 48px;">
+            <h3 style="text-align: center; font-size: 1.3rem; margin-bottom: 8px;">Trust, but verify</h3>
+            <p style="text-align: center; color: var(--text-secondary); font-size: 0.95rem; max-width: 560px; margin: 0 auto 28px;">Enable cross-language verification in <code>govern.json</code>. NAAb re-runs each polyglot block through independent runtimes and reports consensus — or flags drift.</p>
+
+            <div class="code-showcase">
+                <div class="code-panel">
+                    <div class="tab-bar">
+                        <div class="tab active">govern.json</div>
+                    </div>
+<pre>{
+  <span class="str">"verification"</span>: {
+    <span class="str">"enabled"</span>: <span class="kw">true</span>,
+    <span class="str">"enforcement_level"</span>: <span class="str">"soft"</span>,
+    <span class="str">"consensus_languages"</span>: [<span class="str">"python"</span>, <span class="str">"javascript"</span>, <span class="str">"go"</span>],
+    <span class="str">"tolerance"</span>: <span class="num">1e-10</span>
+  }
+}</pre>
+                </div>
+                <div class="code-panel">
+                    <div class="tab-bar">
+                        <div class="tab active">Terminal</div>
+                    </div>
+<pre><span class="ok">$ naab-lang app.naab</span>
+
+<span class="ok">[VERIFY] Line 12: python block</span>
+<span class="ok">  Consensus: 3/3 agree (python, javascript, go)</span>
+<span class="ok">  Result: 4950</span>
+
+<span class="err">[VERIFY] Line 28: javascript block</span>
+<span class="err">  DRIFT DETECTED: 2/3 agree</span>
+<span class="err">  javascript → "0.30000000000000004"</span>
+<span class="err">  python     → "0.3"</span>
+<span class="err">  go         → "0.3"</span></pre>
+                </div>
+            </div>
         </div>
 
         <!-- Empirical Optimization -->
