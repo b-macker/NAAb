@@ -1,0 +1,112 @@
+// Polyglot Consensus Verification Engine Test
+// Tests cross-language result verification and drift detection
+//
+// Requires govern.json with verification enabled
+
+use io
+
+function test_numerical_consensus() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Simple integer arithmetic (should achieve consensus)
+    total = total + 1
+    let sum = <<python
+2 + 2
+>>
+    // Verification runs automatically via governance — check output for consensus
+    if ("" + sum) == "4" {
+        passed = passed + 1
+        io.write("  PASS: Integer arithmetic consensus\n")
+    } else {
+        io.write("  FAIL: Integer arithmetic got " + sum + "\n")
+    }
+
+    // Test 2: Floating point division (may detect drift)
+    total = total + 1
+    let div = <<python
+100.0 / 3.0
+>>
+    if ("" + div) != "" {
+        passed = passed + 1
+        io.write("  PASS: Division executed (check governance output for drift)\n")
+    } else {
+        io.write("  FAIL: Division returned empty\n")
+    }
+
+    // Test 3: Irrational number (high precision — drift expected)
+    total = total + 1
+    let pi_approx = <<python
+import math
+math.pi
+>>
+    if ("" + pi_approx) != "" {
+        passed = passed + 1
+        io.write("  PASS: Pi computed (check governance for cross-lang comparison)\n")
+    } else {
+        io.write("  FAIL: Pi returned empty\n")
+    }
+
+    return [passed, total]
+}
+
+function test_string_consensus() {
+    let passed = 0
+    let total = 0
+
+    // Test 4: String operation (should achieve consensus)
+    total = total + 1
+    let upper = <<python
+'hello world'.upper()
+>>
+    if ("" + upper) == "HELLO WORLD" {
+        passed = passed + 1
+        io.write("  PASS: String upper consensus\n")
+    } else {
+        io.write("  FAIL: String upper got '" + upper + "'\n")
+    }
+
+    return [passed, total]
+}
+
+function test_verification_disabled() {
+    // This test verifies that when verification is disabled,
+    // no verification output appears (manual check)
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let x = <<python
+42
+>>
+    if ("" + x) == "42" {
+        passed = passed + 1
+        io.write("  PASS: Basic execution works with verification config\n")
+    }
+
+    return [passed, total]
+}
+
+main {
+    io.write("=== Consensus Verification Engine Tests ===\n\n")
+
+    let total_passed = 0
+    let total_tests = 0
+
+    io.write("--- Numerical Consensus ---\n")
+    let r1 = test_numerical_consensus()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    io.write("\n--- String Consensus ---\n")
+    let r2 = test_string_consensus()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    io.write("\n--- Verification Config ---\n")
+    let r3 = test_verification_disabled()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    io.write("\n=== Results: " + total_passed + "/" + total_tests + " PASS ===\n")
+}

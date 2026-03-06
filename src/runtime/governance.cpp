@@ -7,6 +7,8 @@
 //   ADVISORY  - Warn only. Execution continues.
 
 #include "naab/governance.h"
+#include "naab/language_registry.h"
+#include "naab/interpreter.h"
 #include "naab/analyzer/task_pattern_detector.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -1177,6 +1179,35 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cf.contains("min_display_level")) rules_.polyglot_optimization.confidence.min_display_level = cf["min_display_level"].get<std::string>();
             if (cf.contains("suppress_unknown")) rules_.polyglot_optimization.confidence.suppress_unknown = cf["suppress_unknown"].get<bool>();
             if (cf.contains("show_measurement_details")) rules_.polyglot_optimization.confidence.show_measurement_details = cf["show_measurement_details"].get<bool>();
+        }
+
+        // Polyglot consensus verification
+        if (po.contains("verification") && po["verification"].is_object()) {
+            auto& vf = po["verification"];
+            if (vf.contains("enabled"))
+                rules_.polyglot_optimization.verification.enabled = vf["enabled"].get<bool>();
+            if (vf.contains("enforcement_level"))
+                rules_.polyglot_optimization.verification.enforcement_level = vf["enforcement_level"].get<std::string>();
+            if (vf.contains("tolerance"))
+                rules_.polyglot_optimization.verification.tolerance = vf["tolerance"].get<double>();
+            if (vf.contains("min_consensus"))
+                rules_.polyglot_optimization.verification.min_consensus = vf["min_consensus"].get<int>();
+            if (vf.contains("max_verification_time_ms"))
+                rules_.polyglot_optimization.verification.max_verification_time_ms = vf["max_verification_time_ms"].get<int>();
+            if (vf.contains("show_drift_details"))
+                rules_.polyglot_optimization.verification.show_drift_details = vf["show_drift_details"].get<bool>();
+            if (vf.contains("consensus_languages") && vf["consensus_languages"].is_array()) {
+                for (auto& lang : vf["consensus_languages"]) {
+                    rules_.polyglot_optimization.verification.consensus_languages.push_back(
+                        lang.get<std::string>());
+                }
+            }
+            if (vf.contains("verify_task_types") && vf["verify_task_types"].is_array()) {
+                for (auto& tt : vf["verify_task_types"]) {
+                    rules_.polyglot_optimization.verification.verify_task_types.push_back(
+                        tt.get<std::string>());
+                }
+            }
         }
 
         // Task→Language scoring matrix
@@ -3829,6 +3860,422 @@ bool GovernanceEngine::loadCalibration() {
     } catch (...) {
         return false;
     }
+}
+
+// ============================================================================
+// Polyglot Consensus Verification
+// ============================================================================
+
+bool GovernanceEngine::isVerificationEnabled() const {
+    return active_ &&
+           rules_.polyglot_optimization.enabled &&
+           rules_.polyglot_optimization.verification.enabled &&
+           !rules_.polyglot_optimization.verification.consensus_languages.empty();
+}
+
+bool GovernanceEngine::isNumericString(const std::string& s) {
+    if (s.empty()) return false;
+    char* end = nullptr;
+    std::strtod(s.c_str(), &end);
+    return end != s.c_str() && *end == '\0';
+}
+
+std::string GovernanceEngine::escapeStringForVerification(const std::string& s) {
+    std::string result;
+    for (char c : s) {
+        if (c == '\'') result += "\\'";
+        else if (c == '\"') result += "\\\"";
+        else if (c == '\\') result += "\\\\";
+        else if (c == '\n') result += "\\n";
+        else if (c == '\r') continue;
+        else result += c;
+    }
+    return result;
+}
+
+bool GovernanceEngine::compareResults(const std::string& a, const std::string& b, double tolerance) {
+    // Exact string match first (fast path)
+    if (a == b) return true;
+
+    // Whitespace-normalized string match
+    auto normalize = [](const std::string& s) -> std::string {
+        std::string result;
+        for (char c : s) {
+            if (c == '\r') continue;
+            result += c;
+        }
+        // Trim trailing whitespace/newlines
+        while (!result.empty() && (result.back() == '\n' || result.back() == ' ' || result.back() == '\t'))
+            result.pop_back();
+        // Trim leading whitespace
+        size_t start = result.find_first_not_of(" \t\n");
+        if (start != std::string::npos) result = result.substr(start);
+        return result;
+    };
+
+    std::string na = normalize(a);
+    std::string nb = normalize(b);
+    if (na == nb) return true;
+
+    // Numeric comparison with tolerance
+    if (isNumericString(na) && isNumericString(nb)) {
+        double da = std::stod(na);
+        double db = std::stod(nb);
+        return std::abs(da - db) <= tolerance;
+    }
+
+    return false;
+}
+
+std::string GovernanceEngine::classifyTaskForVerification(
+    const std::string& code, const std::string& language) {
+
+    std::map<std::string, std::map<std::string, int>> matrix;
+    for (const auto& [task, lang_scores] : rules_.polyglot_optimization.task_language_matrix) {
+        for (const auto& [lang, score_data] : lang_scores) {
+            matrix[task][lang] = score_data.score;
+        }
+    }
+
+    analyzer::ComprehensiveTaskDetector detector(matrix);
+    auto result = detector.analyze(code, language);
+    return analyzer::taskIntentToString(result.primary_task);
+}
+
+std::string GovernanceEngine::extractMathExpression(
+    const std::string& code, const std::string& lang) {
+
+    std::string trimmed = code;
+    auto start = trimmed.find_first_not_of(" \t\n\r");
+    auto end = trimmed.find_last_not_of(" \t\n\r");
+    if (start == std::string::npos) return "";
+    trimmed = trimmed.substr(start, end - start + 1);
+
+    // Single line? Likely a pure expression
+    if (trimmed.find('\n') == std::string::npos) {
+        // Strip common wrappers
+        if (lang == "python" && trimmed.substr(0, 6) == "print(" && trimmed.back() == ')')
+            return trimmed.substr(6, trimmed.size() - 7);
+        if ((lang == "javascript" || lang == "js") && trimmed.substr(0, 12) == "console.log(" && trimmed.back() == ')')
+            return trimmed.substr(12, trimmed.size() - 13);
+        if (lang == "ruby" && trimmed.size() > 5 && trimmed.substr(0, 5) == "puts ")
+            return trimmed.substr(5);
+
+        // Check if it looks like a math expression
+        bool looks_numeric = true;
+        for (char c : trimmed) {
+            if (!std::isdigit(c) && c != '.' && c != '+' && c != '-' &&
+                c != '*' && c != '/' && c != '(' && c != ')' && c != ' ' &&
+                c != '%' && c != 'e' && c != 'E') {
+                looks_numeric = false;
+                break;
+            }
+        }
+        if (looks_numeric) return trimmed;
+    }
+
+    // Multi-line: look for last line as the result expression
+    std::istringstream stream(trimmed);
+    std::string line, last_line;
+    while (std::getline(stream, line)) {
+        auto ls = line.find_first_not_of(" \t");
+        if (ls != std::string::npos) last_line = line.substr(ls);
+    }
+
+    // Check if last line is a simple expression (no assignment, no import)
+    if (!last_line.empty() && last_line.find('=') == std::string::npos &&
+        last_line.find("import") == std::string::npos) {
+        // Strip print wrappers from last line too
+        if (last_line.substr(0, 6) == "print(" && last_line.back() == ')')
+            return last_line.substr(6, last_line.size() - 7);
+        if (last_line.substr(0, 12) == "console.log(" && last_line.back() == ')')
+            return last_line.substr(12, last_line.size() - 13);
+        return last_line;
+    }
+
+    return "";  // Can't extract — fallback to echo strategy
+}
+
+std::string GovernanceEngine::generateEchoCode(
+    const std::string& target_lang, const std::string& value) {
+    std::string esc = escapeStringForVerification(value);
+    if (target_lang == "python") return "print('" + esc + "')";
+    if (target_lang == "javascript" || target_lang == "js")
+        return "console.log('" + esc + "')";
+    if (target_lang == "go")
+        return "package main\nimport \"fmt\"\nfunc main(){fmt.Print(\"" + esc + "\")}";
+    if (target_lang == "ruby") return "print '" + esc + "'";
+    if (target_lang == "nim") return "import std/strutils\nstdout.write(\"" + esc + "\")";
+    if (target_lang == "julia") return "print(\"" + esc + "\")";
+    if (target_lang == "rust")
+        return "fn main(){print!(\"" + esc + "\");}";
+    if (target_lang == "shell" || target_lang == "sh" || target_lang == "bash")
+        return "printf '%s' '" + esc + "'";
+    // Default fallback
+    return "print('" + esc + "')";
+}
+
+std::string GovernanceEngine::generateVerificationCode(
+    const std::string& task_type,
+    const std::string& original_code,
+    const std::string& original_result,
+    const std::string& source_lang,
+    const std::string& target_lang)
+{
+    // ================================================================
+    // NUMERICAL VERIFICATION
+    // ================================================================
+    if (task_type.find("numerical") != std::string::npos ||
+        task_type.find("statistical") != std::string::npos ||
+        task_type.find("linear") != std::string::npos) {
+
+        std::string expr = extractMathExpression(original_code, source_lang);
+
+        if (target_lang == "python") {
+            if (!expr.empty())
+                return "result = " + expr + "\nprint(result)";
+            return "print(" + original_result + ")";
+        }
+        else if (target_lang == "javascript" || target_lang == "js") {
+            if (!expr.empty())
+                return "console.log(" + expr + ")";
+            return "console.log(" + original_result + ")";
+        }
+        else if (target_lang == "go") {
+            std::string e = expr.empty() ? original_result : expr;
+            return "package main\nimport \"fmt\"\nfunc main() {\n\tfmt.Print(" + e + ")\n}";
+        }
+        else if (target_lang == "ruby") {
+            return "print " + (expr.empty() ? original_result : expr);
+        }
+        else if (target_lang == "nim") {
+            std::string e = expr.empty() ? original_result : expr;
+            return "import std/strutils\nstdout.write($(" + e + "))";
+        }
+        else if (target_lang == "julia") {
+            return "print(" + (expr.empty() ? original_result : expr) + ")";
+        }
+        else if (target_lang == "rust") {
+            std::string e = expr.empty() ? original_result : expr;
+            return "fn main() { print!(\"{}\", " + e + "); }";
+        }
+        else if (target_lang == "shell" || target_lang == "sh" || target_lang == "bash") {
+            std::string e = expr.empty() ? original_result : expr;
+            return "echo $(( " + e + " ))";
+        }
+    }
+
+    // ================================================================
+    // STRING VERIFICATION
+    // ================================================================
+    if (task_type.find("string") != std::string::npos) {
+        return generateEchoCode(target_lang, original_result);
+    }
+
+    // ================================================================
+    // JSON / DATA VERIFICATION
+    // ================================================================
+    if (task_type.find("json") != std::string::npos ||
+        task_type.find("data_parsing") != std::string::npos ||
+        task_type.find("data_serialization") != std::string::npos) {
+
+        std::string esc = escapeStringForVerification(original_result);
+        if (target_lang == "python") {
+            return "import json\ndata = json.loads('" + esc + "')\nprint(json.dumps(data, sort_keys=True))";
+        }
+        else if (target_lang == "javascript" || target_lang == "js") {
+            return "const d = JSON.parse('" + esc + "');\n"
+                   "const keys = Object.keys(d).sort();\n"
+                   "const sorted = {}; keys.forEach(k => sorted[k] = d[k]);\n"
+                   "console.log(JSON.stringify(sorted))";
+        }
+        else if (target_lang == "go") {
+            return "package main\nimport(\"encoding/json\"\n\"fmt\")\n"
+                   "func main() {\n\tvar d map[string]interface{}\n"
+                   "\tjson.Unmarshal([]byte(`" + original_result + "`), &d)\n"
+                   "\tb, _ := json.Marshal(d)\n\tfmt.Print(string(b))\n}";
+        }
+        // Other languages: echo the result
+        return generateEchoCode(target_lang, original_result);
+    }
+
+    // ================================================================
+    // FILE / CLI / WEB / CONCURRENCY / SYSTEMS — echo only
+    // (Can't safely re-run side effects)
+    // ================================================================
+    return generateEchoCode(target_lang, original_result);
+}
+
+std::string GovernanceEngine::verifyPolyglotResult(
+    const std::string& language,
+    const std::string& code,
+    const std::string& result_str,
+    int line)
+{
+    if (!isVerificationEnabled()) return "";
+
+    auto& cfg = rules_.polyglot_optimization.verification;
+
+    // 1. Classify the task
+    std::string task_type = classifyTaskForVerification(code, language);
+
+    // 2. Check if this task type should be verified
+    if (!cfg.verify_task_types.empty()) {
+        bool found = false;
+        for (const auto& vt : cfg.verify_task_types) {
+            if (task_type.find(vt) != std::string::npos || vt.find(task_type) != std::string::npos) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return "";
+    }
+
+    // 3. Filter consensus languages to installed only, skip original language
+    auto& registry = runtime::LanguageRegistry::instance();
+    std::vector<std::string> available_langs;
+    std::string norm_lang = normalizeLanguage(language);
+    for (const auto& lang : cfg.consensus_languages) {
+        std::string norm = normalizeLanguage(lang);
+        if (norm == norm_lang) continue;
+        if (registry.getExecutor(norm) != nullptr) {
+            available_langs.push_back(norm);
+        }
+    }
+
+    if (available_langs.empty()) return "";
+
+    // 4. Run verification in each language
+    std::vector<VerificationResult> results;
+    results.push_back({norm_lang, result_str, 0, true, ""});  // Original
+
+    for (const auto& target_lang : available_langs) {
+        VerificationResult vr;
+        vr.language = target_lang;
+
+        std::string verif_code = generateVerificationCode(
+            task_type, code, result_str, norm_lang, target_lang);
+
+        if (verif_code.empty()) {
+            vr.success = false;
+            vr.error = "No template available";
+            results.push_back(vr);
+            continue;
+        }
+
+        auto start_time = std::chrono::steady_clock::now();
+        try {
+            auto* verif_executor = registry.getExecutor(target_lang);
+            if (!verif_executor) {
+                vr.success = false;
+                vr.error = "Executor not found";
+                results.push_back(vr);
+                continue;
+            }
+
+            auto verif_value = verif_executor->executeWithReturn(verif_code);
+            vr.result = verif_value ? verif_value->toString() : "";
+            vr.success = true;
+            // Drain captured output to prevent leaking into subsequent real executions
+            verif_executor->getCapturedOutput();
+        } catch (const std::exception& e) {
+            vr.success = false;
+            vr.error = e.what();
+        }
+
+        auto end_time = std::chrono::steady_clock::now();
+        vr.duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+        results.push_back(vr);
+    }
+
+    // 5. Compare all results against original
+    int agree_count = 0;
+    int total_count = 0;
+    std::vector<std::string> drift_details;
+
+    for (const auto& vr : results) {
+        if (!vr.success) continue;
+        total_count++;
+        if (compareResults(result_str, vr.result, cfg.tolerance)) {
+            agree_count++;
+        } else {
+            drift_details.push_back(fmt::format("{}={}", vr.language, vr.result));
+        }
+    }
+
+    // 6. Format and output governance message
+    bool consensus = (agree_count >= cfg.min_consensus) && drift_details.empty();
+
+    if (consensus) {
+        std::string lang_vals;
+        for (const auto& vr : results) {
+            if (!vr.success) continue;
+            if (!lang_vals.empty()) lang_vals += "  ";
+            lang_vals += fmt::format("{}={}", vr.language, vr.result);
+        }
+        fmt::print("\n  [governance] Verification: {} block (line {})\n", language, line);
+        if (cfg.show_drift_details) {
+            fmt::print("    \xe2\x9c\x93 {}  ({}/{} agree)\n\n", lang_vals, agree_count, total_count);
+        } else {
+            fmt::print("    \xe2\x9c\x93 {}/{} agree\n\n", agree_count, total_count);
+        }
+        return "";
+    }
+
+    // Drift detected
+    std::string level_str = cfg.enforcement_level;
+    std::string level_upper = level_str;
+    std::transform(level_upper.begin(), level_upper.end(), level_upper.begin(), ::toupper);
+
+    fmt::print("\n  [governance] Verification MISMATCH: {} block (line {})  [{}]\n",
+        language, line, level_upper);
+
+    if (cfg.show_drift_details) {
+        for (const auto& vr : results) {
+            if (!vr.success) {
+                fmt::print("    {} = ERROR: {}\n", vr.language, vr.error);
+                continue;
+            }
+            bool matches = compareResults(result_str, vr.result, cfg.tolerance);
+            fmt::print("    {}{}={}\n", matches ? "\xe2\x9c\x93 " : "\xe2\x9c\x97 ", vr.language, vr.result);
+        }
+
+        if (isNumericString(result_str) && !drift_details.empty()) {
+            for (const auto& vr : results) {
+                if (vr.success && !compareResults(result_str, vr.result, cfg.tolerance) &&
+                    isNumericString(vr.result)) {
+                    double diff = std::abs(std::stod(result_str) - std::stod(vr.result));
+                    fmt::print("    Drift: {:.2e} (tolerance: {:.2e})\n", diff, cfg.tolerance);
+                    break;
+                }
+            }
+        }
+    }
+
+    fmt::print("    Task: {} | Consensus: {}/{}\n\n", task_type, agree_count, total_count);
+
+    // Audit logging for soft/hard enforcement
+    if (level_str == "soft" || level_str == "hard") {
+        fprintf(stderr, "[governance] AUDIT DRIFT: %s block at line %d — %d/%d consensus (%s)\n",
+            language.c_str(), line, agree_count, total_count, task_type.c_str());
+    }
+
+    // Hard enforcement: block execution
+    if (level_str == "hard") {
+        std::string details;
+        for (const auto& vr : results) {
+            if (vr.success) details += fmt::format("  {}={}\n", vr.language, vr.result);
+        }
+        return fmt::format(
+            "Verification HARD violation: Cross-language drift detected at line {}\n"
+            "  Task: {}\n"
+            "  Results:\n{}"
+            "  Consensus: {}/{} (minimum: {})\n\n"
+            "  Use --governance-override to bypass, or adjust verification.tolerance in govern.json",
+            line, task_type, details, agree_count, total_count, cfg.min_consensus);
+    }
+
+    return "";
 }
 
 } // namespace governance

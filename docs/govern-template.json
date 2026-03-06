@@ -827,6 +827,26 @@
       "show_measurement_details": true
     },
 
+    "verification": {
+      "enabled": false,
+      "enforcement_level": "advisory",
+      "consensus_languages": ["python", "javascript", "go"],
+      "tolerance": 1e-10,
+      "verify_task_types": [
+        "numerical_computation",
+        "string_manipulation",
+        "data_parsing",
+        "file_operations",
+        "cli_tool",
+        "web_service",
+        "async_operations",
+        "systems_programming"
+      ],
+      "min_consensus": 2,
+      "max_verification_time_ms": 5000,
+      "show_drift_details": true
+    },
+
     "language_diversity": {
       "enabled": true,
       "min_languages": 2,

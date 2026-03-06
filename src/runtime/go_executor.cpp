@@ -190,8 +190,14 @@ std::shared_ptr<interpreter::Value> GoExecutor::executeWithReturn(
             exec_stdout, exec_stderr, nullptr
         );
 
-        // Buffer output for interpreter to handle (avoid double-printing)
-        if (!exec_stdout.empty()) stdout_buffer_.append(exec_stdout);
+        // Buffer only log output (strip last line = return value)
+        // The return value is the last line of stdout (wrapGoCode wraps it in Println)
+        if (!exec_stdout.empty()) {
+            auto last_nl = exec_stdout.rfind('\n', exec_stdout.size() - 2);
+            if (last_nl != std::string::npos) {
+                stdout_buffer_.append(exec_stdout.substr(0, last_nl + 1));
+            }
+        }
         if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
         // Cleanup

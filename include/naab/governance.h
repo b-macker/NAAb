@@ -984,6 +984,18 @@ struct ConfidenceConfig {
     bool show_measurement_details = true;
 };
 
+// Polyglot verification config — cross-language consensus checking
+struct VerificationConfig {
+    bool enabled = false;                           // Master switch
+    std::string enforcement_level = "advisory";     // "advisory" | "soft" | "hard"
+    std::vector<std::string> consensus_languages;   // Languages to verify against
+    double tolerance = 1e-10;                       // Numeric comparison tolerance
+    std::vector<std::string> verify_task_types;     // Task categories to verify
+    int min_consensus = 2;                          // Min languages that must agree
+    int max_verification_time_ms = 5000;            // Timeout per verification run
+    bool show_drift_details = true;                 // Show actual values in report
+};
+
 struct TaskLanguageScore {
     int score = 0;            // 0-100 score
     std::string reason;       // Why this score
@@ -1002,6 +1014,7 @@ struct PolyglotOptimizationConfig {
     ProfilingConfig profiling;
     CalibrationConfig calibration;
     ConfidenceConfig confidence;
+    VerificationConfig verification;
 
     // Task→Language scoring matrix loaded from JSON
     // Structure: task_language_matrix[task_name][language] = TaskLanguageScore
@@ -1278,6 +1291,15 @@ public:
                                int improvement_percent,
                                const std::vector<std::string>& reasons);
 
+    // --- Polyglot Consensus Verification ---
+    // Returns error string on hard enforcement failure, empty string otherwise
+    std::string verifyPolyglotResult(
+        const std::string& language,
+        const std::string& code,
+        const std::string& result_str,
+        int line = 0);
+    bool isVerificationEnabled() const;
+
     // --- Summary & Reporting ---
     const std::vector<CheckResult>& getCheckResults() const { return check_results_; }
     std::string formatSummary() const;
@@ -1360,6 +1382,25 @@ private:
     static size_t levenshteinDistance(const std::string& s1, const std::string& s2);
     static std::string suggestKey(const std::string& key,
                                    const std::vector<std::string>& valid_keys);
+
+    // --- Verification helpers ---
+    struct VerificationResult {
+        std::string language;
+        std::string result;
+        int64_t duration_us;
+        bool success;
+        std::string error;
+    };
+
+    std::string generateVerificationCode(const std::string& task_type,
+        const std::string& original_code, const std::string& original_result,
+        const std::string& source_lang, const std::string& target_lang);
+    std::string generateEchoCode(const std::string& target_lang, const std::string& value);
+    std::string extractMathExpression(const std::string& code, const std::string& lang);
+    std::string escapeStringForVerification(const std::string& s);
+    bool compareResults(const std::string& a, const std::string& b, double tolerance);
+    bool isNumericString(const std::string& s);
+    std::string classifyTaskForVerification(const std::string& code, const std::string& language);
 
     // --- Audit helpers ---
     std::string computeAuditHash(const std::string& data) const;

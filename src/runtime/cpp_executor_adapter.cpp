@@ -377,8 +377,13 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
             temp_bin_main.string(), {}, exec_stdout, exec_stderr, nullptr
         );
 
-        // Print output
-        if (!exec_stdout.empty()) fmt::print("{}", exec_stdout);
+        // Buffer only log output (strip last line = return value)
+        if (!exec_stdout.empty()) {
+            auto last_nl = exec_stdout.rfind('\n', exec_stdout.size() - 2);
+            if (last_nl != std::string::npos) {
+                captured_output_ += exec_stdout.substr(0, last_nl + 1);
+            }
+        }
         if (!exec_stderr.empty()) fmt::print("[C++ stderr]: {}", exec_stderr);
 
         // Phase 3.3.1: Only cleanup if not cached

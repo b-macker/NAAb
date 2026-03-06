@@ -269,8 +269,13 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
         exec_stdout, exec_stderr, nullptr
     );
 
-    // Buffer output for flushExecutorOutput (don't print raw)
-    if (!exec_stdout.empty()) stdout_buffer_.append(exec_stdout);
+    // Buffer only log output (strip last line = return value)
+    if (!exec_stdout.empty()) {
+        auto last_nl = exec_stdout.rfind('\n', exec_stdout.size() - 2);
+        if (last_nl != std::string::npos) {
+            stdout_buffer_.append(exec_stdout.substr(0, last_nl + 1));
+        }
+    }
     if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
     // Cleanup

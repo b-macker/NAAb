@@ -1,0 +1,22 @@
+{
+    "meta": {
+        "version": "3.0",
+        "description": "Consensus verification test config"
+    },
+    "polyglot_optimization": {
+        "enabled": true,
+        "verification": {
+            "enabled": true,
+            "enforcement_level": "advisory",
+            "consensus_languages": ["python", "javascript", "go"],
+            "tolerance": 1e-10,
+            "verify_task_types": [],
+            "min_consensus": 2,
+            "max_verification_time_ms": 5000,
+            "show_drift_details": true
+        }
+    },
+    "languages": {
+        "allowed": ["python", "javascript", "go", "shell"]
+    }
+}

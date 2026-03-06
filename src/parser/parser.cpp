@@ -2106,7 +2106,8 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
             language = language_part;
         }
 
-        auto inline_expr = std::make_unique<ast::InlineCodeExpr>(language, code, bound_vars, ast::SourceLocation());
+        auto inline_expr = std::make_unique<ast::InlineCodeExpr>(language, code, bound_vars,
+            ast::SourceLocation(tokens_[pos_ - 1].line, tokens_[pos_ - 1].column));
         if (!return_type.empty()) {
             inline_expr->setReturnType(return_type);
         }

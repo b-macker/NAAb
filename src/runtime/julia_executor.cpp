@@ -229,8 +229,13 @@ std::shared_ptr<interpreter::Value> JuliaExecutor::executeWithReturn(
                 "\n  Code preview:\n    " + julia_code.substr(0, std::min(julia_code.size(), size_t(200))));
         }
 
-        // Buffer output for interpreter to handle (avoid double-printing)
-        if (!exec_stdout.empty()) stdout_buffer_.append(exec_stdout);
+        // Buffer only log output (strip last line = return value)
+        if (!exec_stdout.empty()) {
+            auto last_nl = exec_stdout.rfind('\n', exec_stdout.size() - 2);
+            if (last_nl != std::string::npos) {
+                stdout_buffer_.append(exec_stdout.substr(0, last_nl + 1));
+            }
+        }
         if (!exec_stderr.empty()) stderr_buffer_.append(exec_stderr);
 
         // Cleanup

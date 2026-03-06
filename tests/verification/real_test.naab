@@ -1,0 +1,69 @@
+// Real-world consensus verification test
+// Exercises cross-language math, string ops, and JSON
+
+use io
+
+main {
+    io.write("=== Real Consensus Verification Test ===\n\n")
+
+    // 1. Integer math — all languages should agree exactly
+    io.write("1. Integer math (2 + 2):\n")
+    let a = <<python
+2 + 2
+>>
+    io.write("   Python result: " + a + "\n\n")
+
+    // 2. Same in JS — verify JS agrees
+    io.write("2. Integer math in JS:\n")
+    let b = <<javascript
+2 + 2
+>>
+    io.write("   JS result: " + b + "\n\n")
+
+    // 3. Floating point — this is where drift can happen
+    io.write("3. Float division (100 / 3):\n")
+    let c = <<python
+print(100 / 3)
+>>
+    io.write("   Python result: " + c + "\n\n")
+
+    io.write("4. Same float in JS:\n")
+    let d = <<javascript
+console.log(100 / 3)
+>>
+    io.write("   JS result: " + d + "\n\n")
+
+    // 5. String operation
+    io.write("5. String uppercase:\n")
+    let e = <<python
+'hello world'.upper()
+>>
+    io.write("   Result: " + e + "\n\n")
+
+    // 6. Math with larger numbers
+    io.write("6. Large multiplication:\n")
+    let f = <<python
+12345 * 67890
+>>
+    io.write("   Result: " + f + "\n\n")
+
+    // 7. Go computation
+    io.write("7. Go math:\n")
+    let g = <<go
+package main
+import "fmt"
+func main() {
+    fmt.Print(12345 * 67890)
+}
+>>
+    io.write("   Go result: " + g + "\n\n")
+
+    // 8. Shell arithmetic
+    io.write("8. Shell math:\n")
+    let h = <<shell
+echo $((2 + 2))
+>>
+    io.write("   Shell result: " + h + "\n\n")
+
+    io.write("=== Done ===\n")
+}

@@ -6549,6 +6549,17 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     try {
         result_ = executor->executeWithReturn(final_code);
 
+        // Polyglot Consensus Verification: cross-language result checking
+        if (governance_ && governance_->isVerificationEnabled() && result_) {
+            std::string result_str = result_->toString();
+            std::string verify_err = governance_->verifyPolyglotResult(
+                language, raw_code, result_str, node.getLocation().line);
+            if (!verify_err.empty()) {
+                gc_suspended_ = false;
+                throw std::runtime_error(verify_err);
+            }
+        }
+
         // Phase 1 Profiling: Record timing on successful execution
         if (should_profile) {
             auto profile_end = std::chrono::steady_clock::now();
