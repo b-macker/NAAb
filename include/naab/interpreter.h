@@ -501,11 +501,17 @@ public:
     void setScriptArgs(const std::vector<std::string>& args) { script_args_ = args; }
     const std::vector<std::string>& getScriptArgs() const { return script_args_; }
 
+    // Debug module support: scope inspection
+    std::string getCurrentFilename() const { return current_file_; }
+    std::unordered_map<std::string, std::shared_ptr<Value>> getCurrentScopeVariables() const;
+    std::vector<std::string> getCallStackInfo() const;
+
     // Governance engine support
     governance::GovernanceEngine* getGovernance() const { return governance_.get(); }
     void setGovernanceOverride(bool enabled) {
         if (governance_) governance_->setOverrideEnabled(enabled);
     }
+    void setGovernanceVerbose(bool v) { governance_verbose_ = v; }
     void disableGovernance() {
         governance_.reset();
     }
@@ -558,6 +564,9 @@ private:
 
     // Verbose mode
     bool verbose_mode_ = false;
+
+    // Governance verbose mode (show full check-by-check summary)
+    bool governance_verbose_ = false;
 
     // Profile mode
     bool profile_mode_ = false;

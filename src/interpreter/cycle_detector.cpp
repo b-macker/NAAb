@@ -162,19 +162,13 @@ size_t CycleDetector::detectAndCollect(std::shared_ptr<Environment> root_env,
         }
     }
 
-    fmt::print("[GC] Mark phase: {} values reachable (from {} total tracked)\n",
-              reachable.size(), all_values.size());
-
     // Phase 3: Sweep - find unreachable cycles
     // These are values in all_values but NOT in reachable
     auto cycles = findCycles(reachable, all_values);
 
-    fmt::print("[GC] Sweep phase: {} cycles detected\n", cycles.size());
-
     // Phase 4: Collect - break the cycles
     if (!cycles.empty()) {
         breakCycles(cycles);
-        fmt::print("[GC] Collected {} cyclic values\n", cycles.size());
     }
 
     return cycles.size();

@@ -189,6 +189,7 @@ void print_usage() {
     fmt::print("\nGovernance Options:\n");
     fmt::print("  --no-governance                     Completely disable governance engine\n");
     fmt::print("  --governance-override               Override soft-mandatory governance rules\n");
+    fmt::print("  --governance-verbose               Show detailed governance check results\n");
     fmt::print("  --governance-report <path>          Write JSON governance report to file\n");
     fmt::print("  --governance-sarif <path>           Write SARIF governance report to file\n");
     fmt::print("  --governance-junit <path>           Write JUnit governance report to file\n");
@@ -226,10 +227,16 @@ int main(int argc, char** argv) {
     }
 
     // Pre-scan for global flags that can appear before the command
-    // e.g., `naab-lang --pipe script.naab` or `naab-lang --governance-override script.naab`
+    // e.g., `naab-lang --pipe script.naab` or `naab-lang -v script.naab`
     bool global_pipe_mode = false;
     bool global_governance_override = false;
     bool global_no_governance = false;
+    bool global_governance_verbose = false;
+    bool global_verbose = false;
+    bool global_profile = false;
+    bool global_explain = false;
+    bool global_debug = false;
+    bool global_no_color = false;
     int command_arg_index = 1;  // Index of the actual command/file in argv
 
     while (command_arg_index < argc) {
@@ -242,6 +249,24 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--no-governance") {
             global_no_governance = true;
+            command_arg_index++;
+        } else if (arg == "--governance-verbose") {
+            global_governance_verbose = true;
+            command_arg_index++;
+        } else if (arg == "--verbose" || arg == "-v") {
+            global_verbose = true;
+            command_arg_index++;
+        } else if (arg == "--profile" || arg == "-p") {
+            global_profile = true;
+            command_arg_index++;
+        } else if (arg == "--explain") {
+            global_explain = true;
+            command_arg_index++;
+        } else if (arg == "--debug" || arg == "-d") {
+            global_debug = true;
+            command_arg_index++;
+        } else if (arg == "--no-color") {
+            global_no_color = true;
             command_arg_index++;
         } else {
             break;  // Found the command or file
@@ -285,14 +310,15 @@ int main(int argc, char** argv) {
         }
 
         // Parse flags first, then find filename (ISS-028)
-        bool verbose = false;
-        bool profile = false;
-        bool explain = false;
-        bool no_color = false;
-        bool debug = false;
+        bool verbose = global_verbose;
+        bool profile = global_profile;
+        bool explain = global_explain;
+        bool no_color = global_no_color;
+        bool debug = global_debug;
         bool pipe_mode = global_pipe_mode;  // Inherit from global pre-scan
         bool governance_override = global_governance_override;
         bool no_governance = global_no_governance;
+        bool governance_verbose = global_governance_verbose;
         std::string governance_report_json;
         std::string governance_report_sarif;
         std::string governance_report_junit;
@@ -338,6 +364,8 @@ int main(int argc, char** argv) {
                 governance_report_sarif = argv[++i];
             } else if (arg == "--governance-junit" && i + 1 < argc) {
                 governance_report_junit = argv[++i];
+            } else if (arg == "--governance-verbose") {
+                governance_verbose = true;
             } else if (arg.substr(0, 2) == "--") {
                 // Unknown flag — give helpful error instead of treating as filename
                 fmt::print("Error: Unknown flag '{}'\n\n"
@@ -353,6 +381,7 @@ int main(int argc, char** argv) {
                            "    --memory-limit <MB>   Memory limit per block\n"
                            "    --allow-network       Enable network access\n"
                            "    --governance-override Override soft-mandatory governance rules\n"
+                           "    --governance-verbose Show detailed governance check results\n"
                            "    --governance-report <path>  Write JSON governance report\n"
                            "    --governance-sarif <path>   Write SARIF governance report\n"
                            "    --governance-junit <path>   Write JUnit governance report\n\n"
@@ -495,11 +524,142 @@ int main(int argc, char** argv) {
             } else if (governance_override) {
                 interpreter.setGovernanceOverride(true);
             }
+            interpreter.setGovernanceVerbose(governance_verbose);
 
             // Phase 4.2: Enable interactive debugger
             if (debug) {
-                fmt::print("Debug mode enabled. Use 'b <file>:<line>' to set breakpoints.\n");
-                // Debugger integration would be enabled here in the interpreter
+                auto debugger = std::make_shared<naab::debugger::Debugger>();
+                debugger->setActive(true);
+                interpreter.setDebugger(debugger);
+
+                // Set breakpoint callback with interactive command loop
+                // Bug 5: Capture debugger by value (copy shared_ptr) instead of by reference
+                debugger->setBreakpointCallback([&interpreter, debugger](
+                    const naab::debugger::Breakpoint& bp,
+                    const naab::debugger::CallFrame& frame) {
+
+                    fprintf(stderr, "\n[naab-debug] Hit breakpoint #%d at %s\n",
+                            bp.id, bp.location.c_str());
+                    if (!frame.function_name.empty()) {
+                        fprintf(stderr, "  in function: %s\n", frame.function_name.c_str());
+                    }
+
+                    // Interactive command loop
+                    while (true) {
+                        fprintf(stderr, "(naab-debug) ");
+                        fflush(stderr);
+
+                        std::string cmd;
+                        if (!std::getline(std::cin, cmd)) {
+                            // EOF — quit
+                            fprintf(stderr, "[naab-debug] EOF, quitting.\n");
+                            std::exit(0);
+                        }
+
+                        // Trim whitespace
+                        size_t start = cmd.find_first_not_of(" \t");
+                        if (start == std::string::npos) continue;
+                        cmd = cmd.substr(start);
+
+                        if (cmd == "c" || cmd == "continue") {
+                            debugger->resume();
+                            break;
+                        } else if (cmd == "s" || cmd == "step") {
+                            debugger->step(naab::debugger::StepMode::INTO);
+                            break;
+                        } else if (cmd == "n" || cmd == "next") {
+                            debugger->step(naab::debugger::StepMode::OVER);
+                            break;
+                        } else if (cmd == "o" || cmd == "out") {
+                            debugger->step(naab::debugger::StepMode::OUT);
+                            break;
+                        } else if (cmd == "q" || cmd == "quit") {
+                            fprintf(stderr, "[naab-debug] Quitting.\n");
+                            std::exit(0);
+                        } else if (cmd == "v" || cmd == "vars") {
+                            auto vars = interpreter.getCurrentScopeVariables();
+                            if (vars.empty()) {
+                                fprintf(stderr, "  (no variables in scope)\n");
+                            } else {
+                                for (const auto& [name, val] : vars) {
+                                    if (!val) continue;
+                                    // Bug 11: Skip module markers (both types)
+                                    if (auto* s = std::get_if<std::string>(&val->data)) {
+                                        if (s->size() >= 18 && s->substr(0, 18) == "__stdlib_module__:") continue;
+                                        if (s->size() >= 10 && s->substr(0, 10) == "__module__:") continue;
+                                    }
+                                    // Skip functions
+                                    if (std::holds_alternative<std::shared_ptr<naab::interpreter::FunctionValue>>(val->data)) continue;
+                                    fprintf(stderr, "  %s = %s\n", name.c_str(), val->toString().c_str());
+                                }
+                            }
+                        } else if (cmd == "bt" || cmd == "backtrace") {
+                            auto stack = debugger->getCallStack();
+                            if (stack.empty()) {
+                                fprintf(stderr, "  (empty call stack)\n");
+                            } else {
+                                for (int i = static_cast<int>(stack.size()) - 1; i >= 0; --i) {
+                                    fprintf(stderr, "  #%d %s at %s\n",
+                                            static_cast<int>(stack.size()) - 1 - i,
+                                            stack[i].function_name.c_str(),
+                                            stack[i].source_location.c_str());
+                                }
+                            }
+                        } else if (cmd.size() > 2 && cmd[0] == 'p' && cmd[1] == ' ') {
+                            // p <variable> — print variable value
+                            std::string var_name = cmd.substr(2);
+                            size_t vs = var_name.find_first_not_of(" \t");
+                            if (vs != std::string::npos) var_name = var_name.substr(vs);
+                            auto vars = interpreter.getCurrentScopeVariables();
+                            auto it = vars.find(var_name);
+                            if (it != vars.end() && it->second) {
+                                fprintf(stderr, "  %s = %s\n", var_name.c_str(), it->second->toString().c_str());
+                            } else {
+                                fprintf(stderr, "  Variable '%s' not found in scope\n", var_name.c_str());
+                            }
+                        } else if (cmd.size() > 2 && cmd[0] == 'b' && cmd[1] == ' ') {
+                            // b <file>:<line> — set breakpoint
+                            std::string loc = cmd.substr(2);
+                            size_t ls = loc.find_first_not_of(" \t");
+                            if (ls != std::string::npos) loc = loc.substr(ls);
+                            int bp_id = debugger->setBreakpoint(loc);
+                            fprintf(stderr, "  Breakpoint #%d set at %s\n", bp_id, loc.c_str());
+                        } else if (cmd.size() > 2 && cmd[0] == 'w' && cmd[1] == ' ') {
+                            // w <expr> — add watch
+                            std::string expr = cmd.substr(2);
+                            size_t es = expr.find_first_not_of(" \t");
+                            if (es != std::string::npos) expr = expr.substr(es);
+                            int w_id = debugger->addWatch(expr);
+                            fprintf(stderr, "  Watch #%d added: %s\n", w_id, expr.c_str());
+                        } else if (cmd == "h" || cmd == "help") {
+                            fprintf(stderr,
+                                "  c(ontinue)     Continue to next breakpoint\n"
+                                "  s(tep)         Step into\n"
+                                "  n(ext)         Step over\n"
+                                "  o(ut)          Step out\n"
+                                "  p <var>        Print variable\n"
+                                "  v(ars)         Show all variables\n"
+                                "  bt             Backtrace\n"
+                                "  b <file>:<ln>  Set breakpoint\n"
+                                "  w <expr>       Add watch\n"
+                                "  q(uit)         Quit\n"
+                            );
+                        } else {
+                            fprintf(stderr, "  Unknown command: %s (type 'h' for help)\n", cmd.c_str());
+                        }
+                    }
+                });
+
+                // Bug 13: Push initial frame so step-INTO has a frame for the callback
+                naab::debugger::CallFrame main_frame("main", filename + ":1", 0);
+                debugger->pushFrame(main_frame);
+
+                // Start in step mode so we break at first statement
+                debugger->step(naab::debugger::StepMode::INTO);
+
+                fprintf(stderr, "[naab-debug] Debugger attached. Will break at first statement.\n"
+                                "  Commands: c(ontinue) s(tep) n(ext) o(ut) p <var> v(ars) bt q(uit)\n"
+                                "  Set breakpoints: b <file>:<line>\n");
             }
 
             // Parse

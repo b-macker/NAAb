@@ -1,85 +1,62 @@
 // Aegis/main.naab
-// PROJECT AEGIS: The Sovereign Cyber-Immune Fabric
-// Master Immunologist (STRICT FORMAT)
+// PROJECT AEGIS: The Darwinian Compute Engine
+// Master Orchestrator
 
 use io
-use time
+use file
+use string
 use modules.foundry
 use modules.cortex
 use modules.shield
 
 main {
     io.write("╔═══════════════════════════════════════════════════════════╗\n")
-    io.write("║           PROJECT AEGIS: CYBER-IMMUNE SYSTEM              ║\n")
-    io.write("║           (Self-Mutating Polyglot Defense)                ║\n")
+    io.write("║           PROJECT AEGIS: EVOLUTIONARY RUNTIME             ║\n")
+    io.write("║           (Genetic Binary Mutation Engine)                ║\n")
     io.write("╚═══════════════════════════════════════════════════════════╝\n\n")
 
-    // 0. Ensure directories exist
-    <<shell
-    mkdir -p verification/ch0_full_projects/Aegis/vessels verification/ch0_full_projects/Aegis/logs
->>
+    let base = "/data/data/com.termux/files/home/.naab/language/docs/book/verification/ch0_full_projects/Aegis"
+    let generations = 3
+    let variants_per_gen = 3
 
-    // 1. GENESIS: Initial Mutation
-    io.write("  [GENESIS] Initializing Patient Zero...\n")
-    let current_seed = 1000
-    let src = foundry.generate_shield_source(current_seed)
-    let bin = foundry.compile_shield(src, "v1")
-    let active_pid = shield.launch_shield(bin)
+    for gen in 1..=generations {
+        io.write("\n  [EPOCH] Initiating Generation ", gen, "...\n")
 
-    // Give it time to bind
-    <<shell
-    sleep 1
->>
-
-    // 2. SURVEILLANCE LOOP
-    let iterations = 10
-    for i in 1..=iterations {
-        io.write("  [CYCLE ", i, "] Monitoring Traffic...\n")
-        
-        // Simulating Traffic (Normal or Attack based on cycle)
-        let mode = "NORMAL"
-        if i == 5 || i == 6 { mode = "ATTACK" }
-        shield.simulate_traffic(mode)
-        
-        // Cortex Analysis
-        let status = cortex.analyze_traffic()
-        io.write("    [CORTEX] Status: ", status["status"], " (Z-Score: ", status["z_score"], ")\n")
-        
-        // Immune Response
-        if status["status"] == "ATTACK_DETECTED" {
-            io.write("    🚨 [IMMUNE RESPONSE] Threat Confirmed. Initiating Mutation...\n")
-            
-            // A. Genetic Mutation
-            current_seed = current_seed + 1
-            let new_src = foundry.generate_shield_source(current_seed)
-            let new_bin = foundry.compile_shield(new_src, "v" + current_seed)
-            
-            // B. Atomic Hot-Swap (kill old first to free port 9000)
-            shield.kill_shield(active_pid)
-            <<shell
-            sleep 0.5
->>
-            let new_pid = shield.launch_shield(new_bin)
-            <<shell
-            sleep 1
->>
-            active_pid = new_pid
-            
-            io.write("    🧬 [MUTATION] Shield Evolved. New Variant Active (PID: ", active_pid, ")\n")
+        // 1. FORGE: Synthesize Variants
+        let binaries = ""
+        for v in 1..=variants_per_gen {
+            let bin = foundry.forge_genotype(base, "" + gen, "" + v)
+            if binaries == "" {
+                binaries = bin
+            } else {
+                binaries = binaries + "," + bin
+            }
         }
-        
-        // Fast cycle
-        <<shell
-        sleep 0.5
+
+        // 2. STRESS: Generate Environmental Pressure
+        io.write("  [SHIELD] Generating Traffic Pressure...\n")
+        let traffic = shield.generate_traffic(base, "" + gen)
+
+        // 3. RACE: Natural Selection
+        io.write("  [CORTEX] Racing Variants in The Arena...\n")
+        let result = cortex.race_variants(binaries, traffic)
+
+        let winner = result["winner"]
+        let time = result["time"]
+
+        // 4. PROMOTE: Hot-Swap
+        io.write("  👑 [VICTORY] Winner: ", winner, "\n")
+        io.write("  ⚡ [STATS]   Time:   ", time, " ns\n")
+        io.write("  🚀 [DEPLOY]  Hot-Swapping to Production Socket...\n")
+
+        let prod_link = base + "/vessels/production_binary"
+        <<shell[winner, prod_link]
+        ln -sf "$winner" "$prod_link"
 >>
+
+        // Cleanup traffic
+        file.delete(traffic)
     }
 
-    // 3. DECOMMISSIONING
-    io.write("\n  [FINALE] Simulation Complete. Cleaning up...\n")
-    shield.kill_shield(active_pid)
-    <<shell
-    rm -f verification/ch0_full_projects/Aegis/vessels/* verification/ch0_full_projects/Aegis/logs/*
->>
-    
-    io.write("  ✅ PROJECT AEGIS: SOVEREIGNTY SECURED.\n")
+    io.write("\n  ✅ AEGIS EVOLUTION COMPLETE. OPTIMAL BINARY DEPLOYED.\n")
 }

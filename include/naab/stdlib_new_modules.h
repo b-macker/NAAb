@@ -7,6 +7,9 @@
 #include <functional>
 
 namespace naab {
+namespace interpreter {
+class Interpreter;  // Forward declaration for debug module
+}
 namespace stdlib {
 
 // String Module
@@ -165,6 +168,9 @@ public:
     std::shared_ptr<interpreter::Value> call(
         const std::string& function_name,
         const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+
+    // Give debug module access to interpreter for scope inspection
+    static void setInterpreter(interpreter::Interpreter* interp);
 };
 
 // BOLO Governance Module

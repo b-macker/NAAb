@@ -1865,6 +1865,47 @@ std::string GovernanceEngine::formatSummary() const {
     return oss.str();
 }
 
+std::string GovernanceEngine::formatSummaryOneLine() const {
+    if (check_results_.empty()) return "";
+
+    int passed = 0, warned = 0, blocked = 0;
+    for (const auto& r : check_results_) {
+        if (r.passed) passed++;
+        else if (r.level == EnforcementLevel::ADVISORY) warned++;
+        else blocked++;
+    }
+
+    // Silent when all passed — clean output
+    if (warned == 0 && blocked == 0) return "";
+
+    std::ostringstream oss;
+    std::string mode_str = "enforce";
+    if (rules_.mode == GovernanceMode::AUDIT) mode_str = "audit";
+    else if (rules_.mode == GovernanceMode::OFF) mode_str = "off";
+
+    oss << "[governance] Summary (mode: " << mode_str << "): "
+        << passed << " passed, "
+        << warned << " warning" << (warned != 1 ? "s" : "") << ", "
+        << blocked << " blocked\n";
+
+    // Show details only for non-passing rules
+    std::unordered_map<std::string, const CheckResult*> unique_results;
+    for (const auto& r : check_results_) {
+        if (r.passed) continue;
+        auto it = unique_results.find(r.rule_name);
+        if (it == unique_results.end()) unique_results[r.rule_name] = &r;
+        else if (!r.passed) unique_results[r.rule_name] = &r;
+    }
+    for (const auto& [name, r] : unique_results) {
+        if (r->level == EnforcementLevel::ADVISORY) {
+            oss << fmt::format("  ⚠ {:<35} [{}]  WARN\n", name, levelToString(r->level));
+        } else {
+            oss << fmt::format("  ✗ {:<35} [{}]  BLOCKED\n", name, levelToString(r->level));
+        }
+    }
+    return oss.str();
+}
+
 // ============================================================================
 // V3.0 New Check Implementations
 // ============================================================================

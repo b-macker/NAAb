@@ -1,112 +1,85 @@
 // Aegis/modules/foundry.naab
-// THE BIO-REACTOR: Genetic Mutation Engine (IMPORT CLEAN)
+// THE GENETIC FOUNDRY: DNA Synthesizer
 
 use io
 use file
-use json
 use string
 
-export fn generate_shield_source(mutation_seed) {
-    // Using Go with correct imports
-    let rust_source = <<go[mutation_seed]
-    package main
-    import (
-        "fmt"
-        "crypto/sha256"
-        "math/rand"
-        "time"
-        "os"
-    )
+export fn forge_genotype(base, generation, variant_id) {
+    let src_path = base + "/vessels/shield_src_" + generation + "_" + variant_id + ".rs"
+    let bin_path = base + "/vessels/shield_bin_" + generation + "_" + variant_id
 
-    func main() {
-        seedInt := mutation_seed
-        seedStr := fmt.Sprintf("%d", seedInt)
-        
-        rand.Seed(int64(seedInt) + time.Now().UnixNano())
-        
-        h := sha256.New()
-        h.Write([]byte(seedStr))
-        fnID := fmt.Sprintf("%x", h.Sum(nil))[:8]
-        entryFn := "secure_entry_" + fnID
-        
-        junk := ""
-        for i := 0; i < 5; i++ {
-            pad := rand.Intn(200) + 32
-            // Use PascalCase for Rust structs to avoid warnings
-            junk += fmt.Sprintf("struct Junk%d { _pad: [u8; %d] }\n", rand.Intn(9000)+1000, pad)
+    let rust_source = <<shell[src_path]
+    ALGO=$(( RANDOM % 3 ))
+
+    cat <<EOF > "$src_path"
+    use std::io::{self, Read};
+    use std::time::Instant;
+
+    fn bubble_sort(arr: &mut [i32]) {
+        let n = arr.len();
+        for i in 0..n {
+            for j in 0..n - 1 - i {
+                if arr[j] > arr[j + 1] {
+                    arr.swap(j, j + 1);
+                }
+            }
+        }
+    }
+
+    fn quick_sort(arr: &mut [i32]) {
+        if arr.len() <= 1 { return; }
+        let pivot = arr.len() - 1;
+        let mut i = 0;
+        for j in 0..pivot {
+            if arr[j] <= arr[pivot] {
+                arr.swap(i, j);
+                i += 1;
+            }
+        }
+        arr.swap(i, pivot);
+        let (left, right) = arr.split_at_mut(i);
+        quick_sort(left);
+        quick_sort(&mut right[1..]);
+    }
+
+    fn insertion_sort(arr: &mut [i32]) {
+        for i in 1..arr.len() {
+            let mut j = i;
+            while j > 0 && arr[j - 1] > arr[j] {
+                arr.swap(j - 1, j);
+                j -= 1;
+            }
+        }
+    }
+
+    fn main() {
+        let algo_type = $ALGO;
+
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer).unwrap();
+
+        let mut nums: Vec<i32> = buffer.split_whitespace()
+            .filter_map(|s| s.parse().ok())
+            .collect();
+
+        let start = Instant::now();
+
+        match algo_type {
+            0 => bubble_sort(&mut nums),
+            1 => quick_sort(&mut nums),
+            _ => insertion_sort(&mut nums),
         }
 
-        out := os.Stdout
-
-        fmt.Fprintf(out, "// AEGIS SHIELD v%s\n", seedStr)
-        fmt.Fprintf(out, "// AUTO-GENERATED MUTATION. DO NOT EDIT.\n\n")
-        fmt.Fprintf(out, "use std::net::UdpSocket;\n")
-        fmt.Fprintf(out, "use std::io::Write;\n")
-        fmt.Fprintf(out, "use std::fs::OpenOptions;\n")
-        fmt.Fprintf(out, "use std::time::{SystemTime, UNIX_EPOCH};\n\n")
-        fmt.Fprintf(out, "%s\n", junk)
-
-        fmt.Fprintf(out, "fn log_traffic(size: usize, src: String) {\n")
-        fmt.Fprintf(out, "    let mut file = OpenOptions::new()\n")
-        fmt.Fprintf(out, "        .create(true)\n")
-        fmt.Fprintf(out, "        .append(true)\n")
-        fmt.Fprintf(out, "        .open(\"verification/ch0_full_projects/Aegis/logs/traffic.log\")\n")
-        fmt.Fprintf(out, "        .unwrap();\n")
-        
-        fmt.Fprintf(out, "    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();\n")
-        // Double-escaped braces for Rust format string: {{ and }}
-        fmt.Fprintf(out, "    let log_entry = format!(\"{{\\\"ts\\\": {}, \\\"size\\\": {}, \\\"src\\\": \\\"{}\\\"}}\\n\", now, size, src);\n")
-        fmt.Fprintf(out, "    file.write_all(log_entry.as_bytes()).unwrap();\n")
-        
-        fmt.Fprintf(out, "    // Self-Defense Trigger\n")
-        fmt.Fprintf(out, "    if size > 1000 {\n")
-        fmt.Fprintf(out, "        println!(\"ANOMALY_DETECTED: Payload size {} exceeds threshold\", size);\n")
-        fmt.Fprintf(out, "    }\n")
-        fmt.Fprintf(out, "}\n\n")
-        
-        fmt.Fprintf(out, "fn %s() {\n", entryFn)
-        fmt.Fprintf(out, "    let socket = UdpSocket::bind(\"127.0.0.1:9000\").expect(\"Failed to bind socket\");\n")
-        fmt.Fprintf(out, "    socket.set_nonblocking(true).unwrap();\n")
-        
-        fmt.Fprintf(out, "    println!(\"AEGIS SHIELD LISTENING ON :9000 (Variant: %s)\");\n", fnID)
-        
-        fmt.Fprintf(out, "    let mut buf = [0; 2048];\n")
-        fmt.Fprintf(out, "    loop {\n")
-        fmt.Fprintf(out, "        match socket.recv_from(&mut buf) {\n")
-        fmt.Fprintf(out, "            Ok((size, src)) => {\n")
-        fmt.Fprintf(out, "                log_traffic(size, src.to_string());\n")
-        fmt.Fprintf(out, "            },\n")
-        fmt.Fprintf(out, "            Err(_) => {\n")
-        fmt.Fprintf(out, "                // Non-blocking sleep equivalent\n")
-        fmt.Fprintf(out, "                std::thread::sleep(std::time::Duration::from_millis(100));\n")
-        fmt.Fprintf(out, "            }\n")
-        fmt.Fprintf(out, "        }\n")
-        fmt.Fprintf(out, "    }\n")
-        fmt.Fprintf(out, "}\n\n")
-        
-        fmt.Fprintf(out, "fn main() {\n")
-        fmt.Fprintf(out, "    %s();\n", entryFn)
-        fmt.Fprintf(out, "}\n")
+        let duration = start.elapsed();
+        println!("{{\\"algo\\": {}, \\"time_ns\\": {}, \\"count\\": {}}}", algo_type, duration.as_nanos(), nums.len());
     }
+EOF
 >>
-    return string.trim(rust_source)
-}
 
-export fn compile_shield(source_code, generation_id) {
-    let src_path = "verification/ch0_full_projects/Aegis/vessels/shield_" + generation_id + ".rs"
-    let bin_path = "verification/ch0_full_projects/Aegis/vessels/shield_bin_" + generation_id
-    
-    file.write(src_path, source_code)
-    
-    io.write("    [FOUNDRY] Forging Shield Gen-", generation_id, "...\n")
-    
-    // Compile with optimization
+    io.write("    [FOUNDRY] Compiling Gen ", generation, " Var ", variant_id, "...\n")
     <<shell[src_path, bin_path]
-    rustc -O -o "$bin_path" "$src_path"
+    rustc -C opt-level=3 -o "$bin_path" "$src_path" 2>&1
 >>
-    
-    // Forensic Cleanup: Shred source immediately
-    file.delete(src_path)
-    
     return bin_path
 }

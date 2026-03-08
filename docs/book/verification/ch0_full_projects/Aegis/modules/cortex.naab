@@ -1,58 +1,52 @@
 // Aegis/modules/cortex.naab
-// THE NEURAL CORTEX: Statistical Anomaly Detection (RUBY SYNC)
+// THE CORTEX: Natural Selection Arena (Ruby)
 
 use io
 use file
 use json
 use string
 
-export fn analyze_traffic() {
-    let log_path = "verification/ch0_full_projects/Aegis/logs/traffic.log"
-    
-    if !file.exists(log_path) {
-        return {"status": "CALIBRATING", "z_score": 0.0}
-    }
+export fn race_variants(binaries, traffic_file) {
+    let runner_script = "/data/data/com.termux/files/usr/tmp/aegis_cortex_runner.rb"
 
-    let analysis = <<ruby[log_path]
+    let ruby_src = "
     require 'json'
-    
-    lines = File.readlines(log_path).last(50)
-    
-    if lines.length < 10
-        print JSON.generate({"status" => "CALIBRATING", "z_score" => 0.0})
-        exit
-    end
-    
-    sizes = []
-    lines.each do |line|
+
+    bins = '" + binaries + "'.split(',')
+    traffic = '" + traffic_file + "'
+
+    best_bin = ''
+    best_time = 9999999999999
+
+    bins.each do |bin|
+        output = `cat #{traffic} | #{bin} 2>/dev/null`
+
         begin
-            entry = JSON.parse(line)
-            sizes << entry['size'].to_f
+            res = JSON.parse(output)
+            time = res['time_ns']
+
+            if time < best_time
+                best_time = time
+                best_bin = bin
+            end
         rescue
-            # Ignore malformed lines
         end
     end
-    
-    if sizes.empty?
-        print JSON.generate({"status" => "IDLE", "z_score" => 0.0})
-        exit
-    end
-    
-    # Calculate Z-Score
-    mean = sizes.sum / sizes.length
-    sum_sq = sizes.map { |x| (x - mean)**2 }.sum
-    std_dev = Math.sqrt(sum_sq / sizes.length)
-    
-    if std_dev == 0
-        z_score = 0.0
-    else
-        last_pkt = sizes.last
-        z_score = (last_pkt - mean) / std_dev
-    end
-    
-    status = (z_score > 3.0 ? "ATTACK_DETECTED" : "NORMAL")
-    
-    print JSON.generate({"status" => status, "z_score" => z_score.round(4)})
+
+    puts JSON.generate({'winner' => best_bin, 'time' => best_time})
+    "
+
+    file.write(runner_script, ruby_src)
+
+    let raw_json = <<shell[runner_script]
+    ruby "$runner_script"
 >>
-    return json.parse(analysis)
+
+    file.delete(runner_script)
+
+    if string.trim("" + raw_json) == "" {
+        return {"winner": "NONE", "time": 0}
+    }
+
+    return json.parse("" + raw_json)
 }

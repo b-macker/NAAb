@@ -126,11 +126,24 @@ bool Debugger::shouldBreak(const std::string& location) {
     // Check step mode
     int current_depth = getCurrentDepth();
 
+    // Bug 6c: Helper lambda to fire callback on step breaks
+    auto fireStepCallback = [&]() {
+        if (breakpoint_callback_) {
+            Breakpoint step_bp;
+            step_bp.id = 0;  // 0 = step break, not a real breakpoint
+            step_bp.location = location;
+            CallFrame frame = call_stack_.empty() ?
+                CallFrame("<top-level>", location, 0) : call_stack_.back();
+            breakpoint_callback_(step_bp, frame);
+        }
+    };
+
     switch (current_step_mode_) {
         case StepMode::INTO:
             // Stop at any statement
             paused_ = true;
             current_step_mode_ = StepMode::NONE;
+            fireStepCallback();
             return true;
 
         case StepMode::OVER:
@@ -138,6 +151,7 @@ bool Debugger::shouldBreak(const std::string& location) {
             if (current_depth <= step_frame_depth_) {
                 paused_ = true;
                 current_step_mode_ = StepMode::NONE;
+                fireStepCallback();
                 return true;
             }
             break;
@@ -147,6 +161,7 @@ bool Debugger::shouldBreak(const std::string& location) {
             if (current_depth < step_frame_depth_) {
                 paused_ = true;
                 current_step_mode_ = StepMode::NONE;
+                fireStepCallback();
                 return true;
             }
             break;
@@ -177,9 +192,11 @@ bool Debugger::shouldBreak(const std::string& location) {
             bp.hit_count++;
             paused_ = true;
 
-            // Call callback if set
-            if (breakpoint_callback_ && !call_stack_.empty()) {
-                breakpoint_callback_(bp, call_stack_.back());
+            // Call callback if set (Bug 13: handle empty call stack gracefully)
+            if (breakpoint_callback_) {
+                CallFrame frame = call_stack_.empty() ?
+                    CallFrame("<top-level>", location, 0) : call_stack_.back();
+                breakpoint_callback_(bp, frame);
             }
 
             return true;
@@ -421,12 +438,10 @@ bool Debugger::matchesLocation(const std::string& location, const std::string& b
 }
 
 std::string Debugger::formatLocation(const ast::Node& node) {
-    (void)node; // TODO: Extract location when AST nodes include source location
-
-    // Get location from AST node
-    // This depends on AST node having location information
-    // For now, return a placeholder
-    // TODO: Implement using actual AST location data
+    // Bug 6b: This method is currently unused because we pass location strings
+    // directly from the interpreter (which has access to current_file_).
+    // Keeping as fallback.
+    (void)node;
     return "unknown:0:0";
 }
 

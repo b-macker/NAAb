@@ -621,12 +621,20 @@ Interpreter::Interpreter()
     // Issue #3: Set global interpreter pointer for stdlib path resolution
     g_current_interpreter = this;
 
+    // Wire debug module with interpreter access for scope inspection
+    auto debug_module = stdlib_->getModule("debug");
+    if (debug_module) {
+        stdlib::DebugModule::setInterpreter(this);
+        LOG_DEBUG("[INFO] Debug module configured with interpreter access\n");
+    }
+
     defineBuiltins();
 }
 
 // Phase 3.2: Destructor must be defined in .cpp where CycleDetector is complete
 Interpreter::~Interpreter() {
-    // Default destruction is fine, but must be defined here for unique_ptr<CycleDetector>
+    // Bug 2: Null out static debug interpreter pointer to prevent dangling access
+    stdlib::DebugModule::setInterpreter(nullptr);
 }
 
 void Interpreter::defineBuiltins() {
@@ -1033,9 +1041,18 @@ void Interpreter::visit(ast::Program& node) {
 
     // Governance: Print execution summary and write reports
     if (governance_ && governance_->isActive()) {
-        std::string summary = governance_->formatSummary();
-        if (!summary.empty()) {
-            fprintf(stderr, "\n%s\n", summary.c_str());
+        if (governance_verbose_) {
+            // Full detail: summary line + every check
+            std::string summary = governance_->formatSummary();
+            if (!summary.empty()) {
+                fprintf(stderr, "\n%s\n", summary.c_str());
+            }
+        } else {
+            // Clean: one-line summary only, and only if there were warnings/blocks
+            std::string oneline = governance_->formatSummaryOneLine();
+            if (!oneline.empty()) {
+                fprintf(stderr, "\n%s\n", oneline.c_str());
+            }
         }
         // Write any configured report files (JSON, SARIF, JUnit, CSV, HTML)
         governance_->writeReports();
@@ -2063,10 +2080,24 @@ void Interpreter::visit(ast::CompoundStmt& node) {
 }
 
 void Interpreter::visit(ast::ExprStmt& node) {
+    if (debugger_ && debugger_->isActive()) {
+        debugger_->setCurrentEnvironment(current_env_);
+        auto loc = node.getLocation();
+        std::string loc_str = (current_file_.empty() ? "<unknown>" : current_file_) +
+            ":" + std::to_string(loc.line) + ":" + std::to_string(loc.column);
+        debugger_->shouldBreak(loc_str);
+    }
     eval(*node.getExpr());
 }
 
 void Interpreter::visit(ast::ReturnStmt& node) {
+    if (debugger_ && debugger_->isActive()) {
+        debugger_->setCurrentEnvironment(current_env_);
+        auto loc = node.getLocation();
+        std::string loc_str = (current_file_.empty() ? "<unknown>" : current_file_) +
+            ":" + std::to_string(loc.line) + ":" + std::to_string(loc.column);
+        debugger_->shouldBreak(loc_str);
+    }
     if (node.getExpr()) {
         result_ = eval(*node.getExpr());
     } else {
@@ -2118,6 +2149,13 @@ void Interpreter::visit(ast::ReturnStmt& node) {
 }
 
 void Interpreter::visit(ast::IfStmt& node) {
+    if (debugger_ && debugger_->isActive()) {
+        debugger_->setCurrentEnvironment(current_env_);
+        auto loc = node.getLocation();
+        std::string loc_str = (current_file_.empty() ? "<unknown>" : current_file_) +
+            ":" + std::to_string(loc.line) + ":" + std::to_string(loc.column);
+        debugger_->shouldBreak(loc_str);
+    }
     // Check for assignment in condition (common mistake: = instead of ==)
     auto* condition_expr = node.getCondition();
     if (auto* binary = dynamic_cast<ast::BinaryExpr*>(condition_expr)) {
@@ -2273,6 +2311,13 @@ void Interpreter::visit(ast::LambdaExpr& node) {
 }
 
 void Interpreter::visit(ast::ForStmt& node) {
+    if (debugger_ && debugger_->isActive()) {
+        debugger_->setCurrentEnvironment(current_env_);
+        auto loc = node.getLocation();
+        std::string loc_str = (current_file_.empty() ? "<unknown>" : current_file_) +
+            ":" + std::to_string(loc.line) + ":" + std::to_string(loc.column);
+        debugger_->shouldBreak(loc_str);
+    }
     // Increment loop depth for break/continue validation
     ++loop_depth_;
 
@@ -2372,6 +2417,13 @@ void Interpreter::visit(ast::ForStmt& node) {
 }
 
 void Interpreter::visit(ast::WhileStmt& node) {
+    if (debugger_ && debugger_->isActive()) {
+        debugger_->setCurrentEnvironment(current_env_);
+        auto loc = node.getLocation();
+        std::string loc_str = (current_file_.empty() ? "<unknown>" : current_file_) +
+            ":" + std::to_string(loc.line) + ":" + std::to_string(loc.column);
+        debugger_->shouldBreak(loc_str);
+    }
     // Check for assignment in condition (common mistake: = instead of ==)
     auto* condition_expr = node.getCondition();
     if (auto* binary = dynamic_cast<ast::BinaryExpr*>(condition_expr)) {
@@ -2465,6 +2517,13 @@ void Interpreter::visit(ast::ContinueStmt& node) {
 }
 
 void Interpreter::visit(ast::VarDeclStmt& node) {
+    if (debugger_ && debugger_->isActive()) {
+        debugger_->setCurrentEnvironment(current_env_);
+        auto loc = node.getLocation();
+        std::string loc_str = (current_file_.empty() ? "<unknown>" : current_file_) +
+            ":" + std::to_string(loc.line) + ":" + std::to_string(loc.column);
+        debugger_->shouldBreak(loc_str);
+    }
     explain("Declaring variable '" + node.getName() + "'");
 
     std::shared_ptr<Value> value;
@@ -6518,6 +6577,32 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
     }
 
+    // Layer 3: Polyglot-aware debug tracing (before execution)
+    if (isDebugging() || verbose_mode_) {
+        // Bug 8: Count lines from raw_code (not final_code which includes injected declarations)
+        int line_count = static_cast<int>(std::count(raw_code.begin(), raw_code.end(), '\n')) + 1;
+        fprintf(stderr, "\n[polyglot] -- %s block (%d lines) at %s:%d --\n",
+                language.c_str(), line_count, current_file_.c_str(), node.getLocation().line);
+        if (!bound_vars.empty()) {
+            fprintf(stderr, "[polyglot] Bound variables:\n");
+            for (const auto& var_name : bound_vars) {
+                auto val = getVariable(var_name);
+                if (val) fprintf(stderr, "  %s = %s\n", var_name.c_str(), val->toString().c_str());
+            }
+        }
+        // Show first 5 lines of code
+        std::istringstream code_preview(raw_code);
+        std::string preview_line;
+        int shown = 0;
+        fprintf(stderr, "[polyglot] Code:\n");
+        while (std::getline(code_preview, preview_line) && shown < 5) {
+            fprintf(stderr, "  %d| %s\n", shown + 1, preview_line.c_str());
+            shown++;
+        }
+        if (shown < line_count) fprintf(stderr, "  ... (%d more lines)\n", line_count - shown);
+    }
+    [[maybe_unused]] auto polyglot_trace_start = std::chrono::steady_clock::now();
+
     explain("Executing inline " + language + " code" +
             (bound_vars.empty() ? "" : " with " + std::to_string(bound_vars.size()) + " bound variables"));
 
@@ -6680,6 +6765,18 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         gc_suspended_ = false;
+
+        // Layer 3: Polyglot-aware debug tracing (after execution)
+        if (isDebugging() || verbose_mode_) {
+            auto polyglot_trace_end = std::chrono::steady_clock::now();
+            double trace_ms = std::chrono::duration<double, std::milli>(
+                polyglot_trace_end - polyglot_trace_start).count();
+            std::string result_str = result_ ? result_->toString() : "null";
+            if (result_str.size() > 200) result_str = result_str.substr(0, 200) + "...";
+            fprintf(stderr, "[polyglot] %s returned: %s (%.1fms)\n",
+                    language.c_str(), result_str.c_str(), trace_ms);
+            fprintf(stderr, "[polyglot] -- end %s --\n\n", language.c_str());
+        }
 
     } catch (const std::exception& e) {
         gc_suspended_ = false;
@@ -7083,6 +7180,26 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 << "    result = 'hello'\n"
                 << "    result\n"
                 << "    >>\n";
+        }
+
+        // Layer 3: Enhanced error context in debug mode
+        if (isDebugging()) {
+            oss << "\n  [debug] Full code sent to " << language << " executor:\n";
+            std::istringstream dbg_code_stream(final_code);
+            std::string dbg_code_line;
+            int dbg_line_num = 1;
+            while (std::getline(dbg_code_stream, dbg_code_line)) {
+                oss << "    " << dbg_line_num++ << "| " << dbg_code_line << "\n";
+            }
+            if (!bound_vars.empty()) {
+                oss << "\n  [debug] Bound variables at time of error:\n";
+                for (const auto& bv : bound_vars) {
+                    auto val = getVariable(bv);
+                    if (val) oss << "    " << bv << " = " << val->toString() << "\n";
+                }
+            } else {
+                oss << "\n  [debug] No variables were bound to this block.\n";
+            }
         }
 
         throw std::runtime_error(oss.str());
@@ -8725,6 +8842,28 @@ std::filesystem::path Interpreter::resolveRelativePath(const std::string& path) 
     }
 
     return resolved;
+}
+
+// Debug module support: return all variables in current scope
+std::unordered_map<std::string, std::shared_ptr<Value>> Interpreter::getCurrentScopeVariables() const {
+    std::unordered_map<std::string, std::shared_ptr<Value>> result;
+    if (current_env_) {
+        auto names = current_env_->getAllNames();
+        for (const auto& name : names) {
+            auto val = current_env_->get(name);
+            if (val) result[name] = val;
+        }
+    }
+    return result;
+}
+
+// Debug module support: return call stack as array of strings
+std::vector<std::string> Interpreter::getCallStackInfo() const {
+    std::vector<std::string> result;
+    for (const auto& frame : call_stack_) {
+        result.push_back(frame.toString());
+    }
+    return result;
 }
 
 } // namespace interpreter

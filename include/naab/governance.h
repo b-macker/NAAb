@@ -1306,6 +1306,7 @@ public:
     // --- Summary & Reporting ---
     const std::vector<CheckResult>& getCheckResults() const { return check_results_; }
     std::string formatSummary() const;
+    std::string formatSummaryOneLine() const;
     void resetCheckResults() { check_results_.clear(); }
 
     // Report generation
