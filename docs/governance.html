@@ -192,10 +192,13 @@
         }
         .gen-preview-header button:hover { border-color: var(--accent); color: var(--accent); }
         #json-output {
-            padding: 16px 20px; overflow-y: auto; max-height: calc(100vh - 160px);
+            padding: 16px 20px; overflow-y: auto;
             font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.82rem;
-            line-height: 1.7; color: var(--text-secondary); white-space: pre-wrap; word-break: break-all;
+            line-height: 1.7; color: var(--text-secondary); white-space: pre; word-break: break-all;
+            max-height: calc(100vh - 160px);
         }
+        .json-highlight { background: rgba(59, 130, 246, 0.15); border-radius: 3px; transition: background 1.5s ease; }
+        .json-highlight-fade { background: transparent; }
 
         /* --- Presets --- */
         .preset-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -215,10 +218,10 @@
         }
         .accordion-header:hover { background: var(--surface-raised); }
         .accordion-header h3 { font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
-        .accordion-header .arrow { color: var(--text-muted); font-size: 0.8rem; transition: transform 0.2s; }
+        .accordion-header .arrow { color: var(--text-muted); font-size: 0.8rem; transition: transform 0.3s ease; }
         .accordion-header.open .arrow { transform: rotate(90deg); }
-        .accordion-body { display: none; padding: 0 20px 20px; }
-        .accordion-body.open { display: block; }
+        .accordion-body { max-height: 0; overflow: hidden; padding: 0 20px; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease; }
+        .accordion-body.open { padding: 0 20px 20px; max-height: 3000px; }
         .accordion-header .count { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
 
         /* --- Form Controls --- */
@@ -1628,17 +1631,58 @@ function updateJSON() {
     if (hpo) hooks.post_check = {command: hpo};
     if (Object.keys(hooks).length) cfg.hooks = hooks;
 
-    // Render
-    document.getElementById('json-output').textContent = JSON.stringify(cfg, null, 2);
+    // Render with diff highlighting
+    const el = document.getElementById('json-output');
+    const newText = JSON.stringify(cfg, null, 2);
+    const oldLines = (el.textContent || '').split('\n');
+    const newLines = newText.split('\n');
+
+    // Build HTML with highlights on changed/new lines
+    let html = '';
+    for (let i = 0; i < newLines.length; i++) {
+        const escaped = newLines[i].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        if (i >= oldLines.length || newLines[i] !== oldLines[i]) {
+            html += '<span class="json-highlight">' + escaped + '</span>\n';
+        } else {
+            html += escaped + '\n';
+        }
+    }
+    el.innerHTML = html;
+
+    // Fade out highlights
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            el.querySelectorAll('.json-highlight').forEach(s => s.classList.add('json-highlight-fade'));
+        }, 50);
+    });
 }
 
 // =====================================================
 // ACCORDION
 // =====================================================
 function toggleAccordion(header) {
-    header.classList.toggle('open');
     const body = header.nextElementSibling;
-    body.classList.toggle('open');
+    const isOpening = !header.classList.contains('open');
+
+    header.classList.toggle('open');
+
+    if (isOpening) {
+        body.classList.add('open');
+        // Let CSS max-height: 3000px handle the opening transition
+        body.style.maxHeight = '';
+    } else {
+        // Collapse: freeze current height, then animate to 0
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.offsetHeight; // force reflow
+        body.style.maxHeight = '0px';
+        body.style.padding = '0 20px';
+        body.addEventListener('transitionend', function handler() {
+            body.classList.remove('open');
+            body.style.maxHeight = '';
+            body.style.padding = '';
+            body.removeEventListener('transitionend', handler);
+        }, {once: true});
+    }
 }
 
 // =====================================================
