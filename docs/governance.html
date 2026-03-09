@@ -221,7 +221,7 @@
         .accordion-header h3 { font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
         .accordion-header .arrow { color: var(--text-muted); font-size: 0.8rem; transition: transform 0.3s ease; }
         .accordion-header.open .arrow { transform: rotate(90deg); }
-        .accordion-body { max-height: 0; overflow: hidden; padding: 0 20px; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease; }
+        .accordion-body { max-height: 0; overflow: hidden; padding: 0 20px; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .accordion-body.open { padding: 0 20px 20px; }
         .accordion-header .count { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
 
@@ -1668,10 +1668,10 @@ function syncPreviewHeight() {
     const preview = document.querySelector('.gen-preview-inner');
     if (!form || !preview) return;
     const formH = form.offsetHeight;
-    const headerH = preview.querySelector('.gen-preview-header').offsetHeight;
+    const headerH = preview.querySelector('.gen-preview-header')?.offsetHeight || 40;
     const jsonH = Math.max(formH - headerH, 80);
     const jsonEl = document.getElementById('json-output');
-    jsonEl.style.maxHeight = jsonH + 'px';
+    if (jsonEl) jsonEl.style.maxHeight = jsonH + 'px';
 }
 
 // =====================================================
@@ -1680,35 +1680,35 @@ function syncPreviewHeight() {
 function toggleAccordion(header) {
     const body = header.nextElementSibling;
     const isOpening = !header.classList.contains('open');
-
     header.classList.toggle('open');
 
     if (isOpening) {
         body.classList.add('open');
-        // Measure actual content height for proportional animation speed
         body.style.maxHeight = body.scrollHeight + 'px';
-        body.addEventListener('transitionend', function handler(e) {
-            if (e.propertyName !== 'max-height') return;
-            // Release to allow dynamic content changes inside
-            body.style.maxHeight = 'none';
+        // After transition completes, release max-height for dynamic content
+        setTimeout(() => {
+            if (header.classList.contains('open')) {
+                body.style.maxHeight = 'none';
+            }
             syncPreviewHeight();
-            body.removeEventListener('transitionend', handler);
-        });
+        }, 450);
     } else {
-        // Freeze current height, then animate to 0
-        body.style.maxHeight = body.scrollHeight + 'px';
-        body.offsetHeight; // force reflow
-        body.style.maxHeight = '0px';
-        body.style.padding = '0 20px';
-        body.addEventListener('transitionend', function handler(e) {
-            if (e.propertyName !== 'max-height') return;
+        // Freeze → animate to 0
+        const h = body.scrollHeight;
+        body.style.maxHeight = h + 'px';
+        requestAnimationFrame(() => {
+            body.style.maxHeight = '0px';
+            body.style.padding = '0 20px';
+        });
+        setTimeout(() => {
             body.classList.remove('open');
             body.style.maxHeight = '';
             body.style.padding = '';
             syncPreviewHeight();
-            body.removeEventListener('transitionend', handler);
-        });
+        }, 450);
     }
+    // Immediate sync for responsive feel
+    requestAnimationFrame(() => syncPreviewHeight());
 }
 
 // =====================================================
