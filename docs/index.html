@@ -644,9 +644,9 @@
     <div class="inner">
         <a href="https://b-macker.github.io/" class="logo">N<span>AAb</span></a>
         <ul class="links">
+            <li><a href="#governance">Governance</a></li>
             <li><a href="#languages">Languages</a></li>
             <li><a href="#features">Features</a></li>
-            <li><a href="#governance">Governance</a></li>
             <li><a href="#stdlib">Stdlib</a></li>
             <li><a href="#bolo">BOLO</a></li>
             <li><a href="#pivot">Pivot</a></li>
@@ -660,15 +660,14 @@
 <!-- ─── Hero ─── -->
 <section class="hero">
     <div class="container">
-        <div class="badge">Open Source &middot; MIT License</div>
+        <div class="badge">The only language with built-in AI governance</div>
         <h1>
-            The polyglot language<br>
-            <span class="gradient">built for the AI era</span>
+            <span class="gradient">Govern AI-generated code</span><br>
+            at the language level
         </h1>
         <p class="subtitle">
-            Write Python, JavaScript, Rust, C++ and 8 more languages in a single file.
-            Ship with confidence — NAAb's governance engine catches hallucinated APIs,
-            incomplete logic, and oversimplified stubs before they reach production.
+            NAAb enforces code quality, security, and correctness as runtime constraints &mdash; not suggestions.
+            A single <code>govern.json</code> controls what executes across 12 languages in one file.
         </p>
         <div class="cta">
             <a href="https://github.com/b-macker/NAAb" class="btn btn-primary">Get Started</a>
@@ -683,150 +682,13 @@
 <!-- ─── Stats Bar ─── -->
 <div class="container" style="padding-bottom: 60px;">
     <div class="stats-bar">
-        <div class="stat reveal"><div class="num">12</div><div class="label">Languages</div></div>
-        <div class="stat reveal reveal-delay-1"><div class="num">50+</div><div class="label">Governance Checks</div></div>
-        <div class="stat reveal reveal-delay-2"><div class="num">12</div><div class="label">Stdlib Modules</div></div>
-        <div class="stat reveal reveal-delay-3"><div class="num">15k+</div><div class="label">Lines of C++17</div></div>
-        <div class="stat reveal reveal-delay-4"><div class="num">195</div><div class="label">Tests Passing</div></div>
+        <div class="stat reveal"><div class="num">50+</div><div class="label">Governance Checks</div></div>
+        <div class="stat reveal reveal-delay-1"><div class="num">3-tier</div><div class="label">Enforcement</div></div>
+        <div class="stat reveal reveal-delay-2"><div class="num">12</div><div class="label">Languages Governed</div></div>
+        <div class="stat reveal reveal-delay-3"><div class="num">12</div><div class="label">Stdlib Modules</div></div>
+        <div class="stat reveal reveal-delay-4"><div class="num">325</div><div class="label">Tests Passing</div></div>
     </div>
 </div>
-
-<hr class="section-divider">
-
-<!-- ─── Languages ─── -->
-<section class="section" id="languages">
-    <div class="container">
-        <div class="section-header">
-            <div class="label">Polyglot Execution</div>
-            <h2>Twelve languages. One file. Zero boilerplate.</h2>
-            <p>Use each language where it shines. Variables flow between languages automatically — no FFI, no serialization, no microservices.</p>
-        </div>
-
-        <div class="lang-grid reveal">
-            <div class="lang-pill"><span class="dot dot-python"></span> Python</div>
-            <div class="lang-pill"><span class="dot dot-js"></span> JavaScript</div>
-            <div class="lang-pill"><span class="dot dot-rust"></span> Rust</div>
-            <div class="lang-pill"><span class="dot dot-cpp"></span> C++</div>
-            <div class="lang-pill"><span class="dot dot-go"></span> Go</div>
-            <div class="lang-pill"><span class="dot dot-csharp"></span> C#</div>
-            <div class="lang-pill"><span class="dot dot-ruby"></span> Ruby</div>
-            <div class="lang-pill"><span class="dot dot-php"></span> PHP</div>
-            <div class="lang-pill"><span class="dot dot-shell"></span> Shell</div>
-            <div class="lang-pill"><span class="dot dot-nim"></span> Nim</div>
-            <div class="lang-pill"><span class="dot dot-zig"></span> Zig</div>
-            <div class="lang-pill"><span class="dot dot-julia"></span> Julia</div>
-        </div>
-
-        <div class="code-showcase">
-            <div class="code-panel reveal">
-                <div class="tab-bar">
-                    <div class="tab active">app.naab</div>
-                </div>
-<pre><span class="kw">main</span> {
-    <span class="kw">let</span> numbers = [<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>, <span class="num">40</span>, <span class="num">50</span>]
-
-    <span class="cm">// Python: statistical analysis</span>
-    <span class="kw">let</span> stats = <span class="fn">&lt;&lt;python</span>[numbers]
-<span class="kw">import</span> statistics
-mean = statistics.mean(numbers)
-stdev = statistics.stdev(numbers)
-<span class="str">f"mean={mean}, stdev={stdev:.1f}"</span>
-<span class="fn">&gt;&gt;</span>
-
-    <span class="cm">// Rust: high-performance hashing</span>
-    <span class="kw">let</span> hash = <span class="fn">&lt;&lt;rust</span>
-<span class="kw">fn</span> main() {
-    <span class="kw">let</span> input = std::env::args().last()
-        .unwrap();
-    println!(<span class="str">"{:x}"</span>, md5::compute(
-        input.as_bytes()
-    ));
-}
-<span class="fn">&gt;&gt;</span>
-
-    print(stats)
-    print(hash)
-}</pre>
-            </div>
-            <div class="code-panel reveal">
-                <div class="tab-bar">
-                    <div class="tab active">Output</div>
-                </div>
-<pre><span class="ok">$ naab-lang app.naab</span>
-
-mean=30, stdev=15.8
-
-<span class="cm">a7b9f3e2d1c4...</span>
-
-<span class="cm">───────────────────────</span>
-<span class="ok">2 polyglot blocks executed</span>
-<span class="cm">  python  ............  42ms</span>
-<span class="cm">  rust    ............  18ms</span></pre>
-            </div>
-        </div>
-    </div>
-</section>
-
-<hr class="section-divider">
-
-<!-- ─── Features ─── -->
-<section class="section" id="features">
-    <div class="container">
-        <div class="section-header">
-            <div class="label">Platform</div>
-            <h2>Everything you need to build polyglot applications</h2>
-            <p>Modern language features, a rich standard library, and developer tools that make polyglot programming productive.</p>
-        </div>
-
-        <div class="features-grid">
-            <div class="f-card reveal">
-                <div class="icon icon-purple">&#9889;</div>
-                <h3>Pattern Matching</h3>
-                <p>Expressive <code>match</code> expressions with exhaustive checking, wildcard patterns, and value binding.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-blue">&#8644;</div>
-                <h3>Async / Await</h3>
-                <p>Non-blocking concurrent execution with <code>async</code> functions and <code>await</code> for I/O-bound operations.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-green">&#955;</div>
-                <h3>Lambdas &amp; Closures</h3>
-                <p>First-class functions with closure capture. Pass functions as values, return them, store them in data structures.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-orange">&#8614;</div>
-                <h3>Pipeline Operator</h3>
-                <p>Chain operations with <code>|&gt;</code> for readable data transformation pipelines. Left-to-right composition.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-cyan">&#128193;</div>
-                <h3>Module System</h3>
-                <p>Import/export with named imports, wildcard imports, and aliasing. Organize code across multiple files.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-red">&#9888;</div>
-                <h3>Error Handling</h3>
-                <p>try/catch/throw with polyglot error propagation. Errors from Python or JavaScript blocks flow into NAAb's catch.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-purple">&#8596;</div>
-                <h3>Variable Binding</h3>
-                <p>Pass variables into polyglot blocks with <code>&lt;&lt;python[x, y]</code>. Automatic serialization across language boundaries.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-blue">&#9881;</div>
-                <h3>Parallel Execution</h3>
-                <p>Independent polyglot blocks run in parallel automatically. Dependency analysis ensures correct ordering.</p>
-            </div>
-            <div class="f-card reveal">
-                <div class="icon icon-green">&#128172;</div>
-                <h3>Smart Errors</h3>
-                <p>"Did you mean?" suggestions for typos, detailed error messages with examples, and common mistake detection.</p>
-            </div>
-        </div>
-    </div>
-</section>
 
 <hr class="section-divider">
 
@@ -1047,6 +909,143 @@ Code: sum(range(100))</span>
 
 <span class="cm">Confidence: CALIBRATED</span></pre>
                 </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── Languages ─── -->
+<section class="section" id="languages">
+    <div class="container">
+        <div class="section-header">
+            <div class="label">Polyglot Execution</div>
+            <h2>Twelve languages. One file. Zero boilerplate.</h2>
+            <p>Use each language where it shines. Variables flow between languages automatically — no FFI, no serialization, no microservices.</p>
+        </div>
+
+        <div class="lang-grid reveal">
+            <div class="lang-pill"><span class="dot dot-python"></span> Python</div>
+            <div class="lang-pill"><span class="dot dot-js"></span> JavaScript</div>
+            <div class="lang-pill"><span class="dot dot-rust"></span> Rust</div>
+            <div class="lang-pill"><span class="dot dot-cpp"></span> C++</div>
+            <div class="lang-pill"><span class="dot dot-go"></span> Go</div>
+            <div class="lang-pill"><span class="dot dot-csharp"></span> C#</div>
+            <div class="lang-pill"><span class="dot dot-ruby"></span> Ruby</div>
+            <div class="lang-pill"><span class="dot dot-php"></span> PHP</div>
+            <div class="lang-pill"><span class="dot dot-shell"></span> Shell</div>
+            <div class="lang-pill"><span class="dot dot-nim"></span> Nim</div>
+            <div class="lang-pill"><span class="dot dot-zig"></span> Zig</div>
+            <div class="lang-pill"><span class="dot dot-julia"></span> Julia</div>
+        </div>
+
+        <div class="code-showcase">
+            <div class="code-panel reveal">
+                <div class="tab-bar">
+                    <div class="tab active">app.naab</div>
+                </div>
+<pre><span class="kw">main</span> {
+    <span class="kw">let</span> numbers = [<span class="num">10</span>, <span class="num">20</span>, <span class="num">30</span>, <span class="num">40</span>, <span class="num">50</span>]
+
+    <span class="cm">// Python: statistical analysis</span>
+    <span class="kw">let</span> stats = <span class="fn">&lt;&lt;python</span>[numbers]
+<span class="kw">import</span> statistics
+mean = statistics.mean(numbers)
+stdev = statistics.stdev(numbers)
+<span class="str">f"mean={mean}, stdev={stdev:.1f}"</span>
+<span class="fn">&gt;&gt;</span>
+
+    <span class="cm">// Rust: high-performance hashing</span>
+    <span class="kw">let</span> hash = <span class="fn">&lt;&lt;rust</span>
+<span class="kw">fn</span> main() {
+    <span class="kw">let</span> input = std::env::args().last()
+        .unwrap();
+    println!(<span class="str">"{:x}"</span>, md5::compute(
+        input.as_bytes()
+    ));
+}
+<span class="fn">&gt;&gt;</span>
+
+    print(stats)
+    print(hash)
+}</pre>
+            </div>
+            <div class="code-panel reveal">
+                <div class="tab-bar">
+                    <div class="tab active">Output</div>
+                </div>
+<pre><span class="ok">$ naab-lang app.naab</span>
+
+mean=30, stdev=15.8
+
+<span class="cm">a7b9f3e2d1c4...</span>
+
+<span class="cm">───────────────────────</span>
+<span class="ok">2 polyglot blocks executed</span>
+<span class="cm">  python  ............  42ms</span>
+<span class="cm">  rust    ............  18ms</span></pre>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── Features ─── -->
+<section class="section" id="features">
+    <div class="container">
+        <div class="section-header">
+            <div class="label">Platform</div>
+            <h2>Everything you need to build polyglot applications</h2>
+            <p>Modern language features, a rich standard library, and developer tools that make polyglot programming productive.</p>
+        </div>
+
+        <div class="features-grid">
+            <div class="f-card reveal">
+                <div class="icon icon-purple">&#9889;</div>
+                <h3>Pattern Matching</h3>
+                <p>Expressive <code>match</code> expressions with exhaustive checking, wildcard patterns, and value binding.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-blue">&#8644;</div>
+                <h3>Async / Await</h3>
+                <p>Non-blocking concurrent execution with <code>async</code> functions and <code>await</code> for I/O-bound operations.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-green">&#955;</div>
+                <h3>Lambdas &amp; Closures</h3>
+                <p>First-class functions with closure capture. Pass functions as values, return them, store them in data structures.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-orange">&#8614;</div>
+                <h3>Pipeline Operator</h3>
+                <p>Chain operations with <code>|&gt;</code> for readable data transformation pipelines. Left-to-right composition.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-cyan">&#128193;</div>
+                <h3>Module System</h3>
+                <p>Import/export with named imports, wildcard imports, and aliasing. Organize code across multiple files.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-red">&#9888;</div>
+                <h3>Error Handling</h3>
+                <p>try/catch/throw with polyglot error propagation. Errors from Python or JavaScript blocks flow into NAAb's catch.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-purple">&#8596;</div>
+                <h3>Variable Binding</h3>
+                <p>Pass variables into polyglot blocks with <code>&lt;&lt;python[x, y]</code>. Automatic serialization across language boundaries.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-blue">&#9881;</div>
+                <h3>Parallel Execution</h3>
+                <p>Independent polyglot blocks run in parallel automatically. Dependency analysis ensures correct ordering.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-green">&#128172;</div>
+                <h3>Smart Errors</h3>
+                <p>"Did you mean?" suggestions for typos, detailed error messages with examples, and common mistake detection.</p>
             </div>
         </div>
     </div>
