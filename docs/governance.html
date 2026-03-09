@@ -196,7 +196,6 @@
             padding: 16px 20px; overflow-y: auto; max-height: 80px;
             font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.82rem;
             line-height: 1.7; color: var(--text-secondary); white-space: pre; word-break: break-all;
-            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .json-highlight { background: rgba(59, 130, 246, 0.15); border-radius: 3px; transition: background 1.5s ease; }
         .json-highlight-fade { background: transparent; }
@@ -1708,8 +1707,8 @@ function toggleAccordion(header) {
             syncPreviewHeight();
         }, 450);
     }
-    // Immediate sync for responsive feel
-    requestAnimationFrame(() => syncPreviewHeight());
+    // Immediate sync only on open — on close, wait for 450ms timeout
+    if (isOpening) requestAnimationFrame(() => syncPreviewHeight());
 }
 
 // =====================================================
