@@ -171,12 +171,11 @@
         .e-card.advisory { border: 1px solid rgba(59, 130, 246, 0.3); }
 
         /* --- Generator --- */
-        .gen-layout { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; }
+        .gen-layout { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; align-items: start; }
         .gen-form { display: flex; flex-direction: column; gap: 8px; }
-        .gen-preview { }
+        .gen-preview { position: sticky; top: 80px; }
         .gen-preview-inner {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
-            position: sticky; top: 80px;
         }
         .gen-preview-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -195,7 +194,6 @@
             padding: 16px 20px; overflow-y: auto;
             font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.82rem;
             line-height: 1.7; color: var(--text-secondary); white-space: pre; word-break: break-all;
-            max-height: calc(100vh - 160px);
         }
         .json-highlight { background: rgba(59, 130, 246, 0.15); border-radius: 3px; transition: background 1.5s ease; }
         .json-highlight-fade { background: transparent; }
@@ -342,8 +340,7 @@
         /* Responsive */
         @media (max-width: 900px) {
             .gen-layout { grid-template-columns: 1fr; }
-            .gen-preview-inner { position: static; }
-            #json-output { max-height: none; }
+            .gen-preview { position: static; }
         }
         @media (max-width: 768px) {
             .hero h1 { font-size: 2.2rem; }
