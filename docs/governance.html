@@ -177,6 +177,7 @@
         .gen-preview-inner {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
             position: sticky; top: 80px;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .gen-preview-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -1231,6 +1232,8 @@ function init() {
     document.querySelectorAll('.tag-input-wrap').forEach(initTagInput);
 
     updateJSON();
+    syncPreviewHeight();
+    window.addEventListener('resize', syncPreviewHeight);
 }
 
 function buildLangGrid(containerId, type) {
@@ -1656,6 +1659,20 @@ function updateJSON() {
 }
 
 // =====================================================
+// SYNC PREVIEW HEIGHT TO FORM
+// =====================================================
+function syncPreviewHeight() {
+    const form = document.getElementById('gen-form');
+    const preview = document.querySelector('.gen-preview-inner');
+    if (!form || !preview) return;
+    const formH = form.offsetHeight;
+    const headerH = preview.querySelector('.gen-preview-header').offsetHeight;
+    const availH = Math.max(formH - headerH, 60);
+    const jsonEl = document.getElementById('json-output');
+    jsonEl.style.maxHeight = availH + 'px';
+}
+
+// =====================================================
 // ACCORDION
 // =====================================================
 function toggleAccordion(header) {
@@ -1666,12 +1683,10 @@ function toggleAccordion(header) {
 
     if (isOpening) {
         body.classList.add('open');
-        // Let CSS max-height: 3000px handle the opening transition
         body.style.maxHeight = '';
     } else {
-        // Collapse: freeze current height, then animate to 0
         body.style.maxHeight = body.scrollHeight + 'px';
-        body.offsetHeight; // force reflow
+        body.offsetHeight;
         body.style.maxHeight = '0px';
         body.style.padding = '0 20px';
         body.addEventListener('transitionend', function handler() {
@@ -1681,6 +1696,9 @@ function toggleAccordion(header) {
             body.removeEventListener('transitionend', handler);
         }, {once: true});
     }
+
+    // Sync preview after accordion animation settles
+    setTimeout(syncPreviewHeight, 450);
 }
 
 // =====================================================
