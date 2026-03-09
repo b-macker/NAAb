@@ -193,9 +193,10 @@
         }
         .gen-preview-header button:hover { border-color: var(--accent); color: var(--accent); }
         #json-output {
-            padding: 16px 20px; overflow-y: auto;
+            padding: 16px 20px; overflow-y: auto; max-height: 80px;
             font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.82rem;
             line-height: 1.7; color: var(--text-secondary); white-space: pre; word-break: break-all;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .json-highlight { background: rgba(59, 130, 246, 0.15); border-radius: 3px; transition: background 1.5s ease; }
         .json-highlight-fade { background: transparent; }
@@ -221,7 +222,7 @@
         .accordion-header .arrow { color: var(--text-muted); font-size: 0.8rem; transition: transform 0.3s ease; }
         .accordion-header.open .arrow { transform: rotate(90deg); }
         .accordion-body { max-height: 0; overflow: hidden; padding: 0 20px; transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease; }
-        .accordion-body.open { padding: 0 20px 20px; max-height: 3000px; }
+        .accordion-body.open { padding: 0 20px 20px; }
         .accordion-header .count { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
 
         /* --- Form Controls --- */
@@ -1232,7 +1233,8 @@ function init() {
     document.querySelectorAll('.tag-input-wrap').forEach(initTagInput);
 
     updateJSON();
-    syncPreviewHeight();
+    // Double-rAF ensures dynamically-built content is fully laid out before measuring
+    requestAnimationFrame(() => requestAnimationFrame(() => syncPreviewHeight()));
     window.addEventListener('resize', syncPreviewHeight);
 }
 
@@ -1667,9 +1669,9 @@ function syncPreviewHeight() {
     if (!form || !preview) return;
     const formH = form.offsetHeight;
     const headerH = preview.querySelector('.gen-preview-header').offsetHeight;
-    const availH = Math.max(formH - headerH, 60);
+    const jsonH = Math.max(formH - headerH, 80);
     const jsonEl = document.getElementById('json-output');
-    jsonEl.style.maxHeight = availH + 'px';
+    jsonEl.style.maxHeight = jsonH + 'px';
 }
 
 // =====================================================
@@ -1683,22 +1685,30 @@ function toggleAccordion(header) {
 
     if (isOpening) {
         body.classList.add('open');
-        body.style.maxHeight = '';
-    } else {
+        // Measure actual content height for proportional animation speed
         body.style.maxHeight = body.scrollHeight + 'px';
-        body.offsetHeight;
+        body.addEventListener('transitionend', function handler(e) {
+            if (e.target !== body) return;
+            // Release to allow dynamic content changes inside
+            body.style.maxHeight = 'none';
+            syncPreviewHeight();
+            body.removeEventListener('transitionend', handler);
+        }, {once: true});
+    } else {
+        // Freeze current height, then animate to 0
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.offsetHeight; // force reflow
         body.style.maxHeight = '0px';
         body.style.padding = '0 20px';
-        body.addEventListener('transitionend', function handler() {
+        body.addEventListener('transitionend', function handler(e) {
+            if (e.target !== body) return;
             body.classList.remove('open');
             body.style.maxHeight = '';
             body.style.padding = '';
+            syncPreviewHeight();
             body.removeEventListener('transitionend', handler);
         }, {once: true});
     }
-
-    // Sync preview after accordion animation settles
-    setTimeout(syncPreviewHeight, 450);
 }
 
 // =====================================================
