@@ -171,11 +171,12 @@
         .e-card.advisory { border: 1px solid rgba(59, 130, 246, 0.3); }
 
         /* --- Generator --- */
-        .gen-layout { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; align-items: start; }
+        .gen-layout { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; }
         .gen-form { display: flex; flex-direction: column; gap: 8px; }
-        .gen-preview { position: sticky; top: 80px; }
+        .gen-preview { }
         .gen-preview-inner {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+            position: sticky; top: 80px;
         }
         .gen-preview-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -340,7 +341,7 @@
         /* Responsive */
         @media (max-width: 900px) {
             .gen-layout { grid-template-columns: 1fr; }
-            .gen-preview { position: static; }
+            .gen-preview-inner { position: static; }
         }
         @media (max-width: 768px) {
             .hero h1 { font-size: 2.2rem; }
