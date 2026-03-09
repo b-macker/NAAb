@@ -1232,9 +1232,11 @@ function init() {
     document.querySelectorAll('.tag-input-wrap').forEach(initTagInput);
 
     updateJSON();
-    // Double-rAF ensures dynamically-built content is fully laid out before measuring
-    requestAnimationFrame(() => requestAnimationFrame(() => syncPreviewHeight()));
-    window.addEventListener('resize', syncPreviewHeight);
+    // ResizeObserver auto-syncs preview height whenever form resizes
+    const form = document.getElementById('gen-form');
+    if (form) {
+        new ResizeObserver(() => syncPreviewHeight()).observe(form);
+    }
 }
 
 function buildLangGrid(containerId, type) {
@@ -1685,15 +1687,12 @@ function toggleAccordion(header) {
     if (isOpening) {
         body.classList.add('open');
         body.style.maxHeight = body.scrollHeight + 'px';
-        // After transition completes, release max-height for dynamic content
         setTimeout(() => {
             if (header.classList.contains('open')) {
                 body.style.maxHeight = 'none';
             }
-            syncPreviewHeight();
         }, 450);
     } else {
-        // Freeze → animate to 0
         const h = body.scrollHeight;
         body.style.maxHeight = h + 'px';
         requestAnimationFrame(() => {
@@ -1704,11 +1703,8 @@ function toggleAccordion(header) {
             body.classList.remove('open');
             body.style.maxHeight = '';
             body.style.padding = '';
-            syncPreviewHeight();
         }, 450);
     }
-    // Immediate sync only on open — on close, wait for 450ms timeout
-    if (isOpening) requestAnimationFrame(() => syncPreviewHeight());
 }
 
 // =====================================================
