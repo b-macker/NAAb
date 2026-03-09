@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NAAb Governance Guide &mdash; Configure govern.json</title>
-    <meta name="description" content="Interactive govern.json generator and documentation for NAAb's built-in AI governance engine. Configure 50+ checks, per-language rules, and 3-tier enforcement.">
-    <meta name="keywords" content="NAAb governance, govern.json, AI code quality, LLM governance, polyglot governance, code generation rules">
+    <title>NAAb Governance Builder &mdash; Configure govern.json</title>
+    <meta name="description" content="Interactive govern.json builder for NAAb's AI governance engine. Configure 50+ checks, per-language rules, and 3-tier enforcement.">
+    <meta name="keywords" content="NAAb governance, govern.json, AI code quality, LLM governance, polyglot governance">
     <meta name="author" content="Brandon Mackert">
     <style>
         :root {
@@ -40,7 +40,7 @@
 
         .container { max-width: 1100px; margin: 0 auto; padding: 0 32px; }
 
-        /* --- Navigation --- */
+        /* ─── Navigation ─── */
         nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 100;
             background: rgba(10, 14, 23, 0.85);
@@ -59,11 +59,11 @@
         .nav-cta { background: var(--accent); color: #fff !important; padding: 8px 20px; border-radius: 6px; font-weight: 600; transition: opacity 0.15s; }
         .nav-cta:hover { opacity: 0.85; }
 
-        /* --- Hero --- */
-        .hero { text-align: center; padding: 140px 0 80px; position: relative; }
+        /* ─── Hero ─── */
+        .hero { text-align: center; padding: 120px 0 48px; position: relative; }
         .hero::before {
-            content: ''; position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
-            width: 600px; height: 400px;
+            content: ''; position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
+            width: 600px; height: 300px;
             background: radial-gradient(ellipse, var(--accent-glow), transparent 70%);
             pointer-events: none;
         }
@@ -78,29 +78,28 @@
             background: linear-gradient(135deg, var(--accent), var(--purple), var(--cyan));
             -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
         }
-        .hero .subtitle { font-size: 1.2rem; color: var(--text-secondary); max-width: 620px; margin: 0 auto 40px; line-height: 1.8; }
-        .hero .cta { display: inline-flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+        .hero .subtitle { font-size: 1.2rem; color: var(--text-secondary); max-width: 620px; margin: 0 auto 32px; line-height: 1.8; }
+        .btn { display: inline-block; padding: 14px 32px; border-radius: 8px; font-size: 1rem; font-weight: 600; text-decoration: none; transition: all 0.2s; border: none; cursor: pointer; }
+        .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4); }
+        .btn-primary:hover { box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5); transform: translateY(-1px); }
+        .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-highlight); }
+        .btn-secondary:hover { border-color: var(--text-muted); }
         .hero .install-cmd {
-            margin-top: 32px; display: inline-block; background: var(--surface);
+            margin-top: 24px; display: inline-block; background: var(--surface);
             border: 1px solid var(--border); border-radius: 8px; padding: 12px 24px;
             font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.9rem; color: var(--text-secondary);
         }
-        .hero .install-cmd span { color: var(--green); }
+        .hero .install-cmd em { color: var(--green); font-style: normal; }
 
-        /* --- Stats Bar --- */
+        /* ─── Stats Bar ─── */
         .stats-bar { display: flex; justify-content: center; gap: 1px; background: var(--border); border-radius: 12px; overflow: hidden; margin: 0 auto; max-width: 700px; }
         .stats-bar .stat { flex: 1; text-align: center; padding: 24px 16px; background: var(--surface); }
         .stats-bar .stat:first-child { border-radius: 12px 0 0 12px; }
         .stats-bar .stat:last-child { border-radius: 0 12px 12px 0; }
         .stats-bar .num { font-size: 1.8rem; font-weight: 800; color: var(--text); }
         .stats-bar .label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
-        .btn { display: inline-block; padding: 14px 32px; border-radius: 8px; font-size: 1rem; font-weight: 600; text-decoration: none; transition: all 0.2s; border: none; cursor: pointer; }
-        .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4); }
-        .btn-primary:hover { box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5); transform: translateY(-1px); }
-        .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-highlight); }
-        .btn-secondary:hover { border-color: var(--text-muted); }
 
-        /* --- Section --- */
+        /* ─── Sections ─── */
         .section { padding: 80px 0; }
         .section-divider { border: none; border-top: 1px solid var(--border); margin: 0; }
         .section-header { text-align: center; margin-bottom: 48px; }
@@ -108,76 +107,14 @@
         .section-header h2 { font-size: 2.2rem; font-weight: 800; letter-spacing: -1px; margin-bottom: 12px; }
         .section-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 560px; margin: 0 auto; }
 
-        /* --- Decision Cards --- */
-        .decision-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
-        .d-card {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-            padding: 28px; transition: all 0.3s ease; position: relative;
-        }
-        .d-card:hover { border-color: var(--border-highlight); transform: translateY(-4px); }
-        .d-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
-        .d-card .who { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 16px; }
-        .d-card pre {
-            background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px;
-            padding: 12px 16px; font-size: 0.78rem; line-height: 1.6; overflow-x: auto;
-            font-family: 'SF Mono', 'Fira Code', monospace;
-        }
-        .d-card.recommended { border-color: var(--accent); }
-        .d-card.recommended::after {
-            content: 'RECOMMENDED'; position: absolute; top: -10px; right: 16px;
-            background: var(--accent); color: #fff; font-size: 0.65rem; font-weight: 700;
-            padding: 2px 10px; border-radius: 4px; letter-spacing: 0.5px;
-        }
-
-        /* --- Layer Cards --- */
-        .layer-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 40px; }
-        .l-card {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;
-        }
-        .l-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
-        .l-card .layer-num {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 24px; height: 24px; border-radius: 50%; font-size: 0.75rem; font-weight: 700;
-        }
-        .l-card .sub { color: var(--text-muted); font-size: 0.82rem; margin-bottom: 12px; }
-        .l-card table { width: 100%; font-size: 0.82rem; border-collapse: collapse; }
-        .l-card td, .l-card th { padding: 4px 0; text-align: left; border-bottom: 1px solid var(--border); }
-        .l-card th { color: var(--text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
-        .l-card td code { background: var(--surface-raised); padding: 1px 5px; border-radius: 3px; font-size: 0.78rem; color: var(--cyan); }
-
-        .priority-bar {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-            padding: 24px; text-align: center;
-        }
-        .priority-bar .flow { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
-        .priority-bar .node { padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
-        .priority-bar .arrow { color: var(--text-muted); font-size: 1.2rem; }
-        .node-gov { background: var(--accent-glow); border: 1px solid var(--accent); color: var(--accent); }
-        .node-llm { background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.3); color: var(--purple); }
-        .node-lint { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--green); }
-        .node-pkg { background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); color: var(--orange); }
-
-        /* --- Enforcement Cards --- */
-        .enforce-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
-        .e-card { background: var(--surface); border-radius: 12px; padding: 24px; text-align: center; }
-        .e-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
-        .e-card p { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 12px; }
-        .e-card .tag { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
-        .tag-hard { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
-        .tag-soft { background: rgba(245, 158, 11, 0.15); color: var(--orange); border: 1px solid rgba(245, 158, 11, 0.3); }
-        .tag-advisory { background: rgba(59, 130, 246, 0.15); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.3); }
-        .e-card.hard { border: 1px solid rgba(239, 68, 68, 0.3); }
-        .e-card.soft { border: 1px solid rgba(245, 158, 11, 0.3); }
-        .e-card.advisory { border: 1px solid rgba(59, 130, 246, 0.3); }
-
-        /* --- Generator --- */
-        .gen-layout { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; }
+        /* ─── Generator Layout ─── */
+        .gen-layout { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; align-items: start; }
         .gen-form { display: flex; flex-direction: column; gap: 8px; }
-        .gen-preview { }
         .gen-preview-inner {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
             position: sticky; top: 80px;
-            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: calc(100vh - 120px);
+            background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+            display: flex; flex-direction: column; overflow: hidden;
         }
         .gen-preview-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -193,14 +130,14 @@
         }
         .gen-preview-header button:hover { border-color: var(--accent); color: var(--accent); }
         #json-output {
-            padding: 16px 20px; overflow-y: auto; max-height: 80px;
+            padding: 16px 20px; overflow-y: auto; flex: 1;
             font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.82rem;
             line-height: 1.7; color: var(--text-secondary); white-space: pre; word-break: break-all;
         }
         .json-highlight { background: rgba(59, 130, 246, 0.15); border-radius: 3px; transition: background 1.5s ease; }
         .json-highlight-fade { background: transparent; }
 
-        /* --- Presets --- */
+        /* ─── Presets ─── */
         .preset-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
         .preset-btn {
             background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);
@@ -210,7 +147,7 @@
         .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
         .preset-btn.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
 
-        /* --- Accordion --- */
+        /* ─── Accordion ─── */
         .accordion { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .accordion-header {
             display: flex; justify-content: space-between; align-items: center;
@@ -224,12 +161,9 @@
         .accordion-body.open { padding: 0 20px 20px; }
         .accordion-header .count { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
 
-        /* --- Form Controls --- */
+        /* ─── Form Controls ─── */
         .form-group { margin-bottom: 12px; }
-        .form-group label {
-            display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
-            margin-bottom: 4px;
-        }
+        .form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
         .form-group .help { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
         .form-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
         input[type="text"], input[type="number"], select, textarea {
@@ -237,9 +171,7 @@
             padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; width: 100%;
             font-family: inherit; transition: border-color 0.15s;
         }
-        input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
-            outline: none; border-color: var(--accent);
-        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
         select { cursor: pointer; }
         input[type="number"] { width: 100px; }
         textarea { min-height: 60px; resize: vertical; }
@@ -260,10 +192,9 @@
         }
         .toggle input:checked + .slider { background: var(--accent-glow); border-color: var(--accent); }
         .toggle input:checked + .slider::before { transform: translateX(18px); background: var(--accent); }
-
         .toggle-label { font-size: 0.85rem; color: var(--text-secondary); }
 
-        /* Level select inline */
+        /* Level select */
         .level-select { display: inline-flex; gap: 4px; }
         .level-btn {
             padding: 3px 10px; border-radius: 4px; font-size: 0.72rem; font-weight: 700;
@@ -280,10 +211,7 @@
         .tag-item { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-glow); border: 1px solid rgba(59,130,246,0.2); color: var(--accent); padding: 2px 8px; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
         .tag-item .remove { cursor: pointer; opacity: 0.6; font-size: 0.9rem; }
         .tag-item .remove:hover { opacity: 1; }
-        .tag-input-wrap input {
-            border: none; background: none; outline: none; color: var(--text); font-size: 0.82rem;
-            min-width: 80px; flex: 1; padding: 2px 4px;
-        }
+        .tag-input-wrap input { border: none; background: none; outline: none; color: var(--text); font-size: 0.82rem; min-width: 80px; flex: 1; padding: 2px 4px; }
 
         /* Checkbox grid */
         .check-grid { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -296,18 +224,35 @@
         .check-item.checked { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
         .check-item input { display: none; }
         .check-item .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot-python { background: #3572A5; } .dot-js { background: #f1e05a; } .dot-rust { background: #dea584; }
+        .dot-cpp { background: #f34b7d; } .dot-go { background: #00ADD8; } .dot-ruby { background: #701516; }
+        .dot-php { background: #4F5D95; } .dot-csharp { background: #178600; } .dot-shell { background: #89e051; }
+        .dot-nim { background: #ffc200; } .dot-zig { background: #f7a41d; } .dot-julia { background: #9558b2; }
 
         /* Sub-sections */
         .sub-section { margin-top: 16px; padding: 16px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; }
         .sub-section h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 12px; color: var(--text-secondary); }
 
-        /* CLI table */
+        /* ─── Enforcement Cards ─── */
+        .enforce-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .e-card { background: var(--surface); border-radius: 12px; padding: 24px; text-align: center; }
+        .e-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+        .e-card p { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 12px; }
+        .e-card .tag { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
+        .tag-hard { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .tag-soft { background: rgba(245, 158, 11, 0.15); color: var(--orange); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .tag-advisory { background: rgba(59, 130, 246, 0.15); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.3); }
+        .e-card.hard { border: 1px solid rgba(239, 68, 68, 0.3); }
+        .e-card.soft { border: 1px solid rgba(245, 158, 11, 0.3); }
+        .e-card.advisory { border: 1px solid rgba(59, 130, 246, 0.3); }
+
+        /* ─── CLI Table ─── */
         .cli-table { width: 100%; border-collapse: collapse; }
         .cli-table td, .cli-table th { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
         .cli-table th { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; font-weight: 600; }
         .cli-table code { background: var(--surface-raised); padding: 2px 8px; border-radius: 4px; font-size: 0.82rem; color: var(--cyan); }
 
-        /* Examples */
+        /* ─── Example Cards ─── */
         .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         .ex-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .ex-card h4 { padding: 16px 20px 0; font-size: 0.95rem; font-weight: 700; }
@@ -318,13 +263,7 @@
             font-family: 'SF Mono', 'Fira Code', monospace;
         }
 
-        /* Pattern table */
-        .pattern-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 12px; }
-        .pattern-table td, .pattern-table th { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
-        .pattern-table th { color: var(--text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
-        .pattern-table code { background: var(--surface-raised); padding: 1px 5px; border-radius: 3px; font-size: 0.78rem; color: var(--cyan); }
-
-        /* Footer */
+        /* ─── Footer ─── */
         footer { border-top: 1px solid var(--border); padding: 40px 0; }
         footer .inner { max-width: 1100px; margin: 0 auto; padding: 0 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
         footer .left { color: var(--text-muted); font-size: 0.85rem; }
@@ -333,22 +272,21 @@
         footer a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; transition: color 0.15s; }
         footer a:hover { color: var(--text); }
 
-        /* Reveal animations */
+        /* ─── Reveal ─── */
         .reveal { opacity: 0; transform: translateY(40px); transition: opacity 0.8s ease, transform 0.8s ease; }
         .reveal.visible { opacity: 1; transform: translateY(0); }
         .reveal-delay-1 { transition-delay: 0.1s; }
         .reveal-delay-2 { transition-delay: 0.2s; }
 
-        /* Responsive */
+        /* ─── Responsive ─── */
         @media (max-width: 900px) {
             .gen-layout { grid-template-columns: 1fr; }
-            .gen-preview-inner { position: static; }
+            .gen-preview-inner { position: static; max-height: none; }
         }
         @media (max-width: 768px) {
             .hero h1 { font-size: 2.2rem; }
-            .decision-grid, .layer-grid, .enforce-grid, .example-grid { grid-template-columns: 1fr; }
+            .enforce-grid, .example-grid { grid-template-columns: 1fr; }
             nav .links { display: none; }
-            .priority-bar .flow { flex-direction: column; }
             .stats-bar { flex-direction: column; border-radius: 12px; }
             .stats-bar .stat:first-child { border-radius: 12px 12px 0 0; }
             .stats-bar .stat:last-child { border-radius: 0 0 12px 12px; }
@@ -357,7 +295,7 @@
 </head>
 <body>
 
-<!-- Navigation -->
+<!-- ─── Navigation ─── -->
 <nav>
     <div class="inner">
         <a href="https://b-macker.github.io/" class="logo">N<span>AAb</span></a>
@@ -375,221 +313,41 @@
     </div>
 </nav>
 
-<!-- Hero -->
+<!-- ─── Hero ─── -->
 <section class="hero">
     <div class="container">
-        <div class="badge">The only language with built-in AI governance</div>
-        <h1>
-            <span class="gradient">Configure Your Governance</span>
-        </h1>
+        <div class="badge">Interactive Builder</div>
+        <h1><span class="gradient">Build your govern.json</span></h1>
         <p class="subtitle">
-            NAAb's <code>govern.json</code> gives you total control over what AI-generated code can do.
-            It's powerful &mdash; and completely optional.
+            Configure 50+ governance checks, per-language rules, and 3-tier enforcement.
+            Toggle options below &mdash; only non-default values are included.
         </p>
-        <div class="cta">
-            <a href="#generator" class="btn btn-primary">Build Your Config</a>
-            <a href="#how-it-works" class="btn btn-secondary">Learn How It Works</a>
-        </div>
+        <a href="#builder" class="btn btn-primary">Start Building</a>
         <div class="install-cmd">
-            <span>$</span> echo '{"version":"3.0","mode":"enforce"}' > govern.json
+            <em>$</em> echo '{"version":"3.0","mode":"enforce"}' > govern.json
         </div>
     </div>
 </section>
 
-<!-- Stats Bar -->
+<!-- ─── Stats Bar ─── -->
 <div class="container" style="padding-bottom: 60px;">
     <div class="stats-bar">
         <div class="stat reveal"><div class="num">50+</div><div class="label">Governance Checks</div></div>
         <div class="stat reveal reveal-delay-1"><div class="num">3-tier</div><div class="label">Enforcement</div></div>
         <div class="stat reveal reveal-delay-2"><div class="num">13</div><div class="label">Config Sections</div></div>
-        <div class="stat reveal reveal-delay-3"><div class="num">12</div><div class="label">Languages Governed</div></div>
+        <div class="stat reveal"><div class="num">12</div><div class="label">Languages Governed</div></div>
     </div>
 </div>
 
 <hr class="section-divider">
 
-<!-- Do I Need This? -->
-<section class="section" id="do-i-need">
-    <div class="container">
-        <div class="section-header">
-            <div class="label">Getting Started</div>
-            <h2>Do I need a govern.json?</h2>
-            <p>Governance is optional. Choose the level that fits your workflow.</p>
-        </div>
-
-        <div class="decision-grid">
-            <div class="d-card reveal">
-                <h3>No Config</h3>
-                <div class="who">Personal projects, learning, experimentation. NAAb runs all code unrestricted.</div>
-                <pre>// No govern.json needed
-// Just write and run:
-naab script.naab</pre>
-            </div>
-            <div class="d-card recommended reveal reveal-delay-1">
-                <h3>Minimal Config</h3>
-                <div class="who">Small teams, hobbyists. Set allowed languages + basic security. A good starting point.</div>
-                <pre>{
-  "version": "3.0",
-  "mode": "enforce",
-  "languages": {
-    "allowed": ["python", "javascript"]
-  },
-  "restrictions": {
-    "dangerous_calls": { "level": "hard" },
-    "shell_injection": { "level": "hard" }
-  }
-}</pre>
-            </div>
-            <div class="d-card reveal reveal-delay-2">
-                <h3>Full Config</h3>
-                <div class="who">Enterprise, AI-heavy workflows. 50+ checks, per-language rules, audit trails, custom regex rules.</div>
-                <pre>{
-  "version": "3.0",
-  "mode": "enforce",
-  "languages": { ... },
-  "capabilities": { ... },
-  "limits": { ... },
-  "restrictions": { ... },
-  "code_quality": { ... },
-  "custom_rules": [ ... ],
-  "audit": { ... },
-  "polyglot_optimization": { ... }
-}</pre>
-            </div>
-        </div>
-    </div>
-</section>
-
-<hr class="section-divider">
-
-<!-- How It Works -->
-<section class="section" id="how-it-works">
-    <div class="container">
-        <div class="section-header">
-            <div class="label">3-Layer Context System</div>
-            <h2>How NAAb reads your project</h2>
-            <p>NAAb can supplement governance with rules extracted from files already in your project.</p>
-        </div>
-
-        <div class="layer-grid">
-            <div class="l-card reveal">
-                <h3><span class="layer-num" style="background:rgba(139,92,246,0.15);color:var(--purple);">1</span> LLM Instruction Files</h3>
-                <div class="sub">Language preferences, banned patterns, style rules</div>
-                <table>
-                    <tr><th>File</th><th>Source</th></tr>
-                    <tr><td><code>CLAUDE.md</code></td><td>Claude Code</td></tr>
-                    <tr><td><code>.cursorrules</code></td><td>Cursor IDE</td></tr>
-                    <tr><td><code>.github/copilot-instructions.md</code></td><td>GitHub Copilot</td></tr>
-                    <tr><td><code>gemini.md</code></td><td>Google Gemini</td></tr>
-                    <tr><td><code>.aider.conf.yml</code></td><td>Aider</td></tr>
-                    <tr><td><code>.continue/config.json</code></td><td>Continue.dev</td></tr>
-                </table>
-            </div>
-            <div class="l-card reveal reveal-delay-1">
-                <h3><span class="layer-num" style="background:rgba(16,185,129,0.15);color:var(--green);">2</span> Linter/Formatter Configs</h3>
-                <div class="sub">Indent style, naming rules, code quality settings</div>
-                <table>
-                    <tr><th>File</th><th>Extracted</th></tr>
-                    <tr><td><code>.editorconfig</code></td><td>indent, line length</td></tr>
-                    <tr><td><code>.eslintrc.*</code></td><td>no-eval, no-console, strict</td></tr>
-                    <tr><td><code>.prettierrc</code></td><td>tabWidth, useTabs</td></tr>
-                    <tr><td><code>biome.json</code></td><td>indentWidth, indentStyle</td></tr>
-                    <tr><td><code>.clang-format</code></td><td>(detected, future)</td></tr>
-                    <tr><td><code>rustfmt.toml</code></td><td>(detected, future)</td></tr>
-                </table>
-            </div>
-            <div class="l-card reveal reveal-delay-2">
-                <h3><span class="layer-num" style="background:rgba(245,158,11,0.15);color:var(--orange);">3</span> Package Manifests</h3>
-                <div class="sub">Auto-detect which languages your project uses</div>
-                <table>
-                    <tr><th>File</th><th>Language</th></tr>
-                    <tr><td><code>package.json</code></td><td>JavaScript</td></tr>
-                    <tr><td><code>go.mod</code></td><td>Go</td></tr>
-                    <tr><td><code>Cargo.toml</code></td><td>Rust</td></tr>
-                    <tr><td><code>pyproject.toml</code></td><td>Python</td></tr>
-                    <tr><td><code>Gemfile</code></td><td>Ruby</td></tr>
-                    <tr><td><code>composer.json</code></td><td>PHP</td></tr>
-                    <tr><td><code>Project.toml</code></td><td>Julia</td></tr>
-                    <tr><td><code>*.nimble</code></td><td>Nim</td></tr>
-                </table>
-            </div>
-        </div>
-
-        <!-- LLM Pattern Extraction -->
-        <div class="sub-section" style="margin-bottom:24px;">
-            <h4>What NAAb extracts from LLM files (CLAUDE.md, .cursorrules, etc.)</h4>
-            <table class="pattern-table">
-                <tr><th>Write this in your file</th><th>NAAb extracts</th><th>Maps to</th></tr>
-                <tr><td>"always use python" / "only use python"</td><td>Strong language preference</td><td><code>optimization: all tasks +10</code></td></tr>
-                <tr><td>"prefer go for concurrency"</td><td>Task-scoped preference</td><td><code>optimization:concurrency +15</code></td></tr>
-                <tr><td>"never use shell" / "avoid javascript"</td><td>Language avoidance</td><td><code>languages.blocked (advisory)</code></td></tr>
-                <tr><td>"never use eval()" / "don't call os.system"</td><td>Banned function</td><td><code>{lang}.banned_functions</code></td></tr>
-                <tr><td>"no subprocess" / "ban pickle"</td><td>Banned import</td><td><code>{lang}.banned_imports</code></td></tr>
-                <tr><td>"use 4 spaces" / "use tabs"</td><td>Indentation style</td><td><code>indent_size / indent_style</code></td></tr>
-                <tr><td>"no console.log"</td><td>Style rule</td><td><code>javascript.no_console_log</code></td></tr>
-                <tr><td>"use strict mode"</td><td>JS strict mode</td><td><code>javascript.strict_mode</code></td></tr>
-                <tr><td>"max 50 lines per function"</td><td>Complexity limit</td><td><code>complexity.max_lines_per_block</code></td></tr>
-            </table>
-            <p class="help" style="margin-top:8px;">NAAb skips code blocks, indented code, blockquotes, and sections titled "example"/"code"/"setup" to avoid false positives.</p>
-        </div>
-
-        <!-- Priority -->
-        <div class="priority-bar reveal">
-            <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;font-weight:600;">PRIORITY ORDER (highest to lowest)</div>
-            <div class="flow">
-                <span class="node node-gov">govern.json</span>
-                <span class="arrow">&rsaquo;</span>
-                <span class="node node-llm">LLM Files</span>
-                <span class="arrow">&rsaquo;</span>
-                <span class="node node-lint">Linter Configs</span>
-                <span class="arrow">&rsaquo;</span>
-                <span class="node node-pkg">Package Manifests</span>
-            </div>
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:12px;">govern.json <strong>always</strong> overrides project context. Project context supplements only.</div>
-        </div>
-    </div>
-</section>
-
-<hr class="section-divider">
-
-<!-- Enforcement Levels -->
-<section class="section" id="enforcement">
-    <div class="container">
-        <div class="section-header">
-            <div class="label">3-Tier Enforcement</div>
-            <h2>Three levels of control</h2>
-            <p>Every check in govern.json can be set to one of three enforcement levels.</p>
-        </div>
-
-        <div class="enforce-grid">
-            <div class="e-card hard reveal">
-                <span class="tag tag-hard">HARD</span>
-                <h3>Blocks execution</h3>
-                <p>Cannot be overridden. Use for security-critical rules: injection, secrets, privilege escalation.</p>
-            </div>
-            <div class="e-card soft reveal reveal-delay-1">
-                <span class="tag tag-soft">SOFT</span>
-                <h3>Blocks execution</h3>
-                <p>Can bypass with <code>--governance-override</code>. Use for quality gates: placeholders, debug artifacts, incomplete logic.</p>
-            </div>
-            <div class="e-card advisory reveal reveal-delay-2">
-                <span class="tag tag-advisory">ADVISORY</span>
-                <h3>Warns only</h3>
-                <p>Continues execution with a warning. Use for style guidance: naming conventions, complexity, documentation.</p>
-            </div>
-        </div>
-    </div>
-</section>
-
-<hr class="section-divider">
-
-<!-- Generator -->
-<section class="section" id="generator">
+<!-- ─── Builder ─── -->
+<section class="section" id="builder">
     <div class="container">
         <div class="section-header">
             <div class="label">Interactive Generator</div>
-            <h2>Build your govern.json</h2>
-            <p>Toggle options below. Only non-default values are included in your config.</p>
+            <h2>Configure everything</h2>
+            <p>Toggle options below. Only non-default values appear in your config.</p>
         </div>
 
         <!-- Presets -->
@@ -666,11 +424,10 @@ naab script.naab</pre>
                 <!-- C: Capabilities -->
                 <div class="accordion" data-section="capabilities">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
-                        <h3>Capabilities <span class="count">network, filesystem, shell, env, process, time, memory</span></h3>
+                        <h3>Capabilities <span class="count">network, filesystem, shell, env, process</span></h3>
                         <span class="arrow">&#9654;</span>
                     </div>
                     <div class="accordion-body">
-                        <!-- Network -->
                         <div class="sub-section">
                             <h4>Network</h4>
                             <div class="toggle-wrap" style="margin-bottom:8px">
@@ -687,7 +444,6 @@ naab script.naab</pre>
                                 <div class="tag-input-wrap" id="cap-net-blocked-hosts" data-default="169.254.169.254,metadata.google.internal"></div>
                             </div>
                         </div>
-                        <!-- Filesystem -->
                         <div class="sub-section">
                             <h4>Filesystem</h4>
                             <div class="form-group">
@@ -707,7 +463,6 @@ naab script.naab</pre>
                                 <div class="tag-input-wrap" id="cap-fs-blocked-ext" data-default=".exe,.dll,.so"></div>
                             </div>
                         </div>
-                        <!-- Shell -->
                         <div class="sub-section">
                             <h4>Shell</h4>
                             <div class="toggle-wrap" style="margin-bottom:8px">
@@ -719,7 +474,6 @@ naab script.naab</pre>
                                 <div class="tag-input-wrap" id="cap-shell-blocked" data-default="sudo,su,chmod +s"></div>
                             </div>
                         </div>
-                        <!-- Env Vars -->
                         <div class="sub-section">
                             <h4>Environment Variables</h4>
                             <div class="form-row" style="margin-bottom:8px">
@@ -731,7 +485,6 @@ naab script.naab</pre>
                                 <div class="tag-input-wrap" id="cap-env-blocked-read" data-default="AWS_SECRET_ACCESS_KEY,GITHUB_TOKEN"></div>
                             </div>
                         </div>
-                        <!-- Process -->
                         <div class="sub-section">
                             <h4>Process</h4>
                             <div class="form-row">
@@ -745,7 +498,7 @@ naab script.naab</pre>
                 <!-- D: Limits -->
                 <div class="accordion" data-section="limits">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
-                        <h3>Limits <span class="count">timeout, memory, execution, data, code, rate</span></h3>
+                        <h3>Limits <span class="count">timeout, execution, data, code</span></h3>
                         <span class="arrow">&#9654;</span>
                     </div>
                     <div class="accordion-body">
@@ -796,7 +549,7 @@ naab script.naab</pre>
                 <!-- F: Code Quality -->
                 <div class="accordion" data-section="code_quality">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
-                        <h3>Code Quality <span class="count">20 checks: secrets, PII, hallucinated APIs, oversimplification...</span></h3>
+                        <h3>Code Quality <span class="count">20 checks: secrets, PII, hallucinated APIs...</span></h3>
                         <span class="arrow">&#9654;</span>
                     </div>
                     <div class="accordion-body" id="quality-body"></div>
@@ -921,7 +674,7 @@ naab script.naab</pre>
                 <!-- K: Project Context -->
                 <div class="accordion" data-section="project_context">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
-                        <h3>Project Context <span class="count">LLM files, linters, manifests integration</span></h3>
+                        <h3>Project Context <span class="count">LLM files, linters, manifests</span></h3>
                         <span class="arrow">&#9654;</span>
                     </div>
                     <div class="accordion-body">
@@ -1029,7 +782,37 @@ naab script.naab</pre>
 
 <hr class="section-divider">
 
-<!-- CLI Reference -->
+<!-- ─── Enforcement Levels ─── -->
+<section class="section" id="enforcement">
+    <div class="container">
+        <div class="section-header">
+            <div class="label">3-Tier Enforcement</div>
+            <h2>Three levels of control</h2>
+            <p>Every check in govern.json can be set to one of three enforcement levels.</p>
+        </div>
+        <div class="enforce-grid">
+            <div class="e-card hard reveal">
+                <span class="tag tag-hard">HARD</span>
+                <h3>Blocks execution</h3>
+                <p>Cannot be overridden. Use for security-critical rules: injection, secrets, privilege escalation.</p>
+            </div>
+            <div class="e-card soft reveal reveal-delay-1">
+                <span class="tag tag-soft">SOFT</span>
+                <h3>Blocks execution</h3>
+                <p>Can bypass with <code>--governance-override</code>. Use for quality gates: placeholders, debug artifacts, incomplete logic.</p>
+            </div>
+            <div class="e-card advisory reveal reveal-delay-2">
+                <span class="tag tag-advisory">ADVISORY</span>
+                <h3>Warns only</h3>
+                <p>Continues execution with a warning. Use for style guidance: naming conventions, complexity, documentation.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── CLI Reference ─── -->
 <section class="section" id="cli">
     <div class="container">
         <div class="section-header">
@@ -1049,7 +832,7 @@ naab script.naab</pre>
 
 <hr class="section-divider">
 
-<!-- Examples -->
+<!-- ─── Examples ─── -->
 <section class="section" id="examples">
     <div class="container">
         <div class="section-header">
@@ -1134,7 +917,7 @@ naab script.naab</pre>
     </div>
 </section>
 
-<!-- Footer -->
+<!-- ─── Footer ─── -->
 <footer>
     <div class="inner">
         <div class="left"><strong>NAAb</strong> &mdash; Polyglot Without the Trip</div>
@@ -1202,41 +985,20 @@ const QUALITY_CHECKS = [
 // =====================================================
 // STATE
 // =====================================================
-let state = {
-    allowed: [], blocked: [],
-    restrictions: {}, quality: {},
-    customRules: [], perLang: {}
-};
+let state = { allowed: [], blocked: [], restrictions: {}, quality: {}, customRules: [], perLang: {} };
 
 // =====================================================
 // INIT
 // =====================================================
 function init() {
-    // Build language checkboxes
     buildLangGrid('lang-allowed', 'allowed');
     buildLangGrid('lang-blocked', 'blocked');
-
-    // Build restrictions
     const rb = document.getElementById('restrictions-body');
-    RESTRICTIONS.forEach(r => {
-        rb.appendChild(buildToggleCheck(r, 'restriction'));
-    });
-
-    // Build quality checks
+    RESTRICTIONS.forEach(r => rb.appendChild(buildToggleCheck(r, 'restriction')));
     const qb = document.getElementById('quality-body');
-    QUALITY_CHECKS.forEach(q => {
-        qb.appendChild(buildToggleCheck(q, 'quality'));
-    });
-
-    // Init tag inputs
+    QUALITY_CHECKS.forEach(q => qb.appendChild(buildToggleCheck(q, 'quality')));
     document.querySelectorAll('.tag-input-wrap').forEach(initTagInput);
-
     updateJSON();
-    // ResizeObserver auto-syncs preview height whenever form resizes
-    const form = document.getElementById('gen-form');
-    if (form) {
-        new ResizeObserver(() => syncPreviewHeight()).observe(form);
-    }
 }
 
 function buildLangGrid(containerId, type) {
@@ -1282,9 +1044,7 @@ function buildToggleCheck(check, prefix) {
 function setLevel(btn) {
     const forId = btn.dataset.for;
     const level = btn.dataset.level;
-    btn.parentElement.querySelectorAll('.level-btn').forEach(b => {
-        b.className = 'level-btn';
-    });
+    btn.parentElement.querySelectorAll('.level-btn').forEach(b => b.className = 'level-btn');
     btn.classList.add('active-' + level);
     updateJSON();
 }
@@ -1399,10 +1159,7 @@ function getCustomRules() {
         const langsStr = div.querySelector('.rule-langs')?.value || '';
         const langs = langsStr ? langsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
         if (name || pattern) {
-            const rule = {
-                id: 'CUSTOM-' + String(idx).padStart(3, '0'),
-                name, pattern, level, message, enabled: true
-            };
+            const rule = { id: 'CUSTOM-' + String(idx).padStart(3, '0'), name, pattern, level, message, enabled: true };
             if (langs.length) rule.languages = langs;
             rules.push(rule);
         }
@@ -1421,7 +1178,7 @@ function updateJSON() {
     const ver = document.getElementById('cfg-version').value;
     if (ver) cfg.version = ver;
     const mode = document.getElementById('cfg-mode').value;
-    if (mode !== 'enforce') cfg.mode = mode; else cfg.mode = mode;
+    cfg.mode = mode;
     const desc = document.getElementById('cfg-description').value;
     if (desc) cfg.description = desc;
     const ext = document.getElementById('cfg-extends').value;
@@ -1437,7 +1194,6 @@ function updateJSON() {
 
     // Capabilities
     const caps = {};
-    // Network
     if (!document.getElementById('cap-net-enabled').checked) {
         caps.network = {enabled: false};
     } else {
@@ -1451,23 +1207,18 @@ function updateJSON() {
         }
         if (Object.keys(net).length) caps.network = net;
     }
-    // Filesystem
     const fsMode = document.getElementById('cap-fs-mode').value;
     if (fsMode !== 'write') caps.filesystem = {mode: fsMode};
-    // Shell
     if (!document.getElementById('cap-shell-enabled').checked) caps.shell = {enabled: false};
-    // Env
     if (!document.getElementById('cap-env-read').checked || document.getElementById('cap-env-write').checked) {
         const env = {};
         if (!document.getElementById('cap-env-read').checked) env.read = false;
         if (document.getElementById('cap-env-write').checked) env.write = true;
         caps.env_vars = env;
     }
-    // Process
     const procMax = parseInt(document.getElementById('cap-proc-max').value) || 5;
     if (!document.getElementById('cap-proc-spawn').checked) caps.process = {spawn: false};
     else if (procMax !== 5) caps.process = {max_processes: procMax};
-
     if (Object.keys(caps).length) cfg.capabilities = caps;
 
     // Limits
@@ -1494,10 +1245,7 @@ function updateJSON() {
     const restrictions = {};
     RESTRICTIONS.forEach(r => {
         const on = document.getElementById('restriction-' + r.id + '-on');
-        if (on && on.checked) {
-            const level = getLevel('restriction', r.id);
-            restrictions[r.id] = {level};
-        }
+        if (on && on.checked) restrictions[r.id] = {level: getLevel('restriction', r.id)};
     });
     if (Object.keys(restrictions).length) cfg.restrictions = restrictions;
 
@@ -1505,10 +1253,7 @@ function updateJSON() {
     const quality = {};
     QUALITY_CHECKS.forEach(q => {
         const on = document.getElementById('quality-' + q.id + '-on');
-        if (on && on.checked) {
-            const level = getLevel('quality', q.id);
-            quality[q.id] = {level};
-        }
+        if (on && on.checked) quality[q.id] = {level: getLevel('quality', q.id)};
     });
     if (Object.keys(quality).length) cfg.code_quality = quality;
 
@@ -1640,8 +1385,6 @@ function updateJSON() {
     const newText = JSON.stringify(cfg, null, 2);
     const oldLines = (el.textContent || '').split('\n');
     const newLines = newText.split('\n');
-
-    // Build HTML with highlights on changed/new lines
     let html = '';
     for (let i = 0; i < newLines.length; i++) {
         const escaped = newLines[i].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1652,28 +1395,11 @@ function updateJSON() {
         }
     }
     el.innerHTML = html;
-
-    // Fade out highlights
     requestAnimationFrame(() => {
         setTimeout(() => {
             el.querySelectorAll('.json-highlight').forEach(s => s.classList.add('json-highlight-fade'));
         }, 50);
     });
-}
-
-// =====================================================
-// SYNC PREVIEW HEIGHT TO FORM
-// =====================================================
-function syncPreviewHeight() {
-    const form = document.getElementById('gen-form');
-    const preview = document.querySelector('.gen-preview-inner');
-    if (!form || !preview) return;
-    const formH = form.offsetHeight;
-    const previewHeaderH = preview.querySelector('.gen-preview-header')?.offsetHeight || 40;
-    // Preview JSON area = form height minus preview header, so the boxes match
-    const jsonH = Math.max(formH - previewHeaderH, 80);
-    const jsonEl = document.getElementById('json-output');
-    if (jsonEl) jsonEl.style.maxHeight = jsonH + 'px';
 }
 
 // =====================================================
@@ -1683,18 +1409,14 @@ function toggleAccordion(header) {
     const body = header.nextElementSibling;
     const isOpening = !header.classList.contains('open');
     header.classList.toggle('open');
-
     if (isOpening) {
         body.classList.add('open');
         body.style.maxHeight = body.scrollHeight + 'px';
         setTimeout(() => {
-            if (header.classList.contains('open')) {
-                body.style.maxHeight = 'none';
-            }
+            if (header.classList.contains('open')) body.style.maxHeight = 'none';
         }, 450);
     } else {
-        const h = body.scrollHeight;
-        body.style.maxHeight = h + 'px';
+        body.style.maxHeight = body.scrollHeight + 'px';
         requestAnimationFrame(() => {
             body.style.maxHeight = '0px';
             body.style.padding = '0 20px';
@@ -1732,29 +1454,23 @@ function downloadJSON() {
 // PRESETS
 // =====================================================
 function resetAll() {
-    // Uncheck all languages
     document.querySelectorAll('.check-item').forEach(item => {
         item.classList.remove('checked');
         item.querySelector('input').checked = false;
     });
-    // Reset all toggles to default
     document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         const id = cb.id;
         if (id.startsWith('restriction-') || id.startsWith('quality-')) {
-            // Find default
             const checkId = id.replace('restriction-','').replace('quality-','').replace('-on','');
             const def = [...RESTRICTIONS, ...QUALITY_CHECKS].find(c => c.id === checkId);
             cb.checked = def ? !def.def_off : false;
         }
     });
-    // Reset text/number inputs
     document.querySelectorAll('input[type="text"]').forEach(i => i.value = i.defaultValue || '');
     document.querySelectorAll('input[type="number"]').forEach(i => i.value = i.defaultValue || '');
     document.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
-    // Clear custom rules
     document.getElementById('custom-rules-list').innerHTML = '';
     ruleCounter = 0;
-    // Update presets
     document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
     updateJSON();
 }
