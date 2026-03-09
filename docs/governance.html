@@ -1664,15 +1664,13 @@ function updateJSON() {
 // SYNC PREVIEW HEIGHT TO FORM
 // =====================================================
 function syncPreviewHeight() {
+    const form = document.getElementById('gen-form');
     const preview = document.querySelector('.gen-preview-inner');
-    if (!preview) return;
-    // Sum height of OPEN accordion bodies only — not headers or other form elements
-    let openH = 0;
-    document.querySelectorAll('.accordion-body.open').forEach(b => {
-        openH += b.scrollHeight;
-    });
-    // Minimum 80px, grows proportionally with open content
-    const jsonH = Math.max(openH, 80);
+    if (!form || !preview) return;
+    const formH = form.offsetHeight;
+    const previewHeaderH = preview.querySelector('.gen-preview-header')?.offsetHeight || 40;
+    // Preview JSON area = form height minus preview header, so the boxes match
+    const jsonH = Math.max(formH - previewHeaderH, 80);
     const jsonEl = document.getElementById('json-output');
     if (jsonEl) jsonEl.style.maxHeight = jsonH + 'px';
 }
