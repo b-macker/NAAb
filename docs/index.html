@@ -633,6 +633,7 @@
             .stats-bar .stat:first-child { border-radius: 12px 12px 0 0; }
             .stats-bar .stat:last-child { border-radius: 0 0 12px 12px; }
             nav .links { display: none; }
+            [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
         }
     </style>
 </head>
@@ -641,7 +642,7 @@
 <!-- ─── Navigation ─── -->
 <nav>
     <div class="inner">
-        <a href="#" class="logo">N<span>AAb</span></a>
+        <a href="https://b-macker.github.io/" class="logo">N<span>AAb</span></a>
         <ul class="links">
             <li><a href="#languages">Languages</a></li>
             <li><a href="#features">Features</a></li>
@@ -911,6 +912,52 @@ mean=30, stdev=15.8
             <div class="gov-card reveal">
                 <h4><span class="tag tag-soft">Soft</span> Cross-Language Verification</h4>
                 <p>Automatically re-runs polyglot blocks through additional language runtimes and compares results. Catches silent computation errors, floating-point drift, and off-by-one bugs that a single runtime would miss.</p>
+            </div>
+        </div>
+
+        <!-- AI Drift Prevention -->
+        <div style="margin-top: 48px;" class="reveal">
+            <h3 style="text-align: center; font-size: 1.3rem; margin-bottom: 8px;">Why this matters for AI-generated code</h3>
+            <p style="text-align: center; color: var(--text-secondary); font-size: 0.95rem; max-width: 640px; margin: 0 auto 28px;">Prompts are suggestions. Governance is enforcement. NAAb controls AI output at the runtime level &mdash; where it can't be bypassed.</p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 900px; margin: 0 auto;">
+                <div class="gov-card reveal" style="border-left: 3px solid var(--red); background: rgba(239, 68, 68, 0.03);">
+                    <h4 style="color: var(--red); margin-bottom: 12px; font-size: 1rem;">The problem: AI Drift</h4>
+                    <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 8px;">Every AI session starts fresh. No memory of your standards, security rules, or architecture. The result:</p>
+                    <ul style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.8; padding-left: 16px;">
+                        <li>Hallucinated APIs that don't exist</li>
+                        <li>Language choices that ignore project constraints</li>
+                        <li>Stubs and TODO placeholders shipped as "complete"</li>
+                        <li>Security patterns bypassed for simplicity</li>
+                        <li>Each generation drifts further from your standards</li>
+                    </ul>
+                </div>
+                <div class="gov-card reveal reveal-delay-1" style="border-left: 3px solid var(--green); background: rgba(16, 185, 129, 0.03);">
+                    <h4 style="color: var(--green); margin-bottom: 12px; font-size: 1rem;">The fix: Runtime governance</h4>
+                    <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 8px;">AI generates whatever it wants. <code>govern.json</code> decides what actually executes:</p>
+                    <ul style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.8; padding-left: 16px;">
+                        <li>50+ checks validate every block before execution</li>
+                        <li>Language whitelists enforced as hard blocks, not hints</li>
+                        <li>Banned functions caught before they run</li>
+                        <li>Same rules govern every session, every developer</li>
+                        <li>Audit trail: what passed, what was blocked, and why</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: center; gap: 48px; margin-top: 32px; flex-wrap: wrap;">
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">50+</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">checks per execution</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">3-tier</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">hard / soft / advisory</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent);">0</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">hallucinations reach prod</div>
+                </div>
             </div>
         </div>
 
