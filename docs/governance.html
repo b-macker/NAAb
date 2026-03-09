@@ -1688,12 +1688,12 @@ function toggleAccordion(header) {
         // Measure actual content height for proportional animation speed
         body.style.maxHeight = body.scrollHeight + 'px';
         body.addEventListener('transitionend', function handler(e) {
-            if (e.target !== body) return;
+            if (e.propertyName !== 'max-height') return;
             // Release to allow dynamic content changes inside
             body.style.maxHeight = 'none';
             syncPreviewHeight();
             body.removeEventListener('transitionend', handler);
-        }, {once: true});
+        });
     } else {
         // Freeze current height, then animate to 0
         body.style.maxHeight = body.scrollHeight + 'px';
@@ -1701,13 +1701,13 @@ function toggleAccordion(header) {
         body.style.maxHeight = '0px';
         body.style.padding = '0 20px';
         body.addEventListener('transitionend', function handler(e) {
-            if (e.target !== body) return;
+            if (e.propertyName !== 'max-height') return;
             body.classList.remove('open');
             body.style.maxHeight = '';
             body.style.padding = '';
             syncPreviewHeight();
             body.removeEventListener('transitionend', handler);
-        }, {once: true});
+        });
     }
 }
 
