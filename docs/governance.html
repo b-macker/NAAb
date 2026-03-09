@@ -109,7 +109,7 @@
         .section-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 560px; margin: 0 auto; }
 
         /* --- Decision Cards --- */
-        .decision-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .decision-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; max-width: 1000px; margin: 0 auto; }
         .d-card {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
             padding: 28px; transition: all 0.3s ease; position: relative;
@@ -130,7 +130,7 @@
         }
 
         /* --- Layer Cards --- */
-        .layer-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+        .layer-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 40px; max-width: 1000px; margin-left: auto; margin-right: auto; margin-bottom: 40px; }
         .l-card {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;
         }
@@ -147,7 +147,7 @@
 
         .priority-bar {
             background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-            padding: 24px; text-align: center;
+            padding: 24px; text-align: center; max-width: 700px; margin: 0 auto;
         }
         .priority-bar .flow { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
         .priority-bar .node { padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
@@ -158,7 +158,7 @@
         .node-pkg { background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); color: var(--orange); }
 
         /* --- Enforcement Cards --- */
-        .enforce-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+        .enforce-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; max-width: 900px; margin: 0 auto; }
         .e-card { background: var(--surface); border-radius: 12px; padding: 24px; text-align: center; }
         .e-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
         .e-card p { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 12px; }
@@ -303,7 +303,7 @@
         .cli-table code { background: var(--surface-raised); padding: 2px 8px; border-radius: 4px; font-size: 0.82rem; color: var(--cyan); }
 
         /* Examples */
-        .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; margin: 0 auto; }
         .ex-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .ex-card h4 { padding: 16px 20px 0; font-size: 0.95rem; font-weight: 700; }
         .ex-card .desc { padding: 4px 20px 12px; font-size: 0.82rem; color: var(--text-muted); }
@@ -508,7 +508,7 @@ naab script.naab</pre>
         </div>
 
         <!-- LLM Pattern Extraction -->
-        <div class="sub-section" style="margin-bottom:24px;">
+        <div class="sub-section" style="margin-bottom:24px;max-width:1000px;margin-left:auto;margin-right:auto;margin-bottom:24px;">
             <h4>What NAAb extracts from LLM files (CLAUDE.md, .cursorrules, etc.)</h4>
             <table class="pattern-table">
                 <tr><th>Write this in your file</th><th>NAAb extracts</th><th>Maps to</th></tr>
@@ -1028,7 +1028,7 @@ naab script.naab</pre>
             <div class="label">CLI Reference</div>
             <h2>Governance CLI flags</h2>
         </div>
-        <table class="cli-table" style="background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border);">
+        <table class="cli-table" style="background:var(--surface);border-radius:12px;overflow:hidden;border:1px solid var(--border);max-width:900px;margin:0 auto;">
             <tr><th>Command</th><th>Description</th></tr>
             <tr><td><code>naab file.naab</code></td><td>Run with auto-discovered govern.json (walks up directories)</td></tr>
             <tr><td><code>--governance-override</code></td><td>Bypass <code>soft</code> enforcement blocks (hard blocks still enforced)</td></tr>
