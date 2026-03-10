@@ -6323,7 +6323,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     if (governance_ && governance_->isActive()) {
         int line = node.getLocation().line;
         std::string err = governance_->checkPolyglotBlock(
-            language, raw_code, current_file_, line);
+            language, raw_code, current_file_, line, bound_vars.size());
         if (!err.empty()) throw std::runtime_error(err);
 
         // Check polyglot block count limit
@@ -7459,7 +7459,8 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         if (governance_ && governance_->isActive()) {
             int gov_line = inline_code->getLocation().line;
             std::string gov_err = governance_->checkPolyglotBlock(
-                lang_str, raw_code, current_file_, gov_line);
+                lang_str, raw_code, current_file_, gov_line,
+                inline_code->getBoundVariables().size());
             if (!gov_err.empty()) throw std::runtime_error(gov_err);
 
             std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();

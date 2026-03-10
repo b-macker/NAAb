@@ -675,22 +675,43 @@ std::unique_ptr<ast::ImportStmt> Parser::parseImportStmt() {
     std::string wildcard_alias;
     std::string module_path;
 
+    // Helper lambda: accept identifier OR keyword as alias name
+    auto parseAliasName = [this]() -> std::string {
+        if (check(lexer::TokenType::IDENTIFIER)) {
+            std::string name = current().value;
+            advance();
+            return name;
+        }
+        // Allow keywords as alias names (LLMs naturally name modules after files)
+        if (check(lexer::TokenType::EXPORT) || check(lexer::TokenType::IMPORT) ||
+            check(lexer::TokenType::MATCH) || check(lexer::TokenType::DEFAULT) ||
+            check(lexer::TokenType::FUNCTION) || check(lexer::TokenType::RETURN) ||
+            check(lexer::TokenType::STRUCT) || check(lexer::TokenType::ENUM) ||
+            check(lexer::TokenType::FOR) || check(lexer::TokenType::WHILE) ||
+            check(lexer::TokenType::IF) || check(lexer::TokenType::ELSE)) {
+            std::string name = current().value;
+            advance();
+            return name;
+        }
+        throw ParseError("Expected alias name after 'as'. Got: '" + current().value + "'\n\n"
+            "  Help: Try a different alias name:\n"
+            "    import \"src/module.naab\" as mod\n");
+    };
+
     // Simple syntax: import "./path" as alias
     if (check(lexer::TokenType::STRING)) {
         auto& path_token = current();
         module_path = path_token.value;
         advance();
         expect(lexer::TokenType::AS, "Expected 'as' after module path");
-        auto& alias_token = expect(lexer::TokenType::IDENTIFIER, "Expected alias name");
-        wildcard_alias = alias_token.value;
+        wildcard_alias = parseAliasName();
         is_wildcard = true;  // Import whole module as single name
     }
     // Check for wildcard import: import * as mod from "./path"
     else if (check(lexer::TokenType::STAR)) {
         advance();  // consume *
         expect(lexer::TokenType::AS, "Expected 'as' after '*'");
-        auto& alias_token = expect(lexer::TokenType::IDENTIFIER, "Expected alias name");
-        wildcard_alias = alias_token.value;
+        wildcard_alias = parseAliasName();
         is_wildcard = true;
 
         // from "./module.naab"
@@ -708,8 +729,7 @@ std::unique_ptr<ast::ImportStmt> Parser::parseImportStmt() {
 
             // Optional alias: as newName
             if (match(lexer::TokenType::AS)) {
-                auto& alias_token = expect(lexer::TokenType::IDENTIFIER, "Expected alias name");
-                alias = alias_token.value;
+                alias = parseAliasName();
             }
 
             items.emplace_back(name, alias);
@@ -2150,6 +2170,25 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
             );
         }
 
+        // HELPER: Detect struct literal without 'new' keyword
+        // Pattern: IdentifierName { field: value } (uppercase first letter suggests struct)
+        if (check(lexer::TokenType::LBRACE) && !name.empty() &&
+            name[0] >= 'A' && name[0] <= 'Z') {
+            // Speculatively check: is the token after '{' an identifier followed by ':'?
+            if (pos_ + 2 < tokens_.size() &&
+                tokens_[pos_ + 1].type == lexer::TokenType::IDENTIFIER &&
+                tokens_[pos_ + 2].type == lexer::TokenType::COLON) {
+                throw ParseError(
+                    "Struct literal requires 'new' keyword\n\n"
+                    "  Got: " + name + " { field: value }\n"
+                    "  Expected: new " + name + " { field: value }\n\n"
+                    "  Example:\n"
+                    "    \xE2\x9C\x97 Wrong: let p = " + name + " { x: 1, y: 2 }\n"
+                    "    \xE2\x9C\x93 Right: let p = new " + name + " { x: 1, y: 2 }\n"
+                );
+            }
+        }
+
         return std::make_unique<ast::IdentifierExpr>(name, loc);
     }
 
@@ -2401,6 +2440,17 @@ std::unique_ptr<ast::Expr> Parser::parseIfExpr() {
 
     expect(lexer::TokenType::ELSE, "if expression requires an 'else' branch");
     skipNewlines();
+
+    // Support else-if chains: if a { 1 } else if b { 2 } else { 3 }
+    if (check(lexer::TokenType::IF)) {
+        auto else_expr = parseIfExpr();
+        return std::make_unique<ast::IfExpr>(
+            std::move(condition),
+            std::move(then_expr),
+            std::move(else_expr),
+            ast::SourceLocation(start.line, start.column, filename_)
+        );
+    }
 
     expect(lexer::TokenType::LBRACE, "Expected '{' after else");
     skipNewlines();

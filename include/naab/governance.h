@@ -1272,6 +1272,16 @@ public:
                                     const std::string& source_file,
                                     int line = 0);
 
+    // Overload with variable binding count for enforcement
+    std::string checkPolyglotBlock(const std::string& language,
+                                    const std::string& code,
+                                    const std::string& source_file,
+                                    int line,
+                                    size_t binding_count);
+
+    // Variable binding enforcement
+    std::string checkVariableBinding(size_t binding_count, int line);
+
     // --- Polyglot Optimization Checks ---
     std::string checkPolyglotOptimization(const std::string& language,
                                           const std::string& code,

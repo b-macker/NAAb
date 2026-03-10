@@ -49,7 +49,8 @@ bool CryptoModule::hasFunction(const std::string& name) const {
         "md5", "sha1", "sha256", "sha512",
         "base64_encode", "base64_decode", "hex_encode", "hex_decode",
         "random_bytes", "random_string", "random_int",
-        "compare_digest", "generate_token", "hash_password"
+        "compare_digest", "generate_token", "hash_password",
+        "hash"
     };
     return functions.count(name) > 0;
 }
@@ -237,15 +238,45 @@ std::shared_ptr<interpreter::Value> CryptoModule::call(
         return makeString(hashed);
     }
 
+    // Hash dispatcher: crypto.hash("sha256", data)
+    if (function_name == "hash") {
+        if (args.size() < 2) {
+            throw std::runtime_error(
+                "crypto.hash() requires 2 arguments: algorithm and data\n\n"
+                "  Usage: crypto.hash(\"sha256\", data)\n"
+                "  Supported algorithms: sha256, md5, sha1, sha512\n\n"
+                "  Or call directly:\n"
+                "    crypto.sha256(data)\n"
+                "    crypto.md5(data)\n");
+        }
+        std::string algo = getString(args[0]);
+        std::string data = getString(args[1]);
+        if (algo == "sha256") return makeString(hash_sha256(data));
+        if (algo == "md5") return makeString(hash_md5(data));
+        if (algo == "sha1") return makeString(hash_sha1(data));
+        if (algo == "sha512") return makeString(hash_sha512(data));
+        throw std::runtime_error(
+            "Unknown hash algorithm: " + algo + "\n\n"
+            "  Supported: sha256, md5, sha1, sha512\n"
+            "  Example: crypto.hash(\"sha256\", data)\n");
+    }
+
     // Common LLM mistakes
-    if (function_name == "hash" || function_name == "digest" || function_name == "checksum") {
+    if (function_name == "digest" || function_name == "checksum") {
         throw std::runtime_error(
             "Unknown crypto function: " + function_name + "\n\n"
-            "  Specify the hash algorithm directly:\n"
+            "  Use crypto.hash(algorithm, data) or call directly:\n"
             "    crypto.sha256(data)   // SHA-256\n"
             "    crypto.md5(data)      // MD5\n"
             "    crypto.sha1(data)     // SHA-1\n"
             "    crypto.sha512(data)   // SHA-512\n"
+        );
+    }
+    if (function_name == "hmac") {
+        throw std::runtime_error(
+            "HMAC is not yet implemented in NAAb crypto module.\n\n"
+            "  Workaround: Use a polyglot block:\n"
+            "    <<python\nimport hmac, hashlib\nhmac.new(key.encode(), msg.encode(), hashlib.sha256).hexdigest()\n    >>\n"
         );
     }
     if (function_name == "encrypt" || function_name == "decrypt") {
@@ -259,7 +290,7 @@ std::shared_ptr<interpreter::Value> CryptoModule::call(
 
     // Fuzzy matching for typos
     static const std::vector<std::string> FUNCTIONS = {
-        "md5", "sha1", "sha256", "sha512",
+        "md5", "sha1", "sha256", "sha512", "hash",
         "base64_encode", "base64_decode", "hex_encode", "hex_decode",
         "random_bytes", "random_string", "random_int",
         "compare_digest", "generate_token", "hash_password"

@@ -3192,6 +3192,32 @@ const LanguageConfig* GovernanceEngine::getLanguageConfig(const std::string& lan
 }
 
 // --- Comprehensive Polyglot Block Check ---
+std::string GovernanceEngine::checkVariableBinding(size_t binding_count, int line) {
+    if (!rules_.polyglot.variable_binding.require_explicit) return "";
+    if (binding_count > 0) return "";  // Has bindings, OK
+
+    std::string msg = "[governance] Polyglot block at line " + std::to_string(line) +
+        " has no variable bindings.\n"
+        "  Rule: polyglot.variable_binding.require_explicit = true\n"
+        "  Fix: Add variable bindings: <<python[var1, var2] ... >>\n";
+
+    return enforce("polyglot.variable_binding.require_explicit",
+                   rules_.polyglot.variable_binding.require_explicit_level, msg);
+}
+
+std::string GovernanceEngine::checkPolyglotBlock(
+    const std::string& language, const std::string& code,
+    const std::string& source_file, int line,
+    size_t binding_count) {
+
+    // Check variable binding requirement first
+    std::string bind_err = checkVariableBinding(binding_count, line);
+    if (!bind_err.empty()) return bind_err;
+
+    // Delegate to existing comprehensive check
+    return checkPolyglotBlock(language, code, source_file, line);
+}
+
 std::string GovernanceEngine::checkPolyglotBlock(
     const std::string& language, const std::string& code,
     const std::string& /*source_file*/, int line) {
