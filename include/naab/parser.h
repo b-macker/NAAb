@@ -106,6 +106,7 @@ private:
     // Expressions
     std::unique_ptr<ast::Expr> parseAssignment();
     std::unique_ptr<ast::Expr> parsePipeline();  // Phase 3.4
+    std::unique_ptr<ast::Expr> parseNullCoalesce();  // ?? operator
     std::unique_ptr<ast::Expr> parseLogicalOr();
     std::unique_ptr<ast::Expr> parseLogicalAnd();
     std::unique_ptr<ast::Expr> parseEquality();

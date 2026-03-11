@@ -2731,6 +2731,16 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         return;
     }
 
+    if (node.getOp() == ast::BinaryOp::NullCoalesce) {
+        auto left_val = eval(*node.getLeft());
+        if (!left_val || std::holds_alternative<std::monostate>(left_val->data)) {
+            result_ = eval(*node.getRight());
+        } else {
+            result_ = left_val;
+        }
+        return;
+    }
+
     if (node.getOp() == ast::BinaryOp::Or) {
         auto left = eval(*node.getLeft());
         if (left->toBool()) {
@@ -2741,6 +2751,16 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         // Left is false, now evaluate right
         auto right = eval(*node.getRight());
         result_ = std::make_shared<Value>(right->toBool());
+
+        // Hint: detect likely null-coalesce intent (null || "value")
+        if (std::holds_alternative<std::monostate>(left->data) &&
+            !std::holds_alternative<bool>(right->data) &&
+            !std::holds_alternative<std::monostate>(right->data)) {
+            fprintf(stderr, "[hint] || always returns boolean in NAAb. "
+                    "Did you mean ?? (null coalesce)?\n"
+                    "  null || \"value\" -> true (boolean)\n"
+                    "  null ?? \"value\" -> \"value\" (the actual value)\n");
+        }
         return;
     }
 
@@ -3484,13 +3504,14 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     }
 
                     oss << "\n  Help:\n";
-                    oss << "  - Check if the key exists before accessing\n";
-                    oss << "  - Keys are case-sensitive\n";
-                    oss << "  - Use dict.has_key() to check existence (if available)\n\n";
+                    oss << "  - Use dict.get(\"" << key << "\") for safe access (returns null if missing)\n";
+                    oss << "  - Use dict.get(\"" << key << "\", default_value) to provide a default\n";
+                    oss << "  - Use dict.has(\"" << key << "\") to check before accessing\n";
+                    oss << "  - Keys are case-sensitive\n\n";
                     oss << "  Example:\n";
-                    oss << "    let d = {\"name\": \"Alice\", \"age\": 30}\n";
-                    oss << "    ✗ Wrong: d[\"Name\"]  // case mismatch\n";
-                    oss << "    ✓ Right: d[\"name\"]\n";
+                    oss << "    let d = {\"name\": \"Alice\"}\n";
+                    oss << "    ✗ Throws: d[\"" << key << "\"]\n";
+                    oss << "    ✓ Safe:   d.get(\"" << key << "\", \"default\")\n";
                     throw std::runtime_error(oss.str());
                 }
 
@@ -6379,6 +6400,12 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                     var_declarations += "<?php\n";
                 }
                 var_declarations += "$" + var_name + " = " + serialized + ";\n";
+            } else if (language == "nim") {
+                var_declarations += "var " + var_name + " = " + serialized + "\n";
+            } else if (language == "zig") {
+                var_declarations += "const " + var_name + " = " + serialized + ";\n";
+            } else if (language == "julia") {
+                var_declarations += var_name + " = " + serialized + "\n";
             }
         }
     }
@@ -6916,6 +6943,23 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 << "    let r = <<python\n"
                 << "    x = 1\n"
                 << "    y = 2\n"
+                << "    >>\n";
+        }
+        // Python 'return' outside function
+        else if (language == "python" &&
+                 error_msg.find("return") != std::string::npos &&
+                 error_msg.find("outside function") != std::string::npos &&
+                 raw_code.find("return") != std::string::npos) {
+            oss << "\n  Help: Do NOT use 'return' in Python polyglot blocks.\n"
+                << "  Python polyglot blocks are NOT inside a function.\n"
+                << "  The last expression's value is automatically returned to NAAb.\n\n"
+                << "  ✗ Wrong:\n"
+                << "    let r = <<python\n"
+                << "    return json.dumps(data)\n"
+                << "    >>\n\n"
+                << "  ✓ Right:\n"
+                << "    let r = <<python\n"
+                << "    json.dumps(data)\n"
                 << "    >>\n";
         }
         // Python SyntaxError
@@ -7957,7 +8001,18 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
             return result;
         }
 
-        // Default: JSON-like array (Python, JS, TS, Ruby, Shell)
+        // Nim: @[] sequence literal
+        if (language == "nim") {
+            std::string result = "@[";
+            for (size_t i = 0; i < list.size(); i++) {
+                if (i > 0) result += ", ";
+                result += serializeValueForLanguage(list[i], language);
+            }
+            result += "]";
+            return result;
+        }
+
+        // Default: JSON-like array (Python, JS, TS, Ruby, Shell, Julia, Zig)
         std::string result = "[";
         for (size_t i = 0; i < list.size(); i++) {
             if (i > 0) result += ", ";

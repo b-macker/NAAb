@@ -448,6 +448,7 @@ void TypeChecker::visit(ast::BinaryExpr& node) {
         case ast::BinaryOp::Ge: op_str = ">="; break;
         case ast::BinaryOp::And: op_str = "&&"; break;
         case ast::BinaryOp::Or: op_str = "||"; break;
+        case ast::BinaryOp::NullCoalesce: op_str = "??"; break;
         case ast::BinaryOp::Assign: op_str = "="; break;
         case ast::BinaryOp::Pipeline: op_str = "|>"; break;
         case ast::BinaryOp::Subscript: op_str = "[]"; break;

@@ -34,6 +34,7 @@ static std::string binaryOpToString(BinaryOp op) {
         case BinaryOp::Ge: return ">=";
         case BinaryOp::And: return "and";
         case BinaryOp::Or: return "or";
+        case BinaryOp::NullCoalesce: return "??";
         case BinaryOp::Assign: return "=";
         case BinaryOp::Pipeline: return "|>";
         case BinaryOp::Subscript: return "[]";

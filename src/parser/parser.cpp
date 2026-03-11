@@ -1657,17 +1657,34 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
 // Phase 3.4: Pipeline operator (|>)
 // Left-associative, lower precedence than logical operators
 std::unique_ptr<ast::Expr> Parser::parsePipeline() {
-    auto left = parseLogicalOr();
+    auto left = parseNullCoalesce();
 
     // Pipeline is left-associative: a |> b |> c means (a |> b) |> c
     // Allow newlines before pipeline operator
     skipNewlines();
     while (match(lexer::TokenType::PIPELINE)) {
         skipNewlines();  // Also allow newlines after the operator
-        auto right = parseLogicalOr();
+        auto right = parseNullCoalesce();
         skipNewlines();  // Check for more pipeline operators after newlines
         left = std::make_unique<ast::BinaryExpr>(
             ast::BinaryOp::Pipeline,
+            std::move(left),
+            std::move(right),
+            ast::SourceLocation()
+        );
+    }
+
+    return left;
+}
+
+std::unique_ptr<ast::Expr> Parser::parseNullCoalesce() {
+    auto left = parseLogicalOr();
+
+    while (match(lexer::TokenType::QUESTION_QUESTION)) {
+        skipNewlines();
+        auto right = parseLogicalOr();
+        left = std::make_unique<ast::BinaryExpr>(
+            ast::BinaryOp::NullCoalesce,
             std::move(left),
             std::move(right),
             ast::SourceLocation()

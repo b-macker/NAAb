@@ -707,6 +707,7 @@ enum class BinaryOp {
     Add, Sub, Mul, Div, Mod,
     Eq, Ne, Lt, Le, Gt, Ge,
     And, Or,
+    NullCoalesce,  // ??
     Assign,
     Pipeline,  // |>
     Subscript,  // []
