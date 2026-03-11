@@ -917,6 +917,45 @@
     </div>
 </section>
 
+<!-- ─── Project Starter Kit ─── -->
+<section class="section" id="starter-kit">
+    <div class="container">
+        <div class="section-header">
+            <div class="label">Project Starter Kit</div>
+            <h2>Start a new NAAb project</h2>
+            <p>Every NAAb project needs two files: <code>govern.json</code> for runtime enforcement and <code>CLAUDE.md</code> for LLM code generation. Download both to your project root.</p>
+        </div>
+        <div class="example-grid">
+            <div class="ex-card reveal" style="text-align:center;">
+                <h4>govern.json</h4>
+                <div class="desc">Complete governance template with all 50+ checks, per-language rules, and 3-tier enforcement. Customize to your project needs.</div>
+                <div style="margin-top:20px;display:flex;gap:12px;justify-content:center;">
+                    <a href="govern-template.json" download="govern.json" class="btn btn-primary" style="padding:10px 24px;font-size:0.9rem;">Download Template</a>
+                    <a href="#builder" class="btn btn-secondary" style="padding:10px 24px;font-size:0.9rem;">Use Builder</a>
+                </div>
+            </div>
+            <div class="ex-card reveal reveal-delay-1" style="text-align:center;">
+                <h4>CLAUDE.md</h4>
+                <div class="desc">Universal NAAb language reference for LLMs. Syntax rules, stdlib API, polyglot patterns, and 20 known gotchas. Proven 100% pass rate in gorilla testing.</div>
+                <div style="margin-top:20px;display:flex;gap:12px;justify-content:center;">
+                    <a href="CLAUDE.md" download="CLAUDE.md" class="btn btn-primary" style="padding:10px 24px;font-size:0.9rem;">Download CLAUDE.md</a>
+                    <a href="https://github.com/b-macker/NAAb/blob/master/CLAUDE.md" class="btn btn-secondary" style="padding:10px 24px;font-size:0.9rem;">View on GitHub</a>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:32px;padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+            <div style="font-weight:600;margin-bottom:8px;color:var(--text);">Quick Setup</div>
+<pre style="margin:0;color:var(--text-secondary);font-size:0.85rem;line-height:1.8;">mkdir my-project && cd my-project
+curl -O https://raw.githubusercontent.com/b-macker/NAAb/master/CLAUDE.md
+curl -O https://raw.githubusercontent.com/b-macker/NAAb/master/govern-template.json
+mv govern-template.json govern.json
+# Edit govern.json for your project, add project-specific sections to CLAUDE.md</pre>
+        </div>
+    </div>
+</section>
+
+<hr class="section-divider">
+
 <!-- ─── Footer ─── -->
 <footer>
     <div class="inner">

@@ -1,0 +1,963 @@
+{
+  "version": "3.0",
+  "mode": "enforce",
+  "description": "NAAb Governance v3.0 — Complete Template (all sections, all options)",
+
+  "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
+  "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
+
+  "extends": "./base-govern.json",
+
+  "languages": {
+    "allowed": ["python", "javascript", "shell", "go", "nim", "ruby", "php"],
+    "blocked": [],
+    "require_explicit": false,
+    "per_language": {
+      "python": {
+        "version_hint": "3.8+",
+        "timeout": 15,
+        "max_lines": 200,
+        "max_output_size": 0,
+        "banned_functions": ["eval(", "exec(", "compile(", "__import__("],
+        "banned_globals": [],
+        "required_imports": [],
+        "imports": {
+          "mode": "blocklist",
+          "blocked": ["subprocess", "ctypes", "os.system"],
+          "allowed": [],
+          "blocked_from": ["os:system,popen,exec"]
+        },
+        "allow_f_strings": true,
+        "allow_walrus": true,
+        "max_string_length": 0,
+        "no_star_imports": true,
+        "no_star_imports_level": "advisory",
+        "indent_style": "spaces",
+        "indent_size": 4
+      },
+      "javascript": {
+        "timeout": 10,
+        "max_lines": 150,
+        "banned_functions": ["eval(", "Function(", "setTimeout("],
+        "imports": {
+          "mode": "blocklist",
+          "blocked": ["child_process", "fs", "net"]
+        },
+        "strict_mode": true,
+        "strict_mode_level": "advisory",
+        "no_var": true,
+        "no_var_level": "advisory",
+        "no_console_log": false,
+        "no_console_log_level": "advisory"
+      },
+      "shell": {
+        "timeout": 10,
+        "max_lines": 50,
+        "banned_commands": ["rm -rf /", "mkfs", "dd if=/dev/zero"],
+        "shell_injection": true,
+        "shell_injection_level": "hard",
+        "require_set_e": false,
+        "require_set_e_level": "soft",
+        "require_set_u": false,
+        "require_set_u_level": "advisory",
+        "require_set_pipefail": false,
+        "require_set_pipefail_level": "advisory",
+        "require_quoting": false,
+        "require_quoting_level": "soft",
+        "no_curl_pipe_sh": true,
+        "no_curl_pipe_sh_level": "hard",
+        "no_wget_pipe_bash": true,
+        "no_wget_pipe_bash_level": "hard"
+      },
+      "go": {
+        "timeout": 30,
+        "max_lines": 200,
+        "banned_imports": ["unsafe", "syscall"],
+        "require_package_main": true
+      },
+      "nim": {
+        "timeout": 30,
+        "max_lines": 200,
+        "banned_functions": []
+      },
+      "ruby": {
+        "timeout": 10,
+        "max_lines": 100,
+        "banned_functions": ["eval(", "system(", "exec("],
+        "banned_globals": ["$SAFE"]
+      },
+      "php": {
+        "timeout": 10,
+        "max_lines": 100,
+        "banned_functions": ["eval(", "exec(", "system(", "shell_exec(", "passthru("]
+      },
+      "rust": {
+        "timeout": 60,
+        "max_lines": 300,
+        "banned_functions": []
+      },
+      "cpp": {
+        "timeout": 60,
+        "max_lines": 300,
+        "banned_includes": ["<cstdlib>"],
+        "banned_functions": ["system(", "exec("]
+      },
+      "csharp": {
+        "timeout": 60,
+        "max_lines": 300,
+        "banned_namespaces": ["System.Diagnostics.Process"]
+      }
+    }
+  },
+
+  "capabilities": {
+    "network": {
+      "enabled": true,
+      "http_allowed": true,
+      "https_only": false,
+      "allowed_hosts": [],
+      "blocked_hosts": ["169.254.169.254", "metadata.google.internal"],
+      "allowed_ports": [],
+      "max_request_size": 0,
+      "max_response_size": 0,
+      "allow_websockets": true,
+      "allow_raw_sockets": false
+    },
+    "filesystem": {
+      "mode": "write",
+      "allowed_paths": [],
+      "blocked_paths": ["/etc/shadow", "/etc/passwd"],
+      "allowed_extensions": [],
+      "blocked_extensions": [".exe", ".dll", ".so"],
+      "max_file_size": 0,
+      "max_files": 0,
+      "allow_symlinks": true,
+      "allow_hidden_files": true,
+      "allow_absolute_paths": true
+    },
+    "shell": {
+      "enabled": true,
+      "allowed_commands": [],
+      "blocked_commands": ["sudo", "su", "chmod +s"],
+      "allow_pipes": true,
+      "allow_redirects": true,
+      "allow_backgrounding": false,
+      "max_execution_time": 0
+    },
+    "env_vars": {
+      "read": true,
+      "write": false,
+      "allowed_read": [],
+      "blocked_read": ["AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN"],
+      "allowed_write": [],
+      "blocked_write": ["PATH", "HOME", "LD_PRELOAD"]
+    },
+    "process": {
+      "spawn": true,
+      "signals": false,
+      "max_processes": 5,
+      "allow_daemon": false
+    },
+    "time": {
+      "allow_sleep": true,
+      "max_sleep_seconds": 10,
+      "allow_timers": true
+    },
+    "memory": {
+      "max_allocation_mb": 512,
+      "allow_mmap": false,
+      "allow_shared_memory": false
+    }
+  },
+
+  "limits": {
+    "timeout": {
+      "global": 60,
+      "per_block": 30,
+      "total_polyglot": 120
+    },
+    "memory": {
+      "per_block_mb": 256,
+      "total_mb": 1024
+    },
+    "execution": {
+      "call_depth": 100,
+      "loop_iterations": 1000000,
+      "polyglot_blocks": 50,
+      "parallel_blocks": 4,
+      "total_executions": 200
+    },
+    "data": {
+      "array_size": 100000,
+      "dict_size": 50000,
+      "string_length": 1000000,
+      "nesting_depth": 20,
+      "output_size": 1000000,
+      "input_size": 1000000
+    },
+    "code": {
+      "max_lines_per_block": 500,
+      "max_total_polyglot_lines": 5000,
+      "max_functions": 100,
+      "max_variables": 500,
+      "max_nesting_depth": 10
+    },
+    "rate": {
+      "max_polyglot_per_second": 10,
+      "max_stdlib_calls_per_second": 100,
+      "max_file_ops_per_second": 20,
+      "cooldown_on_limit_ms": 100
+    }
+  },
+
+  "requirements": {
+    "main_block": {
+      "enabled": true,
+      "level": "soft",
+      "message": "Programs should have a main block"
+    },
+    "error_handling": {
+      "enabled": false,
+      "level": "advisory",
+      "require_try_catch": true,
+      "require_catch_body": true
+    },
+    "strict_types": {
+      "enabled": false,
+      "level": "advisory",
+      "message": "Use explicit type annotations"
+    },
+    "no_global_state": {
+      "enabled": false,
+      "level": "advisory",
+      "allow_global_constants": true,
+      "allow_global_functions": true,
+      "block_global_variables": true
+    },
+    "naming_conventions": {
+      "enabled": false,
+      "level": "advisory",
+      "variables": "snake_case",
+      "functions": "snake_case",
+      "constants": "UPPER_SNAKE_CASE",
+      "check_naab_code": true,
+      "check_polyglot_code": false
+    },
+    "documentation": {
+      "enabled": false,
+      "level": "advisory",
+      "require_file_comment": false,
+      "require_function_comment": false,
+      "require_main_comment": false
+    },
+    "version_pinning": {
+      "enabled": false,
+      "level": "advisory",
+      "message": "Pin language versions in govern.json"
+    }
+  },
+
+  "restrictions": {
+    "dangerous_calls": {
+      "enabled": true,
+      "level": "hard",
+      "allowlist": [],
+      "blocklist_extra": [],
+      "check_chained_calls": false,
+      "check_string_formatting": false
+    },
+    "shell_injection": {
+      "enabled": true,
+      "level": "hard",
+      "patterns": [],
+      "allowlist": [],
+      "check_variable_expansion": false,
+      "require_quoting": false
+    },
+    "privilege_escalation": {
+      "enabled": true,
+      "level": "hard",
+      "block_sudo": true,
+      "block_su": true,
+      "block_chmod_suid": true,
+      "block_setuid": true,
+      "block_capability_changes": true
+    },
+    "imports": {
+      "enabled": true,
+      "level": "soft",
+      "mode": "blocklist",
+      "blocked": {
+        "python": ["subprocess", "ctypes", "pickle", "os.system"],
+        "javascript": ["child_process", "fs", "net", "cluster"],
+        "ruby": ["open3", "pty"]
+      },
+      "allowed": {}
+    },
+    "data_exfiltration": {
+      "enabled": false,
+      "level": "hard",
+      "block_base64_encode_secrets": true,
+      "block_hex_encode_secrets": true,
+      "block_url_encode_secrets": true,
+      "max_encoded_output_length": 0
+    },
+    "resource_abuse": {
+      "enabled": true,
+      "level": "hard",
+      "block_fork_bomb": true,
+      "block_infinite_loops": false,
+      "infinite_loops_level": "advisory",
+      "block_recursive_file_ops": true,
+      "block_disk_filling": true,
+      "max_temp_files": 100,
+      "max_temp_file_size": 10485760
+    },
+    "information_disclosure": {
+      "enabled": false,
+      "level": "soft",
+      "block_env_dump": true,
+      "block_process_listing": true,
+      "block_system_info_leak": true,
+      "block_directory_listing": false,
+      "directory_listing_level": "advisory",
+      "block_error_stack_traces": false
+    },
+    "code_injection": {
+      "enabled": true,
+      "level": "hard",
+      "block_dynamic_code_gen": true,
+      "block_template_injection": true,
+      "block_sql_injection_patterns": true,
+      "block_xpath_injection": true,
+      "block_ldap_injection": true,
+      "block_command_injection": true
+    },
+    "crypto": {
+      "enabled": false,
+      "level": "advisory",
+      "block_weak_hashing": true,
+      "weak_hashes": ["md5", "sha1"],
+      "block_weak_encryption": true,
+      "weak_ciphers": ["des", "rc4", "3des"],
+      "block_hardcoded_keys": true,
+      "block_hardcoded_ivs": true,
+      "require_secure_random": false,
+      "secure_random_level": "advisory"
+    },
+    "polyglot_output": {
+      "format": "any",
+      "max_size": 0,
+      "require_structured": false,
+      "validate_json": false
+    }
+  },
+
+  "code_quality": {
+    "no_secrets": {
+      "enabled": true,
+      "level": "hard",
+      "entropy_check": {
+        "enabled": true,
+        "threshold": 4.5,
+        "min_length": 20,
+        "max_length": 500,
+        "check_base64": true,
+        "check_hex": true,
+        "check_url_encoded": true,
+        "ignore_comments": false,
+        "ignore_urls": true
+      },
+      "suspicious_variable_names": {
+        "enabled": true,
+        "names": ["password", "secret", "api_key", "token", "private_key"]
+      },
+      "allowlist": ["example.com", "localhost", "127.0.0.1"],
+      "custom_patterns": []
+    },
+    "no_placeholders": {
+      "enabled": true,
+      "level": "soft",
+      "markers": ["TODO", "FIXME", "STUB", "PLACEHOLDER", "HACK", "XXX", "TEMP"],
+      "custom_markers": [],
+      "ignore_in_comments_only": false,
+      "case_sensitive": false,
+      "max_violations_before_block": 0
+    },
+    "no_hardcoded_results": {
+      "enabled": true,
+      "level": "advisory",
+      "check_return_true_false": true,
+      "check_return_none_null": true,
+      "check_return_empty_collections": true,
+      "check_dict_success_fields": true,
+      "check_dict_status_fields": true,
+      "check_perfect_scores": true,
+      "check_zero_counts": true,
+      "check_round_numbers": true
+    },
+    "no_pii": {
+      "enabled": true,
+      "level": "advisory",
+      "detect_ssn": true,
+      "detect_credit_card": true,
+      "detect_email": true,
+      "detect_phone": true,
+      "detect_ip_address": false,
+      "detect_drivers_license": false,
+      "detect_passport": false,
+      "detect_iban": false,
+      "detect_medical_record": false,
+      "custom_pii_patterns": [],
+      "allowlist_patterns": [],
+      "mask_in_errors": true
+    },
+    "no_temporary_code": {
+      "enabled": true,
+      "level": "soft",
+      "patterns": [],
+      "custom_patterns": [],
+      "case_sensitive": false
+    },
+    "no_simulation_markers": {
+      "enabled": true,
+      "level": "hard",
+      "patterns": [],
+      "custom_patterns": [],
+      "case_sensitive": false
+    },
+    "no_mock_data": {
+      "enabled": true,
+      "level": "advisory",
+      "variable_prefixes": ["mock_", "fake_", "dummy_", "test_"],
+      "function_prefixes": ["mock_", "fake_", "stub_"],
+      "literal_patterns": [],
+      "custom_prefixes": [],
+      "custom_patterns": [],
+      "ignore_in_test_context": true
+    },
+    "no_apologetic_language": {
+      "enabled": false,
+      "level": "advisory",
+      "categories": {},
+      "custom_patterns": [],
+      "scan_comments_only": true,
+      "scan_strings": false
+    },
+    "no_dead_code": {
+      "enabled": true,
+      "level": "advisory",
+      "detect_unreachable_after_return": true,
+      "detect_always_true_conditions": true,
+      "detect_always_false_conditions": true,
+      "detect_empty_except_blocks": true,
+      "detect_unused_variables": false,
+      "detect_commented_out_code": true
+    },
+    "no_debug_artifacts": {
+      "enabled": true,
+      "level": "soft",
+      "patterns": [],
+      "custom_patterns": [],
+      "allowlist": [],
+      "check_polyglot_only": true,
+      "check_naab_code": false
+    },
+    "no_unsafe_deserialization": {
+      "enabled": true,
+      "level": "hard"
+    },
+    "no_sql_injection": {
+      "enabled": true,
+      "level": "hard",
+      "allowlist": []
+    },
+    "no_path_traversal": {
+      "enabled": true,
+      "level": "hard"
+    },
+    "no_hardcoded_urls": {
+      "enabled": false,
+      "level": "advisory",
+      "allowlist": ["https://example.com", "http://localhost"],
+      "check_internal_urls": false
+    },
+    "no_hardcoded_ips": {
+      "enabled": false,
+      "level": "advisory",
+      "allowlist": ["127.0.0.1", "0.0.0.0", "::1"]
+    },
+    "max_complexity": {
+      "enabled": false,
+      "level": "advisory",
+      "max_lines_per_block": 100,
+      "max_nesting_depth": 5,
+      "max_parameters": 6,
+      "max_local_variables": 15,
+      "max_cyclomatic_complexity": 10,
+      "max_cognitive_complexity": 15
+    },
+    "encoding": {
+      "enabled": true,
+      "level": "advisory",
+      "require_utf8": true,
+      "block_null_bytes": true,
+      "block_control_characters": true,
+      "block_bom": false,
+      "block_unicode_bidi": true,
+      "block_homoglyph_attacks": true
+    },
+    "no_oversimplification": {
+      "enabled": true,
+      "level": "hard",
+      "check_empty_bodies": true,
+      "check_trivial_returns": true,
+      "check_identity_functions": true,
+      "check_not_implemented": true,
+      "check_comment_only_bodies": true,
+      "check_fabricated_results": true,
+      "min_function_lines": 2
+    },
+    "no_incomplete_logic": {
+      "enabled": true,
+      "level": "hard",
+      "check_empty_catch": true,
+      "check_swallowed_exceptions": true,
+      "check_generic_errors": true,
+      "check_vague_error_messages": true,
+      "check_single_iteration_loops": true,
+      "check_bare_raise": true,
+      "check_always_true_false": true,
+      "check_missing_validation": true
+    },
+    "no_hallucinated_apis": {
+      "enabled": true,
+      "level": "soft",
+      "check_cross_language": true,
+      "check_made_up_functions": true,
+      "check_wrong_syntax": true,
+      "case_sensitive": true
+    }
+  },
+
+  "custom_rules": [
+    {
+      "id": "CUSTOM-001",
+      "name": "no_eval_python",
+      "description": "Prevent eval() in Python blocks",
+      "pattern": "\\beval\\s*\\(",
+      "languages": ["python"],
+      "level": "hard",
+      "message": "eval() is forbidden — use ast.literal_eval() or json.loads()",
+      "help": "eval() executes arbitrary code and is a security risk",
+      "good_example": "import json; data = json.loads(input_str)",
+      "bad_example": "data = eval(input_str)",
+      "tags": ["security", "injection"],
+      "enabled": true,
+      "case_sensitive": false,
+      "multiline": false
+    },
+    {
+      "id": "CUSTOM-002",
+      "name": "no_debug_prints",
+      "description": "No debug print statements in production code",
+      "pattern": "print\\(.*[Dd]ebug",
+      "languages": [],
+      "level": "advisory",
+      "message": "Debug print statements should be removed before production",
+      "tags": ["cleanup"],
+      "enabled": true
+    }
+  ],
+
+  "scopes": [
+    {
+      "glob": "tests/**",
+      "overrides": {
+        "code_quality.no_placeholders": "false",
+        "code_quality.no_mock_data": "false",
+        "code_quality.no_oversimplification.level": "advisory"
+      }
+    },
+    {
+      "glob": "examples/**",
+      "overrides": {
+        "code_quality.no_hardcoded_results": "false",
+        "requirements.documentation.enabled": "true"
+      }
+    }
+  ],
+
+  "output": {
+    "summary": {
+      "enabled": true,
+      "format": "detailed",
+      "show_passing": true,
+      "show_skipped": false,
+      "group_by": "category",
+      "sort_by": "severity"
+    },
+    "errors": {
+      "verbose": true,
+      "show_line_preview": true,
+      "show_code_context": 3,
+      "show_help": true,
+      "show_examples": true,
+      "show_rule_path": true,
+      "show_fix_suggestions": true,
+      "max_errors_per_rule": 5,
+      "max_total_errors": 50,
+      "truncate_long_lines": 120
+    },
+    "formatting": {
+      "color": true,
+      "unicode_symbols": true,
+      "width": 80,
+      "indent": 2
+    },
+    "file_output": {
+      "report_json": "",
+      "report_sarif": "",
+      "report_junit": "",
+      "report_csv": "",
+      "report_html": ""
+    }
+  },
+
+  "audit": {
+    "level": "basic",
+    "output_file": ".governance-audit.jsonl",
+    "tamper_evidence": {
+      "enabled": false,
+      "algorithm": "sha256",
+      "chain_genesis": "NAAB-GOVERNANCE-GENESIS"
+    },
+    "log_events": {
+      "checks_passed": true,
+      "checks_failed": true,
+      "checks_warned": true,
+      "overrides": true,
+      "config_loaded": true,
+      "execution_start": true,
+      "execution_end": true,
+      "polyglot_executed": true
+    },
+    "retention": {
+      "max_file_size_mb": 100,
+      "rotate_at_mb": 50,
+      "keep_rotated": 5
+    },
+    "provenance": {
+      "enabled": false,
+      "record_proof_objects": false,
+      "record_attestations": false,
+      "record_decisions": false,
+      "sign_records": false,
+      "signing_key": ""
+    }
+  },
+
+  "meta": {
+    "schema_validation": {
+      "warn_unknown_keys": true,
+      "suggest_corrections": true,
+      "strict_types": true
+    },
+    "config_immutability": {
+      "hash": "",
+      "verify_on_load": false,
+      "block_on_mismatch": false
+    },
+    "inheritance": {
+      "max_depth": 5,
+      "merge_strategy": "child_wins",
+      "merge_arrays": "replace",
+      "allow_circular": false
+    },
+    "feature_flags": {
+      "experimental_checks": false,
+      "legacy_compatibility": true,
+      "verbose_parsing": false
+    },
+    "environment": {
+      "allow_env_var_substitution": false,
+      "env_prefix": "NAAB_GOV_",
+      "allow_cli_override": true
+    }
+  },
+
+  "hooks": {
+    "on_violation": {
+      "command": "",
+      "args": [],
+      "timeout": 5
+    },
+    "on_override": {
+      "command": "",
+      "args": [],
+      "timeout": 5
+    },
+    "on_complete": {
+      "command": "",
+      "args": [],
+      "timeout": 5
+    },
+    "pre_check": {
+      "command": "",
+      "args": [],
+      "timeout": 5
+    },
+    "post_check": {
+      "command": "",
+      "args": [],
+      "timeout": 5
+    }
+  },
+
+  "polyglot": {
+    "variable_binding": {
+      "require_explicit": false,
+      "require_explicit_level": "advisory",
+      "max_bound_variables": 0,
+      "validate_types": false
+    },
+    "output": {
+      "require_json_pipe": false,
+      "require_naab_return": false,
+      "max_output_lines": 0,
+      "strip_whitespace": false,
+      "validate_encoding": true
+    },
+    "context_isolation": {
+      "enabled": false,
+      "level": "advisory",
+      "no_shared_state": false,
+      "no_env_pollution": true,
+      "clean_temp_files": true
+    },
+    "parallel": {
+      "max_parallel_blocks": 4,
+      "timeout_per_block": 30,
+      "fail_strategy": "fail_fast",
+      "allow_shared_variables": false
+    },
+    "persistent_runtime": {
+      "max_sessions": 5,
+      "session_timeout": 300,
+      "max_memory_per_session_mb": 256,
+      "allow_state_persistence": true
+    }
+  },
+
+  "polyglot_optimization": {
+    "enabled": true,
+    "enforcement_level": "advisory",
+
+    "pattern_detection": {
+      "enabled": true,
+      "task_inference": {
+        "numerical_operations": {
+          "patterns": ["\\bnp\\.", "\\bnumpy\\.", "matrix", "\\bsum\\(", "\\bmean\\(", "\\blinspace\\(", "\\beigenval", "\\bdet\\(", "\\bfft\\("],
+          "optimal_languages": ["python", "nim"],
+          "suboptimal_languages": ["javascript", "shell"],
+          "message": "Numerical operations perform best in Python (NumPy) or Nim"
+        },
+        "string_processing": {
+          "patterns": ["\\bsplit\\(", "\\bjoin\\(", "\\breplace\\(", "\\bregex\\b", "\\bmatch\\(", "\\bsearch\\(", "\\bfindall\\(", "\\bstrip\\(", "\\btrim\\("],
+          "optimal_languages": ["python", "ruby", "nim"],
+          "suboptimal_languages": ["go", "shell"],
+          "message": "String operations benefit from high-level language built-ins"
+        },
+        "file_operations": {
+          "patterns": ["\\bfind\\b", "\\bgrep\\b", "\\bsed\\b", "\\bawk\\b", "\\bls\\b", "\\bcat\\b", "\\bwc\\b", "\\bsort\\b", "\\bglob\\b", "\\bwalk\\b"],
+          "optimal_languages": ["shell"],
+          "suboptimal_languages": ["javascript"],
+          "message": "Shell tools are purpose-built for file operations"
+        },
+        "systems_calls": {
+          "patterns": ["\\bmalloc\\b", "\\bfree\\b", "pointer", "\\bunsafe\\b", "\\bsyscall\\b", "\\bmmap\\b"],
+          "optimal_languages": ["nim", "go", "rust", "cpp"],
+          "suboptimal_languages": ["python", "javascript", "ruby"],
+          "message": "Systems operations need compiled languages with low-level control"
+        },
+        "web_apis": {
+          "patterns": ["\\bfetch\\(", "\\bhttp\\.", "\\burl\\.", "\\bapi\\b", "\\brequest\\(", "XMLHttpRequest"],
+          "optimal_languages": ["javascript", "python", "go"],
+          "suboptimal_languages": ["shell", "nim"],
+          "message": "Web APIs best handled by languages with rich HTTP libraries"
+        },
+        "json_processing": {
+          "patterns": ["JSON\\.parse", "JSON\\.stringify", "json\\.", "\\bparse_json\\b", "json\\.dumps", "json\\.loads"],
+          "optimal_languages": ["javascript", "python", "nim"],
+          "suboptimal_languages": ["cpp", "shell"],
+          "message": "JSON processing best in languages with native JSON support"
+        },
+        "concurrency": {
+          "patterns": ["\\bgoroutine\\b", "\\basync\\b", "\\bawait\\b", "\\bthread\\b", "\\bparallel\\b", "sync\\.WaitGroup", "\\bchannel\\b", "Promise\\."],
+          "optimal_languages": ["go", "javascript"],
+          "suboptimal_languages": ["python", "ruby"],
+          "message": "Concurrency best in Go (goroutines) or JavaScript (async/await)"
+        },
+        "data_parsing": {
+          "patterns": ["\\bcsv\\.", "\\bxml\\.", "\\byaml\\.", "BeautifulSoup", "\\bparse\\(", "DictReader"],
+          "optimal_languages": ["python", "javascript"],
+          "suboptimal_languages": ["shell", "go"],
+          "message": "Data parsing benefits from Python's rich ecosystem"
+        }
+      }
+    },
+
+    "profiling": {
+      "enabled": true,
+      "profile_path": "~/.naab/profile.json",
+      "max_entries": 10000,
+      "include_code_hash": true
+    },
+
+    "calibration": {
+      "enabled": true,
+      "calibration_path": "~/.naab/calibration.json",
+      "max_age_days": 30,
+      "iterations": 3
+    },
+
+    "confidence": {
+      "min_display_level": "estimated",
+      "suppress_unknown": true,
+      "show_measurement_details": true
+    },
+
+    "verification": {
+      "enabled": false,
+      "enforcement_level": "advisory",
+      "consensus_languages": ["python", "javascript", "go"],
+      "tolerance": 1e-10,
+      "verify_task_types": [
+        "numerical_computation",
+        "string_manipulation",
+        "data_parsing",
+        "file_operations",
+        "cli_tool",
+        "web_service",
+        "async_operations",
+        "systems_programming"
+      ],
+      "min_consensus": 2,
+      "max_verification_time_ms": 5000,
+      "show_drift_details": true
+    },
+
+    "language_diversity": {
+      "enabled": true,
+      "min_languages": 2,
+      "max_single_language_percent": 80,
+      "message": "Consider using specialized languages for different task types"
+    },
+
+    "helper_errors": {
+      "enabled": true,
+      "show_alternative_language": true,
+      "show_example_code": true,
+      "fuzzy_match_threshold": 0.7
+    },
+
+    "ai_guidance": {
+      "enabled": true,
+      "include_in_errors": true,
+      "suggest_refactoring": true,
+      "show_benchmarks": false
+    },
+
+    "task_language_matrix": {
+      "numerical_computation": {
+        "python":     { "score": 85, "reason": "NumPy/SciPy excellent for math" },
+        "nim":        { "score": 90, "reason": "Compiled speed, good math libs" },
+        "go":         { "score": 50, "reason": "No operator overloading, limited math" },
+        "javascript": { "score": 35, "reason": "Slow, limited numerical precision" },
+        "shell":      { "score": 10, "reason": "Not designed for computation" },
+        "ruby":       { "score": 40, "reason": "Slow for heavy math" }
+      },
+      "string_manipulation": {
+        "python":     { "score": 100, "reason": "Rich string API, regex built-in" },
+        "ruby":       { "score": 95, "reason": "Excellent string handling" },
+        "nim":        { "score": 85, "reason": "Fast + good stdlib" },
+        "javascript": { "score": 80, "reason": "Good string methods" },
+        "go":         { "score": 65, "reason": "Decent but verbose" },
+        "shell":      { "score": 70, "reason": "sed/awk/tr for simple transforms" }
+      },
+      "file_operations": {
+        "shell":      { "score": 100, "reason": "Built for file ops: find/grep/sed/awk" },
+        "python":     { "score": 80, "reason": "Good pathlib, os modules" },
+        "nim":        { "score": 75, "reason": "Fast filesystem access" },
+        "go":         { "score": 70, "reason": "Good os/filepath stdlib" },
+        "ruby":       { "score": 70, "reason": "File and Dir classes" },
+        "javascript": { "score": 40, "reason": "Node.js fs module limited in polyglot" }
+      },
+      "web_apis": {
+        "javascript": { "score": 100, "reason": "fetch API, JSON native" },
+        "python":     { "score": 90, "reason": "requests/urllib excellent" },
+        "go":         { "score": 85, "reason": "net/http in stdlib" },
+        "ruby":       { "score": 75, "reason": "net/http available" },
+        "nim":        { "score": 65, "reason": "httpclient available" },
+        "shell":      { "score": 50, "reason": "curl/wget work but limited" }
+      },
+      "json_processing": {
+        "javascript": { "score": 100, "reason": "JSON.parse/stringify native" },
+        "python":     { "score": 95, "reason": "json module excellent" },
+        "go":         { "score": 85, "reason": "encoding/json good" },
+        "nim":        { "score": 80, "reason": "json module fast" },
+        "ruby":       { "score": 75, "reason": "JSON class built-in" },
+        "shell":      { "score": 30, "reason": "jq external tool" }
+      },
+      "concurrency": {
+        "go":         { "score": 100, "reason": "Goroutines and channels built-in" },
+        "javascript": { "score": 75, "reason": "async/await, event loop" },
+        "nim":        { "score": 70, "reason": "async/await support" },
+        "python":     { "score": 50, "reason": "asyncio exists but GIL limits" },
+        "ruby":       { "score": 40, "reason": "Threads limited by GIL" },
+        "shell":      { "score": 55, "reason": "& and pipes for simple parallelism" }
+      },
+      "cli_tools": {
+        "shell":      { "score": 100, "reason": "Purpose-built for CLI" },
+        "python":     { "score": 85, "reason": "argparse, sys.argv" },
+        "go":         { "score": 80, "reason": "Fast binaries, flag package" },
+        "nim":        { "score": 70, "reason": "Compiled CLI tools" },
+        "ruby":       { "score": 65, "reason": "OptionParser available" },
+        "javascript": { "score": 45, "reason": "Node.js works but slow startup" }
+      },
+      "data_parsing": {
+        "python":     { "score": 100, "reason": "pandas, csv, BeautifulSoup, lxml" },
+        "javascript": { "score": 80, "reason": "cheerio, JSON native" },
+        "ruby":       { "score": 75, "reason": "Nokogiri, CSV stdlib" },
+        "go":         { "score": 70, "reason": "encoding/* packages" },
+        "nim":        { "score": 65, "reason": "parsers available" },
+        "shell":      { "score": 45, "reason": "awk/sed for simple parsing" }
+      }
+    }
+  },
+
+  "_comment_project_context": "Project Context Awareness — supplement governance with rules from project files",
+  "project_context": {
+    "enabled": false,
+    "enforcement_level": "advisory",
+    "priority_source": "",
+    "sources": {
+      "llm": true,
+      "linters": true,
+      "manifests": true
+    },
+    "watch_files": [],
+    "ignore_files": [],
+    "suppress_rules": [],
+    "extract": {
+      "language_preferences": true,
+      "banned_patterns": true,
+      "style_rules": true,
+      "custom_directives": true
+    },
+    "feed_optimization": true,
+    "show_extractions": true,
+    "dry_run": false,
+    "max_file_size_kb": 100
+  }
+}
