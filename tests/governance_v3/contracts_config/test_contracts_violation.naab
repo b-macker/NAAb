@@ -1,0 +1,12 @@
+// Test: contracts governance violation
+// classify_text returns "unknown" which is NOT in return_one_of
+// EXPECTED: governance HARD violation
+
+fn classify_text(text) {
+    return "unknown"
+}
+
+main {
+    let cat = classify_text("test")
+    print(cat)
+}

@@ -497,6 +497,33 @@
       "max_cyclomatic_complexity": 10,
       "max_cognitive_complexity": 15
     },
+    "complexity_floor": {
+      "level": "soft",
+      "min_score": 10,
+      "check_polyglot": true,
+      "check_naab": true,
+      "skip_if_has_polyglot_block": true,
+      "rules": [
+        {
+          "names": ["analyze", "compute", "calculate", "process", "transform",
+                    "evaluate", "optimize", "classify", "detect", "predict"],
+          "min_score": 25,
+          "require_branching_or_loops": true,
+          "message": "Functions named analyze/compute/process must contain non-trivial logic"
+        },
+        {
+          "names": ["sort", "search", "filter", "merge", "parse",
+                    "serialize", "encode", "decode", "compress", "encrypt"],
+          "min_score": 20,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": ["get", "set", "is_", "has_", "to_", "from_", "format", "wrap"],
+          "min_score": 3,
+          "require_branching_or_loops": false
+        }
+      ]
+    },
     "encoding": {
       "enabled": true,
       "level": "advisory",
@@ -538,6 +565,45 @@
       "check_wrong_syntax": true,
       "case_sensitive": true
     }
+  },
+
+  "_comment_contracts": "Function contracts — runtime assertions on return values (design-by-contract)",
+  "contracts": {
+    "level": "soft",
+    "functions": {
+      "compute_area": {
+        "description": "Returns area as a positive float",
+        "return_type": "float",
+        "return_min": 0
+      },
+      "classify_text": {
+        "description": "Returns text category",
+        "return_type": "string",
+        "return_one_of": ["positive", "negative", "neutral"]
+      },
+      "count_words": {
+        "return_type": "int",
+        "return_min": 0
+      },
+      "fetch_users": {
+        "return_type": "array",
+        "return_non_empty": true
+      },
+      "parse_config": {
+        "return_type": "dict",
+        "return_keys": ["host", "port", "database"]
+      }
+    }
+  },
+
+  "_comment_baselines": "Output baselines — record and compare polyglot outputs over time",
+  "baselines": {
+    "enabled": false,
+    "level": "advisory",
+    "path": ".naab/baselines.json",
+    "tolerance": 1e-6,
+    "auto_record": false,
+    "hash_keys": true
   },
 
   "custom_rules": [
@@ -844,7 +910,15 @@
       ],
       "min_consensus": 2,
       "max_verification_time_ms": 5000,
-      "show_drift_details": true
+      "show_drift_details": true,
+      "drift_tracking": {
+        "enabled": false,
+        "path": "~/.naab/drift.jsonl",
+        "max_entries": 1000,
+        "trend_window": 10,
+        "escalation_threshold": 0.3,
+        "include_code_hash": true
+      }
     },
 
     "language_diversity": {

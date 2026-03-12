@@ -586,10 +586,52 @@ mv govern-template.json govern.json
                 <!-- F: Code Quality -->
                 <div class="accordion" data-section="code_quality">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
-                        <h3>Code Quality <span class="count">20 checks: secrets, PII, hallucinated APIs...</span></h3>
+                        <h3>Code Quality <span class="count">21 checks: secrets, PII, complexity floor...</span></h3>
                         <span class="arrow">&#9654;</span>
                     </div>
                     <div class="accordion-body" id="quality-body"></div>
+                </div>
+
+                <!-- F2: Contracts -->
+                <div class="accordion" data-section="contracts">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Contracts <span class="count">runtime assertions on function return values</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="form-group">
+                            <label>Enforcement Level</label>
+                            <select id="contracts-level" onchange="updateJSON()"><option value="soft" selected>soft</option><option value="hard">hard</option><option value="advisory">advisory</option></select>
+                        </div>
+                        <div class="help" style="margin-bottom:12px">Define return-value contracts per function. Checks: return_type, return_range, return_min/max, return_one_of, return_non_empty, return_keys, return_length_min/max, return_not_null.</div>
+                        <div id="contracts-list"></div>
+                        <button class="preset-btn" onclick="addContract()" style="margin-top:8px">+ Add Function Contract</button>
+                    </div>
+                </div>
+
+                <!-- F3: Baselines -->
+                <div class="accordion" data-section="baselines">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Baselines <span class="count">record and compare outputs over time</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="toggle-wrap" style="margin-bottom:12px">
+                            <label class="toggle"><input type="checkbox" id="baselines-enabled" onchange="updateJSON()"><span class="slider"></span></label>
+                            <span class="toggle-label">Enable output baselines</span>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Level</label>
+                                <select id="baselines-level" onchange="updateJSON()"><option value="advisory" selected>advisory</option><option value="soft">soft</option><option value="hard">hard</option></select>
+                            </div>
+                            <div class="form-group"><label>Path</label><input type="text" id="baselines-path" value=".naab/baselines.json" oninput="updateJSON()"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>Tolerance</label><input type="text" id="baselines-tolerance" value="1e-6" oninput="updateJSON()"></div>
+                            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="baselines-auto-record" onchange="updateJSON()"><span class="slider"></span></label><span class="toggle-label">Auto-record on first run</span></div>
+                            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="baselines-hash-keys" checked onchange="updateJSON()"><span class="slider"></span></label><span class="toggle-label">Hash-based keys</span></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- G: Custom Rules -->
@@ -703,6 +745,23 @@ mv govern-template.json govern.json
                             <div class="form-row">
                                 <div class="form-group"><label>Max sessions</label><input type="number" id="poly-max-sessions" value="5" oninput="updateJSON()"></div>
                                 <div class="form-group"><label>Session timeout (sec)</label><input type="number" id="poly-session-timeout" value="300" oninput="updateJSON()"></div>
+                            </div>
+                        </div>
+                        <div class="sub-section">
+                            <h4>Drift Tracking</h4>
+                            <div class="help" style="margin-bottom:8px">Persist cross-language verification mismatches to JSONL for trend analysis.</div>
+                            <div class="toggle-wrap" style="margin-bottom:8px">
+                                <label class="toggle"><input type="checkbox" id="drift-enabled" onchange="updateJSON()"><span class="slider"></span></label>
+                                <span class="toggle-label">Enable drift tracking</span>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>Path</label><input type="text" id="drift-path" value="~/.naab/drift.jsonl" oninput="updateJSON()"></div>
+                                <div class="form-group"><label>Max entries</label><input type="number" id="drift-max-entries" value="1000" oninput="updateJSON()"></div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group"><label>Trend window</label><input type="number" id="drift-trend-window" value="10" oninput="updateJSON()"></div>
+                                <div class="form-group"><label>Escalation threshold</label><input type="text" id="drift-threshold" value="0.3" oninput="updateJSON()"></div>
+                                <div class="toggle-wrap"><label class="toggle"><input type="checkbox" id="drift-code-hash" checked onchange="updateJSON()"><span class="slider"></span></label><span class="toggle-label">Include code hash</span></div>
                             </div>
                         </div>
                     </div>
@@ -1017,6 +1076,7 @@ const QUALITY_CHECKS = [
     {id:'no_incomplete_logic',name:'No Incomplete Logic',def_level:'hard',desc:'Block empty catch, swallowed exceptions, generic errors'},
     {id:'no_hallucinated_apis',name:'No Hallucinated APIs',def_level:'soft',desc:'Detect cross-language API confusion, made-up functions'},
     {id:'no_apologetic_language',name:'No Apologetic Language',def_level:'advisory',desc:'Detect sorry/apology comments',def_off:true},
+    {id:'complexity_floor',name:'Complexity Floor',def_level:'soft',desc:'Minimum structural complexity for functions (by name pattern)',def_off:true},
 ];
 
 // =====================================================
@@ -1205,6 +1265,63 @@ function getCustomRules() {
 }
 
 // =====================================================
+// CONTRACTS
+// =====================================================
+let contractCounter = 0;
+function addContract() {
+    contractCounter++;
+    const div = document.createElement('div');
+    div.className = 'sub-section';
+    div.style.marginBottom = '8px';
+    div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h4 style="margin:0">Contract #${contractCounter}</h4>
+            <button class="preset-btn" style="color:var(--red);border-color:rgba(239,68,68,0.3);padding:4px 10px;font-size:0.75rem" onclick="this.closest('.sub-section').remove();updateJSON();">Remove</button>
+        </div>
+        <div class="form-row" style="margin-bottom:8px">
+            <div class="form-group" style="flex:1"><label>Function name</label><input type="text" class="contract-fn" placeholder="analyze_sentiment" oninput="updateJSON()"></div>
+            <div class="form-group"><label>Return type</label>
+                <select class="contract-type" onchange="updateJSON()"><option value="">any</option><option value="int">int</option><option value="float">float</option><option value="string">string</option><option value="bool">bool</option><option value="array">array</option><option value="dict">dict</option></select>
+            </div>
+        </div>
+        <div class="form-row" style="margin-bottom:8px">
+            <div class="form-group"><label>Description</label><input type="text" class="contract-desc" placeholder="Returns sentiment score" oninput="updateJSON()"></div>
+            <div class="form-group"><label>return_one_of (comma-sep)</label><input type="text" class="contract-oneof" placeholder="positive,negative,neutral" oninput="updateJSON()"></div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>return_min</label><input type="text" class="contract-min" placeholder="" oninput="updateJSON()"></div>
+            <div class="form-group"><label>return_max</label><input type="text" class="contract-max" placeholder="" oninput="updateJSON()"></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" class="contract-nonempty" onchange="updateJSON()"><span class="slider"></span></label><span class="toggle-label">Non-empty</span></div>
+            <div class="toggle-wrap"><label class="toggle"><input type="checkbox" class="contract-notnull" onchange="updateJSON()"><span class="slider"></span></label><span class="toggle-label">Not null</span></div>
+        </div>`;
+    document.getElementById('contracts-list').appendChild(div);
+    updateJSON();
+}
+
+function getContracts() {
+    const fns = {};
+    document.querySelectorAll('#contracts-list .sub-section').forEach(div => {
+        const name = div.querySelector('.contract-fn')?.value?.trim();
+        if (!name) return;
+        const contract = {};
+        const desc = div.querySelector('.contract-desc')?.value?.trim();
+        if (desc) contract.description = desc;
+        const type = div.querySelector('.contract-type')?.value;
+        if (type) contract.return_type = type;
+        const oneof = div.querySelector('.contract-oneof')?.value?.trim();
+        if (oneof) contract.return_one_of = oneof.split(',').map(s=>s.trim()).filter(Boolean);
+        const min = div.querySelector('.contract-min')?.value?.trim();
+        if (min !== '' && min !== undefined) { const n = parseFloat(min); if (!isNaN(n)) contract.return_min = n; }
+        const max = div.querySelector('.contract-max')?.value?.trim();
+        if (max !== '' && max !== undefined) { const n = parseFloat(max); if (!isNaN(n)) contract.return_max = n; }
+        if (div.querySelector('.contract-nonempty')?.checked) contract.return_non_empty = true;
+        if (div.querySelector('.contract-notnull')?.checked) contract.return_not_null = true;
+        fns[name] = contract;
+    });
+    return fns;
+}
+
+// =====================================================
 // BUILD JSON
 // =====================================================
 function updateJSON() {
@@ -1294,6 +1411,24 @@ function updateJSON() {
     });
     if (Object.keys(quality).length) cfg.code_quality = quality;
 
+    // Contracts
+    const contractFns = getContracts();
+    if (Object.keys(contractFns).length) {
+        cfg.contracts = { level: document.getElementById('contracts-level').value, functions: contractFns };
+    }
+
+    // Baselines
+    if (document.getElementById('baselines-enabled')?.checked) {
+        const bl = { enabled: true, level: document.getElementById('baselines-level').value };
+        const blPath = document.getElementById('baselines-path').value;
+        if (blPath && blPath !== '.naab/baselines.json') bl.path = blPath;
+        const blTol = document.getElementById('baselines-tolerance').value;
+        if (blTol && blTol !== '1e-6') bl.tolerance = parseFloat(blTol);
+        if (document.getElementById('baselines-auto-record').checked) bl.auto_record = true;
+        if (!document.getElementById('baselines-hash-keys').checked) bl.hash_keys = false;
+        cfg.baselines = bl;
+    }
+
     // Custom Rules
     const rules = getCustomRules();
     if (rules.length) cfg.custom_rules = rules;
@@ -1364,6 +1499,23 @@ function updateJSON() {
         if (ps!==5) polyglot.persistent_runtime.max_sessions = ps;
         if (pst!==300) polyglot.persistent_runtime.session_timeout = pst;
     }
+    // Drift Tracking (under polyglot_optimization.verification)
+    if (document.getElementById('drift-enabled')?.checked) {
+        if (!cfg.polyglot_optimization) cfg.polyglot_optimization = {};
+        if (!cfg.polyglot_optimization.verification) cfg.polyglot_optimization.verification = {enabled: true};
+        const dt = {enabled: true};
+        const dPath = document.getElementById('drift-path').value;
+        if (dPath && dPath !== '~/.naab/drift.jsonl') dt.path = dPath;
+        const dMax = parseInt(document.getElementById('drift-max-entries').value)||1000;
+        if (dMax !== 1000) dt.max_entries = dMax;
+        const dWin = parseInt(document.getElementById('drift-trend-window').value)||10;
+        if (dWin !== 10) dt.trend_window = dWin;
+        const dThresh = parseFloat(document.getElementById('drift-threshold').value)||0.3;
+        if (dThresh !== 0.3) dt.escalation_threshold = dThresh;
+        if (!document.getElementById('drift-code-hash').checked) dt.include_code_hash = false;
+        cfg.polyglot_optimization.verification.drift_tracking = dt;
+    }
+
     if (Object.keys(polyglot).length) cfg.polyglot = polyglot;
 
     // Project Context

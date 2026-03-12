@@ -1,0 +1,24 @@
+// Test: contracts governance check
+// compute_area returns correct float — should PASS
+// classify_text returns "positive" — should PASS
+
+fn compute_area(width, height) {
+    return float(width) * float(height)
+}
+
+fn classify_text(text) {
+    if len(text) > 10 {
+        return "positive"
+    }
+    return "neutral"
+}
+
+main {
+    let area = compute_area(3, 4)
+    print("Area: " + string(area))
+
+    let cat = classify_text("hello beautiful world")
+    print("Category: " + cat)
+
+    print("PASS: contracts")
+}

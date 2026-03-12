@@ -193,6 +193,8 @@ void print_usage() {
     fmt::print("  --governance-report <path>          Write JSON governance report to file\n");
     fmt::print("  --governance-sarif <path>           Write SARIF governance report to file\n");
     fmt::print("  --governance-junit <path>           Write JUnit governance report to file\n");
+    fmt::print("  --governance-record-baselines       Record output baselines for regression detection\n");
+    fmt::print("  --governance-check-baselines        Check outputs against baselines (hard enforcement)\n");
     fmt::print("\nSecurity Options:\n");
     fmt::print("  --sandbox-level <level>             Security: restricted|standard|elevated|unrestricted\n");
     fmt::print("                                      (default: standard - safe for enterprise)\n");
@@ -319,6 +321,8 @@ int main(int argc, char** argv) {
         bool governance_override = global_governance_override;
         bool no_governance = global_no_governance;
         bool governance_verbose = global_governance_verbose;
+        bool governance_record_baselines = false;
+        bool governance_check_baselines = false;
         std::string governance_report_json;
         std::string governance_report_sarif;
         std::string governance_report_junit;
@@ -366,6 +370,11 @@ int main(int argc, char** argv) {
                 governance_report_junit = argv[++i];
             } else if (arg == "--governance-verbose") {
                 governance_verbose = true;
+            } else if (arg == "--governance-record-baselines") {
+                // Will be applied after governance loads
+                governance_record_baselines = true;
+            } else if (arg == "--governance-check-baselines") {
+                governance_check_baselines = true;
             } else if (arg.substr(0, 2) == "--") {
                 // Unknown flag — give helpful error instead of treating as filename
                 fmt::print("Error: Unknown flag '{}'\n\n"
@@ -384,7 +393,9 @@ int main(int argc, char** argv) {
                            "    --governance-verbose Show detailed governance check results\n"
                            "    --governance-report <path>  Write JSON governance report\n"
                            "    --governance-sarif <path>   Write SARIF governance report\n"
-                           "    --governance-junit <path>   Write JUnit governance report\n\n"
+                           "    --governance-junit <path>   Write JUnit governance report\n"
+                           "    --governance-record-baselines  Record output baselines\n"
+                           "    --governance-check-baselines   Check baselines (hard enforcement)\n\n"
                            "  Note: There is no --path flag. NAAb resolves modules relative to\n"
                            "  the script's directory. To use modules from another location,\n"
                            "  place the script in or near the modules directory, or use\n"
@@ -684,6 +695,14 @@ int main(int argc, char** argv) {
                         rules.output.file_output.report_sarif = governance_report_sarif;
                     if (!governance_report_junit.empty())
                         rules.output.file_output.report_junit = governance_report_junit;
+                    if (governance_record_baselines) {
+                        rules.baselines.enabled = true;
+                        rules.baselines.auto_record = true;
+                    }
+                    if (governance_check_baselines) {
+                        rules.baselines.enabled = true;
+                        rules.baselines.level = naab::governance::EnforcementLevel::HARD;
+                    }
                 }
             }
 

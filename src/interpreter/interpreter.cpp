@@ -885,6 +885,17 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     auto return_value = result_;
     returning_ = saved_returning;
 
+    // Phase 3 Governance: Check function contracts
+    if (governance_ && governance_->isActive() && !func->name.empty()) {
+        std::string result_str = return_value ? return_value->toString() : "null";
+        std::string result_type = return_value ? getTypeName(return_value) : "null";
+        std::string contract_err = governance_->checkFunctionContract(
+            func->name, result_str, result_type, func->source_line);
+        if (!contract_err.empty()) {
+            throw std::runtime_error(contract_err);
+        }
+    }
+
     return return_value;
 }
 
@@ -5302,6 +5313,18 @@ void Interpreter::visit(ast::CallExpr& node) {
             current_type_substitutions_ = saved_type_subst;  // Phase 2.4.4: Restore
             current_file_ = saved_file;  // Phase 3.1: Restore file
 
+            // Phase 3 Governance: Check function contracts (inline call path)
+            if (governance_ && governance_->isActive() && !func->name.empty()) {
+                auto return_value = result_;
+                std::string result_str = return_value ? return_value->toString() : "null";
+                std::string result_type = return_value ? getTypeName(return_value) : "null";
+                std::string contract_err = governance_->checkFunctionContract(
+                    func->name, result_str, result_type, func->source_line);
+                if (!contract_err.empty()) {
+                    throw std::runtime_error(contract_err);
+                }
+            }
+
             LOG_TRACE("[CALL] Function {} executed\n", func->name);
             return;
         }
@@ -6740,6 +6763,25 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             if (!verify_err.empty()) {
                 gc_suspended_ = false;
                 throw std::runtime_error(verify_err);
+            }
+        }
+
+        // Output Baselines: check/record baseline for polyglot result
+        if (governance_ && governance_->isActive() && result_ &&
+            governance_->getRules().baselines.enabled) {
+            std::string result_str_bl = result_->toString();
+            std::string result_type_bl = getTypeName(result_);
+            std::size_t code_hash = std::hash<std::string>{}(raw_code);
+            char hash_buf_bl[16];
+            snprintf(hash_buf_bl, sizeof(hash_buf_bl), "%06zx", code_hash & 0xFFFFFF);
+            std::string baseline_key = language + ":" +
+                (governance_->getRules().baselines.hash_keys ? std::string(hash_buf_bl) : "") +
+                ":" + std::to_string(node.getLocation().line);
+            std::string baseline_err = governance_->checkBaseline(
+                baseline_key, result_str_bl, result_type_bl, node.getLocation().line);
+            if (!baseline_err.empty()) {
+                gc_suspended_ = false;
+                throw std::runtime_error(baseline_err);
             }
         }
 

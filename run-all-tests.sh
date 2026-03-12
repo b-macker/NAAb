@@ -67,10 +67,17 @@ EXPECTED_FAILURES["polyglot_showcase.naab"]=1
 # Slow polyglot tests that may timeout on constrained environments
 EXPECTED_FAILURES["anti_patterns.naab"]=1
 EXPECTED_FAILURES["before_after_optimization.naab"]=1
-# Note: Anti-evasion tests in tests/governance_v3/ are NOT discovered by the
+# Note: Governance tests in tests/governance_v3/ are NOT discovered by the
 # automated runner (it uses --no-governance and tests/ is maxdepth 1).
-# Verify manually: cd tests/governance_v3 && for f in test_evasion_*.naab; do
-#   echo "=== $f ===" && ../../build/naab-lang "$f" 2>&1 | head -3; done
+# Verify manually:
+#   Anti-evasion: cd tests/governance_v3 && for f in test_evasion_*.naab; do
+#     echo "=== $f ===" && ../../build/naab-lang "$f" 2>&1 | head -3; done
+#   Complexity floor (expect HARD violation):
+#     cd tests/governance_v3/complexity_config && ../../../build/naab-lang test_complexity_floor.naab
+#   Contracts pass:
+#     cd tests/governance_v3/contracts_config && ../../../build/naab-lang test_contracts.naab
+#   Contracts violation (expect HARD violation):
+#     cd tests/governance_v3/contracts_config && ../../../build/naab-lang test_contracts_violation.naab
 
 # Directories to skip entirely
 SKIP_DIRS=(

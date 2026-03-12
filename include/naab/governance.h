@@ -30,6 +30,7 @@ namespace governance {
 // ============================================================================
 
 enum class EnforcementLevel {
+    NONE,       // Not set (use parent level). For contract per-function overrides.
     HARD,       // Block execution. No override possible.
     SOFT,       // Block execution. Override with --governance-override.
     ADVISORY    // Warn only. Execution continues.
@@ -660,6 +661,24 @@ struct EncodingConfig {
     bool block_homoglyph_attacks = true;
 };
 
+// Complexity floor: minimum structural complexity for functions
+struct ComplexityFloorRule {
+    std::vector<std::string> names;       // Substring match against function name
+    int min_score = 10;                   // Minimum complexity score (0-100)
+    bool require_branching_or_loops = false;
+    std::string message;                  // Custom error message (optional)
+};
+
+struct ComplexityFloorConfig {
+    bool enabled = false;                  // Only active when explicitly configured
+    EnforcementLevel level = EnforcementLevel::SOFT;
+    int min_score = 10;                    // Global minimum
+    bool check_polyglot = true;
+    bool check_naab = true;
+    bool skip_if_has_polyglot_block = true;
+    std::vector<ComplexityFloorRule> rules; // Name-specific rules
+};
+
 struct CodeQualityConfig {
     NoSecretsConfig no_secrets;
     NoPlaceholdersConfig no_placeholders;
@@ -681,6 +700,7 @@ struct CodeQualityConfig {
     NoOversimplificationConfig no_oversimplification;
     NoIncompleteLogicConfig no_incomplete_logic;
     NoHallucinatedApisConfig no_hallucinated_apis;
+    ComplexityFloorConfig complexity_floor;
 };
 
 // ============================================================================
@@ -921,7 +941,34 @@ struct PolyglotConfig {
 };
 
 // ============================================================================
-// Section 14: Polyglot Optimization
+// Section 14a: Function Contracts
+// ============================================================================
+
+struct FunctionContract {
+    std::string description;
+    EnforcementLevel level = EnforcementLevel::NONE;  // NONE = use parent level
+    std::string return_type;           // "int", "float", "string", "bool", "array", "dict", "null"
+    bool has_return_range = false;
+    double return_range_min = 0, return_range_max = 0;
+    bool has_return_min = false;
+    double return_min = 0;
+    bool has_return_max = false;
+    double return_max = 0;
+    std::vector<std::string> return_one_of;
+    bool return_non_empty = false;
+    std::vector<std::string> return_keys;
+    int return_length_min = -1;        // -1 = not set
+    int return_length_max = -1;
+    bool return_not_null = false;
+};
+
+struct ContractsConfig {
+    EnforcementLevel level = EnforcementLevel::SOFT;
+    std::map<std::string, FunctionContract> functions;
+};
+
+// ============================================================================
+// Section 15: Polyglot Optimization
 // ============================================================================
 
 struct TaskInferencePattern {
@@ -986,6 +1033,16 @@ struct ConfidenceConfig {
     bool show_measurement_details = true;
 };
 
+// Drift tracking config — persistent cross-language drift monitoring
+struct DriftTrackingConfig {
+    bool enabled = false;
+    std::string path = "~/.naab/drift.jsonl";
+    int max_entries = 1000;
+    int trend_window = 10;
+    double escalation_threshold = 0.3;
+    bool include_code_hash = true;
+};
+
 // Polyglot verification config — cross-language consensus checking
 struct VerificationConfig {
     bool enabled = false;                           // Master switch
@@ -996,6 +1053,7 @@ struct VerificationConfig {
     int min_consensus = 2;                          // Min languages that must agree
     int max_verification_time_ms = 5000;            // Timeout per verification run
     bool show_drift_details = true;                 // Show actual values in report
+    DriftTrackingConfig drift_tracking;
 };
 
 struct TaskLanguageScore {
@@ -1024,6 +1082,19 @@ struct PolyglotOptimizationConfig {
 };
 
 // ============================================================================
+// Section 16: Output Baselines
+// ============================================================================
+
+struct BaselinesConfig {
+    bool enabled = false;
+    EnforcementLevel level = EnforcementLevel::ADVISORY;
+    std::string path = ".naab/baselines.json";
+    double tolerance = 1e-6;
+    bool auto_record = false;
+    bool hash_keys = true;
+};
+
+// ============================================================================
 // Master Rules Structure
 // ============================================================================
 
@@ -1047,6 +1118,8 @@ struct GovernanceRules {
     HooksConfig hooks;
     PolyglotConfig polyglot;
     PolyglotOptimizationConfig polyglot_optimization;
+    ContractsConfig contracts;
+    BaselinesConfig baselines;
     ProjectContextConfig project_context;
 
     // --- Legacy flat fields (kept for backward compatibility) ---
@@ -1159,6 +1232,7 @@ public:
     };
 
     GovernanceEngine() = default;
+    ~GovernanceEngine();
 
     // --- Loading ---
     bool loadFromFile(const std::string& path);
@@ -1286,6 +1360,19 @@ public:
     // Prevents LLM config manipulation by enforcing minimum levels
     void enforceMinimumLevels();
 
+    // --- Function Contract Check ---
+    // Verifies function return values against declared contracts
+    std::string checkFunctionContract(const std::string& func_name,
+                                       const std::string& result_str,
+                                       const std::string& result_type,
+                                       int line = 0);
+
+    // --- Complexity Floor Check ---
+    // Verifies that functions meet minimum structural complexity
+    std::string checkComplexityFloor(const std::string& code,
+                                      const std::string& function_name,
+                                      int line = 0);
+
     // --- NAAb Function Body Quality Check ---
     // Scans ALL NAAb function bodies for stubs/oversimplification
     std::string checkNaabFunctionBody(const std::string& function_name,
@@ -1313,6 +1400,19 @@ public:
                                const std::vector<std::string>& optimal_langs,
                                int improvement_percent,
                                const std::vector<std::string>& reasons);
+
+    // --- Output Baselines ---
+    std::string checkBaseline(const std::string& key, const std::string& output,
+                               const std::string& type, int line = 0);
+    void recordBaseline(const std::string& key, const std::string& output,
+                         const std::string& type);
+
+    // --- Drift Tracking ---
+    void writeDriftEvent(const std::string& language, const std::string& task_type,
+                         const std::string& code_hash, const std::string& expected,
+                         const std::string& got, int line, int consensus, int total,
+                         const std::string& file);
+    void analyzeDriftTrend(const std::string& language);
 
     // --- Polyglot Consensus Verification ---
     // Returns error string on hard enforcement failure, empty string otherwise
@@ -1374,6 +1474,14 @@ private:
     // Calibration data (loaded from calibration.json)
     std::map<std::string, std::map<std::string, CalibrationEntry>> calibration_data_;
     bool calibration_loaded_ = false;
+
+    // Baselines data (lazy-loaded from baselines.json)
+    // Uses void* to avoid nlohmann/json.hpp in header (kept in .cpp only)
+    void* baselines_data_ = nullptr;
+    bool baselines_loaded_ = false;
+    std::string baselines_path_;
+    void loadBaselines();
+    void saveBaselines();
 
     // --- Core enforcement ---
     std::string enforce(const std::string& rule_name,

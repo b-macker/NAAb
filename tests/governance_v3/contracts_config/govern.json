@@ -1,0 +1,18 @@
+{
+  "version": "3.0",
+  "contracts": {
+    "level": "hard",
+    "functions": {
+      "compute_area": {
+        "description": "Returns area as a positive float",
+        "return_type": "float",
+        "return_min": 0
+      },
+      "classify_text": {
+        "description": "Returns text category",
+        "return_type": "string",
+        "return_one_of": ["positive", "negative", "neutral"]
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@
 #include "naab/language_registry.h"
 #include "naab/interpreter.h"
 #include "naab/analyzer/task_pattern_detector.h"
+#include "naab/analyzer/syntactic_analyzer.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -158,11 +159,23 @@ static const std::vector<HardcodedResultPattern> HARDCODED_RESULT_PATTERNS_DB = 
 };
 
 // ============================================================================
+// Destructor
+// ============================================================================
+
+GovernanceEngine::~GovernanceEngine() {
+    if (baselines_data_) {
+        delete static_cast<nlohmann::json*>(baselines_data_);
+        baselines_data_ = nullptr;
+    }
+}
+
+// ============================================================================
 // Helper functions
 // ============================================================================
 
 std::string GovernanceEngine::levelToString(EnforcementLevel level) {
     switch (level) {
+        case EnforcementLevel::NONE:     return "none";
         case EnforcementLevel::HARD:     return "hard";
         case EnforcementLevel::SOFT:     return "soft";
         case EnforcementLevel::ADVISORY: return "advisory";
@@ -172,6 +185,7 @@ std::string GovernanceEngine::levelToString(EnforcementLevel level) {
 
 std::string GovernanceEngine::levelToTag(EnforcementLevel level) {
     switch (level) {
+        case EnforcementLevel::NONE:     return "NONE";
         case EnforcementLevel::HARD:     return "HARD-MANDATORY";
         case EnforcementLevel::SOFT:     return "SOFT-MANDATORY";
         case EnforcementLevel::ADVISORY: return "ADVISORY";
@@ -961,6 +975,35 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 loadPatterns(val, "custom_patterns", ha.custom_patterns);
             }
         }
+
+        // complexity_floor
+        if (cq.contains("complexity_floor")) {
+            auto& val = cq["complexity_floor"];
+            auto& cf = rules_.code_quality.complexity_floor;
+            cf.enabled = true;  // Presence of section enables it
+            if (val.is_string()) {
+                auto [en, lv] = parseEnforcementLevel(val);
+                if (en) cf.level = lv;
+            } else if (val.is_object()) {
+                if (val.contains("level")) { auto [en, lv] = parseEnforcementLevel(val["level"]); cf.level = lv; }
+                if (val.contains("min_score")) cf.min_score = val["min_score"].get<int>();
+                if (val.contains("check_polyglot")) cf.check_polyglot = val["check_polyglot"].get<bool>();
+                if (val.contains("check_naab")) cf.check_naab = val["check_naab"].get<bool>();
+                if (val.contains("skip_if_has_polyglot_block")) cf.skip_if_has_polyglot_block = val["skip_if_has_polyglot_block"].get<bool>();
+                if (val.contains("rules") && val["rules"].is_array()) {
+                    for (auto& rule_json : val["rules"]) {
+                        ComplexityFloorRule rule;
+                        if (rule_json.contains("names") && rule_json["names"].is_array()) {
+                            for (auto& n : rule_json["names"]) rule.names.push_back(n.get<std::string>());
+                        }
+                        if (rule_json.contains("min_score")) rule.min_score = rule_json["min_score"].get<int>();
+                        if (rule_json.contains("require_branching_or_loops")) rule.require_branching_or_loops = rule_json["require_branching_or_loops"].get<bool>();
+                        if (rule_json.contains("message")) rule.message = rule_json["message"].get<std::string>();
+                        cf.rules.push_back(std::move(rule));
+                    }
+                }
+            }
+        }
     }
 
     // V3 Custom Rules
@@ -1223,6 +1266,17 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                         tt.get<std::string>());
                 }
             }
+            // Drift tracking sub-config
+            if (vf.contains("drift_tracking") && vf["drift_tracking"].is_object()) {
+                auto& dt = vf["drift_tracking"];
+                auto& dtc = rules_.polyglot_optimization.verification.drift_tracking;
+                if (dt.contains("enabled")) dtc.enabled = dt["enabled"].get<bool>();
+                if (dt.contains("path")) dtc.path = dt["path"].get<std::string>();
+                if (dt.contains("max_entries")) dtc.max_entries = dt["max_entries"].get<int>();
+                if (dt.contains("trend_window")) dtc.trend_window = dt["trend_window"].get<int>();
+                if (dt.contains("escalation_threshold")) dtc.escalation_threshold = dt["escalation_threshold"].get<double>();
+                if (dt.contains("include_code_hash")) dtc.include_code_hash = dt["include_code_hash"].get<bool>();
+            }
         }
 
         // Task→Language scoring matrix
@@ -1293,6 +1347,59 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (pc.contains("show_extractions")) rules_.project_context.show_extractions = pc["show_extractions"].get<bool>();
         if (pc.contains("dry_run")) rules_.project_context.dry_run = pc["dry_run"].get<bool>();
         if (pc.contains("max_file_size_kb")) rules_.project_context.max_file_size_kb = pc["max_file_size_kb"].get<int>();
+    }
+
+    // Contracts
+    if (j.contains("contracts") && j["contracts"].is_object()) {
+        auto& ct = j["contracts"];
+        if (ct.contains("level")) {
+            auto [en, lv] = parseEnforcementLevel(ct["level"]);
+            if (en) rules_.contracts.level = lv;
+        }
+        if (ct.contains("functions") && ct["functions"].is_object()) {
+            for (auto& [fn_name, fn_obj] : ct["functions"].items()) {
+                if (!fn_obj.is_object()) continue;
+                FunctionContract fc;
+                if (fn_obj.contains("description")) fc.description = fn_obj["description"].get<std::string>();
+                if (fn_obj.contains("level")) {
+                    auto [en, lv] = parseEnforcementLevel(fn_obj["level"]);
+                    if (en) fc.level = lv;
+                }
+                if (fn_obj.contains("return_type")) fc.return_type = fn_obj["return_type"].get<std::string>();
+                if (fn_obj.contains("return_range") && fn_obj["return_range"].is_array() && fn_obj["return_range"].size() == 2) {
+                    fc.has_return_range = true;
+                    fc.return_range_min = fn_obj["return_range"][0].get<double>();
+                    fc.return_range_max = fn_obj["return_range"][1].get<double>();
+                }
+                if (fn_obj.contains("return_min")) { fc.has_return_min = true; fc.return_min = fn_obj["return_min"].get<double>(); }
+                if (fn_obj.contains("return_max")) { fc.has_return_max = true; fc.return_max = fn_obj["return_max"].get<double>(); }
+                if (fn_obj.contains("return_one_of") && fn_obj["return_one_of"].is_array()) {
+                    for (auto& v : fn_obj["return_one_of"]) fc.return_one_of.push_back(v.get<std::string>());
+                }
+                if (fn_obj.contains("return_non_empty")) fc.return_non_empty = fn_obj["return_non_empty"].get<bool>();
+                if (fn_obj.contains("return_keys") && fn_obj["return_keys"].is_array()) {
+                    for (auto& k : fn_obj["return_keys"]) fc.return_keys.push_back(k.get<std::string>());
+                }
+                if (fn_obj.contains("return_length_min")) fc.return_length_min = fn_obj["return_length_min"].get<int>();
+                if (fn_obj.contains("return_length_max")) fc.return_length_max = fn_obj["return_length_max"].get<int>();
+                if (fn_obj.contains("return_not_null")) fc.return_not_null = fn_obj["return_not_null"].get<bool>();
+                rules_.contracts.functions[fn_name] = std::move(fc);
+            }
+        }
+    }
+
+    // Baselines
+    if (j.contains("baselines") && j["baselines"].is_object()) {
+        auto& bl = j["baselines"];
+        if (bl.contains("enabled")) rules_.baselines.enabled = bl["enabled"].get<bool>();
+        if (bl.contains("level")) {
+            auto [en, lv] = parseEnforcementLevel(bl["level"]);
+            if (en) rules_.baselines.level = lv;
+        }
+        if (bl.contains("path")) rules_.baselines.path = bl["path"].get<std::string>();
+        if (bl.contains("tolerance")) rules_.baselines.tolerance = bl["tolerance"].get<double>();
+        if (bl.contains("auto_record")) rules_.baselines.auto_record = bl["auto_record"].get<bool>();
+        if (bl.contains("hash_keys")) rules_.baselines.hash_keys = bl["hash_keys"].get<bool>();
     }
 }
 
@@ -1443,6 +1550,9 @@ std::string GovernanceEngine::enforce(
     }
 
     switch (level) {
+        case EnforcementLevel::NONE:
+            return "";  // Not enforced
+
         case EnforcementLevel::HARD:
             return violation_message;
 
@@ -2698,6 +2808,212 @@ std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int 
     return "";
 }
 
+// --- Function Contract Check ---
+
+std::string GovernanceEngine::checkFunctionContract(
+    const std::string& func_name,
+    const std::string& result_str,
+    const std::string& result_type,
+    int line) {
+
+    auto it = rules_.contracts.functions.find(func_name);
+    if (it == rules_.contracts.functions.end()) return "";
+
+    const auto& contract = it->second;
+    EnforcementLevel level = contract.level != EnforcementLevel::NONE
+        ? contract.level : rules_.contracts.level;
+
+    auto make_err = [&](const std::string& detail) -> std::string {
+        return enforce("contracts." + func_name, level,
+            formatError(level,
+                fmt::format("Contract violation for '{}': {}", func_name, detail),
+                line > 0 ? fmt::format("line {}", line) : "",
+                "contracts",
+                contract.description.empty() ? "Function return value did not match contract" : contract.description,
+                "", ""));
+    };
+
+    // return_not_null
+    if (contract.return_not_null && result_type == "null") {
+        return make_err("expected non-null return, got null");
+    }
+
+    // return_type
+    if (!contract.return_type.empty() && result_type != contract.return_type) {
+        return make_err(fmt::format("expected return_type '{}', got '{}'",
+            contract.return_type, result_type));
+    }
+
+    // Numeric checks
+    bool is_numeric = (result_type == "int" || result_type == "float");
+
+    if (contract.has_return_range && is_numeric) {
+        double val = std::stod(result_str);
+        if (val < contract.return_range_min || val > contract.return_range_max) {
+            return make_err(fmt::format("return value {} outside range [{}, {}]",
+                result_str, contract.return_range_min, contract.return_range_max));
+        }
+    }
+
+    if (contract.has_return_min && is_numeric) {
+        double val = std::stod(result_str);
+        if (val < contract.return_min) {
+            return make_err(fmt::format("return value {} below minimum {}",
+                result_str, contract.return_min));
+        }
+    }
+
+    if (contract.has_return_max && is_numeric) {
+        double val = std::stod(result_str);
+        if (val > contract.return_max) {
+            return make_err(fmt::format("return value {} above maximum {}",
+                result_str, contract.return_max));
+        }
+    }
+
+    // return_one_of
+    if (!contract.return_one_of.empty()) {
+        bool found = false;
+        for (const auto& opt : contract.return_one_of) {
+            if (result_str == opt) { found = true; break; }
+        }
+        if (!found) {
+            std::string opts;
+            for (const auto& opt : contract.return_one_of) {
+                if (!opts.empty()) opts += ", ";
+                opts += "\"" + opt + "\"";
+            }
+            return make_err(fmt::format("return value \"{}\" not in [{}]", result_str, opts));
+        }
+    }
+
+    // return_non_empty
+    if (contract.return_non_empty) {
+        bool empty = result_str.empty() || result_str == "[]" || result_str == "{}" || result_str == "\"\"";
+        if (empty) {
+            return make_err("expected non-empty return value");
+        }
+    }
+
+    // return_keys (for dicts)
+    if (!contract.return_keys.empty() && result_type == "dict") {
+        for (const auto& key : contract.return_keys) {
+            if (result_str.find(key) == std::string::npos) {
+                return make_err(fmt::format("return dict missing required key '{}'", key));
+            }
+        }
+    }
+
+    // return_length_min / return_length_max
+    if (contract.return_length_min >= 0 || contract.return_length_max >= 0) {
+        int length = -1;
+        if (result_type == "string") {
+            length = static_cast<int>(result_str.size());
+        } else if (result_type == "array") {
+            if (result_str == "[]") {
+                length = 0;
+            } else {
+                length = 1;
+                for (char c : result_str) {
+                    if (c == ',') length++;
+                }
+            }
+        }
+        if (length >= 0) {
+            if (contract.return_length_min >= 0 && length < contract.return_length_min) {
+                return make_err(fmt::format("return length {} below minimum {}",
+                    length, contract.return_length_min));
+            }
+            if (contract.return_length_max >= 0 && length > contract.return_length_max) {
+                return make_err(fmt::format("return length {} above maximum {}",
+                    length, contract.return_length_max));
+            }
+        }
+    }
+
+    return "";
+}
+
+// --- Complexity Floor Check ---
+
+std::string GovernanceEngine::checkComplexityFloor(
+    const std::string& code,
+    const std::string& function_name,
+    int line) {
+
+    auto& cfg = rules_.code_quality.complexity_floor;
+
+    // Analyze code structure
+    analyzer::SyntacticAnalyzer sa;
+    auto profile = sa.analyze(code);
+
+    // Determine which rule applies (if any)
+    int required_score = cfg.min_score;
+    bool require_branching = false;
+    std::string custom_message;
+
+    // Check name-specific rules (first match wins)
+    std::string fn_lower = function_name;
+    std::transform(fn_lower.begin(), fn_lower.end(), fn_lower.begin(), ::tolower);
+
+    for (const auto& rule : cfg.rules) {
+        bool matched = false;
+        for (const auto& name : rule.names) {
+            std::string name_lower = name;
+            std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
+            if (fn_lower.find(name_lower) != std::string::npos) {
+                matched = true;
+                break;
+            }
+        }
+        if (matched) {
+            required_score = rule.min_score;
+            require_branching = rule.require_branching_or_loops;
+            custom_message = rule.message;
+            break;
+        }
+    }
+
+    // Check complexity score against floor
+    if (profile.complexity_score < required_score) {
+        std::string msg = custom_message.empty()
+            ? fmt::format("Function '{}' has complexity score {} (minimum: {})",
+                function_name, profile.complexity_score, required_score)
+            : custom_message;
+
+        return enforce("code_quality.complexity_floor", cfg.level,
+            formatError(cfg.level, msg,
+                line > 0 ? fmt::format("line {}", line) : "",
+                "code_quality.complexity_floor",
+                fmt::format("Score {}/100: loops={}, branches={}, calls={}, recursion={}",
+                    profile.complexity_score, profile.loop_count,
+                    (profile.has_try_catch ? 1 : 0) + profile.max_function_depth,
+                    profile.external_call_count, profile.has_recursion ? "yes" : "no"),
+                "", ""));
+    }
+
+    // Check branching/loops requirement
+    if (require_branching) {
+        bool has_branching = profile.loop_count > 0 || profile.has_try_catch ||
+                            profile.max_function_depth > 0 || profile.has_recursion;
+        if (!has_branching) {
+            std::string msg = custom_message.empty()
+                ? fmt::format("Function '{}' requires branching or loops but has none", function_name)
+                : custom_message;
+
+            return enforce("code_quality.complexity_floor", cfg.level,
+                formatError(cfg.level, msg,
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "code_quality.complexity_floor",
+                    "Functions with names like analyze/compute/process should contain "
+                    "loops, conditionals, or recursive logic",
+                    "", ""));
+        }
+    }
+
+    return "";
+}
+
 // --- NAAb Function Body Quality Check ---
 
 std::string GovernanceEngine::checkNaabFunctionBody(
@@ -2709,8 +3025,9 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     auto& il_cfg = rules_.code_quality.no_incomplete_logic;
     auto& ph_cfg = rules_.code_quality.no_placeholders;
 
-    // Skip if all checks disabled
-    if (!os_cfg.enabled && !il_cfg.enabled && !ph_cfg.enabled) return "";
+    // Skip if all checks disabled (but still allow complexity_floor if enabled)
+    auto& cf_cfg_early = rules_.code_quality.complexity_floor;
+    if (!os_cfg.enabled && !il_cfg.enabled && !ph_cfg.enabled && !cf_cfg_early.enabled) return "";
 
     // EVA-10: Pre-strip strings to prevent false positives from string literals
     // e.g. a legitimate string "TODO" shouldn't trigger checkPlaceholders
@@ -2732,6 +3049,17 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     if (il_cfg.enabled) {
         err = checkIncompleteLogic(stripped, line);
         if (!err.empty()) return err;
+    }
+
+    // Complexity floor check for NAAb functions
+    auto& cf_cfg = rules_.code_quality.complexity_floor;
+    if (cf_cfg.enabled && cf_cfg.check_naab) {
+        // Skip if function contains polyglot blocks and skip_if_has_polyglot_block is set
+        bool has_polyglot = source_code.find("<<") != std::string::npos;
+        if (!has_polyglot || !cf_cfg.skip_if_has_polyglot_block) {
+            err = checkComplexityFloor(source_code, function_name, line);
+            if (!err.empty()) return err;
+        }
     }
 
     return "";
@@ -3515,6 +3843,12 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkHallucinatedApis(lang, code, line);  // Has its own stripping
     if (!err.empty()) return err;
 
+    // Complexity floor check for polyglot blocks
+    if (rules_.code_quality.complexity_floor.enabled && rules_.code_quality.complexity_floor.check_polyglot) {
+        err = checkComplexityFloor(stripped, "", line);
+        if (!err.empty()) return err;
+    }
+
     // Security checks — use stripped code
     err = checkShellInjection(stripped, line);
     if (!err.empty()) return err;
@@ -3587,7 +3921,8 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "version", "mode", "extends", "description",
         "languages", "capabilities", "limits", "requirements",
         "restrictions", "code_quality", "custom_rules", "scopes",
-        "output", "audit", "meta", "hooks", "polyglot", "polyglot_optimization"
+        "output", "audit", "meta", "hooks", "polyglot", "polyglot_optimization",
+        "contracts", "baselines", "project_context"
     };
 
     try {
@@ -4469,6 +4804,259 @@ std::string GovernanceEngine::generateVerificationCode(
     return generateEchoCode(target_lang, original_result);
 }
 
+// --- Output Baselines ---
+
+void GovernanceEngine::loadBaselines() {
+    if (baselines_loaded_) return;
+    baselines_loaded_ = true;
+
+    // Resolve path relative to govern.json directory
+    std::string path = rules_.baselines.path;
+    if (!path.empty() && path[0] != '/') {
+        auto gov_dir = std::filesystem::path(loaded_path_).parent_path();
+        path = (gov_dir / path).string();
+    }
+    baselines_path_ = path;
+
+    // Allocate JSON object on heap (opaque via void*)
+    auto* data = new nlohmann::json();
+    baselines_data_ = data;
+
+    std::ifstream in(path);
+    if (in.is_open()) {
+        try {
+            in >> *data;
+        } catch (...) {
+            // Corrupt file — start fresh
+            *data = nlohmann::json::object();
+        }
+    }
+
+    if (!data->contains("version")) (*data)["version"] = "1.0";
+    if (!data->contains("entries")) (*data)["entries"] = nlohmann::json::object();
+}
+
+void GovernanceEngine::saveBaselines() {
+    if (!baselines_data_) return;
+    auto* data = static_cast<nlohmann::json*>(baselines_data_);
+
+    auto parent = std::filesystem::path(baselines_path_).parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent);
+    }
+
+    std::ofstream out(baselines_path_);
+    if (out.is_open()) {
+        out << data->dump(2) << "\n";
+    }
+}
+
+void GovernanceEngine::recordBaseline(const std::string& key,
+                                       const std::string& output,
+                                       const std::string& type) {
+    loadBaselines();
+    if (!baselines_data_) return;
+    auto* data = static_cast<nlohmann::json*>(baselines_data_);
+
+    auto now = std::chrono::system_clock::now();
+    auto ts = std::chrono::duration_cast<std::chrono::seconds>(
+        now.time_since_epoch()).count();
+
+    nlohmann::json entry;
+    entry["output"] = output;
+    entry["type"] = type;
+    entry["recorded_at"] = ts;
+    entry["runs"] = 1;
+    entry["last_seen"] = ts;
+
+    (*data)["entries"][key] = entry;
+    saveBaselines();
+}
+
+std::string GovernanceEngine::checkBaseline(const std::string& key,
+                                             const std::string& output,
+                                             const std::string& type,
+                                             int line) {
+    if (!rules_.baselines.enabled) return "";
+
+    loadBaselines();
+    if (!baselines_data_) return "";
+    auto* data = static_cast<nlohmann::json*>(baselines_data_);
+
+    auto& entries = (*data)["entries"];
+    if (!entries.contains(key)) {
+        // No baseline exists
+        if (rules_.baselines.auto_record) {
+            recordBaseline(key, output, type);
+        }
+        return "";
+    }
+
+    auto& entry = entries[key];
+    std::string expected = entry["output"].get<std::string>();
+    std::string expected_type = entry.contains("type") ? entry["type"].get<std::string>() : "";
+
+    // Compare using tolerance for numeric types
+    bool matches = false;
+    if ((type == "float" || type == "int") &&
+        (expected_type == "float" || expected_type == "int")) {
+        matches = compareResults(output, expected, rules_.baselines.tolerance);
+    } else {
+        matches = (output == expected);
+    }
+
+    if (matches) {
+        // Update runs counter and last_seen
+        int runs = entry.contains("runs") ? entry["runs"].get<int>() : 0;
+        entry["runs"] = runs + 1;
+        auto now = std::chrono::system_clock::now();
+        auto ts = std::chrono::duration_cast<std::chrono::seconds>(
+            now.time_since_epoch()).count();
+        entry["last_seen"] = ts;
+        saveBaselines();
+        return "";
+    }
+
+    // Mismatch
+    return enforce("baselines", rules_.baselines.level,
+        formatError(rules_.baselines.level,
+            fmt::format("Baseline mismatch for '{}': expected '{}', got '{}'",
+                key, expected, output),
+            line > 0 ? fmt::format("line {}", line) : "",
+            "baselines",
+            "Output has changed from previously recorded baseline",
+            "", ""));
+}
+
+// --- Drift Tracking ---
+
+void GovernanceEngine::writeDriftEvent(
+    const std::string& language, const std::string& task_type,
+    const std::string& code_hash, const std::string& expected,
+    const std::string& got, int line, int consensus, int total,
+    const std::string& file) {
+
+    auto& dtc = rules_.polyglot_optimization.verification.drift_tracking;
+    if (!dtc.enabled) return;
+
+    // Expand ~ in path
+    std::string path = dtc.path;
+    if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
+        const char* home = std::getenv("HOME");
+        if (home) path = std::string(home) + path.substr(1);
+    }
+
+    // Ensure parent directory exists
+    auto parent = std::filesystem::path(path).parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent);
+    }
+
+    // Build JSONL entry
+    auto now = std::chrono::system_clock::now();
+    auto ts = std::chrono::duration_cast<std::chrono::seconds>(
+        now.time_since_epoch()).count();
+
+    nlohmann::json entry;
+    entry["ts"] = ts;
+    entry["lang"] = language;
+    entry["task"] = task_type;
+    if (dtc.include_code_hash && !code_hash.empty()) entry["hash"] = code_hash;
+    entry["expected"] = expected;
+    entry["got"] = got;
+    entry["line"] = line;
+    entry["consensus"] = consensus;
+    entry["total"] = total;
+    if (!file.empty()) entry["file"] = file;
+
+    // Read existing lines for ring buffer management
+    std::vector<std::string> lines;
+    {
+        std::ifstream in(path);
+        if (in.is_open()) {
+            std::string l;
+            while (std::getline(in, l)) {
+                if (!l.empty()) lines.push_back(l);
+            }
+        }
+    }
+
+    // Append new entry
+    lines.push_back(entry.dump());
+
+    // Ring buffer: trim to max_entries
+    if (dtc.max_entries > 0 && static_cast<int>(lines.size()) > dtc.max_entries) {
+        int excess = static_cast<int>(lines.size()) - dtc.max_entries;
+        lines.erase(lines.begin(), lines.begin() + excess);
+    }
+
+    // Write back
+    std::ofstream out(path);
+    if (out.is_open()) {
+        for (const auto& l : lines) {
+            out << l << "\n";
+        }
+    }
+}
+
+void GovernanceEngine::analyzeDriftTrend(const std::string& language) {
+    auto& dtc = rules_.polyglot_optimization.verification.drift_tracking;
+    if (!dtc.enabled) return;
+
+    // Expand ~ in path
+    std::string path = dtc.path;
+    if (path.size() >= 2 && path[0] == '~' && path[1] == '/') {
+        const char* home = std::getenv("HOME");
+        if (home) path = std::string(home) + path.substr(1);
+    }
+
+    // Read JSONL and filter by language
+    std::vector<nlohmann::json> events;
+    {
+        std::ifstream in(path);
+        if (!in.is_open()) return;
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            try {
+                auto j = nlohmann::json::parse(line);
+                if (j.contains("lang") && j["lang"].get<std::string>() == language) {
+                    events.push_back(std::move(j));
+                }
+            } catch (...) {
+                // Skip corrupt lines
+            }
+        }
+    }
+
+    // Look at last trend_window events
+    int window = dtc.trend_window;
+    int start = static_cast<int>(events.size()) > window
+        ? static_cast<int>(events.size()) - window : 0;
+
+    int drift_count = 0;
+    int total_in_window = 0;
+    for (int i = start; i < static_cast<int>(events.size()); i++) {
+        total_in_window++;
+        drift_count++;  // Every event in the drift log IS a drift event
+    }
+
+    if (total_in_window == 0) return;
+
+    double drift_rate = static_cast<double>(drift_count) / static_cast<double>(
+        total_in_window > window ? total_in_window : window);
+
+    if (drift_rate >= dtc.escalation_threshold) {
+        fprintf(stderr,
+            "\n  [governance] DRIFT TREND WARNING: %s has %.0f%% drift rate "
+            "(%d events in last %d window)\n"
+            "    Threshold: %.0f%% — consider investigating %s block consistency\n\n",
+            language.c_str(), drift_rate * 100.0,
+            drift_count, total_in_window,
+            dtc.escalation_threshold * 100.0, language.c_str());
+    }
+}
+
 std::string GovernanceEngine::verifyPolyglotResult(
     const std::string& language,
     const std::string& code,
@@ -4616,6 +5204,17 @@ std::string GovernanceEngine::verifyPolyglotResult(
     }
 
     fmt::print("    Task: {} | Consensus: {}/{}\n\n", task_type, agree_count, total_count);
+
+    // Drift tracking: write event and analyze trend
+    {
+        std::size_t hash_val = std::hash<std::string>{}(code);
+        char hash_buf[16];
+        snprintf(hash_buf, sizeof(hash_buf), "%06zx", hash_val & 0xFFFFFF);
+        writeDriftEvent(language, task_type, hash_buf, result_str,
+            drift_details.empty() ? "" : drift_details[0],
+            line, agree_count, total_count, "");
+        analyzeDriftTrend(language);
+    }
 
     // Audit logging for soft/hard enforcement
     if (level_str == "soft" || level_str == "hard") {

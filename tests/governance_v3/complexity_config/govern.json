@@ -1,0 +1,25 @@
+{
+  "version": "3.0",
+  "code_quality": {
+    "complexity_floor": {
+      "level": "hard",
+      "min_score": 15,
+      "check_polyglot": true,
+      "check_naab": true,
+      "skip_if_has_polyglot_block": true,
+      "rules": [
+        {
+          "names": ["analyze", "compute", "calculate", "process"],
+          "min_score": 25,
+          "require_branching_or_loops": true,
+          "message": "Functions named analyze/compute/process must contain non-trivial logic"
+        },
+        {
+          "names": ["get", "set", "is_", "has_"],
+          "min_score": 3,
+          "require_branching_or_loops": false
+        }
+      ]
+    }
+  }
+}

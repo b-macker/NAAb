@@ -1,0 +1,15 @@
+// Test: complexity_floor governance check
+// This file has a trivial "analyze" function that should be caught
+// by the complexity floor rule (requires min_score 25 + branching)
+// EXPECTED: governance HARD violation
+
+fn analyze_sentiment(text) {
+    let words = text
+    let score = len(words)
+    return score
+}
+
+main {
+    let result = analyze_sentiment("hello world")
+    print(result)
+}
