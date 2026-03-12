@@ -65,6 +65,13 @@ static const std::vector<DangerousPattern> DANGEROUS_PATTERNS_DB = {
      "Use json.loads() — pickle can execute arbitrary code"},
     {"python", "yaml\\.load\\s*\\([^)]*(?!Loader)", "yaml.load() without SafeLoader",
      "Use yaml.safe_load() instead"},
+    // EVA-EXTRA-2: Additional Python dangerous patterns
+    {"python", "\\bcompile\\s*\\(.*\\bexec\\b",  "compile()+exec (dynamic code execution)",
+     "Use direct function calls instead of dynamic code generation"},
+    {"python", "\\bgetattr\\s*\\(",  "getattr() call (dynamic attribute access)",
+     "Use direct attribute access instead of dynamic lookup"},
+    {"python", "\\bimportlib\\.",    "importlib usage (dynamic imports)",
+     "Use standard import statements"},
 
     // JavaScript
     {"javascript", "\\beval\\s*\\(",       "eval() call",
@@ -120,7 +127,13 @@ static const std::vector<DangerousPattern> NETWORK_IMPORT_PATTERNS = {
 
 static const std::vector<std::string> PLACEHOLDER_PATTERNS_DB = {
     "TODO", "FIXME", "STUB", "PLACEHOLDER", "XXX", "TBD",
-    "HACK", "IMPLEMENT_ME", "RUNTIME_COMPUTED"
+    "HACK", "IMPLEMENT_ME", "RUNTIME_COMPUTED",
+    "NOT_IMPLEMENTED", "UNFINISHED", "INCOMPLETE", "TEMPORARY",
+    "PROTOTYPE", "DRAFT", "WIP", "WORK_IN_PROGRESS",
+    "NEEDS_IMPLEMENTATION", "IMPLEMENT_LATER", "NEEDS_WORK",
+    "NOT_YET_IMPLEMENTED", "UNIMPLEMENTED", "SKELETON",
+    "BOILERPLATE", "SAMPLE_DATA", "DUMMY_DATA", "FAKE_DATA",
+    "MOCK_RESULT", "SIMULATED", "HARDCODED_RESPONSE"
 };
 
 struct HardcodedResultPattern {
@@ -129,17 +142,19 @@ struct HardcodedResultPattern {
 };
 
 static const std::vector<HardcodedResultPattern> HARDCODED_RESULT_PATTERNS_DB = {
-    {"return\\s+True\\s*#",    "Hardcoded return True with comment"},
-    {"return\\s+False\\s*#",   "Hardcoded return False with comment"},
-    {"return\\s+0\\s*#",       "Hardcoded return 0 with comment"},
-    {"return\\s+None\\s*#",    "Hardcoded return None with comment"},
-    {"#\\s*for now",           "Temporary implementation marker (# for now)"},
-    {"#\\s*simplified",        "Simplified implementation marker"},
-    {"#\\s*placeholder",       "Placeholder implementation marker"},
-    {"#\\s*stub",              "Stub implementation marker"},
-    {"#\\s*not implemented",   "Not implemented marker"},
-    {"#\\s*basic implementation", "Basic implementation marker"},
-    {"#\\s*minimal",           "Minimal implementation marker"},
+    // Return-with-comment patterns (both # and // comment styles)
+    {"return\\s+True\\s*(?:#|//)",    "Hardcoded return True with comment"},
+    {"return\\s+False\\s*(?:#|//)",   "Hardcoded return False with comment"},
+    {"return\\s+0\\s*(?:#|//)",       "Hardcoded return 0 with comment"},
+    {"return\\s+None\\s*(?:#|//)",    "Hardcoded return None with comment"},
+    // EVA-EXTRA-4: Comment markers — both # and // styles
+    {"(?:#|//)\\s*for now",           "Temporary implementation marker"},
+    {"(?:#|//)\\s*simplified",        "Simplified implementation marker"},
+    {"(?:#|//)\\s*placeholder",       "Placeholder implementation marker"},
+    {"(?:#|//)\\s*stub",              "Stub implementation marker"},
+    {"(?:#|//)\\s*not implemented",   "Not implemented marker"},
+    {"(?:#|//)\\s*basic implementation", "Basic implementation marker"},
+    {"(?:#|//)\\s*minimal",           "Minimal implementation marker"},
 };
 
 // ============================================================================
@@ -1281,6 +1296,37 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
     }
 }
 
+// EVA-11/EVA-12: Governance integrity check
+// Prevents LLM config manipulation by ensuring anti-evasion checks have
+// minimum enforcement levels. An LLM could write govern.json with all
+// checks set to "advisory" (warn-only) to bypass quality gates.
+void GovernanceEngine::enforceMinimumLevels() {
+    // Helper: elevate advisory to soft for anti-evasion checks
+    auto elevate = [](auto& cfg, const char* name) {
+        if (cfg.enabled && cfg.level == EnforcementLevel::ADVISORY) {
+            fprintf(stderr, "[governance] WARNING: %s was set to advisory — "
+                    "elevating to soft (minimum for anti-evasion checks)\n", name);
+            cfg.level = EnforcementLevel::SOFT;
+        }
+    };
+
+    elevate(rules_.code_quality.no_oversimplification, "no_oversimplification");
+    elevate(rules_.code_quality.no_incomplete_logic, "no_incomplete_logic");
+    elevate(rules_.code_quality.no_simulation_markers, "no_simulation_markers");
+    elevate(rules_.code_quality.no_temporary_code, "no_temporary_code");
+    elevate(rules_.code_quality.no_apologetic_language, "no_apologetic_language");
+
+    // Warn about contradictory config: code quality checks enabled but mode is audit/off
+    if (rules_.mode != GovernanceMode::ENFORCE) {
+        if (rules_.code_quality.no_oversimplification.enabled ||
+            rules_.code_quality.no_incomplete_logic.enabled) {
+            fprintf(stderr, "[governance] WARNING: Code quality checks are enabled but mode is %s. "
+                    "Code quality checks will NOT block — use mode: enforce for protection.\n",
+                    rules_.mode == GovernanceMode::AUDIT ? "audit" : "off");
+        }
+    }
+}
+
 bool GovernanceEngine::loadFromFile(const std::string& path) {
     try {
         std::ifstream ifs(path);
@@ -1290,6 +1336,10 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         loadFromJson(j, rules_);
         loaded_path_ = path;
         active_ = (rules_.mode != GovernanceMode::OFF);
+
+        // EVA-11/EVA-12: Enforce minimum levels for anti-evasion checks
+        enforceMinimumLevels();
+
         return true;
     } catch (const nlohmann::json::parse_error& e) {
         throw std::runtime_error(fmt::format(
@@ -1921,6 +1971,34 @@ static std::string stripStringLiterals(const std::string& code) {
         char c = code[i];
         if (escaped) { escaped = false; continue; }
         if (c == '\\' && (in_single || in_double)) { escaped = true; continue; }
+
+        // EVA-6: Triple-double-quote: """...""" (Python docstrings)
+        if (c == '"' && !in_single && !in_backtick && !in_double
+            && i+2 < code.size() && code[i+1] == '"' && code[i+2] == '"') {
+            i += 3;  // skip opening """
+            while (i+2 < code.size()) {
+                if (code[i] == '"' && code[i+1] == '"' && code[i+2] == '"') {
+                    i += 2;  // will be incremented by loop
+                    break;
+                }
+                i++;
+            }
+            continue;
+        }
+        // EVA-6: Triple-single-quote: '''...'''
+        if (c == '\'' && !in_double && !in_backtick && !in_single
+            && i+2 < code.size() && code[i+1] == '\'' && code[i+2] == '\'') {
+            i += 3;
+            while (i+2 < code.size()) {
+                if (code[i] == '\'' && code[i+1] == '\'' && code[i+2] == '\'') {
+                    i += 2;
+                    break;
+                }
+                i++;
+            }
+            continue;
+        }
+
         if (c == '"' && !in_single && !in_backtick) { in_double = !in_double; continue; }
         if (c == '\'' && !in_double && !in_backtick) { in_single = !in_single; continue; }
         if (c == '`' && !in_double && !in_single) { in_backtick = !in_backtick; continue; }
@@ -2040,12 +2118,19 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
 
 // --- Temporary Code ---
 static const std::vector<std::string> DEFAULT_TEMP_PATTERNS = {
-    "# [Ff]or now", "# [Tt]emporary", "# [Qq]uick fix",
-    "# [Ww]ill implement later", "# [Ss]implified",
-    "# [Bb]asic implementation", "# [Mm]inimal implementation",
-    "# [Ww]ill (?:replace|refactor|rewrite)", "# [Nn]eeds? (?:refactoring|improvement|work)",
-    "# [Ss]kipping for now", "# [Dd]efer(?:red)?", "# [Pp]rototype",
-    "# [Ww]orkaround", "# [Bb]andaid", "# [Bb]and-aid",
+    // EVA-5: Comment-prefix-agnostic patterns — match # (Python/Shell/Ruby)
+    // and // (JS/Go/Rust/NAAb/C++/C#/Java) comment styles
+    "(?:#|//)\\s*[Ff]or now", "(?:#|//)\\s*[Tt]emporary", "(?:#|//)\\s*[Qq]uick fix",
+    "(?:#|//)\\s*[Ww]ill implement later", "(?:#|//)\\s*[Ss]implified",
+    "(?:#|//)\\s*[Bb]asic implementation", "(?:#|//)\\s*[Mm]inimal implementation",
+    "(?:#|//)\\s*[Ww]ill (?:replace|refactor|rewrite)",
+    "(?:#|//)\\s*[Nn]eeds? (?:refactoring|improvement|work)",
+    "(?:#|//)\\s*[Ss]kipping for now", "(?:#|//)\\s*[Dd]efer(?:red)?",
+    "(?:#|//)\\s*[Pp]rototype", "(?:#|//)\\s*[Ww]orkaround",
+    "(?:#|//)\\s*[Bb]and.?aid",
+    // Multi-line comment markers (C-style /* */)
+    "\\*\\s*[Tt]emporary", "\\*\\s*[Ss]implified",
+    "\\*\\s*[Ff]or now", "\\*\\s*[Pp]laceholder",
 };
 
 std::string GovernanceEngine::checkTemporaryCode(const std::string& code, int line) {
@@ -2426,6 +2511,47 @@ static const std::vector<std::string> DEFAULT_OVERSIMPLIFICATION_PATTERNS = {
     // Hardcoded/fabricated results
     "return\\s+\\{[\"']status[\"']:\\s*[\"'](?:ok|success|done)[\"']",
     "print\\([\"'](?:Processing|Done|Complete|Success|Working)[\"']\\)\\s*$",
+
+    // ============================================================
+    // LLM stub evasion patterns — comments that admit code is incomplete
+    // EVA-5: Merged #//-prefixed patterns into (?:#|//) for all comment styles
+    // ============================================================
+
+    "(?:#|//)\\s*(?:basic|simplified|simple|minimal|trivial|naive|rough|crude)\\s+(?:implementation|version|approach|logic|solution|code|algorithm)",
+    "(?:#|//)\\s*(?:for|in)\\s+(?:demonstration|demo|testing|test|example|simplicity|now|this exercise)\\s*(?:purposes?|only)?",
+    "(?:#|//)\\s*(?:mock|dummy|fake|placeholder|simulated|hardcoded|synthetic|fabricated|generated)\\s+(?:data|implementation|result|value|response|output|return)",
+    "(?:#|//)\\s*(?:will be|to be|should be|needs to be|can be|could be)\\s+(?:replaced|implemented|completed|finished|done|updated|improved|expanded|fleshed out)",
+    "(?:#|//)\\s*(?:left as|serves as|acts as|used as)\\s+(?:an?\\s+)?(?:exercise|example|placeholder|starting point|skeleton|template|scaffold|stub|fallback)",
+    "(?:#|//)\\s*(?:in a|in the|for a)\\s+(?:real|production|actual|proper|full|complete)\\s+(?:system|application|implementation|version|world|scenario|environment)",
+    "(?:#|//)\\s*(?:not\\s+)?(?:fully|completely|properly|actually|really|truly)\\s+(?:implemented|finished|done|functional|working|complete|developed)",
+    "(?:#|//)\\s*(?:this is|this was|here we|we just|i just|just)\\s+(?:a simplified|just a|only a|a basic|a rough|a naive|a quick|a temporary|a stopgap|using a simple)",
+    "(?:#|//)\\s*(?:for now|temporary|interim|stopgap|quick and dirty|quick fix|short.?term|band.?aid)",
+    "(?:#|//)\\s*(?:no.op|noop|no operation|does nothing|empty|stub|pass.?through|identity|dummy|skip|bypass|shortcut)",
+    "(?:#|//)\\s*(?:would normally|would actually|should actually|in reality|ideally|in practice)\\s+(?:do|use|call|implement|process|compute|calculate|analyze|check|validate)",
+    "(?:#|//)\\s*(?:skipping|omitting|ignoring|bypassing|not doing|not implementing|eliding)\\s+(?:actual|real|proper|full|the)\\s+(?:logic|implementation|computation|analysis|processing|validation|checking)",
+
+    // ============================================================
+    // EVA-9: NAAb-specific function stub patterns (fn keyword, {} braces)
+    // ============================================================
+    "fn\\s+\\w+\\([^)]*\\)\\s*\\{\\s*return\\s+true\\s*\\}",       // fn x() { return true }
+    "fn\\s+\\w+\\([^)]*\\)\\s*\\{\\s*return\\s+false\\s*\\}",
+    "fn\\s+\\w+\\([^)]*\\)\\s*\\{\\s*return\\s+null\\s*\\}",
+    "fn\\s+\\w+\\([^)]*\\)\\s*\\{\\s*return\\s+0\\s*\\}",
+    "fn\\s+\\w+\\([^)]*\\)\\s*\\{\\s*return\\s+\\[\\]\\s*\\}",     // fn x() { return [] }
+    "fn\\s+\\w+\\([^)]*\\)\\s*\\{\\s*return\\s+\\{\\}\\s*\\}",     // fn x() { return {} }
+    "fn\\s+\\w+\\([^)]*\\)\\s*\\{\\s*return\\s+\"\"\\s*\\}",       // fn x() { return "" }
+
+    // ============================================================
+    // EVA-EXTRA-1: Creative LLM synonyms for stubs
+    // ============================================================
+    "(?:#|//)\\s*(?:approximate|toy|pedagogical|illustrative|proof.of.concept)\\s+(?:implementation|version|code|example)",
+    "(?:#|//)\\s*(?:MVP|bare.minimum|stripped.down|condensed|abridged|truncated)\\s+(?:version|implementation|code)",
+    "(?:#|//)\\s*(?:for brevity|for simplicity|for clarity|for readability)",
+    "(?:#|//)\\s*(?:skeleton|boilerplate|starter|template|scaffold)\\s+(?:code|implementation|version)",
+    "(?:#|//)\\s*(?:stand.?in|filler|surrogate|substitute)\\s+(?:implementation|code|data|value)",
+    "(?:#|//)\\s*(?:dummy|fake|fabricated|synthetic|contrived|artificial)\\s+(?:result|data|output|value|response|computation|calculation)",
+    "(?:#|//)\\s*(?:omitted|elided|redacted|removed|cut)\\s+(?:for|due to)\\s+(?:brevity|space|time|simplicity)",
+    "(?:#|//)\\s*(?:actual|real|proper|production|full)\\s+(?:implementation|logic|code|version)\\s+(?:would|should|goes|belongs)\\s+here",
 };
 
 std::string GovernanceEngine::checkOversimplification(const std::string& code, int line) {
@@ -2441,13 +2567,21 @@ std::string GovernanceEngine::checkOversimplification(const std::string& code, i
     std::string found = searchPatterns(code, active_pats, !cfg.case_sensitive);
     if (!found.empty()) {
         return enforce("code_quality.no_oversimplification", cfg.level,
-            formatError(cfg.level, fmt::format("Oversimplified code: \"{}\"", found),
+            formatError(cfg.level, fmt::format("Oversimplified code detected: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_oversimplification",
-                "This looks like a stub or trivial implementation.\n"
-                "LLMs often produce minimal code that passes syntax checks but lacks real logic.\n"
-                "Implement the actual business logic instead of a placeholder.",
-                "def validate(data): return True",
-                "def validate(data):\n    if not isinstance(data, dict): raise TypeError(...)\n    ..."));
+                "This code appears to be a stub, placeholder, or trivially incomplete implementation.\n"
+                "The governance engine requires REAL logic that actually processes data.\n"
+                "LLMs commonly produce code with comments describing what SHOULD happen\n"
+                "instead of actual working code — this pattern is blocked.\n\n"
+                "  Key principle: Comments should explain WHY, not replace WHAT.",
+                "# simplified implementation for demonstration\n"
+                "def analyze(text):\n"
+                "    return []  # would normally do NLP analysis",
+                "def analyze(text):\n"
+                "    words = text.lower().split()\n"
+                "    patterns = {\"but\": 0.1, \"however\": 0.1, \"although\": 0.05}\n"
+                "    score = sum(patterns.get(w, 0) for w in words)\n"
+                "    return [{\"word\": w, \"weight\": patterns[w]} for w in words if w in patterns]"));
     }
     recordPass("code_quality.no_oversimplification", cfg.level);
     return "";
@@ -2491,6 +2625,43 @@ static const std::vector<std::string> DEFAULT_INCOMPLETE_LOGIC_PATTERNS = {
     "else:\\s*pass\\s*$",
     // Placeholder error messages
     "[\"'](?:Something went wrong|An error occurred|Failed|Unknown error|Unexpected error)[\"']",
+
+    // ============================================================
+    // LLM no-op / passthrough disguises
+    // ============================================================
+
+    // Return empty collections (suspicious when in analysis/compute functions)
+    "return\\s+\\[\\]\\s*(?:#|//|$)",
+    "return\\s+\\{\\}\\s*(?:#|//|$)",
+
+    // Passthrough/identity functions
+    "return\\s+(?:input|data|text|value|args?|params?|x|obj|item|content|payload|message|request|response)\\s*(?:#|//)\\s*(?:unchanged|as.?is|pass.?through|no.?change|unmodified|untouched|directly)",
+
+    // Random/simulated data generators (pretending to compute real results)
+    "random\\.(?:random|uniform|randint|choice|gauss|sample|shuffle)\\(\\)\\s*(?:#|//)",
+    "Math\\.random\\(\\)\\s*(?:#|//)",
+
+    // Hardcoded score arrays (suspicious in analysis functions)
+    "scores?\\s*=\\s*\\[\\s*(?:0\\.\\d+,?\\s*){3,}\\]",
+
+    // Hardcoded numeric results (suspicious in analysis functions)
+    "(?:score|accuracy|precision|recall|f1|confidence|probability|similarity|distance|weight)\\s*=\\s*(?:0\\.\\d+|[1-5]\\.\\d)\\s*(?:#|//|$)",
+
+    // Degenerate implementations
+    "for\\s+\\w+\\s+in\\s+\\w+\\s*\\{\\s*\\}",
+    "while\\s+\\w+\\s*\\{\\s*break\\s*\\}",
+
+    // EVA-9: NAAb-specific incomplete logic patterns
+    // NAAb catch-and-swallow (empty catch blocks)
+    "catch\\s*\\([^)]*\\)\\s*\\{\\s*\\}",
+    // NAAb identity/passthrough validation functions
+    "fn\\s+(?:validate|check|verify|is_)\\w*\\([^)]*\\)\\s*\\{\\s*return\\s+true\\s*\\}",
+
+    // EVA-EXTRA-3: Numeric result fabrication patterns
+    // Suspiciously precise hardcoded scores (LLMs love 0.85, 0.92, etc.)
+    "(?:score|accuracy|precision|recall|f1|confidence|similarity)\\s*=\\s*0\\.[89]\\d\\s*(?:#|//|$)",
+    // Array of hardcoded floats (fabricated results)
+    "\\[\\s*(?:0\\.\\d+,\\s*){4,}\\]",
 };
 
 std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int line) {
@@ -2505,15 +2676,64 @@ std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int 
     std::string found = searchPatterns(code, active_pats, !cfg.case_sensitive);
     if (!found.empty()) {
         return enforce("code_quality.no_incomplete_logic", cfg.level,
-            formatError(cfg.level, fmt::format("Incomplete logic: \"{}\"", found),
+            formatError(cfg.level, fmt::format("Incomplete logic detected: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_incomplete_logic",
                 "This code has logic gaps that indicate shortcuts or lazy implementation.\n"
                 "Common issues: empty catch blocks, generic error messages, degenerate loops,\n"
-                "always-true/false conditions, or swallowed exceptions.",
-                "except Exception: pass  # swallows all errors",
-                "except ValueError as e:\n    logger.error(f\"Validation failed: {e}\")\n    raise"));
+                "always-true/false conditions, swallowed exceptions, or identity functions.\n\n"
+                "  Key principle: Every function should DO something meaningful.\n"
+                "  - Error handlers must log or re-raise, never silently swallow\n"
+                "  - Return values must be computed, not hardcoded\n"
+                "  - Loops must process data, not immediately break",
+                "except Exception: pass  # swallows all errors\n"
+                "return []  # would normally compute results\n"
+                "score = 0.85  # hardcoded instead of computed",
+                "except ValueError as e:\n"
+                "    logger.error(f\"Validation failed: {e}\")\n"
+                "    raise\n\n"
+                "results = [analyze(item) for item in data]  # actual computation\n"
+                "score = len(matches) / len(total) if total else 0.0  # real calculation"));
     }
     recordPass("code_quality.no_incomplete_logic", cfg.level);
+    return "";
+}
+
+// --- NAAb Function Body Quality Check ---
+
+std::string GovernanceEngine::checkNaabFunctionBody(
+    const std::string& function_name,
+    const std::string& source_code,
+    int line) {
+
+    auto& os_cfg = rules_.code_quality.no_oversimplification;
+    auto& il_cfg = rules_.code_quality.no_incomplete_logic;
+    auto& ph_cfg = rules_.code_quality.no_placeholders;
+
+    // Skip if all checks disabled
+    if (!os_cfg.enabled && !il_cfg.enabled && !ph_cfg.enabled) return "";
+
+    // EVA-10: Pre-strip strings to prevent false positives from string literals
+    // e.g. a legitimate string "TODO" shouldn't trigger checkPlaceholders
+    std::string stripped = stripStringLiterals(source_code);
+
+    // Run applicable checks on the stripped source code
+    std::string err;
+
+    if (ph_cfg.enabled) {
+        err = checkPlaceholders(stripped, line);
+        if (!err.empty()) return err;
+    }
+
+    if (os_cfg.enabled) {
+        err = checkOversimplification(stripped, line);
+        if (!err.empty()) return err;
+    }
+
+    if (il_cfg.enabled) {
+        err = checkIncompleteLogic(stripped, line);
+        if (!err.empty()) return err;
+    }
+
     return "";
 }
 
@@ -3249,21 +3469,24 @@ std::string GovernanceEngine::checkPolyglotBlock(
     if (!err.empty()) return err;
 
     // Pattern-based checks use STRIPPED code to avoid string-content false positives
-    err = checkPlaceholders(stripped_all, line);
+    // EVA-1 through EVA-4: Placeholders, temp code, simulation markers, and apologetic
+    // language patterns match COMMENT text, so use `stripped` (comments preserved)
+    // instead of `stripped_all` (comments removed) which made them 100% dead
+    err = checkPlaceholders(stripped, line);
     if (!err.empty()) return err;
     err = checkHardcodedResults(stripped, line);
     if (!err.empty()) return err;
     err = checkDangerousCall(lang, stripped, line);
     if (!err.empty()) return err;
 
-    // New v3.0 checks — use stripped code
-    err = checkTemporaryCode(stripped_all, line);
+    // New v3.0 checks — use stripped (strings removed, comments preserved)
+    err = checkTemporaryCode(stripped, line);
     if (!err.empty()) return err;
-    err = checkSimulationMarkers(stripped_all, line);
+    err = checkSimulationMarkers(stripped, line);
     if (!err.empty()) return err;
     err = checkMockData(code, line);  // Mock data: literals ARE in strings, keep raw
     if (!err.empty()) return err;
-    err = checkApologeticLanguage(stripped_all, line);
+    err = checkApologeticLanguage(stripped, line);
     if (!err.empty()) return err;
     err = checkDeadCode(stripped, line);
     if (!err.empty()) return err;

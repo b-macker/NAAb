@@ -1,0 +1,13 @@
+// Test: EVA-11/EVA-12 — Advisory level elevation
+// The govern.json sets oversimplification to "advisory" (warn-only)
+// but enforceMinimumLevels() should elevate it to "soft" (blocking)
+// This test SHOULD fail with a governance error, not just a warning
+main {
+    let result = <<python
+# simplified implementation
+def analyze(text):
+    return []
+analyze("test")
+>>
+    print(result)
+}

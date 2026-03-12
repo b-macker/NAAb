@@ -1595,6 +1595,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
             // Export function: execute the function declaration and mark it as exported
             auto* func_decl = node.getFunctionDecl();
             if (func_decl) {
+                // EVA-8: GOV-6 scan moved to visit(FunctionDecl&) — all functions scanned
                 func_decl->accept(*this);  // This will define the function in current_env_
 
                 // Get the function value we just defined
@@ -1764,6 +1765,41 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
 }
 
 void Interpreter::visit(ast::FunctionDecl& node) {
+    // EVA-8: GOV-6 extended — scan ALL function bodies (not just exported)
+    if (governance_) {
+        auto loc = node.getLocation();
+        if (loc.line > 0 && !current_file_.empty()) {
+            std::ifstream src_file(current_file_);
+            if (src_file.is_open()) {
+                std::vector<std::string> lines;
+                std::string line;
+                while (std::getline(src_file, line)) {
+                    lines.push_back(line);
+                }
+                src_file.close();
+
+                if (loc.line <= static_cast<int>(lines.size())) {
+                    std::string body_text;
+                    int brace_depth = 0;
+                    bool found_start = false;
+                    for (size_t i = static_cast<size_t>(loc.line - 1); i < lines.size(); ++i) {
+                        body_text += lines[i] + "\n";
+                        for (char c : lines[i]) {
+                            if (c == '{') { brace_depth++; found_start = true; }
+                            if (c == '}') brace_depth--;
+                        }
+                        if (found_start && brace_depth <= 0) break;
+                    }
+                    std::string err = governance_->checkNaabFunctionBody(
+                        node.getName(), body_text, loc.line);
+                    if (!err.empty()) {
+                        throw std::runtime_error(err);
+                    }
+                }
+            }
+        }
+    }
+
     // Phase 2.1: Extract parameter names, types, and default values
     std::vector<std::string> param_names;
     std::vector<ast::Type> param_types;
@@ -1952,6 +1988,41 @@ void Interpreter::visit(ast::EnumDecl& node) {
 }
 
 void Interpreter::visit(ast::MainBlock& node) {
+    // EVA-8: Scan main block body for stubs/oversimplification
+    if (governance_) {
+        auto loc = node.getLocation();
+        if (loc.line > 0 && !current_file_.empty()) {
+            std::ifstream src_file(current_file_);
+            if (src_file.is_open()) {
+                std::vector<std::string> lines;
+                std::string line;
+                while (std::getline(src_file, line)) {
+                    lines.push_back(line);
+                }
+                src_file.close();
+
+                if (loc.line <= static_cast<int>(lines.size())) {
+                    std::string body_text;
+                    int brace_depth = 0;
+                    bool found_start = false;
+                    for (size_t i = static_cast<size_t>(loc.line - 1); i < lines.size(); ++i) {
+                        body_text += lines[i] + "\n";
+                        for (char c : lines[i]) {
+                            if (c == '{') { brace_depth++; found_start = true; }
+                            if (c == '}') brace_depth--;
+                        }
+                        if (found_start && brace_depth <= 0) break;
+                    }
+                    std::string err = governance_->checkNaabFunctionBody(
+                        "main", body_text, loc.line);
+                    if (!err.empty()) {
+                        throw std::runtime_error(err);
+                    }
+                }
+            }
+        }
+    }
+
     node.getBody()->accept(*this);
 }
 
@@ -6760,21 +6831,59 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 std::ostringstream oss;
                 oss << "Block contract violation: <<" << language << " -> JSON>> expected a JSON return value, "
                     << "but no valid JSON was found in stdout.\n\n"
-                    << "  Help:\n"
-                    << "  - Use naab_return({...}) to explicitly return JSON data\n"
-                    << "  - Or print valid JSON as the last line of output\n\n"
-                    << "  Example:\n"
-                    << "    let data = <<" << language << " -> JSON\n";
+                    << "  The '-> JSON' header means the block MUST output valid JSON.\n"
+                    << "  The last printed line must be a JSON string — not a bare value.\n\n"
+                    << "  Common mistakes:\n"
+                    << "  - Printing a bare number/string without JSON formatting\n"
+                    << "  - Using 'return' instead of 'print' (polyglot uses stdout, not return)\n"
+                    << "  - Printing debug output after the JSON line\n\n";
                 if (language == "python") {
-                    oss << "    import json\n"
+                    oss << "  \xE2\x9C\x97 Wrong:\n"
+                        << "    <<python -> JSON\n"
                         << "    result = {\"key\": [1, 2, 3]}\n"
-                        << "    naab_return(result)\n";
+                        << "    result    # bare expression — NOT printed to stdout\n"
+                        << "    >>\n\n"
+                        << "  \xE2\x9C\x93 Right:\n"
+                        << "    <<python -> JSON\n"
+                        << "    import json\n"
+                        << "    result = {\"key\": [1, 2, 3]}\n"
+                        << "    print(json.dumps(result))    # explicit JSON output\n"
+                        << "    >>\n";
                 } else if (language == "javascript" || language == "js") {
-                    oss << "    naab_return({key: [1, 2, 3]})\n";
+                    oss << "  \xE2\x9C\x97 Wrong:\n"
+                        << "    <<javascript -> JSON\n"
+                        << "    const data = {key: [1, 2, 3]};\n"
+                        << "    data;    // bare expression — NOT printed\n"
+                        << "    >>\n\n"
+                        << "  \xE2\x9C\x93 Right:\n"
+                        << "    <<javascript -> JSON\n"
+                        << "    const data = {key: [1, 2, 3]};\n"
+                        << "    console.log(JSON.stringify(data));    // explicit JSON output\n"
+                        << "    >>\n";
+                } else if (language == "shell" || language == "bash" || language == "sh") {
+                    oss << "  \xE2\x9C\x93 Right:\n"
+                        << "    <<shell -> JSON\n"
+                        << "    echo '{\"key\": [1, 2, 3]}'\n"
+                        << "    >>\n";
+                } else if (language == "go") {
+                    oss << "  \xE2\x9C\x93 Right:\n"
+                        << "    <<go -> JSON\n"
+                        << "    package main\n"
+                        << "    import (\"encoding/json\"; \"fmt\")\n"
+                        << "    func main() {\n"
+                        << "        data := map[string]interface{}{\"key\": []int{1, 2, 3}}\n"
+                        << "        b, _ := json.Marshal(data)\n"
+                        << "        fmt.Println(string(b))\n"
+                        << "    }\n"
+                        << "    >>\n";
                 } else {
-                    oss << "    naab_return(your_data)\n";
+                    oss << "  \xE2\x9C\x93 Right:\n"
+                        << "    <<" << language << " -> JSON\n"
+                        << "    // Print valid JSON as the LAST line of stdout\n"
+                        << "    // e.g.: {\"key\": \"value\", \"count\": 42}\n"
+                        << "    >>\n";
                 }
-                oss << "    >>\n";
+                oss << "\n  Key rule: -> JSON requires the last stdout line to be valid JSON.\n";
                 gc_suspended_ = false;
                 throw std::runtime_error(oss.str());
             }
@@ -7674,21 +7783,25 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                     std::ostringstream oss;
                     oss << "Block contract violation: <<" << lang_str << " -> JSON>> expected a JSON return value, "
                         << "but no valid JSON was found in stdout.\n\n"
-                        << "  Help:\n"
-                        << "  - Use naab_return({...}) to explicitly return JSON data\n"
-                        << "  - Or print valid JSON as the last line of output\n\n"
-                        << "  Example:\n"
-                        << "    let data = <<" << lang_str << " -> JSON\n";
+                        << "  The '-> JSON' header means the block MUST output valid JSON.\n"
+                        << "  The last printed line must be a JSON string.\n\n";
                     if (lang_str == "python") {
-                        oss << "    import json\n"
+                        oss << "  \xE2\x9C\x93 Right:\n"
+                            << "    <<python -> JSON\n"
+                            << "    import json\n"
                             << "    result = {\"key\": [1, 2, 3]}\n"
-                            << "    naab_return(result)\n";
+                            << "    print(json.dumps(result))\n"
+                            << "    >>\n";
                     } else if (lang_str == "javascript" || lang_str == "js") {
-                        oss << "    naab_return({key: [1, 2, 3]})\n";
+                        oss << "  \xE2\x9C\x93 Right:\n"
+                            << "    <<javascript -> JSON\n"
+                            << "    const data = {key: [1, 2, 3]};\n"
+                            << "    console.log(JSON.stringify(data));\n"
+                            << "    >>\n";
                     } else {
-                        oss << "    naab_return(your_data)\n";
+                        oss << "  Print valid JSON as the LAST line of stdout.\n";
                     }
-                    oss << "    >>\n";
+                    oss << "\n  Key rule: -> JSON requires the last stdout line to be valid JSON.\n";
                     gc_suspended_ = false;
                     throw std::runtime_error(oss.str());
                 }

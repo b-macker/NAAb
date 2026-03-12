@@ -43,6 +43,11 @@ EXPECTED_FAILURES["test_reserved_keyword_error.naab"]=1
 EXPECTED_FAILURES["test_sys_hint.naab"]=1
 EXPECTED_FAILURES["test_variable_binding_error.naab"]=1
 EXPECTED_FAILURES["parser_errors_test.naab"]=1
+# Gorilla test #4 helper error tests (designed to trigger helpful parse/runtime errors)
+EXPECTED_FAILURES["test_try_expression_error.naab"]=1
+EXPECTED_FAILURES["test_throw_expression_error.naab"]=1
+EXPECTED_FAILURES["test_throw_match_error.naab"]=1
+EXPECTED_FAILURES["test_string_match_error.naab"]=1
 # test_catch_syntax.naab - fixed (catch parens)
 EXPECTED_FAILURES["test_js_variable_binding_error.naab"]=1
 EXPECTED_FAILURES["test_unclosed_block.naab"]=1
@@ -62,6 +67,10 @@ EXPECTED_FAILURES["polyglot_showcase.naab"]=1
 # Slow polyglot tests that may timeout on constrained environments
 EXPECTED_FAILURES["anti_patterns.naab"]=1
 EXPECTED_FAILURES["before_after_optimization.naab"]=1
+# Note: Anti-evasion tests in tests/governance_v3/ are NOT discovered by the
+# automated runner (it uses --no-governance and tests/ is maxdepth 1).
+# Verify manually: cd tests/governance_v3 && for f in test_evasion_*.naab; do
+#   echo "=== $f ===" && ../../build/naab-lang "$f" 2>&1 | head -3; done
 
 # Directories to skip entirely
 SKIP_DIRS=(

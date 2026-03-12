@@ -1,0 +1,12 @@
+// Test: EVA-5 — JS // comment markers should now be caught
+// Previously only # comments were detected by temp patterns
+main {
+    let result = <<javascript
+// simplified implementation for now
+function analyze(text) {
+    return [];
+}
+analyze("hello");
+>>
+    print(result)
+}

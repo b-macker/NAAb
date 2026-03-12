@@ -1,0 +1,10 @@
+// Test: EVA-9 — NAAb fn stub patterns should be caught
+// Previously NAAb-specific function stubs were not detected
+fn real_work(data) {
+    return []
+}
+
+main {
+    let result = real_work("test")
+    print(result)
+}

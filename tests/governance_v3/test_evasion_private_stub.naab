@@ -1,0 +1,14 @@
+// Test: EVA-8 — Non-exported private helper stub should be caught
+// Previously only exported functions were scanned by GOV-6
+fn helper_compute(data) {
+    return true
+}
+
+export fn analyze(data) {
+    return helper_compute(data)
+}
+
+main {
+    let result = analyze("test")
+    print(result)
+}

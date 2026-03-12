@@ -1282,6 +1282,16 @@ public:
     // Variable binding enforcement
     std::string checkVariableBinding(size_t binding_count, int line);
 
+    // --- Governance Integrity (EVA-11/EVA-12) ---
+    // Prevents LLM config manipulation by enforcing minimum levels
+    void enforceMinimumLevels();
+
+    // --- NAAb Function Body Quality Check ---
+    // Scans ALL NAAb function bodies for stubs/oversimplification
+    std::string checkNaabFunctionBody(const std::string& function_name,
+                                       const std::string& source_code,
+                                       int line = 0);
+
     // --- Polyglot Optimization Checks ---
     std::string checkPolyglotOptimization(const std::string& language,
                                           const std::string& code,

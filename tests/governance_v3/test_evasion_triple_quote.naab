@@ -1,0 +1,12 @@
+// Test: EVA-6 — Python triple-quote docstring with stub admission
+// The triple-quote content should be properly stripped so it doesn't
+// cause false positives or hide stubs from detection
+main {
+    let result = <<python
+"""Simplified implementation for demonstration purposes."""
+def validate_user(user):
+    return True
+validate_user("test")
+>>
+    print(result)
+}
