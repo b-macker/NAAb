@@ -39,6 +39,20 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 - `break` and `continue` work in loops
 - `return value` — explicit return from functions
 
+### Match Expression
+```naab
+let result = match value {
+    "attack" => { "do attack" }
+    "move" => { "do move" }
+    _ => { "default" }
+}
+```
+- Arms use `=>` (fat arrow), NOT `->` or `:`
+- Each arm body is a block `{ }` — braces required
+- `_` is the default/wildcard pattern
+- NO commas between arms
+- match IS an expression — `let x = match ...` works
+
 ### If Expressions
 - `let x = if condition { value_a } else { value_b }` — returns a value
 - `let x = if a { 1 } else if b { 2 } else { 3 }` — else-if chains work
@@ -82,6 +96,11 @@ arr.push(new Point { x: 1, y: 2 })
 - `typeof(value)` — same as type()
 - `range(start, end)` — generate range
 - `print(value)` — print to stdout
+
+### Module Main Blocks
+When a .naab file is imported via `import "file.naab" as alias`, its `main {}` block
+is NOT executed. Only struct/enum/function definitions and exports are processed.
+The `main {}` block only runs when the file is executed directly.
 
 ### Imports (file-based)
 ```naab
@@ -224,6 +243,21 @@ random_bytes, random_string, random_int,
 base64_encode, base64_decode, hex_encode, hex_decode,
 compare_digest, generate_token, hash_password
 
+## Functions That Do NOT Exist (use alternatives)
+- `math.random()` — use `crypto.random_int(min, max)` with `use crypto` (inclusive range)
+- `array.merge(a, b)` — use `a + b` (array concatenation with +)
+- `array.concat(a, b)` — use `a + b`
+- `array.flat()` — not available, manually iterate
+- `string.match()` — use `regex.search()` or `regex.matches()` with `use regex`
+- `dict.update()` — use `dict.merge(other)` or `dict.put(key, val)` individually
+
+## Random Numbers
+NAAb does NOT have `math.random()`. Use crypto module:
+- `crypto.random_int(min, max)` — random integer in [min, max] range (inclusive)
+- `crypto.random_string(length)` — random alphanumeric string
+- `crypto.random_bytes(length)` — random bytes
+Requires `use crypto`.
+
 ## Pipeline Operator
 ```naab
 let result = data |> transform |> analyze |> format
@@ -304,7 +338,8 @@ main {
 25. `and`/`or`/`not` are NOT boolean operators in NAAb — use `&&`/`||`/`!`
     `if x > 0 and y > 0` -> ERROR. Use: `if x > 0 && y > 0`
     `if not done` -> ERROR. Use: `if !done`
-26. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
+26. `config` is a reserved keyword — do NOT use it as a variable name, import alias, or parameter name
+27. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
     Example: `import "types.naab" as types` then `let c = types.Color.Red`
 
 ---

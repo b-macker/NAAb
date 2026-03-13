@@ -518,7 +518,9 @@
           "require_branching_or_loops": true
         },
         {
-          "names": ["get", "set", "is_", "has_", "to_", "from_", "format", "wrap"],
+          "names": ["get", "set", "is_", "has_", "to_", "from_", "format", "wrap",
+                    "apply_", "move_", "check_", "destroy_", "find_", "render_",
+                    "load_", "spawn_", "format_", "make_"],
           "min_score": 3,
           "require_branching_or_loops": false
         }
