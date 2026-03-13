@@ -1,0 +1,12 @@
+// Test C1b: Contract return_keys — correct keys
+// EXPECTED: PASS — dict has both "host" and "port" keys
+
+fn get_config() {
+    return {"host": "localhost", "port": 8080}
+}
+
+main {
+    let cfg = get_config()
+    print("Config: " + string(cfg))
+    print("PASS: return_keys")
+}

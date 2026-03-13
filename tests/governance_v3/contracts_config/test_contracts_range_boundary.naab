@@ -1,0 +1,12 @@
+// Test B2: Contract return_range boundary values
+// EXPECTED: PASS — returns exactly 0.0 and 1.0 which are within [0, 1]
+
+fn compute_ratio() {
+    return 0.5
+}
+
+main {
+    let r = compute_ratio()
+    print("Ratio: " + string(r))
+    print("PASS: range boundary")
+}

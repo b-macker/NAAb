@@ -1,0 +1,27 @@
+// Test B4: Multiple contracts on different functions — no cross-contamination
+// EXPECTED: PASS — all three functions satisfy their respective contracts
+
+fn compute_area(width, height) {
+    return float(width) * float(height)
+}
+
+fn classify_text(text) {
+    return "positive"
+}
+
+fn compute_ratio() {
+    return 0.75
+}
+
+main {
+    let area = compute_area(5, 3)
+    print("Area: " + string(area))
+
+    let cat = classify_text("hello world nice day")
+    print("Category: " + cat)
+
+    let ratio = compute_ratio()
+    print("Ratio: " + string(ratio))
+
+    print("PASS: multi-contract")
+}

@@ -73,6 +73,8 @@ static std::string getTypeName(const std::shared_ptr<Value>& val) {
             return "struct";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) {
             return "future";
+        } else if constexpr (std::is_same_v<T, std::monostate>) {
+            return "null";
         }
         return "unknown";
     }, val->data);
@@ -1557,6 +1559,20 @@ void Interpreter::visit(ast::ImportStmt& node) {
 
         auto dict_value = std::make_shared<Value>(module_dict);
         current_env_->define(alias, dict_value);
+
+        // Define aliased names for 3-level dot access (module.Enum.Variant)
+        // Scan all dotted keys in the module dict (covers both exported and non-exported enums)
+        for (const auto& [key, val] : module_dict) {
+            if (key.find('.') != std::string::npos) {
+                std::string aliased_name = alias + "." + key;
+                global_env_->define(aliased_name, val);
+            }
+        }
+
+        // Import exported structs from wildcard imports too
+        for (const auto& [name, struct_def] : module_env->exported_structs_) {
+            runtime::StructRegistry::instance().registerStruct(struct_def);
+        }
 
         LOG_DEBUG("[SUCCESS] Imported all from {} as '{}'\n", node.getModulePath(), alias);
         return;
@@ -5724,6 +5740,31 @@ void Interpreter::visit(ast::CallExpr& node) {
 void Interpreter::visit(ast::MemberExpr& node) {
     std::string member_name = node.getMember();
 
+    // Build full qualified name from nested MemberExpr chain (handles module.Enum.Variant)
+    {
+        ast::Expr* current = &node;
+        std::vector<std::string> parts;
+        while (auto* member = dynamic_cast<ast::MemberExpr*>(current)) {
+            parts.push_back(member->getMember());
+            current = member->getObject();
+        }
+        if (auto* id = dynamic_cast<ast::IdentifierExpr*>(current)) {
+            parts.push_back(id->getName());
+        }
+        if (parts.size() >= 3) {
+            std::reverse(parts.begin(), parts.end());
+            std::string full_qualified;
+            for (size_t i = 0; i < parts.size(); ++i) {
+                if (i > 0) full_qualified += ".";
+                full_qualified += parts[i];
+            }
+            if (current_env_->has(full_qualified)) {
+                result_ = current_env_->get(full_qualified);
+                return;
+            }
+        }
+    }
+
     // Phase 2.4.3: Check for enum member access first (EnumName.VariantName)
     // If the object is a simple identifier, check if EnumName.VariantName exists
     auto* id_expr = dynamic_cast<ast::IdentifierExpr*>(node.getObject());
@@ -6595,6 +6636,50 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 
     // Phase 12: For Python with -> JSON, wrap code to capture stdout and extract last JSON line
     if (!return_type.empty() && (language == "python")) {
+        // Auto-wrap bare Python expressions in print() for -> JSON
+        // Find last non-empty, non-comment, non-import line and wrap if it's a bare expression
+        {
+            std::istringstream iss(final_code);
+            std::string line;
+            std::vector<std::string> lines;
+            while (std::getline(iss, line)) {
+                lines.push_back(line);
+            }
+            for (int i = static_cast<int>(lines.size()) - 1; i >= 0; --i) {
+                std::string trimmed = lines[i];
+                // Trim leading whitespace
+                size_t start = trimmed.find_first_not_of(" \t");
+                if (start == std::string::npos) continue;  // empty line
+                trimmed = trimmed.substr(start);
+                if (trimmed[0] == '#') continue;  // comment
+                if (trimmed.substr(0, 7) == "import " || trimmed.substr(0, 5) == "from ") continue;
+                // Already has print — no wrapping needed
+                if (trimmed.substr(0, 6) == "print(" || trimmed.substr(0, 7) == "print (") break;
+                // Assignment — not a bare expression
+                if (trimmed.find('=') != std::string::npos && trimmed.find("==") == std::string::npos
+                    && trimmed.find("!=") == std::string::npos && trimmed.find(">=") == std::string::npos
+                    && trimmed.find("<=") == std::string::npos) break;
+                // Control flow — not a bare expression
+                if (trimmed.substr(0, 3) == "if " || trimmed.substr(0, 4) == "for "
+                    || trimmed.substr(0, 6) == "while " || trimmed.substr(0, 4) == "def "
+                    || trimmed.substr(0, 6) == "class " || trimmed.substr(0, 4) == "try:"
+                    || trimmed.substr(0, 7) == "except:" || trimmed.substr(0, 7) == "except "
+                    || trimmed.substr(0, 4) == "with ") break;
+                // It's a bare expression — wrap in print()
+                // Preserve leading whitespace
+                std::string leading = lines[i].substr(0, start);
+                lines[i] = leading + "print(" + trimmed + ")";
+                break;
+            }
+            // Rejoin
+            final_code.clear();
+            for (size_t i = 0; i < lines.size(); ++i) {
+                if (i > 0) final_code += "\n";
+                final_code += lines[i];
+            }
+            final_code += "\n";
+        }
+
         std::string preamble =
             "import sys as __naab_sys, io as __naab_io, json as __naab_json\n"
             "__naab_buf = __naab_io.StringIO()\n"
@@ -7737,6 +7822,42 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 
         // Phase 12: For Python with -> JSON, wrap code to capture stdout and extract last JSON line
         if (!return_type.empty() && (lang_str == "python")) {
+            // Auto-wrap bare Python expressions in print() for -> JSON
+            {
+                std::istringstream iss(final_code);
+                std::string line;
+                std::vector<std::string> lines;
+                while (std::getline(iss, line)) {
+                    lines.push_back(line);
+                }
+                for (int i = static_cast<int>(lines.size()) - 1; i >= 0; --i) {
+                    std::string trimmed = lines[i];
+                    size_t start = trimmed.find_first_not_of(" \t");
+                    if (start == std::string::npos) continue;
+                    trimmed = trimmed.substr(start);
+                    if (trimmed[0] == '#') continue;
+                    if (trimmed.substr(0, 7) == "import " || trimmed.substr(0, 5) == "from ") continue;
+                    if (trimmed.substr(0, 6) == "print(" || trimmed.substr(0, 7) == "print (") break;
+                    if (trimmed.find('=') != std::string::npos && trimmed.find("==") == std::string::npos
+                        && trimmed.find("!=") == std::string::npos && trimmed.find(">=") == std::string::npos
+                        && trimmed.find("<=") == std::string::npos) break;
+                    if (trimmed.substr(0, 3) == "if " || trimmed.substr(0, 4) == "for "
+                        || trimmed.substr(0, 6) == "while " || trimmed.substr(0, 4) == "def "
+                        || trimmed.substr(0, 6) == "class " || trimmed.substr(0, 4) == "try:"
+                        || trimmed.substr(0, 7) == "except:" || trimmed.substr(0, 7) == "except "
+                        || trimmed.substr(0, 4) == "with ") break;
+                    std::string leading = lines[i].substr(0, start);
+                    lines[i] = leading + "print(" + trimmed + ")";
+                    break;
+                }
+                final_code.clear();
+                for (size_t i = 0; i < lines.size(); ++i) {
+                    if (i > 0) final_code += "\n";
+                    final_code += lines[i];
+                }
+                final_code += "\n";
+            }
+
             std::string preamble =
                 "import sys as __naab_sys, io as __naab_io, json as __naab_json\n"
                 "__naab_buf = __naab_io.StringIO()\n"

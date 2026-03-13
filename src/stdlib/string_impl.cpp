@@ -332,11 +332,27 @@ std::shared_ptr<interpreter::Value> StringModule::call(
             "  Example: string.trim(\"  hello  \")  // \"hello\"\n"
         );
     }
+    if (function_name == "match" || function_name == "matches" || function_name == "regex" || function_name == "test") {
+        throw std::runtime_error(
+            "string." + function_name + "() does not exist in NAAb\n\n"
+            "  For pattern matching, use the regex module:\n"
+            "    use regex\n\n"
+            "    regex.search(text, \"[0-9]+\")     // partial match — returns match or null\n"
+            "    regex.matches(text, \"^\\\\d+$\")    // full string match (true/false)\n"
+            "    regex.find_all(text, \"[0-9]+\")   // all matches as array\n\n"
+            "  For simple substring checking:\n"
+            "    string.contains(text, \"hello\")   // returns true/false\n"
+            "    text.contains(\"hello\")           // dot-notation also works\n"
+        );
+    }
     if (function_name == "find" || function_name == "search") {
         throw std::runtime_error(
-            "Unknown string function: " + function_name + "\n\n"
-            "  Did you mean: string.index_of()?\n"
-            "  Example: string.index_of(\"hello\", \"ll\")  // 2\n"
+            "string." + function_name + "() does not exist in NAAb\n\n"
+            "  Use string.index_of() instead:\n"
+            "    string.index_of(text, \"world\")   // returns index or -1\n"
+            "    text.index_of(\"world\")           // dot-notation also works\n\n"
+            "  For checking if a substring exists:\n"
+            "    string.contains(text, \"world\")   // returns true/false\n"
         );
     }
 

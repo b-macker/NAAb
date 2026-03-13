@@ -1,0 +1,28 @@
+// Module with enum definitions (no main block needed for import)
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+enum Priority {
+    Low,
+    Medium,
+    High,
+    Critical
+}
+
+export fn color_name(c) {
+    if c == Color.Red { return "red" }
+    if c == Color.Green { return "green" }
+    if c == Color.Blue { return "blue" }
+    return "unknown"
+}
+
+export fn priority_level(p) {
+    if p == Priority.Low { return 1 }
+    if p == Priority.Medium { return 2 }
+    if p == Priority.High { return 3 }
+    if p == Priority.Critical { return 4 }
+    return 0
+}

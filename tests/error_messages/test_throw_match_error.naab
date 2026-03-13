@@ -1,0 +1,9 @@
+// Test: throw-in-match-arm should produce a helpful error
+// Expected: FAIL (parse error with guidance)
+main {
+    let x = "unknown"
+    let y = match x {
+        "json" => "ok"
+        _ => throw "Unknown format"
+    }
+}

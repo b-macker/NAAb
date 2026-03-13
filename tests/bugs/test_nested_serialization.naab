@@ -1,0 +1,48 @@
+// Test: Nested data structure serialization through polyglot variable binding
+main {
+    // Test 1: Nested dict with array
+    let data = {"name": "test", "scores": [10, 20, 30], "meta": {"level": 5}}
+    let r1 = <<python[data]
+result = data["name"] + ":" + str(data["scores"][1]) + ":" + str(data["meta"]["level"])
+result
+    >>
+    print("Test 1 - nested dict: " + r1)
+
+    // Test 2: Array of dicts
+    let items = [{"id": 1, "val": "a"}, {"id": 2, "val": "b"}]
+    let r2 = <<python[items]
+result = str(items[0]["id"]) + items[0]["val"] + "," + str(items[1]["id"]) + items[1]["val"]
+result
+    >>
+    print("Test 2 - array of dicts: " + r2)
+
+    // Test 3: Deep nesting (3 levels)
+    let deep = {"l1": {"l2": {"l3": "found"}}}
+    let r3 = <<python[deep]
+deep["l1"]["l2"]["l3"]
+    >>
+    print("Test 3 - deep nesting: " + r3)
+
+    // Test 4: Mixed types in array
+    let mixed = [1, "hello", true, 3.14]
+    let r4 = <<python[mixed]
+str(mixed[0]) + "," + mixed[1] + "," + str(mixed[2]) + "," + str(mixed[3])
+    >>
+    print("Test 4 - mixed array: " + r4)
+
+    // Test 5: Nested dict through JavaScript
+    let config = {"db": {"host": "localhost", "port": 5432}, "debug": true}
+    let r5 = <<javascript[config]
+config.db.host + ":" + config.db.port + ":" + config.debug
+    >>
+    print("Test 5 - nested dict JS: " + r5)
+
+    // Test 6: Array of arrays
+    let matrix = [[1, 2], [3, 4], [5, 6]]
+    let r6 = <<python[matrix]
+str(matrix[0][0]) + "," + str(matrix[1][1]) + "," + str(matrix[2][0])
+    >>
+    print("Test 6 - array of arrays: " + r6)
+
+    print("done")
+}

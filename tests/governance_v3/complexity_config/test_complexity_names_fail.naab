@@ -1,0 +1,23 @@
+// Test D1b: Complexity floor name matching — word boundary (FAIL case)
+// reset_data should NOT match the "set" rule — falls to default min_score: 15
+// This trivial function has score < 15 → should FAIL
+// EXPECTED: governance HARD violation for reset_data
+
+fn reset_data(x) {
+    return x
+}
+
+main {
+    // Make main complex enough to pass min_score: 15
+    let items = [1, 2, 3, 4, 5]
+    let sum = 0
+    for i in items {
+        if i > 2 {
+            for j in 0..i {
+                sum = sum + j
+            }
+        }
+    }
+    let r = reset_data(sum)
+    print("Should not reach here: " + string(r))
+}

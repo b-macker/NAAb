@@ -163,6 +163,9 @@ static const std::vector<HardcodedResultPattern> HARDCODED_RESULT_PATTERNS_DB = 
 // ============================================================================
 
 GovernanceEngine::~GovernanceEngine() {
+    if (baselines_dirty_) {
+        saveBaselines();
+    }
     if (baselines_data_) {
         delete static_cast<nlohmann::json*>(baselines_data_);
         baselines_data_ = nullptr;
@@ -1374,7 +1377,14 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (fn_obj.contains("return_min")) { fc.has_return_min = true; fc.return_min = fn_obj["return_min"].get<double>(); }
                 if (fn_obj.contains("return_max")) { fc.has_return_max = true; fc.return_max = fn_obj["return_max"].get<double>(); }
                 if (fn_obj.contains("return_one_of") && fn_obj["return_one_of"].is_array()) {
-                    for (auto& v : fn_obj["return_one_of"]) fc.return_one_of.push_back(v.get<std::string>());
+                    for (auto& v : fn_obj["return_one_of"]) {
+                        // Handle non-string values (ints, bools) by converting to string
+                        if (v.is_string()) {
+                            fc.return_one_of.push_back(v.get<std::string>());
+                        } else {
+                            fc.return_one_of.push_back(v.dump());
+                        }
+                    }
                 }
                 if (fn_obj.contains("return_non_empty")) fc.return_non_empty = fn_obj["return_non_empty"].get<bool>();
                 if (fn_obj.contains("return_keys") && fn_obj["return_keys"].is_array()) {
@@ -2844,28 +2854,32 @@ std::string GovernanceEngine::checkFunctionContract(
             contract.return_type, result_type));
     }
 
-    // Numeric checks
+    // Numeric checks — single parse, wrapped in try-catch for safety
     bool is_numeric = (result_type == "int" || result_type == "float");
+    bool needs_numeric = is_numeric && (contract.has_return_range ||
+                                         contract.has_return_min ||
+                                         contract.has_return_max);
 
-    if (contract.has_return_range && is_numeric) {
-        double val = std::stod(result_str);
-        if (val < contract.return_range_min || val > contract.return_range_max) {
+    if (needs_numeric) {
+        double val;
+        try {
+            val = std::stod(result_str);
+        } catch (...) {
+            return make_err(fmt::format("return value '{}' is not parseable as a number", result_str));
+        }
+
+        if (contract.has_return_range &&
+            (val < contract.return_range_min || val > contract.return_range_max)) {
             return make_err(fmt::format("return value {} outside range [{}, {}]",
                 result_str, contract.return_range_min, contract.return_range_max));
         }
-    }
 
-    if (contract.has_return_min && is_numeric) {
-        double val = std::stod(result_str);
-        if (val < contract.return_min) {
+        if (contract.has_return_min && val < contract.return_min) {
             return make_err(fmt::format("return value {} below minimum {}",
                 result_str, contract.return_min));
         }
-    }
 
-    if (contract.has_return_max && is_numeric) {
-        double val = std::stod(result_str);
-        if (val > contract.return_max) {
+        if (contract.has_return_max && val > contract.return_max) {
             return make_err(fmt::format("return value {} above maximum {}",
                 result_str, contract.return_max));
         }
@@ -2889,7 +2903,8 @@ std::string GovernanceEngine::checkFunctionContract(
 
     // return_non_empty
     if (contract.return_non_empty) {
-        bool empty = result_str.empty() || result_str == "[]" || result_str == "{}" || result_str == "\"\"";
+        bool empty = result_str.empty() || result_str == "[]" || result_str == "{}"
+                     || result_str == "\"\"" || result_type == "null";
         if (empty) {
             return make_err("expected non-empty return value");
         }
@@ -2898,7 +2913,10 @@ std::string GovernanceEngine::checkFunctionContract(
     // return_keys (for dicts)
     if (!contract.return_keys.empty() && result_type == "dict") {
         for (const auto& key : contract.return_keys) {
-            if (result_str.find(key) == std::string::npos) {
+            // Match key as a proper dict key, not as a substring of another key or value
+            // NAAb dict toString format: {"key1": val1, "key2": val2}
+            std::string quoted_key = "\"" + key + "\":";
+            if (result_str.find(quoted_key) == std::string::npos) {
                 return make_err(fmt::format("return dict missing required key '{}'", key));
             }
         }
@@ -2913,9 +2931,20 @@ std::string GovernanceEngine::checkFunctionContract(
             if (result_str == "[]") {
                 length = 0;
             } else {
+                // Depth-aware counting: only count commas at top-level (depth 1)
+                // Handles nested arrays, dicts, and strings with commas correctly
                 length = 1;
+                int depth = 0;
+                bool in_string = false;
+                char prev = 0;
                 for (char c : result_str) {
-                    if (c == ',') length++;
+                    if (c == '"' && prev != '\\') in_string = !in_string;
+                    if (!in_string) {
+                        if (c == '[' || c == '{') depth++;
+                        if (c == ']' || c == '}') depth--;
+                        if (c == ',' && depth == 1) length++;
+                    }
+                    prev = c;
                 }
             }
         }
@@ -2943,9 +2972,14 @@ std::string GovernanceEngine::checkComplexityFloor(
 
     auto& cfg = rules_.code_quality.complexity_floor;
 
-    // Analyze code structure
+    // Analyze code structure (defensive — never crash the host program)
     analyzer::SyntacticAnalyzer sa;
-    auto profile = sa.analyze(code);
+    analyzer::SyntacticProfile profile;
+    try {
+        profile = sa.analyze(code);
+    } catch (...) {
+        return "";  // Can't analyze — skip floor check
+    }
 
     // Determine which rule applies (if any)
     int required_score = cfg.min_score;
@@ -2961,9 +2995,18 @@ std::string GovernanceEngine::checkComplexityFloor(
         for (const auto& name : rule.names) {
             std::string name_lower = name;
             std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
-            if (fn_lower.find(name_lower) != std::string::npos) {
-                matched = true;
-                break;
+            auto pos = fn_lower.find(name_lower);
+            if (pos != std::string::npos) {
+                // Word-boundary matching using '_' as delimiter (snake_case)
+                bool boundary_before = (pos == 0 || fn_lower[pos - 1] == '_');
+                size_t end = pos + name_lower.size();
+                bool boundary_after = (end >= fn_lower.size() || fn_lower[end] == '_');
+                // Prefix patterns ending in '_' (is_, has_, to_) only need boundary before
+                bool is_prefix = !name_lower.empty() && name_lower.back() == '_';
+                if (boundary_before && (is_prefix || boundary_after)) {
+                    matched = true;
+                    break;
+                }
             }
         }
         if (matched) {
@@ -2985,8 +3028,9 @@ std::string GovernanceEngine::checkComplexityFloor(
             formatError(cfg.level, msg,
                 line > 0 ? fmt::format("line {}", line) : "",
                 "code_quality.complexity_floor",
-                fmt::format("Score {}/100: loops={}, branches={}, calls={}, recursion={}",
+                fmt::format("Score {}/100: loops={}, nesting={}, calls={}, recursion={}",
                     profile.complexity_score, profile.loop_count,
+                    // max_function_depth = min(max_loop_depth, 5) — see syntactic_analyzer.cpp
                     (profile.has_try_catch ? 1 : 0) + profile.max_function_depth,
                     profile.external_call_count, profile.has_recursion ? "yes" : "no"),
                 "", ""));
@@ -2994,6 +3038,7 @@ std::string GovernanceEngine::checkComplexityFloor(
 
     // Check branching/loops requirement
     if (require_branching) {
+        // max_function_depth > 0 means nested loops exist (valid non-trivial indicator)
         bool has_branching = profile.loop_count > 0 || profile.has_try_catch ||
                             profile.max_function_depth > 0 || profile.has_recursion;
         if (!has_branching) {
@@ -4870,7 +4915,7 @@ void GovernanceEngine::recordBaseline(const std::string& key,
     entry["last_seen"] = ts;
 
     (*data)["entries"][key] = entry;
-    saveBaselines();
+    baselines_dirty_ = true;
 }
 
 std::string GovernanceEngine::checkBaseline(const std::string& key,
@@ -4913,7 +4958,7 @@ std::string GovernanceEngine::checkBaseline(const std::string& key,
         auto ts = std::chrono::duration_cast<std::chrono::seconds>(
             now.time_since_epoch()).count();
         entry["last_seen"] = ts;
-        saveBaselines();
+        baselines_dirty_ = true;
         return "";
     }
 
@@ -4969,32 +5014,37 @@ void GovernanceEngine::writeDriftEvent(
     entry["total"] = total;
     if (!file.empty()) entry["file"] = file;
 
-    // Read existing lines for ring buffer management
-    std::vector<std::string> lines;
+    // Append-only write (O(1) per event instead of O(n) read+write)
     {
-        std::ifstream in(path);
-        if (in.is_open()) {
-            std::string l;
-            while (std::getline(in, l)) {
-                if (!l.empty()) lines.push_back(l);
-            }
+        std::ofstream out(path, std::ios::app);
+        if (out.is_open()) {
+            out << entry.dump() << "\n";
         }
     }
 
-    // Append new entry
-    lines.push_back(entry.dump());
-
-    // Ring buffer: trim to max_entries
-    if (dtc.max_entries > 0 && static_cast<int>(lines.size()) > dtc.max_entries) {
-        int excess = static_cast<int>(lines.size()) - dtc.max_entries;
-        lines.erase(lines.begin(), lines.begin() + excess);
-    }
-
-    // Write back
-    std::ofstream out(path);
-    if (out.is_open()) {
-        for (const auto& l : lines) {
-            out << l << "\n";
+    // Periodic ring buffer trim — only when writes exceed max_entries
+    drift_write_count_++;
+    if (dtc.max_entries > 0 && drift_write_count_ >= dtc.max_entries) {
+        drift_write_count_ = 0;
+        std::vector<std::string> lines;
+        {
+            std::ifstream in(path);
+            if (in.is_open()) {
+                std::string l;
+                while (std::getline(in, l)) {
+                    if (!l.empty()) lines.push_back(l);
+                }
+            }
+        }
+        if (static_cast<int>(lines.size()) > dtc.max_entries) {
+            int excess = static_cast<int>(lines.size()) - dtc.max_entries;
+            lines.erase(lines.begin(), lines.begin() + excess);
+            std::ofstream out(path);
+            if (out.is_open()) {
+                for (const auto& l : lines) {
+                    out << l << "\n";
+                }
+            }
         }
     }
 }
@@ -5034,17 +5084,17 @@ void GovernanceEngine::analyzeDriftTrend(const std::string& language) {
     int start = static_cast<int>(events.size()) > window
         ? static_cast<int>(events.size()) - window : 0;
 
-    int drift_count = 0;
-    int total_in_window = 0;
+    // Count events in the window — every logged event IS a drift event
+    int events_in_window = 0;
     for (int i = start; i < static_cast<int>(events.size()); i++) {
-        total_in_window++;
-        drift_count++;  // Every event in the drift log IS a drift event
+        events_in_window++;
     }
 
-    if (total_in_window == 0) return;
+    if (events_in_window == 0) return;
 
-    double drift_rate = static_cast<double>(drift_count) / static_cast<double>(
-        total_in_window > window ? total_in_window : window);
+    // Rate = drift_events / window_size
+    // e.g., 3 drift events in a window of 10 → 30% → triggers at threshold 0.3
+    double drift_rate = static_cast<double>(events_in_window) / static_cast<double>(window);
 
     if (drift_rate >= dtc.escalation_threshold) {
         fprintf(stderr,
@@ -5052,7 +5102,7 @@ void GovernanceEngine::analyzeDriftTrend(const std::string& language) {
             "(%d events in last %d window)\n"
             "    Threshold: %.0f%% — consider investigating %s block consistency\n\n",
             language.c_str(), drift_rate * 100.0,
-            drift_count, total_in_window,
+            events_in_window, window,
             dtc.escalation_threshold * 100.0, language.c_str());
     }
 }

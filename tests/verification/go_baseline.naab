@@ -1,0 +1,11 @@
+use io
+main {
+    let x = <<go
+package main
+import "fmt"
+func main() {
+    fmt.Print(42)
+}
+>>
+    io.write("Result: " + x + "\n")
+}

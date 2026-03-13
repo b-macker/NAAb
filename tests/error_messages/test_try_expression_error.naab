@@ -1,0 +1,5 @@
+// Test: try-as-expression should produce a helpful error
+// Expected: FAIL (parse error with guidance)
+main {
+    let x = try { 42 } catch (e) { 0 }
+}

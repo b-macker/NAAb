@@ -1,0 +1,10 @@
+main {
+    let x = int("42")
+    print("x = " + string(x))
+    print("type(x) = " + type(x))
+    print("x == 42: " + string(x == 42))
+    let y = float("3.14")
+    print("y = " + string(y))
+    print("type(y) = " + type(y))
+    print("y == 3.14: " + string(y == 3.14))
+}

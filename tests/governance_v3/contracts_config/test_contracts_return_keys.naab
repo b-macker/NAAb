@@ -1,0 +1,12 @@
+// Test C1: Contract return_keys — substring false positive test
+// EXPECTED: governance HARD violation — dict has "report" key but contract requires "port"
+// The key "report" should NOT satisfy the "port" requirement (BUG-1 fix)
+
+fn get_config() {
+    return {"report": "daily", "hostname": "localhost"}
+}
+
+main {
+    let cfg = get_config()
+    print("Should not reach here: " + string(cfg))
+}

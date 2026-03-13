@@ -1,0 +1,11 @@
+// Test B2b: Contract return_range violation
+// EXPECTED: governance HARD violation — returns 1.5 which is outside [0, 1]
+
+fn compute_ratio() {
+    return 1.5
+}
+
+main {
+    let r = compute_ratio()
+    print("Should not reach here: " + string(r))
+}

@@ -1,0 +1,12 @@
+// Test A3: Contract return_non_empty with null return
+// EXPECTED: governance HARD violation — null should be caught by return_non_empty
+// Uses nullable return type (any?) to bypass Phase 2 null safety check
+
+fn non_empty_return() -> any? {
+    return null
+}
+
+main {
+    let r = non_empty_return()
+    print("Should not reach here: " + string(r))
+}

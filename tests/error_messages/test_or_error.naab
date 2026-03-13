@@ -1,0 +1,7 @@
+// Test: Python-style 'or' should produce helpful error
+// Expected: FAIL
+main {
+    let a = false
+    let b = true
+    let c = a or b
+}

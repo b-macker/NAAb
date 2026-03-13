@@ -1,0 +1,9 @@
+// Test: string.match() should produce a helpful error pointing to regex module
+// Expected: FAIL (runtime error with guidance)
+use string
+
+main {
+    let text = "hello 123 world"
+    let result = string.match(text, "[0-9]+")
+    print(result)
+}

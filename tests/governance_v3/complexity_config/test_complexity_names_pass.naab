@@ -1,0 +1,23 @@
+// Test D1a: Complexity floor name matching — word boundary (PASS case)
+// set_value SHOULD match the "set" rule (min_score: 3) → trivial function passes
+// EXPECTED: PASS
+
+fn set_value(x) {
+    return x
+}
+
+main {
+    // Make main complex enough to pass min_score: 15
+    let items = [1, 2, 3, 4, 5]
+    let sum = 0
+    for i in items {
+        if i > 2 {
+            for j in 0..i {
+                sum = sum + j
+            }
+        }
+    }
+    let r = set_value(sum)
+    print("Value: " + string(r))
+    print("PASS: complexity name boundary")
+}

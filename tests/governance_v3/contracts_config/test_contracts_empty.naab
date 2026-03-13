@@ -1,0 +1,11 @@
+// Test C4+C5: Contract return_non_empty with empty string
+// EXPECTED: governance HARD violation — function returns empty string
+
+fn non_empty_return() {
+    return ""
+}
+
+main {
+    let r = non_empty_return()
+    print("Should not reach here: " + string(r))
+}

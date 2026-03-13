@@ -1,0 +1,39 @@
+function test_func() {
+    let d = <<python
+{"ok": False, "val": 42}
+>>
+    print("d = " + string(d))
+    print("type(d) = " + type(d))
+    if type(d) == "dict" {
+        print("d[ok] = " + string(d["ok"]))
+        print("type(d[ok]) = " + type(d["ok"]))
+        if !d["ok"] {
+            return "REJECTED (correct)"
+        }
+    }
+    return "APPROVED (WRONG)"
+}
+
+main {
+    // Test 1: Direct in main with Python True/False
+    let d = <<python
+{"ok": False, "val": 42}
+>>
+    print("=== MAIN CONTEXT ===")
+    print("d = " + string(d))
+    print("type(d) = " + type(d))
+    if type(d) == "dict" {
+        print("d[ok] = " + string(d["ok"]))
+        print("type(d[ok]) = " + type(d["ok"]))
+        if !d["ok"] {
+            print("MAIN: !d[ok] => REJECTED (correct)")
+        } else {
+            print("MAIN: !d[ok] => APPROVED (WRONG)")
+        }
+    }
+
+    // Test 2: In function
+    print("")
+    print("=== FUNCTION CONTEXT ===")
+    print("result = " + test_func())
+}

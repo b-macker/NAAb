@@ -1,0 +1,61 @@
+// Test: 3-level module.Enum.Value dot access
+// Verifies fix for gorilla test #5 L-3
+
+import "./modules/enum_types.naab" as etypes
+
+fn test_enum_access() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Direct 3-level access — module.Enum.Variant
+    total = total + 1
+    let red = etypes.Color.Red
+    if red == etypes.Color.Red {
+        passed = passed + 1
+    }
+
+    // Test 2: Use in comparison
+    total = total + 1
+    let green = etypes.Color.Green
+    if green != etypes.Color.Red {
+        passed = passed + 1
+    }
+
+    // Test 3: Pass to exported function
+    total = total + 1
+    let name = etypes.color_name(etypes.Color.Blue)
+    if name == "blue" {
+        passed = passed + 1
+    }
+
+    // Test 4: Different enum from same module
+    total = total + 1
+    let lvl = etypes.priority_level(etypes.Priority.High)
+    if lvl == 3 {
+        passed = passed + 1
+    }
+
+    // Test 5: Enum value equality across access patterns
+    total = total + 1
+    let c1 = etypes.Color.Red
+    let c2 = etypes.Color.Red
+    if c1 == c2 {
+        passed = passed + 1
+    }
+
+    // Test 6: Enum values are distinct
+    total = total + 1
+    if etypes.Priority.Low != etypes.Priority.Critical {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    let r = test_enum_access()
+    print("Enum module access: " + string(r[0]) + "/" + string(r[1]))
+    if r[0] != r[1] {
+        print("SOME TESTS FAILED")
+    }
+}

@@ -1,0 +1,11 @@
+// Test B1: Contract return_type mismatch (int vs float)
+// EXPECTED: governance HARD violation — function returns int but contract says return_type: "float"
+
+fn compute_area(width, height) {
+    return width * height
+}
+
+main {
+    let area = compute_area(3, 4)
+    print("Should not reach here: " + string(area))
+}

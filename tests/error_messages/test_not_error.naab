@@ -1,0 +1,8 @@
+// Test: Python-style 'not' should produce helpful error
+// Expected: FAIL
+main {
+    let done = false
+    if not done {
+        print("test")
+    }
+}

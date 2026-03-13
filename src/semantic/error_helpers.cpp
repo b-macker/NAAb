@@ -112,6 +112,20 @@ std::string suggestForUndefinedVariable(
         );
     }
 
+    // Check for Python-style boolean operators before fuzzy matching
+    if (var_name == "and") {
+        return "NAAb uses '&&' for logical AND, not 'and'.\n"
+               "  Example: if x > 0 && y > 0 { ... }";
+    }
+    if (var_name == "or") {
+        return "NAAb uses '||' for logical OR, not 'or'.\n"
+               "  Example: if x == 0 || y == 0 { ... }";
+    }
+    if (var_name == "not") {
+        return "NAAb uses '!' for logical NOT, not 'not'.\n"
+               "  Example: if !file.exists(path) { ... }";
+    }
+
     if (defined_vars.empty()) {
         return "";
     }

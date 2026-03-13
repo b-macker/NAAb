@@ -12,6 +12,45 @@
         "description": "Returns text category",
         "return_type": "string",
         "return_one_of": ["positive", "negative", "neutral"]
+      },
+      "maybe_null": {
+        "description": "Must not return null",
+        "return_not_null": true
+      },
+      "must_return_null": {
+        "description": "Must return null type",
+        "return_type": "null"
+      },
+      "non_empty_return": {
+        "description": "Must return non-empty value",
+        "return_non_empty": true
+      },
+      "get_status": {
+        "description": "Returns status code int",
+        "return_type": "int",
+        "return_one_of": ["200", "404", "500"]
+      },
+      "compute_ratio": {
+        "description": "Returns float in [0, 1]",
+        "return_type": "float",
+        "return_range": [0, 1]
+      },
+      "get_config": {
+        "description": "Returns dict with required keys",
+        "return_type": "dict",
+        "return_keys": ["host", "port"]
+      },
+      "get_items": {
+        "description": "Returns array with 2-5 items",
+        "return_type": "array",
+        "return_length_min": 2,
+        "return_length_max": 5
+      },
+      "get_nested": {
+        "description": "Returns nested array",
+        "return_type": "array",
+        "return_length_min": 2,
+        "return_length_max": 2
       }
     }
   }

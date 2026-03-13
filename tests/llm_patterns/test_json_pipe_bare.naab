@@ -1,0 +1,69 @@
+// Test: -> JSON should work with bare json.dumps() as last expression
+// Tests fix for gorilla test #5 L-2
+
+use json
+
+fn test_bare_json_dumps() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Bare json.dumps() (the case that was failing)
+    total = total + 1
+    let data = [1, 2, 3]
+    let result = <<python[data] -> JSON
+import json
+json.dumps(data)
+>>
+    if type(result) == "array" {
+        if len(result) == 3 {
+            passed = passed + 1
+        }
+    }
+
+    // Test 2: print(json.dumps()) should still work (existing behavior)
+    total = total + 1
+    let data2 = {"key": "value"}
+    let result2 = <<python[data2] -> JSON
+import json
+print(json.dumps(data2))
+>>
+    if type(result2) == "dict" {
+        passed = passed + 1
+    }
+
+    // Test 3: Bare expression with computation
+    total = total + 1
+    let nums = [10, 20, 30]
+    let result3 = <<python[nums] -> JSON
+import json
+total = sum(nums)
+avg = total / len(nums)
+json.dumps({"total": total, "avg": avg})
+>>
+    if result3.get("total") == 60 {
+        passed = passed + 1
+    }
+
+    // Test 4: Multi-line with imports, bare last expression
+    total = total + 1
+    let items = [3, 1, 4, 1, 5]
+    let result4 = <<python[items] -> JSON
+import json
+import math
+sorted_items = sorted(items)
+json.dumps(sorted_items)
+>>
+    if result4[0] == 1 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    let r = test_bare_json_dumps()
+    print("JSON pipe bare expression: " + string(r[0]) + "/" + string(r[1]))
+    if r[0] != r[1] {
+        print("SOME TESTS FAILED")
+    }
+}

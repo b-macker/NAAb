@@ -1,0 +1,5 @@
+// Test: throw-as-expression should produce a helpful error
+// Expected: FAIL (parse error with guidance)
+main {
+    let x = throw "error"
+}

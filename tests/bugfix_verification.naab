@@ -1,0 +1,139 @@
+// Verification test for bug fixes and new features
+
+function test_type_casts() {
+    let results = []
+
+    // BUG-6: Type cast builtins
+    if int("42") == 42 { results.push("PASS: int()") } else { results.push("FAIL: int()") }
+    if float("3.14") == 3.14 { results.push("PASS: float()") } else { results.push("FAIL: float()") }
+    if string(42) == "42" { results.push("PASS: string()") } else { results.push("FAIL: string()") }
+    if bool(1) == true { results.push("PASS: bool()") } else { results.push("FAIL: bool()") }
+    if bool(0) == false { results.push("PASS: bool(0)") } else { results.push("FAIL: bool(0)") }
+
+    return results
+}
+
+function test_for_loops() {
+    let results = []
+
+    // BUG-3: Dict iteration
+    let keys = []
+    for key in {"a": 1, "b": 2, "c": 3} {
+        keys.push(key)
+    }
+    if len(keys) == 3 { results.push("PASS: dict iteration") } else { results.push("FAIL: dict iteration got " + string(len(keys))) }
+
+    // BUG-2: Range loop_depth_ leak (break after range loop should error)
+    for i in 0..3 {
+        // just iterate
+    }
+    // If loop_depth_ leaked, this would NOT error when it should
+
+    return results
+}
+
+function test_bool_equality() {
+    let results = []
+
+    // BUG-7: Bool not classified as numeric
+    if true == true { results.push("PASS: true==true") } else { results.push("FAIL: true==true") }
+    if false == false { results.push("PASS: false==false") } else { results.push("FAIL: false==false") }
+    if true != false { results.push("PASS: true!=false") } else { results.push("FAIL: true!=false") }
+
+    return results
+}
+
+function test_dot_notation() {
+    let results = []
+
+    // DOT-1: String methods
+    let s = "hello"
+    if s.char_at(0) == "h" { results.push("PASS: char_at") } else { results.push("FAIL: char_at") }
+    if s.reverse() == "olleh" { results.push("PASS: str.reverse") } else { results.push("FAIL: str.reverse") }
+    if s.repeat(2) == "hellohello" { results.push("PASS: repeat") } else { results.push("FAIL: repeat") }
+    if s.starts_with("hel") { results.push("PASS: starts_with") } else { results.push("FAIL: starts_with") }
+    if s.ends_with("llo") { results.push("PASS: ends_with") } else { results.push("FAIL: ends_with") }
+    if s.index_of("ll") == 2 { results.push("PASS: index_of") } else { results.push("FAIL: index_of") }
+
+    // DOT-2: Array methods
+    let arr = [3, 1, 4, 1, 5]
+    if arr.first() == 3 { results.push("PASS: first") } else { results.push("FAIL: first") }
+    if arr.last() == 5 { results.push("PASS: last") } else { results.push("FAIL: last") }
+    let sorted = arr.sort()
+    if sorted.first() == 1 { results.push("PASS: sort") } else { results.push("FAIL: sort") }
+    let sliced = arr.slice(1, 3)
+    if len(sliced) == 2 { results.push("PASS: slice") } else { results.push("FAIL: slice") }
+
+    return results
+}
+
+function test_helper_errors() {
+    let results = []
+
+    // HELPER-1: True/False/None detection (runtime)
+    try {
+        let x = True
+        results.push("FAIL: True not caught")
+    } catch (e) {
+        if string.contains(e["message"], "true") {
+            results.push("PASS: True -> true hint")
+        } else {
+            results.push("FAIL: True hint: " + e["message"])
+        }
+    }
+
+    try {
+        let x = False
+        results.push("FAIL: False not caught")
+    } catch (e) {
+        if string.contains(e["message"], "false") {
+            results.push("PASS: False -> false hint")
+        } else {
+            results.push("FAIL: False hint: " + e["message"])
+        }
+    }
+
+    // HELPER-7: self/this detection
+    try {
+        let x = self
+        results.push("FAIL: self not caught")
+    } catch (e) {
+        if string.contains(e["message"], "self") {
+            results.push("PASS: self hint")
+        } else {
+            results.push("FAIL: self hint: " + e["message"])
+        }
+    }
+
+    return results
+}
+
+main {
+    print("=== Bug Fix Verification Test ===")
+    print("")
+
+    let all_pass = 0
+    let all_fail = 0
+
+    let sections = [
+        test_type_casts(),
+        test_for_loops(),
+        test_bool_equality(),
+        test_dot_notation(),
+        test_helper_errors()
+    ]
+
+    for section in sections {
+        for result in section {
+            print("  " + result)
+            if string.starts_with(result, "PASS") {
+                all_pass = all_pass + 1
+            } else {
+                all_fail = all_fail + 1
+            }
+        }
+    }
+
+    print("")
+    print("TOTAL: " + string(all_pass) + " PASS, " + string(all_fail) + " FAIL")
+}

@@ -1,0 +1,12 @@
+// Test A1: Contract return_not_null with null return
+// EXPECTED: governance HARD violation — function returns null but contract says return_not_null: true
+// Uses nullable return type (any?) to bypass Phase 2 null safety check
+
+fn maybe_null() -> any? {
+    return null
+}
+
+main {
+    let r = maybe_null()
+    print("Should not reach here: " + string(r))
+}

@@ -1,0 +1,13 @@
+// Test C2: Contract return_length on nested array
+// EXPECTED: PASS — [[1,2],[3,4]] has length 2 at top level (BUG-2 fix)
+// Before fix, comma counting would say length=4 (counting all commas)
+
+fn get_nested() {
+    return [[1, 2], [3, 4]]
+}
+
+main {
+    let data = get_nested()
+    print("Data: " + string(data))
+    print("PASS: nested array length")
+}

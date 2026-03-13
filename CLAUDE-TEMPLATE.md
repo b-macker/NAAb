@@ -140,13 +140,14 @@ sum(d * multiplier for d in data)
 - **Julia**: JIT-compiled. Use `println` for output.
 
 ### JSON Sovereign Pipe
-For structured return data:
+For structured return data from polyglot blocks, use `-> JSON`:
 ```naab
 let data = <<python -> JSON
 import json
-json.dumps({"key": "value", "count": 42})
+print(json.dumps({"key": "value", "count": 42}))
 >>
 ```
+Bare `json.dumps(data)` as the last expression also works (auto-wrapped in `print()`).
 
 ## Stdlib Reference (ALL functions)
 
@@ -201,7 +202,10 @@ year, month, day, hour, minute, second, weekday
 parse, stringify
 
 ### regex
-match, test, replace, split
+search (partial match, returns match or null), matches (full string match, true/false),
+find (returns matched string), find_all (all matches as array),
+replace, replace_first, split, groups, find_groups, escape, is_valid
+**GOTCHA**: `regex.match()` and `regex.test()` do NOT exist — use `regex.search()` or `regex.matches()`
 
 ### env
 get, set_var (NOT set — the function is set_var), list
@@ -287,6 +291,21 @@ main {
 18. Python polyglot: Do NOT use `return` — causes `SyntaxError: 'return' outside function`
 19. Value semantics: modifying a nested dict/array requires re-assigning to parent (see Value Semantics section)
 20. The `..` range operator can collide with `".."` string literals — use intermediate variables: `let dots = ".."; path.contains(dots)`
+21. `try` is a STATEMENT, not an expression — `let x = try { ... }` will NOT parse.
+    Instead: declare variable before try, assign inside: `let x = ""; try { x = compute() } catch (e) { }`
+22. `throw` is a STATEMENT, not an expression — cannot appear in match arms or `let` assignments.
+    Instead of `_ => throw "err"` in match, use if/else with throw: `if x == "bad" { throw "err" }`
+23. `string.match()` does NOT exist — use `regex.search(text, pattern)` for partial match,
+    `regex.matches(text, pattern)` for full match, `regex.find_all(text, pattern)` for all matches.
+    Requires `use regex`.
+24. `-> JSON`: Python bare expressions (e.g. `json.dumps(data)`) as the last line are auto-wrapped
+    in `print()`. Both `json.dumps(data)` and `print(json.dumps(data))` work as the last line.
+    JS: `JSON.stringify(data)` as the last expression (eval-based, no print needed).
+25. `and`/`or`/`not` are NOT boolean operators in NAAb — use `&&`/`||`/`!`
+    `if x > 0 and y > 0` -> ERROR. Use: `if x > 0 && y > 0`
+    `if not done` -> ERROR. Use: `if !done`
+26. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
+    Example: `import "types.naab" as types` then `let c = types.Color.Red`
 
 ---
 
@@ -313,6 +332,11 @@ Copy everything above into your project's CLAUDE.md, then add sections like thes
 ## What NOT to Do (project-specific)
 - Do NOT write standalone .py, .js, .go files
 - Do NOT hardcode results, use placeholders, or stub functions
-- Do NOT leave TODO/FIXME/STUB comments
+- Do NOT leave TODO/FIXME/STUB comments — governance BLOCKS these patterns
+- Do NOT use comments that admit code is incomplete: "simplified version", "for demonstration",
+  "would normally do X", "in a real system", "basic implementation", "mock data", "placeholder"
+- Do NOT write empty/trivial functions (pass-only, return True, return [])
+- Do NOT swallow errors silently (empty catch blocks, except: pass)
+- The governance engine detects 200+ stub/evasion patterns and will BLOCK execution
 - [Add project-specific restrictions]
 ```

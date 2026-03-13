@@ -676,19 +676,10 @@ std::unique_ptr<ast::ImportStmt> Parser::parseImportStmt() {
     std::string module_path;
 
     // Helper lambda: accept identifier OR keyword as alias name
+    // Uses isAllowedNameToken() to stay in sync with the centralized keyword list
+    // (fixes: 'config', 'init', 'module', 'try', 'catch', etc. were missing before)
     auto parseAliasName = [this]() -> std::string {
-        if (check(lexer::TokenType::IDENTIFIER)) {
-            std::string name = current().value;
-            advance();
-            return name;
-        }
-        // Allow keywords as alias names (LLMs naturally name modules after files)
-        if (check(lexer::TokenType::EXPORT) || check(lexer::TokenType::IMPORT) ||
-            check(lexer::TokenType::MATCH) || check(lexer::TokenType::DEFAULT) ||
-            check(lexer::TokenType::FUNCTION) || check(lexer::TokenType::RETURN) ||
-            check(lexer::TokenType::STRUCT) || check(lexer::TokenType::ENUM) ||
-            check(lexer::TokenType::FOR) || check(lexer::TokenType::WHILE) ||
-            check(lexer::TokenType::IF) || check(lexer::TokenType::ELSE)) {
+        if (isAllowedNameToken(current().type)) {
             std::string name = current().value;
             advance();
             return name;
@@ -2151,6 +2142,42 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         return inline_expr;
     }
 
+    // HELPER: try-as-expression detection — NAAb's try is a statement, not an expression
+    if (check(lexer::TokenType::TRY)) {
+        throw ParseError(formatError(
+            "NAAb's 'try' is a statement, not an expression\n\n"
+            "  It cannot be used on the right side of 'let' or in expressions.\n\n"
+            "  \xE2\x9C\x97 Wrong:\n"
+            "    let x = try { file.read(\"config.json\") } catch (e) { \"{}\" }\n\n"
+            "  \xE2\x9C\x93 Right:\n"
+            "    let x = \"{}\"\n"
+            "    try {\n"
+            "        x = file.read(\"config.json\")\n"
+            "    } catch (e) { }\n\n"
+            "  Or use a wrapper function:\n"
+            "    fn safe_read(path, fallback) {\n"
+            "        let result = fallback\n"
+            "        try { result = file.read(path) } catch (e) { }\n"
+            "        return result\n"
+            "    }\n"
+            "    let x = safe_read(\"config.json\", \"{}\")\n",
+            current()
+        ));
+    }
+
+    // HELPER: throw-as-expression detection — NAAb's throw is a statement, not an expression
+    if (check(lexer::TokenType::THROW)) {
+        throw ParseError(formatError(
+            "NAAb's 'throw' is a statement, not an expression\n\n"
+            "  It cannot be used on the right side of 'let' or in expressions.\n\n"
+            "  \xE2\x9C\x97 Wrong:\n"
+            "    let x = throw \"error\"\n\n"
+            "  \xE2\x9C\x93 Right:\n"
+            "    throw \"error\"    // throw is a standalone statement\n",
+            current()
+        ));
+    }
+
     // Identifier (and keywords used as variable names like 'config', 'init', 'module', etc.)
     // Excluded: NEW (struct literals), FUNCTION (lambdas), STRUCT/TRY/CATCH/THROW/FINALLY
     // (these have special handling elsewhere or are only valid in declaration context)
@@ -2525,6 +2552,53 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
 
         expect(lexer::TokenType::FAT_ARROW, "Expected '=>' after match pattern");
         skipNewlines();
+
+        // HELPER: throw-in-match-arm detection
+        if (check(lexer::TokenType::THROW)) {
+            throw ParseError(formatError(
+                "NAAb's 'throw' is a statement, not an expression\n\n"
+                "  'throw' cannot be used inside match arms (which expect expressions).\n\n"
+                "  \xE2\x9C\x97 Wrong:\n"
+                "    match format {\n"
+                "        \"json\" => json.stringify(data)\n"
+                "        _ => throw \"Unknown format: \" + format\n"
+                "    }\n\n"
+                "  \xE2\x9C\x93 Right (use if/else with throw):\n"
+                "    fn format_report(data, format) {\n"
+                "        if format == \"json\" { return json.stringify(data) }\n"
+                "        if format == \"text\" { return generate_text(data) }\n"
+                "        throw \"Unknown format: \" + format\n"
+                "    }\n\n"
+                "  Or use a default value:\n"
+                "    match format {\n"
+                "        \"json\" => json.stringify(data)\n"
+                "        _ => \"error: unknown format\"\n"
+                "    }\n",
+                current()
+            ));
+        }
+
+        // HELPER: try-in-match-arm detection
+        if (check(lexer::TokenType::TRY)) {
+            throw ParseError(formatError(
+                "NAAb's 'try' is a statement, not an expression\n\n"
+                "  'try' cannot be used inside match arms (which expect expressions).\n\n"
+                "  \xE2\x9C\x97 Wrong:\n"
+                "    match value {\n"
+                "        \"file\" => try { file.read(\"x\") } catch (e) { \"\" }\n"
+                "    }\n\n"
+                "  \xE2\x9C\x93 Right:\n"
+                "    fn safe_read(path) {\n"
+                "        let result = \"\"\n"
+                "        try { result = file.read(path) } catch (e) { }\n"
+                "        return result\n"
+                "    }\n"
+                "    match value {\n"
+                "        \"file\" => safe_read(\"x\")\n"
+                "    }\n",
+                current()
+            ));
+        }
 
         // Use parseLogicalOr for body to avoid greedy newline consumption
         auto body = parseLogicalOr();

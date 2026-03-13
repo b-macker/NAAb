@@ -1,0 +1,13 @@
+// Test A2: Contract return_type: "null" with null return
+// EXPECTED: PASS — function returns null and contract expects return_type: "null"
+// Uses nullable return type (any?) to bypass Phase 2 null safety check
+
+fn must_return_null() -> any? {
+    return null
+}
+
+main {
+    let r = must_return_null()
+    print("Got null: " + string(r))
+    print("PASS: null type contract")
+}

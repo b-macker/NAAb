@@ -1479,7 +1479,9 @@ private:
     // Uses void* to avoid nlohmann/json.hpp in header (kept in .cpp only)
     void* baselines_data_ = nullptr;
     bool baselines_loaded_ = false;
+    bool baselines_dirty_ = false;
     std::string baselines_path_;
+    int drift_write_count_ = 0;
     void loadBaselines();
     void saveBaselines();
 
