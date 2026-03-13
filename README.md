@@ -366,18 +366,18 @@ main {
 
 | Module | Functions |
 |---|---|
-| `array` | push, pop, map, filter, reduce, sort, slice, find, reverse, length |
-| `string` | split, join, upper, lower, trim, replace, reverse, contains, starts_with, char_at |
-| `math` | sqrt, pow, abs, floor, ceil, round, sin, cos, tan, random, pi, e |
-| `json` | parse, stringify, query, validate |
+| `array` | push, pop, shift, unshift, map_fn, filter_fn, reduce_fn, sort, slice_arr, find, reverse, length, contains, first, last, join |
+| `string` | split, join, upper, lower, trim, replace, reverse, contains, starts_with, ends_with, length, char_at, index_of, substring, repeat, pad_left, pad_right |
+| `math` | sqrt, pow, abs, floor, ceil, round, min, max, sin, cos, random, PI, E |
+| `json` | parse, stringify |
 | `http` | get, post, put, delete (with headers and body) |
-| `file` | read, write, append, exists, delete, list |
-| `time` | now, sleep, format, parse, duration |
-| `debug` | inspect, type, trace, watch, snapshot, diff, assert |
+| `file` | read, write, append, exists, delete, list_dir |
+| `time` | now, now_millis, sleep, format_timestamp, parse_datetime, year, month, day, hour, minute, second, weekday |
+| `debug` | inspect, type, trace, watch, snapshot, diff, keys, values, log, timer, compare, stack, env |
 | `env` | get, set_var, list |
-| `csv` | read, write, parse |
-| `regex` | match, search, replace, split, groups |
-| `crypto` | hash, hmac, random_bytes, uuid |
+| `csv` | parse, stringify |
+| `regex` | search, matches, find, find_all, replace, replace_first, split, groups, find_groups, escape, is_valid |
+| `crypto` | hash, sha256, sha512, md5, sha1, random_bytes, random_string, random_int, base64_encode, base64_decode, hex_encode, hex_decode, compare_digest, generate_token, hash_password |
 | `bolo` | scan, report (governance integration) |
 
 ---
@@ -413,8 +413,8 @@ NAAb detects ~35 patterns where developers (and AI) use the wrong language's idi
 
 NAAb accepts multiple keyword styles so AI-generated code works without manual edits:
 
-- `function` / `func` / `fn` — all valid
-- `let` / `var` / `const` — all valid
+- `function` / `func` / `fn` / `def` — all valid
+- `let` / `const` — mutable and immutable bindings
 - Semicolons — optional (accepted but not required)
 - `return` — optional in single-expression functions
 
