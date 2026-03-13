@@ -502,7 +502,7 @@ Source Code (.naab)
 ```
 
 - **73,000+** lines of C++17
-- **185** test files, **325** mono test assertions
+- **208** test files, **325** mono test assertions
 - **13** standard library modules with **204** error messages
 - Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
 
