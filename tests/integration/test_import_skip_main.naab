@@ -1,0 +1,10 @@
+import "modules/module_with_main.naab" as mod
+
+main {
+    let greeting = mod.get_greeting("World")
+    if greeting == "Hello, World!" {
+        print("PASS: Module function works and main was not executed during import")
+    } else {
+        print("FAIL: Expected 'Hello, World!' but got '" + string(greeting) + "'")
+    }
+}

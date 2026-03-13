@@ -31,6 +31,9 @@ public:
     // Retrieves all names defined in this and parent scopes (for error suggestions)
     std::vector<std::string> getAllNames() const;
 
+    // Retrieves only names defined in this scope (not parent scopes)
+    std::vector<std::string> getOwnNames() const;
+
     // Returns the parent environment
     std::shared_ptr<Environment> getParent() const { return parent_; }
 

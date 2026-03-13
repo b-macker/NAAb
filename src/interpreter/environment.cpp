@@ -65,5 +65,14 @@ std::vector<std::string> Environment::getAllNames() const {
     return names;
 }
 
+std::vector<std::string> Environment::getOwnNames() const {
+    std::vector<std::string> names;
+    names.reserve(values_.size());
+    for (const auto& [name, value] : values_) {
+        names.push_back(name);
+    }
+    return names;
+}
+
 } // namespace interpreter
 } // namespace naab

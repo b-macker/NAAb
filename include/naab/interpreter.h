@@ -378,6 +378,7 @@ public:
     void set(const std::string& name, std::shared_ptr<Value> value);
     bool has(const std::string& name) const;
     std::vector<std::string> getAllNames() const;
+    std::vector<std::string> getOwnNames() const;
 
     // Phase 3.2: GC support - access to values for cycle detection
     const std::unordered_map<std::string, std::shared_ptr<Value>>& getValues() const { return values_; }
@@ -523,6 +524,8 @@ private:
     bool returning_;
     bool breaking_;
     bool continuing_;
+
+    int module_loading_depth_ = 0;  // >0 = loading module, skip main blocks
 
     // Block loading
     std::unique_ptr<runtime::BlockLoader> block_loader_;

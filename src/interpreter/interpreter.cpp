@@ -509,6 +509,15 @@ std::vector<std::string> Environment::getAllNames() const {
     return names;
 }
 
+std::vector<std::string> Environment::getOwnNames() const {
+    std::vector<std::string> names;
+    names.reserve(values_.size());
+    for (const auto& [name, _] : values_) {
+        names.push_back(name);
+    }
+    return names;
+}
+
 // ============================================================================
 // Interpreter Implementation
 // ============================================================================
@@ -1016,7 +1025,7 @@ void Interpreter::visit(ast::Program& node) {
     }
 
     // Governance: Check require_main_block before execution
-    if (governance_ && governance_->isActive() && governance_->requiresMainBlock()) {
+    if (governance_ && governance_->isActive() && governance_->requiresMainBlock() && module_loading_depth_ == 0) {
         if (!node.getMainBlock()) {
             auto level = governance_->getRules().main_block_level;
             std::string err = governance_->checkLanguageAllowed("__main_block_check__");
@@ -1047,13 +1056,13 @@ void Interpreter::visit(ast::Program& node) {
         }
     }
 
-    // Execute main block if present
-    if (node.getMainBlock()) {
+    // Execute main block if present (skip when loading as module)
+    if (node.getMainBlock() && module_loading_depth_ == 0) {
         node.getMainBlock()->accept(*this);
     }
 
-    // Governance: Print execution summary and write reports
-    if (governance_ && governance_->isActive()) {
+    // Governance: Print execution summary and write reports (only for top-level program)
+    if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
         if (governance_verbose_) {
             // Full detail: summary line + every check
             std::string summary = governance_->formatSummary();
@@ -1552,20 +1561,28 @@ void Interpreter::visit(ast::ImportStmt& node) {
         // Create a dictionary containing all exports from the module
         std::unordered_map<std::string, std::shared_ptr<Value>> module_dict;
 
-        // Get all names from module environment
-        for (const auto& name : module_env->getAllNames()) {
+        // Get only module's own names (not inherited from global_env_)
+        for (const auto& name : module_env->getOwnNames()) {
             module_dict[name] = module_env->get(name);
+        }
+
+        // Add exported enum variants (defined in global_env_ by visit(EnumDecl))
+        for (const auto& [name, enum_def] : module_env->exported_enums_) {
+            for (const auto& [variant_name, value] : enum_def->variants) {
+                std::string dotted = enum_def->name + "." + variant_name;
+                auto val = std::make_shared<Value>(value);
+                module_dict[dotted] = val;
+                global_env_->define(alias + "." + dotted, val);
+            }
         }
 
         auto dict_value = std::make_shared<Value>(module_dict);
         current_env_->define(alias, dict_value);
 
-        // Define aliased names for 3-level dot access (module.Enum.Variant)
-        // Scan all dotted keys in the module dict (covers both exported and non-exported enums)
+        // Define aliased names for 3-level dot access from own dotted keys
         for (const auto& [key, val] : module_dict) {
             if (key.find('.') != std::string::npos) {
-                std::string aliased_name = alias + "." + key;
-                global_env_->define(aliased_name, val);
+                global_env_->define(alias + "." + key, val);
             }
         }
 
@@ -1755,8 +1772,10 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
     module_exports_.clear();
 
     try {
-        // Execute module AST
+        // Execute module AST (skip main blocks during import)
+        ++module_loading_depth_;
         module->ast->accept(*this);
+        --module_loading_depth_;
 
         // Copy module exports to module environment
         for (const auto& [name, value] : module_exports_) {
@@ -1770,6 +1789,7 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
         LOG_DEBUG("          Exported {} symbols\n", module_exports_.size());
 
     } catch (const std::exception& e) {
+        --module_loading_depth_;
         // Issue #3: Pop file context on error
         popFileContext();
 
@@ -1793,7 +1813,8 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
 
 void Interpreter::visit(ast::FunctionDecl& node) {
     // EVA-8: GOV-6 extended — scan ALL function bodies (not just exported)
-    if (governance_) {
+    // Skip during module loading to avoid expensive regex compilation overhead
+    if (governance_ && module_loading_depth_ == 0) {
         auto loc = node.getLocation();
         if (loc.line > 0 && !current_file_.empty()) {
             std::ifstream src_file(current_file_);
@@ -2002,7 +2023,11 @@ void Interpreter::visit(ast::EnumDecl& node) {
         // Store enum variant as: EnumName.VariantName = value
         std::string full_name = node.getName() + "." + variant.name;
         auto value = std::make_shared<Value>(variant_value);
-        global_env_->define(full_name, value);
+        current_env_->define(full_name, value);
+        // Also define in global_env_ for cross-scope access
+        if (current_env_ != global_env_) {
+            global_env_->define(full_name, value);
+        }
 
         next_value = variant_value + 1;
     }
@@ -4633,6 +4658,44 @@ void Interpreter::visit(ast::CallExpr& node) {
                 result_ = std::make_shared<Value>(new_dict);
                 return;
             }
+            if (method_name == "entries") {
+                std::vector<std::shared_ptr<Value>> entries;
+                for (const auto& pair : dict) {
+                    std::vector<std::shared_ptr<Value>> entry;
+                    entry.push_back(std::make_shared<Value>(pair.first));
+                    entry.push_back(pair.second);
+                    entries.push_back(std::make_shared<Value>(entry));
+                }
+                result_ = std::make_shared<Value>(entries);
+                return;
+            }
+            if (method_name == "merge") {
+                if (args.empty()) throw std::runtime_error("dict.merge() requires 1 argument (another dict)");
+                auto other = args[0];
+                if (auto* other_dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&other->data)) {
+                    for (const auto& pair : *other_dict) {
+                        dict[pair.first] = pair.second;
+                    }
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj);
+                    }
+                } else {
+                    throw std::runtime_error("dict.merge() argument must be a dict");
+                }
+                result_ = std::make_shared<Value>();
+                return;
+            }
+            // Helper: dict.update() does not exist
+            if (method_name == "update") {
+                throw std::runtime_error(
+                    "dict.update() does not exist in NAAb\n\n"
+                    "  Use dict.merge(other) to merge another dict, or set keys individually:\n"
+                    "    my_dict.merge(other_dict)          // merge all keys from other\n"
+                    "    my_dict.put(\"key\", value)           // set a single key\n"
+                    "    my_dict[\"key\"] = value              // bracket assignment\n"
+                );
+            }
 
             // Not a built-in dict method - check if it's a function stored in the dict
             auto it = dict.find(method_name);
@@ -4656,6 +4719,8 @@ void Interpreter::visit(ast::CallExpr& node) {
             oss << "    .put(key, value)                - add/update entry\n";
             oss << "    .remove(key)                    - remove entry\n";
             oss << "    .keys(), .values()              - get keys/values as array\n";
+            oss << "    .entries()                      - array of [key, value] pairs\n";
+            oss << "    .merge(other_dict)              - merge another dict\n";
             oss << "    .clone()                        - shallow copy\n";
             if (!dict.empty()) {
                 oss << "\n  Dict keys: ";
