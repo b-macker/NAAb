@@ -194,13 +194,16 @@ std::string suggestForTypeMismatch(
     const std::string& actual) {
 
     if (expected == "int" && actual == "string") {
-        return "Try converting with 'toInt()' or use an integer literal";
+        return "Convert with int(value): int(\"42\") returns 42";
     }
     if (expected == "string" && actual == "int") {
-        return "Try converting with 'toString()' or use a string literal";
+        return "Convert with string(value): string(42) returns \"42\", or use \"prefix\" + value (auto-converts)";
+    }
+    if (expected == "float" && actual == "string") {
+        return "Convert with float(value): float(\"3.14\") returns 3.14";
     }
     if (expected == "bool" && (actual == "int" || actual == "string")) {
-        return "Use a boolean expression like '== 0' or 'isEmpty()'";
+        return "Convert with bool(value), or use a comparison: value == 0, len(value) > 0";
     }
 
     return "";

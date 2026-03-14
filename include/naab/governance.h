@@ -673,6 +673,7 @@ struct ComplexityFloorConfig {
     bool enabled = false;                  // Only active when explicitly configured
     EnforcementLevel level = EnforcementLevel::SOFT;
     int min_score = 10;                    // Global minimum
+    int min_lines_for_check = 0;           // Skip floor for functions shorter than N lines (0 = disabled)
     bool check_polyglot = true;
     bool check_naab = true;
     bool skip_if_has_polyglot_block = true;

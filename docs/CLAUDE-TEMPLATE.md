@@ -279,6 +279,24 @@ stats["count"] = int(stats["count"]) + 1
 depts[d] = stats    // MANDATORY — without this, the change is lost
 ```
 
+### Value Semantics in Loops (CRITICAL)
+```naab
+// WRONG — changes lost:
+for i in 0..len(entities) {
+    let e = entities[i]
+    e["hp"] = e.get("hp") - 10
+    // Missing: entities[i] = e
+}
+
+// RIGHT — re-assign both inner and outer:
+for i in 0..len(entities) {
+    let e = entities[i]
+    e["hp"] = e.get("hp") - 10
+    entities[i] = e        // MUST re-assign element
+}
+state["entities"] = entities  // MUST re-assign container
+```
+
 ## Testing Pattern
 Each test function returns [passed, total]. Main aggregates:
 ```naab
@@ -342,6 +360,70 @@ main {
 27. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
     Example: `import "types.naab" as types` then `let c = types.Color.Red`
 
+## Complexity Scoring (for governance)
+
+If govern.json has `complexity_floor` enabled, functions must reach a minimum
+complexity score. Here's what contributes:
+
+| Pattern | Score | Example |
+|---------|-------|---------|
+| Real loop (for/while) | +5 each | `for item in data { ... }` |
+| Nested loops | +15 | `for row in grid { for col in row { } }` |
+| try/catch | +5 | `try { risky() } catch (e) { handle(e) }` |
+| Array operations | +5 | `array.filter_fn(arr, predicate)` |
+| Pipeline operator | +5 | `data \|> transform \|> format` |
+| Function definition | +3 each | `fn helper(x) { ... }` |
+| External function call | +1 each | `math.sqrt(x)` |
+| Recursion | +10 | Function calls itself |
+
+Functions named `get_*`, `set_*`, `is_*`, `has_*`, `to_*`, `make_*`, `apply_*`,
+`move_*`, `check_*`, `find_*`, `create_*`, `update_*`, `remove_*`, `delete_*`,
+`add_*`, `reset_*`, `init_*`, `validate_*`, `convert_*`, `clamp`, `distance`,
+`manhattan`, `in_bounds`, `direction` have LOW threshold (score >= 3).
+
+Functions named `simulate_*`, `compute_*`, `calculate_*`, `process_*`, `analyze_*`
+need substantial logic (score >= 20-25, must have loops or conditionals).
+
+Functions shorter than `min_lines_for_check` lines skip the floor entirely.
+
+Do NOT pad functions with `for i in 0..1 { }` or `for i in 0..2 { }` loops to pass
+complexity checks. Instead: add real logic — input validation, edge case handling,
+error recovery with try/catch.
+
+## Contract Patterns
+
+When govern.json defines function contracts, your return value MUST match.
+Common patterns:
+
+**return_type: dict + return_keys:**
+```naab
+// Contract: return_keys: ["id", "type", "hp", "x", "y"]
+return {
+    "id": computed_id,
+    "type": entity_type,
+    "hp": calculated_hp,
+    "x": position_x,
+    "y": position_y
+}
+```
+
+**return_one_of:**
+```naab
+// Contract: return_one_of: ["attack", "move", "flee", "idle"]
+// Use match or if/else to ensure only valid values returned
+if hp_ratio < threshold { return "flee" }
+else if enemy_in_range { return "attack" }
+else if enemy_nearby { return "move" }
+return "idle"
+```
+
+**return_min: 0 (non-negative):**
+```naab
+// Contract: return_min: 0
+let result = base_damage - defense
+return int(math.max(0, result))  // Clamp to 0
+```
+
 ---
 
 ## Project-Specific Template
@@ -372,6 +454,13 @@ Copy everything above into your project's CLAUDE.md, then add sections like thes
   "would normally do X", "in a real system", "basic implementation", "mock data", "placeholder"
 - Do NOT write empty/trivial functions (pass-only, return True, return [])
 - Do NOT swallow errors silently (empty catch blocks, except: pass)
+- Do NOT pad functions with `for i in 0..1 { }` or `for i in 0..2 { }` loops to pass
+  complexity checks. Instead: add real logic — input validation, edge case handling,
+  error recovery with try/catch. The governance engine rewards: loops over real data,
+  conditionals, try/catch, function calls, array operations (map_fn, filter_fn, reduce_fn).
+- Do NOT add hedging comments like "for now", "simplified", "basic implementation",
+  "in a real system". If the code works, it IS the real implementation. Delete the
+  qualifying comment — governance blocks these patterns even when the code is correct.
 - The governance engine detects 200+ stub/evasion patterns and will BLOCK execution
 - [Add project-specific restrictions]
 ```

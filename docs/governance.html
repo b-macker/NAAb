@@ -1076,7 +1076,7 @@ const QUALITY_CHECKS = [
     {id:'no_incomplete_logic',name:'No Incomplete Logic',def_level:'hard',desc:'Block empty catch, swallowed exceptions, generic errors'},
     {id:'no_hallucinated_apis',name:'No Hallucinated APIs',def_level:'soft',desc:'Detect cross-language API confusion, made-up functions'},
     {id:'no_apologetic_language',name:'No Apologetic Language',def_level:'advisory',desc:'Detect sorry/apology comments',def_off:true},
-    {id:'complexity_floor',name:'Complexity Floor',def_level:'soft',desc:'Minimum structural complexity for functions (by name pattern)',def_off:true},
+    {id:'complexity_floor',name:'Complexity Floor',def_level:'soft',desc:'Minimum structural complexity for functions. Short functions (below min_lines_for_check) are skipped.',def_off:true},
 ];
 
 // =====================================================
@@ -1135,6 +1135,29 @@ function buildToggleCheck(check, prefix) {
                 <span class="level-btn ${check.def_level==='advisory'?'active-advisory':''}" data-level="advisory" data-for="${prefix}-${check.id}" onclick="setLevel(this)">advisory</span>
             </div>
         </div>`;
+    // Add extra config for complexity_floor
+    if (check.id === 'complexity_floor') {
+        const extra = document.createElement('div');
+        extra.style.cssText = 'margin-left:50px;margin-top:6px;display:flex;gap:16px;flex-wrap:wrap;';
+        extra.innerHTML = `
+            <div class="form-group" style="margin:0;flex:0 0 auto">
+                <label style="font-size:12px">Min score</label>
+                <input type="number" id="cf-min-score" value="5" min="1" max="100" style="width:60px" oninput="updateJSON()">
+            </div>
+            <div class="form-group" style="margin:0;flex:0 0 auto">
+                <label style="font-size:12px">Min lines for check</label>
+                <input type="number" id="cf-min-lines" value="8" min="0" max="50" style="width:60px" oninput="updateJSON()">
+            </div>
+            <div class="toggle-wrap" style="margin-top:4px">
+                <label class="toggle"><input type="checkbox" id="cf-check-naab" checked onchange="updateJSON()"><span class="slider"></span></label>
+                <span class="toggle-label" style="font-size:12px">Check NAAb</span>
+            </div>
+            <div class="toggle-wrap" style="margin-top:4px">
+                <label class="toggle"><input type="checkbox" id="cf-check-polyglot" checked onchange="updateJSON()"><span class="slider"></span></label>
+                <span class="toggle-label" style="font-size:12px">Check polyglot</span>
+            </div>`;
+        div.appendChild(extra);
+    }
     return div;
 }
 
@@ -1407,7 +1430,22 @@ function updateJSON() {
     const quality = {};
     QUALITY_CHECKS.forEach(q => {
         const on = document.getElementById('quality-' + q.id + '-on');
-        if (on && on.checked) quality[q.id] = {level: getLevel('quality', q.id)};
+        if (on && on.checked) {
+            const entry = {level: getLevel('quality', q.id)};
+            // Complexity floor has extra config
+            if (q.id === 'complexity_floor') {
+                const ms = parseInt(document.getElementById('cf-min-score')?.value) || 5;
+                const ml = parseInt(document.getElementById('cf-min-lines')?.value) || 0;
+                const cn = document.getElementById('cf-check-naab')?.checked;
+                const cp = document.getElementById('cf-check-polyglot')?.checked;
+                entry.min_score = ms;
+                if (ml > 0) entry.min_lines_for_check = ml;
+                entry.check_naab = cn !== false;
+                entry.check_polyglot = cp !== false;
+                entry.skip_if_has_polyglot_block = true;
+            }
+            quality[q.id] = entry;
+        }
     });
     if (Object.keys(quality).length) cfg.code_quality = quality;
 

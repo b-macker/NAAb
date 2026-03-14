@@ -5782,8 +5782,16 @@ void Interpreter::visit(ast::CallExpr& node) {
             oss << "    myArray." << func_name << "(item)  // correct\n";
             oss << "    // or: import array; array.push(myArray, item)\n";
         } else if (func_name == "forEach" || func_name == "map" || func_name == "filter" || func_name == "reduce") {
-            oss << "  NAAb uses for-in loops instead of " << func_name << ":\n";
-            oss << "    for item in myArray { print(item) }\n";
+            if (func_name == "forEach") {
+                oss << "  NAAb uses for-in loops instead of forEach:\n";
+                oss << "    for item in myArray { print(item) }\n";
+            } else {
+                oss << "  NAAb has array." << func_name << "_fn (NOT a global function):\n";
+                oss << "    array.map_fn(arr, fn(x) { return x * 2 })\n";
+                oss << "    array.filter_fn(arr, fn(x) { return x > 5 })\n";
+                oss << "    array.reduce_fn(arr, fn(acc, x) { return acc + x }, 0)\n";
+                oss << "  Note: These do NOT work with dot notation — use array." << func_name << "_fn(arr, fn), not arr." << func_name << "_fn(fn)\n";
+            }
         } else {
             oss << "  Help:\n";
             oss << "  - Check for typos in the function name\n";

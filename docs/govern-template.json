@@ -499,7 +499,8 @@
     },
     "complexity_floor": {
       "level": "soft",
-      "min_score": 10,
+      "min_score": 5,
+      "min_lines_for_check": 8,
       "check_polyglot": true,
       "check_naab": true,
       "skip_if_has_polyglot_block": true,
@@ -520,7 +521,10 @@
         {
           "names": ["get", "set", "is_", "has_", "to_", "from_", "format", "wrap",
                     "apply_", "move_", "check_", "destroy_", "find_", "render_",
-                    "load_", "spawn_", "format_", "make_"],
+                    "load_", "spawn_", "make_", "create_", "update_",
+                    "remove_", "delete_", "add_", "reset_", "init_", "parse_",
+                    "validate_", "convert_", "clamp", "distance", "manhattan",
+                    "in_bounds", "direction"],
           "min_score": 3,
           "require_branching_or_loops": false
         }

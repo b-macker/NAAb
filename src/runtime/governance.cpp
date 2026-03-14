@@ -993,6 +993,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (val.contains("check_polyglot")) cf.check_polyglot = val["check_polyglot"].get<bool>();
                 if (val.contains("check_naab")) cf.check_naab = val["check_naab"].get<bool>();
                 if (val.contains("skip_if_has_polyglot_block")) cf.skip_if_has_polyglot_block = val["skip_if_has_polyglot_block"].get<bool>();
+                if (val.contains("min_lines_for_check")) cf.min_lines_for_check = val["min_lines_for_check"].get<int>();
                 if (val.contains("rules") && val["rules"].is_array()) {
                     for (auto& rule_json : val["rules"]) {
                         ComplexityFloorRule rule;
@@ -2262,7 +2263,11 @@ std::string GovernanceEngine::checkTemporaryCode(const std::string& code, int li
         return enforce("code_quality.no_temporary_code", cfg.level,
             formatError(cfg.level, fmt::format("Temporary code marker: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_temporary_code",
-                "Replace temporary code with production implementation", "", ""));
+                "The most common fix is to simply DELETE the comment.\n"
+                "If the code underneath works, the comment was the only problem.\n"
+                "Replace temporary code markers with production implementation.",
+                "# for now, just return empty\nresult = []\nreturn result",
+                "result = [analyze(item) for item in data]\nreturn result"));
     }
     recordPass("code_quality.no_temporary_code", cfg.level);
     return "";
@@ -2286,7 +2291,9 @@ std::string GovernanceEngine::checkSimulationMarkers(const std::string& code, in
         return enforce("code_quality.no_simulation_markers", cfg.level,
             formatError(cfg.level, fmt::format("Simulation marker: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_simulation_markers",
-                "Replace simulated/mocked code with real implementation", "", ""));
+                "Replace simulated/mocked code with real computation from actual data.",
+                "# simulated result\nresult = random.uniform(0.8, 0.95)",
+                "result = len(matches) / len(total) if total else 0.0"));
     }
     recordPass("code_quality.no_simulation_markers", cfg.level);
     return "";
@@ -2309,7 +2316,10 @@ std::string GovernanceEngine::checkMockData(const std::string& code, int line) {
                 return enforce("code_quality.no_mock_data", cfg.level,
                     formatError(cfg.level, fmt::format("Mock data variable: \"{}\"", match[0].str()),
                         line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_mock_data",
-                        "Use real data sources instead of mock/fake data", "", ""));
+                        "Use real data sources instead of mock/fake data.\n"
+                        "Rename variables to describe their actual purpose.",
+                        "mock_users = [{\"name\": \"John\"}]",
+                        "users = load_users(data_path)"));
             }
         } catch (const std::regex_error&) {}
     }
@@ -2326,7 +2336,9 @@ std::string GovernanceEngine::checkMockData(const std::string& code, int line) {
         return enforce("code_quality.no_mock_data", cfg.level,
             formatError(cfg.level, fmt::format("Mock literal: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_mock_data",
-                "Replace placeholder literals with real data", "", ""));
+                "Replace placeholder literals with computed or configured values.",
+                "email = \"test@test.com\"\nname = \"John Doe\"",
+                "email = config.get(\"admin_email\")\nname = user.get(\"display_name\")"));
     }
 
     recordPass("code_quality.no_mock_data", cfg.level);
@@ -2351,8 +2363,11 @@ std::string GovernanceEngine::checkApologeticLanguage(const std::string& code, i
         return enforce("code_quality.no_apologetic_language", cfg.level,
             formatError(cfg.level, fmt::format("Apologetic language: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_apologetic_language",
-                "LLM-generated code should not contain apologies or self-deprecation\nThis indicates the code may not have been properly verified",
-                "", ""));
+                "LLM-generated code should not contain apologies or self-deprecation.\n"
+                "This indicates the code may not have been properly verified.\n"
+                "Delete the apologetic comment — if the code works, ship it.",
+                "# I'm sorry, this is a basic implementation\ndef process(data): pass",
+                "def process(data):\n    return [transform(item) for item in data]"));
     }
     recordPass("code_quality.no_apologetic_language", cfg.level);
     return "";
@@ -2374,7 +2389,10 @@ std::string GovernanceEngine::checkDeadCode(const std::string& code, int line) {
         return enforce("code_quality.no_dead_code", cfg.level,
             formatError(cfg.level, fmt::format("Dead code pattern: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_dead_code",
-                "Remove dead/unreachable code", "", ""));
+                "Remove dead/unreachable code. Code behind always-true/false conditions\n"
+                "or empty except blocks serves no purpose.",
+                "if True:\n    do_thing()  # always runs — remove the if\nexcept: pass  # swallows errors",
+                "do_thing()  # just call it directly\nexcept ValueError as e:\n    log.error(e); raise"));
     }
     recordPass("code_quality.no_dead_code", cfg.level);
     return "";
@@ -2413,7 +2431,11 @@ std::string GovernanceEngine::checkDebugArtifacts(const std::string& language,
                 return enforce("code_quality.no_debug_artifacts", cfg.level,
                     formatError(cfg.level, fmt::format("Debug artifact in {} block: \"{}\"", language, found),
                         line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_debug_artifacts",
-                        "Remove debug statements before deployment", "", ""));
+                        "Remove debug statements before deployment.\n"
+                        "Note: print(), console.log(), fmt.Println() are standard I/O, NOT debug.\n"
+                        "Only debugger tools (pdb, breakpoint(), debugger;) are flagged.",
+                        "import pdb; pdb.set_trace()\nbreakpoint()",
+                        "# Remove debug tools entirely — use print() for normal output"));
             }
         } catch (const std::regex_error&) {}
     }
@@ -2437,7 +2459,10 @@ std::string GovernanceEngine::checkUnsafeDeserialization(const std::string& code
         return enforce("code_quality.no_unsafe_deserialization", cfg.level,
             formatError(cfg.level, fmt::format("Unsafe deserialization: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_unsafe_deserialization",
-                "Use safe deserialization methods (json.loads, yaml.safe_load)", "", ""));
+                "Use safe deserialization methods (json.loads, yaml.safe_load).\n"
+                "Unsafe deserializers can execute arbitrary code from untrusted input.",
+                "data = pickle.loads(user_input)\nconfig = yaml.load(file)",
+                "data = json.loads(user_input)\nconfig = yaml.safe_load(file)"));
     }
     recordPass("code_quality.no_unsafe_deserialization", cfg.level);
     return "";
@@ -2488,7 +2513,11 @@ std::string GovernanceEngine::checkPathTraversal(const std::string& code, int li
             formatError(cfg.level,
                 fmt::format("Path traversal pattern detected: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_path_traversal",
-                "Use absolute paths or os.path.realpath() to prevent traversal", "", ""));
+                "Use absolute paths or os.path.realpath() to prevent traversal.\n"
+                "Never construct paths by concatenating user input with '..'.",
+                "path = base_dir + \"/../\" + user_input",
+                "path = os.path.realpath(os.path.join(base_dir, user_input))\n"
+                "assert path.startswith(base_dir)  # validate resolved path"));
     }
     recordPass("code_quality.no_path_traversal", cfg.level);
     return "";
@@ -2509,7 +2538,10 @@ std::string GovernanceEngine::checkHardcodedUrls(const std::string& code, int li
             return enforce("code_quality.no_hardcoded_urls", cfg.level,
                 formatError(cfg.level, fmt::format("Hardcoded URL: \"{}\"", url),
                     line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_hardcoded_urls",
-                    "Use configuration or environment variables for URLs", "", ""));
+                    "Use configuration or environment variables for URLs.\n"
+                    "localhost, 127.0.0.1, and example.com are allowed.",
+                    "api_url = \"https://api.production.com/v1\"",
+                    "api_url = os.environ.get(\"API_URL\", \"http://localhost:8080\")"));
         }
     } catch (const std::regex_error&) {}
     recordPass("code_quality.no_hardcoded_urls", cfg.level);
@@ -2531,7 +2563,10 @@ std::string GovernanceEngine::checkHardcodedIps(const std::string& code, int lin
             return enforce("code_quality.no_hardcoded_ips", cfg.level,
                 formatError(cfg.level, fmt::format("Hardcoded IP: \"{}\"", ip),
                     line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_hardcoded_ips",
-                    "Use configuration or DNS for IP addresses", "", ""));
+                    "Use configuration or DNS for IP addresses.\n"
+                    "127.0.0.1, 0.0.0.0, and 255.x.x.x are allowed.",
+                    "server = \"192.168.1.100\"",
+                    "server = os.environ.get(\"SERVER_HOST\", \"localhost\")"));
         }
     } catch (const std::regex_error&) {}
     recordPass("code_quality.no_hardcoded_ips", cfg.level);
@@ -2547,7 +2582,10 @@ std::string GovernanceEngine::checkEncoding(const std::string& code, int line) {
         return enforce("code_quality.encoding", cfg.level,
             formatError(cfg.level, "Null byte detected in code",
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.encoding.block_null_bytes",
-                "Null bytes can be used for injection attacks", "", ""));
+                "Null bytes can be used for injection attacks.\n"
+                "Ensure code does not contain embedded \\0 characters.",
+                "data = \"hello\\x00world\"  # hidden null byte",
+                "data = \"helloworld\"  # clean string"));
     }
     if (cfg.block_unicode_bidi) {
         // Check for Unicode bidirectional override characters
@@ -2558,7 +2596,10 @@ std::string GovernanceEngine::checkEncoding(const std::string& code, int line) {
                 return enforce("code_quality.encoding", cfg.level,
                     formatError(cfg.level, "Unicode bidirectional override character detected",
                         line > 0 ? fmt::format("line {}", line) : "", "code_quality.encoding.block_unicode_bidi",
-                        "Bidi override characters can be used for trojan source attacks", "", ""));
+                        "Bidi override characters can be used for trojan source attacks.\n"
+                        "These invisible Unicode characters make code appear different from what executes.",
+                        "access_level = \"user\u202Enimda\"  # hidden bidi override",
+                        "access_level = \"admin\"  # plain ASCII string"));
             }
         }
     }
@@ -2578,7 +2619,10 @@ std::string GovernanceEngine::checkComplexity(const std::string& code, int line)
             return enforce("code_quality.max_complexity", cfg.level,
                 formatError(cfg.level, fmt::format("Block has {} lines (max: {})", lines, cfg.max_lines_per_block),
                     line > 0 ? fmt::format("line {}", line) : "", "code_quality.max_complexity.max_lines_per_block",
-                    "Break large blocks into smaller functions or multiple blocks", "", ""));
+                    "Break large blocks into smaller functions or multiple blocks.\n"
+                    "Extract helpers and call them from the main block.",
+                    "<<python\n# 200 lines of code in one block\n>>",
+                    "<<python\ndef helper_a(): ...\ndef helper_b(): ...\nresult = helper_a() + helper_b()\n>>"));
         }
     }
     recordPass("code_quality.max_complexity", cfg.level);
@@ -2689,19 +2733,25 @@ std::string GovernanceEngine::checkOversimplification(const std::string& code, i
         return enforce("code_quality.no_oversimplification", cfg.level,
             formatError(cfg.level, fmt::format("Oversimplified code detected: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_oversimplification",
-                "This code appears to be a stub, placeholder, or trivially incomplete implementation.\n"
-                "The governance engine requires REAL logic that actually processes data.\n"
-                "LLMs commonly produce code with comments describing what SHOULD happen\n"
-                "instead of actual working code — this pattern is blocked.\n\n"
-                "  Key principle: Comments should explain WHY, not replace WHAT.",
-                "# simplified implementation for demonstration\n"
-                "def analyze(text):\n"
-                "    return []  # would normally do NLP analysis",
-                "def analyze(text):\n"
-                "    words = text.lower().split()\n"
-                "    patterns = {\"but\": 0.1, \"however\": 0.1, \"although\": 0.05}\n"
-                "    score = sum(patterns.get(w, 0) for w in words)\n"
-                "    return [{\"word\": w, \"weight\": patterns[w]} for w in words if w in patterns]"));
+                "This code is a stub, placeholder, or trivially incomplete.\n"
+                "The most common fix: DELETE the qualifying comment.\n"
+                "If the code underneath works, the comment was the only problem.\n"
+                "Comments should explain WHY, not admit the code is incomplete.\n\n"
+                "  Do NOT add hedging comments like:\n"
+                "    \"for now\", \"simplified\", \"basic implementation\",\n"
+                "    \"in a real system\", \"would normally\", \"for demonstration\"",
+                "// basic implementation for now\n"
+                "fn process(data) {\n"
+                "    return data  // would normally transform\n"
+                "}",
+                "fn process(data) {\n"
+                "    let result = []\n"
+                "    for item in data {\n"
+                "        let transformed = apply_rules(item)\n"
+                "        result.push(transformed)\n"
+                "    }\n"
+                "    return result\n"
+                "}"));
     }
     recordPass("code_quality.no_oversimplification", cfg.level);
     return "";
@@ -2798,21 +2848,25 @@ std::string GovernanceEngine::checkIncompleteLogic(const std::string& code, int 
         return enforce("code_quality.no_incomplete_logic", cfg.level,
             formatError(cfg.level, fmt::format("Incomplete logic detected: \"{}\"", found),
                 line > 0 ? fmt::format("line {}", line) : "", "code_quality.no_incomplete_logic",
-                "This code has logic gaps that indicate shortcuts or lazy implementation.\n"
-                "Common issues: empty catch blocks, generic error messages, degenerate loops,\n"
-                "always-true/false conditions, swallowed exceptions, or identity functions.\n\n"
-                "  Key principle: Every function should DO something meaningful.\n"
+                "This code has logic gaps — shortcuts or lazy implementation.\n"
+                "Every function should DO something meaningful:\n"
                 "  - Error handlers must log or re-raise, never silently swallow\n"
                 "  - Return values must be computed, not hardcoded\n"
-                "  - Loops must process data, not immediately break",
-                "except Exception: pass  # swallows all errors\n"
-                "return []  # would normally compute results\n"
-                "score = 0.85  # hardcoded instead of computed",
-                "except ValueError as e:\n"
-                "    logger.error(f\"Validation failed: {e}\")\n"
-                "    raise\n\n"
-                "results = [analyze(item) for item in data]  # actual computation\n"
-                "score = len(matches) / len(total) if total else 0.0  # real calculation"));
+                "  - Loops must process data, not immediately break\n\n"
+                "  NAAb-specific fixes:\n"
+                "  - catch (e) { } → catch (e) { print(\"Error: \" + string(e)); throw e }\n"
+                "  - fn validate(x) { return true } → add real checks\n"
+                "  - score = 0.85 → score = len(matches) / len(total)",
+                "catch (e) { }  // empty catch swallows error\n"
+                "fn validate(x) { return true }  // always passes\n"
+                "let score = 0.85  // hardcoded",
+                "catch (e) { print(\"Error: \" + string(e)); throw e }\n"
+                "fn validate(x) {\n"
+                "    if x == null { return false }\n"
+                "    if len(x) == 0 { return false }\n"
+                "    return true\n"
+                "}\n"
+                "let score = len(matches) / len(total)"));
     }
     recordPass("code_quality.no_incomplete_logic", cfg.level);
     return "";
@@ -2834,13 +2888,63 @@ std::string GovernanceEngine::checkFunctionContract(
         ? contract.level : rules_.contracts.level;
 
     auto make_err = [&](const std::string& detail) -> std::string {
+        // Build contract-specific examples
+        std::string bad_ex, good_ex;
+        if (detail.find("return_type") != std::string::npos && detail.find("dict") != std::string::npos) {
+            bad_ex = "return null  // or return 42";
+            good_ex = "return {\"id\": computed_id, \"type\": entity_type}";
+        } else if (detail.find("missing required key") != std::string::npos) {
+            bad_ex = "return {\"id\": 1}  // missing required keys";
+            std::string keys_str;
+            for (const auto& k : contract.return_keys) {
+                if (!keys_str.empty()) keys_str += ", ";
+                keys_str += "\"" + k + "\": value";
+            }
+            good_ex = "return {" + keys_str + "}";
+        } else if (detail.find("return_one_of") != std::string::npos) {
+            bad_ex = "return \"invalid_value\"";
+            std::string vals;
+            for (const auto& v : contract.return_one_of) {
+                if (!vals.empty()) vals += ", ";
+                vals += "\"" + v + "\"";
+            }
+            good_ex = "return one of: " + vals;
+        } else if (detail.find("non-null") != std::string::npos) {
+            bad_ex = "return null";
+            good_ex = "return computed_value  // ensure non-null";
+        } else if (detail.find("below minimum") != std::string::npos) {
+            bad_ex = "return -5  // below minimum";
+            good_ex = "return int(math.max(" + std::to_string(contract.return_min) + ", result))";
+        }
+
+        // Build help text with contract spec
+        std::string help = contract.description.empty()
+            ? "Function return value did not match contract"
+            : contract.description;
+        if (!contract.return_type.empty())
+            help += "\n  Expected return type: " + contract.return_type;
+        if (!contract.return_keys.empty()) {
+            help += "\n  Required keys: ";
+            for (size_t i = 0; i < contract.return_keys.size(); i++) {
+                if (i > 0) help += ", ";
+                help += contract.return_keys[i];
+            }
+        }
+        if (!contract.return_one_of.empty()) {
+            help += "\n  Valid values: ";
+            for (size_t i = 0; i < contract.return_one_of.size(); i++) {
+                if (i > 0) help += ", ";
+                help += "\"" + contract.return_one_of[i] + "\"";
+            }
+        }
+
         return enforce("contracts." + func_name, level,
             formatError(level,
                 fmt::format("Contract violation for '{}': {}", func_name, detail),
                 line > 0 ? fmt::format("line {}", line) : "",
                 "contracts",
-                contract.description.empty() ? "Function return value did not match contract" : contract.description,
-                "", ""));
+                help,
+                bad_ex, good_ex));
     };
 
     // return_not_null
@@ -2972,6 +3076,12 @@ std::string GovernanceEngine::checkComplexityFloor(
 
     auto& cfg = rules_.code_quality.complexity_floor;
 
+    // B2: Skip floor for short functions (can't meaningfully reach high scores)
+    if (cfg.min_lines_for_check > 0) {
+        int line_count = static_cast<int>(std::count(code.begin(), code.end(), '\n')) + 1;
+        if (line_count < cfg.min_lines_for_check) return "";
+    }
+
     // Analyze code structure (defensive — never crash the host program)
     analyzer::SyntacticAnalyzer sa;
     analyzer::SyntacticProfile profile;
@@ -3028,12 +3138,31 @@ std::string GovernanceEngine::checkComplexityFloor(
             formatError(cfg.level, msg,
                 line > 0 ? fmt::format("line {}", line) : "",
                 "code_quality.complexity_floor",
-                fmt::format("Score {}/100: loops={}, nesting={}, calls={}, recursion={}",
+                fmt::format("Score {}/100: loops={}, nesting={}, calls={}, recursion={}\n\n"
+                    "  What adds complexity:\n"
+                    "    +5  each real loop (for/while over data)     +5  try/catch\n"
+                    "    +15 nested loops                              +5  array operations (map_fn, filter_fn)\n"
+                    "    +3  each function definition                  +10 recursion\n"
+                    "    +1  each external function call               +5  pipeline (|>)\n\n"
+                    "  Tip: Add real logic — input validation, edge cases, error handling.\n"
+                    "  Do NOT pad with for i in 0..1 {{}} loops.",
                     profile.complexity_score, profile.loop_count,
-                    // max_function_depth = min(max_loop_depth, 5) — see syntactic_analyzer.cpp
                     (profile.has_try_catch ? 1 : 0) + profile.max_function_depth,
                     profile.external_call_count, profile.has_recursion ? "yes" : "no"),
-                "", ""));
+                "fn apply_damage(ent, damage) {\n"
+                "    ent[\"hp\"] = ent.get(\"hp\") - damage\n"
+                "    for i in 0..1 { if ent.get(\"hp\") < 0 { ent[\"hp\"] = 0 } }\n"
+                "    return ent\n"
+                "}",
+                "fn apply_damage(ent, damage) {\n"
+                "    let max_hp = ent.get(\"max_hp\") ?? 100\n"
+                "    let actual = int(math.max(0, damage))\n"
+                "    let new_hp = ent.get(\"hp\") - actual\n"
+                "    if new_hp <= 0 { ent[\"hp\"] = 0; ent[\"alive\"] = false }\n"
+                "    else if new_hp > max_hp { ent[\"hp\"] = max_hp }\n"
+                "    else { ent[\"hp\"] = new_hp }\n"
+                "    return ent\n"
+                "}"));
     }
 
     // Check branching/loops requirement
@@ -3050,9 +3179,24 @@ std::string GovernanceEngine::checkComplexityFloor(
                 formatError(cfg.level, msg,
                     line > 0 ? fmt::format("line {}", line) : "",
                     "code_quality.complexity_floor",
-                    "Functions with names like analyze/compute/process should contain "
-                    "loops, conditionals, or recursive logic",
-                    "", ""));
+                    "Functions named analyze/compute/process must contain loops,\n"
+                    "conditionals, or recursive logic — not just assignments and returns.",
+                    "fn compute_score(data) {\n"
+                    "    let score = data.get(\"base\") * 1.5\n"
+                    "    return score\n"
+                    "}",
+                    "fn compute_score(data) {\n"
+                    "    let score = 0\n"
+                    "    for item in data.get(\"items\") {\n"
+                    "        let weight = item.get(\"weight\") ?? 1\n"
+                    "        if item.get(\"type\") == \"bonus\" {\n"
+                    "            score = score + weight * 2\n"
+                    "        } else {\n"
+                    "            score = score + weight\n"
+                    "        }\n"
+                    "    }\n"
+                    "    return score\n"
+                    "}"));
         }
     }
 
@@ -3303,12 +3447,19 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                 std::regex re(pattern, flags);
                 std::smatch match;
                 if (std::regex_search(code_no_strings, match, re)) {
+                    // C1: Prepend language context + C2: Add NAAb equivalent hint
+                    std::string full_suggestion =
+                        fmt::format("Inside <<{}>> polyglot block:\n  {}\n\n"
+                            "Note: In NAAb native code (outside << >> blocks), use NAAb stdlib.\n"
+                            "  Arrays: array.push(arr, item), array.pop(arr)\n"
+                            "  Strings: string.upper(s), string.lower(s), string.split(s, \",\")\n"
+                            "  Length: len(x)", language, suggestion);
                     return enforce("code_quality.no_hallucinated_apis", cfg.level,
                         formatError(cfg.level,
                             fmt::format("Cross-language syntax in {} block: \"{}\"", language, match[0].str()),
                             line > 0 ? fmt::format("line {}", line) : "",
                             "code_quality.no_hallucinated_apis",
-                            suggestion, "", ""));
+                            full_suggestion, "", ""));
                 }
             } catch (const std::regex_error&) {}
         }

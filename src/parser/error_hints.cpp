@@ -140,18 +140,21 @@ std::vector<std::string> ErrorHints::hintForUnquotedDictKey(const ParserContext&
 std::vector<std::string> ErrorHints::hintForDotNotationOnDict(const ParserContext& ctx) {
     (void)ctx;  // Unused parameter
     return {
-        "Dictionaries use bracket notation, not dot notation.",
+        "Dictionaries support these dot-notation methods:",
+        "    dict.get(\"key\")           // safe access (returns null if missing)",
+        "    dict.get(\"key\", default)  // safe access with default value",
+        "    dict.has(\"key\")           // check if key exists (boolean)",
+        "    dict.keys()               // get all keys as array",
+        "    dict.values()             // get all values as array",
+        "    dict.put(\"key\", value)    // add or update entry",
+        "    dict.remove(\"key\")        // remove entry",
+        "    dict.size()               // element count",
         "",
-        "Did you mean:",
-        "    let name = person[\"name\"]  // ✅ Bracket notation for dicts",
+        "For direct field access, use bracket notation:",
+        "    let name = person[\"name\"]  // ✅ Bracket access (throws on missing key!)",
+        "    let name = person.get(\"name\")  // ✅ Safe access (returns null)",
         "",
-        "Instead of:",
-        "    let name = person.name  // ❌ Dot notation only for structs",
-        "",
-        "Note: If you need dot notation, use a struct instead:",
-        "    struct Person { name: string, age: int }",
-        "    let person = Person { name: \"Alice\", age: 30 }",
-        "    let name = person.name  // ✅ Dot notation works",
+        "Note: dict[\"key\"] THROWS on missing key — use dict.get(\"key\") for safe access.",
     };
 }
 
