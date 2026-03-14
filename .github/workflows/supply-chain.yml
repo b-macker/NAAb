@@ -118,7 +118,10 @@ jobs:
           path: sbom/
 
       - name: Scan for vulnerabilities with Grype
-        uses: anchore/scan-action@v3
+        uses: anchore/scan-action@v5
+        env:
+          GRYPE_DB_AUTO_UPDATE: "true"
+          GRYPE_DB_MAX_ALLOWED_BUILT_AGE: 168h
         with:
           sbom: sbom/naab-sbom.spdx.json
           fail-build: true
