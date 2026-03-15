@@ -629,6 +629,9 @@ Interpreter::Interpreter()
     // Initialize governance engine (will be loaded when setSourceCode is called)
     governance_ = std::make_unique<governance::GovernanceEngine>();
 
+    // Initialize scanner engine (will be loaded from govern.json scanner section)
+    scanner_ = std::make_unique<scanner::ScannerEngine>();
+
     // Issue #3: Set global interpreter pointer for stdlib path resolution
     g_current_interpreter = this;
 
@@ -686,6 +689,11 @@ void Interpreter::setSourceCode(const std::string& source, const std::string& fi
                                  : "off";
             fprintf(stderr, "[governance] Loaded: %s (mode: %s)\n",
                     governance_->getLoadedPath().c_str(), mode_str.c_str());
+
+            // Scanner: Load config from the same govern.json (quiet — no output if no scanner section)
+            if (scanner_) {
+                scanner_->loadConfigFromPath(governance_->getLoadedPath(), true);
+            }
         }
     }
 }
@@ -858,6 +866,7 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     auto saved_env = current_env_;
     auto saved_returning = returning_;
     auto saved_file = current_file_;  // Phase 3.1: Save current file for cross-module calls
+    env_stack_.push_back(current_env_);  // BUG-10 fix: Make caller env visible to GC
     current_env_ = func_env;
     returning_ = false;
     current_file_ = func->source_file;  // Phase 3.1: Set file to function's source file
@@ -877,6 +886,7 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
         if (!func->source_file.empty()) {
             popFileContext();
         }
+        if (!env_stack_.empty()) env_stack_.pop_back();  // BUG-10 fix
         current_env_ = saved_env;
         returning_ = saved_returning;
         current_file_ = saved_file;  // Phase 3.1: Restore file
@@ -891,6 +901,7 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     }
 
     // Restore environment
+    if (!env_stack_.empty()) env_stack_.pop_back();  // BUG-10 fix
     current_env_ = saved_env;
     current_file_ = saved_file;  // Phase 3.1: Restore file
     auto return_value = result_;
@@ -914,17 +925,20 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
 std::shared_ptr<Value> Interpreter::executeBodyInEnv(ast::CompoundStmt& body, std::shared_ptr<Environment> env) {
     auto saved_env = current_env_;
     auto saved_returning = returning_;
+    env_stack_.push_back(current_env_);  // BUG-10 fix
     current_env_ = env;
     returning_ = false;
 
     try {
         executeStmt(body);
     } catch (...) {
+        if (!env_stack_.empty()) env_stack_.pop_back();  // BUG-10 fix
         current_env_ = saved_env;
         returning_ = saved_returning;
         throw;
     }
 
+    if (!env_stack_.empty()) env_stack_.pop_back();  // BUG-10 fix
     current_env_ = saved_env;
     auto return_value = result_;
     returning_ = saved_returning;
@@ -1078,6 +1092,61 @@ void Interpreter::visit(ast::Program& node) {
         }
         // Write any configured report files (JSON, SARIF, JUnit, CSV, HTML)
         governance_->writeReports();
+    }
+
+    // Scanner: Auto-run if govern.json has a "scanner" section
+    if (scanner_ && scanner_->hasConfig() && module_loading_depth_ == 0) {
+        auto result = scanner_->scan(current_file_, "auto");
+        if (!result.issues.empty()) {
+            // Count by level
+            int hard_count = 0, soft_count = 0, advisory_count = 0;
+            for (const auto& issue : result.issues) {
+                if (issue.level == "hard") hard_count++;
+                else if (issue.level == "soft") soft_count++;
+                else advisory_count++;
+            }
+
+            // Print compact summary to stderr (like governance)
+            fprintf(stderr, "\n[scanner] %d issues (%d hard, %d soft, %d advisory) in %s\n",
+                    static_cast<int>(result.issues.size()),
+                    hard_count, soft_count, advisory_count,
+                    current_file_.c_str());
+
+            // Show hard violations with details
+            if (hard_count > 0) {
+                fprintf(stderr, "[scanner] HARD violations:\n");
+                for (const auto& issue : result.issues) {
+                    if (issue.level == "hard") {
+                        fprintf(stderr, "  X Line %d: %s.%s — %s\n",
+                                issue.line, issue.category.c_str(),
+                                issue.rule.c_str(), issue.message.c_str());
+                        if (!issue.fix.empty()) {
+                            fprintf(stderr, "    Fix: %s\n", issue.fix.c_str());
+                        }
+                    }
+                }
+            }
+
+            // Show soft violations summary
+            if (soft_count > 0) {
+                fprintf(stderr, "[scanner] SOFT violations:\n");
+                int shown = 0;
+                for (const auto& issue : result.issues) {
+                    if (issue.level == "soft" && shown < 5) {
+                        fprintf(stderr, "  ! Line %d: %s.%s — %s\n",
+                                issue.line, issue.category.c_str(),
+                                issue.rule.c_str(), issue.message.c_str());
+                        shown++;
+                    }
+                }
+                if (soft_count > 5) {
+                    fprintf(stderr, "  ... and %d more soft violations\n", soft_count - 5);
+                }
+            }
+
+            // Save reports
+            scanner_->saveReports(result);
+        }
     }
 }
 
@@ -5304,6 +5373,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             auto saved_function = current_function_;  // Phase 2.4.2: Save for return type validation
             auto saved_type_subst = current_type_substitutions_;  // Phase 2.4.4: Save type substitutions
             auto saved_file = current_file_;  // Phase 3.1: Save current file for cross-module calls
+            env_stack_.push_back(current_env_);  // BUG-10 fix: Make caller env visible to GC
             current_env_ = func_env;
             returning_ = false;
             current_function_ = func;  // Phase 2.4.2: Track current function
@@ -5340,6 +5410,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (!depth_err.empty()) {
                     popStackFrame();
                     if (!func->source_file.empty()) popFileContext();
+                    if (!env_stack_.empty()) env_stack_.pop_back();  // BUG-10 fix
                     current_env_ = saved_env;
                     returning_ = saved_returning;
                     current_function_ = saved_function;
@@ -5364,6 +5435,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (!func->source_file.empty()) {
                     popFileContext();
                 }
+                if (!env_stack_.empty()) env_stack_.pop_back();  // BUG-10 fix
                 current_env_ = saved_env;
                 returning_ = saved_returning;
                 current_function_ = saved_function;  // Phase 2.4.2: Restore
@@ -5388,6 +5460,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             // Restore environment and function
+            if (!env_stack_.empty()) env_stack_.pop_back();  // BUG-10 fix
             current_env_ = saved_env;
             returning_ = saved_returning;
             current_function_ = saved_function;  // Phase 2.4.2: Restore
@@ -9124,6 +9197,15 @@ void Interpreter::runGarbageCollection(std::shared_ptr<Environment> env) {
     std::vector<std::shared_ptr<Environment>> extra_envs;
     if (root_env != global_env_ && global_env_) {
         extra_envs.push_back(global_env_);
+    }
+
+    // BUG-10 fix: Include all saved caller environments from the call stack
+    // During nested function calls, caller envs are saved as C++ locals (saved_env)
+    // and are invisible to the GC. env_stack_ makes them visible as GC roots.
+    for (const auto& env_on_stack : env_stack_) {
+        if (env_on_stack) {
+            extra_envs.push_back(env_on_stack);
+        }
     }
 
     // Run mark-and-sweep cycle detection with complete root set

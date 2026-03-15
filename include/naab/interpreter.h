@@ -15,6 +15,7 @@
 #include "naab/error_reporter.h"    // Phase 3.1: Enhanced error messages
 #include "naab/suggestion_system.h" // Phase 3.1: "Did you mean?" suggestions
 #include "naab/governance.h"        // Governance engine for govern.json enforcement
+#include "naab/scanner.h"           // Code quality scanner for govern.json scanner section
 #include <Python.h>
 #include <chrono>
 #include <filesystem>
@@ -587,6 +588,13 @@ private:
     size_t allocation_count_ = 0;
     std::vector<std::weak_ptr<Value>> tracked_values_;  // Global value tracking for complete GC
 
+    // BUG-10 fix: Track caller environments during nested function calls
+    // When callFunction() switches current_env_ to func_env, the caller's env
+    // is saved as a C++ stack local (saved_env). The GC can't see these envs,
+    // so it may incorrectly mark values in caller envs as unreachable cycles
+    // and clear their dict/list entries. This stack makes them visible to GC.
+    std::vector<std::shared_ptr<Environment>> env_stack_;
+
     // Phase 3.1: Enhanced error reporting
     error::ErrorReporter error_reporter_;
     std::string source_code_;  // Source code for error context
@@ -599,6 +607,9 @@ private:
 
     // Governance engine (loaded from govern.json)
     std::unique_ptr<governance::GovernanceEngine> governance_;
+
+    // Scanner engine (loaded from govern.json "scanner" section)
+    std::unique_ptr<scanner::ScannerEngine> scanner_;
 
     // Phase 12: Persistent sub-runtime contexts
     // Maps runtime name -> {language, executor, code_buffer (for subprocess langs)}
