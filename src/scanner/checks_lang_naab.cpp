@@ -189,18 +189,47 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
         static const std::regex py_open(R"(<<python)");
         static const std::regex py_close(R"(^>>)");
         static const std::regex return_pat(R"(^return\s+)");
+        static const std::regex def_pat(R"(^(def|class)\s+\w+)");
         bool in_python = false;
+        int py_func_depth = 0;
+        int py_func_indent = -1;
 
         for (size_t i = 0; i < orig_lines.size(); ++i) {
             std::string s = nb_trim(orig_lines[i]);
-            if (std::regex_search(s, py_open)) {
+            if (!in_python && std::regex_search(s, py_open)) {
                 in_python = true;
-            } else if (std::regex_match(orig_lines[i], py_close)) {
+                py_func_depth = 0;
+                py_func_indent = -1;
+            } else if (in_python && std::regex_match(orig_lines[i], py_close)) {
                 in_python = false;
-            } else if (in_python && std::regex_search(s, return_pat)) {
-                addIssue(issues, filepath, i + 1, "python_return_in_block", CAT,
-                         "return in Python polyglot (SyntaxError)", s,
-                         "Use print() or assign to bound variable");
+                py_func_depth = 0;
+            } else if (in_python) {
+                // Calculate leading whitespace (Python indentation)
+                int indent = 0;
+                for (size_t ci = 0; ci < orig_lines[i].size(); ++ci) {
+                    if (orig_lines[i][ci] == ' ') indent++;
+                    else if (orig_lines[i][ci] == '\t') indent += 4;
+                    else break;
+                }
+
+                // Check if we've dedented back out of a def/class
+                if (py_func_depth > 0 && !s.empty() && indent <= py_func_indent) {
+                    py_func_depth = 0;
+                    py_func_indent = -1;
+                }
+
+                // Entering a new def/class?
+                if (std::regex_search(s, def_pat)) {
+                    py_func_depth++;
+                    py_func_indent = indent;
+                }
+
+                // Only flag return at TOP LEVEL of the polyglot block
+                if (py_func_depth == 0 && std::regex_search(s, return_pat)) {
+                    addIssue(issues, filepath, i + 1, "python_return_in_block", CAT,
+                             "return in Python polyglot (SyntaxError)", s,
+                             "Use print() or assign to bound variable");
+                }
             }
         }
     }

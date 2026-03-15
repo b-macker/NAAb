@@ -1,0 +1,85 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: naab
+Issues: 52 (0 hard, 51 soft, 1 advisory)
+
+----------------------------------------------------
+
+  generated.naab (52 issues)
+
+  ! Line 25 [SOFT] code_quality.complex_boolean_expr
+     Boolean expression has 5 operators (max 3)
+     -> if c == "(" || c == ")" || c == "+" || c == "-" || c == "*" || c == "/" {
+     Fix: Extract into named booleans
+
+  ! Line 84 [SOFT] code_quality.deep_nesting
+     Nesting depth 5 exceeds max 4
+     -> if next_res["val"] == 0 {
+     Fix: Extract nested logic
+
+  ! [SOFT] code_quality.magic_numbers (2 occurrences)
+     Lines: 6, 11
+     Magic number 0123456789
+     -> return string.contains("0123456789", c)
+     Fix: Extract to named constant
+
+  ! [SOFT] code_quality.magic_strings (2 occurrences)
+     Lines: 45, 49
+     String 'tokens' repeated 9 times
+     -> 49, 50, 74, 75, 97
+     Fix: Extract to constant
+
+  ! Line 68 [SOFT] complexity.cognitive_complexity
+     Function 'parse_term' has cognitive complexity 22 (max 20)
+     -> fn parse_term(p) {
+     Fix: Simplify control flow
+
+  ! Line 14 [SOFT] complexity.cyclomatic_complexity
+     Function 'tokenize' has cyclomatic complexity 18 (max 15)
+     -> fn tokenize(expr) {
+     Fix: Break into smaller functions
+
+  ! Line 96 [SOFT] complexity.return_count
+     Function 'parse_factor' has 8 returns (max 5)
+     -> fn parse_factor(p) {
+     Fix: Simplify control flow
+
+  ! [SOFT] lang_naab.dict_bracket_access (32 occurrences)
+     Lines: 45, 46, 47, 49, 50, 54, 55, 57, 59, 70, 71, 72, 74, 75, 79, 80, 82, 84, 87, 97, 101, 105, 106, 107, 111, 115, 116, 147, 148, 151, 152, 155
+     Dict bracket access throws on missing key
+     -> if res["error"] != null { return res }
+     Fix: Use .get(key) with ?? fallback
+
+  ! Line 43 [SOFT] redundancy.copy_paste_signatures
+     3+ functions share identical parameter list
+     -> 43, 68, 96
+     Fix: Extract shared logic
+
+  ! [SOFT] redundancy.generic_variable_names (8 occurrences)
+     Lines: 44, 47, 69, 72, 104, 114, 123, 146
+     Generic variable name 'res'
+     -> let res = parse_term(p)
+     Fix: Use a descriptive name
+
+  ! Line 122 [SOFT] redundancy.unnecessary_else_after_return
+     Unnecessary else after return
+     -> } else {
+     Fix: Remove else, continue at same level
+
+  i Line 96 [ADVISORY] code_quality.recursive_no_base_case
+     Recursive function 'parse_factor' without depth/visited guard
+     -> fn parse_factor(p) {
+     Fix: Add depth limit or visited set
+
+----------------------------------------------------
+
+Summary by Category:
+  code_quality           7 issues (0 hard, 6 soft, 1 advisory)
+  complexity             3 issues (0 hard, 3 soft, 0 advisory)
+  lang_naab             32 issues (0 hard, 32 soft, 0 advisory)
+  redundancy            10 issues (0 hard, 10 soft, 0 advisory)
+
+====================================================

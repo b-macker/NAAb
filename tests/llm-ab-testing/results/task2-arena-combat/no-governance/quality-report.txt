@@ -1,0 +1,50 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: naab
+Issues: 19 (0 hard, 19 soft, 0 advisory)
+
+----------------------------------------------------
+
+  generated.naab (19 issues)
+
+  ! [SOFT] code_quality.deep_nesting (4 occurrences)
+     Lines: 166, 168, 177, 184
+     Nesting depth 5 exceeds max 4
+     -> if other.hp > 0 && other.team != u.team {
+     Fix: Extract nested logic
+
+  ! [SOFT] code_quality.magic_numbers (9 occurrences)
+     Lines: 23, 37, 38, 39, 40, 41, 52, 53, 56
+     Magic number 15
+     -> attack: 15,
+     Fix: Extract to named constant
+
+  ! [SOFT] lang_naab.dict_bracket_access (2 occurrences)
+     Lines: 192, 193
+     Dict bracket access throws on missing key
+     -> u.x = int(new_pos["x"])
+     Fix: Use .get(key) with ?? fallback
+
+  ! Line 17 [SOFT] redundancy.copy_paste_signatures
+     3+ functions share identical parameter list
+     -> 17, 32, 47
+     Fix: Extract shared logic
+
+  ! [SOFT] style.multiple_blank_lines (3 occurrences)
+     Lines: 72, 84, 101
+     4 consecutive blank lines (max 2)
+     -> Lines 72-75
+     Fix: Remove extra blank lines
+
+----------------------------------------------------
+
+Summary by Category:
+  code_quality          13 issues (0 hard, 13 soft, 0 advisory)
+  lang_naab              2 issues (0 hard, 2 soft, 0 advisory)
+  redundancy             1 issue (0 hard, 1 soft, 0 advisory)
+  style                  3 issues (0 hard, 3 soft, 0 advisory)
+
+====================================================

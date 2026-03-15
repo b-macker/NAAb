@@ -1,0 +1,1576 @@
+{
+  "mode": "enforce",
+  "results": [
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    }
+  ],
+  "version": "3.0"
+}

@@ -1,0 +1,41 @@
+# Task 3: Data Pipeline
+
+Implement a data processing pipeline in NAAb that processes student grade records.
+
+## Requirements
+- Load data from a JSON string (simulated CSV data as array of dicts)
+- Filter: remove students with grade < 60 (failing)
+- Transform: add letter grade (A: 90+, B: 80+, C: 70+, D: 60+)
+- Group by: aggregate students by letter grade
+- Statistics: calculate mean, median, min, max per group
+- Output: generate a JSON report with all statistics
+
+## Sample Data
+```json
+[
+  {"name": "Alice", "grade": 95, "subject": "Math"},
+  {"name": "Bob", "grade": 72, "subject": "Math"},
+  {"name": "Charlie", "grade": 88, "subject": "Science"},
+  {"name": "Diana", "grade": 45, "subject": "Math"},
+  {"name": "Eve", "grade": 91, "subject": "Science"},
+  {"name": "Frank", "grade": 67, "subject": "Math"},
+  {"name": "Grace", "grade": 78, "subject": "Science"},
+  {"name": "Hank", "grade": 55, "subject": "Science"},
+  {"name": "Ivy", "grade": 83, "subject": "Math"},
+  {"name": "Jack", "grade": 96, "subject": "Science"}
+]
+```
+
+## Use Polyglot
+- Use Python for statistical calculations (mean, median)
+- Use JavaScript for JSON report formatting
+
+## Pipeline Pattern
+Use the NAAb pipeline operator `|>` where appropriate:
+```naab
+let result = data |> filter_passing |> add_grades |> group_by_grade |> compute_stats
+```
+
+## Deliverable
+A single `generated.naab` file with the pipeline and tests.
+Include test functions verifying filtering, grading, and statistics.

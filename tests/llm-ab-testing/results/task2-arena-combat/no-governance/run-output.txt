@@ -1,0 +1,89 @@
+[governance] Loaded: /data/data/com.termux/files/home/.naab/language/tests/llm-ab-testing/results/task2-arena-combat/no-governance/govern.json (mode: enforce)
+Running Tests...
+Test Damage Passed
+Test Creation Passed
+Tests Completed.
+
+Starting Combat Simulation (10 Ticks)...
+
+--- TICK 1 ---
+A-War1 moves to (2, 0) toward B-War1
+A-War2 moves to (2, 2) toward B-Mag1
+A-Arc1 moves to (3, 4) toward B-Arc1
+B-War1 moves to (8, 0) toward A-War1
+B-Mag1 moves to (8, 2) toward A-Arc1
+B-Arc1 moves to (7, 4) toward A-Arc1
+
+--- TICK 2 ---
+A-War1 moves to (4, 0) toward B-War1
+A-War2 moves to (3, 2) toward B-Arc1
+A-Arc1 (archer) attacks B-Arc1 for 13 damage!
+B-War1 moves to (6, 0) toward A-War1
+B-Mag1 moves to (6, 1) toward A-War1
+B-Arc1 (archer) attacks A-Arc1 for 13 damage!
+
+--- TICK 3 ---
+A-War1 moves to (6, 0) toward B-War1
+A-War2 moves to (4, 1) toward B-Mag1
+A-Arc1 (archer) attacks B-Arc1 for 13 damage!
+B-War1 (warrior) attacks A-War1 for 5 damage!
+B-Mag1 (mage) attacks A-War1 for 15 damage!
+B-Arc1 (archer) attacks A-Arc1 for 13 damage!
+
+--- TICK 4 ---
+A-War1 (warrior) attacks B-War1 for 5 damage!
+A-War2 moves to (6, 1) toward B-Mag1
+A-Arc1 (archer) attacks B-Arc1 for 13 damage!
+B-War1 (warrior) attacks A-War1 for 5 damage!
+B-Mag1 (mage) attacks A-War2 for 15 damage!
+B-Arc1 (archer) attacks A-War2 for 8 damage!
+
+--- TICK 5 ---
+A-War1 (warrior) attacks B-War1 for 5 damage!
+A-War2 (warrior) attacks B-Mag1 for 13 damage!
+A-Arc1 (archer) attacks B-Arc1 for 13 damage!
+B-War1 (warrior) attacks A-War1 for 5 damage!
+B-Mag1 (mage) attacks A-War2 for 15 damage!
+B-Arc1 (archer) attacks A-War2 for 8 damage!
+
+--- TICK 6 ---
+A-War1 (warrior) attacks B-War1 for 5 damage!
+A-War2 (warrior) attacks B-Mag1 for 13 damage!
+A-Arc1 (archer) attacks B-Arc1 for 13 damage!
+B-War1 (warrior) attacks A-War1 for 5 damage!
+B-Mag1 (mage) attacks A-War2 for 15 damage!
+B-Arc1 (archer) attacks A-War2 for 8 damage!
+
+--- TICK 7 ---
+A-War1 (warrior) attacks B-War1 for 5 damage!
+A-War2 (warrior) attacks B-Mag1 for 13 damage!
+A-Arc1 (archer) attacks B-Arc1 for 13 damage!
+>> B-Arc1 has been defeated!
+B-War1 (warrior) attacks A-War1 for 5 damage!
+B-Mag1 (mage) attacks A-War2 for 15 damage!
+
+--- TICK 8 ---
+A-War1 (warrior) attacks B-War1 for 5 damage!
+A-War2 (warrior) attacks B-Mag1 for 13 damage!
+>> B-Mag1 has been defeated!
+A-Arc1 (archer) attacks B-War1 for 8 damage!
+B-War1 (warrior) attacks A-War1 for 5 damage!
+
+--- TICK 9 ---
+A-War1 (warrior) attacks B-War1 for 5 damage!
+A-War2 (warrior) attacks B-War1 for 5 damage!
+A-Arc1 (archer) attacks B-War1 for 8 damage!
+B-War1 (warrior) attacks A-War1 for 5 damage!
+
+--- TICK 10 ---
+A-War1 (warrior) attacks B-War1 for 5 damage!
+A-War2 (warrior) attacks B-War1 for 5 damage!
+A-Arc1 (archer) attacks B-War1 for 8 damage!
+B-War1 (warrior) attacks A-War1 for 5 damage!
+
+BATTLE REPORT
+=============
+Total Damage Dealt: 364
+Total Kills:        2
+Survivors:          A-War1 (45 HP), A-War2 (16 HP), A-Arc1 (44 HP), B-War1 (31 HP)
+

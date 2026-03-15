@@ -1,0 +1,65 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: auto
+Issues: 29 (1 hard, 23 soft, 5 advisory)
+
+----------------------------------------------------
+
+  /data/data/com.termux/files/home/.naab/language/tests/llm-ab-testing/configs/with-governance/generated.naab (29 issues)
+
+  X Line 183 [HARD] lang_naab.python_return_in_block
+     return in Python polyglot (SyntaxError)
+     -> return math.sqrt((u1['x'] - u2['x'])**2 + (u1['y'] - u2['y'])**2)
+     Fix: Use print() or assign to bound variable
+
+  ! [SOFT] code_quality.deep_nesting (10 occurrences)
+     Lines: 223, 237, 238, 244, 251, 257, 258, 260, 265, 269
+     Nesting depth 5 exceeds max 4
+     -> if p.get("id") == u.id {
+     Fix: Extract nested logic
+
+  ! [SOFT] code_quality.magic_numbers (8 occurrences)
+     Lines: 66, 68, 70, 89, 90, 105, 115, 116
+     Magic number 50
+     -> raw_stats = [50, 10, 5, 2, 1]
+     Fix: Extract to named constant
+
+  ! [SOFT] code_quality.magic_strings (3 occurrences)
+     Lines: 31, 128
+     String 'warrior' repeated 8 times
+     -> 31, 35, 65, 99, 100
+     Fix: Extract to constant
+
+  ! Line 232 [SOFT] lang_naab.missing_null_check
+     .get() without ?? fallback
+     -> let target_id = plan.get("target_id")
+     Fix: Add ?? default_value
+
+  ! Line 131 [SOFT] style.debug_leftovers
+     Debug output in production code
+     -> print("Report formatting error")
+     Fix: Remove debug statement
+
+  i [ADVISORY] style.long_lines (3 occurrences)
+     Lines: 249, 285, 303
+     Line is 159 chars (max 120)
+     -> print("Unit " + string(u.id) + " (" + u.team + " " + u.unit_type + ") attacks Un
+     Fix: Break into multiple lines
+
+  i [ADVISORY] style.multiple_blank_lines (2 occurrences)
+     Lines: 133, 178
+     18 consecutive blank lines (max 2)
+     -> Lines 133-150
+     Fix: Remove extra blank lines
+
+----------------------------------------------------
+
+Summary by Category:
+  code_quality          21 issues (0 hard, 21 soft, 0 advisory)
+  lang_naab              2 issues (1 hard, 1 soft, 0 advisory)
+  style                  6 issues (0 hard, 1 soft, 5 advisory)
+
+====================================================

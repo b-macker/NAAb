@@ -1,0 +1,194 @@
+{
+  "issues": [
+    {
+      "category": "redundancy",
+      "file": "generated.naab",
+      "fix": "Use a descriptive name",
+      "level": "soft",
+      "line": 77,
+      "message": "Generic variable name 'val'",
+      "preview": "let val = null",
+      "rule": "generic_variable_names",
+      "severity": "medium"
+    },
+    {
+      "category": "redundancy",
+      "file": "generated.naab",
+      "fix": "Use a descriptive name",
+      "level": "soft",
+      "line": 185,
+      "message": "Generic variable name 'result'",
+      "preview": "let result = result_arr[zero]",
+      "rule": "generic_variable_names",
+      "severity": "medium"
+    },
+    {
+      "category": "redundancy",
+      "file": "generated.naab",
+      "fix": "Remove else, continue at same level",
+      "level": "advisory",
+      "line": 76,
+      "message": "Unnecessary else after return",
+      "preview": "} else {",
+      "rule": "unnecessary_else_after_return",
+      "severity": "low"
+    },
+    {
+      "category": "redundancy",
+      "file": "generated.naab",
+      "fix": "Remove unused import",
+      "level": "advisory",
+      "line": 1,
+      "message": "Module 'regex' imported but never used",
+      "preview": "use regex",
+      "rule": "unused_imports",
+      "severity": "low"
+    },
+    {
+      "category": "redundancy",
+      "file": "generated.naab",
+      "fix": "Remove unused import",
+      "level": "advisory",
+      "line": 4,
+      "message": "Module 'math' imported but never used",
+      "preview": "use math",
+      "rule": "unused_imports",
+      "severity": "low"
+    },
+    {
+      "category": "redundancy",
+      "file": "generated.naab",
+      "fix": "Remove unused import",
+      "level": "advisory",
+      "line": 5,
+      "message": "Module 'json' imported but never used",
+      "preview": "use json",
+      "rule": "unused_imports",
+      "severity": "low"
+    },
+    {
+      "category": "redundancy",
+      "file": "generated.naab",
+      "fix": "Extract shared logic",
+      "level": "advisory",
+      "line": 45,
+      "message": "3+ functions share identical parameter list",
+      "preview": "45, 91, 125",
+      "rule": "copy_paste_signatures",
+      "severity": "low"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to constant",
+      "level": "soft",
+      "line": 61,
+      "message": "String 'string' repeated 8 times",
+      "preview": "61, 72, 98, 107, 132",
+      "rule": "magic_strings",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 112,
+      "message": "Nesting depth 5 exceeds max 4",
+      "preview": "if right == zero || right == 0.0 {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract into named booleans",
+      "level": "soft",
+      "line": 17,
+      "message": "Boolean expression has 5 operators (max 3)",
+      "preview": "if c == \"(\" || c == \")\" || c == \"+\" || c == \"-\" || c == \"*\" || c == \"/\" {",
+      "rule": "complex_boolean_expr",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Add depth limit or visited set",
+      "level": "advisory",
+      "line": 45,
+      "message": "Recursive function 'parse_factor' without depth/visited guard",
+      "preview": "fn parse_factor(tokens, pos) {",
+      "rule": "recursive_no_base_case",
+      "severity": "low"
+    },
+    {
+      "category": "complexity",
+      "file": "generated.naab",
+      "fix": "Break into smaller functions",
+      "level": "soft",
+      "line": 7,
+      "message": "Function 'tokenize' has cyclomatic complexity 17 (max 15)",
+      "preview": "fn tokenize(expr) {",
+      "rule": "cyclomatic_complexity",
+      "severity": "medium"
+    },
+    {
+      "category": "complexity",
+      "file": "generated.naab",
+      "fix": "Simplify control flow",
+      "level": "soft",
+      "line": 7,
+      "message": "Function 'tokenize' has cognitive complexity 26 (max 20)",
+      "preview": "fn tokenize(expr) {",
+      "rule": "cognitive_complexity",
+      "severity": "medium"
+    },
+    {
+      "category": "complexity",
+      "file": "generated.naab",
+      "fix": "Simplify control flow",
+      "level": "soft",
+      "line": 91,
+      "message": "Function 'parse_term' has cognitive complexity 23 (max 20)",
+      "preview": "fn parse_term(tokens, pos) {",
+      "rule": "cognitive_complexity",
+      "severity": "medium"
+    },
+    {
+      "category": "complexity",
+      "file": "generated.naab",
+      "fix": "Simplify control flow",
+      "level": "soft",
+      "line": 156,
+      "message": "Function 'calculate' has cognitive complexity 22 (max 20)",
+      "preview": "fn calculate(expr) {",
+      "rule": "cognitive_complexity",
+      "severity": "medium"
+    },
+    {
+      "category": "complexity",
+      "file": "generated.naab",
+      "fix": "Simplify control flow",
+      "level": "advisory",
+      "line": 45,
+      "message": "Function 'parse_factor' has 7 returns (max 5)",
+      "preview": "fn parse_factor(tokens, pos) {",
+      "rule": "return_count",
+      "severity": "low"
+    }
+  ],
+  "scan_info": {
+    "files_scanned": 1,
+    "language": "naab",
+    "path": "generated.naab"
+  },
+  "summary": {
+    "by_level": {
+      "advisory": 7,
+      "hard": 0,
+      "soft": 9
+    },
+    "total_issues": 16
+  },
+  "version": "1.0"
+}

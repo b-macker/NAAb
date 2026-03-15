@@ -1,0 +1,1636 @@
+{
+  "mode": "enforce",
+  "results": [
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "languages"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_secrets"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_pii"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_results"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.dangerous_calls"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_temporary_code"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_simulation_markers"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_mock_data"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_apologetic_language"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_dead_code"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_debug_artifacts"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_unsafe_deserialization"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_sql_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_path_traversal"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_urls"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.no_hardcoded_ips"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.encoding"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "code_quality.max_complexity"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_hallucinated_apis"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.shell_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.code_injection"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "restrictions.privilege_escalation"
+    },
+    {
+      "level": "advisory",
+      "passed": true,
+      "rule": "restrictions.crypto"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "capabilities.network"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "restrictions.imports"
+    }
+  ],
+  "version": "3.0"
+}

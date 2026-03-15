@@ -118,6 +118,11 @@ public:
                               size_t start_line, int base_indent,
                               const std::string& language);
 
+    // Shared utility: detect lines inside test_* functions (NAAb)
+    static std::unordered_set<size_t> detectTestFuncLines(
+        const std::vector<std::string>& lines,
+        const std::string& language);
+
 private:
     ScanConfig config_;
     std::string govern_path_;

@@ -1,0 +1,21 @@
+{
+  "task": "task1-simple-calculator",
+  "no_governance": {
+    "total_lines": 225,
+    "code_lines": 199,
+    "quality_issues": 66,
+    "hard_violations": 0,
+    "soft_violations": 65,
+    "governance_checks": 0,
+    "governance_failures": 0
+  },
+  "with_governance": {
+    "total_lines": 290,
+    "code_lines": 230,
+    "quality_issues": 21,
+    "hard_violations": 0,
+    "soft_violations": 17,
+    "governance_checks": 33,
+    "governance_failures": 0
+  }
+}

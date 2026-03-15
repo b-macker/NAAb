@@ -1,0 +1,78 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: naab
+Issues: 16 (0 hard, 9 soft, 7 advisory)
+
+----------------------------------------------------
+
+  generated.naab (16 issues)
+
+  ! Line 17 [SOFT] code_quality.complex_boolean_expr
+     Boolean expression has 5 operators (max 3)
+     -> if c == "(" || c == ")" || c == "+" || c == "-" || c == "*" || c == "/" {
+     Fix: Extract into named booleans
+
+  ! Line 112 [SOFT] code_quality.deep_nesting
+     Nesting depth 5 exceeds max 4
+     -> if right == zero || right == 0.0 {
+     Fix: Extract nested logic
+
+  ! Line 61 [SOFT] code_quality.magic_strings
+     String 'string' repeated 8 times
+     -> 61, 72, 98, 107, 132
+     Fix: Extract to constant
+
+  ! [SOFT] complexity.cognitive_complexity (3 occurrences)
+     Lines: 7, 91, 156
+     Function 'tokenize' has cognitive complexity 26 (max 20)
+     -> fn tokenize(expr) {
+     Fix: Simplify control flow
+
+  ! Line 7 [SOFT] complexity.cyclomatic_complexity
+     Function 'tokenize' has cyclomatic complexity 17 (max 15)
+     -> fn tokenize(expr) {
+     Fix: Break into smaller functions
+
+  ! [SOFT] redundancy.generic_variable_names (2 occurrences)
+     Lines: 77, 185
+     Generic variable name 'val'
+     -> let val = null
+     Fix: Use a descriptive name
+
+  i Line 45 [ADVISORY] code_quality.recursive_no_base_case
+     Recursive function 'parse_factor' without depth/visited guard
+     -> fn parse_factor(tokens, pos) {
+     Fix: Add depth limit or visited set
+
+  i Line 45 [ADVISORY] complexity.return_count
+     Function 'parse_factor' has 7 returns (max 5)
+     -> fn parse_factor(tokens, pos) {
+     Fix: Simplify control flow
+
+  i Line 45 [ADVISORY] redundancy.copy_paste_signatures
+     3+ functions share identical parameter list
+     -> 45, 91, 125
+     Fix: Extract shared logic
+
+  i Line 76 [ADVISORY] redundancy.unnecessary_else_after_return
+     Unnecessary else after return
+     -> } else {
+     Fix: Remove else, continue at same level
+
+  i [ADVISORY] redundancy.unused_imports (3 occurrences)
+     Lines: 1, 4, 5
+     Module 'regex' imported but never used
+     -> use regex
+     Fix: Remove unused import
+
+----------------------------------------------------
+
+Summary by Category:
+  code_quality           4 issues (0 hard, 3 soft, 1 advisory)
+  complexity             5 issues (0 hard, 4 soft, 1 advisory)
+  redundancy             7 issues (0 hard, 2 soft, 5 advisory)
+
+====================================================

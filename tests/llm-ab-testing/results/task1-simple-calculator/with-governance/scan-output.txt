@@ -1,0 +1,84 @@
+Config: /data/data/com.termux/files/home/.naab/language/tests/llm-ab-testing/results/task1-simple-calculator/with-governance/govern.json
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: naab
+Issues: 21 (0 hard, 17 soft, 4 advisory)
+
+----------------------------------------------------
+
+  generated.naab (21 issues)
+
+  ! Line 17 [SOFT] code_quality.complex_boolean_expr
+     Boolean expression has 5 operators (max 3)
+     -> if c == "(" || c == ")" || c == "+" || c == "-" || c == "*" || c == "/" {
+     Fix: Extract into named booleans
+
+  ! Line 112 [SOFT] code_quality.deep_nesting
+     Nesting depth 5 exceeds max 4
+     -> if right == zero || right == 0.0 {
+     Fix: Extract nested logic
+
+  ! [SOFT] code_quality.magic_numbers (8 occurrences)
+     Lines: 203, 206, 218, 221, 251, 254, 266, 269
+     Magic number 3
+     -> if calculate("2 + 3") == 5 { passed = passed + one }
+     Fix: Extract to named constant
+
+  ! Line 61 [SOFT] code_quality.magic_strings
+     String 'string' repeated 8 times
+     -> 61, 72, 98, 107, 132
+     Fix: Extract to constant
+
+  ! [SOFT] complexity.cognitive_complexity (3 occurrences)
+     Lines: 7, 91, 156
+     Function 'tokenize' has cognitive complexity 26 (max 20)
+     -> fn tokenize(expr) {
+     Fix: Simplify control flow
+
+  ! Line 7 [SOFT] complexity.cyclomatic_complexity
+     Function 'tokenize' has cyclomatic complexity 17 (max 15)
+     -> fn tokenize(expr) {
+     Fix: Break into smaller functions
+
+  ! [SOFT] redundancy.generic_variable_names (2 occurrences)
+     Lines: 77, 185
+     Generic variable name 'val'
+     -> let val = null
+     Fix: Use a descriptive name
+
+  i Line 45 [ADVISORY] code_quality.recursive_no_base_case
+     Recursive function 'parse_factor' without depth/visited guard
+     -> fn parse_factor(tokens, pos) {
+     Fix: Add depth limit or visited set
+
+  i Line 45 [ADVISORY] complexity.return_count
+     Function 'parse_factor' has 7 returns (max 5)
+     -> fn parse_factor(tokens, pos) {
+     Fix: Simplify control flow
+
+  i Line 45 [ADVISORY] redundancy.copy_paste_signatures
+     3+ functions share identical parameter list
+     -> 45, 91, 125
+     Fix: Extract shared logic
+
+  i Line 76 [ADVISORY] redundancy.unnecessary_else_after_return
+     Unnecessary else after return
+     -> } else {
+     Fix: Remove else, continue at same level
+
+----------------------------------------------------
+
+Summary by Category:
+  code_quality          12 issues (0 hard, 11 soft, 1 advisory)
+  complexity             5 issues (0 hard, 4 soft, 1 advisory)
+  redundancy             4 issues (0 hard, 2 soft, 2 advisory)
+
+====================================================
+
+Saved text report: quality-report.txt
+Saved JSON report: quality-report.json
+
+RESULT: PASS (no hard violations)

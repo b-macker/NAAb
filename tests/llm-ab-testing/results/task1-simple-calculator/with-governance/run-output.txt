@@ -1,0 +1,14 @@
+[governance] WARNING: no_apologetic_language was set to advisory — elevating to soft (minimum for anti-evasion checks)
+[governance] Loaded: /data/data/com.termux/files/home/.naab/language/tests/llm-ab-testing/results/task1-simple-calculator/with-governance/govern.json (mode: enforce)
+Tests passed: 11/11
+
+[scanner] 21 issues (0 hard, 17 soft, 4 advisory) in /data/data/com.termux/files/home/.naab/language/tests/llm-ab-testing/results/task1-simple-calculator/with-governance/generated.naab
+[scanner] SOFT violations:
+  ! Line 77: redundancy.generic_variable_names — Generic variable name 'val'
+  ! Line 185: redundancy.generic_variable_names — Generic variable name 'result'
+  ! Line 203: code_quality.magic_numbers — Magic number 3
+  ! Line 206: code_quality.magic_numbers — Magic number 4
+  ! Line 218: code_quality.magic_numbers — Magic number 3
+  ... and 12 more soft violations
+Saved text report: quality-report.txt
+Saved JSON report: quality-report.json

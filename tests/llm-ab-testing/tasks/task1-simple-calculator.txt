@@ -1,0 +1,30 @@
+# Task 1: Simple Calculator
+
+Implement a calculator in NAAb that supports basic arithmetic operations.
+
+## Requirements
+- Support +, -, *, / operations
+- Support parenthesized expressions (implement via recursive parsing or a stack-based approach)
+- Handle division by zero gracefully
+- Handle invalid input (non-numeric, empty string, unknown operators)
+- Support negative numbers
+- Write at least 5 test functions that verify correctness
+
+## Input Format
+The calculator should take a string expression and evaluate it:
+```
+fn calculate(expr) { ... }
+```
+
+## Expected Test Cases
+- "2 + 3" => 5
+- "10 - 4" => 6
+- "3 * 7" => 21
+- "15 / 3" => 5
+- "10 / 0" => error handled gracefully
+- "(2 + 3) * 4" => 20
+- "" => error handled gracefully
+
+## Deliverable
+A single `generated.naab` file with the calculator implementation and tests.
+Tests should follow NAAb testing pattern: each function returns [passed, total].

@@ -1,0 +1,25 @@
+# Task 2: Arena Combat (Mini)
+
+Implement a turn-based combat system in NAAb.
+
+## Requirements
+- 3 unit types: warrior (melee, high HP), archer (ranged, medium HP), mage (AoE, low HP)
+- Each unit has: hp, attack, defense, speed, range, x, y position
+- Combat: calculate_damage(attacker, defender) using attack - defense formula (min 1)
+- Movement: move units toward nearest enemy (simple grid, no obstacles)
+- AI: each unit targets the nearest enemy and either moves toward or attacks
+- Death: units with hp <= 0 are removed
+- Simulate 10 ticks and print results after each tick
+- Generate a battle report at the end (total damage dealt, kills, survivors)
+
+## Entities
+- Team A: 2 warriors, 1 archer
+- Team B: 1 warrior, 1 mage, 1 archer
+
+## Use Polyglot
+- Use Python for pathfinding/distance calculations
+- Use JavaScript for report formatting
+
+## Deliverable
+A single `generated.naab` file with the combat system and simulation.
+Include test functions that verify damage calculation and entity creation.

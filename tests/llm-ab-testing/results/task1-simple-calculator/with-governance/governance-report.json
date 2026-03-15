@@ -1,0 +1,171 @@
+{
+  "mode": "enforce",
+  "results": [
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    },
+    {
+      "level": "soft",
+      "passed": true,
+      "rule": "code_quality.no_placeholders"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_oversimplification"
+    },
+    {
+      "level": "hard",
+      "passed": true,
+      "rule": "code_quality.no_incomplete_logic"
+    }
+  ],
+  "version": "3.0"
+}

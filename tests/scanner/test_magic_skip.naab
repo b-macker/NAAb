@@ -1,0 +1,21 @@
+fn calculate(x) {
+    return x * 3
+}
+
+fn test_calculate() {
+    let passed = 0
+    if calculate(5) == 15 { passed = passed + 1 }
+    if calculate(10) == 30 { passed = passed + 1 }
+    return [passed, 2]
+}
+
+fn test_another() {
+    let result = 42
+    print("Test result: " + string(result))
+    return [1, 1]
+}
+
+main {
+    let r = test_calculate()
+    print(string(r[0]) + "/" + string(r[1]))
+}

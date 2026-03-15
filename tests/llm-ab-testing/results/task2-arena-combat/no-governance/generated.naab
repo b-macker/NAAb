@@ -1,0 +1,241 @@
+use math
+use array
+
+struct Unit {
+    name: string,
+    type: string,
+    team: string,
+    hp: int,
+    attack: int,
+    defense: int,
+    speed: int,
+    range: int,
+    x: int,
+    y: int
+}
+
+fn create_warrior(name, team, x, y) {
+    return new Unit {
+        name: name,
+        type: "warrior",
+        team: team,
+        hp: 100,
+        attack: 15,
+        defense: 10,
+        speed: 2,
+        range: 1,
+        x: x,
+        y: y
+    }
+}
+
+fn create_archer(name, team, x, y) {
+    return new Unit {
+        name: name,
+        type: "archer",
+        team: team,
+        hp: 70,
+        attack: 18,
+        defense: 5,
+        speed: 3,
+        range: 5,
+        x: x,
+        y: y
+    }
+}
+
+fn create_mage(name, team, x, y) {
+    return new Unit {
+        name: name,
+        type: "mage",
+        team: team,
+        hp: 50,
+        attack: 25,
+        defense: 2,
+        speed: 2,
+        range: 3,
+        x: x,
+        y: y
+    }
+}
+
+fn calculate_damage(attacker, defender) {
+    let dmg = attacker.attack - defender.defense
+    return math.max(1, dmg)
+}
+
+fn get_distance(u1, u2) {
+    let x1 = u1.x
+    let y1 = u1.y
+    let x2 = u2.x
+    let y2 = u2.y
+    return <<python[x1, y1, x2, y2]
+import math
+math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+>>
+}
+
+fn move_towards(unit, target_x, target_y) {
+    let ux = unit.x
+    let uy = unit.y
+    let speed = unit.speed
+    let tx = target_x
+    let ty = target_y
+    
+    return <<python[ux, uy, speed, tx, ty]
+import math
+dx = tx - ux
+dy = ty - uy
+dist = math.sqrt(dx**2 + dy**2)
+if dist <= speed:
+    res = {"x": tx, "y": ty}
+else:
+    move_x = ux + (dx / dist) * speed
+    move_y = uy + (dy / dist) * speed
+    res = {"x": int(move_x), "y": int(move_y)}
+res
+>>
+}
+
+fn format_report(stats) {
+    return <<javascript[stats]
+const report = `
+BATTLE REPORT
+=============
+Total Damage Dealt: ${stats.total_damage}
+Total Kills:        ${stats.total_kills}
+Survivors:          ${stats.survivors}
+`;
+report
+>>
+}
+
+fn test_damage() {
+    let w = create_warrior("TestWar", "A", 0, 0)
+    let a = create_archer("TestArc", "B", 0, 0)
+    let dmg = calculate_damage(w, a)
+    if dmg != 10 {
+        print("Test Damage Failed: expected 10, got " + string(dmg))
+    } else {
+        print("Test Damage Passed")
+    }
+}
+
+fn test_creation() {
+    let m = create_mage("TestMag", "B", 5, 5)
+    if m.type != "mage" || m.hp != 50 {
+        print("Test Creation Failed")
+    } else {
+        print("Test Creation Passed")
+    }
+}
+
+main {
+    print("Running Tests...")
+    test_damage()
+    test_creation()
+    print("Tests Completed.\n")
+
+    let units = []
+    array.push(units, create_warrior("A-War1", "A", 0, 0))
+    array.push(units, create_warrior("A-War2", "A", 0, 2))
+    array.push(units, create_archer("A-Arc1", "A", 0, 4))
+    
+    array.push(units, create_warrior("B-War1", "B", 10, 0))
+    array.push(units, create_mage("B-Mag1", "B", 10, 2))
+    array.push(units, create_archer("B-Arc1", "B", 10, 4))
+
+    let total_damage = 0
+    let total_kills = 0
+
+    print("Starting Combat Simulation (10 Ticks)...")
+
+    for tick in 1..=10 {
+        print("\n--- TICK " + string(tick) + " ---")
+        
+        for i in 0..len(units) {
+            let u = units[i]
+            if u.hp <= 0 { continue }
+            
+            // AI: Find nearest enemy
+            let target_idx = -1
+            let min_dist = 1000.0
+            
+            for j in 0..len(units) {
+                let other = units[j]
+                if other.hp > 0 && other.team != u.team {
+                    let d = get_distance(u, other)
+                    if d < min_dist {
+                        min_dist = d
+                        target_idx = j
+                    }
+                }
+            }
+            
+            if target_idx != -1 {
+                let target = units[target_idx]
+                if min_dist <= float(u.range) {
+                    // Attack
+                    let dmg = calculate_damage(u, target)
+                    target.hp = target.hp - dmg
+                    total_damage = total_damage + dmg
+                    print(u.name + " (" + u.type + ") attacks " + target.name + " for " + string(dmg) + " damage!")
+                    
+                    if target.hp <= 0 {
+                        print(">> " + target.name + " has been defeated!")
+                        total_kills = total_kills + 1
+                    }
+                    units[target_idx] = target
+                } else {
+                    // Move
+                    let new_pos = move_towards(u, target.x, target.y)
+                    u.x = int(new_pos["x"])
+                    u.y = int(new_pos["y"])
+                    print(u.name + " moves to (" + string(u.x) + ", " + string(u.y) + ") toward " + target.name)
+                }
+                units[i] = u
+            }
+        }
+        
+        // Remove dead units
+        let alive_units = []
+        for u in units {
+            if u.hp > 0 {
+                array.push(alive_units, u)
+            }
+        }
+        units = alive_units
+        
+        if len(units) == 0 {
+            print("All units eliminated!")
+            break
+        }
+        
+        // Victory check
+        let team_a_count = 0
+        let team_b_count = 0
+        for u in units {
+            if u.team == "A" { team_a_count = team_a_count + 1 }
+            if u.team == "B" { team_b_count = team_b_count + 1 }
+        }
+        if team_a_count == 0 || team_b_count == 0 {
+            print("One team wiped out! Combat ends.")
+            break
+        }
+    }
+
+    // Final Report Generation
+    let survivor_names = []
+    for u in units {
+        array.push(survivor_names, u.name + " (" + string(u.hp) + " HP)")
+    }
+    let survivors_str = array.join(survivor_names, ", ")
+    if survivors_str == "" { survivors_str = "None" }
+
+    let stats = {
+        "total_damage": total_damage,
+        "total_kills": total_kills,
+        "survivors": survivors_str
+    }
+    print(format_report(stats))
+}

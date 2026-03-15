@@ -1,0 +1,293 @@
+{
+  "issues": [
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 66,
+      "message": "Magic number 50",
+      "preview": "raw_stats = [50, 10, 5, 2, 1]",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 68,
+      "message": "Magic number 35",
+      "preview": "raw_stats = [35, 8, 2, 3, 4]",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 70,
+      "message": "Magic number 25",
+      "preview": "raw_stats = [25, 12, 1, 2, 3]",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 89,
+      "message": "Magic number 3",
+      "preview": "speed: stats[3],",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 90,
+      "message": "Magic number 4",
+      "preview": "range: stats[4],",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to constant",
+      "level": "soft",
+      "line": 31,
+      "message": "String 'warrior' repeated 8 times",
+      "preview": "31, 35, 65, 99, 100",
+      "rule": "magic_strings",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to constant",
+      "level": "soft",
+      "line": 128,
+      "message": "String 'total_damage' repeated 3 times",
+      "preview": "128, 129, 308",
+      "rule": "magic_strings",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to constant",
+      "level": "soft",
+      "line": 31,
+      "message": "String 'archer' repeated 5 times",
+      "preview": "31, 33, 67, 163, 166",
+      "rule": "magic_strings",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 223,
+      "message": "Nesting depth 5 exceeds max 4",
+      "preview": "if p.get(\"id\") == u.id {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 237,
+      "message": "Nesting depth 5 exceeds max 4",
+      "preview": "for k in 0..len(units) {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 238,
+      "message": "Nesting depth 6 exceeds max 4",
+      "preview": "if units[k].id == target_id {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 244,
+      "message": "Nesting depth 5 exceeds max 4",
+      "preview": "if target_idx != -1 {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 251,
+      "message": "Nesting depth 6 exceeds max 4",
+      "preview": "if target.hp <= 0 {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 257,
+      "message": "Nesting depth 6 exceeds max 4",
+      "preview": "if u.unit_type == \"mage\" {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 258,
+      "message": "Nesting depth 7 exceeds max 4",
+      "preview": "for j in 0..len(units) {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 260,
+      "message": "Nesting depth 8 exceeds max 4",
+      "preview": "if other.team != u.team && other.hp > 0 && other.id != target.id {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 265,
+      "message": "Nesting depth 9 exceeds max 4",
+      "preview": "if d2t <= 1.5 {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 269,
+      "message": "Nesting depth 10 exceeds max 4",
+      "preview": "if other.hp <= 0 {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "style",
+      "file": "generated.naab",
+      "fix": "Remove debug statement",
+      "level": "soft",
+      "line": 131,
+      "message": "Debug output in production code",
+      "preview": "print(\"Report formatting error\")",
+      "rule": "debug_leftovers",
+      "severity": "medium"
+    },
+    {
+      "category": "style",
+      "file": "generated.naab",
+      "fix": "Break into multiple lines",
+      "level": "advisory",
+      "line": 249,
+      "message": "Line is 159 chars (max 120)",
+      "preview": "print(\"Unit \" + string(u.id) + \" (\" + u.team + \" \" + u.unit_type + \") attacks Un...",
+      "rule": "long_lines",
+      "severity": "low"
+    },
+    {
+      "category": "style",
+      "file": "generated.naab",
+      "fix": "Break into multiple lines",
+      "level": "advisory",
+      "line": 285,
+      "message": "Line is 139 chars (max 120)",
+      "preview": "print(\"Unit \" + string(u.id) + \" (\" + u.team + \" \" + u.unit_type + \") moved to (...",
+      "rule": "long_lines",
+      "severity": "low"
+    },
+    {
+      "category": "style",
+      "file": "generated.naab",
+      "fix": "Break into multiple lines",
+      "level": "advisory",
+      "line": 303,
+      "message": "Line is 180 chars (max 120)",
+      "preview": "print(\"  Unit \" + string(u_sum.id) + \": Team \" + u_sum.team + \" \" + u_sum.unit_t...",
+      "rule": "long_lines",
+      "severity": "low"
+    },
+    {
+      "category": "style",
+      "file": "generated.naab",
+      "fix": "Remove extra blank lines",
+      "level": "advisory",
+      "line": 133,
+      "message": "18 consecutive blank lines (max 2)",
+      "preview": "Lines 133-150",
+      "rule": "multiple_blank_lines",
+      "severity": "low"
+    },
+    {
+      "category": "style",
+      "file": "generated.naab",
+      "fix": "Remove extra blank lines",
+      "level": "advisory",
+      "line": 178,
+      "message": "36 consecutive blank lines (max 2)",
+      "preview": "Lines 178-213",
+      "rule": "multiple_blank_lines",
+      "severity": "low"
+    },
+    {
+      "category": "lang_naab",
+      "file": "generated.naab",
+      "fix": "Add ?? default_value",
+      "level": "soft",
+      "line": 232,
+      "message": ".get() without ?? fallback",
+      "preview": "let target_id = plan.get(\"target_id\")",
+      "rule": "missing_null_check",
+      "severity": "medium"
+    }
+  ],
+  "scan_info": {
+    "files_scanned": 1,
+    "language": "naab",
+    "path": "generated.naab"
+  },
+  "summary": {
+    "by_level": {
+      "advisory": 5,
+      "hard": 0,
+      "soft": 20
+    },
+    "total_issues": 25
+  },
+  "version": "1.0"
+}

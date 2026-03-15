@@ -1,0 +1,21 @@
+{
+  "task": "task2-arena-combat",
+  "no_governance": {
+    "total_lines": 241,
+    "code_lines": 208,
+    "quality_issues": 25,
+    "hard_violations": 0,
+    "soft_violations": 25,
+    "governance_checks": 314,
+    "governance_failures": 0
+  },
+  "with_governance": {
+    "total_lines": 314,
+    "code_lines": 253,
+    "quality_issues": 29,
+    "hard_violations": 1,
+    "soft_violations": 23,
+    "governance_checks": 326,
+    "governance_failures": 0
+  }
+}

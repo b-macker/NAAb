@@ -60,6 +60,8 @@ void ScannerEngine::checkStyle(const std::string& filepath,
         }
     }
 
+    auto test_lines = ScannerEngine::detectTestFuncLines(lines, language);
+
     // 1. inconsistent_naming
     if (isEnabled(CAT, "inconsistent_naming")) {
         static const std::regex func_name_pat(R"((?:def|function|fn|func|export\s+fn|pub\s+fn)\s+(\w+))");
@@ -148,6 +150,7 @@ void ScannerEngine::checkStyle(const std::string& filepath,
                 std::string s = st_trim(lines[i]);
                 if (st_startsWith(s, "#") || st_startsWith(s, "//") || st_startsWith(s, "/*")) continue;
                 if (main_lines.count(i)) continue;
+                if (test_lines.count(i)) continue;
                 if (name_main_lines.count(i)) continue;
 
                 for (const auto& pat_str : it->second) {

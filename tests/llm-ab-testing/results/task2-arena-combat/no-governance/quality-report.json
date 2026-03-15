@@ -1,0 +1,227 @@
+{
+  "issues": [
+    {
+      "category": "redundancy",
+      "file": "generated.naab",
+      "fix": "Extract shared logic",
+      "level": "soft",
+      "line": 17,
+      "message": "3+ functions share identical parameter list",
+      "preview": "17, 32, 47",
+      "rule": "copy_paste_signatures",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 23,
+      "message": "Magic number 15",
+      "preview": "attack: 15,",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 37,
+      "message": "Magic number 70",
+      "preview": "hp: 70,",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 38,
+      "message": "Magic number 18",
+      "preview": "attack: 18,",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 39,
+      "message": "Magic number 5",
+      "preview": "defense: 5,",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 40,
+      "message": "Magic number 3",
+      "preview": "speed: 3,",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 41,
+      "message": "Magic number 5",
+      "preview": "range: 5,",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 52,
+      "message": "Magic number 50",
+      "preview": "hp: 50,",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 53,
+      "message": "Magic number 25",
+      "preview": "attack: 25,",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract to named constant",
+      "level": "soft",
+      "line": 56,
+      "message": "Magic number 3",
+      "preview": "range: 3,",
+      "rule": "magic_numbers",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 166,
+      "message": "Nesting depth 5 exceeds max 4",
+      "preview": "if other.hp > 0 && other.team != u.team {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 168,
+      "message": "Nesting depth 6 exceeds max 4",
+      "preview": "if d < min_dist {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 177,
+      "message": "Nesting depth 5 exceeds max 4",
+      "preview": "if min_dist <= float(u.range) {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "code_quality",
+      "file": "generated.naab",
+      "fix": "Extract nested logic",
+      "level": "soft",
+      "line": 184,
+      "message": "Nesting depth 6 exceeds max 4",
+      "preview": "if target.hp <= 0 {",
+      "rule": "deep_nesting",
+      "severity": "medium"
+    },
+    {
+      "category": "style",
+      "file": "generated.naab",
+      "fix": "Remove extra blank lines",
+      "level": "soft",
+      "line": 72,
+      "message": "4 consecutive blank lines (max 2)",
+      "preview": "Lines 72-75",
+      "rule": "multiple_blank_lines",
+      "severity": "medium"
+    },
+    {
+      "category": "style",
+      "file": "generated.naab",
+      "fix": "Remove extra blank lines",
+      "level": "soft",
+      "line": 84,
+      "message": "14 consecutive blank lines (max 2)",
+      "preview": "Lines 84-97",
+      "rule": "multiple_blank_lines",
+      "severity": "medium"
+    },
+    {
+      "category": "style",
+      "file": "generated.naab",
+      "fix": "Remove extra blank lines",
+      "level": "soft",
+      "line": 101,
+      "message": "10 consecutive blank lines (max 2)",
+      "preview": "Lines 101-110",
+      "rule": "multiple_blank_lines",
+      "severity": "medium"
+    },
+    {
+      "category": "lang_naab",
+      "file": "generated.naab",
+      "fix": "Use .get(key) with ?? fallback",
+      "level": "soft",
+      "line": 192,
+      "message": "Dict bracket access throws on missing key",
+      "preview": "u.x = int(new_pos[\"x\"])",
+      "rule": "dict_bracket_access",
+      "severity": "medium"
+    },
+    {
+      "category": "lang_naab",
+      "file": "generated.naab",
+      "fix": "Use .get(key) with ?? fallback",
+      "level": "soft",
+      "line": 193,
+      "message": "Dict bracket access throws on missing key",
+      "preview": "u.y = int(new_pos[\"y\"])",
+      "rule": "dict_bracket_access",
+      "severity": "medium"
+    }
+  ],
+  "scan_info": {
+    "files_scanned": 1,
+    "language": "naab",
+    "path": "generated.naab"
+  },
+  "summary": {
+    "by_level": {
+      "advisory": 0,
+      "hard": 0,
+      "soft": 19
+    },
+    "total_issues": 19
+  },
+  "version": "1.0"
+}

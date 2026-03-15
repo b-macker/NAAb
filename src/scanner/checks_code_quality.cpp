@@ -66,6 +66,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                                       std::vector<Issue>& issues) const {
     const std::string CAT = "code_quality";
     auto main_lines = detectMainLines(lines, language);
+    auto test_lines = ScannerEngine::detectTestFuncLines(lines, language);
 
     // 1. empty_catch
     if (isEnabled(CAT, "empty_catch")) {
@@ -137,6 +138,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
 
         for (size_t i = 0; i < lines.size(); ++i) {
             if (main_lines.count(i)) continue;
+            if (test_lines.count(i)) continue;
             std::string s = cq_trim(lines[i]);
             if (cq_startsWith(s, "#") || cq_startsWith(s, "//") || cq_startsWith(s, "/*") ||
                 cq_startsWith(s, "*") || s.find("import") != std::string::npos ||

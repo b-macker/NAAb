@@ -12,6 +12,7 @@
 #include <regex>
 #include <set>
 #include <map>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -93,6 +94,44 @@ size_t ScannerEngine::findFuncEnd(const std::vector<std::string>& lines,
         }
         return lines.size();
     }
+}
+
+std::unordered_set<size_t> ScannerEngine::detectTestFuncLines(
+    const std::vector<std::string>& lines,
+    const std::string& language) {
+    std::unordered_set<size_t> test_lines;
+    if (language != "naab") return test_lines;
+
+    static const std::regex test_fn_pat(R"(^(?:export\s+)?fn\s+test_\w+)");
+    bool in_test = false;
+    int brace_depth = 0;
+
+    for (size_t i = 0; i < lines.size(); ++i) {
+        std::string sl = lines[i];
+        size_t first = sl.find_first_not_of(" \t\r\n");
+        if (first != std::string::npos) sl = sl.substr(first);
+        else sl = "";
+
+        if (!in_test) {
+            if (std::regex_search(sl, test_fn_pat)) {
+                in_test = true;
+                brace_depth = 0;
+                for (char c : sl) {
+                    if (c == '{') brace_depth++;
+                    if (c == '}') brace_depth--;
+                }
+                test_lines.insert(i);
+            }
+        } else {
+            for (char c : sl) {
+                if (c == '{') brace_depth++;
+                if (c == '}') brace_depth--;
+            }
+            test_lines.insert(i);
+            if (brace_depth <= 0) in_test = false;
+        }
+    }
+    return test_lines;
 }
 
 // ============================================================================

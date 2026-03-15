@@ -26,6 +26,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                                      const std::string& language,
                                      std::vector<Issue>& issues) const {
     const std::string CAT = "redundancy";
+    auto test_lines = ScannerEngine::detectTestFuncLines(lines, language);
 
     // 1. obvious_comments
     if (isEnabled(CAT, "obvious_comments")) {
@@ -122,6 +123,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
         static const std::regex var_pat(R"((?:let|var|const|int|str|auto|val)\s+(\w+)\s*=)");
         for (size_t i = 0; i < lines.size(); ++i) {
+            if (test_lines.count(i)) continue;
             std::sregex_iterator it(lines[i].begin(), lines[i].end(), var_pat);
             std::sregex_iterator end;
             for (; it != end; ++it) {
@@ -356,6 +358,33 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         }
     }
 
+    // 11b. unused_imports (NAAb)
+    if (isEnabled(CAT, "unused_imports") && language == "naab") {
+        static const std::regex use_pat(R"(^\s*use\s+(\w+)\s*$)");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::smatch m;
+            if (std::regex_search(lines[i], m, use_pat)) {
+                std::string module_name = m[1].str();
+                if (module_name == "debug") continue;
+
+                bool found = false;
+                std::regex usage_pat("\\b" + module_name + "\\.");
+                for (size_t j = 0; j < lines.size(); ++j) {
+                    if (j == i) continue;
+                    if (std::regex_search(lines[j], usage_pat)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    addIssue(issues, filepath, i + 1, "unused_imports", CAT,
+                             fmt::format("Module '{}' imported but never used", module_name),
+                             trim(lines[i]), "Remove unused import", "advisory");
+                }
+            }
+        }
+    }
+
     // 12. single_use_variable
     if (isEnabled(CAT, "single_use_variable")) {
         static const std::regex var_assign(R"(^\s*(?:let|const|var|)\s*(\w+)\s*=\s*(.+)$)");
@@ -404,6 +433,18 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         }
         for (const auto& [key, locs] : sigs) {
             if (locs.size() >= 3) {
+                // Check if all functions with this signature are test functions
+                bool all_test_fns = true;
+                static const std::regex test_sig_pat(R"((?:def|function|fn|func)\s+test_)");
+                for (int ln : locs) {
+                    if (ln > 0 && static_cast<size_t>(ln - 1) < lines.size()) {
+                        if (!std::regex_search(lines[ln - 1], test_sig_pat)) {
+                            all_test_fns = false;
+                            break;
+                        }
+                    }
+                }
+
                 std::string locs_str;
                 for (int ln : locs) {
                     if (!locs_str.empty()) locs_str += ", ";
@@ -411,7 +452,8 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                 }
                 addIssue(issues, filepath, locs[0], "copy_paste_signatures", CAT,
                          "3+ functions share identical parameter list", locs_str,
-                         "Extract shared logic");
+                         "Extract shared logic",
+                         all_test_fns ? "advisory" : "");
             }
         }
     }

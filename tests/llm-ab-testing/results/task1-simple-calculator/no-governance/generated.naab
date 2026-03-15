@@ -1,0 +1,225 @@
+use string
+use array
+
+fn is_digit(c) {
+    if c == null { return false }
+    return string.contains("0123456789", c)
+}
+
+fn is_numeric_char(c) {
+    if c == null { return false }
+    return string.contains("0123456789.", c)
+}
+
+fn tokenize(expr) {
+    let tokens = []
+    let i = 0
+    let n = string.length(expr)
+    while i < n {
+        let c = string.char_at(expr, i)
+        if c == " " || c == "\t" || c == "\n" || c == "\r" {
+            i = i + 1
+            continue
+        }
+        
+        if c == "(" || c == ")" || c == "+" || c == "-" || c == "*" || c == "/" {
+            array.push(tokens, c)
+            i = i + 1
+        } else if is_digit(c) || (c == "." && i + 1 < n && is_digit(string.char_at(expr, i + 1))) {
+            let start = i
+            i = i + 1
+            while i < n && is_numeric_char(string.char_at(expr, i)) {
+                i = i + 1
+            }
+            array.push(tokens, string.substring(expr, start, i))
+        } else {
+            array.push(tokens, "INVALID")
+            i = i + 1
+        }
+    }
+    return tokens
+}
+
+fn parse_expression(p) {
+    let res = parse_term(p)
+    if res["error"] != null { return res }
+    p = res["p"]
+    let val = res["val"]
+    
+    while p["pos"] < array.length(p["tokens"]) {
+        let op = p["tokens"][p["pos"]]
+        if op == "+" || op == "-" {
+            p["pos"] = p["pos"] + 1
+            let next_res = parse_term(p)
+            if next_res["error"] != null { return next_res }
+            p = next_res["p"]
+            if op == "+" {
+                val = val + next_res["val"]
+            } else {
+                val = val - next_res["val"]
+            }
+        } else {
+            break
+        }
+    }
+    return { "p": p, "val": val, "error": null }
+}
+
+fn parse_term(p) {
+    let res = parse_factor(p)
+    if res["error"] != null { return res }
+    p = res["p"]
+    let val = res["val"]
+    
+    while p["pos"] < array.length(p["tokens"]) {
+        let op = p["tokens"][p["pos"]]
+        if op == "*" || op == "/" {
+            p["pos"] = p["pos"] + 1
+            let next_res = parse_factor(p)
+            if next_res["error"] != null { return next_res }
+            p = next_res["p"]
+            if op == "*" {
+                val = val * next_res["val"]
+            } else {
+                if next_res["val"] == 0 {
+                    return { "error": "Division by zero" }
+                }
+                val = val / next_res["val"]
+            }
+        } else {
+            break
+        }
+    }
+    return { "p": p, "val": val, "error": null }
+}
+
+fn parse_factor(p) {
+    if p["pos"] >= array.length(p["tokens"]) {
+        return { "error": "Unexpected end of input" }
+    }
+    
+    let token = p["tokens"][p["pos"]]
+    if token == "(" {
+        p["pos"] = p["pos"] + 1
+        let res = parse_expression(p)
+        if res["error"] != null { return res }
+        p = res["p"]
+        if p["pos"] >= array.length(p["tokens"]) || p["tokens"][p["pos"]] != ")" {
+            return { "error": "Expected ')'" }
+        }
+        p["pos"] = p["pos"] + 1
+        return { "p": p, "val": res["val"], "error": null }
+    } else if token == "-" {
+        p["pos"] = p["pos"] + 1
+        let res = parse_factor(p)
+        if res["error"] != null { return res }
+        return { "p": res["p"], "val": 0 - res["val"], "error": null }
+    } else if token == "+" {
+        p["pos"] = p["pos"] + 1
+        return parse_factor(p)
+    } else if token == "INVALID" {
+        return { "error": "Invalid character" }
+    } else {
+        let val = 0
+        try {
+            val = float(token)
+        } catch (e) {
+            return { "error": "Invalid number format: " + token }
+        }
+        p["pos"] = p["pos"] + 1
+        return { "p": p, "val": val, "error": null }
+    }
+}
+
+fn calculate(expr) {
+    if string.trim(expr) == "" {
+        return "Error: Empty expression"
+    }
+    
+    let tokens = tokenize(expr)
+    if array.length(tokens) == 0 {
+        return "Error: Invalid input"
+    }
+    
+    let p = { "tokens": tokens, "pos": 0 }
+    
+    let res = parse_expression(p)
+    if res["error"] != null {
+        return "Error: " + res["error"]
+    }
+    
+    if res["p"]["pos"] < array.length(tokens) {
+        return "Error: Unexpected token " + tokens[res["p"]["pos"]]
+    }
+    
+    return res["val"]
+}
+
+// --- Tests ---
+
+fn test_arithmetic() {
+    let passed = 0
+    let total = 4
+    if calculate("2 + 3") == 5 { passed = passed + 1 }
+    if calculate("10 - 4") == 6 { passed = passed + 1 }
+    if calculate("3 * 7") == 21 { passed = passed + 1 }
+    if calculate("15 / 3") == 5 { passed = passed + 1 }
+    return [passed, total]
+}
+
+fn test_parentheses() {
+    let passed = 0
+    let total = 2
+    if calculate("(2 + 3) * 4") == 20 { passed = passed + 1 }
+    if calculate("2 + (3 * 4)") == 14 { passed = passed + 1 }
+    return [passed, total]
+}
+
+fn test_errors() {
+    let passed = 0
+    let total = 3
+    if calculate("10 / 0") == "Error: Division by zero" { passed = passed + 1 }
+    if calculate("") == "Error: Empty expression" { passed = passed + 1 }
+    if calculate("2 + @") == "Error: Invalid character" { passed = passed + 1 }
+    return [passed, total]
+}
+
+fn test_negatives() {
+    let passed = 0
+    let total = 3
+    if calculate("-5 + 2") == -3 { passed = passed + 1 }
+    if calculate("5 * -2") == -10 { passed = passed + 1 }
+    if calculate("--5") == 5 { passed = passed + 1 }
+    return [passed, total]
+}
+
+fn test_complex() {
+    let passed = 0
+    let total = 2
+    if calculate("2 + 3 * 4") == 14 { passed = passed + 1 }
+    if calculate("(10 - 2) / (1 + 3)") == 2 { passed = passed + 1 }
+    return [passed, total]
+}
+
+main {
+    let results = []
+    array.push(results, test_arithmetic())
+    array.push(results, test_parentheses())
+    array.push(results, test_errors())
+    array.push(results, test_negatives())
+    array.push(results, test_complex())
+    
+    let total_passed = 0
+    let total_tests = 0
+    for res in results {
+        total_passed = total_passed + res[0]
+        total_tests = total_tests + res[1]
+    }
+    
+    print("Tests passed: " + string(total_passed) + "/" + string(total_tests))
+    if total_passed == total_tests {
+        print("All tests successful!")
+    } else {
+        print("Some tests failed.")
+    }
+}

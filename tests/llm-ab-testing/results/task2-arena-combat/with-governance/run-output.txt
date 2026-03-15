@@ -1,0 +1,137 @@
+[governance] WARNING: no_apologetic_language was set to advisory — elevating to soft (minimum for anti-evasion checks)
+[governance] Loaded: /data/data/com.termux/files/home/.naab/language/tests/llm-ab-testing/results/task2-arena-combat/with-governance/govern.json (mode: enforce)
+Test Damage Calculation: 1/1
+Test Unit Creation:       1/1
+--- Arena Combat Simulation Starts ---
+TICK 1
+Unit 1 (A warrior) moved to (2,0).
+Unit 2 (A warrior) moved to (2,2).
+Unit 3 (A archer) moved to (3,1).
+Unit 4 (B warrior) moved to (8,0).
+Unit 5 (B mage) moved to (8,2).
+Unit 6 (B archer) moved to (7,1).
+  Unit 1: Team A warrior HP=50 @(2,0)
+  Unit 2: Team A warrior HP=50 @(2,2)
+  Unit 3: Team A archer HP=35 @(3,1)
+  Unit 4: Team B warrior HP=50 @(8,0)
+  Unit 5: Team B mage HP=25 @(8,2)
+  Unit 6: Team B archer HP=35 @(7,1)
+TICK 2
+Unit 1 (A warrior) moved to (4,0).
+Unit 2 (A warrior) moved to (4,2).
+Unit 3 (A archer) attacks Unit 6 for 6 dmg.
+Unit 4 (B warrior) moved to (6,0).
+Unit 5 (B mage) moved to (6,2).
+Unit 6 (B archer) attacks Unit 3 for 6 dmg.
+  Unit 1: Team A warrior HP=50 @(4,0)
+  Unit 2: Team A warrior HP=50 @(4,2)
+  Unit 3: Team A archer HP=29 @(3,1)
+  Unit 4: Team B warrior HP=50 @(6,0)
+  Unit 5: Team B mage HP=25 @(6,2)
+  Unit 6: Team B archer HP=29 @(7,1)
+TICK 3
+Unit 1 (A warrior) moved to (6,0).
+Unit 2 (A warrior) moved to (6,2).
+Unit 3 (A archer) attacks Unit 4 for 3 dmg.
+Unit 4 (B warrior) moved to (4,0).
+Unit 5 (B mage) attacks Unit 2 for 10 dmg.
+Unit 6 (B archer) attacks Unit 1 for 3 dmg.
+  Unit 1: Team A warrior HP=47 @(6,0)
+  Unit 2: Team A warrior HP=40 @(6,2)
+  Unit 3: Team A archer HP=29 @(3,1)
+  Unit 4: Team B warrior HP=47 @(4,0)
+  Unit 5: Team B mage HP=25 @(6,2)
+  Unit 6: Team B archer HP=29 @(7,1)
+TICK 4
+Unit 1 (A warrior) moved to (7,1).
+Unit 2 (A warrior) attacks Unit 5 for 9 dmg.
+Unit 3 (A archer) attacks Unit 4 for 3 dmg.
+Unit 4 (B warrior) moved to (3,1).
+Unit 5 (B mage) attacks Unit 2 for 10 dmg.
+Unit 6 (B archer) attacks Unit 1 for 3 dmg.
+  Unit 1: Team A warrior HP=39 @(7,1)
+  Unit 2: Team A warrior HP=30 @(6,2)
+  Unit 3: Team A archer HP=29 @(3,1)
+  Unit 4: Team B warrior HP=44 @(3,1)
+  Unit 5: Team B mage HP=16 @(6,2)
+  Unit 6: Team B archer HP=29 @(7,1)
+TICK 5
+Unit 1 (A warrior) attacks Unit 6 for 11 dmg.
+Unit 2 (A warrior) attacks Unit 5 for 9 dmg.
+Unit 3 (A archer) attacks Unit 4 for 3 dmg.
+Unit 4 (B warrior) attacks Unit 3 for 11 dmg.
+Unit 5 (B mage) attacks Unit 2 for 10 dmg.
+Unit 6 (B archer) attacks Unit 1 for 3 dmg.
+  Unit 1: Team A warrior HP=31 @(7,1)
+  Unit 2: Team A warrior HP=20 @(6,2)
+  Unit 3: Team A archer HP=18 @(3,1)
+  Unit 4: Team B warrior HP=41 @(3,1)
+  Unit 5: Team B mage HP=7 @(6,2)
+  Unit 6: Team B archer HP=18 @(7,1)
+TICK 6
+Unit 1 (A warrior) attacks Unit 6 for 11 dmg.
+Unit 2 (A warrior) attacks Unit 5 for 9 dmg.
+Unit 5 died!
+Unit 3 (A archer) attacks Unit 4 for 3 dmg.
+Unit 4 (B warrior) attacks Unit 3 for 11 dmg.
+Unit 6 (B archer) attacks Unit 1 for 3 dmg.
+  Unit 1: Team A warrior HP=28 @(7,1)
+  Unit 2: Team A warrior HP=20 @(6,2)
+  Unit 3: Team A archer HP=7 @(3,1)
+  Unit 4: Team B warrior HP=38 @(3,1)
+  Unit 6: Team B archer HP=7 @(7,1)
+TICK 7
+Unit 1 (A warrior) attacks Unit 6 for 11 dmg.
+Unit 6 died!
+Unit 2 (A warrior) moved to (7,1).
+Unit 3 (A archer) attacks Unit 4 for 3 dmg.
+Unit 4 (B warrior) attacks Unit 3 for 11 dmg.
+Unit 3 died!
+  Unit 1: Team A warrior HP=28 @(7,1)
+  Unit 2: Team A warrior HP=20 @(7,1)
+  Unit 4: Team B warrior HP=35 @(3,1)
+TICK 8
+Unit 1 (A warrior) moved to (5,1).
+Unit 2 (A warrior) moved to (5,1).
+Unit 4 (B warrior) moved to (5,1).
+  Unit 1: Team A warrior HP=28 @(5,1)
+  Unit 2: Team A warrior HP=20 @(5,1)
+  Unit 4: Team B warrior HP=35 @(5,1)
+TICK 9
+Unit 1 (A warrior) attacks Unit 4 for 5 dmg.
+Unit 2 (A warrior) attacks Unit 4 for 5 dmg.
+Unit 4 (B warrior) attacks Unit 1 for 5 dmg.
+  Unit 1: Team A warrior HP=23 @(5,1)
+  Unit 2: Team A warrior HP=20 @(5,1)
+  Unit 4: Team B warrior HP=25 @(5,1)
+TICK 10
+Unit 1 (A warrior) attacks Unit 4 for 5 dmg.
+Unit 2 (A warrior) attacks Unit 4 for 5 dmg.
+Unit 4 (B warrior) attacks Unit 1 for 5 dmg.
+  Unit 1: Team A warrior HP=18 @(5,1)
+  Unit 2: Team A warrior HP=20 @(5,1)
+  Unit 4: Team B warrior HP=15 @(5,1)
+
+BATTLE REPORT
+====================
+Total Damage Dealt: 202
+Total Kills:        3
+Survivors:          3
+  - Team A warrior (ID: 1, HP: 18)
+  - Team A warrior (ID: 2, HP: 20)
+  - Team B warrior (ID: 4, HP: 15)
+
+
+[scanner] 29 issues (1 hard, 23 soft, 5 advisory) in /data/data/com.termux/files/home/.naab/language/tests/llm-ab-testing/results/task2-arena-combat/with-governance/generated.naab
+[scanner] HARD violations:
+  X Line 183: lang_naab.python_return_in_block — return in Python polyglot (SyntaxError)
+    Fix: Use print() or assign to bound variable
+[scanner] SOFT violations:
+  ! Line 66: code_quality.magic_numbers — Magic number 50
+  ! Line 68: code_quality.magic_numbers — Magic number 35
+  ! Line 70: code_quality.magic_numbers — Magic number 25
+  ! Line 89: code_quality.magic_numbers — Magic number 3
+  ! Line 90: code_quality.magic_numbers — Magic number 4
+  ... and 18 more soft violations
+Saved text report: quality-report.txt
+Saved JSON report: quality-report.json

@@ -1,0 +1,24 @@
+use json
+
+fn process_data(items) {
+    let result = <<python[items]
+import json
+def helper(x):
+    return x * 2
+processed = [helper(i) for i in items]
+json.dumps(processed)
+>>
+    return result
+}
+
+fn bad_example() {
+    let x = <<python
+return 42
+>>
+    return x
+}
+
+main {
+    let r = process_data([1, 2, 3])
+    print(r)
+}
