@@ -505,6 +505,12 @@
       "skip_if_has_polyglot_block": true,
       "rules": [
         {
+          "names": ["test_"],
+          "min_score": 3,
+          "require_branching_or_loops": false,
+          "message": "Test functions have lower complexity requirements"
+        },
+        {
           "names": ["analyze", "compute", "calculate", "process", "transform",
                     "evaluate", "optimize", "classify", "detect", "predict"],
           "min_score": 25,
@@ -1009,6 +1015,158 @@
         "nim":        { "score": 65, "reason": "parsers available" },
         "shell":      { "score": 45, "reason": "awk/sed for simple parsing" }
       }
+    }
+  },
+
+  "_comment_scanner": "Code Quality Scanner — auto-runs on every execution when this section exists",
+  "scanner": {
+    "version": "1.0",
+    "mode": "enforce",
+
+    "_comment_scan_settings": "Controls which files to scan and size limits",
+    "scan": {
+      "max_files": 200,
+      "max_file_size_kb": 500,
+      "include_tests": false,
+      "follow_symlinks": false,
+      "exclude_patterns": ["node_modules", ".git", "__pycache__", "build", "dist"]
+    },
+
+    "_comment_categories": "127 checks across 6 categories + 6 language modules. Each check: enabled (bool), level (hard/soft/advisory), options (thresholds)",
+
+    "redundancy": {
+      "obvious_comments":       { "enabled": true, "level": "advisory" },
+      "over_abstraction":       { "enabled": true, "level": "advisory" },
+      "redundant_try_catch":    { "enabled": true, "level": "soft" },
+      "generic_variable_names": { "enabled": true, "level": "soft", "names": ["data", "temp", "tmp", "val", "x", "y", "foo", "bar", "baz", "stuff", "thing", "obj", "item", "result"] },
+      "excessive_comments":     { "enabled": true, "level": "advisory", "threshold": 0.6 },
+      "apologetic_comments":    { "enabled": true, "level": "soft" },
+      "placeholder_code":       { "enabled": true, "level": "soft" },
+      "restating_docstrings":   { "enabled": true, "level": "advisory" },
+      "unnecessary_else_after_return": { "enabled": true, "level": "advisory" },
+      "wrapper_classes":        { "enabled": true, "level": "advisory" },
+      "unused_imports":         { "enabled": true, "level": "soft" },
+      "single_use_variable":    { "enabled": false, "level": "advisory" },
+      "copy_paste_signatures":  { "enabled": true, "level": "advisory" },
+      "excessive_type_checks":  { "enabled": true, "level": "advisory" },
+      "decorative_separators":  { "enabled": true, "level": "advisory" }
+    },
+
+    "code_quality": {
+      "empty_catch":            { "enabled": true, "level": "hard" },
+      "catch_and_ignore":       { "enabled": true, "level": "soft" },
+      "magic_numbers":          { "enabled": true, "level": "soft", "allowed": [0, 1, -1, 2, 10, 100, 1000] },
+      "magic_strings":          { "enabled": true, "level": "soft", "min_length": 5, "min_occurrences": 3 },
+      "dead_code_after_return": { "enabled": true, "level": "hard" },
+      "dead_conditional":       { "enabled": true, "level": "hard" },
+      "god_functions":          { "enabled": true, "level": "soft", "max_lines": 80 },
+      "god_classes":            { "enabled": true, "level": "soft", "max_lines": 300, "max_methods": 20 },
+      "deep_nesting":           { "enabled": true, "level": "soft", "max_depth": 4 },
+      "long_parameter_list":    { "enabled": true, "level": "soft", "max_params": 5 },
+      "complex_boolean_expr":   { "enabled": true, "level": "soft", "max_conditions": 3 },
+      "mutable_global_state":   { "enabled": true, "level": "soft" },
+      "boolean_function_returns": { "enabled": true, "level": "advisory" },
+      "string_concat_in_loop":  { "enabled": true, "level": "advisory" },
+      "recursive_no_base_case": { "enabled": true, "level": "soft" }
+    },
+
+    "complexity": {
+      "cyclomatic_complexity":  { "enabled": true, "level": "soft", "max": 15 },
+      "cognitive_complexity":   { "enabled": true, "level": "soft", "max": 20 },
+      "file_length":            { "enabled": true, "level": "soft", "max_lines": 500 },
+      "function_count":         { "enabled": true, "level": "advisory", "max": 25 },
+      "class_count":            { "enabled": true, "level": "advisory", "max": 5 },
+      "import_count":           { "enabled": true, "level": "advisory", "max": 30 },
+      "return_count":           { "enabled": true, "level": "advisory", "max": 5 },
+      "nested_ternary":         { "enabled": true, "level": "soft" }
+    },
+
+    "style": {
+      "inconsistent_naming":    { "enabled": true, "level": "advisory" },
+      "debug_leftovers":        { "enabled": true, "level": "soft" },
+      "commented_out_code":     { "enabled": true, "level": "soft", "min_lines": 3 },
+      "inconsistent_spacing":   { "enabled": true, "level": "advisory" },
+      "long_lines":             { "enabled": true, "level": "advisory", "max_length": 120 },
+      "missing_final_newline":  { "enabled": true, "level": "advisory" },
+      "multiple_blank_lines":   { "enabled": true, "level": "advisory", "max_consecutive": 2 },
+      "inconsistent_quotes":    { "enabled": false, "level": "advisory" },
+      "import_ordering":        { "enabled": true, "level": "advisory" }
+    },
+
+    "security": {
+      "hardcoded_credentials":    { "enabled": true, "level": "hard" },
+      "sql_string_concat":        { "enabled": true, "level": "hard" },
+      "shell_injection":           { "enabled": true, "level": "hard" },
+      "insecure_random":           { "enabled": true, "level": "soft" },
+      "weak_crypto":               { "enabled": true, "level": "soft" },
+      "hardcoded_ip":              { "enabled": false, "level": "advisory" },
+      "hardcoded_url":             { "enabled": true, "level": "advisory" },
+      "path_traversal":            { "enabled": true, "level": "hard" },
+      "insecure_deserialization":  { "enabled": true, "level": "hard" },
+      "exposed_stack_traces":      { "enabled": true, "level": "advisory" }
+    },
+
+    "_comment_lang_rules": "Language-specific checks (only run for matching file types)",
+    "lang_rules": {
+      "python": {
+        "bare_except":           { "enabled": true, "level": "soft" },
+        "mutable_default_arg":   { "enabled": true, "level": "hard" },
+        "star_import":           { "enabled": true, "level": "soft" },
+        "assert_in_production":  { "enabled": true, "level": "soft" },
+        "f_string_in_old_python": { "enabled": true, "level": "advisory" },
+        "global_keyword":        { "enabled": true, "level": "soft" },
+        "nested_comprehension":  { "enabled": true, "level": "soft" },
+        "broad_exception":       { "enabled": true, "level": "soft" },
+        "open_without_with":     { "enabled": true, "level": "soft" },
+        "type_comparison":       { "enabled": true, "level": "soft" },
+        "late_import":           { "enabled": true, "level": "advisory" },
+        "class_too_many_responsibilities": { "enabled": true, "level": "advisory" },
+        "dataclass_candidate":   { "enabled": true, "level": "advisory" },
+        "f_string_without_expression": { "enabled": true, "level": "advisory" }
+      },
+      "javascript": {
+        "loose_equality":        { "enabled": true, "level": "soft" },
+        "var_declaration":       { "enabled": true, "level": "soft" },
+        "eval_usage":            { "enabled": true, "level": "hard" },
+        "for_in_array":          { "enabled": true, "level": "soft" },
+        "prototype_pollution":   { "enabled": true, "level": "hard" },
+        "document_write":        { "enabled": true, "level": "soft" },
+        "innerHTML":             { "enabled": true, "level": "soft" },
+        "promise_no_catch":      { "enabled": true, "level": "soft" },
+        "async_no_await":        { "enabled": true, "level": "soft" },
+        "callback_hell":         { "enabled": true, "level": "soft" },
+        "module_system_mix":     { "enabled": true, "level": "advisory" },
+        "implicit_global":       { "enabled": true, "level": "soft" }
+      },
+      "naab": {
+        "value_semantics_bug":   { "enabled": true, "level": "hard" },
+        "missing_null_check":    { "enabled": true, "level": "soft" },
+        "polyglot_no_binding":   { "enabled": true, "level": "advisory" },
+        "throw_raw_string":      { "enabled": true, "level": "advisory" },
+        "oversized_polyglot":    { "enabled": true, "level": "soft", "max_lines": 100 },
+        "top_level_let":         { "enabled": true, "level": "hard" },
+        "arrow_lambda":          { "enabled": true, "level": "soft" },
+        "missing_export":        { "enabled": true, "level": "advisory" },
+        "dict_bracket_access":   { "enabled": true, "level": "soft" },
+        "python_return_in_block": { "enabled": true, "level": "hard" }
+      }
+    },
+
+    "_comment_output": "Report output settings",
+    "output": {
+      "format": "text",
+      "max_issues_per_file": 50,
+      "max_total_issues": 500,
+      "group_by": "file",
+      "sort_by": "severity",
+      "show_line_preview": true,
+      "show_fix_suggestion": true,
+      "save_json": true,
+      "save_text": true,
+      "save_sarif": false,
+      "json_path": "quality-report.json",
+      "text_path": "quality-report.txt",
+      "sarif_path": "quality-report.sarif"
     }
   },
 

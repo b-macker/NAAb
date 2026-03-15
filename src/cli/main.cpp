@@ -35,6 +35,7 @@
 #include "naab/resource_limits.h"
 #include "naab/stdlib.h"  // For setPipeMode()
 #include "naab/governance.h"  // For governance report CLI flags
+#include "naab/scanner.h"    // For --scan command
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -175,6 +176,7 @@ void print_usage() {
     fmt::print("  naab-lang manifest check            Validate naab.toml\n");
     fmt::print("  naab-lang calibrate                 Benchmark installed languages\n");
     fmt::print("  naab-lang race <file> --block N     Race polyglot block alternatives\n");
+    fmt::print("  naab-lang --scan <path> [--language <lang>]  Run code quality scanner\n");
     fmt::print("  naab-lang version                   Show version\n");
     fmt::print("  naab-lang help                      Show this help\n");
     fmt::print("\n");
@@ -295,6 +297,52 @@ int main(int argc, char** argv) {
         fmt::print("naab-lang {}\n", NAAB_VERSION_STRING);
         fflush(stdout);
         _exit(0);
+    }
+
+    // Handle --scan command
+    if (command == "--scan" || command == "scan") {
+        std::string target_path;
+        std::string scan_language = "auto";
+
+        for (int i = command_arg_index + 1; i < argc; ++i) {
+            std::string arg(argv[i]);
+            if (arg == "--language" && i + 1 < argc) {
+                scan_language = argv[++i];
+            } else if (target_path.empty()) {
+                target_path = arg;
+            } else if (scan_language == "auto") {
+                // Allow: naab-lang --scan <path> <language>
+                scan_language = arg;
+            }
+        }
+
+        if (target_path.empty()) {
+            fmt::print("Usage: naab-lang --scan <path> [language|auto]\n");
+            fmt::print("Languages: python, javascript, cpp, go, rust, naab, auto\n");
+            fflush(stdout);
+            return 1;
+        }
+
+        naab::scanner::ScannerEngine engine;
+        engine.loadConfig(target_path);
+        auto result = engine.scan(target_path, scan_language);
+        auto report = engine.formatTextReport(result);
+        fmt::print("{}\n", report);
+        engine.saveReports(result);
+
+        // Exit code: fail on hard violations
+        int hard_count = 0;
+        for (const auto& issue : result.issues) {
+            if (issue.level == "hard") hard_count++;
+        }
+        if (hard_count > 0) {
+            fmt::print("\nRESULT: FAIL ({} hard violations)\n", hard_count);
+            fflush(stdout);
+            return 1;
+        }
+        fmt::print("\nRESULT: PASS (no hard violations)\n");
+        fflush(stdout);
+        return 0;
     }
 
     // Auto-detect .naab files: `naab-lang file.naab` → `naab-lang run file.naab`

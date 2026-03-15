@@ -4118,7 +4118,7 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "languages", "capabilities", "limits", "requirements",
         "restrictions", "code_quality", "custom_rules", "scopes",
         "output", "audit", "meta", "hooks", "polyglot", "polyglot_optimization",
-        "contracts", "baselines", "project_context"
+        "contracts", "baselines", "project_context", "scanner"
     };
 
     try {

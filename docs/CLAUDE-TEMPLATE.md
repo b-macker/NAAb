@@ -426,6 +426,74 @@ return int(math.max(0, result))  // Clamp to 0
 
 ---
 
+## Code Quality Scanner
+
+NAAb has a built-in code quality scanner (`naab-lang --scan`) that checks 127 patterns
+across 6 categories and 6 language-specific modules.
+
+### Auto-Run (Runtime)
+When your govern.json has a `"scanner"` section, the scanner runs automatically after
+every `naab-lang` execution — no flags needed. It reports issues to stderr:
+```
+[scanner] 4 issues (1 hard, 2 soft, 1 advisory) in my_file.naab
+[scanner] HARD violations:
+  X Line 8: security.hardcoded_credentials — Hardcoded credential detected
+    Fix: Use environment variables or secrets manager
+```
+
+### CLI Mode
+```bash
+naab-lang --scan <path> [language|auto]    # Standalone scan
+naab-lang --scan src/ auto                 # Scan directory, auto-detect languages
+naab-lang --scan app.py python             # Scan single file
+```
+
+### Check Categories (127 checks total)
+| Category | Checks | Key Rules |
+|----------|--------|-----------|
+| redundancy | 15 | obvious_comments, over_abstraction, apologetic_comments, placeholder_code |
+| code_quality | 15 | empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting |
+| complexity | 8 | cyclomatic_complexity, cognitive_complexity, file_length |
+| style | 10 | inconsistent_naming, debug_leftovers, commented_out_code, long_lines |
+| security | 10 | hardcoded_credentials, sql_string_concat, shell_injection, path_traversal |
+| lang_naab | 10 | value_semantics_bug, top_level_let, arrow_lambda, python_return_in_block |
+| lang_python | 14 | bare_except, mutable_default_arg, star_import, open_without_with |
+| lang_javascript | 12 | loose_equality, var_declaration, eval_usage, prototype_pollution |
+| lang_cpp | 12 | raw_new_delete, using_namespace_std, c_style_cast, goto_usage |
+| lang_go | 9 | ignored_error, panic_usage, empty_interface, error_capitalization |
+| lang_rust | 10 | unsafe_block, todo_macro, string_push_in_loop, complex_lifetime |
+
+### Enforcement Levels
+- **hard** — Critical issues (security, dead code). Severity: critical
+- **soft** — Important quality issues. Severity: high/medium
+- **advisory** — Suggestions for improvement. Severity: low
+
+### Configuration (govern.json)
+```json
+{
+  "scanner": {
+    "version": "1.0",
+    "mode": "enforce",
+    "code_quality": {
+      "empty_catch":       { "enabled": true, "level": "hard" },
+      "god_functions":     { "enabled": true, "level": "soft", "max_lines": 80 },
+      "deep_nesting":      { "enabled": true, "level": "soft", "max_depth": 4 }
+    },
+    "security": {
+      "hardcoded_credentials": { "enabled": true, "level": "hard" }
+    }
+  }
+}
+```
+See `govern-template.json` for all 127 checks with their options.
+
+### Output
+- Text report: `quality-report.txt` (saved automatically)
+- JSON report: `quality-report.json` (machine-readable)
+- SARIF report: optional (`"save_sarif": true`)
+
+---
+
 ## Project-Specific Template
 Copy everything above into your project's CLAUDE.md, then add sections like these below:
 

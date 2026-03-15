@@ -596,6 +596,27 @@ target_link_libraries(naab_profiling
 )
 message(STATUS "  ✓ Profiling framework")
 
+# Scanner engine (native --scan feature)
+add_library(naab_scanner
+    src/scanner/scanner.cpp
+    src/scanner/checks_redundancy.cpp
+    src/scanner/checks_code_quality.cpp
+    src/scanner/checks_complexity.cpp
+    src/scanner/checks_style.cpp
+    src/scanner/checks_security.cpp
+    src/scanner/checks_lang_python.cpp
+    src/scanner/checks_lang_javascript.cpp
+    src/scanner/checks_lang_cpp.cpp
+    src/scanner/checks_lang_go.cpp
+    src/scanner/checks_lang_rust.cpp
+    src/scanner/checks_lang_naab.cpp
+)
+target_include_directories(naab_scanner PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
+)
+target_link_libraries(naab_scanner fmt::fmt)
+message(STATUS "  ✓ Scanner engine (naab_scanner)")
+
 # Main executable
 add_executable(naab-lang
     src/cli/main.cpp
@@ -611,6 +632,7 @@ target_link_libraries(naab-lang
     naab_stdlib
     naab_rest_api
     naab_manifest
+    naab_scanner
     fmt::fmt
     spdlog::spdlog
 )
