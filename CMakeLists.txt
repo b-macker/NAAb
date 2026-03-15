@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 # Project with semantic versioning
 project(naab_lang
-    VERSION 0.3.1
+    VERSION 0.4.0
     DESCRIPTION "NAAb Block Assembly Language"
     LANGUAGES C CXX
 )
@@ -379,6 +379,7 @@ target_link_libraries(naab_interpreter
     naab_semantic
     naab_stdlib
     naab_debugger
+    naab_scanner
     absl::flat_hash_map
     fmt::fmt
 )
