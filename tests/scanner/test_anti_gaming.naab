@@ -1,0 +1,32 @@
+fn calculate_damage(atk, def) {
+    let zero = 0
+    let one = 1
+
+    // Loop provides +5 complexity
+    let base = atk - def
+
+    // Add try/catch for error handling complexity
+    try {
+        if base > 100 {
+            base = 100
+        }
+    } catch (e) {
+        base = one
+    }
+
+    return base
+}
+
+fn legitimate_code(input) {
+    let MAX_RETRIES = 3
+    try {
+        let val = int(input)
+        return val
+    } catch (e) {
+        return 0
+    }
+}
+
+main {
+    print(string(calculate_damage(10, 5)))
+}

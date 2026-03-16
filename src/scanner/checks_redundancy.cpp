@@ -109,6 +109,52 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         }
     }
 
+    // 3b. suspicious_try_catch — try around non-throwing code (NAAb)
+    if (isEnabled(CAT, "suspicious_try_catch") && language == "naab") {
+        static const std::regex try_start(R"(^\s*try\s*\{)");
+        static const std::regex catch_line_pat(R"(^\s*\}\s*catch\s*\()");
+        // Patterns that CAN throw — if any appear in the try body, it's legit
+        static const std::regex throwable_pat(
+            R"(\b(?:int|float|string|parse|open|read|write|fetch|json)\s*\(|)"
+            R"(\w+\s*\.\s*\w+\s*\(|)"
+            R"(\w+\s*\[)");
+
+        for (size_t i = 0; i + 2 < lines.size(); ++i) {
+            std::string s = trim(lines[i]);
+            if (!std::regex_search(s, try_start)) continue;
+
+            // Find the } catch line and check body for throwable ops
+            bool found_catch = false;
+            bool has_throwable = false;
+
+            for (size_t j = i + 1; j < lines.size(); ++j) {
+                std::string curr = trim(lines[j]);
+
+                // Is this the } catch line?
+                if (std::regex_search(curr, catch_line_pat)) {
+                    found_catch = true;
+                    break;
+                }
+
+                // Check if this body line has throwable operations
+                // Skip braces-only lines and empty lines
+                if (!curr.empty() && curr != "{" && curr != "}") {
+                    if (std::regex_search(lines[j], throwable_pat)) {
+                        has_throwable = true;
+                        break;
+                    }
+                }
+            }
+
+            if (found_catch && !has_throwable) {
+                addIssue(issues, filepath, i + 1, "suspicious_try_catch", CAT,
+                         "try/catch around code that cannot throw",
+                         trim(lines[i]),
+                         "Remove unnecessary try/catch");
+            }
+        }
+    }
+
     // 4. generic_variable_names
     if (isEnabled(CAT, "generic_variable_names")) {
         auto names_list = getListOption(CAT, "generic_variable_names");
@@ -477,6 +523,60 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                 addIssue(issues, filepath, i + 1, "decorative_separators", CAT,
                          "Decorative comment separator", trim(lines[i]),
                          "Remove or add descriptive text");
+            }
+        }
+    }
+
+    // 16. trivial_constant_alias
+    if (isEnabled(CAT, "trivial_constant_alias")) {
+        static const std::unordered_map<std::string, std::string> word_to_num = {
+            {"zero", "0"}, {"one", "1"}, {"two", "2"}, {"three", "3"},
+            {"four", "4"}, {"five", "5"}, {"six", "6"}, {"seven", "7"},
+            {"eight", "8"}, {"nine", "9"}, {"ten", "10"},
+            {"hundred", "100"}, {"thousand", "1000"}
+        };
+        static const std::regex alias_pat(R"(^\s*(?:let|var|const)\s+(\w+)\s*=\s*(-?\d+)\s*$)");
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::smatch m;
+            if (std::regex_search(lines[i], m, alias_pat)) {
+                std::string name = m[1].str();
+                std::string value = m[2].str();
+                std::string lower_name = name;
+                std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+
+                auto it = word_to_num.find(lower_name);
+                if (it != word_to_num.end() && it->second == value) {
+                    addIssue(issues, filepath, i + 1, "trivial_constant_alias", CAT,
+                             fmt::format("'{}' is a trivial alias for {} — use the literal", name, value),
+                             trim(lines[i]),
+                             "Use the numeric literal directly");
+                }
+            }
+        }
+    }
+
+    // 17. gaming_comments
+    if (isEnabled(CAT, "gaming_comments")) {
+        static const std::regex gaming_pat(
+            R"((?:complexity|score|floor|threshold|metric)\s*(?:>=|<=|==|>|<|\+|-|\*)|)"
+            R"((?:\+\d+\s*(?:complexity|score))|)"
+            R"((?:adds?\s+complexity)|(?:increase[sd]?\s+complexity)|(?:provides?\s+.*complexity)|)"
+            R"((?:for\s+(?:\w+\s+){0,3}complexity(?:\s+score)?)|)"
+            R"((?:to\s+(?:pass|ensure|meet|hit|reach)\s+.*(?:complexity|score|check|threshold))|)"
+            R"((?:\(\+\d+\s*(?:score)?\))|)"
+            R"((?:\+\s*(?:score|complexity)))",
+            std::regex::icase);
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string stripped = trim(lines[i]);
+            if (startsWith(stripped, "//") || startsWith(stripped, "#") ||
+                startsWith(stripped, "/*") || startsWith(stripped, "*")) {
+                if (std::regex_search(stripped, gaming_pat)) {
+                    addIssue(issues, filepath, i + 1, "gaming_comments", CAT,
+                             "Comment reveals metric gaming intent", stripped,
+                             "Remove gaming comment — write natural code instead");
+                }
             }
         }
     }
