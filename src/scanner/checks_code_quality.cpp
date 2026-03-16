@@ -137,7 +137,8 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
         static const std::regex const_line(R"(^\s*(const|#define|final|CONST|let\s+[A-Z_]+))");
 
         for (size_t i = 0; i < lines.size(); ++i) {
-            if (main_lines.count(i)) continue;
+            bool skip_main = getNumOption(CAT, "magic_numbers", "skip_main", 1) > 0;
+            if (skip_main && main_lines.count(i)) continue;
             if (test_lines.count(i)) continue;
             std::string s = cq_trim(lines[i]);
             if (cq_startsWith(s, "#") || cq_startsWith(s, "//") || cq_startsWith(s, "/*") ||

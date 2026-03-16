@@ -1,0 +1,152 @@
+{
+  "version": "3.0",
+  "mode": "enforce",
+
+  "languages": {
+    "allowed": ["python"],
+    "blocked": ["javascript", "rust", "cpp", "csharp", "go", "nim", "zig", "julia", "ruby", "php", "shell"]
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "none" },
+    "shell": { "enabled": false }
+  },
+
+  "limits": {
+    "execution": {
+      "call_depth": 50,
+      "loop_iterations": 100000,
+      "polyglot_blocks": 5
+    },
+    "code": {
+      "max_lines_per_block": 30,
+      "max_functions": 30,
+      "max_nesting_depth": 6
+    }
+  },
+
+  "requirements": {
+    "main_block": { "enabled": true, "level": "hard" },
+    "naming_conventions": {
+      "enabled": true,
+      "level": "soft",
+      "variables": "snake_case",
+      "functions": "snake_case",
+      "constants": "UPPER_SNAKE_CASE"
+    }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "enabled": true, "level": "hard" },
+    "shell_injection": { "enabled": true, "level": "hard" }
+  },
+
+  "code_quality": {
+    "no_secrets": { "enabled": true, "level": "hard" },
+    "no_placeholders": { "enabled": true, "level": "hard" },
+    "no_hardcoded_results": { "enabled": true, "level": "soft" },
+    "no_temporary_code": { "enabled": true, "level": "soft" },
+    "no_simulation_markers": { "enabled": true, "level": "hard" },
+    "no_oversimplification": {
+      "enabled": true,
+      "level": "hard",
+      "check_empty_bodies": true,
+      "check_trivial_returns": true,
+      "check_identity_functions": true,
+      "check_not_implemented": true,
+      "min_function_lines": 2
+    },
+    "no_incomplete_logic": {
+      "enabled": true,
+      "level": "hard",
+      "check_empty_catch": true,
+      "check_swallowed_exceptions": true,
+      "check_single_iteration_loops": true
+    },
+    "no_dead_code": { "enabled": true, "level": "soft" },
+    "no_debug_artifacts": { "enabled": true, "level": "soft" },
+    "complexity_floor": {
+      "level": "soft",
+      "min_score": 10,
+      "check_naab": true,
+      "rules": [
+        {
+          "names": ["test_"],
+          "min_score": 0,
+          "require_branching_or_loops": false
+        },
+        {
+          "names": ["process", "compute", "aggregate", "filter", "detect", "schedule", "analyze"],
+          "min_score": 20,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": ["get_", "set_", "is_", "has_", "to_", "create_", "check_", "add_", "make_", "enqueue", "dequeue", "peek", "classify_", "main"],
+          "min_score": 3,
+          "require_branching_or_loops": false
+        }
+      ]
+    }
+  },
+
+  "contracts": {
+    "level": "soft",
+    "functions": {
+      "create_event": {
+        "return_type": "dict",
+        "return_keys": ["id", "type", "priority", "timestamp", "payload"]
+      },
+      "process_pipeline": {
+        "return_type": "dict",
+        "return_keys": ["processed", "filtered", "alerts"]
+      },
+      "aggregate_events": {
+        "return_type": "dict",
+        "return_keys": ["count_by_type", "avg_priority", "total"]
+      }
+    }
+  },
+
+  "scanner": {
+    "version": "1.0",
+    "mode": "enforce",
+    "redundancy": {
+      "trivial_constant_alias": { "enabled": true, "level": "soft" },
+      "gaming_comments": { "enabled": true, "level": "soft" },
+      "suspicious_try_catch": { "enabled": true, "level": "soft" },
+      "generic_variable_names": { "enabled": true, "level": "soft" },
+      "single_use_variable": { "enabled": true, "level": "soft" },
+      "copy_paste_signatures": { "enabled": true, "level": "advisory" },
+      "unnecessary_else_after_return": { "enabled": true, "level": "advisory" },
+      "obvious_comments": { "enabled": true, "level": "soft" },
+      "over_abstraction": { "enabled": true, "level": "soft" },
+      "excessive_comments": { "enabled": true, "level": "soft" },
+      "apologetic_comments": { "enabled": true, "level": "soft" },
+      "placeholder_code": { "enabled": true, "level": "soft" },
+      "decorative_separators": { "enabled": true, "level": "soft" }
+    },
+    "code_quality": {
+      "magic_numbers": { "enabled": true, "level": "soft", "allowed": [0, 1, -1, 2, 10, 100], "skip_main": 0 },
+      "deep_nesting": { "enabled": true, "level": "soft", "max_depth": 4 },
+      "empty_catch": { "enabled": true, "level": "hard" },
+      "dead_code_after_return": { "enabled": true, "level": "soft" },
+      "complex_boolean_expr": { "enabled": true, "level": "soft", "max_conditions": 3 }
+    },
+    "complexity": {
+      "cyclomatic_complexity": { "enabled": true, "level": "soft", "max": 15 },
+      "cognitive_complexity": { "enabled": true, "level": "soft", "max": 20 }
+    },
+    "lang_rules": {
+      "naab": {
+        "dict_bracket_access": { "enabled": true, "level": "soft" },
+        "value_semantics_bug": { "enabled": true, "level": "hard" },
+        "missing_null_check": { "enabled": true, "level": "soft" },
+        "top_level_let": { "enabled": true, "level": "hard" },
+        "throw_raw_string": { "enabled": true, "level": "soft" },
+        "polyglot_no_binding": { "enabled": true, "level": "soft" },
+        "python_return_in_block": { "enabled": true, "level": "soft" }
+      }
+    }
+  }
+}

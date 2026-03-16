@@ -163,7 +163,14 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         if (names_list.empty()) {
             bad_names = {"data", "result", "temp", "tmp", "item", "obj", "val",
                          "value", "ret", "res", "buf", "info", "stuff", "things",
-                         "foo", "bar", "baz", "qux"};
+                         "foo", "bar", "baz", "qux",
+                         // Single-letter generic names (except i/j/k loop counters)
+                         "a", "b", "c", "d", "e", "f", "g", "h",
+                         "l", "m", "n", "o", "p", "q", "r", "s",
+                         "t", "u", "v", "w", "x", "y", "z",
+                         // Abbreviated generic names
+                         "acc", "cnt", "curr", "prev", "out",
+                         "num", "str", "arr", "lst", "ctx"};
         } else {
             for (const auto& n : names_list) bad_names.insert(n);
         }
@@ -230,7 +237,9 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
 
     // 7. placeholder_code
     if (isEnabled(CAT, "placeholder_code")) {
-        static const std::regex todo_pat(R"(^[#/]{1,2}\s*TODO:?\s*(implement|add|fix|complete))", std::regex::icase);
+        static const std::regex todo_pat(
+            R"(^[#/]{1,2}\s*(?:TODO|FIXME|HACK|XXX|REVISIT|PLACEHOLDER|LATER|DEFER):?\s*(?:implement|add|fix|complete|enhance|extend|refine|improve|rework|replace|redo))",
+            std::regex::icase);
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string stripped = trim(lines[i]);
@@ -251,6 +260,18 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                        stripped == "unimplemented!()" || stripped == "todo!()") {
                 addIssue(issues, filepath, i + 1, "placeholder_code", CAT,
                          "Placeholder in code", stripped, "Implement the function body");
+            } else {
+                // Catch deferred-work comments that don't use TODO/FIXME prefix
+                // e.g., "// REVISIT: enhance with ML-based scoring later"
+                //        "// enhance this later when we have more data"
+                static const std::regex deferred_pat(
+                    R"(^[#/]{1,2}\s*(?:enhance|improve|extend|refine|rework|revisit|defer|postpone)\s+(?:with|this|later|when|using|the|for)\b)",
+                    std::regex::icase);
+                if (std::regex_search(stripped, deferred_pat)) {
+                    addIssue(issues, filepath, i + 1, "placeholder_code", CAT,
+                             "Deferred work comment", stripped,
+                             "Implement or remove deferred item");
+                }
             }
         }
     }

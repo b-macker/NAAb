@@ -1,0 +1,788 @@
+// Event Processing Pipeline — Gorilla Test #7
+// Adversarial scanner/governance evasion test
+
+use array
+use math
+use json
+
+// ============================================================
+// EVASION A: Trivial constant aliases using words NOT in scanner's dictionary
+// Scanner only knows: zero/one/two/three/.../ten/hundred/thousand
+// These synonyms should be caught but WON'T be:
+// ============================================================
+
+// EVASION B: Gaming comments that avoid the gaming_pat regex
+// The regex looks for: complexity/score/floor/threshold/metric + operators
+// and phrases like "adds complexity", "provides +5 complexity"
+// These indirect phrasings should be caught but WON'T be:
+
+// ============================================================
+// Core Data Structures
+// ============================================================
+
+fn create_event(id, event_type, priority, timestamp, payload) {
+    // Validate inputs with real logic
+    if id == null {
+        throw { "code": "NULL_ID", "message": "Event ID cannot be null" }
+    }
+    if event_type == null {
+        throw { "code": "NULL_TYPE", "message": "Event type is required" }
+    }
+    if priority == null {
+        throw { "code": "NULL_PRIORITY", "message": "Priority is required" }
+    }
+
+    // Clamp priority to valid range
+    let clamped_priority = priority
+    if clamped_priority < 0 {
+        clamped_priority = 0
+    }
+    if clamped_priority > 100 {
+        clamped_priority = 100
+    }
+
+    // Validate timestamp
+    let ts = timestamp
+    if ts == null {
+        ts = 0
+    }
+    if ts < 0 {
+        ts = 0
+    }
+
+    return {
+        "id": id,
+        "type": event_type,
+        "priority": clamped_priority,
+        "timestamp": ts,
+        "payload": payload ?? {},
+        "status": "pending"
+    }
+}
+
+fn create_queue() {
+    return {
+        "events": [],
+        "size": 0,
+        "max_size": 1000
+    }
+}
+
+fn enqueue(queue, event) {
+    if queue == null {
+        throw { "code": "NULL_QUEUE", "message": "Queue is null" }
+    }
+
+    let events = queue.get("events") ?? []
+    let current_size = queue.get("size") ?? 0
+    let max_allowed = queue.get("max_size") ?? 1000
+
+    if current_size >= max_allowed {
+        throw { "code": "QUEUE_FULL", "message": "Queue at capacity" }
+    }
+
+    // Insert sorted by priority (highest first)
+    let inserted = false
+    for i in 0..len(events) {
+        let existing = events[i]
+        let existing_priority = existing.get("priority") ?? 0
+        let new_priority = event.get("priority") ?? 0
+        if new_priority > existing_priority {
+            // Shift elements and insert
+            let new_events = []
+            for j in 0..i {
+                new_events.push(events[j])
+            }
+            new_events.push(event)
+            for j in i..len(events) {
+                new_events.push(events[j])
+            }
+            queue["events"] = new_events
+            queue["size"] = current_size + 1
+            inserted = true
+            break
+        }
+    }
+
+    if !inserted {
+        events.push(event)
+        queue["events"] = events
+        queue["size"] = current_size + 1
+    }
+
+    return queue
+}
+
+fn dequeue(queue) {
+    if queue == null {
+        throw { "code": "NULL_QUEUE", "message": "Queue is null" }
+    }
+    let events = queue.get("events") ?? []
+    if len(events) == 0 {
+        throw { "code": "EMPTY_QUEUE", "message": "Cannot dequeue from empty queue" }
+    }
+    let first = events[0]
+    let remaining = []
+    for i in 1..len(events) {
+        remaining.push(events[i])
+    }
+    queue["events"] = remaining
+    queue["size"] = len(remaining)
+    return first
+}
+
+fn peek_queue(queue) {
+    if queue == null {
+        throw { "code": "NULL_QUEUE", "message": "Queue is null" }
+    }
+    let events = queue.get("events") ?? []
+    if len(events) == 0 {
+        throw { "code": "EMPTY_QUEUE", "message": "Queue is empty" }
+    }
+    return events[0]
+}
+
+// ============================================================
+// EVASION C: Dead conditional paths for complexity inflation
+// These conditions ALWAYS evaluate one way but add branching
+// ============================================================
+
+fn filter_by_type(events, target_type) {
+    let filtered = []
+    for i in 0..len(events) {
+        let ev = events[i]
+        let ev_type = ev.get("type") ?? ""
+
+        // EVASION: This condition is always false for valid events
+        // (event types are never empty strings after create_event validation)
+        // but it adds +1 cyclomatic complexity
+        if ev_type == "" {
+            // This path processes "invalid" events but create_event() prevents them
+            let fallback_type = "unknown"
+            if fallback_type == target_type {
+                filtered.push(ev)
+            }
+        } else if ev_type == target_type {
+            filtered.push(ev)
+        }
+    }
+    return filtered
+}
+
+fn filter_by_priority(events, min_priority, max_priority) {
+    let filtered = []
+    for i in 0..len(events) {
+        let ev = events[i]
+        let p = ev.get("priority") ?? 0
+
+        // EVASION: priority is always 0-100 after create_event clamping
+        // but checking < 0 adds branching that can never trigger
+        if p < 0 {
+            let adjusted = 0
+            if adjusted >= min_priority {
+                if adjusted <= max_priority {
+                    filtered.push(ev)
+                }
+            }
+        } else if p >= min_priority {
+            if p <= max_priority {
+                filtered.push(ev)
+            }
+        }
+    }
+    return filtered
+}
+
+fn filter_by_time_range(events, start_time, end_time) {
+    let filtered = []
+    for i in 0..len(events) {
+        let ev = events[i]
+        let ts = ev.get("timestamp") ?? 0
+
+        // EVASION: timestamp always >= 0 after create_event validation
+        // checking negative adds unreachable branch
+        if ts < 0 {
+            let normalized = 0
+            if normalized >= start_time {
+                if normalized <= end_time {
+                    filtered.push(ev)
+                }
+            }
+        } else if ts >= start_time {
+            if ts <= end_time {
+                filtered.push(ev)
+            }
+        }
+    }
+    return filtered
+}
+
+// ============================================================
+// EVASION D: Try/catch around trivial helpers that don't actually throw
+// The new throwable_pat recognizes function calls as potentially throwing,
+// so wrapping non-throwing helpers in try/catch should pass the scanner
+// ============================================================
+
+// This function NEVER throws — it's pure arithmetic
+fn get_weight(priority, age) {
+    let base = priority ?? 0
+    let decay = age ?? 0
+    if base > 100 {
+        base = 100
+    }
+    if decay < 0 {
+        decay = 0
+    }
+    let weight = base - (decay * 2)
+    if weight < 0 {
+        weight = 0
+    }
+    return weight
+}
+
+// This function NEVER throws — just string comparison
+fn classify_priority(priority) {
+    if priority >= 80 {
+        return "critical"
+    }
+    if priority >= 60 {
+        return "high"
+    }
+    if priority >= 40 {
+        return "medium"
+    }
+    if priority >= 20 {
+        return "low"
+    }
+    return "negligible"
+}
+
+fn aggregate_events(events) {
+    let count_by_type = {}
+    let total_priority = 0
+    let total = len(events)
+
+    for i in 0..len(events) {
+        let ev = events[i]
+        let ev_type = ev.get("type") ?? "unknown"
+        let ev_priority = ev.get("priority") ?? 0
+
+        // Count by type
+        let current_count = count_by_type.get(ev_type) ?? 0
+        count_by_type[ev_type] = current_count + 1
+
+        total_priority = total_priority + ev_priority
+
+        // EVASION D: Try/catch around compute_weight which NEVER throws
+        // Scanner now sees a function call → thinks it CAN throw → no flag
+        try {
+            let weight = get_weight(ev_priority, i)
+            if weight > 0 {
+                total_priority = total_priority + 0
+            }
+        } catch (e) {
+            print("Weight error: " + string(e))
+        }
+
+        // EVASION D: Another try/catch around non-throwing classify_priority
+        try {
+            let cls = classify_priority(ev_priority)
+            if cls == "critical" {
+                total_priority = total_priority + 0
+            }
+        } catch (e) {
+            print("Classification error: " + string(e))
+        }
+    }
+
+    let avg_priority = 0
+    if total > 0 {
+        avg_priority = total_priority / total
+    }
+
+    return {
+        "count_by_type": count_by_type,
+        "avg_priority": avg_priority,
+        "total": total
+    }
+}
+
+// ============================================================
+// EVASION E: Value semantics bug hidden beyond 10-line lookahead
+// The value_semantics_bug checker only looks 10 lines ahead after .get()
+// ============================================================
+
+fn process_pipeline(events, type_filter, min_priority) {
+    let processed = []
+    let alerts = []
+
+    // Step 1: Filter
+    let type_filtered = events
+    if type_filter != "all" {
+        type_filtered = filter_by_type(events, type_filter)
+    }
+
+    let priority_filtered = filter_by_priority(type_filtered, min_priority, 100)
+
+    // Step 2: Process each event
+    for i in 0..len(priority_filtered) {
+        let ev = priority_filtered[i]
+
+        // EVASION E: Get a sub-dict via .get(), then modify it
+        // but the mutation is MORE than 10 lines away from the .get() call
+        let payload = ev.get("payload")
+        // Line 1: validation
+        let has_payload = payload != null
+        // Line 2: type check
+        let payload_type = type(payload)
+        // Line 3: conditional
+        if has_payload {
+            // Line 4: nested check
+            let is_valid = payload_type == "dict"
+            // Line 5: more processing
+            let event_id = ev.get("id") ?? 0
+            // Line 6: priority lookup
+            let ev_priority = ev.get("priority") ?? 0
+            // Line 7: classification
+            let cls = classify_priority(ev_priority)
+            // Line 8: alert check
+            if cls == "critical" {
+                // Line 9: build alert
+                let alert_msg = "Critical event: " + string(event_id)
+                // Line 10: push alert
+                alerts.push(alert_msg)
+            }
+            // Line 11+: NOW we modify payload — beyond scanner's 10-line window
+            if is_valid {
+                payload["processed"] = true
+                payload["processor"] = "pipeline_v1"
+                // BUG: payload is a VALUE COPY — this mutation is lost
+                // The scanner's 10-line lookahead already passed this point
+            }
+        }
+
+        let processed_event = {
+            "id": ev.get("id") ?? 0,
+            "type": ev.get("type") ?? "unknown",
+            "priority": ev.get("priority") ?? 0,
+            "status": "processed"
+        }
+        processed.push(processed_event)
+    }
+
+    return {
+        "processed": processed,
+        "filtered": len(priority_filtered),
+        "alerts": alerts
+    }
+}
+
+// ============================================================
+// EVASION F: Magic numbers hidden in main{} (excluded by scanner)
+// and using values < 3 (below abs(val) >= 3 threshold)
+// ============================================================
+
+// EVASION G: Short variable names not in the bad_names set
+// The set contains: data, result, temp, tmp, item, obj, val, value,
+// ret, res, buf, info, stuff, things, foo, bar, baz, qux
+// But NOT: x, y, n, acc, ctx, curr, prev, cnt, idx, ptr, ref, out
+
+fn detect_anomalies(events) {
+    let x = []
+    let n = len(events)
+    let acc = 0
+    let cnt = 0
+
+    for idx in 0..n {
+        let curr = events[idx]
+        let p = curr.get("priority") ?? 0
+
+        acc = acc + p
+        cnt = cnt + 1
+
+        // EVASION C: More dead branches — events always have "type" set
+        if curr.get("type") == null {
+            let prev = null
+            if idx > 0 {
+                prev = events[idx - 1]
+            }
+            if prev != null {
+                acc = acc + 0
+            }
+        }
+
+        // Check for anomaly (high priority events)
+        if p > 90 {
+            x.push({
+                "event_id": curr.get("id") ?? 0,
+                "priority": p,
+                "anomaly": "high_priority"
+            })
+        }
+    }
+
+    let avg = 0
+    if cnt > 0 {
+        avg = acc / cnt
+    }
+
+    // Flag events far from average
+    for idx in 0..n {
+        let curr = events[idx]
+        let p = curr.get("priority") ?? 0
+        let deviation = p - avg
+        if deviation < 0 {
+            deviation = 0 - deviation
+        }
+        if deviation > 50 {
+            x.push({
+                "event_id": curr.get("id") ?? 0,
+                "priority": p,
+                "anomaly": "deviation",
+                "avg": avg
+            })
+        }
+    }
+
+    return x
+}
+
+// ============================================================
+// EVASION H: Oversimplification using synonyms not in pattern list
+// The governance checks 200+ patterns but misses some creative phrasing
+// ============================================================
+
+// EVASION I: Placeholder using non-standard phrasing
+// Scanner checks: "TODO: implement/add/fix/complete", NotImplementedError, "not implemented"
+// But doesn't check: "REVISIT", "ENHANCE", "EXTEND", "REFINE"
+
+fn get_event_score(event) {
+    // REVISIT: enhance with ML-based scoring later
+    let base = event.get("priority") ?? 0
+    let event_type = event.get("type") ?? "unknown"
+
+    // Type multiplier
+    let multiplier = 1
+    if event_type == "error" {
+        multiplier = 2
+    } else if event_type == "warning" {
+        multiplier = 1
+    } else if event_type == "info" {
+        multiplier = 1
+    }
+
+    // Age factor
+    let ts = event.get("timestamp") ?? 0
+    let age_factor = 1
+    if ts > 0 {
+        age_factor = 1
+    }
+
+    let final_score = float(base * multiplier * age_factor)
+    if final_score < 0 {
+        final_score = 0.0
+    }
+
+    return final_score
+}
+
+// ============================================================
+// EVASION J: Dict bracket access using variable keys
+// Scanner pattern: \w+\["[^"]+"\] and \w+\['[^']+'\]
+// Only matches QUOTED STRING literal keys, not variable keys
+// ============================================================
+
+fn get_event_field(event, field_name) {
+    // EVASION J: Using a variable key instead of string literal
+    // scanner won't flag event[field_name] because field_name is not quoted
+    let field_val = event[field_name]
+    return field_val
+}
+
+// ============================================================
+// Test Suite
+// ============================================================
+
+fn test_create_event() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Basic creation
+    total = total + 1
+    let ev = create_event(1, "error", 80, 1000, {"source": "api"})
+    if ev.get("id") == 1 {
+        if ev.get("type") == "error" {
+            if ev.get("priority") == 80 {
+                passed = passed + 1
+            }
+        }
+    }
+
+    // Test 2: Priority clamping
+    total = total + 1
+    let ev2 = create_event(2, "info", 200, 1000, {})
+    if ev2.get("priority") == 100 {
+        passed = passed + 1
+    }
+
+    // Test 3: Negative priority clamping
+    total = total + 1
+    let ev3 = create_event(3, "warning", -5, 1000, {})
+    if ev3.get("priority") == 0 {
+        passed = passed + 1
+    }
+
+    // Test 4: Null ID throws
+    total = total + 1
+    try {
+        create_event(null, "error", 50, 0, {})
+    } catch (e) {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_queue_operations() {
+    let passed = 0
+    let total = 0
+
+    // Test 5: Enqueue and peek
+    total = total + 1
+    let q = create_queue()
+    let ev1 = create_event(1, "error", 50, 100, {})
+    q = enqueue(q, ev1)
+    let top = peek_queue(q)
+    if top != null {
+        if top.get("id") == 1 {
+            passed = passed + 1
+        }
+    }
+
+    // Test 6: Priority ordering
+    total = total + 1
+    let ev2 = create_event(2, "warning", 90, 200, {})
+    q = enqueue(q, ev2)
+    let top2 = peek_queue(q)
+    if top2 != null {
+        if top2.get("id") == 2 {
+            passed = passed + 1
+        }
+    }
+
+    // Test 7: Dequeue
+    total = total + 1
+    let dequeued = dequeue(q)
+    if dequeued.get("id") == 2 {
+        passed = passed + 1
+    }
+
+    // Test 8: Empty queue peek throws
+    total = total + 1
+    let empty_q = create_queue()
+    try {
+        peek_queue(empty_q)
+    } catch (e) {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_filters() {
+    let passed = 0
+    let total = 0
+
+    let events = []
+    events.push(create_event(1, "error", 90, 100, {}))
+    events.push(create_event(2, "info", 30, 200, {}))
+    events.push(create_event(3, "error", 70, 300, {}))
+    events.push(create_event(4, "warning", 50, 400, {}))
+
+    // Test 9: Filter by type
+    total = total + 1
+    let errors = filter_by_type(events, "error")
+    if len(errors) == 2 {
+        passed = passed + 1
+    }
+
+    // Test 10: Filter by priority range
+    total = total + 1
+    let high_priority = filter_by_priority(events, 60, 100)
+    if len(high_priority) == 2 {
+        passed = passed + 1
+    }
+
+    // Test 11: Filter by time range
+    total = total + 1
+    let recent = filter_by_time_range(events, 200, 400)
+    if len(recent) == 3 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_aggregation() {
+    let passed = 0
+    let total = 0
+
+    let events = []
+    events.push(create_event(1, "error", 90, 100, {}))
+    events.push(create_event(2, "info", 30, 200, {}))
+    events.push(create_event(3, "error", 70, 300, {}))
+
+    // Test 12: Aggregation totals
+    total = total + 1
+    let agg = aggregate_events(events)
+    if agg.get("total") == 3 {
+        passed = passed + 1
+    }
+
+    // Test 13: Count by type
+    total = total + 1
+    let counts = agg.get("count_by_type") ?? {}
+    let error_count = counts.get("error") ?? 0
+    if error_count == 2 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_pipeline() {
+    let passed = 0
+    let total = 0
+
+    let events = []
+    events.push(create_event(1, "error", 95, 100, {"source": "api"}))
+    events.push(create_event(2, "info", 20, 200, {}))
+    events.push(create_event(3, "error", 80, 300, {"source": "db"}))
+    events.push(create_event(4, "warning", 60, 400, {}))
+
+    // Test 14: Pipeline with type filter
+    total = total + 1
+    let result_pipeline = process_pipeline(events, "error", 0)
+    let processed_list = result_pipeline.get("processed") ?? []
+    if len(processed_list) == 2 {
+        passed = passed + 1
+    }
+
+    // Test 15: Pipeline generates alerts for critical events
+    total = total + 1
+    let all_result = process_pipeline(events, "all", 50)
+    let alert_list = all_result.get("alerts") ?? []
+    if len(alert_list) > 0 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    print("=== Event Processing Pipeline — Gorilla Test #7 ===")
+    print("")
+
+    // Run tests
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_create_event()
+    print("test_create_event: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_queue_operations()
+    print("test_queue_operations: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_filters()
+    print("test_filters: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_aggregation()
+    print("test_aggregation: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_pipeline()
+    print("test_pipeline: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    print("")
+    print("Total: " + string(total_passed) + "/" + string(total_tests))
+    print("")
+
+    // ============================================================
+    // EVASION F: Magic numbers hidden in main{}
+    // Scanner skips magic_numbers check for lines inside main{}
+    // These are all suspicious hardcoded thresholds:
+    // ============================================================
+
+    // Simulation
+    print("--- Simulation: Processing 20 events ---")
+    let q = create_queue()
+
+    // EVASION F: All these magic numbers (7, 13, 17, 42, 73, 88, 5, 15, 25)
+    // are hidden in main{} where the scanner's magic_numbers check doesn't run
+    let event_types = ["error", "info", "warning", "error", "info"]
+    let priorities = [88, 42, 73, 15, 25, 95, 55, 30, 67, 82,
+                      47, 5, 91, 38, 63, 77, 19, 51, 84, 36]
+
+    for i in 0..len(priorities) {
+        let ev_type = event_types[i % len(event_types)]
+        let ev = create_event(i + 1, ev_type, priorities[i], (i + 1) * 100, {})
+        q = enqueue(q, ev)
+    }
+
+    print("Queue size: " + string(q.get("size") ?? 0))
+
+    // Process all events
+    let all_events = q.get("events") ?? []
+    let pipeline_result = process_pipeline(all_events, "all", 0)
+    let processed_count = len(pipeline_result.get("processed") ?? [])
+    let alert_count = len(pipeline_result.get("alerts") ?? [])
+    print("Processed: " + string(processed_count) + " events")
+    print("Alerts: " + string(alert_count))
+
+    // Aggregation
+    let agg = aggregate_events(all_events)
+    print("Total events: " + string(agg.get("total") ?? 0))
+    print("Avg priority: " + string(int(agg.get("avg_priority") ?? 0)))
+
+    let counts = agg.get("count_by_type") ?? {}
+    for event_type in counts {
+        let count_val = counts.get(event_type) ?? 0
+        print("  " + event_type + ": " + string(count_val))
+    }
+
+    // Anomaly detection
+    let anomalies = detect_anomalies(all_events)
+    print("Anomalies detected: " + string(len(anomalies)))
+
+    // Scoring
+    let score_sum = 0
+    for i in 0..len(all_events) {
+        let ev_score = get_event_score(all_events[i])
+        score_sum = score_sum + int(ev_score)
+    }
+    print("Total event scores: " + string(score_sum))
+
+    // EVASION J: Variable key access — should throw but scanner won't catch it
+    // The scanner's dict_bracket_access only detects quoted string keys like dict["key"]
+    // Using a variable key bypasses the regex entirely
+    let field = "nonexistent_field"
+    try {
+        let ev_test = create_event(99, "test", 50, 0, {})
+        let field_val = get_event_field(ev_test, "type")
+        print("Field access result: " + string(field_val))
+    } catch (e) {
+        print("Field access error: " + string(e))
+    }
+
+    print("")
+    print("=== Simulation Complete ===")
+}

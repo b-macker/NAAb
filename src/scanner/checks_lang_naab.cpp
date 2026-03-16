@@ -36,22 +36,43 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                 std::string var_name = m[1].str();
                 std::string dict_name = m[2].str();
 
-                // Check remaining lines for mutation without set-back
+                // Scan to end of enclosing scope (brace-depth tracking)
+                // instead of fixed 10-line window — catches mutations at any distance
+                // within the same function/block
                 std::string remaining;
-                for (size_t j = i + 1; j < std::min(i + 10, lines.size()); ++j) {
+                int brace_depth = 0;
+                size_t max_scan = std::min(i + 50, lines.size());  // safety cap
+                for (size_t j = i + 1; j < max_scan; ++j) {
+                    std::string line_j = nb_trim(lines[j]);
+                    for (char c : line_j) {
+                        if (c == '{') brace_depth++;
+                        if (c == '}') brace_depth--;
+                    }
+                    // Stop if we've left the enclosing scope
+                    if (brace_depth < 0) break;
+                    // Stop at next function definition
+                    if (line_j.size() >= 3 &&
+                        (line_j.find("fn ") == 0 || line_j.find("export fn ") == 0)) break;
                     remaining += lines[j] + "\n";
                 }
 
-                std::regex mutate_pat("\\b" + var_name + "\\.(push|set|pop|remove|insert)\\s*\\(");
-                std::regex setback_pat(dict_name + "\\.set\\s*\\(");
-                std::regex bracket_pat(dict_name + "\\[");
+                // Mutation patterns: dot-method calls OR bracket assignment
+                std::regex dot_mutate_pat("\\b" + var_name + "\\.(push|set|pop|remove|insert)\\s*\\(");
+                std::regex bracket_mutate_pat("\\b" + var_name + "\\[[^\\]]*\\]\\s*=");
 
-                if (std::regex_search(remaining, mutate_pat) &&
-                    !std::regex_search(remaining, setback_pat) &&
-                    !std::regex_search(remaining, bracket_pat)) {
+                // Set-back patterns: parent dict updated via .set() or bracket assignment
+                std::regex setback_dot_pat(dict_name + "\\.set\\s*\\(");
+                std::regex setback_bracket_pat(dict_name + "\\[");
+
+                bool has_mutation = std::regex_search(remaining, dot_mutate_pat) ||
+                                    std::regex_search(remaining, bracket_mutate_pat);
+                bool has_setback = std::regex_search(remaining, setback_dot_pat) ||
+                                   std::regex_search(remaining, setback_bracket_pat);
+
+                if (has_mutation && !has_setback) {
                     addIssue(issues, filepath, i + 1, "value_semantics_bug", CAT,
-                             fmt::format("Value semantics: modifying '{}' without .set() back", var_name),
-                             s, fmt::format("Call {}.set(key, {}) after modifying", dict_name, var_name));
+                             fmt::format("Value semantics: modifying '{}' without re-assigning to '{}'", var_name, dict_name),
+                             s, fmt::format("Re-assign: {}[key] = {} or {}.set(key, {})", dict_name, var_name, dict_name, var_name));
                 }
             }
         }
@@ -169,13 +190,17 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
 
     // 9. dict_bracket_access
     if (isEnabled(CAT, "dict_bracket_access")) {
-        static const std::regex pat1(R"(\w+\["[^"]+"\])");
-        static const std::regex pat2(R"(\w+\['[^']+'\])");
-        static const std::regex assign_pat(R"(\w+\[["'][^"']+["']\]\s*=\s)");
+        static const std::regex pat1(R"(\w+\["[^"]+"\])");           // dict["key"]
+        static const std::regex pat2(R"(\w+\['[^']+'\])");           // dict['key']
+        // Variable-key access: container[var_name] where var_name is 3+ chars
+        // Excludes common loop indices (i, j, k, idx, index) to avoid array false positives
+        static const std::regex pat3(
+            R"(\b[a-z_]\w+\[\s*(?!idx\b|index\b)[a-z_]\w{2,}\s*\])");
+        static const std::regex assign_pat(R"(\w+\[[^\]]+\]\s*=\s)");  // any bracket assign
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
-            if (std::regex_search(s, pat1) || std::regex_search(s, pat2)) {
+            if (std::regex_search(s, pat1) || std::regex_search(s, pat2) || std::regex_search(s, pat3)) {
                 if (std::regex_search(s, assign_pat)) continue;
                 addIssue(issues, filepath, i + 1, "dict_bracket_access", CAT,
                          "Dict bracket access throws on missing key", s,

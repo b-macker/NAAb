@@ -1,0 +1,45 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: naab
+Issues: 7 (0 hard, 7 soft, 0 advisory)
+
+----------------------------------------------------
+
+  /data/data/com.termux/files/home/.naab/language/tests/scanner/test_anti_gaming.naab (7 issues)
+
+  ! [SOFT] redundancy.gaming_comments (2 occurrences)
+     Lines: 5, 8
+     Comment reveals metric gaming intent
+     -> // Loop provides +5 complexity
+     Fix: Remove gaming comment — write natural code instead
+
+  ! Line 23 [SOFT] redundancy.generic_variable_names
+     Generic variable name 'val'
+     -> let val = int(input)
+     Fix: Use a descriptive name
+
+  ! Line 23 [SOFT] redundancy.single_use_variable
+     Variable 'val' used only once on next line
+     -> let val = int(input)
+     Fix: Inline directly
+
+  ! Line 9 [SOFT] redundancy.suspicious_try_catch
+     try/catch around code that cannot throw
+     -> try {
+     Fix: Remove unnecessary try/catch
+
+  ! [SOFT] redundancy.trivial_constant_alias (2 occurrences)
+     Lines: 2, 3
+     'zero' is a trivial alias for 0 — use the literal
+     -> let zero = 0
+     Fix: Use the numeric literal directly
+
+----------------------------------------------------
+
+Summary by Category:
+  redundancy             7 issues (0 hard, 7 soft, 0 advisory)
+
+====================================================
