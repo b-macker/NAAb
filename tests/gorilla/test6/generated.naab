@@ -1,0 +1,742 @@
+use array
+use math
+use json
+use string
+
+// ===== Core Functions =====
+
+export fn create_task(id, name, priority, duration, deadline, deps, resources) {
+    if priority < 1 || priority > 10 {
+        throw "Invalid priority: must be between 1 and 10"
+    }
+    if duration <= 0 {
+        throw "Invalid duration: must be positive"
+    }
+    if deadline <= 0 {
+        throw "Invalid deadline: must be positive"
+    }
+    return {
+        "id": id,
+        "name": name,
+        "priority": priority,
+        "duration": duration,
+        "deadline": deadline,
+        "status": "pending",
+        "dependencies": deps,
+        "resources_needed": resources,
+        "start_time": -1
+    }
+}
+
+fn has_circular_dep(tasks, start_id, current_id, visited) {
+    if current_id == start_id && len(visited) > 0 {
+        return true
+    }
+    if array.contains(visited, current_id) {
+        return false
+    }
+    visited.push(current_id)
+    for i in 0..len(tasks) {
+        let task = tasks[i]
+        if task.get("id") == current_id {
+            let deps = task.get("dependencies")
+            if deps != null {
+                for j in 0..len(deps) {
+                    if has_circular_dep(tasks, start_id, deps[j], visited) {
+                        return true
+                    }
+                }
+            }
+        }
+    }
+    return false
+}
+
+export fn add_dependency(tasks, task_id, depends_on_id) {
+    let updated = []
+    let found_task = false
+    let found_dep = false
+    for i in 0..len(tasks) {
+        let task = tasks[i]
+        if task.get("id") == task_id {
+            found_task = true
+        }
+        if task.get("id") == depends_on_id {
+            found_dep = true
+        }
+    }
+    if !found_task {
+        throw "Task " + string(task_id) + " not found"
+    }
+    if !found_dep {
+        throw "Dependency task " + string(depends_on_id) + " not found"
+    }
+
+    for i in 0..len(tasks) {
+        let task = tasks[i]
+        if task.get("id") == task_id {
+            let deps = task.get("dependencies")
+            if deps == null {
+                deps = []
+            }
+            deps.push(depends_on_id)
+            task["dependencies"] = deps
+            let test_tasks = []
+            for k in 0..len(tasks) {
+                if tasks[k].get("id") == task_id {
+                    test_tasks.push(task)
+                } else {
+                    test_tasks.push(tasks[k])
+                }
+            }
+            if has_circular_dep(test_tasks, task_id, depends_on_id, []) {
+                throw "Circular dependency detected"
+            }
+        }
+        updated.push(task)
+    }
+    return updated
+}
+
+export fn check_resources(resources, needed) {
+    let needed_keys = needed.keys()
+    for i in 0..len(needed_keys) {
+        let res_name = needed_keys[i]
+        let amount = needed.get(res_name)
+        let found = false
+        for j in 0..len(resources) {
+            let res = resources[j]
+            if res.get("name") == res_name {
+                found = true
+                if res.get("available") < amount {
+                    return false
+                }
+            }
+        }
+        if !found {
+            return false
+        }
+    }
+    return true
+}
+
+export fn allocate_resources(resources, needed) {
+    let updated = []
+    for i in 0..len(resources) {
+        let res = resources[i]
+        let need = needed.get(res.get("name"))
+        if need != null {
+            res["available"] = res.get("available") - need
+        }
+        updated.push(res)
+    }
+    return updated
+}
+
+export fn release_resources(resources, allocated) {
+    let updated = []
+    for i in 0..len(resources) {
+        let res = resources[i]
+        let amount = allocated.get(res.get("name"))
+        if amount != null {
+            res["available"] = res.get("available") + amount
+        }
+        updated.push(res)
+    }
+    return updated
+}
+
+export fn compute_priority_score(task, current_time) {
+    let priority = task.get("priority")
+    let deadline = task.get("deadline")
+    if priority == null || deadline == null {
+        throw "Task missing priority or deadline"
+    }
+    let time_remaining = deadline - current_time
+    let urgency_bonus = math.max(0, 50 - time_remaining * 5)
+    let score = float(priority * 10) + float(urgency_bonus)
+    // Clamp: overdue tasks get max urgency, future tasks get diminished score
+    if time_remaining < 0 {
+        score = float(priority * 10) + 50.0
+    }
+    if score < 0 {
+        score = 0.0
+    }
+    return score
+}
+
+export fn find_ready_tasks(tasks) {
+    let ready_indices = []
+    for i in 0..len(tasks) {
+        let task = tasks[i]
+        if task.get("status") != "pending" {
+            continue
+        }
+        let deps = task.get("dependencies")
+        let all_deps_met = true
+        if deps != null && len(deps) > 0 {
+            for j in 0..len(deps) {
+                let dep_id = deps[j]
+                let dep_completed = false
+                for k in 0..len(tasks) {
+                    if tasks[k].get("id") == dep_id && tasks[k].get("status") == "completed" {
+                        dep_completed = true
+                    }
+                }
+                if !dep_completed {
+                    all_deps_met = false
+                }
+            }
+        }
+        if all_deps_met {
+            ready_indices.push(i)
+        }
+    }
+    return ready_indices
+}
+
+fn sort_by_score(indices, tasks, current_time) {
+    let scores = []
+    for i in 0..len(indices) {
+        let idx = indices[i]
+        let score = compute_priority_score(tasks[idx], current_time)
+        scores.push({"index": idx, "score": score})
+    }
+    for i in 0..len(scores) {
+        for j in 0..len(scores) - 1 - i {
+            if scores[j].get("score") < scores[j + 1].get("score") {
+                let swap = scores[j]
+                scores[j] = scores[j + 1]
+                scores[j + 1] = swap
+            }
+        }
+    }
+    let sorted = []
+    for i in 0..len(scores) {
+        sorted.push(scores[i].get("index"))
+    }
+    return sorted
+}
+
+export fn schedule_tick(tasks, resources, current_time) {
+    let scheduled = []
+    let updated_tasks = []
+    let updated_resources = resources
+
+    // First pass: complete finished tasks
+    for i in 0..len(tasks) {
+        let task = tasks[i]
+        if task.get("status") == "running" {
+            let start = task.get("start_time")
+            let dur = task.get("duration")
+            if current_time >= start + dur {
+                task["status"] = "completed"
+                updated_resources = release_resources(updated_resources, task.get("resources_needed"))
+            }
+        }
+        updated_tasks.push(task)
+    }
+
+    // Second pass: find and schedule ready tasks
+    let ready = find_ready_tasks(updated_tasks)
+    let sorted_ready = sort_by_score(ready, updated_tasks, current_time)
+
+    for i in 0..len(sorted_ready) {
+        let idx = sorted_ready[i]
+        let task = updated_tasks[idx]
+        let needed = task.get("resources_needed")
+        if check_resources(updated_resources, needed) {
+            updated_resources = allocate_resources(updated_resources, needed)
+            task["status"] = "running"
+            task["start_time"] = current_time
+            updated_tasks[idx] = task
+            scheduled.push(task.get("id"))
+        }
+    }
+
+    return {
+        "tasks": updated_tasks,
+        "resources": updated_resources,
+        "scheduled": scheduled
+    }
+}
+
+export fn detect_deadlock(tasks) {
+    let has_pending = false
+    let has_running = false
+    let pending_count = 0
+    for i in 0..len(tasks) {
+        let status = tasks[i].get("status")
+        if status == "pending" {
+            has_pending = true
+            pending_count = pending_count + 1
+        }
+        if status == "running" {
+            has_running = true
+        }
+    }
+    if !has_pending {
+        return false
+    }
+    if has_running {
+        return false
+    }
+    let ready = find_ready_tasks(tasks)
+    if len(ready) > 0 {
+        return false
+    }
+    // Verify: all pending tasks have unmet dependencies
+    for i in 0..len(tasks) {
+        let task = tasks[i]
+        if task.get("status") == "pending" {
+            let deps = task.get("dependencies")
+            if deps == null || len(deps) == 0 {
+                return false
+            }
+        }
+    }
+    return true
+}
+
+export fn generate_report(tasks, schedule_log, total_time) {
+    let completed_count = 0
+    let missed_deadlines = 0
+    let task_names = []
+    let task_statuses = []
+    let task_deadlines = []
+    let task_completions = []
+
+    for i in 0..len(tasks) {
+        let task = tasks[i]
+        task_names.push(task.get("name"))
+        task_statuses.push(task.get("status"))
+        task_deadlines.push(task.get("deadline"))
+        if task.get("status") == "completed" {
+            completed_count = completed_count + 1
+            let finish = task.get("start_time") + task.get("duration")
+            task_completions.push(finish)
+            if finish > task.get("deadline") {
+                missed_deadlines = missed_deadlines + 1
+            }
+        } else {
+            task_completions.push(-1)
+            if task.get("status") == "pending" {
+                missed_deadlines = missed_deadlines + 1
+            }
+        }
+    }
+
+    let report_data = json.stringify({
+        "total_tasks": len(tasks),
+        "completed": completed_count,
+        "missed_deadlines": missed_deadlines,
+        "total_time": total_time,
+        "names": task_names,
+        "statuses": task_statuses,
+        "deadlines": task_deadlines,
+        "completions": task_completions
+    })
+
+    let report = <<python[report_data]
+import json
+data = json.loads(report_data)
+lines = []
+lines.append("=" * 50)
+lines.append("  SCHEDULER REPORT")
+lines.append("=" * 50)
+lines.append(f"Total tasks:      {data['total_tasks']}")
+lines.append(f"Completed:        {data['completed']}")
+lines.append(f"Missed deadlines: {data['missed_deadlines']}")
+lines.append(f"Simulation time:  {data['total_time']} ticks")
+lines.append("")
+lines.append("Task Details:")
+lines.append("-" * 50)
+for i in range(len(data['names'])):
+    name = data['names'][i]
+    status = data['statuses'][i]
+    deadline = data['deadlines'][i]
+    completion = data['completions'][i]
+    marker = ""
+    if status == "completed" and completion > deadline:
+        marker = " [LATE]"
+    elif status != "completed":
+        marker = " [INCOMPLETE]"
+    lines.append(f"  {name:20s} {status:12s} deadline={deadline} {marker}")
+lines.append("=" * 50)
+"\n".join(lines)
+>>
+    return report
+}
+
+// ===== Test Functions =====
+
+fn test_create_task() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let task = create_task(1, "Build", 5, 3, 15, [], {"CPU": 2})
+    if task.get("id") == 1 && task.get("status") == "pending" && task.get("priority") == 5 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let caught_priority = false
+    try {
+        create_task(2, "Bad", 0, 3, 15, [], {})
+    } catch (e) {
+        caught_priority = true
+    }
+    if caught_priority {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let caught_duration = false
+    try {
+        create_task(3, "Bad", 5, -1, 15, [], {})
+    } catch (e) {
+        caught_duration = true
+    }
+    if caught_duration {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let task2 = create_task(4, "Test", 10, 1, 20, [1, 2], {"Memory": 4})
+    if len(task2.get("dependencies")) == 2 && task2.get("resources_needed").get("Memory") == 4 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_dependencies() {
+    let passed = 0
+    let total = 0
+
+    let tasks = [
+        create_task(1, "A", 5, 2, 10, [], {}),
+        create_task(2, "B", 5, 2, 10, [], {}),
+        create_task(3, "C", 5, 2, 10, [], {})
+    ]
+
+    total = total + 1
+    let updated = add_dependency(tasks, 2, 1)
+    let deps_b = updated[1].get("dependencies")
+    if len(deps_b) == 1 && deps_b[0] == 1 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let updated2 = add_dependency(updated, 3, 2)
+    let caught_circular = false
+    try {
+        add_dependency(updated2, 1, 3)
+    } catch (e) {
+        caught_circular = true
+    }
+    if caught_circular {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let caught_missing = false
+    try {
+        add_dependency(tasks, 99, 1)
+    } catch (e) {
+        caught_missing = true
+    }
+    if caught_missing {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_resources() {
+    let passed = 0
+    let total = 0
+
+    let resources = [
+        {"name": "CPU", "total_capacity": 4, "available": 4},
+        {"name": "Memory", "total_capacity": 8, "available": 8}
+    ]
+
+    total = total + 1
+    if check_resources(resources, {"CPU": 2, "Memory": 4}) {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if !check_resources(resources, {"CPU": 5}) {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if !check_resources(resources, {"GPU": 1}) {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let after_alloc = allocate_resources(resources, {"CPU": 3, "Memory": 2})
+    if after_alloc[0].get("available") == 1 && after_alloc[1].get("available") == 6 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let after_release = release_resources(after_alloc, {"CPU": 3, "Memory": 2})
+    if after_release[0].get("available") == 4 && after_release[1].get("available") == 8 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_priority_scoring() {
+    let passed = 0
+    let total = 0
+
+    let task = create_task(1, "Urgent", 8, 2, 5, [], {})
+
+    total = total + 1
+    let score_early = compute_priority_score(task, 0)
+    // time_remaining = 5, urgency = max(0, 50 - 25) = 25, score = 80 + 25 = 105
+    if score_early > 100 && score_early < 110 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let score_late = compute_priority_score(task, 4)
+    // time_remaining = 1, urgency = max(0, 50 - 5) = 45, score = 80 + 45 = 125
+    if score_late > score_early {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let relaxed_task = create_task(2, "Relaxed", 3, 1, 100, [], {})
+    let score_relaxed = compute_priority_score(relaxed_task, 0)
+    // time_remaining = 100, urgency = max(0, 50 - 500) = 0, score = 30
+    if score_relaxed < 40 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    // Priority 10 vs priority 1 at same time
+    let high_p = create_task(3, "High", 10, 1, 100, [], {})
+    let low_p = create_task(4, "Low", 1, 1, 100, [], {})
+    let s_high = compute_priority_score(high_p, 0)
+    let s_low = compute_priority_score(low_p, 0)
+    if s_high > s_low {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_scheduling() {
+    let passed = 0
+    let total = 0
+
+    let resources = [
+        {"name": "CPU", "total_capacity": 2, "available": 2},
+        {"name": "Memory", "total_capacity": 4, "available": 4}
+    ]
+
+    let tasks = [
+        create_task(1, "Quick", 8, 2, 10, [], {"CPU": 1}),
+        create_task(2, "Slow", 3, 5, 20, [], {"CPU": 1}),
+        create_task(3, "Blocked", 9, 1, 10, [1], {"CPU": 1})
+    ]
+
+    // Tick 0: Quick and Slow should start (both fit in CPU=2)
+    total = total + 1
+    let state = schedule_tick(tasks, resources, 0)
+    let sched = state.get("scheduled")
+    if len(sched) == 2 {
+        passed = passed + 1
+    }
+
+    // Tick 0: Blocked should NOT start (depends on task 1)
+    total = total + 1
+    let t3_status = state.get("tasks")[2].get("status")
+    if t3_status == "pending" {
+        passed = passed + 1
+    }
+
+    // Tick 2: Quick completes, Blocked becomes ready and starts
+    total = total + 1
+    let state2 = schedule_tick(state.get("tasks"), state.get("resources"), 2)
+    let t1_done = state2.get("tasks")[0].get("status")
+    if t1_done == "completed" {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let t3_running = state2.get("tasks")[2].get("status")
+    if t3_running == "running" {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_deadlock() {
+    let passed = 0
+    let total = 0
+
+    // Deadlock: A depends on B, B depends on A, both pending
+    let tasks = [
+        create_task(1, "A", 5, 1, 10, [2], {}),
+        create_task(2, "B", 5, 1, 10, [1], {})
+    ]
+
+    total = total + 1
+    if detect_deadlock(tasks) {
+        passed = passed + 1
+    }
+
+    // No deadlock: independent tasks
+    total = total + 1
+    let free_tasks = [
+        create_task(3, "C", 5, 1, 10, [], {}),
+        create_task(4, "D", 5, 1, 10, [], {})
+    ]
+    if !detect_deadlock(free_tasks) {
+        passed = passed + 1
+    }
+
+    // No deadlock: task running
+    total = total + 1
+    let running_tasks = [
+        create_task(5, "E", 5, 1, 10, [], {}),
+        create_task(6, "F", 5, 1, 10, [5], {})
+    ]
+    let rt = running_tasks[0]
+    rt["status"] = "running"
+    running_tasks[0] = rt
+    if !detect_deadlock(running_tasks) {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// ===== Simulation =====
+
+main {
+    print("=== Priority Task Scheduler ===")
+    print("")
+
+    // Run tests first
+    let r1 = test_create_task()
+    print("test_create_task: " + string(r1[0]) + "/" + string(r1[1]))
+
+    let r2 = test_dependencies()
+    print("test_dependencies: " + string(r2[0]) + "/" + string(r2[1]))
+
+    let r3 = test_resources()
+    print("test_resources: " + string(r3[0]) + "/" + string(r3[1]))
+
+    let r4 = test_priority_scoring()
+    print("test_priority_scoring: " + string(r4[0]) + "/" + string(r4[1]))
+
+    let r5 = test_scheduling()
+    print("test_scheduling: " + string(r5[0]) + "/" + string(r5[1]))
+
+    let r6 = test_deadlock()
+    print("test_deadlock: " + string(r6[0]) + "/" + string(r6[1]))
+
+    let total_passed = r1[0] + r2[0] + r3[0] + r4[0] + r5[0] + r6[0]
+    let total_tests = r1[1] + r2[1] + r3[1] + r4[1] + r5[1] + r6[1]
+    print("")
+    print("TOTAL: " + string(total_passed) + "/" + string(total_tests))
+    print("")
+
+    // Simulation
+    print("=== Running Simulation ===")
+    print("")
+
+    let resources = [
+        {"name": "CPU", "total_capacity": 4, "available": 4},
+        {"name": "Memory", "total_capacity": 8, "available": 8},
+        {"name": "Disk", "total_capacity": 2, "available": 2}
+    ]
+
+    let tasks = [
+        create_task(1, "Init Database", 7, 2, 5, [], {"CPU": 1, "Memory": 2}),
+        create_task(2, "Load Config", 6, 1, 4, [], {"CPU": 1}),
+        create_task(3, "Build Index", 8, 4, 12, [1], {"CPU": 2, "Memory": 4, "Disk": 1}),
+        create_task(4, "Validate Data", 5, 2, 8, [2], {"CPU": 1, "Memory": 1}),
+        create_task(5, "Compress Logs", 3, 3, 18, [], {"Disk": 1}),
+        create_task(6, "Run Analytics", 9, 3, 10, [3, 4], {"CPU": 2, "Memory": 2}),
+        create_task(7, "Send Report", 4, 1, 3, [], {"CPU": 1}),
+        create_task(8, "Archive Data", 2, 2, 20, [5], {"Disk": 2})
+    ]
+
+    const MAX_TICKS = 20
+    let schedule_log = []
+    let tick = 0
+
+    while tick < MAX_TICKS {
+        let result = schedule_tick(tasks, resources, tick)
+        tasks = result.get("tasks")
+        resources = result.get("resources")
+        let scheduled = result.get("scheduled")
+
+        if len(scheduled) > 0 {
+            let log_entry = "Tick " + string(tick) + ": started ["
+            for s in 0..len(scheduled) {
+                if s > 0 {
+                    log_entry = log_entry + ", "
+                }
+                log_entry = log_entry + string(scheduled[s])
+            }
+            log_entry = log_entry + "]"
+            schedule_log.push(log_entry)
+            print(log_entry)
+        }
+
+        // Check completion
+        let all_done = true
+        for i in 0..len(tasks) {
+            if tasks[i].get("status") != "completed" {
+                all_done = false
+            }
+        }
+        if all_done {
+            print("All tasks completed at tick " + string(tick))
+            tick = tick + 1
+            break
+        }
+
+        if detect_deadlock(tasks) {
+            print("DEADLOCK detected at tick " + string(tick))
+            break
+        }
+
+        // Progress indicator
+        let pct = int((tick + 1) * 100 / MAX_TICKS)
+        let bar = ""
+        let filled = int(pct / 5)
+        for b in 0..filled {
+            bar = bar + "#"
+        }
+        while len(bar) < 20 {
+            bar = bar + " "
+        }
+        print("[" + bar + "] " + string(pct) + "%")
+
+        tick = tick + 1
+    }
+
+    print("")
+    print("Schedule Log:")
+    for i in 0..len(schedule_log) {
+        print("  " + schedule_log[i])
+    }
+
+    print("")
+    let report = generate_report(tasks, schedule_log, tick)
+    print(report)
+}

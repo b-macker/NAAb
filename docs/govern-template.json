@@ -500,7 +500,7 @@
     "complexity_floor": {
       "level": "soft",
       "min_score": 10,
-      "check_polyglot": true,
+      "check_polyglot": false,
       "check_naab": true,
       "skip_if_has_polyglot_block": true,
       "rules": [

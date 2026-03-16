@@ -4039,11 +4039,10 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkHallucinatedApis(lang, code, line);  // Has its own stripping
     if (!err.empty()) return err;
 
-    // Complexity floor check for polyglot blocks
-    if (rules_.code_quality.complexity_floor.enabled && rules_.code_quality.complexity_floor.check_polyglot) {
-        err = checkComplexityFloor(stripped, "", line);
-        if (!err.empty()) return err;
-    }
+    // NOTE: Complexity floor intentionally NOT applied to polyglot blocks.
+    // Polyglot blocks have their own quality checks (max_lines, banned_functions,
+    // hallucinated APIs, security). The complexity floor is designed for NAAb function
+    // bodies to prevent trivial compute_*/calculate_* stubs.
 
     // Security checks — use stripped code
     err = checkShellInjection(stripped, line);

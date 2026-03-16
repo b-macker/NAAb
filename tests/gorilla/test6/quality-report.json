@@ -1,0 +1,95 @@
+{
+  "issues": [
+    {
+      "category": "redundancy",
+      "file": "/data/data/com.termux/files/home/.naab/language/tests/scanner/test_anti_gaming.naab",
+      "fix": "Remove unnecessary try/catch",
+      "level": "soft",
+      "line": 9,
+      "message": "try/catch around code that cannot throw",
+      "preview": "try {",
+      "rule": "suspicious_try_catch",
+      "severity": "medium"
+    },
+    {
+      "category": "redundancy",
+      "file": "/data/data/com.termux/files/home/.naab/language/tests/scanner/test_anti_gaming.naab",
+      "fix": "Use a descriptive name",
+      "level": "soft",
+      "line": 23,
+      "message": "Generic variable name 'val'",
+      "preview": "let val = int(input)",
+      "rule": "generic_variable_names",
+      "severity": "medium"
+    },
+    {
+      "category": "redundancy",
+      "file": "/data/data/com.termux/files/home/.naab/language/tests/scanner/test_anti_gaming.naab",
+      "fix": "Inline directly",
+      "level": "soft",
+      "line": 23,
+      "message": "Variable 'val' used only once on next line",
+      "preview": "let val = int(input)",
+      "rule": "single_use_variable",
+      "severity": "medium"
+    },
+    {
+      "category": "redundancy",
+      "file": "/data/data/com.termux/files/home/.naab/language/tests/scanner/test_anti_gaming.naab",
+      "fix": "Use the numeric literal directly",
+      "level": "soft",
+      "line": 2,
+      "message": "'zero' is a trivial alias for 0 — use the literal",
+      "preview": "let zero = 0",
+      "rule": "trivial_constant_alias",
+      "severity": "medium"
+    },
+    {
+      "category": "redundancy",
+      "file": "/data/data/com.termux/files/home/.naab/language/tests/scanner/test_anti_gaming.naab",
+      "fix": "Use the numeric literal directly",
+      "level": "soft",
+      "line": 3,
+      "message": "'one' is a trivial alias for 1 — use the literal",
+      "preview": "let one = 1",
+      "rule": "trivial_constant_alias",
+      "severity": "medium"
+    },
+    {
+      "category": "redundancy",
+      "file": "/data/data/com.termux/files/home/.naab/language/tests/scanner/test_anti_gaming.naab",
+      "fix": "Remove gaming comment — write natural code instead",
+      "level": "soft",
+      "line": 5,
+      "message": "Comment reveals metric gaming intent",
+      "preview": "// Loop provides +5 complexity",
+      "rule": "gaming_comments",
+      "severity": "medium"
+    },
+    {
+      "category": "redundancy",
+      "file": "/data/data/com.termux/files/home/.naab/language/tests/scanner/test_anti_gaming.naab",
+      "fix": "Remove gaming comment — write natural code instead",
+      "level": "soft",
+      "line": 8,
+      "message": "Comment reveals metric gaming intent",
+      "preview": "// Add try/catch for error handling complexity",
+      "rule": "gaming_comments",
+      "severity": "medium"
+    }
+  ],
+  "scan_info": {
+    "files_scanned": 1,
+    "language": "naab",
+    "path": "/data/data/com.termux/files/home/.naab/language/tests/scanner/test_anti_gaming.naab"
+  },
+  "summary": {
+    "by_level": {
+      "advisory": 0,
+      "hard": 0,
+      "soft": 7
+    },
+    "total_issues": 7
+  },
+  "version": "1.0"
+}

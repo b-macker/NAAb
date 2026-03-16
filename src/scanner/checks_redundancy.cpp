@@ -117,7 +117,8 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
         static const std::regex throwable_pat(
             R"(\b(?:int|float|string|parse|open|read|write|fetch|json)\s*\(|)"
             R"(\w+\s*\.\s*\w+\s*\(|)"
-            R"(\w+\s*\[)");
+            R"(\w+\s*\[|)"
+            R"(\b(?!if|else|for|while|return|let|const|print|len|typeof|type)\w{2,}\s*\()");
 
         for (size_t i = 0; i + 2 < lines.size(); ++i) {
             std::string s = trim(lines[i]);

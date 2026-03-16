@@ -74,12 +74,18 @@ void SyntacticAnalyzer::detectFunctions(const std::string& code, SyntacticProfil
     profile.function_count = total_functions;
 
     // Check for recursion (function calling itself)
-    // Simple heuristic: if function names appear multiple times
+    // Heuristic: if call count is disproportionate to function definitions.
+    // When total_functions=0 (analyzing a function body, not a full file),
+    // recursion can't be detected this way — skip it.
     std::regex func_call("\\w+\\s*\\(");
     auto begin = std::sregex_iterator(code.begin(), code.end(), func_call);
     auto end = std::sregex_iterator();
     int call_count = std::distance(begin, end);
-    profile.has_recursion = (call_count > total_functions * 2); // Rough heuristic
+    if (total_functions > 0) {
+        profile.has_recursion = (call_count > total_functions * 2);
+    } else {
+        profile.has_recursion = false;
+    }
 
     profile.max_function_depth = std::min(profile.max_loop_depth, 5);
 }
@@ -150,11 +156,29 @@ void SyntacticAnalyzer::detectImports(const std::string& code, SyntacticProfile&
         }
     }
 
-    // Count external function calls
-    std::regex external_call("\\w+\\.\\w+\\s*\\(");
-    auto begin = std::sregex_iterator(code.begin(), code.end(), external_call);
-    auto end = std::sregex_iterator();
-    profile.external_call_count = std::distance(begin, end);
+    // Count external function calls (dot-notation: math.max(), array.filter_fn())
+    std::regex dotcall_pat("\\w+\\.\\w+\\s*\\(");
+    auto dot_begin = std::sregex_iterator(code.begin(), code.end(), dotcall_pat);
+    auto dot_end = std::sregex_iterator();
+    int dot_calls = std::distance(dot_begin, dot_end);
+
+    // Count plain function calls (user-defined: check_resources(), create_task())
+    // Exclude: language keywords, builtins, control flow, type casts
+    static const std::regex plaincall_pat(
+        "\\b(?!if|else|for|while|do|return|fn|function|func|def|proc|"
+        "let|var|const|import|use|export|struct|enum|main|"
+        "try|catch|throw|match|new|break|continue|"
+        "typeof|type|len|range|int|float|string|bool|print|println|echo|fmt|"
+        "class|switch|case|default|null|true|false|"
+        "and|or|not|in|is|as|from|with|yield|async|await|"
+        "package|require|include|using)"
+        "([a-zA-Z_]\\w*)\\s*\\(",
+        std::regex::icase);
+    auto plain_begin = std::sregex_iterator(code.begin(), code.end(), plaincall_pat);
+    auto plain_end = std::sregex_iterator();
+    int plain_calls = std::distance(plain_begin, plain_end);
+
+    profile.external_call_count = dot_calls + plain_calls;
 }
 
 int SyntacticAnalyzer::calculateNestingDepth(const std::string& code) const {

@@ -1,0 +1,77 @@
+# Gorilla Test #6: Priority Task Scheduler with Resource Constraints
+
+## Objective
+Build a priority-based task scheduler that manages tasks with dependencies,
+resource constraints, and deadline tracking. This tests: complex state management,
+value semantics discipline, polyglot integration, contract compliance, and
+governance under pressure.
+
+## Requirements
+
+### Data Model
+- Task: { id, name, priority (1-10), duration, deadline, status, dependencies[], resources_needed{} }
+- Resource: { name, total_capacity, available }
+- Schedule: { time_slot, task_id, resources_allocated{} }
+
+### Core Functions (all must be exported)
+
+1. `create_task(id, name, priority, duration, deadline, deps, resources)` → task dict
+   - Validate: priority 1-10, duration > 0, deadline > 0
+   - Status starts as "pending"
+
+2. `add_dependency(tasks, task_id, depends_on_id)` → updated tasks array
+   - Detect circular dependencies (A→B→C→A) and reject
+   - Value semantics: must return modified copy
+
+3. `check_resources(resources, needed)` → bool
+   - Check if all needed resources are available
+
+4. `allocate_resources(resources, needed)` → updated resources array
+   - Reduce available capacity; return modified copy
+
+5. `release_resources(resources, allocated)` → updated resources array
+   - Restore capacity; return modified copy
+
+6. `compute_priority_score(task, current_time)` → float
+   - Score = priority * 10 + urgency_bonus
+   - urgency_bonus = max(0, 50 - (deadline - current_time) * 5)
+   - Higher score = schedule first
+
+7. `find_ready_tasks(tasks)` → array of task indices
+   - A task is ready if: status == "pending" AND all dependencies are "completed"
+
+8. `schedule_tick(tasks, resources, current_time)` → { tasks, resources, scheduled[] }
+   - Find ready tasks, sort by priority score (descending)
+   - For each: if resources available, allocate and set status to "running"
+   - Check running tasks: if current_time >= start_time + duration, complete them and release resources
+   - Return updated state (value semantics!)
+
+9. `detect_deadlock(tasks)` → bool
+   - True if there are pending tasks but none are ready and none are running
+
+10. `generate_report(tasks, schedule_log, total_time)` → string
+    - Use Python polyglot for formatting
+    - Include: completed count, missed deadlines, resource utilization stats
+
+### Simulation
+- Create 8 tasks with varying priorities, durations, deadlines, dependencies
+- Define 3 resources: CPU (capacity 4), Memory (capacity 8), Disk (capacity 2)
+- Run scheduler for 20 ticks
+- Print schedule log and final report
+- At least 2 tasks must have dependencies
+- At least 1 task should miss its deadline (tight deadline)
+
+### Tests (in test functions)
+- test_create_task: validate creation + validation
+- test_dependencies: add deps, detect circular
+- test_resources: allocate, check, release
+- test_priority_scoring: verify urgency bonus calculation
+- test_scheduling: run 5 ticks on small task set, verify state transitions
+- test_deadlock: create deadlocked state, verify detection
+
+## Polyglot Requirements
+- Use Python for the report generation (string formatting)
+- Use Shell for printing a progress bar during simulation
+
+## Deliverable
+A single `generated.naab` file.
