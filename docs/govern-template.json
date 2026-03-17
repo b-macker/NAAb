@@ -1032,7 +1032,7 @@
       "exclude_patterns": ["node_modules", ".git", "__pycache__", "build", "dist"]
     },
 
-    "_comment_categories": "127 checks across 6 categories + 6 language modules. Each check: enabled (bool), level (hard/soft/advisory), options (thresholds)",
+    "_comment_categories": "139 checks across 6 categories + 6 language modules. Each check: enabled (bool), level (hard/soft/advisory), options (thresholds)",
 
     "redundancy": {
       "obvious_comments":       { "enabled": true, "level": "advisory" },

@@ -31,6 +31,7 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 ### Control Flow
 - `if condition { } else if condition { } else { }`
 - NO `elif` — use `else if`
+- `and`, `or`, `not` work as aliases for `&&`, `||`, `!` (Python-style)
 - `for item in collection { }`
 - `for i in 0..10 { }` — range (exclusive), `0..=10` for inclusive
 - `while condition { }`
@@ -47,7 +48,7 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 - `let y = x ?? "default"` — returns `x` if non-null, otherwise `"default"`
 - Chainable: `a ?? b ?? c` — returns first non-null value
 - `false ?? "x"` returns `false` (only null triggers the fallback, NOT falsy values)
-- NOTE: `||` returns boolean, `??` returns the actual value
+- NOTE: `||` (and `or`) returns boolean, `??` returns the actual value
 
 ### Structs and Enums (top-level only)
 ```naab
@@ -296,9 +297,9 @@ main {
 12. String concatenation with `+` is permissive (auto-converts numbers)
 13. Arithmetic with strings is STRICT — `"5" + 3` works (string concat), `"5" * 3` errors
 14. `array.find` takes a PREDICATE function, not a value
-15. `||` ALWAYS returns boolean (true/false), NEVER the operand value.
+15. `||` (and its alias `or`) ALWAYS returns boolean (true/false), NEVER the operand value.
     `null || "fallback"` returns `true` (NOT "fallback"!).
-    NAAb's `||` is NOT like JavaScript's `||` operator.
+    NAAb's `||`/`or` is NOT like JavaScript's `||` or Python's `or` operator.
     For null coalesce, use the `??` operator: `x ?? default_val`
 16. `dict["key"]` THROWS on missing key — use `dict.get("key")` or `dict.get("key", default)` for safe access
 17. Struct instantiation requires `new`: `let p = new Point { x: 1, y: 2 }` — without `new` you get a parse error

@@ -448,15 +448,15 @@ naab-lang --scan src/ auto                 # Scan directory, auto-detect languag
 naab-lang --scan app.py python             # Scan single file
 ```
 
-### Check Categories (127 checks total)
+### Check Categories (139 checks total)
 | Category | Checks | Key Rules |
 |----------|--------|-----------|
-| redundancy | 15 | obvious_comments, over_abstraction, apologetic_comments, placeholder_code |
-| code_quality | 15 | empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting |
-| complexity | 8 | cyclomatic_complexity, cognitive_complexity, file_length |
-| style | 10 | inconsistent_naming, debug_leftovers, commented_out_code, long_lines |
-| security | 10 | hardcoded_credentials, sql_string_concat, shell_injection, path_traversal |
-| lang_naab | 10 | value_semantics_bug, top_level_let, arrow_lambda, python_return_in_block |
+| redundancy | 30 | obvious_comments, over_abstraction, apologetic_comments, placeholder_code, generic_variable_names, single_use_variable, trivial_constant_alias |
+| code_quality | 20 | empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, dead_conditional, recursive_no_base_case |
+| complexity | 9 | cyclomatic_complexity, cognitive_complexity, file_length |
+| style | 12 | inconsistent_naming, debug_leftovers, commented_out_code, long_lines |
+| security | 0 | (checks planned) |
+| lang_naab | 11 | value_semantics_bug, missing_null_check, dict_bracket_access, top_level_let, arrow_lambda, python_return_in_block |
 | lang_python | 14 | bare_except, mutable_default_arg, star_import, open_without_with |
 | lang_javascript | 12 | loose_equality, var_declaration, eval_usage, prototype_pollution |
 | lang_cpp | 12 | raw_new_delete, using_namespace_std, c_style_cast, goto_usage |
@@ -485,7 +485,7 @@ naab-lang --scan app.py python             # Scan single file
   }
 }
 ```
-See `govern-template.json` for all 127 checks with their options.
+See `govern-template.json` for all 139 checks with their options.
 
 ### Output
 - Text report: `quality-report.txt` (saved automatically)
