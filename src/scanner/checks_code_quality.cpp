@@ -72,7 +72,7 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     if (isEnabled(CAT, "empty_catch")) {
         static const std::regex except_pass(R"(^except\s*.*:\s*pass\s*$)");
         static const std::regex except_bare(R"(^except\s*.*:\s*$)");
-        static const std::regex catch_empty(R"(^catch\s*\([^)]*\)\s*\{\s*\}\s*$)");
+        static const std::regex catch_empty(R"(^(?:\}\s*)?catch\s*\([^)]*\)\s*\{\s*\}\s*$)");
 
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = cq_trim(lines[i]);

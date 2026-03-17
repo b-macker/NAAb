@@ -1,0 +1,194 @@
+use array
+use math
+use string
+use csv
+import "./suppliers.naab" as sup
+import "./models.naab" as models
+
+export fn generate_inventory_report(inventory, products) {
+    if products == null or len(products) == 0 {
+        return { "report_text": "No products", "total_value": 0.0, "items_below_reorder": 0, "items_overstocked": 0 }
+    }
+    
+    let report = "SKU       Name                Stock     Min       Max       ROP       Value     Status\n"
+    report = report + "--------------------------------------------------------------------------------\n"
+    
+    let total_value = 0.0
+    let items_below_reorder = 0
+    let items_overstocked = 0
+    
+    let n = len(products)
+    for i in 0..n {
+        let product = products[i]
+        try {
+            let p_id = product.get("id", "") ?? ""
+            let key = string(p_id)
+            let stock = inventory.get(key, 0) ?? 0
+            let min_stock = int(product.get("min_stock", 0) ?? 0)
+            let max_stock = int(product.get("max_stock", 0) ?? 0)
+            let reorder_point = int(product.get("reorder_point", 0) ?? 0)
+            let unit_cost = float(product.get("unit_cost", 0.0) ?? 0.0)
+            let value = float(stock) * unit_cost
+            
+            let status = "OK"
+            if stock < reorder_point {
+                status = "LOW"
+                items_below_reorder = items_below_reorder + 1
+            } else if stock > max_stock {
+                status = "OVER"
+                items_overstocked = items_overstocked + 1
+            }
+            
+            total_value = total_value + value
+            
+            let psku = product.get("sku", "N/A") ?? "N/A"
+            let pname = product.get("name", "Unknown") ?? "Unknown"
+            let line = string(psku).pad_right(10)
+            line = line + string(pname).pad_right(20)
+            line = line + string(stock).pad_right(10)
+            line = line + string(min_stock).pad_right(10)
+            line = line + string(max_stock).pad_right(10)
+            line = line + string(reorder_point).pad_right(10)
+            line = line + string(int(math.round(value))).pad_right(10)
+            line = line + status + "\n"
+            report = report + line
+        } catch (e) {
+            report = report + "Error processing product\n"
+        }
+    }
+    
+    return {
+        "report_text": report,
+        "total_value": total_value,
+        "items_below_reorder": items_below_reorder,
+        "items_overstocked": items_overstocked
+    }
+}
+
+export fn generate_supplier_scorecard(suppliers, order_history) {
+    let scorecard = {}
+    if suppliers == null { return scorecard }
+    let n = len(suppliers)
+    for i in 0..n {
+        let supplier = suppliers[i]
+        let name = string(supplier.get("name", "Unknown") ?? "Unknown")
+        let scores = sup.score_supplier(supplier, order_history)
+        scorecard.set(name, scores)
+    }
+    return scorecard
+}
+
+export fn generate_purchase_summary(orders_list, date_range) {
+    if orders_list == null or len(orders_list) == 0 {
+        return { "total_spent": 0.0, "order_count": 0, "avg_order_value": 0.0, "by_status": {}, "by_priority": {} }
+    }
+    
+    let total_spent = 0.0
+    let order_count = 0
+    let by_status = {}
+    let by_priority = {}
+    
+    let n = len(orders_list)
+    for i in 0..n {
+        let order = orders_list[i]
+        order_count = order_count + 1
+        let total = float(order.get("total", 0.0) ?? 0.0)
+        total_spent = total_spent + total
+        
+        let status = string(order.get("status", "unknown") ?? "unknown")
+        let s_count = by_status.get(status, 0) ?? 0
+        by_status.set(status, s_count + 1)
+        
+        let priority = string(order.get("priority", "normal") ?? "normal")
+        let p_count = by_priority.get(priority, 0) ?? 0
+        by_priority.set(priority, p_count + 1)
+    }
+    
+    let avg_order_value = 0.0
+    if order_count > 0 {
+        avg_order_value = total_spent / float(order_count)
+    }
+    
+    return {
+        "total_spent": total_spent,
+        "order_count": order_count,
+        "avg_order_value": avg_order_value,
+        "by_status": by_status,
+        "by_priority": by_priority
+    }
+}
+
+export fn export_to_csv(data, headers) {
+    if data == null { return "" }
+    let all_data = [headers]
+    let n = len(data)
+    for i in 0..n {
+        all_data.push(data[i])
+    }
+    return csv.stringify(all_data)
+}
+
+export fn calculate_kpis(inventory, orders_list, transactions, products) {
+    let fill_rate = 0.0
+    let stockout_rate = 0.0
+    let inventory_turns = 0.0
+    let avg_order_value = 0.0
+    
+    if orders_list != null and len(orders_list) > 0 {
+        let delivered_count = 0
+        let total_order_sum = 0.0
+        let n_orders = len(orders_list)
+        for i in 0..n_orders {
+            let order = orders_list[i]
+            let status = order.get("status", "") ?? ""
+            if status == "delivered" {
+                delivered_count = delivered_count + 1
+            }
+            total_order_sum = total_order_sum + float(order.get("total", 0.0) ?? 0.0)
+        }
+        fill_rate = float(delivered_count) / float(len(orders_list))
+        avg_order_value = total_order_sum / float(len(orders_list))
+    }
+    
+    if products != null and len(products) > 0 {
+        let stockout_count = 0
+        let total_inventory_value = 0.0
+        let n_prods = len(products)
+        for i in 0..n_prods {
+            let product = products[i]
+            let p_id = product.get("id", "") ?? ""
+            let stock = inventory.get(string(p_id), 0) ?? 0
+            let r_point = int(product.get("reorder_point", 0) ?? 0)
+            if stock < r_point {
+                stockout_count = stockout_count + 1
+            }
+            let u_cost = float(product.get("unit_cost", 0.0) ?? 0.0)
+            total_inventory_value = total_inventory_value + (float(stock) * u_cost)
+        }
+        stockout_rate = float(stockout_count) / float(len(products))
+        
+        if total_inventory_value > 0.0 {
+            let sale_qty = 0
+            if transactions != null {
+                let n_txs = len(transactions)
+                for i in 0..n_txs {
+                    let tx = transactions[i]
+                    let ttype = tx.get("type", -1) ?? -1
+                    if ttype == models.TransactionType.Sale {
+                        sale_qty = sale_qty + int(tx.get("quantity", 0) ?? 0)
+                    }
+                }
+            }
+            inventory_turns = float(sale_qty) / total_inventory_value
+        }
+    }
+    
+    return {
+        "fill_rate": fill_rate,
+        "stockout_rate": stockout_rate,
+        "inventory_turns": inventory_turns,
+        "avg_order_value": avg_order_value
+    }
+}
+
+main {}

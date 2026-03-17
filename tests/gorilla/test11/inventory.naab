@@ -1,0 +1,128 @@
+use array
+use math
+use string
+import "./models.naab" as models
+
+export fn add_stock(inventory, product_id, quantity, tx_type) {
+    let key = string(product_id)
+    let current = inventory.get(key, 0) ?? 0
+    inventory.set(key, current + int(quantity))
+    
+    let tx = models.create_transaction(product_id, quantity, tx_type, "Stock addition")
+    
+    return { "inventory": inventory, "transaction": tx }
+}
+
+export fn remove_stock(inventory, product_id, quantity, tx_type) {
+    let key = string(product_id)
+    let current = inventory.get(key, 0) ?? 0
+    
+    if current >= int(quantity) {
+        inventory.set(key, current - int(quantity))
+        let tx = models.create_transaction(product_id, quantity, tx_type, "Stock removal")
+        return { "inventory": inventory, "transaction": tx, "success": true }
+    } else {
+        return { "inventory": inventory, "transaction": null, "success": false }
+    }
+}
+
+export fn get_stock_level(inventory, product_id) {
+    if inventory == null { return 0 }
+    return inventory.get(string(product_id), 0) ?? 0
+}
+
+export fn get_inventory_value(inventory, products) {
+    let total = 0.0
+    if products == null { return 0.0 }
+    let n = len(products)
+    for i in 0..n {
+        let product = products[i]
+        let pid = product.get("id") ?? 0
+        let stock = inventory.get(string(pid), 0) ?? 0
+        total = total + (float(stock) * float(product.get("unit_cost", 0.0) ?? 0.0))
+    }
+    return total
+}
+
+export fn check_reorder_needed(inventory, products) {
+    let needed = []
+    if products == null { return needed }
+    let n = len(products)
+    for i in 0..n {
+        let product = products[i]
+        let pid = product.get("id") ?? 0
+        let stock = inventory.get(string(pid), 0) ?? 0
+        let rop = product.get("reorder_point", 0) ?? 0
+        if stock < int(rop) {
+            needed.push(product)
+        }
+    }
+    return needed
+}
+
+export fn calculate_turnover_rate(transactions, inventory, products, days) {
+    let rates = {}
+    
+    if days == null or int(days) <= 0 {
+        if products != null {
+            let n_prods = len(products)
+            for i in 0..n_prods {
+                let p = products[i]
+                let pid = p.get("id") ?? 0
+                rates.set(string(pid), 0.0)
+            }
+        }
+        return rates
+    }
+    
+    if products == null { return rates }
+    
+    let n = len(products)
+    for i in 0..n {
+        let product = products[i]
+        try {
+            let p_id = product.get("id") ?? 0
+            let key = string(p_id)
+            let total_sold = 0
+            
+            if transactions != null {
+                let n_txs = len(transactions)
+                for j in 0..n_txs {
+                    let tx = transactions[j]
+                    let tx_pid = tx.get("product_id") ?? ""
+                    if tx_pid == p_id {
+                        let ttype = tx.get("type") ?? -1
+                        if ttype == models.TransactionType.Sale {
+                            let tqty = tx.get("quantity") ?? 0
+                            total_sold = total_sold + int(tqty)
+                        }
+                    }
+                }
+            }
+            
+            let current_stock = inventory.get(key, 0) ?? 0
+            let turnover = 0.0
+            if current_stock > 0 {
+                turnover = (float(total_sold) / float(current_stock)) * (365.0 / float(days))
+            }
+            rates.set(key, turnover)
+        } catch (e) {
+            let pid_err = product.get("id") ?? "err"
+            rates.set(string(pid_err), 0.0)
+        }
+    }
+    return rates
+}
+
+export fn adjust_stock(inventory, product_id, actual_count, reason) {
+    let key = string(product_id)
+    let previous = inventory.get(key, 0) ?? 0
+    let diff = int(actual_count) - previous
+    
+    inventory.set(key, int(actual_count))
+    let tx = models.create_transaction(product_id, math.abs(diff), models.TransactionType.Adjustment, reason)
+    
+    return { "inventory": inventory, "adjustment_transaction": tx, "difference": diff }
+}
+
+main {}

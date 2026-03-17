@@ -1,0 +1,73 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: auto
+Issues: 123 (0 hard, 119 soft, 4 advisory)
+
+----------------------------------------------------
+
+  /data/data/com.termux/files/home/.naab/language/tests/gorilla/test11/main.naab (123 issues)
+
+  ! [SOFT] code_quality.complex_boolean_expr (3 occurrences)
+     Lines: 21, 34, 192
+     Boolean expression has 9 operators (max 3)
+     -> if p.has("id") and p.has("name") and p.has("sku") and p.has("category") and p.ha
+     Fix: Extract into named booleans
+
+  ! [SOFT] code_quality.god_functions (7 occurrences)
+     Lines: 90, 178, 261, 355, 439, 524, 606
+     Function 'test_inventory' is 87 lines (max 80)
+     -> fn test_inventory() {
+     Fix: Break into smaller functions
+
+  ! [SOFT] code_quality.magic_strings (28 occurrences)
+     Lines: 21, 34, 55, 98, 115, 184, 192, 219, 265, 278, 292, 300, 305, 313, 327, 363, 451, 490, 494
+     String 'avg_order_value' repeated 3 times
+     -> 494, 517, 583
+     Fix: Extract to constant
+
+  ! Line 14 [SOFT] complexity.cognitive_complexity
+     Function 'test_models' has cognitive complexity 36 (max 20)
+     -> fn test_models() {
+     Fix: Simplify control flow
+
+  ! [SOFT] complexity.cyclomatic_complexity (7 occurrences)
+     Lines: 14, 90, 178, 261, 355, 439, 524
+     Function 'test_models' has cyclomatic complexity 37 (max 15)
+     -> fn test_models() {
+     Fix: Break into smaller functions
+
+  ! Line 1 [SOFT] complexity.file_length
+     File has 781 lines (max 500)
+     -> /data/data/com.termux/files/home/.naab/language/tests/gorilla/test11/main.naab
+     Fix: Split into multiple files
+
+  ! [SOFT] redundancy.single_use_variable (62 occurrences)
+     Lines: 33, 40, 54, 62, 70, 145, 152, 204, 238, 245, 246, 253, 291, 306, 315, 317, 318, 333, 362, 385, 401, 415, 422, 430, 431, 481, 502, 509, 530, 543, 552, 553, 560, 561, 568, 575, 582, 589, 590, 597, 598, 614, 616, 618, 619, 620, 631, 640, 641, 649, 653, 656, 664, 676, 677, 684, 685, 699, 700, 707, 709, 722
+     Variable 's' used only once on next line
+     -> let s = models.create_supplier(1, "AcmeCorp", 4.5, 5.0, 1.0, 0.95, 0.02, true)
+     Fix: Inline directly
+
+  ! [SOFT] style.long_lines (10 occurrences)
+     Lines: 21, 34, 77, 83, 192, 232, 451, 494, 531, 664
+     Line is 228 chars (max 120)
+     -> if p.has("id") and p.has("name") and p.has("sku") and p.has("category") and p.ha
+     Fix: Break into multiple lines
+
+  i [ADVISORY] redundancy.unused_imports (4 occurrences)
+     Lines: 1, 3, 4, 5
+     Module 'array' imported but never used
+     -> use array
+     Fix: Remove unused import
+
+----------------------------------------------------
+
+Summary by Category:
+  code_quality          38 issues (0 hard, 38 soft, 0 advisory)
+  complexity             9 issues (0 hard, 9 soft, 0 advisory)
+  redundancy            66 issues (0 hard, 62 soft, 4 advisory)
+  style                 10 issues (0 hard, 10 soft, 0 advisory)
+
+====================================================

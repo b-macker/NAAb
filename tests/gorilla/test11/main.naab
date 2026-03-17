@@ -1,0 +1,781 @@
+use array
+use math
+use string
+use json
+use csv
+
+import "./models.naab" as models
+import "./inventory.naab" as inv
+import "./suppliers.naab" as sup
+import "./orders.naab" as orders
+import "./forecasting.naab" as forecaster
+import "./reporting.naab" as report
+
+fn test_models() {
+    let passed = 0
+    let total = 0
+    
+    // Test 1: create_product returns 10 keys
+    total = total + 1
+    let p = models.create_product(1, "Widget", "WDG-001", "FinishedGood", 10.0, 25.0, 5, 50, 3, 10)
+    if p.has("id") and p.has("name") and p.has("sku") and p.has("category") and p.has("unit_cost") and p.has("selling_price") and p.has("min_stock") and p.has("max_stock") and p.has("lead_time_days") and p.has("reorder_point") {
+        passed = passed + 1
+    }
+    
+    // Test 2: Types
+    total = total + 1
+    if int(p.get("id")) == 1 and string(p.get("sku")) == "WDG-001" and float(p.get("unit_cost")) == 10.0 {
+        passed = passed + 1
+    }
+    
+    // Test 3: create_supplier keys
+    total = total + 1
+    let s = models.create_supplier(1, "AcmeCorp", 4.5, 5.0, 1.0, 0.95, 0.02, true)
+    if s.has("id") and s.has("name") and s.has("rating") and s.has("lead_time_avg") and s.has("lead_time_variance") and s.has("fill_rate") and s.has("defect_rate") and s.has("active") {
+        passed = passed + 1
+    }
+    
+    // Test 4: Boundary values
+    total = total + 1
+    let s0 = models.create_supplier(2, "Zero", 0.0, 1.0, 0.0, 0.0, 0.0, false)
+    if float(s0.get("rating")) == 0.0 and bool(s0.get("active")) == false {
+        passed = passed + 1
+    }
+    
+    // Test 5: Transaction timestamp
+    total = total + 1
+    let tx = models.create_transaction(1, 10, models.TransactionType.Purchase, "Restock")
+    if string(tx.get("timestamp")).length() > 0 {
+        passed = passed + 1
+    }
+    
+    // Test 6: Validate valid product
+    total = total + 1
+    let vp = models.validate_product(p)
+    if bool(vp.get("valid")) == true and len(vp.get("errors")) == 0 {
+        passed = passed + 1
+    }
+    
+    // Test 7: Validate bad product
+    total = total + 1
+    let bad = models.create_product(-1, "", "", "X", -5.0, -10.0, -1, -5, 0, -2)
+    let vb = models.validate_product(bad)
+    if bool(vb.get("valid")) == false and len(vb.get("errors")) >= 5 {
+        passed = passed + 1
+    }
+    
+    // Test 8: Validate bad supplier
+    total = total + 1
+    let bad_s = models.create_supplier(0, "", 6.0, -1.0, 0.0, 1.5, -0.1, true)
+    let vs = models.validate_supplier(bad_s)
+    if bool(vs.get("valid")) == false and len(vs.get("errors")) >= 4 {
+        passed = passed + 1
+    }
+    
+    // Test 9: Status names
+    total = total + 1
+    if models.status_name(models.OrderStatus.Pending) == "Pending" and models.status_name(models.OrderStatus.Delivered) == "Delivered" and models.status_name(models.OrderStatus.Cancelled) == "Cancelled" {
+        passed = passed + 1
+    }
+    
+    // Test 10: Category and tx type names
+    total = total + 1
+    if models.category_name(models.Category.RawMaterial) == "RawMaterial" and models.transaction_type_name(models.TransactionType.Sale) == "Sale" {
+        passed = passed + 1
+    }
+    
+    return [passed, total]
+}
+
+fn test_inventory() {
+    let passed = 0
+    let total = 0
+    let inv_data = {}
+    
+    // Test 1: Add stock
+    total = total + 1
+    let r1 = inv.add_stock(inv_data, 1, 20, models.TransactionType.Purchase)
+    inv_data = r1.get("inventory")
+    if int(inv_data.get("1")) == 20 {
+        passed = passed + 1
+    }
+    
+    // Test 2: Add again
+    total = total + 1
+    let r2 = inv.add_stock(inv_data, 1, 15, models.TransactionType.Purchase)
+    inv_data = r2.get("inventory")
+    if int(inv_data.get("1")) == 35 {
+        passed = passed + 1
+    }
+    
+    // Test 3: Remove stock
+    total = total + 1
+    let r3 = inv.remove_stock(inv_data, 1, 10, models.TransactionType.Sale)
+    inv_data = r3.get("inventory")
+    if bool(r3.get("success")) == true and int(inv_data.get("1")) == 25 {
+        passed = passed + 1
+    }
+    
+    // Test 4: Insufficient stock
+    total = total + 1
+    let r4 = inv.remove_stock(inv_data, 1, 100, models.TransactionType.Sale)
+    if bool(r4.get("success")) == false and int(inv_data.get("1")) == 25 {
+        passed = passed + 1
+    }
+    
+    // Test 5: Missing product
+    total = total + 1
+    if inv.get_stock_level(inv_data, 999) == 0 {
+        passed = passed + 1
+    }
+    
+    // Test 6: Inventory value
+    total = total + 1
+    let products = [models.create_product(1, "P1", "S1", "Raw", 10.0, 20.0, 5, 50, 3, 10)]
+    if inv.get_inventory_value(inv_data, products) == 250.0 {
+        passed = passed + 1
+    }
+    
+    // Test 7: Reorder needed
+    total = total + 1
+    let products2 = [
+        models.create_product(1, "P1", "S1", "Raw", 10.0, 20.0, 5, 50, 3, 10),
+        models.create_product(2, "P2", "S2", "Raw", 5.0, 10.0, 10, 100, 5, 15)
+    ]
+    let needed = inv.check_reorder_needed(inv_data, products2)
+    if len(needed) == 1 and int(needed[0].get("id")) == 2 {
+        passed = passed + 1
+    }
+    
+    // Test 8: Turnover rate
+    total = total + 1
+    let txs = [models.create_transaction(1, 5, models.TransactionType.Sale, "Sold")]
+    let rates = inv.calculate_turnover_rate(txs, inv_data, products, 30)
+    // (5/25)*(365/30) = 0.2 * 12.166... = 2.433...
+    if int(math.round(float(rates.get("1")) * 100)) == 243 {
+        passed = passed + 1
+    }
+    
+    // Test 9: Adjust stock (increase)
+    total = total + 1
+    let r_adj = inv.adjust_stock(inv_data, 1, 30, "Physical count")
+    inv_data = r_adj.get("inventory")
+    if int(inv_data.get("1")) == 30 and int(r_adj.get("difference")) == 5 {
+        passed = passed + 1
+    }
+    
+    // Test 10: Adjust stock (decrease)
+    total = total + 1
+    let r_adj2 = inv.adjust_stock(inv_data, 1, 20, "Shrinkage")
+    inv_data = r_adj2.get("inventory")
+    if int(inv_data.get("1")) == 20 and int(r_adj2.get("difference")) == -10 {
+        passed = passed + 1
+    }
+    
+    return [passed, total]
+}
+
+fn test_suppliers() {
+    let passed = 0
+    let total = 0
+    let good_s = models.create_supplier(1, "TopCorp", 4.8, 5.0, 0.5, 0.98, 0.01, true)
+    let bad_s = models.create_supplier(2, "BadCorp", 1.5, 10.0, 5.0, 0.60, 0.15, true)
+    let history = [
+        { "supplier_id": 1, "status": "delivered", "delivery_days": 5, "total": 100.0 },
+        { "supplier_id": 1, "status": "delivered", "delivery_days": 6, "total": 200.0 },
+        { "supplier_id": 1, "status": "delivered", "delivery_days": 5, "total": 150.0 }
+    ]
+    
+    // Test 1: score_supplier keys
+    total = total + 1
+    let sc = sup.score_supplier(good_s, history)
+    if sc.has("total_score") and sc.has("delivery_score") and sc.has("quality_score") and sc.has("fill_rate_score") and sc.has("price_score") {
+        passed = passed + 1
+    }
+    
+    // Test 2: Good supplier score
+    total = total + 1
+    if int(math.round(float(sc.get("total_score")))) == 93 {
+        passed = passed + 1
+    }
+    
+    // Test 3: Bad supplier score
+    total = total + 1
+    let sc_bad = sup.score_supplier(bad_s, history)
+    if int(math.round(float(sc_bad.get("total_score")))) == 46 {
+        passed = passed + 1
+    }
+    
+    // Test 4: Rank suppliers
+    total = total + 1
+    let ranked = sup.rank_suppliers([bad_s, good_s], history)
+    if int(ranked[0].get("supplier_id")) == 1 {
+        passed = passed + 1
+    }
+    
+    // Test 5: Risk low
+    total = total + 1
+    let risk_good = sup.evaluate_supplier_risk(good_s, history)
+    if risk_good.get("risk_level") == "low" and len(risk_good.get("reasons")) == 0 {
+        passed = passed + 1
+    }
+    
+    // Test 6: Risk critical
+    total = total + 1
+    let risk_bad = sup.evaluate_supplier_risk(bad_s, history)
+    if risk_bad.get("risk_level") == "critical" and len(risk_bad.get("reasons")) >= 3 {
+        passed = passed + 1
+    }
+    
+    // Test 7: Recommendations
+    total = total + 1
+    if risk_bad.get("recommendation") == "Replace immediately" and risk_good.get("recommendation") == "Maintain relationship" {
+        passed = passed + 1
+    }
+    
+    // Test 8: Preferred supplier
+    total = total + 1
+    let pref = sup.get_preferred_supplier(1, [bad_s, good_s], history)
+    if int(pref.get("id")) == 1 {
+        passed = passed + 1
+    }
+    
+    // Test 9: Skip inactive
+    total = total + 1
+    let inactive = models.create_supplier(3, "Dead", 5.0, 1.0, 0.0, 1.0, 0.0, false)
+    let pref2 = sup.get_preferred_supplier(1, [inactive, bad_s], history)
+    if pref2 != null and int(pref2.get("id")) == 2 {
+        passed = passed + 1
+    }
+    
+    // Test 10: Lead time stats
+    total = total + 1
+    let lt = sup.calculate_supplier_lead_time(good_s, history)
+    if int(math.round(float(lt.get("avg_days")) * 10)) == 53 and int(lt.get("sample_size")) == 3 {
+        passed = passed + 1
+    }
+    
+    return [passed, total]
+}
+
+fn test_orders() {
+    let passed = 0
+    let total = 0
+    let items = [
+        { "product_id": 1, "quantity": 10, "unit_price": 5.0 },
+        { "product_id": 2, "quantity": 20, "unit_price": 3.0 }
+    ]
+    
+    // Test 1: Create PO total
+    total = total + 1
+    let po = orders.create_purchase_order(1, 101, items, "high")
+    if float(po.get("total")) == 110.0 {
+        passed = passed + 1
+    }
+    
+    // Test 2: PO Status
+    total = total + 1
+    if po.get("status") == "pending" {
+        passed = passed + 1
+    }
+    
+    // Test 3: Approve PO
+    total = total + 1
+    po = orders.approve_order(po, "ADMIN-1")
+    if po.get("status") == "approved" and po.has("approved_by") {
+        passed = passed + 1
+    }
+    
+    // Test 4: Reject non-pending
+    total = total + 1
+    let dup = orders.approve_order(po, "ADMIN-2")
+    if dup.has("error") {
+        passed = passed + 1
+    }
+    
+    // Test 5: Receive order full
+    total = total + 1
+    let inventory = { "1": 5, "2": 10 }
+    let received = [
+        { "product_id": 1, "quantity_received": 10 },
+        { "product_id": 2, "quantity_received": 20 }
+    ]
+    let res = orders.receive_order(po, received, inventory)
+    inventory = res.get("inventory")
+    let recv_order = res.get("order") ?? {}
+    let s_recv = recv_order.get("status") ?? ""
+    if int(inventory.get("1")) == 15 and int(inventory.get("2")) == 30 and s_recv == "delivered" {
+        passed = passed + 1
+    }
+    
+    // Test 6: Partial delivery
+    total = total + 1
+    let po2 = orders.create_purchase_order(2, 101, items, "normal")
+    po2 = orders.approve_order(po2, "ADMIN-1")
+    let partial = [{ "product_id": 1, "quantity_received": 5 }, { "product_id": 2, "quantity_received": 20 }]
+    let res2 = orders.receive_order(po2, partial, inventory)
+    let o2 = res2.get("order") ?? {}
+    let s_o2 = o2.get("status") ?? ""
+    if len(res2.get("discrepancies")) > 0 and s_o2 == "partially_received" {
+        passed = passed + 1
+    }
+    
+    // Test 7: Cancel pending
+    total = total + 1
+    let po3 = orders.create_purchase_order(3, 102, items, "low")
+    po3 = orders.cancel_order(po3, "Budget cut")
+    if po3.get("status") == "cancelled" and po3.has("cancel_reason") {
+        passed = passed + 1
+    }
+    
+    // Test 8: Cancel delivered fails
+    total = total + 1
+    let cant_cancel = orders.cancel_order(recv_order, "Too late")
+    if cant_cancel.has("error") {
+        passed = passed + 1
+    }
+    
+    // Test 9: Calculate total
+    total = total + 1
+    if orders.calculate_order_total(po) == 110.0 {
+        passed = passed + 1
+    }
+    
+    // Test 10: Filter history
+    total = total + 1
+    let all_orders = [po, res2.get("order"), po3]
+    let delivered = orders.get_order_history(all_orders, { "status": "delivered" })
+    if len(delivered) == 1 and len(orders.get_order_history(all_orders, {})) == 3 {
+        passed = passed + 1
+    }
+    
+    return [passed, total]
+}
+
+fn test_forecasting() {
+    let passed = 0
+    let total = 0
+    let history = [10.0, 12.0, 14.0]
+    
+    // Test 1: Moving average
+    total = total + 1
+    let f1 = forecaster.forecast_demand(history, 2, "moving_average")
+    if len(f1.get("forecast")) == 2 and int(math.round(float(f1.get("forecast")[0]))) == 12 {
+        passed = passed + 1
+    }
+    
+    // Test 2: Exponential smoothing
+    total = total + 1
+    let f2 = forecaster.forecast_demand(history, 1, "exponential_smoothing")
+    // n=3, alpha=2/4=0.5. 10 -> 0.5*12+0.5*10=11 -> 0.5*14+0.5*11=12.5
+    if int(math.round(float(f2.get("forecast")[0]) * 10)) == 125 {
+        passed = passed + 1
+    }
+    
+    // Test 3: Linear trend
+    total = total + 1
+    let f3 = forecaster.forecast_demand(history, 1, "linear_trend")
+    // slope=2, intercept=10. x=3 -> 2*3+10=16
+    if int(math.round(float(f3.get("forecast")[0]))) == 16 {
+        passed = passed + 1
+    }
+    
+    // Test 4: Confidence range
+    total = total + 1
+    let conf = float(f3.get("confidence"))
+    if conf >= 0.0 and conf <= 1.0 {
+        passed = passed + 1
+    }
+    
+    // Test 5: ROP keys
+    total = total + 1
+    let prod = models.create_product(1, "P", "S", "Raw", 10.0, 20.0, 10, 50, 5, 15)
+    let supp = models.create_supplier(1, "S", 4.0, 5.0, 1.0, 0.95, 0.02, true)
+    let rop = forecaster.calculate_reorder_point(prod, supp, 0.95)
+    if rop.has("reorder_point") and rop.has("safety_stock") and rop.has("avg_demand") and rop.has("lead_time") {
+        passed = passed + 1
+    }
+    
+    // Test 6: Service level effect
+    total = total + 1
+    let rop99 = forecaster.calculate_reorder_point(prod, supp, 0.99)
+    if float(rop99.get("reorder_point")) > float(rop.get("reorder_point")) {
+        passed = passed + 1
+    }
+    
+    // Test 7: Safety stock positive
+    total = total + 1
+    let ss = forecaster.calculate_safety_stock(history, 5, 0.95)
+    if ss > 0.0 {
+        passed = passed + 1
+    }
+    
+    // Test 8: Variance effect
+    total = total + 1
+    let ss_v = forecaster.calculate_safety_stock([5.0, 25.0], 5, 0.95)
+    if ss_v > ss {
+        passed = passed + 1
+    }
+    
+    // Test 9: EOQ calc
+    total = total + 1
+    let eoq = forecaster.calculate_eoq(1000.0, 50.0, 2.0)
+    if int(math.round(eoq)) == 224 {
+        passed = passed + 1
+    }
+    
+    // Test 10: Optimize schedule
+    total = total + 1
+    let prods = [models.create_product(1, "P", "S", "Raw", 10.0, 20.0, 5, 50, 3, 20)]
+    let inv_sched = { "1": 5 }
+    let sched = forecaster.optimize_reorder_schedule(prods, inv_sched, [], 500.0)
+    if int(sched.get("products_covered")) == 1 and float(sched.get("total_cost")) <= 500.0 {
+        passed = passed + 1
+    }
+    
+    return [passed, total]
+}
+
+fn test_reporting() {
+    let passed = 0
+    let total = 0
+    let prods = [
+        models.create_product(1, "Widget", "WDG", "Raw", 10.0, 20.0, 5, 50, 3, 20),
+        models.create_product(2, "Gadget", "GDG", "Raw", 25.0, 50.0, 10, 100, 5, 30)
+    ]
+    let inv_data = { "1": 15, "2": 120 }
+    
+    // Test 1: Report keys
+    total = total + 1
+    let rep = report.generate_inventory_report(inv_data, prods)
+    if rep.has("report_text") and rep.has("total_value") and rep.has("items_below_reorder") and rep.has("items_overstocked") {
+        passed = passed + 1
+    }
+    
+    // Test 2: Report content
+    total = total + 1
+    if string(rep.get("report_text")).contains("SKU") {
+        passed = passed + 1
+    }
+    
+    // Test 3: Total value
+    total = total + 1
+    if float(rep.get("total_value")) == 3150.0 {
+        passed = passed + 1
+    }
+    
+    // Test 4: Below reorder
+    total = total + 1
+    if int(rep.get("items_below_reorder")) == 1 {
+        passed = passed + 1
+    }
+    
+    // Test 5: Overstocked
+    total = total + 1
+    if int(rep.get("items_overstocked")) == 1 {
+        passed = passed + 1
+    }
+    
+    // Test 6: Supplier scorecard
+    total = total + 1
+    let supps = [models.create_supplier(1, "Acme", 4.0, 5.0, 1.0, 0.90, 0.05, true)]
+    let sc = report.generate_supplier_scorecard(supps, [])
+    if sc.has("Acme") {
+        passed = passed + 1
+    }
+    
+    // Test 7: Purchase summary
+    total = total + 1
+    let ord_list = [
+        { "total": 100.0, "status": "delivered", "priority": "high" },
+        { "total": 200.0, "status": "pending", "priority": "normal" }
+    ]
+    let summ = report.generate_purchase_summary(ord_list, {})
+    if float(summ.get("total_spent")) == 300.0 and int(summ.get("order_count")) == 2 and float(summ.get("avg_order_value")) == 150.0 {
+        passed = passed + 1
+    }
+    
+    // Test 8: Summary grouping
+    total = total + 1
+    let by_status = summ.get("by_status") ?? {}
+    let c_del = by_status.get("delivered") ?? 0
+    let c_pen = by_status.get("pending") ?? 0
+    if int(c_del) == 1 and int(c_pen) == 1 {
+        passed = passed + 1
+    }
+    
+    // Test 9: CSV export
+    total = total + 1
+    let csv_out = report.export_to_csv([["A1", "B1"], ["A2", "B2"]], ["ColA", "ColB"])
+    if csv_out.contains("ColA") and csv_out.contains("A1") {
+        passed = passed + 1
+    }
+    
+    // Test 10: KPIs
+    total = total + 1
+    let kpis = report.calculate_kpis(inv_data, ord_list, [], prods)
+    if float(kpis.get("fill_rate")) == 0.5 and float(kpis.get("avg_order_value")) == 150.0 {
+        passed = passed + 1
+    }
+    
+    return [passed, total]
+}
+
+fn test_edge_cases() {
+    let passed = 0
+    let total = 0
+    
+    // Test 1: Empty forecast
+    total = total + 1
+    let f_empty = forecaster.forecast_demand([], 3, "moving_average")
+    if len(f_empty.get("forecast")) == 3 and float(f_empty.get("forecast")[0]) == 0.0 and float(f_empty.get("confidence")) == 0.0 {
+        passed = passed + 1
+    }
+    
+    // Test 2: Empty safety stock
+    total = total + 1
+    if forecaster.calculate_safety_stock([], 5, 0.95) == 0.0 {
+        passed = passed + 1
+    }
+    
+    // Test 3: Remove from empty inv
+    total = total + 1
+    let r = inv.remove_stock({}, 999, 10, models.TransactionType.Sale)
+    if bool(r.get("success")) == false {
+        passed = passed + 1
+    }
+    
+    // Test 4: 0 days turnover
+    total = total + 1
+    let inv_t = { "1": 10 }
+    let prods_t = [models.create_product(1, "P", "S", "Raw", 10.0, 20.0, 5, 50, 3, 10)]
+    let txs_t = [models.create_transaction(1, 5, models.TransactionType.Sale, "Sale")]
+    let rates = inv.calculate_turnover_rate(txs_t, inv_t, prods_t, 0)
+    if float(rates.get("1")) == 0.0 {
+        passed = passed + 1
+    }
+    
+    // Test 5: Empty history score
+    total = total + 1
+    let s_empty = models.create_supplier(1, "New", 3.0, 5.0, 1.0, 0.90, 0.03, true)
+    let sc = sup.score_supplier(s_empty, [])
+    if int(math.round(float(sc.get("total_score")))) == 57 {
+        passed = passed + 1
+    }
+    
+    // Test 6: Empty filters history
+    total = total + 1
+    let all = [{ "id": 1, "status": "pending", "total": 50.0 }, { "id": 2, "status": "delivered", "total": 100.0 }]
+    if len(orders.get_order_history(all, {})) == 2 {
+        passed = passed + 1
+    }
+    
+    // Test 7: Empty products report
+    total = total + 1
+    let empty_rep = report.generate_inventory_report({}, [])
+    if int(empty_rep.get("items_below_reorder")) == 0 and float(empty_rep.get("total_value")) == 0.0 {
+        passed = passed + 1
+    }
+    
+    // Test 8: Empty orders KPIs
+    total = total + 1
+    let kpis_empty = report.calculate_kpis({}, [], [], [])
+    if float(kpis_empty.get("fill_rate")) == 0.0 and float(kpis_empty.get("avg_order_value")) == 0.0 {
+        passed = passed + 1
+    }
+    
+    // Test 9: Zero validation
+    total = total + 1
+    let zero_p = models.create_product(0, "", "", "X", 0.0, 0.0, 0, 0, 0, 0)
+    let vz = models.validate_product(zero_p)
+    if bool(vz.get("valid")) == false and len(vz.get("errors")) >= 3 {
+        passed = passed + 1
+    }
+    
+    // Test 10: Cancel twice
+    total = total + 1
+    let cancelled_po = { "id": 99, "status": "cancelled", "total": 0.0 }
+    let re_cancel = orders.cancel_order(cancelled_po, "Again")
+    if re_cancel.has("error") {
+        passed = passed + 1
+    }
+    
+    return [passed, total]
+}
+
+fn test_integration() {
+    let passed = 0
+    let total = 0
+    
+    // Test 1: Full lifecycle
+    total = total + 1
+    let p1 = models.create_product(1, "IntP1", "IP1", "Raw", 10.0, 20.0, 5, 50, 3, 15)
+    let integration_inv = {}
+    let add_r = inv.add_stock(integration_inv, 1, 10, models.TransactionType.Purchase)
+    integration_inv = add_r.get("inventory")
+    let po_items = [{ "product_id": 1, "quantity": 20, "unit_price": 10.0 }]
+    let po = orders.create_purchase_order(1, 1, po_items, "high")
+    po = orders.approve_order(po, "MGR")
+    let recv = orders.receive_order(po, [{ "product_id": 1, "quantity_received": 20 }], integration_inv)
+    integration_inv = recv.get("inventory")
+    if int(integration_inv.get("1")) == 30 {
+        passed = passed + 1
+    }
+    
+    // Test 2: Rank/Score match
+    total = total + 1
+    let s1 = models.create_supplier(1, "Best", 4.5, 3.0, 0.5, 0.99, 0.01, true)
+    let s2 = models.create_supplier(2, "Worst", 2.0, 8.0, 4.0, 0.70, 0.10, true)
+    let oh = [{ "supplier_id": 1, "status": "delivered", "delivery_days": 3, "total": 100.0 }]
+    let ranked = sup.rank_suppliers([s2, s1], oh)
+    let sc1 = sup.score_supplier(s1, oh)
+    if float(ranked[0].get("total_score")) == float(sc1.get("total_score")) {
+        passed = passed + 1
+    }
+    
+    // Test 3: Schedule cover
+    total = total + 1
+    let fp = models.create_product(1, "FP", "FP1", "Raw", 10.0, 20.0, 10, 50, 5, 20)
+    let fs = models.create_supplier(1, "FS", 4.0, 5.0, 1.0, 0.95, 0.02, true)
+    let f_inv = { "1": 5 }
+    let schedule = forecaster.optimize_reorder_schedule([fp], f_inv, [fs], 1000.0)
+    if int(schedule.get("products_covered")) >= 1 {
+        passed = passed + 1
+    }
+    
+    // Test 4: Net sum
+    total = total + 1
+    let net_inv = {}
+    let a1 = inv.add_stock(net_inv, 1, 100, models.TransactionType.Purchase)
+    net_inv = a1.get("inventory")
+    let r1 = inv.remove_stock(net_inv, 1, 30, models.TransactionType.Sale)
+    net_inv = r1.get("inventory")
+    let a2 = inv.add_stock(net_inv, 1, 50, models.TransactionType.Purchase)
+    net_inv = a2.get("inventory")
+    let r2 = inv.remove_stock(net_inv, 1, 20, models.TransactionType.Sale)
+    net_inv = r2.get("inventory")
+    if int(net_inv.get("1")) == 100 {
+        passed = passed + 1
+    }
+    
+    // Test 5: Cancel effect
+    total = total + 1
+    let cancel_inv = { "1": 50 }
+    let cancel_po = orders.create_purchase_order(10, 1, [{ "product_id": 1, "quantity": 100, "unit_price": 5.0 }], "normal")
+    cancel_po = orders.cancel_order(cancel_po, "Changed mind")
+    if int(cancel_inv.get("1")) == 50 {
+        passed = passed + 1
+    }
+    
+    // Test 6: Budget constraint
+    total = total + 1
+    let budget_prods = [
+        models.create_product(1, "Exp", "E1", "Raw", 100.0, 200.0, 5, 50, 3, 20),
+        models.create_product(2, "Cheap", "C1", "Raw", 5.0, 10.0, 5, 50, 3, 20)
+    ]
+    let budget_inv = { "1": 0, "2": 0 }
+    let b_sched = forecaster.optimize_reorder_schedule(budget_prods, budget_inv, [], 300.0)
+    if float(b_sched.get("total_cost")) <= 300.0 {
+        passed = passed + 1
+    }
+    
+    // Test 7: CSV SKU match
+    total = total + 1
+    let csv_data = [["WDG", "15", "OK"], ["GDG", "120", "OVER"]]
+    let csv_rep = report.export_to_csv(csv_data, ["SKU", "Stock", "Status"])
+    if csv_rep.contains("WDG") and csv_rep.contains("GDG") {
+        passed = passed + 1
+    }
+    
+    // Test 8: KPI fill rate
+    total = total + 1
+    let kpi_orders = [
+        { "total": 100.0, "status": "delivered", "priority": "high" },
+        { "total": 200.0, "status": "delivered", "priority": "normal" },
+        { "total": 150.0, "status": "pending", "priority": "high" },
+        { "total": 50.0, "status": "cancelled", "priority": "low" }
+    ]
+    let kpi_prods = [models.create_product(1, "K", "K1", "Raw", 10.0, 20.0, 5, 50, 3, 10)]
+    let kpi_inv = { "1": 20 }
+    let kpis = report.calculate_kpis(kpi_inv, kpi_orders, [], kpi_prods)
+    if float(kpis.get("fill_rate")) == 0.5 {
+        passed = passed + 1
+    }
+    
+    // Test 9: Risk escalation
+    total = total + 1
+    let risky = models.create_supplier(5, "Risky", 1.0, 15.0, 6.0, 0.50, 0.20, true)
+    let risk = sup.evaluate_supplier_risk(risky, [])
+    let r_lvl = risk.get("risk_level") ?? ""
+    if r_lvl == "critical" and len(risk.get("reasons")) >= 4 {
+        passed = passed + 1
+    }
+    
+    // Test 10: Value match
+    total = total + 1
+    let val_prods = [
+        models.create_product(1, "A", "A1", "Raw", 10.0, 20.0, 5, 50, 3, 10),
+        models.create_product(2, "B", "B1", "Raw", 25.0, 50.0, 10, 100, 5, 30)
+    ]
+    let val_inv = { "1": 10, "2": 40 }
+    let val_rep = report.generate_inventory_report(val_inv, val_prods)
+    let manual_value = inv.get_inventory_value(val_inv, val_prods)
+    if float(val_rep.get("total_value")) == float(manual_value) {
+        passed = passed + 1
+    }
+    
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_models()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+    print("test_models: " + string(r1[0]) + "/" + string(r1[1]))
+
+    let r2 = test_inventory()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+    print("test_inventory: " + string(r2[0]) + "/" + string(r2[1]))
+
+    let r3 = test_suppliers()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+    print("test_suppliers: " + string(r3[0]) + "/" + string(r3[1]))
+
+    let r4 = test_orders()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+    print("test_orders: " + string(r4[0]) + "/" + string(r4[1]))
+
+    let r5 = test_forecasting()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+    print("test_forecasting: " + string(r5[0]) + "/" + string(r5[1]))
+
+    let r6 = test_reporting()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+    print("test_reporting: " + string(r6[0]) + "/" + string(r6[1]))
+
+    let r7 = test_edge_cases()
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+    print("test_edge_cases: " + string(r7[0]) + "/" + string(r7[1]))
+
+    let r8 = test_integration()
+    total_passed = total_passed + r8[0]
+    total_tests = total_tests + r8[1]
+    print("test_integration: " + string(r8[0]) + "/" + string(r8[1]))
+
+    print("")
+    print("TOTAL: " + string(total_passed) + "/" + string(total_tests))
+    if total_passed == total_tests {
+        print("ALL TESTS PASSED")
+    } else {
+        print("FAILURES: " + string(total_tests - total_passed))
+    }
+}

@@ -1,0 +1,183 @@
+use array
+use math
+use string
+use time
+import "./models.naab" as models
+import "./inventory.naab" as inv
+
+export fn create_purchase_order(id, supplier_id, items, priority) {
+    let total = 0.0
+    let n = len(items)
+    for i in 0..n {
+        let item = items[i]
+        total = total + (float(item.get("quantity", 0.0) ?? 0.0) * float(item.get("unit_price", 0.0) ?? 0.0))
+    }
+    let timestamp = time.format_timestamp(time.now(), "%Y-%m-%d %H:%M:%S")
+    return {
+        "id": id,
+        "supplier_id": supplier_id,
+        "items": items,
+        "status": "pending",
+        "total": total,
+        "created_at": timestamp,
+        "priority": priority
+    }
+}
+
+export fn approve_order(order_data, approver_id) {
+    if order_data == null { return null }
+    let status = order_data.get("status", "") ?? ""
+    if status != "pending" {
+        let err_order = {
+            "id": order_data.get("id", 0) ?? 0,
+            "supplier_id": order_data.get("supplier_id", 0) ?? 0,
+            "items": order_data.get("items") ?? [],
+            "status": status,
+            "total": order_data.get("total", 0.0) ?? 0.0,
+            "created_at": order_data.get("created_at", "") ?? "",
+            "priority": order_data.get("priority", "") ?? "",
+            "error": "Can only approve pending orders"
+        }
+        return err_order
+    }
+    let timestamp = time.format_timestamp(time.now(), "%Y-%m-%d %H:%M:%S")
+    order_data.set("status", "approved")
+    order_data.set("approved_by", approver_id)
+    order_data.set("approved_at", timestamp)
+    return order_data
+}
+
+export fn receive_order(order_data, received_items, inventory) {
+    let discrepancies = []
+    let all_received = true
+    
+    if order_data == null or received_items == null {
+        return { "order": order_data, "inventory": inventory, "discrepancies": ["Invalid input"] }
+    }
+    
+    let order_items = order_data.get("items") ?? []
+    let n_items = len(order_items)
+    let n_received = len(received_items)
+    
+    for i in 0..n_items {
+        let item = order_items[i]
+        let p_id = item.get("product_id", "") ?? ""
+        let ordered_qty = int(item.get("quantity", 0) ?? 0)
+        let found_received = 0
+        
+        for j in 0..n_received {
+            let r_item = received_items[j]
+            let r_pid = r_item.get("product_id", "") ?? ""
+            if r_pid == p_id {
+                let qty = int(r_item.get("quantity_received", 0) ?? 0)
+                found_received = found_received + qty
+                
+                try {
+                    let res = inv.add_stock(inventory, p_id, qty, models.TransactionType.Purchase)
+                    inventory = res.get("inventory") ?? inventory
+                } catch (e) {
+                    discrepancies.push("Failed to update inventory for " + string(p_id))
+                }
+            }
+        }
+        
+        if found_received != ordered_qty {
+            all_received = false
+            let disc = {
+                "product_id": p_id,
+                "ordered": ordered_qty,
+                "received": found_received
+            }
+            discrepancies.push(disc)
+        }
+    }
+    
+    if all_received == true {
+        order_data.set("status", "delivered")
+    } else {
+        order_data.set("status", "partially_received")
+    }
+    
+    return { "order": order_data, "inventory": inventory, "discrepancies": discrepancies }
+}
+
+export fn cancel_order(order_data, reason) {
+    if order_data == null { return null }
+    let status = order_data.get("status", "") ?? ""
+    if status == "delivered" or status == "partially_received" or status == "cancelled" {
+        let err_order = {
+            "id": order_data.get("id", 0) ?? 0,
+            "supplier_id": order_data.get("supplier_id", 0) ?? 0,
+            "items": order_data.get("items") ?? [],
+            "status": status,
+            "total": order_data.get("total", 0.0) ?? 0.0,
+            "created_at": order_data.get("created_at", "") ?? "",
+            "priority": order_data.get("priority", "") ?? "",
+            "error": "Cannot cancel delivered/received orders"
+        }
+        return err_order
+    }
+    let timestamp = time.format_timestamp(time.now(), "%Y-%m-%d %H:%M:%S")
+    order_data.set("status", "cancelled")
+    order_data.set("cancel_reason", reason)
+    order_data.set("cancelled_at", timestamp)
+    return order_data
+}
+
+export fn calculate_order_total(order_data) {
+    let total = 0.0
+    if order_data == null { return 0.0 }
+    let items = order_data.get("items") ?? []
+    let n = len(items)
+    for i in 0..n {
+        let item = items[i]
+        total = total + (float(item.get("quantity", 0.0) ?? 0.0) * float(item.get("unit_price", 0.0) ?? 0.0))
+    }
+    return total
+}
+
+export fn get_order_history(orders_list, filter_data) {
+    if filter_data == null or filter_data.size() == 0 {
+        return orders_list
+    }
+    
+    let filtered = []
+    let n = len(orders_list)
+    for i in 0..n {
+        let o = orders_list[i]
+        let is_match = true
+        
+        let fs = filter_data.get("supplier_id")
+        if fs != null and o.get("supplier_id") != fs {
+            is_match = false
+        }
+        
+        let fst = filter_data.get("status")
+        if fst != null and o.get("status") != fst {
+            is_match = false
+        }
+        
+        let fmin = filter_data.get("min_total")
+        if fmin != null {
+            let total = float(o.get("total", 0.0) ?? 0.0)
+            if total < float(fmin) {
+                is_match = false
+            }
+        }
+        
+        let fmax = filter_data.get("max_total")
+        if fmax != null {
+            let total = float(o.get("total", 0.0) ?? 0.0)
+            if total > float(fmax) {
+                is_match = false
+            }
+        }
+        
+        if is_match == true {
+            filtered.push(o)
+        }
+    }
+    return filtered
+}
+
+main {}

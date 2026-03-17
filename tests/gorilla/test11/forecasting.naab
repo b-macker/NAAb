@@ -1,0 +1,211 @@
+use array
+use math
+use json
+
+export fn forecast_demand(sales_history, periods, method) {
+    if periods == null or int(periods) < 0 {
+        return { "forecast": [], "method": method, "periods": 0, "confidence": 0.0 }
+    }
+    
+    if sales_history == null or len(sales_history) == 0 {
+        let empty_forecast = []
+        let n_p = int(periods)
+        for i in 0..n_p {
+            empty_forecast.push(0.0)
+        }
+        return { "forecast": empty_forecast, "method": method, "periods": periods, "confidence": 0.0 }
+    }
+    
+    try {
+        let result = <<python[sales_history, periods, method] -> JSON
+import json
+import math
+
+n = len(sales_history)
+forecast = []
+mean = sum(sales_history) / n
+var_sum = 0.0
+for x in sales_history:
+    var_sum += (x - mean)**2
+variance = var_sum / n
+confidence = min(1.0, n / 20.0) / (1.0 + math.sqrt(variance) / (mean + 1.0))
+
+if method == "moving_average":
+    forecast = [float(mean)] * periods
+elif method == "exponential_smoothing":
+    alpha = 2.0 / (n + 1.0)
+    smoothed = sales_history[0]
+    for i in range(1, n):
+        smoothed = alpha * sales_history[i] + (1.0 - alpha) * smoothed
+    forecast = [float(smoothed)] * periods
+elif method == "linear_trend":
+    x_sum = sum(range(n))
+    y_sum = sum(sales_history)
+    xy_sum = 0.0
+    x2_sum = 0.0
+    for i in range(n):
+        xy_sum += i * sales_history[i]
+        x2_sum += i**2
+    denom = (n * x2_sum - x_sum**2)
+    if denom == 0:
+        forecast = [float(mean)] * periods
+    else:
+        slope = (n * xy_sum - x_sum * y_sum) / denom
+        intercept = (y_sum - slope * x_sum) / n
+        for i in range(n, n + periods):
+            forecast.append(float(slope * i + intercept))
+else:
+    forecast = [float(mean)] * periods
+
+res = {"forecast": forecast, "method": method, "periods": periods, "confidence": confidence}
+json.dumps(res)
+>>
+        return result
+    } catch (e) {
+        let fallback = []
+        let n_p2 = int(periods)
+        for i in 0..n_p2 { fallback.push(0.0) }
+        return { "forecast": fallback, "method": method, "periods": periods, "confidence": 0.0 }
+    }
+}
+
+export fn calculate_reorder_point(product, supplier, service_level) {
+    if product == null or supplier == null {
+        return { "reorder_point": 0.0, "safety_stock": 0.0, "avg_demand": 0.0, "lead_time": 0.0 }
+    }
+    
+    let min_stock = float(product.get("min_stock", 0.0) ?? 0.0)
+    let lead_time_days = float(product.get("lead_time_days", 1.0) ?? 1.0)
+    let avg_daily_demand = 1.0
+    if lead_time_days > 0.0 {
+        avg_daily_demand = min_stock / lead_time_days
+    }
+    if avg_daily_demand < 0.1 { avg_daily_demand = 1.0 }
+    
+    let lead_time = float(supplier.get("lead_time_avg", 1.0) ?? 1.0)
+    let demand_history = []
+    demand_history.push(avg_daily_demand * 0.9)
+    demand_history.push(avg_daily_demand * 1.1)
+    demand_history.push(avg_daily_demand)
+    
+    let safety_stock = calculate_safety_stock(demand_history, lead_time, service_level)
+    let reorder_point = (avg_daily_demand * lead_time) + safety_stock
+    
+    return {
+        "reorder_point": reorder_point,
+        "safety_stock": safety_stock,
+        "avg_demand": avg_daily_demand,
+        "lead_time": lead_time
+    }
+}
+
+export fn calculate_safety_stock(demand_history, lead_time_days, service_level) {
+    if demand_history == null or len(demand_history) == 0 {
+        return 0.0
+    }
+    try {
+        let ss = <<python[demand_history, lead_time_days, service_level] -> JSON
+import json
+import math
+n = len(demand_history)
+mean = sum(demand_history) / n
+var_sum = 0.0
+for x in demand_history:
+    var_sum += (x - mean)**2
+variance = var_sum / n
+std_dev = math.sqrt(variance)
+z_lookup = {0.90: 1.282, 0.95: 1.645, 0.99: 2.326}
+z_score = z_lookup.get(float(service_level), 1.645)
+safety_stock = z_score * std_dev * math.sqrt(float(lead_time_days))
+json.dumps(safety_stock)
+>>
+        return float(ss)
+    } catch (e) {
+        return 0.0
+    }
+}
+
+export fn calculate_eoq(annual_demand, order_cost, holding_cost) {
+    let d = float(annual_demand ?? 0.0)
+    let s = float(order_cost ?? 0.0)
+    let h = float(holding_cost ?? 0.0)
+    if d <= 0.0 or s <= 0.0 or h <= 0.0 { return 0.0 }
+    
+    let res = 0.0
+    try {
+        res = math.sqrt(2.0 * d * s / h)
+    } catch (e) {
+        res = 0.0
+    }
+    return res
+}
+
+export fn optimize_reorder_schedule(products, inventory, suppliers, budget) {
+    let candidates = []
+    if products == null or inventory == null {
+        return { "orders": [], "total_cost": 0.0, "products_covered": 0 }
+    }
+    
+    let n_p = len(products)
+    for i in 0..n_p {
+        let product = products[i]
+        let p_id = product.get("id", "") ?? ""
+        let key = string(p_id)
+        let current_stock = inventory.get(key, 0) ?? 0
+        let reorder_point = int(product.get("reorder_point", 0) ?? 0)
+        
+        if current_stock < reorder_point {
+            let urgency = 0.0
+            if reorder_point > 0 {
+                urgency = (float(reorder_point) - float(current_stock)) / float(reorder_point)
+            } else {
+                urgency = 1.0
+            }
+            candidates.push({ "product": product, "urgency": urgency })
+        }
+    }
+    
+    let n_c = len(candidates)
+    for i in 0..n_c {
+        for j in (i + 1)..n_c {
+            let c1 = candidates[i]
+            let c2 = candidates[j]
+            let u1 = float(c1.get("urgency", 0.0) ?? 0.0)
+            let u2 = float(c2.get("urgency", 0.0) ?? 0.0)
+            if u1 < u2 {
+                let temp = candidates[i]
+                candidates[i] = candidates[j]
+                candidates[j] = temp
+            }
+        }
+    }
+    
+    let orders_list = []
+    let total_cost = 0.0
+    let remaining_budget = float(budget ?? 0.0)
+    let products_covered = 0
+    
+    for k in 0..n_c {
+        let cand = candidates[k]
+        let product = cand.get("product") ?? {}
+        let p_id = product.get("id", "") ?? ""
+        let key = string(p_id)
+        let current_stock = inventory.get(key, 0) ?? 0
+        let max_stock = int(product.get("max_stock", 0) ?? 0)
+        
+        let quantity = max_stock - current_stock
+        if quantity > 0 {
+            let cost = float(quantity) * float(product.get("unit_cost", 0.0) ?? 0.0)
+            if cost <= remaining_budget {
+                orders_list.push({ "product_id": p_id, "quantity": quantity, "cost": cost })
+                total_cost = total_cost + cost
+                remaining_budget = remaining_budget - cost
+                products_covered = products_covered + 1
+            }
+        }
+    }
+    
+    return { "orders": orders_list, "total_cost": total_cost, "products_covered": products_covered }
+}
+
+main {}
