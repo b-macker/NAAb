@@ -1,0 +1,22 @@
+// Synod/modules/stressor.naab
+// THE STRESSOR: Workload Generator
+
+use io
+use file
+
+export fn inject_pathogen() {
+    let input_slot = "/data/data/com.termux/files/usr/tmp/synod_in"
+    
+    // Pathological Case: "The Penny Slicer"
+    // 100.00 / 3 = 33.333...
+    // In low precision, this truncates.
+    
+    let op = "/"
+    let a = "100.000000000000000000"
+    let b = "3.000000000000000000"
+    
+    let payload = op + " " + a + " " + b
+    
+    file.write(input_slot, payload)
+    return payload
+}

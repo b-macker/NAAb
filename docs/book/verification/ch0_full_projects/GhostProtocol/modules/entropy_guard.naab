@@ -1,0 +1,66 @@
+// GhostProtocol/modules/entropy_guard.naab
+// THE ENTROPY GUARD: Information Theory Muscle (Rust) - FILE SECURE
+
+use io
+use file
+use json
+use string
+
+export fn forge_engine() {
+    let src_path = "verification/ch0_full_projects/GhostProtocol/src/entropy_engine.rs"
+    let bin_path = "verification/ch0_full_projects/GhostProtocol/bin/entropy_guard"
+    
+    let rust_src = "
+    use std::env;
+    use std::collections::HashMap;
+    use std::fs;
+
+    fn main() {
+        let args: Vec<String> = env::args().collect();
+        if args.len() < 2 { return; }
+        
+        // Read from file path provided in args
+        let text = match fs::read_to_string(&args[1]) {
+            Ok(v) => v,
+            Err(_) => return,
+        };
+        
+        let len = text.len() as f64;
+        if len == 0.0 { return; }
+
+        let mut counts = HashMap::new();
+        for c in text.chars() {
+            *counts.entry(c).or_insert(0) += 1;
+        }
+
+        let mut entropy = 0.0;
+        for &count in counts.values() {
+            let p = (count as f64) / len;
+            entropy -= p * p.log2();
+        }
+
+        println!(\"{{\\\"entropy\\\": {:.4}, \\\"length\\\": {}}}\", entropy, len);
+    }
+    "
+    
+    file.write(src_path, rust_src)
+    io.write("    [FORGE] Compiling Entropy Guard (Rust)...\n")
+    <<shell[src_path, bin_path]
+    rustc -O -o "$bin_path" "$src_path"
+>>
+    file.delete(src_path)
+    return bin_path
+}
+
+export fn calculate_entropy(bin, text) {
+    let tmp_file = "verification/ch0_full_projects/GhostProtocol/logs/entropy_input.tmp"
+    file.write(tmp_file, text)
+    
+    let result = <<shell[bin, tmp_file]
+    "$bin" "$tmp_file"
+>>
+    file.delete(tmp_file)
+    
+    if result == null { return {"entropy": 0.0, "error": "EXEC_FAIL"} }
+    return json.parse("" + result)
+}

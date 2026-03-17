@@ -135,3 +135,19 @@ check_failures.sh
 
 # Internal review documents
 PUBLICATION_REVIEW*.md
+
+# Temp test files
+test_nim_only.naab
+test_three_langs.naab
+dismiss-test-alerts.sh
+EXECUTOR_IMPLEMENTATION_SUMMARY.md
+TESTING_STATUS.md
+
+# Root-level scan artifacts (test8/ has its own)
+/quality-report.json
+/quality-report.txt
+
+# Compiled binaries in book verification projects
+docs/book/verification/ch0_full_projects/*/bin/
+docs/book/verification/ch0_full_projects/*/vessels/*_bin_*
+docs/book/verification/ch0_full_projects/*/vessels/production_binary

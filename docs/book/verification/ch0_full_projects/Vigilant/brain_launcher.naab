@@ -1,0 +1,37 @@
+// Vigilant/brain_launcher.naab
+// THE SOVEREIGN BRAIN (STANDALONE v2)
+
+use io
+
+main {
+    io.write("  [BRAIN] Activating Industrial Decision Loop\n")
+    
+    let server = <<python
+import socket, os, json, sys
+from collections import Counter
+p = "/data/data/com.termux/files/usr/tmp/v_brain.sock"
+if os.path.exists(p): os.remove(p)
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.bind(p)
+os.chmod(p, 0o777)
+s.listen(10)
+sys.stderr.write("[BRAIN] Listener online\n")
+while True:
+    conn, _ = s.accept()
+    try:
+        data = conn.recv(4096)
+        if data:
+            raw = data.decode('utf-8')
+            valid = True
+            if "sk_live_" in raw: valid = False
+            words = raw.split()
+            if len(words) >= 5:
+                cnts = Counter(words).values()
+                if max(cnts) > (len(words) * 0.7): valid = False
+            if valid: conn.sendall(b"ALLOW")
+            else: conn.sendall(b"DENY")
+    except Exception as e:
+        sys.stderr.write(f"Err: {e}\n")
+    conn.close()
+>>
+}

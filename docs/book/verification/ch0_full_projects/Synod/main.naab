@@ -1,0 +1,98 @@
+// Synod/main.naab
+// PROJECT SYNOD: The Sovereign Mathematical Consensus Fabric
+// Master Orchestrator
+
+use io
+use file
+use modules.council
+use modules.stressor
+
+main {
+    io.write("╔═══════════════════════════════════════════════════════════╗
+")
+    io.write("║           PROJECT SYNOD: BYZANTINE MATH CONSENSUS         ║
+")
+    io.write("║           (Zero-Copy Shared Memory Architecture)          ║
+")
+    io.write("╚═══════════════════════════════════════════════════════════╝
+
+")
+
+    // 1. CLEANUP
+    io.write("  [SOVEREIGN] Purging Ring Buffer...
+")
+    <<shell
+    rm -f /data/data/com.termux/files/usr/tmp/synod_*
+>>
+
+    // 2. FORGE
+    let vessels = council.forge_vessels()
+    
+    // Compile Adjudicator
+    let judge_src = "verification/ch0_full_projects/Synod/src/judge.go"
+    let judge_bin = "verification/ch0_full_projects/Synod/bin/synod_judge"
+    io.write("  [SOVEREIGN] Compiling Hyper-Adjudicator (Go)...
+")
+    <<shell[judge_src, judge_bin]
+    go build -o "$judge_bin" "$judge_src"
+>>
+
+    // 3. LAUNCH DAEMONS
+    io.write("  [SOVEREIGN] Launching The Council...
+")
+    
+    // Launch Rust Vessel
+    let rs_bin = vessels["rs"]
+    <<shell[rs_bin]
+    "$rs_bin" &
+>>
+
+    // Simulate Python Vessel (Decimal)
+    <<shell
+    # Python Daemon Stub
+    nohup python3 -c '
+import time
+import os
+while True:
+    try:
+        if os.path.exists("/data/data/com.termux/files/usr/tmp/synod_in"):
+            with open("/data/data/com.termux/files/usr/tmp/synod_in", "r") as f:
+                data = f.read().split()
+                if len(data) == 3:
+                    # High Precision Logic
+                    from decimal import Decimal, getcontext
+                    getcontext().prec = 18
+                    a = Decimal(data[1])
+                    b = Decimal(data[2])
+                    res = a / b
+                    with open("/data/data/com.termux/files/usr/tmp/synod_shm_PY", "w") as out:
+                        out.write(f"{res:.18f}")
+    except:
+        pass
+    time.sleep(0.01)
+' > /dev/null 2>&1 &
+>>
+
+    // Launch Adjudicator
+    <<shell[judge_bin]
+    "$judge_bin" > verification/ch0_full_projects/Synod/logs/judge.log 2>&1 &
+>>
+
+    // 4. INJECT STRESS
+    io.write("  [STRESSOR] Injecting Pathological Work Order...
+")
+    stressor.inject_pathogen()
+    
+    // 5. OBSERVE
+    io.write("  [SOVEREIGN] Waiting for Consensus...
+")
+    <<shell
+    sleep 2
+    cat verification/ch0_full_projects/Synod/logs/judge.log
+    cat verification/ch0_full_projects/Synod/logs/forensic_drift.log 2>/dev/null || true
+>>
+
+    io.write("
+  ✅ SYNOD CONSENSUS CYCLE COMPLETE.
+")
+}

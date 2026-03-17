@@ -1,0 +1,62 @@
+// GhostProtocol/modules/signal_scrambler.naab
+// THE SIGNAL SCRAMBLER: Steganographic Neutralizer (Go) - FILE SECURE
+
+use io
+use file
+use json
+use string
+
+export fn forge_engine() {
+    let src_path = "verification/ch0_full_projects/GhostProtocol/src/scrambler.go"
+    let bin_path = "verification/ch0_full_projects/GhostProtocol/bin/signal_scrambler"
+    
+    let go_src = "
+    package main
+    import (
+        \"fmt\"; \"os\"; \"strings\"; \"math/rand\"; \"time\"; \"io/ioutil\"
+    )
+
+    func main() {
+        if len(os.Args) < 2 { return }
+        
+        // Read from file path provided in args
+        content, err := ioutil.ReadFile(os.Args[1])
+        if err != nil { return }
+        text := string(content)
+        
+        rand.Seed(time.Now().UnixNano())
+        
+        words := strings.Split(text, \" \")
+        for i, w := range words {
+            if len(w) > 5 && rand.Float32() < 0.3 {
+                // Break bit-chains by ensuring case isn't a reliable carrier
+                words[i] = strings.ToLower(w)
+            }
+            if rand.Float32() < 0.05 {
+                words[i] = w + \" \"
+            }
+        }
+        
+        fmt.Print(strings.Join(words, \" \"))
+    }
+    "
+    
+    file.write(src_path, go_src)
+    io.write("    [FORGE] Compiling Signal Scrambler (Go)...\n")
+    <<shell[src_path, bin_path]
+    go build -o "$bin_path" "$src_path"
+>>
+    file.delete(src_path)
+    return bin_path
+}
+
+export fn neutralize_signal(bin, text) {
+    let tmp_file = "verification/ch0_full_projects/GhostProtocol/logs/scramble_input.tmp"
+    file.write(tmp_file, text)
+    
+    let result = <<shell[bin, tmp_file]
+    "$bin" "$tmp_file"
+>>
+    file.delete(tmp_file)
+    return "" + result
+}

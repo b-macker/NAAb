@@ -1,0 +1,39 @@
+// GhostProtocol/modules/semantic_sieve.naab
+// THE SEMANTIC SIEVE: Linguistic Drift Analyst (Python)
+
+use io
+use json
+use string
+
+export fn analyze_drift(text) {
+    let result = <<python[text]
+import json
+import re
+
+def analyze(t):
+    words = re.findall(r'\w+', t.lower())
+    if not words:
+        return {"ttr": 0.0, "avg_word_len": 0.0}
+    
+    # Type-Token Ratio (Lexical Diversity)
+    unique_words = set(words)
+    ttr = len(unique_words) / len(words)
+    
+    # Average Word Length
+    avg_len = sum(len(w) for w in words) / len(words)
+    
+    # Punctuation Density (Steganographic signal carrier)
+    punct_count = len(re.findall(r'[.,!?;:]', t))
+    punct_density = punct_count / len(t) if len(t) > 0 else 0
+    
+    return {
+        "ttr": round(ttr, 4),
+        "avg_word_len": round(avg_len, 4),
+        "punct_density": round(punct_density, 4),
+        "word_count": len(words)
+    }
+
+print(json.dumps(analyze(text)))
+>>
+    return json.parse("" + result)
+}
