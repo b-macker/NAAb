@@ -1,0 +1,261 @@
+use array
+use math
+use string
+use json
+
+import "./models.naab" as models
+import "./preprocessing.naab" as preprocess
+
+// Training, prediction, pipeline composition, cross-validation
+
+export fn train_linear(data, epochs, learning_rate) {
+    if data == null or len(data) == 0 {
+        throw "Training error: dataset cannot be empty"
+    }
+    let validation = models.validate_dataset(data)
+    if not validation.get("valid") {
+        throw "Training error: " + validation.get("error")
+    }
+
+    let feature_count = validation.get("feature_count")
+    let weights = []
+    for i in 0..feature_count {
+        weights.push(0.0)
+    }
+    let bias = 0.0
+    let best_loss = 999999.0
+
+    for epoch in 0..epochs {
+        let total_loss = 0.0
+        let correct = 0
+
+        for i in 0..len(data) {
+            let dp = data[i]
+            let feats = dp.get("features")
+            let target = float(dp.get("label"))
+
+            let prediction = bias
+            for j in 0..feature_count {
+                prediction = prediction + weights[j] * feats[j]
+            }
+
+            let error = target - prediction
+            total_loss = total_loss + error * error
+
+            // Update weights via gradient descent
+            for j in 0..feature_count {
+                let new_w = weights[j] + learning_rate * error * feats[j]
+                weights[j] = new_w
+            }
+            bias = bias + learning_rate * error
+
+            if math.abs(error) < 0.5 {
+                correct = correct + 1
+            }
+        }
+
+        let avg_loss = total_loss / float(len(data))
+        if avg_loss < best_loss {
+            best_loss = avg_loss
+        }
+    }
+
+    let final_correct = 0
+    for i in 0..len(data) {
+        let dp = data[i]
+        let feats = dp.get("features")
+        let target = float(dp.get("label"))
+        let pred = bias
+        for j in 0..feature_count {
+            pred = pred + weights[j] * feats[j]
+        }
+        if math.abs(target - pred) < 0.5 {
+            final_correct = final_correct + 1
+        }
+    }
+    let final_accuracy = float(final_correct) / float(len(data))
+
+    return {
+        "model": {
+            "name": "linear_trained",
+            "weights": weights,
+            "bias": bias,
+            "trained": true
+        },
+        "accuracy": final_accuracy,
+        "loss": best_loss,
+        "epochs": epochs
+    }
+}
+
+export fn predict(model, features) {
+    let weights = model.get("weights")
+    if weights == null or len(weights) == 0 {
+        throw "Predict error: model has no weights"
+    }
+    let result = model.get("bias") ?? 0.0
+    for i in 0..len(weights) {
+        if i < len(features) {
+            result = result + weights[i] * features[i]
+        }
+    }
+    return result
+}
+
+export fn batch_predict(model, dataset) {
+    let predictions = []
+    for i in 0..len(dataset) {
+        let dp = dataset[i]
+        let feats = dp.get("features")
+        let pred = predict(model, feats)
+        predictions.push({
+            "id": dp.get("id"),
+            "prediction": pred,
+            "actual": dp.get("label")
+        })
+    }
+    return predictions
+}
+
+export fn build_pipeline(steps) {
+    if steps == null or len(steps) == 0 {
+        throw "Pipeline error: at least one step is required"
+    }
+    let pipeline_fn = fn(data) {
+        let current = data
+        for i in 0..len(steps) {
+            let step = steps[i]
+            let step_fn = step.get("fn")
+            let step_args = step.get("args") ?? []
+            current = step_fn(current)
+        }
+        return current
+    }
+    return pipeline_fn
+}
+
+export fn cross_validate(data, num_folds, train_fn) {
+    if num_folds < 2 {
+        throw "CV error: need at least 2 folds"
+    }
+    let fold_size = int(math.floor(float(len(data)) / float(num_folds)))
+    if fold_size == 0 {
+        throw "CV error: not enough data for " + string(num_folds) + " folds"
+    }
+
+    let scores = []
+    for fold in 0..num_folds {
+        let fold_start = fold * fold_size
+        let fold_end = fold_start + fold_size
+        if fold == num_folds - 1 {
+            fold_end = len(data)
+        }
+
+        let train_set = []
+        let test_set = []
+        for i in 0..len(data) {
+            if i >= fold_start and i < fold_end {
+                test_set.push(data[i])
+            } else {
+                train_set.push(data[i])
+            }
+        }
+
+        let result = train_fn(train_set)
+        let model = result.get("model")
+        let fold_correct = 0
+        for i in 0..len(test_set) {
+            let dp = test_set[i]
+            let pred = predict(model, dp.get("features"))
+            let target = float(dp.get("label"))
+            if math.abs(pred - target) < 0.5 {
+                fold_correct = fold_correct + 1
+            }
+        }
+        let fold_acc = float(fold_correct) / float(len(test_set))
+        scores.push(fold_acc)
+    }
+
+    let sum_scores = array.reduce_fn(scores, fn(acc, val) {
+        return acc + val
+    }, 0.0)
+    let mean_score = sum_scores / float(len(scores))
+
+    let sq_diff = array.reduce_fn(scores, fn(acc, val) {
+        let diff = val - mean_score
+        return acc + diff * diff
+    }, 0.0)
+    let std_score = math.sqrt(sq_diff / float(len(scores)))
+
+    return {
+        "scores": scores,
+        "mean": mean_score,
+        "std": std_score
+    }
+}
+
+export fn grid_search(data, param_grid, train_fn) {
+    let lr_values = param_grid.get("learning_rates") ?? [0.01]
+    let epoch_values = param_grid.get("epochs") ?? [10]
+
+    let best_accuracy = -1.0
+    let best_params = {}
+    let all_results = []
+
+    for lr_idx in 0..len(lr_values) {
+        let lr = lr_values[lr_idx]
+        for ep_idx in 0..len(epoch_values) {
+            let ep = epoch_values[ep_idx]
+            let result = train_fn(data, ep, lr)
+            let acc = result.get("accuracy")
+            all_results.push({
+                "learning_rate": lr,
+                "epochs": ep,
+                "accuracy": acc,
+                "loss": result.get("loss")
+            })
+            if acc > best_accuracy {
+                best_accuracy = acc
+                best_params = { "learning_rate": lr, "epochs": ep }
+            }
+        }
+    }
+
+    return {
+        "best_params": best_params,
+        "best_accuracy": best_accuracy,
+        "all_results": all_results
+    }
+}
+
+export fn compare_models(results) {
+    if results == null or len(results) == 0 {
+        return []
+    }
+    let ranked = []
+    for i in 0..len(results) {
+        ranked.push(results[i])
+    }
+    // Bubble sort by accuracy descending
+    for i in 0..len(ranked) {
+        for j in 0..len(ranked) - 1 - i {
+            let curr = ranked[j]
+            let next_item = ranked[j + 1]
+            let curr_acc = curr.get("accuracy") ?? 0.0
+            let next_acc = next_item.get("accuracy") ?? 0.0
+            if curr_acc < next_acc {
+                ranked[j] = next_item
+                ranked[j + 1] = curr
+            }
+        }
+    }
+    return ranked
+}
+
+export fn serialize_model(model) {
+    let model_data = <<python[model] -> JSON
+import json
+json.dumps({"serialized": json.dumps(model), "format": "json"})
+>>
+    return model_data
+}

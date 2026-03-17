@@ -1,0 +1,227 @@
+use array
+use math
+use string
+use json
+
+import "./models.naab" as models
+
+// Feature extraction, normalization, and preprocessing
+
+fn transpose_columns(dataset) {
+    if len(dataset) == 0 {
+        return []
+    }
+    let first_feats = dataset[0].get("features")
+    let num_cols = len(first_feats)
+    let columns = []
+    for col in 0..num_cols {
+        let column = []
+        for row in 0..len(dataset) {
+            let feats = dataset[row].get("features")
+            column.push(feats[col])
+        }
+        columns.push(column)
+    }
+    return columns
+}
+
+fn compute_column_stats(column) {
+    let total = array.reduce_fn(column, fn(acc, val) {
+        return acc + val
+    }, 0.0)
+    let col_mean = total / float(len(column))
+
+    let sq_diff_sum = array.reduce_fn(column, fn(acc, val) {
+        let diff = val - col_mean
+        return acc + diff * diff
+    }, 0.0)
+    let col_std = math.sqrt(sq_diff_sum / float(len(column)))
+
+    let col_min = column[0]
+    let col_max = column[0]
+    for i in 1..len(column) {
+        if column[i] < col_min { col_min = column[i] }
+        if column[i] > col_max { col_max = column[i] }
+    }
+
+    return { "mean": col_mean, "std": col_std, "min": col_min, "max": col_max }
+}
+
+fn format_stats_report(all_stats) {
+    let report = { "mean": [], "std": [], "min": [], "max": [] }
+    for i in 0..len(all_stats) {
+        let stat = all_stats[i]
+        let means = report.get("mean")
+        means.push(stat.get("mean"))
+        report["mean"] = means
+
+        let stds = report.get("std")
+        stds.push(stat.get("std"))
+        report["std"] = stds
+
+        let mins = report.get("min")
+        mins.push(stat.get("min"))
+        report["min"] = mins
+
+        let maxs = report.get("max")
+        maxs.push(stat.get("max"))
+        report["max"] = maxs
+    }
+    return report
+}
+
+export fn extract_statistics(dataset) {
+    let columns = transpose_columns(dataset)
+    let all_stats = []
+    for i in 0..len(columns) {
+        all_stats.push(compute_column_stats(columns[i]))
+    }
+    let report = format_stats_report(all_stats)
+    return report
+}
+
+export fn normalize(dataset, strategy) {
+    let columns = transpose_columns(dataset)
+    let stats = []
+    for i in 0..len(columns) {
+        stats.push(compute_column_stats(columns[i]))
+    }
+
+    let norm_name = models.normalization_name(strategy)
+    let result = []
+
+    for row in 0..len(dataset) {
+        let dp = dataset[row]
+        let feats = dp.get("features")
+        let new_feats = []
+        for col in 0..len(feats) {
+            let val = feats[col]
+            let col_stats = stats[col]
+            if strategy == Normalization.MinMax {
+                let range = col_stats.get("max") - col_stats.get("min")
+                if range > 0.0 {
+                    new_feats.push((val - col_stats.get("min")) / range)
+                } else {
+                    new_feats.push(0.0)
+                }
+            } else if strategy == Normalization.ZScore {
+                let std_val = col_stats.get("std")
+                if std_val > 0.0 {
+                    new_feats.push((val - col_stats.get("mean")) / std_val)
+                } else {
+                    new_feats.push(0.0)
+                }
+            } else {
+                new_feats.push(val)
+            }
+        }
+        result.push(models.create_datapoint(new_feats, dp.get("label"), dp.get("weight"), dp.get("id")))
+    }
+    return result
+}
+
+export fn compute_correlation(col_a, col_b) {
+    let correlation = <<python[col_a, col_b] -> JSON
+import json
+n = len(col_a)
+mean_a = sum(col_a) / n
+mean_b = sum(col_b) / n
+cov = sum((col_a[i] - mean_a) * (col_b[i] - mean_b) for i in range(n)) / n
+std_a = (sum((x - mean_a) ** 2 for x in col_a) / n) ** 0.5
+std_b = (sum((x - mean_b) ** 2 for x in col_b) / n) ** 0.5
+if std_a == 0 or std_b == 0:
+    result = 0.0
+else:
+    result = cov / (std_a * std_b)
+json.dumps({"correlation": round(result, 6)})
+>>
+    return correlation.get("correlation")
+}
+
+export fn detect_outliers(dataset, threshold) {
+    let columns = transpose_columns(dataset)
+    let stats = []
+    for i in 0..len(columns) {
+        stats.push(compute_column_stats(columns[i]))
+    }
+
+    let outlier_indices = []
+    for row in 0..len(dataset) {
+        let dp = dataset[row]
+        let feats = dp.get("features")
+        let is_outlier = false
+        for col in 0..len(feats) {
+            let col_stats = stats[col]
+            let std_val = col_stats.get("std")
+            if std_val > 0.0 {
+                let z_score = math.abs(feats[col] - col_stats.get("mean")) / std_val
+                if z_score > threshold {
+                    is_outlier = true
+                }
+            }
+        }
+        if is_outlier {
+            outlier_indices.push(row)
+        }
+    }
+    return outlier_indices
+}
+
+export fn encode_labels(dataset) {
+    let label_map = {}
+    let next_id = 0
+    for i in 0..len(dataset) {
+        let dp = dataset[i]
+        let lbl = dp.get("label")
+        if not label_map.has(lbl) {
+            label_map[lbl] = next_id
+            next_id = next_id + 1
+        }
+    }
+
+    let encoded = []
+    for i in 0..len(dataset) {
+        let dp = dataset[i]
+        let lbl = dp.get("label")
+        let numeric_label = label_map.get(lbl)
+        encoded.push({
+            "features": dp.get("features"),
+            "label": string(numeric_label),
+            "weight": dp.get("weight"),
+            "id": dp.get("id"),
+            "original_label": lbl
+        })
+    }
+    return { "data": encoded, "label_map": label_map }
+}
+
+export fn impute_missing(dataset, fill_value) {
+    let result = []
+    for i in 0..len(dataset) {
+        let dp = dataset[i]
+        let feats = dp.get("features")
+        let new_feats = []
+        let had_null = false
+        for j in 0..len(feats) {
+            let val = feats[j]
+            if val == null {
+                new_feats.push(fill_value)
+                had_null = true
+            } else {
+                new_feats.push(val)
+            }
+        }
+        result.push(models.create_datapoint(new_feats, dp.get("label"), dp.get("weight"), dp.get("id")))
+    }
+    return result
+}
+
+export fn feature_hash(features) {
+    let hash_result = <<python[features] -> JSON
+import json, hashlib
+feature_str = ",".join(str(f) for f in features)
+h = hashlib.md5(feature_str.encode()).hexdigest()[:16]
+json.dumps({"hash": h})
+>>
+    return hash_result.get("hash")
+}

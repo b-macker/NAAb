@@ -1,0 +1,41 @@
+use array
+use math
+use string
+use json
+
+import "./models.naab" as models
+import "./preprocessing.naab" as preprocess
+
+main {
+    let dataset = [
+        models.create_datapoint([1.0, 10.0], "0", 1.0, 1),
+        models.create_datapoint([2.0, 20.0], "1", 1.0, 2),
+        models.create_datapoint([3.0, 30.0], "0", 1.0, 3),
+        models.create_datapoint([4.0, 40.0], "1", 1.0, 4),
+        models.create_datapoint([5.0, 50.0], "0", 1.0, 5)
+    ]
+
+    let corr = preprocess.compute_correlation([1.0, 2.0, 3.0, 4.0, 5.0], [2.0, 4.0, 6.0, 8.0, 10.0])
+    print("correlation: " + string(corr))
+    print("corr > 0.99: " + string(corr > 0.99))
+
+    let outlier_data = [
+        models.create_datapoint([2.0], "0", 1.0, 1),
+        models.create_datapoint([2.1], "0", 1.0, 2),
+        models.create_datapoint([1.9], "0", 1.0, 3),
+        models.create_datapoint([2.0], "0", 1.0, 4),
+        models.create_datapoint([100.0], "0", 1.0, 5)
+    ]
+    let outliers = preprocess.detect_outliers(outlier_data, 2.0)
+    print("outliers: " + json.stringify(outliers))
+
+    let missing_data = [
+        models.create_datapoint([1.0, null], "0", 1.0, 1),
+        models.create_datapoint([null, 5.0], "1", 1.0, 2)
+    ]
+    let imputed = preprocess.impute_missing(missing_data, 0.0)
+    let imp1 = imputed[0].get("features")
+    let imp2 = imputed[1].get("features")
+    print("imputed[0]: " + json.stringify(imp1))
+    print("imputed[1]: " + json.stringify(imp2))
+}

@@ -1,0 +1,153 @@
+use array
+use math
+use string
+use json
+import "./models.naab" as models
+import "./inventory.naab" as inv
+
+export fn calculate_order_total(order) {
+    let items = order.get("items", [])
+    let total = 0.0
+    for item in items {
+        let qty = float(item.get("quantity", 0))
+        let price = float(item.get("unit_price", 0.0))
+        total = total + (qty * price)
+    }
+    return total
+}
+
+export fn create_purchase_order(id, supplier_id, items, priority) {
+    let total = 0.0
+    for item in items {
+        total = total + (float(item.get("quantity", 0)) * float(item.get("unit_price", 0.0)))
+    }
+    
+    let timestamp = <<shell
+date '+%Y-%m-%d %H:%M:%S'
+>>
+    
+    return {
+        "id": id,
+        "supplier_id": supplier_id,
+        "items": items,
+        "status": "pending",
+        "total": total,
+        "created_at": string(timestamp).trim(),
+        "priority": priority
+    }
+}
+
+export fn approve_order(order, approver_id) {
+    if order.get("status") != "pending" {
+        order.set("error", "Only pending orders can be approved")
+        return order
+    }
+    
+    let timestamp = <<shell
+date '+%Y-%m-%d %H:%M:%S'
+>>
+    
+    order.set("status", "approved")
+    order.set("approved_by", approver_id)
+    order.set("approved_at", string(timestamp).trim())
+    return order
+}
+
+export fn receive_order(order, received_items, inventory) {
+    let discrepancies = []
+    let items_ordered = order.get("items", [])
+    
+    let all_received = true
+    for item in items_ordered {
+        let pid = string(item.get("product_id"))
+        let ordered_qty = int(item.get("quantity", 0))
+        
+        let received_qty = 0
+        for r_item in received_items {
+            if string(r_item.get("product_id")) == pid {
+                received_qty = int(r_item.get("quantity_received", 0))
+            }
+        }
+        
+        if received_qty < ordered_qty {
+            all_received = false
+            discrepancies.push({
+                "product_id": pid,
+                "ordered": ordered_qty,
+                "received": received_qty,
+                "diff": ordered_qty - received_qty
+            })
+        }
+        
+        if received_qty > 0 {
+            let res = inv.add_stock(inventory, pid, received_qty, models.TransactionType.Purchase)
+            inventory = res.get("inventory")
+        }
+    }
+    
+    if all_received {
+        order.set("status", "delivered")
+    } else {
+        order.set("status", "shipped")
+    }
+    
+    return {
+        "order": order,
+        "inventory": inventory,
+        "discrepancies": discrepancies
+    }
+}
+
+export fn cancel_order(order, reason) {
+    if order.get("status") == "delivered" {
+        order.set("error", "Cannot cancel delivered order")
+        return order
+    }
+    
+    let timestamp = <<shell
+date '+%Y-%m-%d %H:%M:%S'
+>>
+    
+    order.set("status", "cancelled")
+    order.set("cancel_reason", reason)
+    order.set("cancelled_at", string(timestamp).trim())
+    return order
+}
+
+export fn get_order_history(orders_list, filters) {
+    let filtered = []
+    
+    for order in orders_list {
+        let matches = true
+        
+        if filters.has("supplier_id") {
+            if order.get("supplier_id") != filters.get("supplier_id") {
+                matches = false
+            }
+        }
+        
+        if matches and filters.has("status") {
+            if order.get("status") != filters.get("status") {
+                matches = false
+            }
+        }
+        
+        if matches and filters.has("min_total") {
+            if float(order.get("total", 0.0)) < float(filters.get("min_total")) {
+                matches = false
+            }
+        }
+        
+        if matches and filters.has("max_total") {
+            if float(order.get("total", 0.0)) > float(filters.get("max_total")) {
+                matches = false
+            }
+        }
+        
+        if matches {
+            filtered.push(order)
+        }
+    }
+    
+    return filtered
+}

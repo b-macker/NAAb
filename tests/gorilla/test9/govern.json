@@ -1,0 +1,155 @@
+{
+  "version": "3.0",
+  "mode": "enforce",
+
+  "languages": {
+    "allowed": ["python", "shell"],
+    "blocked": ["javascript", "rust", "cpp", "csharp", "go", "nim", "zig", "julia", "ruby", "php"],
+    "require_explicit": true
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read_only" },
+    "shell": { "enabled": true, "blocked_commands": ["rm", "curl", "wget", "chmod"] }
+  },
+
+  "limits": {
+    "execution": {
+      "call_depth": 50,
+      "loop_iterations": 200000,
+      "polyglot_blocks": 15
+    },
+    "code": {
+      "max_lines_per_block": 40,
+      "max_functions": 50,
+      "max_nesting_depth": 5
+    }
+  },
+
+  "requirements": {
+    "main_block": { "enabled": true, "level": "hard" },
+    "variable_binding": { "enabled": true, "level": "soft" },
+    "naming_conventions": {
+      "enabled": true,
+      "level": "soft",
+      "variables": "snake_case",
+      "functions": "snake_case",
+      "constants": "UPPER_SNAKE_CASE"
+    }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "enabled": true, "level": "hard" },
+    "shell_injection": { "enabled": true, "level": "hard" }
+  },
+
+  "code_quality": {
+    "no_secrets": { "enabled": true, "level": "hard" },
+    "no_placeholders": { "enabled": true, "level": "hard" },
+    "no_hardcoded_results": { "enabled": true, "level": "soft" },
+    "no_temporary_code": { "enabled": true, "level": "soft" },
+    "no_simulation_markers": { "enabled": true, "level": "hard" },
+    "complexity_floor": {
+      "enabled": true,
+      "level": "soft",
+      "min_lines_for_check": 6,
+      "rules": [
+        {
+          "names": ["test_"],
+          "min_score": 0,
+          "require_branching_or_loops": false
+        },
+        {
+          "names": ["train_", "compute_", "calculate_", "process_", "cross_validate", "grid_search"],
+          "min_score": 20,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": ["normalize", "extract_", "detect_", "encode_", "impute_", "classify", "evaluate", "confusion_matrix", "classification_report"],
+          "min_score": 15,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": ["get_", "set_", "is_", "has_", "to_", "create_", "make_", "check_", "add_", "update_", "validate_", "format_", "predict", "accuracy", "merge_", "model_type_", "normalization_", "split_", "batch_", "build_", "compare_", "serialize_", "log_", "roc_", "feature_hash", "main"],
+          "min_score": 3,
+          "require_branching_or_loops": false
+        }
+      ]
+    }
+  },
+
+  "contracts": {
+    "level": "soft",
+    "functions": {
+      "train_linear": {
+        "return_type": "dict",
+        "return_keys": ["model", "accuracy", "loss", "epochs"]
+      },
+      "cross_validate": {
+        "return_type": "dict",
+        "return_keys": ["scores", "mean", "std"]
+      },
+      "create_datapoint": {
+        "return_type": "dict",
+        "return_keys": ["features", "label", "weight", "id"]
+      },
+      "create_model": {
+        "return_type": "dict",
+        "return_keys": ["name", "weights", "bias", "trained"]
+      },
+      "extract_statistics": {
+        "return_type": "dict",
+        "return_keys": ["mean", "std", "min", "max"]
+      },
+      "create_metric_report": {
+        "return_type": "dict",
+        "return_keys": ["precision", "recall", "f1", "support"]
+      },
+      "classification_report": {
+        "return_type": "dict",
+        "return_keys": ["per_class", "macro_avg"]
+      },
+      "log_experiment": {
+        "return_type": "dict",
+        "return_keys": ["name", "params", "metrics", "timestamp"]
+      }
+    }
+  },
+
+  "scanner": {
+    "version": "1.0",
+    "mode": "enforce",
+    "redundancy": {
+      "generic_variable_names": { "enabled": true, "level": "soft" },
+      "single_use_variable": { "enabled": true, "level": "soft" },
+      "over_abstraction": { "enabled": true, "level": "soft" },
+      "apologetic_comments": { "enabled": true, "level": "soft" },
+      "placeholder_code": { "enabled": true, "level": "soft" },
+      "trivial_constant_alias": { "enabled": true, "level": "soft" },
+      "gaming_comments": { "enabled": true, "level": "soft" },
+      "obvious_comments": { "enabled": true, "level": "soft" },
+      "decorative_separators": { "enabled": true, "level": "soft" }
+    },
+    "code_quality": {
+      "empty_catch": { "enabled": true, "level": "hard" },
+      "dead_conditional": { "enabled": true, "level": "hard" },
+      "dead_code_after_return": { "enabled": true, "level": "soft" },
+      "recursive_no_base_case": { "enabled": true, "level": "soft" },
+      "magic_numbers": { "enabled": true, "level": "soft", "allowed": [0, 1, -1, 2, 10, 100] }
+    },
+    "complexity": {
+      "cyclomatic_complexity": { "enabled": true, "level": "soft", "max": 15 },
+      "cognitive_complexity": { "enabled": true, "level": "soft", "max": 20 }
+    },
+    "lang_rules": {
+      "naab": {
+        "value_semantics_bug": { "enabled": true, "level": "hard" },
+        "missing_null_check": { "enabled": true, "level": "soft" },
+        "dict_bracket_access": { "enabled": true, "level": "soft" },
+        "python_return_in_block": { "enabled": true, "level": "hard" },
+        "top_level_let": { "enabled": true, "level": "hard" }
+      }
+    }
+  }
+}

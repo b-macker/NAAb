@@ -1,0 +1,207 @@
+use array
+use math
+use string
+use json
+
+export fn score_supplier(supplier, order_history) {
+    let sid = supplier.get("id")
+    let supplier_orders = []
+    for order in order_history {
+        if order.get("supplier_id") == sid {
+            supplier_orders.push(order)
+        }
+    }
+
+    // Delivery Score (0-30)
+    let delivery_score = 0.0
+    if len(supplier_orders) > 0 {
+        let delivered_on_time = 0
+        let total_delivered = 0
+        let lead_avg = float(supplier.get("lead_time_avg", 0.0))
+        for order in supplier_orders {
+            if order.get("status") == "delivered" {
+                total_delivered = total_delivered + 1
+                let d_days = float(order.get("delivery_days", 0.0))
+                if d_days <= lead_avg * 1.1 {
+                    delivered_on_time = delivered_on_time + 1
+                }
+            }
+        }
+        if total_delivered > 0 {
+            delivery_score = (float(delivered_on_time) / float(total_delivered)) * 30.0
+        }
+    }
+
+    // Quality Score (0-25)
+    let quality_score = (1.0 - float(supplier.get("defect_rate", 0.0))) * 25.0
+
+    // Fill Rate Score (0-25)
+    let fill_rate_score = float(supplier.get("fill_rate", 0.0)) * 25.0
+
+    // Price Score (0-20)
+    let price_score = 10.0
+    if len(supplier_orders) > 0 {
+        let total_cost = 0.0
+        for order in supplier_orders {
+            total_cost = total_cost + float(order.get("total", 0.0))
+        }
+        let avg_cost = total_cost / float(len(supplier_orders))
+
+        let overall_total_cost = 0.0
+        for order in order_history {
+            overall_total_cost = overall_total_cost + float(order.get("total", 0.0))
+        }
+        let overall_avg_cost = overall_total_cost / float(len(order_history))
+
+        if avg_cost < overall_avg_cost {
+            price_score = 15.0 + (overall_avg_cost - avg_cost) / overall_avg_cost * 5.0
+        } else {
+            price_score = math.max(0.0, 15.0 - (avg_cost - overall_avg_cost) / overall_avg_cost * 15.0)
+        }
+    }
+
+    let total_score = delivery_score + quality_score + fill_rate_score + price_score
+
+    return {
+        "supplier_id": sid,
+        "total_score": total_score,
+        "delivery_score": delivery_score,
+        "quality_score": quality_score,
+        "fill_rate_score": fill_rate_score,
+        "price_score": price_score
+    }
+}
+
+export fn rank_suppliers(suppliers, order_history) {
+    let scored_suppliers = []
+    for s in suppliers {
+        scored_suppliers.push(score_supplier(s, order_history))
+    }
+
+    // Sorting by total_score descending
+    let n = len(scored_suppliers)
+    for i in 0..n {
+        for j in 0..n-i-1 {
+            let s1 = scored_suppliers[j]
+            let s2 = scored_suppliers[j+1]
+            if float(s1.get("total_score")) < float(s2.get("total_score")) {
+                scored_suppliers[j] = s2
+                scored_suppliers[j+1] = s1
+            }
+        }
+    }
+
+    return scored_suppliers
+}
+
+export fn evaluate_supplier_risk(supplier, order_history) {
+    let reasons = []
+    let sid = supplier.get("id")
+    
+    if float(supplier.get("defect_rate", 0.0)) > 0.05 {
+        reasons.push("High defect rate")
+    }
+    if float(supplier.get("fill_rate", 0.0)) < 0.90 {
+        reasons.push("Low fill rate")
+    }
+    if float(supplier.get("lead_time_variance", 0.0)) > 3.0 {
+        reasons.push("Inconsistent lead times")
+    }
+    
+    let orders_count = 0
+    for order in order_history {
+        if order.get("supplier_id") == sid {
+            orders_count = orders_count + 1
+        }
+    }
+    if orders_count < 3 {
+        reasons.push("Insufficient history")
+    }
+    
+    if not bool(supplier.get("active", true)) {
+        reasons.push("Supplier inactive")
+    }
+
+    let risk_count = len(reasons)
+    let risk_level = "low"
+    let recommendation = "maintain"
+
+    if risk_count == 1 {
+        risk_level = "medium"
+        recommendation = "monitor closely"
+    } else if risk_count == 2 {
+        risk_level = "high"
+        recommendation = "find alternatives"
+    } else if risk_count >= 3 {
+        risk_level = "critical"
+        recommendation = "replace immediately"
+    }
+
+    return {
+        "supplier_id": sid,
+        "risk_level": risk_level,
+        "reasons": reasons,
+        "recommendation": recommendation
+    }
+}
+
+export fn get_preferred_supplier(product_id, suppliers, order_history) {
+    let best_score = -1.0
+    let preferred = null
+    
+    for s in suppliers {
+        if bool(s.get("active", true)) {
+            let s_score = score_supplier(s, order_history)
+            let total = float(s_score.get("total_score", 0.0))
+            if total > best_score {
+                best_score = total
+                preferred = s
+            }
+        }
+    }
+    
+    return preferred
+}
+
+export fn calculate_supplier_lead_time(supplier, order_history) {
+    let delivery_days_list = []
+    let sid = supplier.get("id")
+    
+    for order in order_history {
+        if order.get("supplier_id") == sid and order.get("status") == "delivered" {
+            delivery_days_list.push(float(order.get("delivery_days", 0.0)))
+        }
+    }
+
+    if len(delivery_days_list) == 0 {
+        return {
+            "avg_days": float(supplier.get("lead_time_avg", 0.0)),
+            "std_dev": 0.0,
+            "min_days": float(supplier.get("lead_time_avg", 0.0)),
+            "max_days": float(supplier.get("lead_time_avg", 0.0)),
+            "sample_size": 0
+        }
+    }
+
+    let stats = <<python[delivery_days_list] -> JSON
+import json
+import math
+
+n = len(delivery_days_list)
+if n == 0:
+    res = {"avg_days": 0.0, "std_dev": 0.0, "min_days": 0.0, "max_days": 0.0, "sample_size": 0}
+else:
+    avg = sum(delivery_days_list) / n
+    variance = sum((x - avg) ** 2 for x in delivery_days_list) / n
+    res = {
+        "avg_days": avg,
+        "std_dev": math.sqrt(variance),
+        "min_days": min(delivery_days_list),
+        "max_days": max(delivery_days_list),
+        "sample_size": n
+    }
+json.dumps(res)
+>>
+
+    return stats
+}

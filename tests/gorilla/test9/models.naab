@@ -1,0 +1,229 @@
+use array
+use math
+use string
+
+// Data layer: structs, enums, factory functions
+
+struct DataPoint {
+    features: array
+    label: string
+    weight: float
+    id: int
+}
+
+struct Model {
+    name: string
+    weights: array
+    bias: float
+    trained: bool
+}
+
+struct TrainResult {
+    accuracy: float
+    loss: float
+    epochs: int
+}
+
+struct SplitData {
+    train: array
+    test: array
+    ratio: float
+}
+
+struct MetricReport {
+    precision: float
+    recall: float
+    f1: float
+    support: int
+}
+
+enum ModelType {
+    Linear,
+    KNN,
+    DecisionTree
+}
+
+enum Normalization {
+    MinMax,
+    ZScore,
+    NoNorm
+}
+
+enum SplitStrategy {
+    Random,
+    Stratified,
+    KFold
+}
+
+export fn create_datapoint(features, label, weight, id) {
+    if features == null or len(features) == 0 {
+        throw "DataPoint error: features cannot be null or empty"
+    }
+    if label == null {
+        throw "DataPoint error: label is required"
+    }
+    let actual_weight = weight ?? 1.0
+    return {
+        "features": features,
+        "label": label,
+        "weight": actual_weight,
+        "id": id
+    }
+}
+
+export fn create_model(name, model_type, feature_count) {
+    if feature_count <= 0 {
+        throw "Model error: feature_count must be positive"
+    }
+    let weights = []
+    for i in 0..feature_count {
+        weights.push(0.0)
+    }
+    let type_label = model_type_name(model_type)
+    return {
+        "name": name ?? ("model_" + type_label),
+        "weights": weights,
+        "bias": 0.0,
+        "trained": false,
+        "type": type_label
+    }
+}
+
+export fn model_type_name(mt) {
+    let result = "unknown"
+    if mt == ModelType.Linear {
+        result = "linear"
+    } else if mt == ModelType.KNN {
+        result = "knn"
+    } else if mt == ModelType.DecisionTree {
+        result = "decision_tree"
+    }
+    return result
+}
+
+export fn normalization_name(norm) {
+    let result = "unknown"
+    if norm == Normalization.MinMax {
+        result = "min_max"
+    } else if norm == Normalization.ZScore {
+        result = "z_score"
+    } else if norm == Normalization.NoNorm {
+        result = "none"
+    }
+    return result
+}
+
+export fn validate_dataset(data) {
+    if data == null or len(data) == 0 {
+        return { "valid": false, "error": "Dataset is empty or null" }
+    }
+    let first_len = len(data[0].get("features"))
+    let errors = []
+    for i in 0..len(data) {
+        let dp = data[i]
+        let feats = dp.get("features")
+        if feats == null {
+            errors.push("DataPoint " + string(i) + " has null features")
+        } else if len(feats) != first_len {
+            errors.push("DataPoint " + string(i) + " has " + string(len(feats)) + " features, expected " + string(first_len))
+        }
+    }
+    if len(errors) > 0 {
+        return { "valid": false, "error": errors.join("; ") }
+    }
+    return { "valid": true, "feature_count": first_len, "sample_count": len(data) }
+}
+
+export fn split_dataset(data, ratio, strategy) {
+    if ratio <= 0.0 or ratio >= 1.0 {
+        throw "Split error: ratio must be between 0 and 1 exclusive"
+    }
+    let split_idx = int(math.floor(float(len(data)) * ratio))
+    if split_idx == 0 or split_idx == len(data) {
+        throw "Split error: ratio produces empty train or test set"
+    }
+    let train = []
+    let test = []
+
+    if strategy == SplitStrategy.Stratified {
+        let label_groups = {}
+        for i in 0..len(data) {
+            let dp = data[i]
+            let lbl = dp.get("label")
+            let group = label_groups.get(lbl) ?? []
+            group.push(dp)
+            label_groups[lbl] = group
+        }
+        for lbl in label_groups {
+            let group = label_groups.get(lbl)
+            let grp_split = int(math.floor(float(len(group)) * ratio))
+            if grp_split == 0 { grp_split = 1 }
+            for j in 0..len(group) {
+                if j < grp_split {
+                    train.push(group[j])
+                } else {
+                    test.push(group[j])
+                }
+            }
+        }
+    } else {
+        for i in 0..len(data) {
+            if i < split_idx {
+                train.push(data[i])
+            } else {
+                test.push(data[i])
+            }
+        }
+    }
+
+    return { "train": train, "test": test, "ratio": ratio }
+}
+
+export fn create_metric_report(tp, fp, fn_count, tn) {
+    let precision = 0.0
+    if tp + fp > 0 {
+        precision = float(tp) / float(tp + fp)
+    }
+    let recall = 0.0
+    if tp + fn_count > 0 {
+        recall = float(tp) / float(tp + fn_count)
+    }
+    let f1 = 0.0
+    if precision + recall > 0.0 {
+        f1 = 2.0 * precision * recall / (precision + recall)
+    }
+    let support = tp + fn_count
+    return {
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "support": support
+    }
+}
+
+export fn merge_metrics(reports) {
+    if reports == null or len(reports) == 0 {
+        return { "precision": 0.0, "recall": 0.0, "f1": 0.0, "support": 0 }
+    }
+    let total_support = 0
+    let weighted_prec = 0.0
+    let weighted_rec = 0.0
+    let weighted_f1 = 0.0
+    for i in 0..len(reports) {
+        let rpt = reports[i]
+        let sup = rpt.get("support") ?? 0
+        total_support = total_support + sup
+        weighted_prec = weighted_prec + rpt.get("precision") * float(sup)
+        weighted_rec = weighted_rec + rpt.get("recall") * float(sup)
+        weighted_f1 = weighted_f1 + rpt.get("f1") * float(sup)
+    }
+    if total_support == 0 {
+        return { "precision": 0.0, "recall": 0.0, "f1": 0.0, "support": 0 }
+    }
+    return {
+        "precision": weighted_prec / float(total_support),
+        "recall": weighted_rec / float(total_support),
+        "f1": weighted_f1 / float(total_support),
+        "support": total_support
+    }
+}

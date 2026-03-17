@@ -1,0 +1,177 @@
+use array
+use math
+use json
+
+export fn forecast_demand(sales_history, periods, method) {
+    if len(sales_history) == 0 {
+        let empty_forecast = []
+        for i in 0..periods { empty_forecast.push(0.0) }
+        return { "forecast": empty_forecast, "method": method, "periods": periods, "confidence": 0.0 }
+    }
+
+    let result = <<python[sales_history, periods, method] -> JSON
+import json
+import math
+
+def moving_average(history, n):
+    if not history: return [0.0] * n
+    res = []
+    window = history[:]
+    for _ in range(n):
+        avg = sum(window[-len(history):]) / len(history)
+        res.append(avg)
+        window.append(avg)
+    return res
+
+def exponential_smoothing(history, n):
+    if not history: return [0.0] * n
+    alpha = 2.0 / (len(history) + 1)
+    res = []
+    last_val = history[0]
+    for x in history:
+        last_val = alpha * x + (1 - alpha) * last_val
+    
+    for _ in range(n):
+        res.append(last_val)
+    return res
+
+def linear_trend(history, n):
+    if len(history) < 2: return [history[-1]] * n if history else [0.0] * n
+    x_avg = (len(history) - 1) / 2.0
+    y_avg = sum(history) / len(history)
+    num = sum((i - x_avg) * (y - y_avg) for i, y in enumerate(history))
+    den = sum((i - x_avg) ** 2 for i in range(len(history)))
+    slope = num / den if den != 0 else 0
+    intercept = y_avg - slope * x_avg
+    return [slope * (len(history) + i) + intercept for i in range(n)]
+
+predictions = []
+if method == "moving_average":
+    predictions = moving_average(sales_history, periods)
+elif method == "exponential_smoothing":
+    predictions = exponential_smoothing(sales_history, periods)
+elif method == "linear_trend":
+    predictions = linear_trend(sales_history, periods)
+
+# Confidence: based on data points and variance
+variance = sum((x - (sum(sales_history)/len(sales_history)))**2 for x in sales_history) / len(sales_history) if sales_history else 0
+confidence = min(1.0, len(sales_history) / 20.0) * (1.0 / (1.0 + math.sqrt(variance) / (sum(sales_history)/len(sales_history) + 1)))
+
+json.dumps({"forecast": predictions, "method": method, "periods": periods, "confidence": float(confidence)})
+>>
+    return result
+}
+
+export fn calculate_safety_stock(demand_history, lead_time_days, service_level) {
+    if len(demand_history) == 0 { return 0.0 }
+    
+    let ss = <<python[demand_history, lead_time_days, service_level]
+import math
+import json
+
+# Basic z-score lookup
+z_lookup = {0.90: 1.282, 0.95: 1.645, 0.99: 2.326}
+z_score = z_lookup.get(service_level, 1.645)
+
+n = len(demand_history)
+avg = sum(demand_history) / n
+variance = sum((x - avg)**2 for x in demand_history) / n
+std_dev = math.sqrt(variance)
+
+safety_stock = z_score * std_dev * math.sqrt(lead_time_days)
+float(safety_stock)
+>>
+    return float(ss)
+}
+
+export fn calculate_reorder_point(product, supplier, service_level) {
+    let lead_time = float(supplier.get("lead_time_avg", 0.0))
+    let min_stock = float(product.get("min_stock", 0.0))
+    let lead_time_days = int(product.get("lead_time_days", 1))
+    
+    // Using min_stock and lead_time_days to estimate avg daily demand
+    let avg_daily_demand = min_stock / float(lead_time_days)
+    if avg_daily_demand == 0.0 {
+        avg_daily_demand = 1.0 // Fallback
+    }
+
+    // Creating a mock demand history for safety stock calculation if not provided
+    let demand_history = [avg_daily_demand * 0.9, avg_daily_demand * 1.1, avg_daily_demand]
+    let safety_stock = calculate_safety_stock(demand_history, lead_time, service_level)
+    
+    let reorder_point = (avg_daily_demand * lead_time) + safety_stock
+    
+    return {
+        "reorder_point": reorder_point,
+        "safety_stock": safety_stock,
+        "avg_demand": avg_daily_demand,
+        "lead_time": lead_time
+    }
+}
+
+export fn calculate_eoq(annual_demand, order_cost, holding_cost) {
+    if annual_demand <= 0.0 or order_cost <= 0.0 or holding_cost <= 0.0 {
+        return 0.0
+    }
+    return math.sqrt(2.0 * float(annual_demand) * float(order_cost) / float(holding_cost))
+}
+
+export fn optimize_reorder_schedule(products, inventory, suppliers, budget) {
+    let reorder_candidates = []
+    
+    for product in products {
+        let pid = string(product.get("id"))
+        let current_stock = inventory.get(pid, 0)
+        let rop = int(product.get("reorder_point", 0))
+        
+        if current_stock < rop {
+            let urgency = float(rop - current_stock) / float(rop)
+            reorder_candidates.push({
+                "product": product,
+                "urgency": urgency,
+                "needed": int(product.get("max_stock", 0)) - current_stock
+            })
+        }
+    }
+
+    // Sort by urgency descending
+    let n = len(reorder_candidates)
+    for i in 0..n {
+        for j in 0..n-i-1 {
+            if reorder_candidates[j].get("urgency") < reorder_candidates[j+1].get("urgency") {
+                let tmp = reorder_candidates[j]
+                reorder_candidates[j] = reorder_candidates[j+1]
+                reorder_candidates[j+1] = tmp
+            }
+        }
+    }
+
+    let final_orders = []
+    let total_cost = 0.0
+    let products_covered = 0
+    let current_budget = float(budget)
+
+    for cand in reorder_candidates {
+        let product = cand.get("product")
+        let qty = cand.get("needed")
+        let cost_per_unit = float(product.get("unit_cost", 0.0))
+        let total_order_cost = float(qty) * cost_per_unit
+        
+        if current_budget >= total_order_cost {
+            final_orders.push({
+                "product_id": product.get("id"),
+                "quantity": qty,
+                "estimated_cost": total_order_cost
+            })
+            current_budget = current_budget - total_order_cost
+            total_cost = total_cost + total_order_cost
+            products_covered = products_covered + 1
+        }
+    }
+
+    return {
+        "orders": final_orders,
+        "total_cost": total_cost,
+        "products_covered": products_covered
+    }
+}

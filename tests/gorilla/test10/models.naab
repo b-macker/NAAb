@@ -1,0 +1,177 @@
+use string
+use array
+
+export enum OrderStatus { Pending, Approved, Shipped, Delivered, Cancelled }
+export enum TransactionType { Purchase, Sale, Adjustment, Return, WriteOff }
+export enum Category { RawMaterial, Component, FinishedGood, Packaging, MRO }
+
+export struct Product {
+    id: int
+    name: string
+    sku: string
+    category: string
+    unit_cost: float
+    selling_price: float
+    min_stock: int
+    max_stock: int
+    lead_time_days: int
+    reorder_point: int
+}
+
+export struct Supplier {
+    id: int
+    name: string
+    rating: float
+    lead_time_avg: float
+    lead_time_variance: float
+    fill_rate: float
+    defect_rate: float
+    active: bool
+}
+
+export fn create_product(id, name, sku, category, unit_cost, selling_price, min_stock, max_stock, lead_time_days, reorder_point) {
+    return {
+        "id": int(id),
+        "name": string(name),
+        "sku": string(sku),
+        "category": string(category),
+        "unit_cost": float(unit_cost),
+        "selling_price": float(selling_price),
+        "min_stock": int(min_stock),
+        "max_stock": int(max_stock),
+        "lead_time_days": int(lead_time_days),
+        "reorder_point": int(reorder_point)
+    }
+}
+
+export fn create_supplier(id, name, rating, lead_time_avg, lead_time_variance, fill_rate, defect_rate, active) {
+    return {
+        "id": int(id),
+        "name": string(name),
+        "rating": float(rating),
+        "lead_time_avg": float(lead_time_avg),
+        "lead_time_variance": float(lead_time_variance),
+        "fill_rate": float(fill_rate),
+        "defect_rate": float(defect_rate),
+        "active": bool(active)
+    }
+}
+
+export fn create_transaction(product_id, quantity, tx_type, reason) {
+    let timestamp = <<shell
+date '+%Y-%m-%d %H:%M:%S'
+>>
+    return {
+        "product_id": product_id,
+        "quantity": int(quantity),
+        "type": tx_type,
+        "timestamp": string(timestamp).trim(),
+        "reason": string(reason)
+    }
+}
+
+export fn validate_product(product) {
+    let errors = []
+    let valid = true
+
+    if int(product.get("id", 0)) <= 0 {
+        errors.push("ID must be positive")
+        valid = false
+    }
+    if string(product.get("name", "")).length() == 0 {
+        errors.push("Name cannot be empty")
+        valid = false
+    }
+    if string(product.get("sku", "")).length() == 0 {
+        errors.push("SKU cannot be empty")
+        valid = false
+    }
+    if float(product.get("unit_cost", 0.0)) < 0.0 {
+        errors.push("Unit cost cannot be negative")
+        valid = false
+    }
+    if float(product.get("selling_price", 0.0)) < float(product.get("unit_cost", 0.0)) {
+        errors.push("Selling price must be >= unit cost")
+        valid = false
+    }
+    if int(product.get("min_stock", 0)) < 0 {
+        errors.push("Min stock cannot be negative")
+        valid = false
+    }
+    if int(product.get("max_stock", 0)) < int(product.get("min_stock", 0)) {
+        errors.push("Max stock must be >= min stock")
+        valid = false
+    }
+    if int(product.get("lead_time_days", 0)) <= 0 {
+        errors.push("Lead time must be positive")
+        valid = false
+    }
+    if int(product.get("reorder_point", 0)) < int(product.get("min_stock", 0)) {
+        errors.push("Reorder point must be >= min stock")
+        valid = false
+    }
+
+    return { "valid": valid, "errors": errors }
+}
+
+export fn validate_supplier(supplier) {
+    let errors = []
+    let valid = true
+
+    if int(supplier.get("id", 0)) <= 0 {
+        errors.push("ID must be positive")
+        valid = false
+    }
+    if string(supplier.get("name", "")).length() == 0 {
+        errors.push("Name cannot be empty")
+        valid = false
+    }
+    let rating = float(supplier.get("rating", 0.0))
+    if rating < 0.0 or rating > 5.0 {
+        errors.push("Rating must be between 0.0 and 5.0")
+        valid = false
+    }
+    if float(supplier.get("lead_time_avg", 0.0)) <= 0.0 {
+        errors.push("Avg lead time must be positive")
+        valid = false
+    }
+    let fill_rate = float(supplier.get("fill_rate", 0.0))
+    if fill_rate < 0.0 or fill_rate > 1.0 {
+        errors.push("Fill rate must be between 0.0 and 1.0")
+        valid = false
+    }
+    let defect_rate = float(supplier.get("defect_rate", 0.0))
+    if defect_rate < 0.0 or defect_rate > 1.0 {
+        errors.push("Defect rate must be between 0.0 and 1.0")
+        valid = false
+    }
+
+    return { "valid": valid, "errors": errors }
+}
+
+export fn status_name(status) {
+    if status == OrderStatus.Pending { return "Pending" }
+    else if status == OrderStatus.Approved { return "Approved" }
+    else if status == OrderStatus.Shipped { return "Shipped" }
+    else if status == OrderStatus.Delivered { return "Delivered" }
+    else if status == OrderStatus.Cancelled { return "Cancelled" }
+    else { return "Unknown" }
+}
+
+export fn transaction_type_name(tx_type) {
+    if tx_type == TransactionType.Purchase { return "Purchase" }
+    else if tx_type == TransactionType.Sale { return "Sale" }
+    else if tx_type == TransactionType.Adjustment { return "Adjustment" }
+    else if tx_type == TransactionType.Return { return "Return" }
+    else if tx_type == TransactionType.WriteOff { return "WriteOff" }
+    else { return "Unknown" }
+}
+
+export fn category_name(cat) {
+    if cat == Category.RawMaterial { return "RawMaterial" }
+    else if cat == Category.Component { return "Component" }
+    else if cat == Category.FinishedGood { return "FinishedGood" }
+    else if cat == Category.Packaging { return "Packaging" }
+    else if cat == Category.MRO { return "MRO" }
+    else { return "Unknown" }
+}

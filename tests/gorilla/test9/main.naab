@@ -1,0 +1,547 @@
+use array
+use math
+use string
+use json
+
+import "./models.naab" as models
+import "./preprocessing.naab" as preprocess
+import "./pipeline.naab" as pipe
+import "./evaluation.naab" as eval
+
+fn test_models() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: create_datapoint
+    total = total + 1
+    let dp = models.create_datapoint([1.0, 2.0, 3.0], "cat_a", 1.0, 1)
+    if dp.get("features")[0] == 1.0 and dp.get("label") == "cat_a" and dp.get("id") == 1 {
+        passed = passed + 1
+    }
+
+    // Test 2: create_datapoint with null weight defaults to 1.0
+    total = total + 1
+    let dp2 = models.create_datapoint([1.0], "b", null, 2)
+    if dp2.get("weight") == 1.0 {
+        passed = passed + 1
+    }
+
+    // Test 3: create_model initializes weights
+    total = total + 1
+    let mdl = models.create_model("test_model", ModelType.Linear, 3)
+    if len(mdl.get("weights")) == 3 and mdl.get("trained") == false {
+        passed = passed + 1
+    }
+
+    // Test 4: model_type_name with match
+    total = total + 1
+    let name_lin = models.model_type_name(ModelType.Linear)
+    let name_knn = models.model_type_name(ModelType.KNN)
+    let name_dt = models.model_type_name(ModelType.DecisionTree)
+    if name_lin == "linear" and name_knn == "knn" and name_dt == "decision_tree" {
+        passed = passed + 1
+    }
+
+    // Test 5: normalization_name with match
+    total = total + 1
+    let norm_mm = models.normalization_name(Normalization.MinMax)
+    let norm_zs = models.normalization_name(Normalization.ZScore)
+    if norm_mm == "min_max" and norm_zs == "z_score" {
+        passed = passed + 1
+    }
+
+    // Test 6: validate_dataset valid
+    total = total + 1
+    let dataset = [
+        models.create_datapoint([1.0, 2.0], "0", 1.0, 1),
+        models.create_datapoint([3.0, 4.0], "1", 1.0, 2)
+    ]
+    let valid = models.validate_dataset(dataset)
+    if valid.get("valid") == true and valid.get("feature_count") == 2 {
+        passed = passed + 1
+    }
+
+    // Test 7: create_metric_report
+    total = total + 1
+    let metric = models.create_metric_report(8, 2, 1, 9)
+    if metric.get("precision") == 0.8 and metric.get("support") == 9 {
+        passed = passed + 1
+    }
+
+    // Test 8: merge_metrics
+    total = total + 1
+    let r1 = models.create_metric_report(5, 0, 0, 5)
+    let r2 = models.create_metric_report(3, 2, 1, 4)
+    let merged = models.merge_metrics([r1, r2])
+    if merged.get("support") == 9 and merged.get("precision") > 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 9: split_dataset random
+    total = total + 1
+    let big_data = []
+    for i in 0..10 {
+        big_data.push(models.create_datapoint([float(i), float(i * 2)], string(i % 2), 1.0, i))
+    }
+    let split = models.split_dataset(big_data, 0.7, SplitStrategy.Random)
+    if len(split.get("train")) == 7 and len(split.get("test")) == 3 {
+        passed = passed + 1
+    }
+
+    // Test 10: split_dataset stratified
+    total = total + 1
+    let strat_split = models.split_dataset(big_data, 0.6, SplitStrategy.Stratified)
+    if len(strat_split.get("train")) > 0 and len(strat_split.get("test")) > 0 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_preprocessing() {
+    let passed = 0
+    let total = 0
+
+    let dataset = [
+        models.create_datapoint([1.0, 10.0], "0", 1.0, 1),
+        models.create_datapoint([2.0, 20.0], "1", 1.0, 2),
+        models.create_datapoint([3.0, 30.0], "0", 1.0, 3),
+        models.create_datapoint([4.0, 40.0], "1", 1.0, 4),
+        models.create_datapoint([5.0, 50.0], "0", 1.0, 5)
+    ]
+
+    // Test 1: extract_statistics
+    total = total + 1
+    let stats = preprocess.extract_statistics(dataset)
+    let means = stats.get("mean")
+    if means[0] == 3.0 and means[1] == 30.0 {
+        passed = passed + 1
+    }
+
+    // Test 2: normalize MinMax
+    total = total + 1
+    let normed = preprocess.normalize(dataset, Normalization.MinMax)
+    let first_feats = normed[0].get("features")
+    if first_feats[0] == 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 3: normalize MinMax max value
+    total = total + 1
+    let last_feats = normed[4].get("features")
+    if last_feats[0] == 1.0 {
+        passed = passed + 1
+    }
+
+    // Test 4: normalize ZScore
+    total = total + 1
+    let z_normed = preprocess.normalize(dataset, Normalization.ZScore)
+    let z_first = z_normed[0].get("features")
+    if z_first[0] < 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 5: compute_correlation (perfect positive)
+    total = total + 1
+    let corr = preprocess.compute_correlation([1.0, 2.0, 3.0, 4.0, 5.0], [2.0, 4.0, 6.0, 8.0, 10.0])
+    if corr > 0.99 {
+        passed = passed + 1
+    }
+
+    // Test 6: detect_outliers
+    total = total + 1
+    let outlier_data = [
+        models.create_datapoint([2.0], "0", 1.0, 1),
+        models.create_datapoint([2.1], "0", 1.0, 2),
+        models.create_datapoint([1.9], "0", 1.0, 3),
+        models.create_datapoint([2.0], "0", 1.0, 4),
+        models.create_datapoint([100.0], "0", 1.0, 5)
+    ]
+    let outliers = preprocess.detect_outliers(outlier_data, 1.5)
+    if len(outliers) >= 1 {
+        passed = passed + 1
+    }
+
+    // Test 7: encode_labels
+    total = total + 1
+    let encoded = preprocess.encode_labels(dataset)
+    let enc_data = encoded.get("data")
+    let label_map = encoded.get("label_map")
+    if label_map.has("0") and label_map.has("1") and len(enc_data) == 5 {
+        passed = passed + 1
+    }
+
+    // Test 8: impute_missing
+    total = total + 1
+    let missing_data = [
+        models.create_datapoint([1.0, null], "0", 1.0, 1),
+        models.create_datapoint([null, 5.0], "1", 1.0, 2)
+    ]
+    let imputed = preprocess.impute_missing(missing_data, 0.0)
+    let imp_feats_1 = imputed[0].get("features")
+    let imp_feats_2 = imputed[1].get("features")
+    if imp_feats_1[1] == 0.0 and imp_feats_2[0] == 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 9: feature_hash deterministic
+    total = total + 1
+    let hash1 = preprocess.feature_hash([1.0, 2.0, 3.0])
+    let hash2 = preprocess.feature_hash([1.0, 2.0, 3.0])
+    if hash1 == hash2 and len(hash1) > 0 {
+        passed = passed + 1
+    }
+
+    // Test 10: feature_hash different for different features
+    total = total + 1
+    let hash3 = preprocess.feature_hash([4.0, 5.0, 6.0])
+    if hash3 != hash1 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_pipeline() {
+    let passed = 0
+    let total = 0
+
+    // Build training dataset: y = 2*x1 + 3*x2 (approx)
+    let train_data = []
+    for i in 0..20 {
+        let x1 = float(i) * 0.1
+        let x2 = float(i) * 0.05
+        let target = 2.0 * x1 + 3.0 * x2
+        let label = string(int(math.round(target * 10.0)))
+        train_data.push(models.create_datapoint([x1, x2], label, 1.0, i))
+    }
+
+    // Test 1: train_linear produces a model
+    total = total + 1
+    let result = pipe.train_linear(train_data, 5, 0.01)
+    let trained_model = result.get("model")
+    if trained_model.get("trained") == true and result.get("epochs") == 5 {
+        passed = passed + 1
+    }
+
+    // Test 2: predict returns a number
+    total = total + 1
+    let pred = pipe.predict(trained_model, [0.5, 0.25])
+    if type(pred) == "float" or type(pred) == "int" {
+        passed = passed + 1
+    }
+
+    // Test 3: batch_predict processes all datapoints
+    total = total + 1
+    let batch = pipe.batch_predict(trained_model, train_data)
+    if len(batch) == 20 and batch[0].get("id") == 0 {
+        passed = passed + 1
+    }
+
+    // Test 4: build_pipeline creates callable
+    total = total + 1
+    let identity_step = { "fn": fn(data) { return data }, "args": [] }
+    let pipeline_fn = pipe.build_pipeline([identity_step])
+    let pipeline_result = pipeline_fn([1, 2, 3])
+    if len(pipeline_result) == 3 {
+        passed = passed + 1
+    }
+
+    // Test 5: cross_validate returns scores
+    total = total + 1
+    let cv_train_fn = fn(fold_data) {
+        return pipe.train_linear(fold_data, 3, 0.01)
+    }
+    let cv_result = pipe.cross_validate(train_data, 2, cv_train_fn)
+    if len(cv_result.get("scores")) == 2 and cv_result.get("mean") >= 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 6: cross_validate std is non-negative
+    total = total + 1
+    if cv_result.get("std") >= 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 7: grid_search finds best params
+    total = total + 1
+    let params = {
+        "learning_rates": [0.001, 0.01],
+        "epochs": [3, 5]
+    }
+    let gs_result = pipe.grid_search(train_data, params, fn(data, ep, lr) {
+        return pipe.train_linear(data, ep, lr)
+    })
+    if gs_result.get("best_accuracy") >= 0.0 and len(gs_result.get("all_results")) == 4 {
+        passed = passed + 1
+    }
+
+    // Test 8: compare_models ranks by accuracy
+    total = total + 1
+    let model_results = [
+        { "name": "model_a", "accuracy": 0.7 },
+        { "name": "model_b", "accuracy": 0.9 },
+        { "name": "model_c", "accuracy": 0.5 }
+    ]
+    let ranked = pipe.compare_models(model_results)
+    if ranked[0].get("name") == "model_b" and ranked[2].get("name") == "model_c" {
+        passed = passed + 1
+    }
+
+    // Test 9: serialize_model produces JSON string
+    total = total + 1
+    let serialized = pipe.serialize_model(trained_model)
+    if serialized.get("format") == "json" and len(serialized.get("serialized")) > 0 {
+        passed = passed + 1
+    }
+
+    // Test 10: contract - train_linear returns required keys
+    total = total + 1
+    let has_model = result.get("model") != null
+    let has_acc = result.get("accuracy") != null
+    let has_loss = result.get("loss") != null
+    let has_ep = result.get("epochs") != null
+    if has_model and has_acc and has_loss and has_ep {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_evaluation() {
+    let passed = 0
+    let total = 0
+
+    let predictions = ["0", "1", "0", "1", "0", "1", "1", "0"]
+    let actuals =     ["0", "1", "1", "1", "0", "0", "1", "0"]
+    let labels = ["0", "1"]
+
+    // Test 1: confusion_matrix structure
+    total = total + 1
+    let cm = eval.confusion_matrix(predictions, actuals, labels)
+    let row_0 = cm.get("0")
+    let row_1 = cm.get("1")
+    if row_0 != null and row_1 != null {
+        passed = passed + 1
+    }
+
+    // Test 2: confusion_matrix values
+    total = total + 1
+    let tp_0 = row_0.get("0") ?? 0
+    let tp_1 = row_1.get("1") ?? 0
+    if tp_0 + tp_1 > 0 {
+        passed = passed + 1
+    }
+
+    // Test 3: accuracy
+    total = total + 1
+    let acc = eval.accuracy(predictions, actuals)
+    if acc >= 0.0 and acc <= 1.0 {
+        passed = passed + 1
+    }
+
+    // Test 4: accuracy value check
+    total = total + 1
+    // predictions: 0,1,0,1,0,1,1,0 vs actuals: 0,1,1,1,0,0,1,0
+    // correct: pos 0(0=0), 1(1=1), 4(0=0), 3(1=1), 6(1=1), 7(0=0) = 6/8 = 0.75
+    if acc == 0.75 {
+        passed = passed + 1
+    }
+
+    // Test 5: classification_report structure
+    total = total + 1
+    let report = eval.classification_report(predictions, actuals, labels)
+    if report.get("per_class") != null and report.get("macro_avg") != null {
+        passed = passed + 1
+    }
+
+    // Test 6: classification_report per-class metrics
+    total = total + 1
+    let pc = report.get("per_class")
+    let class_0 = pc.get("0")
+    let class_1 = pc.get("1")
+    if class_0.get("precision") >= 0.0 and class_1.get("recall") >= 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 7: roc_curve_auc
+    total = total + 1
+    let roc_scores = [0.9, 0.8, 0.7, 0.6, 0.4, 0.3, 0.2, 0.1]
+    let roc_actuals = [1, 1, 0, 1, 0, 0, 1, 0]
+    let auc = eval.roc_curve_auc(roc_scores, roc_actuals)
+    if auc >= 0.0 and auc <= 1.0 {
+        passed = passed + 1
+    }
+
+    // Test 8: format_report produces string
+    total = total + 1
+    let formatted = eval.format_report(report)
+    if string.contains(formatted, "Class") and string.contains(formatted, "Precision") {
+        passed = passed + 1
+    }
+
+    // Test 9: log_experiment with shell timestamp
+    total = total + 1
+    let experiment = eval.log_experiment("test_run", { "lr": 0.01 }, { "acc": 0.95 })
+    if experiment.get("name") == "test_run" and len(experiment.get("timestamp")) > 0 {
+        passed = passed + 1
+    }
+
+    // Test 10: validate_predictions
+    total = total + 1
+    let preds = [
+        { "id": 1, "prediction": 0.5 },
+        { "id": 2, "prediction": 1.5 },
+        { "id": 3, "prediction": -0.5 }
+    ]
+    let validation = eval.validate_predictions(preds, 0.0, 1.0)
+    if validation.get("valid_count") == 1 and validation.get("invalid_count") == 2 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_integration() {
+    let passed = 0
+    let total = 0
+
+    // Build a realistic dataset: binary classification
+    let raw_data = []
+    for i in 0..30 {
+        let x1 = float(i) * 0.1
+        let x2 = float(i % 5) * 0.2
+        let label = if x1 + x2 > 1.5 { "1" } else { "0" }
+        raw_data.push(models.create_datapoint([x1, x2], label, 1.0, i))
+    }
+
+    // Test 1: validate raw dataset
+    total = total + 1
+    let valid = models.validate_dataset(raw_data)
+    if valid.get("valid") and valid.get("sample_count") == 30 {
+        passed = passed + 1
+    }
+
+    // Test 2: normalize the dataset
+    total = total + 1
+    let normalized = preprocess.normalize(raw_data, Normalization.MinMax)
+    let norm_feats = normalized[0].get("features")
+    if norm_feats[0] >= 0.0 and norm_feats[0] <= 1.0 {
+        passed = passed + 1
+    }
+
+    // Test 3: extract stats from normalized
+    total = total + 1
+    let norm_stats = preprocess.extract_statistics(normalized)
+    let norm_mins = norm_stats.get("min")
+    if norm_mins[0] >= 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 4: detect outliers
+    total = total + 1
+    let outlier_ids = preprocess.detect_outliers(normalized, 3.0)
+    if type(outlier_ids) == "array" {
+        passed = passed + 1
+    }
+
+    // Test 5: split for training
+    total = total + 1
+    let split = models.split_dataset(normalized, 0.7, SplitStrategy.Random)
+    let train_set = split.get("train")
+    let test_set = split.get("test")
+    if len(train_set) == 21 and len(test_set) == 9 {
+        passed = passed + 1
+    }
+
+    // Test 6: train model on training set
+    total = total + 1
+    let train_result = pipe.train_linear(train_set, 10, 0.01)
+    let model = train_result.get("model")
+    if model.get("trained") == true {
+        passed = passed + 1
+    }
+
+    // Test 7: batch predict on test set
+    total = total + 1
+    let batch_preds = pipe.batch_predict(model, test_set)
+    if len(batch_preds) == len(test_set) {
+        passed = passed + 1
+    }
+
+    // Test 8: compute accuracy end-to-end
+    total = total + 1
+    let pred_labels = []
+    let actual_labels = []
+    for i in 0..len(batch_preds) {
+        let bp = batch_preds[i]
+        let pred_val = bp.get("prediction")
+        let pred_label = if pred_val > 0.5 { "1" } else { "0" }
+        pred_labels.push(pred_label)
+        actual_labels.push(bp.get("actual"))
+    }
+    let test_acc = eval.accuracy(pred_labels, actual_labels)
+    if test_acc >= 0.0 and test_acc <= 1.0 {
+        passed = passed + 1
+    }
+
+    // Test 9: full classification report
+    total = total + 1
+    let labels = ["0", "1"]
+    let cls_report = eval.classification_report(pred_labels, actual_labels, labels)
+    let macro = cls_report.get("macro_avg")
+    if macro.get("f1") >= 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 10: log the experiment
+    total = total + 1
+    let logged = eval.log_experiment(
+        "integration_test",
+        { "epochs": 10, "lr": 0.01, "split": 0.7 },
+        { "accuracy": test_acc, "f1": macro.get("f1") }
+    )
+    if logged.get("name") == "integration_test" and logged.get("timestamp") != null {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let models_result = test_models()
+    total_passed = total_passed + models_result[0]
+    total_tests = total_tests + models_result[1]
+    print("test_models: " + string(models_result[0]) + "/" + string(models_result[1]))
+
+    let preprocess_result = test_preprocessing()
+    total_passed = total_passed + preprocess_result[0]
+    total_tests = total_tests + preprocess_result[1]
+    print("test_preprocessing: " + string(preprocess_result[0]) + "/" + string(preprocess_result[1]))
+
+    let pipeline_result = test_pipeline()
+    total_passed = total_passed + pipeline_result[0]
+    total_tests = total_tests + pipeline_result[1]
+    print("test_pipeline: " + string(pipeline_result[0]) + "/" + string(pipeline_result[1]))
+
+    let eval_result = test_evaluation()
+    total_passed = total_passed + eval_result[0]
+    total_tests = total_tests + eval_result[1]
+    print("test_evaluation: " + string(eval_result[0]) + "/" + string(eval_result[1]))
+
+    let integration_result = test_integration()
+    total_passed = total_passed + integration_result[0]
+    total_tests = total_tests + integration_result[1]
+    print("test_integration: " + string(integration_result[0]) + "/" + string(integration_result[1]))
+
+    print("")
+    print("TOTAL: " + string(total_passed) + "/" + string(total_tests))
+    if total_passed == total_tests {
+        print("ALL TESTS PASSED")
+    } else {
+        print("FAILURES: " + string(total_tests - total_passed))
+    }
+}

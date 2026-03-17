@@ -1,0 +1,97 @@
+use array
+use math
+use string
+import "./models.naab" as models
+
+export fn add_stock(inventory, product_id, quantity, tx_type) {
+    let pid = string(product_id)
+    let current = inventory.get(pid, 0)
+    inventory.set(pid, current + int(quantity))
+    
+    let tx = models.create_transaction(product_id, quantity, tx_type, "Stock addition")
+    
+    return { "inventory": inventory, "transaction": tx }
+}
+
+export fn remove_stock(inventory, product_id, quantity, tx_type) {
+    let pid = string(product_id)
+    let current = inventory.get(pid, 0)
+    let qty = int(quantity)
+    
+    if current >= qty {
+        inventory.set(pid, current - qty)
+        let tx = models.create_transaction(product_id, qty, tx_type, "Stock removal")
+        return { "inventory": inventory, "transaction": tx, "success": true }
+    } else {
+        return { "inventory": inventory, "transaction": null, "success": false }
+    }
+}
+
+export fn get_stock_level(inventory, product_id) {
+    return int(inventory.get(string(product_id), 0))
+}
+
+export fn get_inventory_value(inventory, products) {
+    let total = 0.0
+    for product in products {
+        let pid = string(product.get("id"))
+        let qty = inventory.get(pid, 0)
+        let cost = float(product.get("unit_cost", 0.0))
+        total = total + (float(qty) * cost)
+    }
+    return total
+}
+
+export fn check_reorder_needed(inventory, products) {
+    let low_stock = []
+    for product in products {
+        let pid = string(product.get("id"))
+        let qty = inventory.get(pid, 0)
+        let reorder_point = int(product.get("reorder_point", 0))
+        if qty < reorder_point {
+            low_stock.push(product)
+        }
+    }
+    return low_stock
+}
+
+export fn calculate_turnover_rate(transactions, inventory, products, days) {
+    let turnover_map = {}
+    let time_factor = 365.0 / float(days)
+    
+    for product in products {
+        let pid = string(product.get("id"))
+        let units_sold = 0
+        
+        for tx in transactions {
+            if string(tx.get("product_id")) == pid and tx.get("type") == models.TransactionType.Sale {
+                units_sold = units_sold + int(tx.get("quantity", 0))
+            }
+        }
+        
+        let current_stock = inventory.get(pid, 0)
+        let rate = 0.0
+        if current_stock > 0 {
+            rate = (float(units_sold) / float(current_stock)) * time_factor
+        }
+        
+        turnover_map.set(pid, rate)
+    }
+    
+    return turnover_map
+}
+
+export fn adjust_stock(inventory, product_id, actual_count, reason) {
+    let pid = string(product_id)
+    let previous_count = inventory.get(pid, 0)
+    let diff = int(actual_count) - previous_count
+    
+    inventory.set(pid, int(actual_count))
+    let tx = models.create_transaction(product_id, math.abs(diff), models.TransactionType.Adjustment, reason)
+    
+    return { 
+        "inventory": inventory, 
+        "adjustment_transaction": tx, 
+        "difference": diff 
+    }
+}

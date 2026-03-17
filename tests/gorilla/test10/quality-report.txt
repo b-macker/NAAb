@@ -1,0 +1,62 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: auto
+Issues: 66 (0 hard, 66 soft, 0 advisory)
+
+----------------------------------------------------
+
+  /data/data/com.termux/files/home/.naab/language/tests/gorilla/test10/main.naab (66 issues)
+
+  ! [SOFT] code_quality.complex_boolean_expr (2 occurrences)
+     Lines: 15, 28
+     Boolean expression has 9 operators (max 3)
+     -> if p.has("id") and p.has("name") and p.has("sku") and p.has("category") and p.ha
+     Fix: Extract into named booleans
+
+  ! [SOFT] code_quality.magic_strings (17 occurrences)
+     Lines: 15, 28, 49, 96, 132, 151, 159, 179, 285
+     String 'forecast' repeated 3 times
+     -> 285, 290, 295
+     Fix: Extract to constant
+
+  ! [SOFT] complexity.cognitive_complexity (6 occurrences)
+     Lines: 8, 84, 145, 213, 277, 338
+     Function 'test_models' has cognitive complexity 35 (max 20)
+     -> fn test_models() {
+     Fix: Simplify control flow
+
+  ! Line 8 [SOFT] complexity.cyclomatic_complexity
+     Function 'test_models' has cyclomatic complexity 39 (max 15)
+     -> fn test_models() {
+     Fix: Break into smaller functions
+
+  ! Line 372 [SOFT] lang_naab.missing_null_check
+     Chained .get() — first .get() may return null, crashing the chain
+     -> if int(summary.get("by_status").get("delivered")) == 1 { passed = passed + 1 }
+     Fix: Split into separate let + null check, or use ?? fallback
+
+  ! [SOFT] redundancy.single_use_variable (32 occurrences)
+     Lines: 34, 41, 48, 55, 56, 63, 64, 95, 109, 122, 132, 133, 168, 173, 178, 199, 207, 235, 240, 241, 247, 260, 261, 271, 284, 289, 310, 320, 325, 332, 342, 361
+     Variable 's_edge' used only once on next line
+     -> let s_edge = models.create_supplier(2, "Edge", 0.0, 1.0, 0.0, 1.0, 1.0, false)
+     Fix: Inline directly
+
+  ! [SOFT] style.long_lines (7 occurrences)
+     Lines: 15, 28, 35, 71, 77, 341, 342
+     Line is 228 chars (max 120)
+     -> if p.has("id") and p.has("name") and p.has("sku") and p.has("category") and p.ha
+     Fix: Break into multiple lines
+
+----------------------------------------------------
+
+Summary by Category:
+  code_quality          19 issues (0 hard, 19 soft, 0 advisory)
+  complexity             7 issues (0 hard, 7 soft, 0 advisory)
+  lang_naab              1 issue (0 hard, 1 soft, 0 advisory)
+  redundancy            32 issues (0 hard, 32 soft, 0 advisory)
+  style                  7 issues (0 hard, 7 soft, 0 advisory)
+
+====================================================

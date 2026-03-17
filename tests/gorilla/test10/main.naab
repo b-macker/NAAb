@@ -1,0 +1,436 @@
+import "./models.naab" as models
+import "./inventory.naab" as inv
+import "./suppliers.naab" as sup
+import "./orders.naab" as orders
+import "./forecasting.naab" as forecaster
+import "./reporting.naab" as report
+
+fn test_models() {
+    let passed = 0
+    let total = 0
+
+    // 1. create_product returns all required keys
+    total = total + 1
+    let p = models.create_product(1, "Product 1", "SKU1", "FinishedGood", 10.0, 20.0, 5, 20, 3, 10)
+    if p.has("id") and p.has("name") and p.has("sku") and p.has("category") and p.has("unit_cost") and p.has("selling_price") and p.has("min_stock") and p.has("max_stock") and p.has("lead_time_days") and p.has("reorder_point") {
+        passed = passed + 1
+    }
+
+    // 2. create_product values are correct
+    total = total + 1
+    if int(p.get("id")) == 1 and string(p.get("sku")) == "SKU1" and float(p.get("unit_cost")) == 10.0 {
+        passed = passed + 1
+    }
+
+    // 3. create_supplier returns all required keys
+    total = total + 1
+    let s = models.create_supplier(1, "Supplier 1", 4.5, 5.0, 1.0, 0.95, 0.02, true)
+    if s.has("id") and s.has("name") and s.has("rating") and s.has("lead_time_avg") and s.has("lead_time_variance") and s.has("fill_rate") and s.has("defect_rate") and s.has("active") {
+        passed = passed + 1
+    }
+
+    // 4. create_supplier with edge values
+    total = total + 1
+    let s_edge = models.create_supplier(2, "Edge", 0.0, 1.0, 0.0, 1.0, 1.0, false)
+    if float(s_edge.get("rating")) == 0.0 and float(s_edge.get("fill_rate")) == 1.0 and bool(s_edge.get("active")) == false {
+        passed = passed + 1
+    }
+
+    // 5. create_transaction has timestamp (non-empty)
+    total = total + 1
+    let tx = models.create_transaction(1, 10, models.TransactionType.Purchase, "Restock")
+    if string(tx.get("timestamp")).length() > 0 {
+        passed = passed + 1
+    }
+
+    // 6. validate_product passes for valid product
+    total = total + 1
+    let v_p = models.validate_product(p)
+    if bool(v_p.get("valid")) == true and len(v_p.get("errors")) == 0 {
+        passed = passed + 1
+    }
+
+    // 7. validate_product fails for invalid
+    total = total + 1
+    let p_inv = models.create_product(-1, "", "", "RawMaterial", -10.0, 5.0, 10, 5, 0, 2)
+    let v_p_inv = models.validate_product(p_inv)
+    if bool(v_p_inv.get("valid")) == false and len(v_p_inv.get("errors")) > 0 {
+        passed = passed + 1
+    }
+
+    // 8. validate_supplier fails for invalid
+    total = total + 1
+    let s_inv = models.create_supplier(0, "", 6.0, -1.0, 0.0, 1.5, -0.1, true)
+    let v_s_inv = models.validate_supplier(s_inv)
+    if bool(v_s_inv.get("valid")) == false and len(v_s_inv.get("errors")) > 0 {
+        passed = passed + 1
+    }
+
+    // 9. status_name returns correct strings
+    total = total + 1
+    if models.status_name(models.OrderStatus.Pending) == "Pending" and models.status_name(models.OrderStatus.Cancelled) == "Cancelled" {
+        passed = passed + 1
+    }
+
+    // 10. category_name returns correct strings
+    total = total + 1
+    if models.category_name(models.Category.RawMaterial) == "RawMaterial" and models.category_name(models.Category.MRO) == "MRO" {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_inventory() {
+    let passed = 0
+    let total = 0
+    let inventory = {}
+    let products = [
+        models.create_product(1, "P1", "SKU1", "Raw", 10.0, 20.0, 5, 20, 3, 10),
+        models.create_product(2, "P2", "SKU2", "Raw", 5.0, 10.0, 10, 50, 5, 15)
+    ]
+
+    // 1 & 2. add_stock
+    total = total + 1
+    let res1 = inv.add_stock(inventory, 1, 20, models.TransactionType.Purchase)
+    inventory = res1.get("inventory")
+    if int(inventory.get("1")) == 20 { passed = passed + 1 }
+    total = total + 1
+    if inventory.has("1") { passed = passed + 1 }
+
+    // 3. remove_stock
+    total = total + 1
+    let res3 = inv.remove_stock(inventory, 1, 10, models.TransactionType.Sale)
+    inventory = res3.get("inventory")
+    if bool(res3.get("success")) == true and int(inventory.get("1")) == 10 { passed = passed + 1 }
+
+    // 4. remove_stock fails
+    total = total + 1
+    let res4 = inv.remove_stock(inventory, 1, 100, models.TransactionType.Sale)
+    if bool(res4.get("success")) == false and int(inventory.get("1")) == 10 { passed = passed + 1 }
+
+    // 5. get_stock_level missing
+    total = total + 1
+    if inv.get_stock_level(inventory, 2) == 0 { passed = passed + 1 }
+
+    // 6. get_stock_level correct
+    total = total + 1
+    if inv.get_stock_level(inventory, 1) == 10 { passed = passed + 1 }
+
+    // 7. get_inventory_value
+    total = total + 1
+    let val = inv.get_inventory_value(inventory, products)
+    if val == 100.0 { passed = passed + 1 }
+
+    // 8. check_reorder_needed
+    total = total + 1
+    let low = inv.check_reorder_needed(inventory, products)
+    if len(low) == 1 and int(low[0].get("id")) == 2 { passed = passed + 1 }
+
+    // 9. calculate_turnover_rate
+    total = total + 1
+    let txs = [ { "product_id": 1, "quantity": 5, "type": models.TransactionType.Sale } ]
+    let rates = inv.calculate_turnover_rate(txs, inventory, products, 30)
+    if float(rates.get("1")) > 6.0 { passed = passed + 1 }
+
+    // 10. adjust_stock
+    total = total + 1
+    let res_adj = inv.adjust_stock(inventory, 1, 25, "Adj")
+    inventory = res_adj.get("inventory")
+    if int(inventory.get("1")) == 25 and int(res_adj.get("difference")) == 15 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_suppliers() {
+    let passed = 0
+    let total = 0
+    
+    let supplier = models.create_supplier(1, "Top Supplier", 4.8, 5.0, 0.5, 0.98, 0.01, true)
+    let order_history = [
+        { "supplier_id": 1, "status": "delivered", "delivery_days": 5, "total": 100.0 },
+        { "supplier_id": 1, "status": "delivered", "delivery_days": 5, "total": 100.0 },
+        { "supplier_id": 1, "status": "delivered", "delivery_days": 5, "total": 100.0 }
+    ]
+
+    // 1. score_supplier keys
+    total = total + 1
+    let s_score = sup.score_supplier(supplier, order_history)
+    if s_score.has("total_score") { passed = passed + 1 }
+
+    // 2. score_supplier high
+    total = total + 1
+    if float(s_score.get("total_score")) > 80.0 { passed = passed + 1 }
+
+    // 3. score_supplier poor
+    total = total + 1
+    let poor_s = models.create_supplier(2, "Bad Supplier", 1.5, 10.0, 5.0, 0.60, 0.15, true)
+    let poor_score = sup.score_supplier(poor_s, order_history)
+    if float(poor_score.get("total_score")) < 70.0 { passed = passed + 1 }
+
+    // 4. rank_suppliers
+    total = total + 1
+    let ranked = sup.rank_suppliers([supplier, poor_s], order_history)
+    if int(ranked[0].get("supplier_id")) == 1 { passed = passed + 1 }
+
+    // 5. evaluate_supplier_risk low
+    total = total + 1
+    let risk_good = sup.evaluate_supplier_risk(supplier, order_history)
+    if risk_good.get("risk_level") == "low" { passed = passed + 1 }
+
+    // 6. evaluate_supplier_risk high
+    total = total + 1
+    let risk_bad = sup.evaluate_supplier_risk(poor_s, order_history)
+    if risk_bad.get("risk_level") == "high" or risk_bad.get("risk_level") == "critical" { passed = passed + 1 }
+
+    // 7. evaluate_supplier_risk reasons
+    total = total + 1
+    if len(risk_bad.get("reasons")) > 0 { passed = passed + 1 }
+
+    // 8. get_preferred_supplier
+    total = total + 1
+    let preferred = sup.get_preferred_supplier(1, [supplier, poor_s], order_history)
+    if preferred != null {
+        if int(preferred.get("id")) == 1 { passed = passed + 1 }
+    }
+
+    // 9. get_preferred_supplier skips inactive
+    total = total + 1
+    let inactive_s = models.create_supplier(1, "Inactive", 4.8, 5.0, 0.5, 0.98, 0.01, false)
+    let pref_active = sup.get_preferred_supplier(1, [inactive_s, poor_s], order_history)
+    if pref_active != null {
+        if int(pref_active.get("id")) == 2 { passed = passed + 1 }
+    }
+
+    // 10. calculate_supplier_lead_time
+    total = total + 1
+    let lt_stats = sup.calculate_supplier_lead_time(supplier, order_history)
+    if float(lt_stats.get("avg_days")) == 5.0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_orders() {
+    let passed = 0
+    let total = 0
+    let inventory = { "1": 10 }
+    let items = [ { "product_id": 1, "quantity": 10, "unit_price": 5.0 } ]
+
+    // 1. create_purchase_order
+    total = total + 1
+    let po = orders.create_purchase_order(1, 101, items, "high")
+    if float(po.get("total")) == 50.0 { passed = passed + 1 }
+
+    // 2. status
+    total = total + 1
+    if po.get("status") == "pending" { passed = passed + 1 }
+
+    // 3. approve_order
+    total = total + 1
+    po = orders.approve_order(po, "ADMIN1")
+    if po.get("status") == "approved" { passed = passed + 1 }
+
+    // 4. rejects
+    total = total + 1
+    let po2 = orders.approve_order(po, "ADMIN2")
+    if po2.has("error") { passed = passed + 1 }
+
+    // 5. receive_order
+    total = total + 1
+    let received = [ { "product_id": 1, "quantity_received": 10 } ]
+    let res_rec = orders.receive_order(po, received, inventory)
+    inventory = res_rec.get("inventory")
+    if int(inventory.get("1")) == 20 { passed = passed + 1 }
+
+    // 6. discrepancies
+    total = total + 1
+    let po_p = { "id": 2, "supplier_id": 101, "items": items, "status": "approved", "total": 50.0 }
+    let res_part = orders.receive_order(po_p, [ { "product_id": 1, "quantity_received": 5 } ], inventory)
+    inventory = res_part.get("inventory")
+    if len(res_part.get("discrepancies")) > 0 { passed = passed + 1 }
+
+    // 7. cancel_order
+    total = total + 1
+    let po_c = { "id": 3, "supplier_id": 101, "items": items, "status": "pending", "total": 50.0 }
+    po_c = orders.cancel_order(po_c, "Cancel")
+    if po_c.get("status") == "cancelled" { passed = passed + 1 }
+
+    // 8. cancel_order rejects
+    total = total + 1
+    let po_delivered = { "id": 1, "status": "delivered" }
+    let po_rec_cancel = orders.cancel_order(po_delivered, "Try")
+    if po_rec_cancel.has("error") { passed = passed + 1 }
+
+    // 9. calculate_order_total
+    total = total + 1
+    if orders.calculate_order_total(po) == 50.0 { passed = passed + 1 }
+
+    // 10. get_order_history
+    total = total + 1
+    let history = [po, res_part.get("order"), po_c]
+    let filtered = orders.get_order_history(history, { "status": "delivered" })
+    if len(filtered) == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_forecasting() {
+    let passed = 0
+    let total = 0
+    let history = [10.0, 12.0, 14.0]
+
+    // 1. moving_avg
+    total = total + 1
+    let f1 = forecaster.forecast_demand(history, 1, "moving_average")
+    if len(f1.get("forecast")) == 1 { passed = passed + 1 }
+
+    // 2. exp_smoothing
+    total = total + 1
+    let f2 = forecaster.forecast_demand(history, 1, "exponential_smoothing")
+    if len(f2.get("forecast")) == 1 { passed = passed + 1 }
+
+    // 3. linear_trend
+    total = total + 1
+    let f3 = forecaster.forecast_demand(history, 1, "linear_trend")
+    if float(f3.get("forecast")[0]) > 14.0 { passed = passed + 1 }
+
+    // 4. confidence
+    total = total + 1
+    if float(f3.get("confidence")) >= 0.0 { passed = passed + 1 }
+
+    // 5. reorder_point keys
+    total = total + 1
+    let p = { "id": 1, "min_stock": 10, "max_stock": 50, "lead_time_days": 5 }
+    let s = { "id": 1, "lead_time_avg": 5.0 }
+    let rop = forecaster.calculate_reorder_point(p, s, 0.95)
+    if rop.has("reorder_point") { passed = passed + 1 }
+
+    // 6. high service
+    total = total + 1
+    let rop_high = forecaster.calculate_reorder_point(p, s, 0.99)
+    if float(rop_high.get("reorder_point")) > float(rop.get("reorder_point")) { passed = passed + 1 }
+
+    // 7. safety_stock positive
+    total = total + 1
+    let ss = forecaster.calculate_safety_stock(history, 5, 0.95)
+    if ss > 0.0 { passed = passed + 1 }
+
+    // 8. safety_stock volatile
+    total = total + 1
+    let ss_v = forecaster.calculate_safety_stock([10.0, 50.0], 5, 0.95)
+    if ss_v > ss { passed = passed + 1 }
+
+    // 9. calculate_eoq
+    total = total + 1
+    let eoq = forecaster.calculate_eoq(1000.0, 50.0, 2.0)
+    if eoq > 223.0 { passed = passed + 1 }
+
+    // 10. optimize_reorder_schedule
+    total = total + 1
+    let products = [ { "id": 1, "unit_cost": 10.0, "reorder_point": 20, "max_stock": 50 } ]
+    let inventory = { "1": 10 }
+    let schedule = forecaster.optimize_reorder_schedule(products, inventory, [], 1000.0)
+    if len(schedule.get("orders")) == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_reporting() {
+    let passed = 0
+    let total = 0
+    let p1 = { "id": 1, "sku": "SKU1", "name": "P1", "min_stock": 5, "max_stock": 50, "reorder_point": 20, "unit_cost": 10.0 }
+    let p2 = { "id": 2, "sku": "SKU2", "name": "P2", "min_stock": 10, "max_stock": 100, "reorder_point": 15, "unit_cost": 50.0 }
+    let products = [p1, p2]
+    let inventory = { "1": 15, "2": 120 }
+
+    // 1. generate_inventory_report
+    total = total + 1
+    let rep = report.generate_inventory_report(inventory, products)
+    if rep.has("report_text") { passed = passed + 1 }
+
+    // 2. headers
+    total = total + 1
+    if string(rep.get("report_text")).contains("SKU") { passed = passed + 1 }
+
+    // 3. low-stock check
+    total = total + 1
+    if int(rep.get("items_below_reorder")) == 1 { passed = passed + 1 }
+
+    // 4. scorecard
+    total = total + 1
+    let scorecard = report.generate_supplier_scorecard([ { "id": 1, "name": "Sup 1" } ], [])
+    if scorecard.has("Sup 1") { passed = passed + 1 }
+
+    // 5. purchase_summary
+    total = total + 1
+    let orders_list = [ { "total": 100.0, "status": "delivered", "priority": "high" } ]
+    let summary = report.generate_purchase_summary(orders_list, {})
+    if summary.get("total_spent") == 100.0 { passed = passed + 1 }
+
+    // 6. status
+    total = total + 1
+    if int(summary.get("by_status").get("delivered")) == 1 { passed = passed + 1 }
+
+    // 7. export_to_csv headers
+    total = total + 1
+    let csv_out = report.export_to_csv([["1"]], ["H1"])
+    if csv_out.contains("H1") { passed = passed + 1 }
+
+    // 8. data
+    total = total + 1
+    if csv_out.contains("1") { passed = passed + 1 }
+
+    // 9. calculate_kpis
+    total = total + 1
+    let kpis = report.calculate_kpis(inventory, orders_list, [], products)
+    if kpis.has("fill_rate") { passed = passed + 1 }
+
+    // 10. fill_rate
+    total = total + 1
+    if float(kpis.get("fill_rate")) == 1.0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_models()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+    print("test_models: " + string(r1[0]) + "/" + string(r1[1]))
+
+    let r2 = test_inventory()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+    print("test_inventory: " + string(r2[0]) + "/" + string(r2[1]))
+
+    let r3 = test_suppliers()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+    print("test_suppliers: " + string(r3[0]) + "/" + string(r3[1]))
+
+    let r4 = test_orders()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+    print("test_orders: " + string(r4[0]) + "/" + string(r4[1]))
+
+    let r5 = test_forecasting()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+    print("test_forecasting: " + string(r5[0]) + "/" + string(r5[1]))
+
+    let r6 = test_reporting()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+    print("test_reporting: " + string(r6[0]) + "/" + string(r6[1]))
+
+    print("")
+    print("TOTAL: " + string(total_passed) + "/" + string(total_tests))
+    if total_passed == total_tests {
+        print("ALL TESTS PASSED")
+    } else {
+        print("FAILURES: " + string(total_tests - total_passed))
+    }
+}

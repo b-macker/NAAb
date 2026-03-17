@@ -1,0 +1,73 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: auto
+Issues: 80 (1 hard, 77 soft, 2 advisory)
+
+----------------------------------------------------
+
+  /data/data/com.termux/files/home/.naab/language/tests/gorilla/test9/main.naab (80 issues)
+
+  X Line 116 [HARD] lang_naab.value_semantics_bug
+     Value semantics: modifying 'means' without re-assigning to 'stats'
+     -> let means = stats.get("mean")
+     Fix: Re-assign: stats[key] = means or stats.set(key, means)
+
+  ! [SOFT] code_quality.god_functions (5 occurrences)
+     Lines: 11, 101, 205, 311, 405
+     Function 'test_models' is 89 lines (max 80)
+     -> fn test_models() {
+     Fix: Break into smaller functions
+
+  ! [SOFT] code_quality.magic_strings (8 occurrences)
+     Lines: 18, 32, 67, 87, 222, 223, 282, 393
+     String 'prediction' repeated 4 times
+     -> 393, 394, 395, 478
+     Fix: Extract to constant
+
+  ! [SOFT] complexity.cognitive_complexity (2 occurrences)
+     Lines: 11, 205
+     Function 'test_models' has cognitive complexity 22 (max 20)
+     -> fn test_models() {
+     Fix: Simplify control flow
+
+  ! [SOFT] complexity.cyclomatic_complexity (5 occurrences)
+     Lines: 11, 101, 205, 311, 405
+     Function 'test_models' has cyclomatic complexity 23 (max 15)
+     -> fn test_models() {
+     Fix: Break into smaller functions
+
+  ! Line 1 [SOFT] complexity.file_length
+     File has 547 lines (max 500)
+     -> /data/data/com.termux/files/home/.naab/language/tests/gorilla/test9/main.naab
+     Fix: Split into multiple files
+
+  ! [SOFT] lang_naab.missing_null_check (13 occurrences)
+     Lines: 116, 168, 169, 222, 360, 361, 362, 436, 451, 452, 460, 478, 492
+     .get() without ?? fallback
+     -> let means = stats.get("mean")
+     Fix: Add ?? default_value
+
+  ! [SOFT] redundancy.single_use_variable (43 occurrences)
+     Lines: 17, 24, 31, 40, 48, 66, 74, 75, 93, 116, 124, 131, 138, 139, 146, 169, 182, 190, 197, 214, 229, 243, 244, 286, 293, 303, 331, 362, 370, 371, 378, 397, 414, 420, 428, 435, 436, 443, 459, 478, 479, 490, 491
+     Variable 'dp' used only once on next line
+     -> let dp = models.create_datapoint([1.0, 2.0, 3.0], "cat_a", 1.0, 1)
+     Fix: Inline directly
+
+  i [ADVISORY] redundancy.unused_imports (2 occurrences)
+     Lines: 1, 4
+     Module 'array' imported but never used
+     -> use array
+     Fix: Remove unused import
+
+----------------------------------------------------
+
+Summary by Category:
+  code_quality          13 issues (0 hard, 13 soft, 0 advisory)
+  complexity             8 issues (0 hard, 8 soft, 0 advisory)
+  lang_naab             14 issues (1 hard, 13 soft, 0 advisory)
+  redundancy            45 issues (0 hard, 43 soft, 2 advisory)
+
+====================================================

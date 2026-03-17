@@ -1,0 +1,171 @@
+{
+  "version": "3.0",
+  "mode": "enforce",
+
+  "languages": {
+    "allowed": ["python", "shell"],
+    "blocked": ["javascript", "rust", "cpp", "csharp", "go", "nim", "zig", "julia", "ruby", "php"],
+    "require_explicit": true
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read_only" },
+    "shell": { "enabled": true, "blocked_commands": ["rm", "curl", "wget", "chmod", "sudo", "mkfs"] }
+  },
+
+  "limits": {
+    "execution": {
+      "call_depth": 50,
+      "loop_iterations": 200000,
+      "polyglot_blocks": 20
+    },
+    "code": {
+      "max_lines_per_block": 50,
+      "max_functions": 60,
+      "max_nesting_depth": 5
+    }
+  },
+
+  "requirements": {
+    "main_block": { "enabled": true, "level": "hard" },
+    "variable_binding": { "enabled": true, "level": "soft" },
+    "naming_conventions": {
+      "enabled": true,
+      "level": "soft",
+      "variables": "snake_case",
+      "functions": "snake_case",
+      "constants": "UPPER_SNAKE_CASE"
+    }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "enabled": true, "level": "hard" },
+    "shell_injection": { "enabled": true, "level": "hard" }
+  },
+
+  "code_quality": {
+    "no_secrets": { "enabled": true, "level": "hard" },
+    "no_placeholders": { "enabled": true, "level": "hard" },
+    "no_hardcoded_results": { "enabled": true, "level": "soft" },
+    "no_temporary_code": { "enabled": true, "level": "soft" },
+    "no_simulation_markers": { "enabled": true, "level": "hard" },
+    "complexity_floor": {
+      "enabled": true,
+      "level": "soft",
+      "min_lines_for_check": 6,
+      "rules": [
+        {
+          "names": ["test_"],
+          "min_score": 0,
+          "require_branching_or_loops": false
+        },
+        {
+          "names": ["forecast_", "optimize_", "calculate_reorder", "calculate_safety", "calculate_eoq", "calculate_turnover"],
+          "min_score": 20,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": ["score_", "evaluate_", "generate_", "process_", "rank_", "receive_order", "get_order_history"],
+          "min_score": 15,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": ["create_", "get_", "add_", "update_", "validate_", "format_", "check_", "is_", "has_", "remove_", "adjust_", "approve_", "cancel_", "export_", "calculate_order", "main"],
+          "min_score": 3,
+          "require_branching_or_loops": false
+        }
+      ]
+    }
+  },
+
+  "contracts": {
+    "level": "soft",
+    "functions": {
+      "create_product": {
+        "return_type": "dict",
+        "return_keys": ["id", "name", "sku", "category", "unit_cost", "selling_price", "min_stock", "max_stock", "lead_time_days", "reorder_point"]
+      },
+      "create_supplier": {
+        "return_type": "dict",
+        "return_keys": ["id", "name", "rating", "lead_time_avg", "lead_time_variance", "fill_rate", "defect_rate", "active"]
+      },
+      "create_purchase_order": {
+        "return_type": "dict",
+        "return_keys": ["id", "supplier_id", "items", "status", "total", "created_at", "priority"]
+      },
+      "create_transaction": {
+        "return_type": "dict",
+        "return_keys": ["product_id", "quantity", "type", "timestamp", "reason"]
+      },
+      "add_stock": {
+        "return_type": "dict",
+        "return_keys": ["inventory", "transaction"]
+      },
+      "remove_stock": {
+        "return_type": "dict",
+        "return_keys": ["inventory", "transaction", "success"]
+      },
+      "score_supplier": {
+        "return_type": "dict",
+        "return_keys": ["supplier_id", "total_score", "delivery_score", "quality_score", "fill_rate_score", "price_score"]
+      },
+      "evaluate_supplier_risk": {
+        "return_type": "dict",
+        "return_keys": ["supplier_id", "risk_level", "reasons", "recommendation"]
+      },
+      "forecast_demand": {
+        "return_type": "dict",
+        "return_keys": ["forecast", "method", "periods", "confidence"]
+      },
+      "calculate_reorder_point": {
+        "return_type": "dict",
+        "return_keys": ["reorder_point", "safety_stock", "avg_demand", "lead_time"]
+      },
+      "generate_inventory_report": {
+        "return_type": "dict",
+        "return_keys": ["report_text", "total_value", "items_below_reorder", "items_overstocked"]
+      },
+      "calculate_kpis": {
+        "return_type": "dict",
+        "return_keys": ["fill_rate", "stockout_rate", "inventory_turns", "avg_order_value"]
+      }
+    }
+  },
+
+  "scanner": {
+    "version": "1.0",
+    "mode": "enforce",
+    "redundancy": {
+      "generic_variable_names": { "enabled": true, "level": "soft" },
+      "single_use_variable": { "enabled": true, "level": "soft" },
+      "over_abstraction": { "enabled": true, "level": "soft" },
+      "apologetic_comments": { "enabled": true, "level": "soft" },
+      "placeholder_code": { "enabled": true, "level": "soft" },
+      "trivial_constant_alias": { "enabled": true, "level": "soft" },
+      "gaming_comments": { "enabled": true, "level": "soft" },
+      "obvious_comments": { "enabled": true, "level": "soft" },
+      "decorative_separators": { "enabled": true, "level": "advisory" }
+    },
+    "code_quality": {
+      "empty_catch": { "enabled": true, "level": "hard" },
+      "dead_conditional": { "enabled": true, "level": "hard" },
+      "dead_code_after_return": { "enabled": true, "level": "soft" },
+      "recursive_no_base_case": { "enabled": true, "level": "soft" },
+      "magic_numbers": { "enabled": true, "level": "soft", "allowed": [0, 1, -1, 2, 10, 100, 0.5, 0.0, 1.0, 30, 60, 90, 365, 12] }
+    },
+    "complexity": {
+      "cyclomatic_complexity": { "enabled": true, "level": "soft", "max": 15 },
+      "cognitive_complexity": { "enabled": true, "level": "soft", "max": 20 }
+    },
+    "lang_rules": {
+      "naab": {
+        "value_semantics_bug": { "enabled": true, "level": "hard" },
+        "missing_null_check": { "enabled": true, "level": "soft" },
+        "dict_bracket_access": { "enabled": true, "level": "soft" },
+        "python_return_in_block": { "enabled": true, "level": "hard" },
+        "top_level_let": { "enabled": true, "level": "hard" }
+      }
+    }
+  }
+}
