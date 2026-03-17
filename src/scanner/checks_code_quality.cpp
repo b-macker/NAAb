@@ -102,6 +102,39 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                          "Empty catch block swallows exception", s, "Handle the error or log it");
             }
         }
+
+        // Fix B: Multi-line catch with trivial/no-op body
+        {
+            static const std::regex catch_open(R"((?:^|\}\s*)catch\s*\([^)]*\)\s*\{)");
+            static const std::regex trivial_assign(R"(^let\s+\w+\s*=\s*\w+\s*;?\s*$)");
+
+            for (size_t i = 0; i + 1 < lines.size(); ++i) {
+                std::string s = cq_trim(lines[i]);
+                if (!std::regex_search(s, catch_open)) continue;
+                if (s.empty() || s.back() != '{') continue;  // Must end with { (multi-line body)
+
+                // Scan the catch body
+                bool only_trivial = true;
+                bool has_any_code = false;
+                for (size_t j = i + 1; j < std::min(i + 10, lines.size()); ++j) {
+                    std::string body = cq_trim(lines[j]);
+                    if (body == "}") break;
+                    if (body.empty()) continue;
+                    if (cq_startsWith(body, "//") || cq_startsWith(body, "#") || cq_startsWith(body, "/*")) continue;
+                    has_any_code = true;
+                    if (std::regex_match(body, trivial_assign) || body == "pass" || body == "pass;" || body == ";") {
+                        continue;
+                    }
+                    only_trivial = false;
+                    break;
+                }
+                if (only_trivial) {
+                    addIssue(issues, filepath, i + 1, "empty_catch", CAT,
+                             "Catch block swallows exception" + std::string(has_any_code ? " with trivial body" : ""),
+                             s, "Handle the error: log it, re-throw, or recover");
+                }
+            }
+        }
     }
 
     // 2. catch_and_ignore
@@ -248,19 +281,44 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
     if (isEnabled(CAT, "dead_conditional")) {
         struct DeadPat { std::regex pat; std::string desc; };
         static const std::vector<std::pair<std::string, std::string>> dead_pats = {
+            // Python-style
             {R"(^if\s+True\s*:)", "if True"}, {R"(^if\s+False\s*:)", "if False"},
             {R"(^if\s+1\s*:)", "if 1"}, {R"(^if\s+0\s*:)", "if 0"},
-            {R"(^if\s*\(\s*true\s*\))", "if (true)"}, {R"(^if\s*\(\s*false\s*\))", "if (false)"}
+            // C-style with parens
+            {R"(^if\s*\(\s*true\s*\))", "if (true)"}, {R"(^if\s*\(\s*false\s*\))", "if (false)"},
+            // NAAb-style (no parens, { brace)
+            {R"(^if\s+true\s*\{)", "if true"}, {R"(^if\s+false\s*\{)", "if false"},
+            // Identity comparisons (always true/false)
+            {R"(^if\s+1\s*==\s*1)", "if 1 == 1"},
+            {R"(^if\s+0\s*==\s*0)", "if 0 == 0"},
+            {R"(^if\s+null\s*==\s*null)", "if null == null"},
+            {R"(^if\s+null\s*!=\s*null)", "if null != null"},
+            // C-style identity comparisons
+            {R"(^if\s*\(\s*1\s*==\s*1\s*\))", "if (1 == 1)"},
+            {R"(^if\s*\(\s*0\s*==\s*0\s*\))", "if (0 == 0)"},
+            {R"(^if\s*\(\s*null\s*!=\s*null\s*\))", "if (null != null)"},
         };
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = cq_trim(lines[i]);
+            bool found = false;
             for (const auto& [pat_str, desc] : dead_pats) {
                 std::regex pat(pat_str);
                 if (std::regex_search(s, pat)) {
                     addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
                              fmt::format("Condition always {}", desc), s,
                              "Remove or fix the condition");
+                    found = true;
                     break;
+                }
+            }
+            // Manual string equality detection: if "a" == "a" {
+            if (!found) {
+                static const std::regex string_cmp(R"RE(^if\s+"([^"]+)"\s*==\s*"([^"]+)"\s*[\{:])RE");
+                std::smatch sm;
+                if (std::regex_search(s, sm, string_cmp) && sm[1].str() == sm[2].str()) {
+                    addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
+                             "Condition always true: identical string comparison", s,
+                             "Remove or fix the condition");
                 }
             }
         }
@@ -485,11 +543,32 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                 // Check if self-calling
                 std::regex self_call("\\b" + fname + "\\s*\\(");
                 if (std::regex_search(body, self_call)) {
-                    if (!std::regex_search(body, guard_pat)) {
+                    // Fix J: Validate guard variables are actually USED as guards
+                    bool has_effective_guard = false;
+                    std::smatch gm;
+                    std::string body_copy = body;
+                    while (std::regex_search(body_copy, gm, guard_pat)) {
+                        std::string guard_word = gm[1].str();
+                        // Verify the guard word is used in a conditional or modified
+                        std::regex guard_in_cond("(?:if|while)\\s+[^{]*\\b" + guard_word + "\\b");
+                        std::regex guard_compared("\\b" + guard_word + "\\s*(?:==|!=|>=|<=|>|<)");
+                        std::regex guard_modified("\\b" + guard_word + "\\s*(?:[-+]=)");
+                        std::regex guard_len("(?:len|size|length)\\s*\\(\\s*" + guard_word + "\\s*\\)");
+
+                        if (std::regex_search(body, guard_in_cond) ||
+                            std::regex_search(body, guard_compared) ||
+                            std::regex_search(body, guard_modified) ||
+                            std::regex_search(body, guard_len)) {
+                            has_effective_guard = true;
+                            break;
+                        }
+                        body_copy = gm.suffix().str();
+                    }
+                    if (!has_effective_guard) {
                         addIssue(issues, filepath, i + 1, "recursive_no_base_case", CAT,
-                                 fmt::format("Recursive function '{}' without depth/visited guard", fname),
+                                 fmt::format("Recursive function '{}' without effective depth/visited guard", fname),
                                  cq_trim(lines[i]),
-                                 "Add depth limit or visited set", "advisory");
+                                 "Add depth limit or visited set and CHECK it in a conditional", "advisory");
                     }
                 }
             }

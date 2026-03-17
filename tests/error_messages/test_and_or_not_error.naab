@@ -1,7 +1,10 @@
-// Test: Python-style and/or/not should produce helpful errors
-// Expected: FAIL (runtime error with guidance to use &&/||/!)
+// Test: Python-style and/or/not now work as keyword aliases for &&/||/!
+// Expected: PASS
 main {
     let x = true
     let y = false
     let z = x and y
+    if not z {
+        print("PASS")
+    }
 }

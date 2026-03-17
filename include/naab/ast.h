@@ -145,7 +145,7 @@ struct Type {
     static Type makeFloat() { return Type(TypeKind::Float); }
     static Type makeString() { return Type(TypeKind::String); }
     static Type makeBool() { return Type(TypeKind::Bool); }
-    static Type makeAny() { return Type(TypeKind::Any); }
+    static Type makeAny() { return Type(TypeKind::Any, "", true); }
     static Type makeBlock() { return Type(TypeKind::Block); }
     static Type makeFunction() { return Type(TypeKind::Function); }
     static Type makeStruct(std::string name) { return Type(TypeKind::Struct, std::move(name)); }

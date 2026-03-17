@@ -171,6 +171,21 @@ void ScannerEngine::checkStyle(const std::string& filepath,
                 }
             }
         }
+
+        // Fix K: Additional NAAb-specific debug checks for custom log functions
+        if (language == "naab") {
+            static const std::regex naab_custom_debug(R"((?:^|[^.\w])(?:log|debug|trace)\s*\()");
+            for (size_t i = 0; i < lines.size(); ++i) {
+                if (main_lines.count(i)) continue;
+                if (test_lines.count(i)) continue;
+                std::string s = st_trim(lines[i]);
+                if (st_startsWith(s, "#") || st_startsWith(s, "//") || st_startsWith(s, "/*")) continue;
+                if (std::regex_search(s, naab_custom_debug)) {
+                    addIssue(issues, filepath, i + 1, "debug_leftovers", CAT,
+                             "Debug output in production code", s, "Remove debug statement");
+                }
+            }
+        }
     }
 
     // 3. commented_out_code

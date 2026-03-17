@@ -67,10 +67,8 @@ EXPECTED_FAILURES["polyglot_showcase.naab"]=1
 # Slow polyglot tests that may timeout on constrained environments
 EXPECTED_FAILURES["anti_patterns.naab"]=1
 EXPECTED_FAILURES["before_after_optimization.naab"]=1
-# Gorilla test #5: and/or/not helper error tests (designed to show helpful errors)
-EXPECTED_FAILURES["test_and_or_not_error.naab"]=1
-EXPECTED_FAILURES["test_or_error.naab"]=1
-EXPECTED_FAILURES["test_not_error.naab"]=1
+# and/or/not are now proper keywords (aliases for &&/||/!)
+# These tests now PASS — removed from expected failures
 # Note: Governance tests in tests/governance_v3/ are NOT discovered by the
 # automated runner (it uses --no-governance and tests/ is maxdepth 1).
 # Verify manually:

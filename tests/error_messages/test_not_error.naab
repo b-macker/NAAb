@@ -1,8 +1,8 @@
-// Test: Python-style 'not' should produce helpful error
-// Expected: FAIL
+// Test: Python-style 'not' now works as keyword alias for !
+// Expected: PASS
 main {
     let done = false
     if not done {
-        print("test")
+        print("PASS")
     }
 }

@@ -1,0 +1,30 @@
+
++==================================================+
+|  CODE QUALITY REPORT - naab-q v1.0              |
++==================================================+
+
+Scanned: 1 files | Language: naab
+Issues: 3 (0 hard, 3 soft, 0 advisory)
+
+----------------------------------------------------
+
+  /data/data/com.termux/files/home/test_chained.naab (3 issues)
+
+  ! Line 4 [SOFT] lang_naab.missing_null_check
+     Chained .get() — first .get() may return null, crashing the chain
+     -> let prop = nd.get("properties").get("name")
+     Fix: Split into separate let + null check, or use ?? fallback
+
+  ! [SOFT] redundancy.single_use_variable (2 occurrences)
+     Lines: 2, 4
+     Variable 'nodes' used only once on next line
+     -> let nodes = graph.get("nodes") ?? []
+     Fix: Inline directly
+
+----------------------------------------------------
+
+Summary by Category:
+  lang_naab              1 issue (0 hard, 1 soft, 0 advisory)
+  redundancy             2 issues (0 hard, 2 soft, 0 advisory)
+
+====================================================

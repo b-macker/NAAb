@@ -1,7 +1,10 @@
-// Test: Python-style 'or' should produce helpful error
-// Expected: FAIL
+// Test: Python-style 'or' now works as keyword alias for ||
+// Expected: PASS
 main {
     let a = false
     let b = true
     let c = a or b
+    if c {
+        print("PASS")
+    }
 }

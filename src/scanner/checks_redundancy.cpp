@@ -85,6 +85,19 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                              "Function just wraps another function call", trim(lines[i]),
                              "Inline the wrapper or add meaningful logic");
                 }
+                // Fix F: Also catch 2-line wrappers: let x = call(...); return x
+                if (non_brace.size() == 2) {
+                    static const std::regex assign_call(R"(^(?:let|var|const)\s+(\w+)\s*=\s*.+$)");
+                    static const std::regex return_var(R"(^return\s+(\w+)\s*;?\s*$)");
+                    std::smatch am, rm;
+                    if (std::regex_match(non_brace[0], am, assign_call) &&
+                        std::regex_match(non_brace[1], rm, return_var) &&
+                        am[1].str() == rm[1].str()) {
+                        addIssue(issues, filepath, i + 1, "over_abstraction", CAT,
+                                 "Function is a trivial assign-and-return wrapper", trim(lines[i]),
+                                 "Inline the call or add meaningful logic");
+                    }
+                }
             }
         }
     }
@@ -191,6 +204,43 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
                 }
             }
         }
+
+        // Fix A: Also check function parameter names
+        static const std::regex param_pat(R"((?:fn|function|func|def|export\s+fn)\s+\w+\s*\(([^)]*)\))");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            if (test_lines.count(i)) continue;
+            std::smatch pm;
+            if (std::regex_search(lines[i], pm, param_pat)) {
+                std::string params_str = pm[1].str();
+                size_t pstart = 0;
+                while (pstart < params_str.size()) {
+                    size_t comma = params_str.find(',', pstart);
+                    if (comma == std::string::npos) comma = params_str.size();
+                    std::string param = params_str.substr(pstart, comma - pstart);
+                    // Trim whitespace
+                    size_t ps = param.find_first_not_of(" \t");
+                    size_t pe = param.find_last_not_of(" \t");
+                    if (ps != std::string::npos) {
+                        param = param.substr(ps, pe - ps + 1);
+                    }
+                    // Strip type annotation (param: type)
+                    size_t colon = param.find(':');
+                    if (colon != std::string::npos) param = param.substr(0, colon);
+                    // Trim again after stripping type
+                    pe = param.find_last_not_of(" \t");
+                    if (pe != std::string::npos) param = param.substr(0, pe + 1);
+
+                    std::string lower = param;
+                    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+                    if (!param.empty() && bad_names.count(lower)) {
+                        addIssue(issues, filepath, i + 1, "generic_variable_names", CAT,
+                                 fmt::format("Generic parameter name '{}'", param), trim(lines[i]),
+                                 "Use a descriptive parameter name");
+                    }
+                    pstart = comma + 1;
+                }
+            }
+        }
     }
 
     // 5. excessive_comments
@@ -220,7 +270,15 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
     // 6. apologetic_comments
     if (isEnabled(CAT, "apologetic_comments")) {
         static const std::regex apology_pat(
-            R"((?:i apologize|sorry|unfortunately|as an ai|i cannot|i can't|i'm not sure|might not work|this might|this should|i think this|i believe this|note:\s*this))",
+            R"((?:)"
+            R"(i apologize|sorry|unfortunately|as an ai|i cannot|i can't|i'm not sure|)"
+            R"(might not work|this might|this should|i think this|i believe this|note:\s*this|)"
+            R"(may have|could potentially|probably|not thoroughly|haven't verified|)"
+            R"(there might|not been tested|no guarantee|use at your own|experimental|)"
+            R"(rough implementation|quick and dirty|hacky|kludge|band.?aid|)"
+            R"(good enough|for now|not ideal|not optimal|naive|simplistic|)"
+            R"(room for (?:improvement|optimization)|)"
+            R"(haven't handled|didn't account|works? for most))",
             std::regex::icase);
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string stripped = trim(lines[i]);
@@ -460,7 +518,7 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
             std::smatch m;
             if (std::regex_search(lines[i], m, var_assign)) {
                 std::string vname = m[1].str();
-                if (vname.size() < 2 || vname[0] == '_') continue;
+                if (vname[0] == '_') continue;
 
                 std::regex vname_pat("\\b" + vname + "\\b");
                 if (!std::regex_search(lines[i + 1], vname_pat)) continue;
@@ -552,10 +610,23 @@ void ScannerEngine::checkRedundancy(const std::string& filepath,
     // 16. trivial_constant_alias
     if (isEnabled(CAT, "trivial_constant_alias")) {
         static const std::unordered_map<std::string, std::string> word_to_num = {
+            // Core number words
             {"zero", "0"}, {"one", "1"}, {"two", "2"}, {"three", "3"},
             {"four", "4"}, {"five", "5"}, {"six", "6"}, {"seven", "7"},
             {"eight", "8"}, {"nine", "9"}, {"ten", "10"},
-            {"hundred", "100"}, {"thousand", "1000"}
+            {"eleven", "11"}, {"twelve", "12"}, {"thirteen", "13"},
+            {"fourteen", "14"}, {"fifteen", "15"}, {"sixteen", "16"},
+            {"seventeen", "17"}, {"eighteen", "18"}, {"nineteen", "19"},
+            {"twenty", "20"}, {"thirty", "30"}, {"forty", "40"}, {"fifty", "50"},
+            {"sixty", "60"}, {"seventy", "70"}, {"eighty", "80"}, {"ninety", "90"},
+            {"hundred", "100"}, {"thousand", "1000"},
+            // Common synonyms
+            {"nil", "0"}, {"nada", "0"}, {"naught", "0"}, {"zilch", "0"},
+            {"single", "1"}, {"solo", "1"}, {"unity", "1"}, {"mono", "1"},
+            {"pair", "2"}, {"couple", "2"}, {"dual", "2"}, {"double", "2"}, {"twin", "2"},
+            {"triple", "3"}, {"trio", "3"},
+            {"quad", "4"}, {"quarter", "4"},
+            {"dozen", "12"}, {"score", "20"}, {"half", "50"}
         };
         static const std::regex alias_pat(R"(^\s*(?:let|var|const)\s+(\w+)\s*=\s*(-?\d+)\s*$)");
 

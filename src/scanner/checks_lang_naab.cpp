@@ -29,10 +29,16 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
     // 1. value_semantics_bug
     if (isEnabled(CAT, "value_semantics_bug")) {
         static const std::regex get_pat(R"(^let\s+(\w+)\s*=\s*(\w+)\.get\s*\()");
+        // Fix D: Also detect bracket access copies: let x = dict["key"]
+        static const std::regex bracket_copy_pat(R"(^let\s+(\w+)\s*=\s*(\w+)\[")");
         for (size_t i = 0; i < lines.size(); ++i) {
             std::string s = nb_trim(lines[i]);
             std::smatch m;
-            if (std::regex_search(s, m, get_pat)) {
+            bool is_copy = std::regex_search(s, m, get_pat);
+            if (!is_copy) {
+                is_copy = std::regex_search(s, m, bracket_copy_pat);
+            }
+            if (is_copy) {
                 std::string var_name = m[1].str();
                 std::string dict_name = m[2].str();
 
@@ -93,6 +99,24 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                 if (ctx.find("null") == std::string::npos) {
                     addIssue(issues, filepath, i + 1, "missing_null_check", CAT,
                              ".get() without ?? fallback", s, "Add ?? default_value");
+                }
+            }
+        }
+
+        // Fix E: Check for chained .get() calls — dangerous null chain
+        static const std::regex chained_get(R"(\.get\s*\([^)]+\)\s*\.\s*(?:get|keys|values|push|pop|length|size)\s*\()");
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string s = nb_trim(lines[i]);
+            if (std::regex_search(s, chained_get) && s.find("??") == std::string::npos) {
+                std::string ctx;
+                size_t start = (i >= 2) ? i - 2 : 0;
+                for (size_t j = start; j < std::min(i + 3, lines.size()); ++j) {
+                    ctx += lines[j] + "\n";
+                }
+                if (ctx.find("null") == std::string::npos) {
+                    addIssue(issues, filepath, i + 1, "missing_null_check", CAT,
+                             "Chained .get() — first .get() may return null, crashing the chain", s,
+                             "Split into separate let + null check, or use ?? fallback");
                 }
             }
         }
@@ -195,7 +219,7 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
         // Variable-key access: container[var_name] where var_name is 3+ chars
         // Excludes common loop indices (i, j, k, idx, index) to avoid array false positives
         static const std::regex pat3(
-            R"(\b[a-z_]\w+\[\s*(?!idx\b|index\b)[a-z_]\w{2,}\s*\])");
+            R"(\b[a-z_]\w+\[\s*(?!idx\b|index\b|i\b|j\b|k\b|n\b)[a-z_]\w+\s*\])");
         static const std::regex assign_pat(R"(\w+\[[^\]]+\]\s*=\s)");  // any bracket assign
 
         for (size_t i = 0; i < lines.size(); ++i) {

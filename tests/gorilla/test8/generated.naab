@@ -1,0 +1,844 @@
+// =============================================================================
+// Graph Database Engine — Gorilla Test #8
+// Adversarial scanner evasion test: 12 hidden quality issues
+// =============================================================================
+
+use array
+use string
+use math
+
+// --- Evasion K: Custom debug function wrapping print() ---
+// debug_leftovers only checks \bprint\s*\( for NAAb
+// The print() INSIDE log() will be caught, but all log() CALLS are invisible
+fn log(message) {
+    print("[GRAPH] " + string(message))
+}
+
+// --- Core: Node Creation ---
+fn create_node(id, label, properties) {
+    if id == null {
+        throw { "code": "NULL_ID", "message": "Node id cannot be null" }
+    }
+    if label == null || label == "" {
+        throw { "code": "INVALID_LABEL", "message": "Node label cannot be empty" }
+    }
+    let node = {
+        "id": id,
+        "label": label,
+        "properties": properties ?? {}
+    }
+    return node
+}
+
+// --- Core: Edge Creation ---
+fn create_edge(from_id, to_id, weight, label) {
+    if from_id == null || to_id == null {
+        throw { "code": "NULL_ENDPOINT", "message": "Edge endpoints cannot be null" }
+    }
+    let edge_weight = weight ?? 1
+    if edge_weight < 0 {
+        edge_weight = 0
+    }
+    let edge = {
+        "from": from_id,
+        "to": to_id,
+        "weight": edge_weight,
+        "label": label ?? "default"
+    }
+    return edge
+}
+
+// --- Evasion A: Bad function parameter names ---
+// generic_variable_names var_pat only matches let/var/const assignments
+// Function parameters g, nd are NEVER checked
+fn add_node(g, nd) {
+    let nodes = g.get("nodes") ?? []
+    let node_id = nd.get("id")
+    let exists = false
+    for existing in nodes {
+        if existing.get("id") == node_id {
+            exists = true
+        }
+    }
+    if !exists {
+        nodes.push(nd)
+        g["nodes"] = nodes
+    }
+    // Evasion K: log() calls invisible to debug_leftovers
+    log("add_node: id=" + string(node_id) + " exists=" + string(exists))
+    return g
+}
+
+// --- Evasion A: More bad parameter names ---
+// f=from, t=to, w=weight, l=label — all single-letter, all invisible
+fn add_edge(g, f, t, w, l) {
+    let edge = create_edge(f, t, w, l)
+    let edges = g.get("edges") ?? []
+    edges.push(edge)
+    g["edges"] = edges
+    log("add_edge: " + string(f) + " -> " + string(t))
+    return g
+}
+
+// --- Clean: Neighbor Lookup ---
+fn find_neighbors(graph, node_id) {
+    let edges = graph.get("edges") ?? []
+    let neighbors = []
+    for edge in edges {
+        let from_id = edge.get("from")
+        let to_id = edge.get("to")
+        if from_id == node_id {
+            let already = false
+            for nb in neighbors {
+                if nb == to_id { already = true }
+            }
+            if !already {
+                neighbors.push(to_id)
+            }
+        }
+        if to_id == node_id {
+            let already = false
+            for nb in neighbors {
+                if nb == from_id { already = true }
+            }
+            if !already {
+                neighbors.push(from_id)
+            }
+        }
+    }
+    return neighbors
+}
+
+// --- Evasion B: Catch that swallows exception via assignment evades empty_catch ---
+// catch_empty regex requires { } on ONE line. Multi-line catch with trivial
+// assignment (let ignored = e) passes governance but still swallows exception.
+fn get_edge_weight(graph, from_id, to_id) {
+    let edges = graph.get("edges") ?? []
+    let found_weight = -1
+    for edge in edges {
+        if edge.get("from") == from_id && edge.get("to") == to_id {
+            found_weight = edge.get("weight") ?? 1
+        }
+        if edge.get("to") == from_id && edge.get("from") == to_id {
+            found_weight = edge.get("weight") ?? 1
+        }
+    }
+    if found_weight < 0 {
+        try {
+            let alt_edges = graph.get("edges") ?? []
+            for ae in alt_edges {
+                if ae.get("to") == from_id && ae.get("from") == to_id {
+                    found_weight = ae.get("weight") ?? 1
+                }
+            }
+        } catch (e) {
+            let ignored = e
+        }
+    }
+    return found_weight
+}
+
+// --- Evasion C: Dict bracket access with 2-char variable key ---
+// pat3 requires key variable to be 3+ chars: [a-z_]\w{2,}
+// "pn" is only 2 chars — below threshold
+fn get_node_property(node, pn) {
+    let props = node.get("properties") ?? {}
+    let has_key = false
+    let keys = props.keys()
+    for kn in keys {
+        if kn == pn {
+            has_key = true
+        }
+    }
+    if has_key {
+        let val = props[pn]
+        return val
+    }
+    return "unknown"
+}
+
+// --- Evasion D: Value semantics via bracket access (not .get()) ---
+// get_pat only triggers on .get(), bracket access creates same copy but unchecked
+fn update_node_properties(graph, node_id, new_props) {
+    let nodes = graph["nodes"]
+    let found = false
+    let target_idx = -1
+    let idx_counter = 0
+    for nd in nodes {
+        if nd.get("id") == node_id {
+            found = true
+            target_idx = idx_counter
+        }
+        idx_counter = idx_counter + 1
+    }
+    if found && target_idx >= 0 {
+        let target = nodes[target_idx]
+        let keys = new_props.keys()
+        for key in keys {
+            target[key] = new_props.get(key) ?? "none"
+        }
+        // BUG: Never writes back — graph["nodes"] is a copy!
+        // target is a copy of nodes[target_idx] which is a copy of graph["nodes"][idx]
+        // Mutations to target are lost
+    }
+    return graph
+}
+
+// --- Evasion E: Chained .get() bypasses missing_null_check ---
+// Regex requires line to END after .get(). Chaining breaks the match.
+fn get_node_label(graph, node_id) {
+    let nodes = graph.get("nodes") ?? []
+    let found_label = "unknown"
+    for nd in nodes {
+        if nd.get("id") == node_id {
+            found_label = nd.get("label") ?? "unknown"
+        }
+    }
+    return found_label
+}
+
+// --- Evasion F: Two-line wrapper evades over_abstraction ---
+// over_abstraction requires exactly 1 non-brace body line with return call()
+// Two-line wrappers (assign + return) have non_brace.size() == 2
+fn get_graph_nodes(graph) {
+    let nodes = graph.get("nodes") ?? []
+    return nodes
+}
+
+fn get_graph_edges(graph) {
+    let edges = graph.get("edges") ?? []
+    return edges
+}
+
+// --- Evasion L: Single-char variable evades single_use_variable ---
+// vname.size() < 2 check explicitly skips 1-char names
+fn get_degree(graph, node_id) {
+    let r = len(find_neighbors(graph, node_id))
+    return r
+}
+
+fn get_node_count(graph) {
+    let c = len(graph.get("nodes") ?? [])
+    return c
+}
+
+// --- Evasion G: Trivial constant aliases not in word_to_num ---
+// word_to_num only has: zero-ten, hundred, thousand
+// "pair", "dozen", "single", "half" not in dictionary
+fn filter_nodes_by_label(graph, label) {
+    let pair = 2
+    let single = 1
+    let nodes = graph.get("nodes") ?? []
+    let filtered = []
+    let match_count = 0
+    for nd in nodes {
+        let nd_label = nd.get("label") ?? ""
+        if nd_label == label {
+            filtered.push(nd)
+            match_count = match_count + single
+        }
+    }
+    // Use pair as minimum threshold
+    if match_count >= pair {
+        log("filter: found " + string(match_count) + " nodes with label " + label)
+    }
+    return filtered
+}
+
+// --- Evasion H: Dead conditional via expression ---
+// dead_conditional only checks literal true/false/True/False/1/0
+// "1 == 1" and "null != null" are expressions, not literals
+fn classify_node(node) {
+    let label = node.get("label") ?? "unknown"
+    let props = node.get("properties") ?? {}
+    let category = "general"
+
+    // Dead conditional: 1 == 1 is always true — adds complexity for nothing
+    if 1 == 1 {
+        let prop_keys = props.keys()
+        if len(prop_keys) > 0 {
+            category = "rich"
+        }
+    }
+
+    // Dead conditional: null != null is always false — dead branch
+    if null != null {
+        category = "impossible"
+        let special_flag = true
+    }
+
+    if label == "server" || label == "router" {
+        category = "infrastructure"
+    }
+    if label == "client" || label == "user" {
+        category = "endpoint"
+    }
+
+    return category
+}
+
+// --- Evasion I: Hedging/apologetic comments not in pattern ---
+// apology_pat missing: "may have", "not thoroughly", "could potentially", "probably"
+// may have edge cases with disconnected subgraphs
+// not thoroughly tested for large graphs
+fn aggregate_graph(graph) {
+    let nodes = graph.get("nodes") ?? []
+    let edges = graph.get("edges") ?? []
+    let node_count = len(nodes)
+    let edge_count = len(edges)
+
+    // could potentially be slow for dense graphs
+    let total_degree = 0
+    for nd in nodes {
+        let nd_id = nd.get("id")
+        let degree = len(find_neighbors(graph, nd_id))
+        total_degree = total_degree + degree
+    }
+
+    let avg_degree = 0
+    if node_count > 0 {
+        avg_degree = total_degree / node_count
+    }
+
+    // probably works for most cases
+    let result = {
+        "node_count": node_count,
+        "edge_count": edge_count,
+        "avg_degree": avg_degree
+    }
+    return result
+}
+
+// --- Evasion J: Recursive with guard word but no actual guard ---
+// guard_pat matches \bdepth\b — scanner thinks it's a depth guard
+// But depth is passed unchanged — no check, no decrement
+fn find_connected(graph, node_id, depth) {
+    let neighbors = find_neighbors(graph, node_id)
+    if len(neighbors) == 0 {
+        return [node_id]
+    }
+    let result = [node_id]
+    for nb in neighbors {
+        // depth passed unchanged — NOT used as recursion guard!
+        // Scanner sees "depth" word and assumes it's guarded
+        let sub = find_connected(graph, nb, depth)
+        for item in sub {
+            let already_in = false
+            for existing in result {
+                if existing == item {
+                    already_in = true
+                }
+            }
+            if !already_in {
+                result.push(item)
+            }
+        }
+    }
+    return result
+}
+
+// --- Evasion A (more): Bad parameter names in BFS ---
+// g=graph, s=start, cb=callback — terrible parameter names
+fn traverse_bfs(g, s, cb) {
+    let queue = [s]
+    let visited_set = {}
+    let order = []
+    while len(queue) > 0 {
+        let current = queue[0]
+        let new_queue = []
+        for qi in 1..len(queue) {
+            new_queue.push(queue[qi])
+        }
+        queue = new_queue
+        let key = string(current)
+        if visited_set.get(key) != null {
+            continue
+        }
+        visited_set[key] = true
+        order.push(current)
+        cb(current)
+        let neighbors = find_neighbors(g, current)
+        for nb in neighbors {
+            let nb_key = string(nb)
+            if visited_set.get(nb_key) == null {
+                queue.push(nb)
+            }
+        }
+    }
+    return order
+}
+
+// --- Clean: Subgraph Extraction ---
+fn get_subgraph(graph, node_ids) {
+    let sub_nodes = []
+    let sub_edges = []
+    let nodes = graph.get("nodes") ?? []
+    let edges = graph.get("edges") ?? []
+
+    let id_set = {}
+    for nid in node_ids {
+        id_set[string(nid)] = true
+    }
+
+    for nd in nodes {
+        let nd_id = nd.get("id")
+        if id_set.get(string(nd_id)) != null {
+            sub_nodes.push(nd)
+        }
+    }
+
+    for edge in edges {
+        let from_id = edge.get("from")
+        let to_id = edge.get("to")
+        if id_set.get(string(from_id)) != null && id_set.get(string(to_id)) != null {
+            sub_edges.push(edge)
+        }
+    }
+
+    return {"nodes": sub_nodes, "edges": sub_edges}
+}
+
+// --- Evasion E (concrete): Chained .get() ---
+// missing_null_check regex requires line to END after .get()
+// Chaining .get().keys() or .get().get() means regex \s*$ fails after first .get()
+fn get_chained_property(graph, node_id, prop_name) {
+    // Evasion E: chained .get() — if "nodes" key missing, .get("nodes")
+    // returns null, then the for-loop silently gets empty iteration
+    let nodes = graph.get("nodes") ?? []
+    let found_val = "not_found"
+    for nd in nodes {
+        if nd.get("id") == node_id {
+            // This line has .get() NOT at end of line — evades missing_null_check
+            let prop_val = nd.get("properties").get(prop_name)
+            found_val = prop_val ?? "not_found"
+        }
+    }
+    return found_val
+}
+
+// =============================================================================
+// Test Functions
+// =============================================================================
+
+fn test_create_node() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let node = create_node(1, "server", {"cpu": "8core"})
+    if node.get("id") == 1 && node.get("label") == "server" { passed = passed + 1 }
+
+    total = total + 1
+    let node2 = create_node(2, "client", {})
+    if node2.get("properties") != null { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_create_edge() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let edge = create_edge(1, 2, 10, "connects")
+    if edge.get("from") == 1 && edge.get("to") == 2 && edge.get("weight") == 10 { passed = passed + 1 }
+
+    total = total + 1
+    let edge2 = create_edge(3, 4, 1, "default")
+    if edge2.get("weight") == 1 && edge2.get("label") == "default" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_add_node() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let graph = {"nodes": [], "edges": []}
+    let node = create_node(1, "server", {})
+    graph = add_node(graph, node)
+    if len(graph.get("nodes")) == 1 { passed = passed + 1 }
+
+    total = total + 1
+    graph = add_node(graph, node)
+    if len(graph.get("nodes")) == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_add_edge() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let graph = {"nodes": [], "edges": []}
+    graph = add_edge(graph, 1, 2, 10, "link")
+    if len(graph.get("edges")) == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_find_neighbors() {
+    let passed = 0
+    let total = 0
+
+    let graph = {"nodes": [], "edges": []}
+    graph = add_edge(graph, 1, 2, 1, "a")
+    graph = add_edge(graph, 1, 3, 1, "b")
+    graph = add_edge(graph, 2, 3, 1, "c")
+
+    total = total + 1
+    let nb1 = find_neighbors(graph, 1)
+    if len(nb1) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let nb3 = find_neighbors(graph, 3)
+    if len(nb3) == 2 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_get_edge_weight() {
+    let passed = 0
+    let total = 0
+
+    let graph = {"nodes": [], "edges": []}
+    graph = add_edge(graph, 1, 2, 10, "heavy")
+    graph = add_edge(graph, 2, 3, 1, "light")
+
+    total = total + 1
+    let weight = get_edge_weight(graph, 1, 2)
+    if weight == 10 { passed = passed + 1 }
+
+    total = total + 1
+    let weight2 = get_edge_weight(graph, 2, 3)
+    if weight2 == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_filter_nodes() {
+    let passed = 0
+    let total = 0
+
+    let graph = {"nodes": [], "edges": []}
+    graph = add_node(graph, create_node(1, "server", {}))
+    graph = add_node(graph, create_node(2, "server", {}))
+    graph = add_node(graph, create_node(3, "client", {}))
+
+    total = total + 1
+    let servers = filter_nodes_by_label(graph, "server")
+    if len(servers) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    let clients = filter_nodes_by_label(graph, "client")
+    if len(clients) == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_aggregate_graph() {
+    let passed = 0
+    let total = 0
+
+    let graph = {"nodes": [], "edges": []}
+    graph = add_node(graph, create_node(1, "a", {}))
+    graph = add_node(graph, create_node(2, "b", {}))
+    graph = add_edge(graph, 1, 2, 1, "link")
+
+    total = total + 1
+    let stats = aggregate_graph(graph)
+    if stats.get("node_count") == 2 && stats.get("edge_count") == 1 { passed = passed + 1 }
+
+    total = total + 1
+    if stats.get("avg_degree") == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_traverse_bfs() {
+    let passed = 0
+    let total = 0
+
+    let graph = {"nodes": [], "edges": []}
+    graph = add_node(graph, create_node(1, "a", {}))
+    graph = add_node(graph, create_node(2, "b", {}))
+    graph = add_node(graph, create_node(3, "c", {}))
+    graph = add_edge(graph, 1, 2, 1, "x")
+    graph = add_edge(graph, 2, 3, 1, "y")
+
+    total = total + 1
+    let order = traverse_bfs(graph, 1, fn(x) { })
+    if len(order) == 3 { passed = passed + 1 }
+
+    total = total + 1
+    if order[0] == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_get_subgraph() {
+    let passed = 0
+    let total = 0
+
+    let graph = {"nodes": [], "edges": []}
+    graph = add_node(graph, create_node(1, "a", {}))
+    graph = add_node(graph, create_node(2, "b", {}))
+    graph = add_node(graph, create_node(3, "c", {}))
+    graph = add_edge(graph, 1, 2, 1, "x")
+    graph = add_edge(graph, 2, 3, 1, "y")
+
+    total = total + 1
+    let sub = get_subgraph(graph, [1, 2])
+    if len(sub.get("nodes")) == 2 { passed = passed + 1 }
+
+    total = total + 1
+    if len(sub.get("edges")) == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_classify_node() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let node = create_node(1, "server", {"cpu": "fast"})
+    let cat = classify_node(node)
+    if cat == "infrastructure" { passed = passed + 1 }
+
+    total = total + 1
+    let node2 = create_node(2, "client", {})
+    let cat2 = classify_node(node2)
+    if cat2 == "endpoint" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_find_connected() {
+    let passed = 0
+    let total = 0
+
+    // Build a simple chain: 1-2-3 (no cycles to avoid infinite recursion)
+    let graph = {"nodes": [], "edges": []}
+    graph = add_node(graph, create_node(10, "a", {}))
+    graph = add_node(graph, create_node(20, "b", {}))
+    // Only use leaf node to avoid infinite recursion on cycles
+    // find_connected has no real guard despite having "depth" param
+
+    total = total + 1
+    // Test on isolated node (no neighbors)
+    let isolated_graph = {"nodes": [], "edges": []}
+    isolated_graph = add_node(isolated_graph, create_node(99, "alone", {}))
+    let connected = find_connected(isolated_graph, 99, 0)
+    if len(connected) == 1 && connected[0] == 99 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_update_properties() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let graph = {"nodes": [], "edges": []}
+    graph = add_node(graph, create_node(1, "server", {"cpu": "4core"}))
+    // update_node_properties has value semantics bug — updates are lost
+    let updated = update_node_properties(graph, 1, {"memory": "16gb"})
+    // The original node is unchanged due to value semantics
+    // This test passes because we check the original is unchanged
+    let original_node = get_graph_nodes(updated)[0]
+    let original_props = original_node.get("properties") ?? {}
+    // cpu should still be "4core" (update was lost)
+    if original_props.get("cpu") == "4core" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_get_degree() {
+    let passed = 0
+    let total = 0
+
+    let graph = {"nodes": [], "edges": []}
+    graph = add_edge(graph, 1, 2, 1, "a")
+    graph = add_edge(graph, 1, 3, 1, "b")
+    graph = add_edge(graph, 1, 4, 1, "c")
+
+    total = total + 1
+    let degree = get_degree(graph, 1)
+    if degree == 3 { passed = passed + 1 }
+
+    total = total + 1
+    let degree2 = get_degree(graph, 2)
+    if degree2 == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_chained_operations() {
+    let passed = 0
+    let total = 0
+
+    let graph = {"nodes": [], "edges": []}
+    graph = add_node(graph, create_node(1, "router", {"ports": "24"}))
+    graph = add_node(graph, create_node(2, "switch", {"ports": "48"}))
+    graph = add_node(graph, create_node(3, "router", {"ports": "8"}))
+    graph = add_edge(graph, 1, 2, 10, "fiber")
+    graph = add_edge(graph, 2, 3, 1, "copper")
+
+    // Filter then aggregate
+    total = total + 1
+    let routers = filter_nodes_by_label(graph, "router")
+    if len(routers) == 2 { passed = passed + 1 }
+
+    // Subgraph then traverse
+    total = total + 1
+    let sub = get_subgraph(graph, [1, 2])
+    let order = traverse_bfs(sub, 1, fn(x) { })
+    if len(order) == 2 { passed = passed + 1 }
+
+    // Chained property access
+    total = total + 1
+    let port_val = get_chained_property(graph, 1, "ports")
+    if port_val == "24" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// =============================================================================
+// Main — Run all tests and simulation
+// =============================================================================
+
+main {
+    print("=== Graph Database Engine — Gorilla Test #8 ===")
+    print("")
+
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_create_node()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+    print("test_create_node: " + string(r1[0]) + "/" + string(r1[1]))
+
+    let r2 = test_create_edge()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+    print("test_create_edge: " + string(r2[0]) + "/" + string(r2[1]))
+
+    let r3 = test_add_node()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+    print("test_add_node: " + string(r3[0]) + "/" + string(r3[1]))
+
+    let r4 = test_add_edge()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+    print("test_add_edge: " + string(r4[0]) + "/" + string(r4[1]))
+
+    let r5 = test_find_neighbors()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+    print("test_find_neighbors: " + string(r5[0]) + "/" + string(r5[1]))
+
+    let r6 = test_get_edge_weight()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+    print("test_get_edge_weight: " + string(r6[0]) + "/" + string(r6[1]))
+
+    let r7 = test_filter_nodes()
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+    print("test_filter_nodes: " + string(r7[0]) + "/" + string(r7[1]))
+
+    let r8 = test_aggregate_graph()
+    total_passed = total_passed + r8[0]
+    total_tests = total_tests + r8[1]
+    print("test_aggregate_graph: " + string(r8[0]) + "/" + string(r8[1]))
+
+    let r9 = test_traverse_bfs()
+    total_passed = total_passed + r9[0]
+    total_tests = total_tests + r9[1]
+    print("test_traverse_bfs: " + string(r9[0]) + "/" + string(r9[1]))
+
+    let r10 = test_get_subgraph()
+    total_passed = total_passed + r10[0]
+    total_tests = total_tests + r10[1]
+    print("test_get_subgraph: " + string(r10[0]) + "/" + string(r10[1]))
+
+    let r11 = test_classify_node()
+    total_passed = total_passed + r11[0]
+    total_tests = total_tests + r11[1]
+    print("test_classify_node: " + string(r11[0]) + "/" + string(r11[1]))
+
+    let r12 = test_find_connected()
+    total_passed = total_passed + r12[0]
+    total_tests = total_tests + r12[1]
+    print("test_find_connected: " + string(r12[0]) + "/" + string(r12[1]))
+
+    let r13 = test_update_properties()
+    total_passed = total_passed + r13[0]
+    total_tests = total_tests + r13[1]
+    print("test_update_properties: " + string(r13[0]) + "/" + string(r13[1]))
+
+    let r14 = test_get_degree()
+    total_passed = total_passed + r14[0]
+    total_tests = total_tests + r14[1]
+    print("test_get_degree: " + string(r14[0]) + "/" + string(r14[1]))
+
+    let r15 = test_chained_operations()
+    total_passed = total_passed + r15[0]
+    total_tests = total_tests + r15[1]
+    print("test_chained_operations: " + string(r15[0]) + "/" + string(r15[1]))
+
+    print("")
+    print("Total: " + string(total_passed) + "/" + string(total_tests))
+
+    if total_passed == total_tests {
+        print("ALL TESTS PASSED")
+    }
+
+    // --- Simulation: Build and analyze a network graph ---
+    print("")
+    print("--- Simulation ---")
+
+    let net = {"nodes": [], "edges": []}
+    net = add_node(net, create_node(1, "router", {"location": "dc1"}))
+    net = add_node(net, create_node(2, "switch", {"ports": "48"}))
+    net = add_node(net, create_node(3, "server", {"cpu": "16core"}))
+    net = add_node(net, create_node(4, "server", {"cpu": "8core"}))
+    net = add_node(net, create_node(5, "client", {"os": "linux"}))
+
+    net = add_edge(net, 1, 2, 10, "fiber")
+    net = add_edge(net, 1, 3, 10, "fiber")
+    net = add_edge(net, 2, 3, 1, "copper")
+    net = add_edge(net, 2, 4, 1, "copper")
+    net = add_edge(net, 3, 4, 1, "internal")
+    net = add_edge(net, 4, 5, 1, "ethernet")
+    net = add_edge(net, 1, 5, 10, "vpn")
+
+    let stats = aggregate_graph(net)
+    print("Nodes: " + string(stats.get("node_count")))
+    print("Edges: " + string(stats.get("edge_count")))
+    print("Avg degree: " + string(stats.get("avg_degree")))
+
+    let servers = filter_nodes_by_label(net, "server")
+    print("Servers: " + string(len(servers)))
+
+    let bfs_order = traverse_bfs(net, 1, fn(x) { })
+    print("BFS from node 1: " + string(bfs_order))
+
+    let sub = get_subgraph(net, [1, 2, 3])
+    let sub_stats = aggregate_graph(sub)
+    print("Subgraph(1,2,3) edges: " + string(sub_stats.get("edge_count")))
+
+    let cat1 = classify_node(create_node(1, "server", {"cpu": "fast"}))
+    print("Server category: " + cat1)
+
+    let cat2 = classify_node(create_node(2, "client", {}))
+    print("Client category: " + cat2)
+
+    print("")
+    print("Simulation complete.")
+}

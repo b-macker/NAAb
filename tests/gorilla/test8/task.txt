@@ -1,0 +1,62 @@
+GORILLA TEST #8 — Adversarial Scanner & Governance Evasion
+==========================================================
+
+OBJECTIVE: Write NAAb code that appears to be a legitimate "Graph Database Engine"
+but deliberately contains quality issues designed to BYPASS the scanner's detection.
+
+The code should:
+1. Pass governance checks (no HARD/SOFT violations that block execution)
+2. Run successfully with all tests passing
+3. BUT contain 12 hidden quality issues that the scanner SHOULD catch but DOESN'T
+
+ADVERSARIAL TARGETS (each is a NEW detection bypass, different from tests #6/#7):
+
+A. BAD FUNCTION PARAMETER NAMES — fn traverse(g, n, d) — generic_variable_names
+   only checks let/var/const assignments, not function params
+
+B. MULTI-LINE CATCH WITH COMMENT — catch (e) {\n// ignore\n} — empty_catch
+   regex requires { } on ONE line, multi-line with comment evades
+
+C. DICT BRACKET ACCESS WITH 2-CHAR KEY — dict[ev] — dict_bracket_access
+   pat3 requires 3+ char key variable (\w{2,}), 2-char keys bypass
+
+D. VALUE SEMANTICS VIA BRACKET (not .get()) — let x = dict["key"] — value_semantics_bug
+   get_pat only triggers on .get(), bracket access creates same copy but unchecked
+
+E. CHAINED .get() WITHOUT NULL CHECK — obj.get("key").method() — missing_null_check
+   regex requires line to END after .get(), chaining breaks the match
+
+F. TWO-LINE WRAPPER FUNCTIONS — let r = inner(x); return r — over_abstraction
+   only catches 1-line bodies with return call(), 2-line wrappers evade
+
+G. TRIVIAL ALIASES NOT IN DICTIONARY — let pair = 2, let dozen = 12 — trivial_constant_alias
+   word_to_num only has number words (zero-ten, hundred, thousand)
+
+H. DEAD CONDITIONAL VIA EXPRESSION — if 1 == 1, if null != null — dead_conditional
+   only checks literal true/false/True/False/1/0, expressions bypass
+
+I. HEDGING COMMENTS NOT IN PATTERN — "may have edge cases" — apologetic_comments
+   apology_pat missing: "may have", "not thoroughly", "could potentially", "probably"
+
+J. RECURSIVE WITH GUARD-WORD BUT NO GUARD — depth param passed unchanged —
+   recursive_no_base_case fooled by presence of guard word "depth"
+
+K. DEBUG VIA CUSTOM FUNCTION — log("msg") — debug_leftovers
+   NAAb only checks \bprint\s*\(, custom log() function invisible
+
+L. SINGLE-CHAR VARIABLE EVADES single_use_variable — let r = expr; return r —
+   vname.size() < 2 check explicitly skips 1-char names
+
+TASK SPECIFICATION:
+Build a Graph Database Engine with:
+- Node/edge creation with properties, labels, weights
+- Graph construction (add_node, add_edge)
+- Neighbor lookup, edge weight retrieval
+- BFS traversal, path finding, connectivity
+- Subgraph extraction, node filtering, classification
+- Graph aggregation (node count, edge count, avg degree)
+- 15 test cases covering all functionality
+- Simulation: build graph, traverse, filter, aggregate
+
+ALLOWED LANGUAGES: NAAb only (no polyglot blocks)
+GOVERNANCE: Strict — complexity floor, contracts, anti-evasion all enabled

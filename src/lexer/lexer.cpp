@@ -54,6 +54,9 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"runtime", TokenType::RUNTIME},  // Phase 12: Persistent sub-runtime contexts
     {"true", TokenType::BOOLEAN},
     {"false", TokenType::BOOLEAN},
+    {"and", TokenType::AND},      // Python-style alias for &&
+    {"or", TokenType::OR},        // Python-style alias for ||
+    {"not", TokenType::NOT},      // Python-style alias for !
 };
 
 Lexer::Lexer(const std::string& source)

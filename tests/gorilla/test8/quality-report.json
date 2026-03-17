@@ -1,0 +1,51 @@
+{
+  "issues": [
+    {
+      "category": "redundancy",
+      "file": "/data/data/com.termux/files/home/test_chained.naab",
+      "fix": "Inline directly",
+      "level": "soft",
+      "line": 2,
+      "message": "Variable 'nodes' used only once on next line",
+      "preview": "let nodes = graph.get(\"nodes\") ?? []",
+      "rule": "single_use_variable",
+      "severity": "medium"
+    },
+    {
+      "category": "redundancy",
+      "file": "/data/data/com.termux/files/home/test_chained.naab",
+      "fix": "Inline directly",
+      "level": "soft",
+      "line": 4,
+      "message": "Variable 'prop' used only once on next line",
+      "preview": "let prop = nd.get(\"properties\").get(\"name\")",
+      "rule": "single_use_variable",
+      "severity": "medium"
+    },
+    {
+      "category": "lang_naab",
+      "file": "/data/data/com.termux/files/home/test_chained.naab",
+      "fix": "Split into separate let + null check, or use ?? fallback",
+      "level": "soft",
+      "line": 4,
+      "message": "Chained .get() — first .get() may return null, crashing the chain",
+      "preview": "let prop = nd.get(\"properties\").get(\"name\")",
+      "rule": "missing_null_check",
+      "severity": "medium"
+    }
+  ],
+  "scan_info": {
+    "files_scanned": 1,
+    "language": "naab",
+    "path": "/data/data/com.termux/files/home/test_chained.naab"
+  },
+  "summary": {
+    "by_level": {
+      "advisory": 0,
+      "hard": 0,
+      "soft": 3
+    },
+    "total_issues": 3
+  },
+  "version": "1.0"
+}
