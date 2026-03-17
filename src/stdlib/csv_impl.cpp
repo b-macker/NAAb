@@ -31,7 +31,8 @@ static std::string formatCSVRow(const std::vector<std::string>& row, const std::
 bool CsvModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "read", "read_dict", "parse", "parse_dict",
-        "write", "write_dict", "format_row", "format_rows"
+        "write", "write_dict", "format_row", "format_rows",
+        "stringify"
     };
     return functions.count(name) > 0;
 }
@@ -187,8 +188,8 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
         return std::make_shared<interpreter::Value>(formatCSVRow(row, delimiter));
     }
 
-    // Function 8: format_rows
-    if (function_name == "format_rows") {
+    // Function 8: format_rows / stringify
+    if (function_name == "format_rows" || function_name == "stringify") {
         if (args.size() < 1 || args.size() > 2) {
             throw std::runtime_error("format_rows() takes 1 or 2 arguments");
         }
@@ -214,7 +215,8 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
     // Fuzzy matching for typos
     static const std::vector<std::string> FUNCTIONS = {
         "read", "read_dict", "parse", "parse_dict",
-        "write", "write_dict", "format_row", "format_rows"
+        "write", "write_dict", "format_row", "format_rows",
+        "stringify"
     };
     auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
     std::string suggestion = naab::utils::formatSuggestions(function_name, similar);

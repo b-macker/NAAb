@@ -30,7 +30,8 @@ bool StringModule::hasFunction(const std::string& name) const {
         "length", "substring", "concat", "split", "join",
         "trim", "upper", "lower", "replace", "contains",
         "starts_with", "ends_with", "index_of", "repeat",
-        "char_at", "reverse", "format", "fmt"
+        "char_at", "reverse", "format", "fmt",
+        "pad_left", "pad_right"
     };
     return functions.count(name) > 0;
 }
@@ -239,7 +240,44 @@ std::shared_ptr<interpreter::Value> StringModule::call(
         return makeString(result);
     }
 
-    // Function 15: char_at
+    // Function 15: pad_right
+    if (function_name == "pad_right") {
+        if (args.size() < 2 || args.size() > 3) {
+            throw std::runtime_error("pad_right() takes 2-3 arguments (string, width[, fill_char])");
+        }
+        std::string s = getString(args[0]);
+        int width = getInt(args[1]);
+        std::string fill = " ";
+        if (args.size() == 3) {
+            fill = getString(args[2]);
+            if (fill.length() != 1) {
+                throw std::runtime_error("pad_right() fill_char must be exactly 1 character");
+            }
+        }
+        if (static_cast<int>(s.length()) >= width) return makeString(s);
+        s.append(width - s.length(), fill[0]);
+        return makeString(s);
+    }
+
+    // Function 16: pad_left
+    if (function_name == "pad_left") {
+        if (args.size() < 2 || args.size() > 3) {
+            throw std::runtime_error("pad_left() takes 2-3 arguments (string, width[, fill_char])");
+        }
+        std::string s = getString(args[0]);
+        int width = getInt(args[1]);
+        std::string fill = " ";
+        if (args.size() == 3) {
+            fill = getString(args[2]);
+            if (fill.length() != 1) {
+                throw std::runtime_error("pad_left() fill_char must be exactly 1 character");
+            }
+        }
+        if (static_cast<int>(s.length()) >= width) return makeString(s);
+        return makeString(std::string(width - s.length(), fill[0]) + s);
+    }
+
+    // Function 17: char_at
     if (function_name == "char_at") {
         if (args.size() != 2) {
             throw std::runtime_error("char_at() takes exactly 2 arguments (string, index)");
@@ -445,7 +483,8 @@ std::shared_ptr<interpreter::Value> StringModule::call(
     static const std::vector<std::string> FUNCTIONS = {
         "length", "substring", "upper", "lower", "trim", "split",
         "contains", "starts_with", "ends_with", "replace", "index_of",
-        "char_at", "repeat", "reverse", "format", "fmt"
+        "char_at", "repeat", "reverse", "format", "fmt",
+        "pad_left", "pad_right"
     };
 
     auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);

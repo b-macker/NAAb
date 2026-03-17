@@ -1,0 +1,172 @@
+use array
+use math
+use string
+use json
+
+import "./models.naab" as models
+
+// Metrics, confusion matrix, classification report, experiment logging
+
+export fn confusion_matrix(predictions, actuals, labels) {
+    let matrix = {}
+    for i in 0..len(labels) {
+        let row = {}
+        for j in 0..len(labels) {
+            row[labels[j]] = 0
+        }
+        matrix[labels[i]] = row
+    }
+
+    for i in 0..len(predictions) {
+        let pred = string(predictions[i])
+        let actual = string(actuals[i])
+        let row = matrix.get(actual) ?? {}
+        let current = row.get(pred) ?? 0
+        row[pred] = current + 1
+        matrix[actual] = row
+    }
+
+    return matrix
+}
+
+export fn accuracy(predictions, actuals) {
+    if len(predictions) == 0 {
+        return 0.0
+    }
+    let correct = 0
+    for i in 0..len(predictions) {
+        if string(predictions[i]) == string(actuals[i]) {
+            correct = correct + 1
+        }
+    }
+    return float(correct) / float(len(predictions))
+}
+
+export fn classification_report(predictions, actuals, labels) {
+    let cm = confusion_matrix(predictions, actuals, labels)
+    let per_class = {}
+    let reports_for_merge = []
+
+    for i in 0..len(labels) {
+        let label = labels[i]
+        let tp = 0
+        let fp = 0
+        let fn_count = 0
+
+        // True positives: predicted=label AND actual=label
+        let row = cm.get(label) ?? {}
+        tp = row.get(label) ?? 0
+
+        // False negatives: actual=label but predicted != label
+        for j in 0..len(labels) {
+            if labels[j] != label {
+                fn_count = fn_count + (row.get(labels[j]) ?? 0)
+            }
+        }
+
+        // False positives: predicted=label but actual != label
+        for j in 0..len(labels) {
+            if labels[j] != label {
+                let other_row = cm.get(labels[j]) ?? {}
+                fp = fp + (other_row.get(label) ?? 0)
+            }
+        }
+
+        let report = models.create_metric_report(tp, fp, fn_count, 0)
+        per_class[label] = report
+        reports_for_merge.push(report)
+    }
+
+    let macro_avg = models.merge_metrics(reports_for_merge)
+
+    return {
+        "per_class": per_class,
+        "macro_avg": macro_avg
+    }
+}
+
+export fn roc_curve_auc(scores, actuals) {
+    let auc_result = <<python[scores, actuals] -> JSON
+import json
+pairs = list(zip(scores, actuals))
+pairs.sort(key=lambda p: -p[0])
+tp = 0
+fp = 0
+total_pos = sum(1 for a in actuals if a == 1)
+total_neg = len(actuals) - total_pos
+auc = 0.0
+prev_fpr = 0.0
+if total_pos == 0 or total_neg == 0:
+    auc = 0.5
+else:
+    for score, label in pairs:
+        if label == 1:
+            tp += 1
+        else:
+            fp += 1
+        tpr = tp / total_pos
+        fpr = fp / total_neg
+        auc += (fpr - prev_fpr) * tpr
+        prev_fpr = fpr
+json.dumps({"auc": round(auc, 6)})
+>>
+    return auc_result.get("auc")
+}
+
+export fn format_report(metrics) {
+    let lines = []
+    lines.push(string.pad_right("Class", 15) + string.pad_right("Precision", 12) + string.pad_right("Recall", 12) + "F1")
+    lines.push(string.repeat("-", 50))
+
+    let per_class = metrics.get("per_class") ?? {}
+    for label in per_class {
+        let rpt = per_class.get(label)
+        let prec_str = string(int(math.round(rpt.get("precision") * 100.0))) + "%"
+        let rec_str = string(int(math.round(rpt.get("recall") * 100.0))) + "%"
+        let f1_str = string(int(math.round(rpt.get("f1") * 100.0))) + "%"
+        lines.push(string.pad_right(label, 15) + string.pad_right(prec_str, 12) + string.pad_right(rec_str, 12) + f1_str)
+    }
+
+    let macro = metrics.get("macro_avg") ?? {}
+    lines.push(string.repeat("-", 50))
+    let m_prec = string(int(math.round(macro.get("precision") * 100.0))) + "%"
+    let m_rec = string(int(math.round(macro.get("recall") * 100.0))) + "%"
+    let m_f1 = string(int(math.round(macro.get("f1") * 100.0))) + "%"
+    lines.push(string.pad_right("macro avg", 15) + string.pad_right(m_prec, 12) + string.pad_right(m_rec, 12) + m_f1)
+
+    return lines.join("\n")
+}
+
+export fn log_experiment(name, params, metrics) {
+    let timestamp = <<shell
+date '+%Y-%m-%d %H:%M:%S'
+>>
+    let ts = timestamp.trim()
+    return {
+        "name": name,
+        "params": params,
+        "metrics": metrics,
+        "timestamp": ts
+    }
+}
+
+export fn validate_predictions(predictions, min_val, max_val) {
+    let invalid = []
+    for i in 0..len(predictions) {
+        let pred = predictions[i]
+        let val = pred.get("prediction") ?? 0.0
+        if val < min_val or val > max_val {
+            invalid.push({
+                "index": i,
+                "id": pred.get("id"),
+                "value": val,
+                "reason": "out of range [" + string(min_val) + ", " + string(max_val) + "]"
+            })
+        }
+    }
+    return {
+        "valid_count": len(predictions) - len(invalid),
+        "invalid_count": len(invalid),
+        "invalid": invalid
+    }
+}

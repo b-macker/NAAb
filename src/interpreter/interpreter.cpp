@@ -4368,6 +4368,36 @@ void Interpreter::visit(ast::CallExpr& node) {
                     result_ = std::make_shared<Value>(repeated);
                     return;
                 }
+                if (method_name == "pad_right") {
+                    if (args.empty() || args.size() > 2) throw std::runtime_error("pad_right() takes 1-2 arguments (width[, fill_char])");
+                    int width = args[0]->toInt();
+                    char fill = ' ';
+                    if (args.size() == 2) {
+                        auto fs = std::get<std::string>(args[1]->data);
+                        if (fs.length() != 1) throw std::runtime_error("pad_right() fill_char must be exactly 1 character");
+                        fill = fs[0];
+                    }
+                    std::string s = str;
+                    if (static_cast<int>(s.length()) < width) s.append(width - s.length(), fill);
+                    result_ = std::make_shared<Value>(s);
+                    return;
+                }
+                if (method_name == "pad_left") {
+                    if (args.empty() || args.size() > 2) throw std::runtime_error("pad_left() takes 1-2 arguments (width[, fill_char])");
+                    int width = args[0]->toInt();
+                    char fill = ' ';
+                    if (args.size() == 2) {
+                        auto fs = std::get<std::string>(args[1]->data);
+                        if (fs.length() != 1) throw std::runtime_error("pad_left() fill_char must be exactly 1 character");
+                        fill = fs[0];
+                    }
+                    if (static_cast<int>(str.length()) < width) {
+                        result_ = std::make_shared<Value>(std::string(width - str.length(), fill) + str);
+                    } else {
+                        result_ = std::make_shared<Value>(str);
+                    }
+                    return;
+                }
                 // HELPER-5: .len() -> .length()
                 if (method_name == "len") {
                     throw std::runtime_error(
@@ -5129,6 +5159,36 @@ void Interpreter::visit(ast::CallExpr& node) {
                 std::string repeated;
                 for (int ri = 0; ri < count; ri++) repeated += str;
                 result_ = std::make_shared<Value>(repeated);
+                return;
+            }
+            if (method_name == "pad_right") {
+                if (args.empty() || args.size() > 2) throw std::runtime_error("pad_right() takes 1-2 arguments (width[, fill_char])");
+                int width = args[0]->toInt();
+                char fill = ' ';
+                if (args.size() == 2) {
+                    auto fs = std::get<std::string>(args[1]->data);
+                    if (fs.length() != 1) throw std::runtime_error("pad_right() fill_char must be exactly 1 character");
+                    fill = fs[0];
+                }
+                std::string s = str;
+                if (static_cast<int>(s.length()) < width) s.append(width - s.length(), fill);
+                result_ = std::make_shared<Value>(s);
+                return;
+            }
+            if (method_name == "pad_left") {
+                if (args.empty() || args.size() > 2) throw std::runtime_error("pad_left() takes 1-2 arguments (width[, fill_char])");
+                int width = args[0]->toInt();
+                char fill = ' ';
+                if (args.size() == 2) {
+                    auto fs = std::get<std::string>(args[1]->data);
+                    if (fs.length() != 1) throw std::runtime_error("pad_left() fill_char must be exactly 1 character");
+                    fill = fs[0];
+                }
+                if (static_cast<int>(str.length()) < width) {
+                    result_ = std::make_shared<Value>(std::string(width - str.length(), fill) + str);
+                } else {
+                    result_ = std::make_shared<Value>(str);
+                }
                 return;
             }
             // HELPER-5: .len() -> .length()

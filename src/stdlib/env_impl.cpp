@@ -36,7 +36,8 @@ bool EnvModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "get", "set_var", "has", "delete_var", "get_all",
         "load_dotenv", "parse_env_file", "get_int", "get_float", "get_bool",
-        "get_args"  // ISS-028: Command-line arguments access
+        "get_args",  // ISS-028: Command-line arguments access
+        "list"
     };
     return functions.count(name) > 0;
 }
@@ -94,8 +95,8 @@ std::shared_ptr<interpreter::Value> EnvModule::call(
         return makeNull();
     }
 
-    // Function 5: get_all - Get all environment variables
-    if (function_name == "get_all") {
+    // Function 5: get_all / list - Get all environment variables
+    if (function_name == "get_all" || function_name == "list") {
         if (args.size() != 0) {
             throw std::runtime_error("get_all() takes no arguments");
         }
@@ -275,7 +276,7 @@ std::shared_ptr<interpreter::Value> EnvModule::call(
     static const std::vector<std::string> FUNCTIONS = {
         "get", "set_var", "has", "delete_var", "get_all",
         "load_dotenv", "parse_env_file", "get_int", "get_float",
-        "get_bool", "get_args"
+        "get_bool", "get_args", "list"
     };
     auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
     std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
