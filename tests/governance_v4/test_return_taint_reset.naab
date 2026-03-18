@@ -1,0 +1,60 @@
+// Distributed Systems Test: Scenario 3 - Stale lastReturnTainted Across Calls
+// Verifies BUG-AD fix — lastReturnTainted reset between function calls
+// Maps to: "Clock skew" in distributed systems (temporal state consistency)
+
+use env
+
+fn returns_tainted() {
+    return env.get("HOME")
+}
+
+fn returns_clean_implicit() {
+    // Falls off end → returns null, should NOT inherit taint from previous call
+    let x = 5
+}
+
+fn returns_explicit_clean() {
+    return "safe"
+}
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Call 1: Tainted return
+    let t = returns_tainted()
+
+    // Call 2: Clean return (implicit null)
+    // BUG-AD: If lastReturnTainted not reset, this inherits stale taint
+    total = total + 1
+    let c1 = returns_clean_implicit()
+    try {
+        <<shell[c1]
+echo $c1
+>>
+        passed = passed + 1  // Should NOT be blocked
+    } catch (e) {
+        print("FAIL: False positive — clean function tainted by previous call")
+        print("  Error: " + string(e))
+    }
+
+    // Call 3: Explicit clean return
+    total = total + 1
+    let c2 = returns_explicit_clean()
+    try {
+        <<shell[c2]
+echo $c2
+>>
+        passed = passed + 1
+    } catch (e) {
+        print("FAIL: False positive — explicit clean return tainted")
+        print("  Error: " + string(e))
+    }
+
+    print("test_return_taint_reset: " + string(passed) + "/" + string(total) + " passed")
+    if passed == total {
+        print("PASS")
+    } else {
+        print("FAIL")
+    }
+}

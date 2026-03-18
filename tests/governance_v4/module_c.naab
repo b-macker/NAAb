@@ -1,0 +1,14 @@
+// Module C for GC stress test
+// Allocates many objects to trigger GC during nested call stack
+
+export fn process_list(arr) {
+    // Allocate many objects to trigger GC
+    let temp = []
+    let i = 0
+    while i < 1000 {
+        temp.push({"index": i})
+        i = i + 1
+    }
+    // Return first element of input array
+    return arr[0]
+}

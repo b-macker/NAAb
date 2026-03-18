@@ -1,0 +1,9 @@
+// Module B for GC stress test
+// Calls module C with dict/list arguments
+
+import "module_c.naab" as mc
+
+export fn process_dict(d) {
+    let arr = [d["key"], "extra"]
+    return mc.process_list(arr)
+}

@@ -1,0 +1,35 @@
+// Distributed Systems Test: Scenario 11 - GC During Nested Cross-Module Calls
+// Verifies BUG-10 fix — env_stack_ prevents GC corruption during nested calls
+// Maps to: GC safety in distributed call stacks with message passing
+
+import "module_b.naab" as mb
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test: Nested module calls with GC stress
+    // main → module_b.process_dict → module_c.process_list
+    // GC triggers during nested call (1000 object allocations in module_c)
+    // BUG-10 fix ensures env_stack_ keeps caller envs visible to GC
+    total = total + 1
+
+    let data = {"key": "value"}
+    let result = mb.process_dict(data)
+
+    if result == "value" {
+        passed = passed + 1
+        print("PASS: No GC corruption in nested module calls")
+    } else {
+        print("FAIL: GC corruption detected")
+        print("  Expected: value")
+        print("  Got: " + string(result))
+    }
+
+    print("test_gc_nested_modules: " + string(passed) + "/" + string(total) + " passed")
+    if passed == total {
+        print("PASS")
+    } else {
+        print("FAIL")
+    }
+}
