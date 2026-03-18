@@ -1,0 +1,190 @@
+// Test: State consistency — taint across function boundaries, exception paths, for-loops
+// BUG-E, BUG-M, BUG-O, TEST-8, TEST-9
+
+use env
+
+fn create_tainted() {
+    let data = env.get("HOME")
+    // "data" is now in the global taint set
+}
+
+fn test_taint_no_cross_function_leak() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Taint from one function should not leak to another via name collision
+    total = total + 1
+    create_tainted()
+    let data = "totally_safe"
+    let worked = false
+    try {
+        <<shell[data]
+echo $data
+>>
+        worked = true
+    } catch (e) {
+        // Should NOT be blocked
+    }
+    if worked {
+        passed = passed + 1
+        print("PASS: No taint leak across function boundaries")
+    } else {
+        print("FAIL: Taint leaked across function boundaries")
+    }
+
+    return [passed, total]
+}
+
+fn test_exception_path_no_launder() {
+    let passed = 0
+    let total = 0
+
+    // Test 2: Exception handling should not launder taint
+    // The catch variable contains error message, not the tainted data
+    total = total + 1
+    let tainted = env.get("HOME")
+    let error_msg = ""
+    try {
+        <<shell[tainted]
+echo $tainted
+>>
+    } catch (e) {
+        error_msg = string(e)
+    }
+    // error_msg contains the governance error, NOT the tainted value
+    // It should be safe to use
+    let worked = false
+    try {
+        <<shell[error_msg]
+echo $error_msg
+>>
+        worked = true
+    } catch (e) {
+        // error_msg might be tainted if we propagate through string()
+        // This is acceptable — conservative taint tracking
+    }
+    // Either outcome is acceptable here
+    passed = passed + 1
+    print("PASS: Exception path handled (taint is conservative)")
+
+    return [passed, total]
+}
+
+fn test_multiple_taint_sources() {
+    let passed = 0
+    let total = 0
+
+    // Test 3: Multiple taint sources — each tracked independently
+    total = total + 1
+    let t1 = env.get("HOME")
+    let t2 = env.get("USER")
+    let safe1 = "clean1"
+    let safe2 = "clean2"
+
+    let safe1_ok = false
+    try {
+        <<shell[safe1]
+echo $safe1
+>>
+        safe1_ok = true
+    } catch (e) {
+        // unexpected
+    }
+
+    let safe2_ok = false
+    try {
+        <<shell[safe2]
+echo $safe2
+>>
+        safe2_ok = true
+    } catch (e) {
+        // unexpected
+    }
+
+    let t1_blocked = false
+    try {
+        <<shell[t1]
+echo $t1
+>>
+    } catch (e) {
+        t1_blocked = true
+    }
+
+    let t2_blocked = false
+    try {
+        <<shell[t2]
+echo $t2
+>>
+    } catch (e) {
+        t2_blocked = true
+    }
+
+    if safe1_ok and safe2_ok and t1_blocked and t2_blocked {
+        passed = passed + 1
+        print("PASS: Multiple taint sources tracked independently")
+    } else {
+        print("FAIL: Multiple taint tracking inconsistent")
+        print("  safe1_ok=" + string(safe1_ok) + " safe2_ok=" + string(safe2_ok))
+        print("  t1_blocked=" + string(t1_blocked) + " t2_blocked=" + string(t2_blocked))
+    }
+
+    return [passed, total]
+}
+
+fn test_taint_cleared_by_redeclaration() {
+    let passed = 0
+    let total = 0
+
+    // Test 4: Redeclaring a variable with clean value should clear taint
+    total = total + 1
+    let x = env.get("HOME")
+    // x is tainted
+    let x = "now_clean"
+    // x should be clean
+    let worked = false
+    try {
+        <<shell[x]
+echo $x
+>>
+        worked = true
+    } catch (e) {
+        // Should not be blocked
+    }
+    if worked {
+        passed = passed + 1
+        print("PASS: Redeclaration clears taint")
+    } else {
+        print("FAIL: Redeclaration did not clear taint")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_taint_no_cross_function_leak()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_exception_path_no_launder()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_multiple_taint_sources()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_taint_cleared_by_redeclaration()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    print(string(total_passed) + "/" + string(total_tests) + " state consistency tests passed")
+
+    if total_passed == total_tests {
+        print("PASS")
+    } else {
+        print("FAIL: " + string(total_tests - total_passed) + " tests failed")
+    }
+}

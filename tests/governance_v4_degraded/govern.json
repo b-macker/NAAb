@@ -1,0 +1,17 @@
+{
+    "version": "4.0",
+    "description": "Degraded config — partial/missing sections",
+    "languages": {
+        "allowed": ["python", "shell"]
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard"
+    },
+    "contracts": {
+        "validate_inputs": true
+    },
+    "audit": {
+        "level": "full"
+    }
+}

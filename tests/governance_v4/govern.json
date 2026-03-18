@@ -1,0 +1,47 @@
+{
+    "version": "4.0",
+    "description": "Governance v4 test config — taint tracking, enhanced audit",
+    "languages": {
+        "allowed": ["python", "shell"],
+        "blocked": ["javascript", "rust", "cpp", "go"]
+    },
+    "capabilities": {
+        "network": false,
+        "filesystem": "read"
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
+        "sinks": ["shell_exec", "file.write", "file.append", "http.", "env.set_var"],
+        "sanitizers": ["validate_", "sanitize_", "escape_", "int(", "float("]
+    },
+    "audit": {
+        "level": "full",
+        "output_file": ".governance-audit-test.jsonl",
+        "log_events": {
+            "polyglot_executed": true,
+            "polyglot_timing": true,
+            "taint_decisions": true,
+            "contract_checks": true
+        },
+        "tamper_evidence": {
+            "enabled": true
+        }
+    },
+    "contracts": {
+        "level": "soft",
+        "validate_inputs": true,
+        "functions": {
+            "add_stock": {
+                "params": ["inventory:dict", "product_id:any", "quantity:int", "tx_type:any"],
+                "return_type": "dict",
+                "return_keys": ["inventory", "transaction"]
+            },
+            "process_order": {
+                "params": ["order_id:string", "items:array"],
+                "return_type": "dict"
+            }
+        }
+    }
+}

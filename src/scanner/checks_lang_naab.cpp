@@ -47,7 +47,8 @@ void ScannerEngine::checkLangNaab(const std::string& filepath,
                 // within the same function/block
                 std::string remaining;
                 int brace_depth = 0;
-                size_t max_scan = std::min(i + 50, lines.size());  // safety cap
+                int vs_window = static_cast<int>(getNumOption(CAT, "value_semantics_bug", "max_scan_lines", 50));
+                size_t max_scan = std::min(i + static_cast<size_t>(vs_window), lines.size());
                 for (size_t j = i + 1; j < max_scan; ++j) {
                     std::string line_j = nb_trim(lines[j]);
                     for (char c : line_j) {

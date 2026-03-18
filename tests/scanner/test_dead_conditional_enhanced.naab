@@ -1,0 +1,67 @@
+// Test: Enhanced dead conditional scanner detection
+// These patterns should be flagged by naab-lang --scan
+
+fn test_len_always_false() {
+    let items = [1, 2, 3]
+    if len(items) < 0 {
+        print("unreachable")
+    }
+    let name = "hello"
+    if len(name) <= -1 {
+        print("unreachable")
+    }
+}
+
+fn test_len_always_true() {
+    let items = [1, 2, 3]
+    if len(items) >= 0 {
+        print("always true")
+    }
+}
+
+fn test_contradictory_comparison() {
+    let x = 50
+    if x > 10 and x < 5 {
+        print("impossible")
+    }
+    if x > 0 and x < 0 {
+        print("impossible")
+    }
+}
+
+fn test_null_and_access() {
+    let val = null
+    if val == null and val.get("key") {
+        print("dead code")
+    }
+}
+
+fn test_contradictory_types() {
+    let x = 42
+    if type(x) == "int" and type(x) == "string" {
+        print("impossible")
+    }
+}
+
+// These should NOT be flagged (valid conditionals)
+fn test_valid_conditionals() {
+    let items = [1, 2, 3]
+    if len(items) > 0 {
+        print("valid check")
+    }
+    if len(items) == 0 {
+        print("valid check")
+    }
+    let x = 50
+    if x > 5 and x < 10 {
+        print("valid range check")
+    }
+    let val = null
+    if val != null and val.get("key") {
+        print("correct null guard")
+    }
+}
+
+main {
+    print("Scanner test file - run with: naab-lang --scan test_dead_conditional_enhanced.naab")
+}

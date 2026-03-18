@@ -791,9 +791,25 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
         auto global = global_env_;
         auto func_name = func->name;
 
-        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name]() -> std::shared_ptr<Value> {
+        // BUG-I fix: Capture governance config path for async interpreter
+        std::string gov_path;
+        if (governance_ && governance_->isActive()) {
+            gov_path = governance_->getLoadedPath();
+        }
+
+        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path]() -> std::shared_ptr<Value> {
             Interpreter async_interp;
             async_interp.setGlobalEnv(global);
+
+            // BUG-I fix: Load governance in async interpreter from same config
+            if (!gov_path.empty()) {
+                auto* gov = async_interp.getGovernance();
+                if (gov) {
+                    auto dir = std::filesystem::path(gov_path).parent_path();
+                    gov->discoverAndLoad(dir.string());
+                }
+            }
+
             try {
                 return async_interp.executeBodyInEnv(*body, func_env);
             } catch (const std::exception& e) {
@@ -804,6 +820,7 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
         auto future_val = std::make_shared<FutureValue>();
         future_val->future = shared_future;
         future_val->description = "async fn " + func->name;
+        future_val->func_name = func->name;  // BUG-K: for return contract check at await
         return std::make_shared<Value>(future_val);
     }
 
@@ -839,6 +856,21 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
         }
 
         throw std::runtime_error(oss.str());
+    }
+
+    // Governance v4: Check input contracts before execution
+    if (governance_ && governance_->isActive() && !func->name.empty()) {
+        std::vector<std::string> arg_types;
+        for (const auto& arg : args) {
+            arg_types.push_back(arg ? getTypeName(arg) : "null");
+        }
+        std::string input_err = governance_->checkFunctionInputContract(
+            func->name, arg_types, func->source_line);
+        if (!input_err.empty()) {
+            governance_->logContractCheck(func->name, "FAIL", input_err,
+                                          current_file_, func->source_line);
+            throw std::runtime_error(input_err);
+        }
     }
 
     // Create new environment for function execution with closure as parent (lexical scoping)
@@ -914,7 +946,12 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
         std::string contract_err = governance_->checkFunctionContract(
             func->name, result_str, result_type, func->source_line);
         if (!contract_err.empty()) {
+            governance_->logContractCheck(func->name, "FAIL", contract_err,
+                                          current_file_, func->source_line);
             throw std::runtime_error(contract_err);
+        } else {
+            governance_->logContractCheck(func->name, "PASS", "return_type=" + result_type,
+                                          current_file_, func->source_line);
         }
     }
 
@@ -1836,6 +1873,12 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
     auto saved_env = current_env_;
     auto saved_exports = module_exports_;
 
+    // BUG-O: Save taint state — module should not pollute caller's taint set
+    std::unordered_set<std::string> saved_taint;
+    if (governance_ && governance_->isActive()) {
+        saved_taint = governance_->saveTaintState();
+    }
+
     // Switch to module environment
     current_env_ = module_env;
     module_exports_.clear();
@@ -1865,6 +1908,10 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
         // Restore environment on error
         current_env_ = saved_env;
         module_exports_ = saved_exports;
+        // BUG-O: Restore taint state on error
+        if (governance_ && governance_->isActive()) {
+            governance_->restoreTaintState(saved_taint);
+        }
         throw std::runtime_error(
             fmt::format("Error executing module {}: {}", module_path, e.what())
         );
@@ -1876,6 +1923,11 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
     // Restore previous environment
     current_env_ = saved_env;
     module_exports_ = saved_exports;
+
+    // BUG-O: Restore taint state after module loading
+    if (governance_ && governance_->isActive()) {
+        governance_->restoreTaintState(saved_taint);
+    }
 
     return module_env;
 }
@@ -2337,6 +2389,34 @@ void Interpreter::visit(ast::ReturnStmt& node) {
         }
     }
 
+    // BUG-D: Track if return expression contains tainted data or IS a taint source
+    if (governance_ && governance_->isActive() && node.getExpr()) {
+        bool ret_tainted = expressionContainsTaint(node.getExpr());
+
+        // Also check if the return expression is itself a taint source call
+        if (!ret_tainted) {
+            if (auto* call = dynamic_cast<ast::CallExpr*>(node.getExpr())) {
+                if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+                    std::string full_name;
+                    if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
+                        full_name = obj_id->getName() + ".";
+                    }
+                    full_name += member->getMember();
+                    ret_tainted = governance_->isTaintSource(full_name);
+                }
+                if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+                    ret_tainted = governance_->isTaintSource(id->getName());
+                }
+            }
+            // Polyglot output as return
+            if (dynamic_cast<ast::InlineCodeExpr*>(node.getExpr())) {
+                ret_tainted = governance_->isTaintSource("polyglot_output");
+            }
+        }
+
+        governance_->setLastReturnTainted(ret_tainted);
+    }
+
     returning_ = true;
 }
 
@@ -2450,6 +2530,7 @@ void Interpreter::visit(ast::AwaitExpr& node) {
     // If it's a FutureValue, block until resolved
     auto* future_ptr = std::get_if<std::shared_ptr<FutureValue>>(&value->data);
     if (future_ptr && *future_ptr) {
+        std::string awaited_func_name = (*future_ptr)->func_name;
         try {
             result_ = (*future_ptr)->future.get();
         } catch (const std::exception& e) {
@@ -2458,6 +2539,21 @@ void Interpreter::visit(ast::AwaitExpr& node) {
                 "  Cause: " + std::string(e.what()) + "\n"
             );
         }
+
+        // BUG-K: Check return contract at await resolution point
+        if (governance_ && governance_->isActive() && !awaited_func_name.empty()) {
+            auto return_value = result_;
+            std::string result_str = return_value ? return_value->toString() : "null";
+            std::string result_type = return_value ? getTypeName(return_value) : "null";
+            std::string contract_err = governance_->checkFunctionContract(
+                awaited_func_name, result_str, result_type, node.getLocation().line);
+            if (!contract_err.empty()) {
+                governance_->logContractCheck(awaited_func_name, "FAIL", contract_err,
+                                              current_file_, node.getLocation().line);
+                throw std::runtime_error(contract_err);
+            }
+        }
+
         return;
     }
 
@@ -2514,6 +2610,13 @@ void Interpreter::visit(ast::ForStmt& node) {
     ++loop_depth_;
 
     auto iterable = eval(*node.getIter());
+
+    // BUG-E: If iterable is tainted, mark loop variable as tainted
+    if (governance_ && governance_->isActive()) {
+        if (expressionContainsTaint(node.getIter())) {
+            governance_->markTainted(node.getVar());
+        }
+    }
 
     // Check if it's a range (dict with __is_range marker)
     if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&iterable->data)) {
@@ -2708,6 +2811,50 @@ void Interpreter::visit(ast::ContinueStmt& node) {
     continuing_ = true;
 }
 
+// Governance v4: Recursively check if an expression tree references any tainted variable
+bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
+    if (!governance_ || !governance_->isActive()) return false;
+    if (!expr) return false;
+
+    // Direct identifier reference
+    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(expr)) {
+        return governance_->isTainted(id->getName());
+    }
+
+    // Binary expression (e.g., string concat: "prefix" + tainted_var)
+    if (auto* bin = dynamic_cast<ast::BinaryExpr*>(expr)) {
+        return expressionContainsTaint(bin->getLeft()) ||
+               expressionContainsTaint(bin->getRight());
+    }
+
+    // Function call arguments (e.g., string(tainted_var))
+    if (auto* call = dynamic_cast<ast::CallExpr*>(expr)) {
+        for (const auto& arg : call->getArgs()) {
+            if (expressionContainsTaint(arg.get())) return true;
+        }
+        // Also check if it's a method call on a tainted object
+        if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+            if (expressionContainsTaint(member->getObject())) return true;
+        }
+        return false;
+    }
+
+    // Member access (e.g., tainted_dict.key)
+    if (auto* member = dynamic_cast<ast::MemberExpr*>(expr)) {
+        return expressionContainsTaint(member->getObject());
+    }
+
+    // Subscript access (e.g., tainted_arr[0], tainted_dict["key"])
+    // Check the container, not the index
+    if (auto* bin = dynamic_cast<ast::BinaryExpr*>(expr)) {
+        if (bin->getOp() == ast::BinaryOp::Subscript) {
+            return expressionContainsTaint(bin->getLeft());
+        }
+    }
+
+    return false;
+}
+
 void Interpreter::visit(ast::VarDeclStmt& node) {
     if (debugger_ && debugger_->isActive()) {
         debugger_->setCurrentEnvironment(current_env_);
@@ -2723,6 +2870,61 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
         value = eval(*node.getInit());
     } else {
         value = std::make_shared<Value>();
+    }
+
+    // Governance v4: Taint tracking — mark variables from taint sources
+    if (governance_ && governance_->isActive() && node.getInit()) {
+        bool is_source = false;
+        auto* init_expr = node.getInit();
+
+        // Check if init is a call to a taint source (e.g., env.get(), io.read_line())
+        if (auto* call = dynamic_cast<ast::CallExpr*>(init_expr)) {
+            // Method calls: module.func()
+            if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+                std::string full_name;
+                if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
+                    full_name = obj_id->getName() + ".";
+                }
+                full_name += member->getMember();
+                is_source = governance_->isTaintSource(full_name);
+            }
+            // Free function calls: func()
+            if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+                is_source = governance_->isTaintSource(id->getName());
+            }
+        }
+        // Check if init is an inline code (polyglot output)
+        if (dynamic_cast<ast::InlineCodeExpr*>(init_expr)) {
+            is_source = governance_->isTaintSource("polyglot_output");
+        }
+
+        // Propagation: check if any sub-expression references a tainted variable
+        // (covers direct identifier, string concat, dict access, function args, etc.)
+        bool propagated = expressionContainsTaint(init_expr);
+
+        // BUG-D: Check if init was a function call that returned tainted data
+        if (!is_source && !propagated && dynamic_cast<ast::CallExpr*>(init_expr)) {
+            if (governance_->lastReturnWasTainted()) {
+                propagated = true;
+            }
+        }
+
+        if (is_source || propagated) {
+            governance_->markTainted(node.getName());
+        } else {
+            // Not a source and not propagated — clear any stale taint on this name
+            // (prevents false positives from name collisions across function calls)
+            governance_->clearTaint(node.getName());
+        }
+
+        // Sanitizer: if RHS is a call to a sanitizer, also clear taint
+        if (auto* call = dynamic_cast<ast::CallExpr*>(init_expr)) {
+            if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+                if (governance_->isSanitizer(id->getName())) {
+                    governance_->clearTaint(node.getName());
+                }
+            }
+        }
     }
 
     // Phase 2.4.4: Type inference - if no type annotation, infer from value
@@ -2970,6 +3172,56 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             }
             current_env_->set(id->getName(), value_to_assign);
             result_ = value_to_assign;
+
+            // Governance v4: Taint tracking on assignment (mirrors VarDeclStmt logic)
+            if (governance_ && governance_->isActive()) {
+                auto* rhs_expr = node.getRight();
+                bool is_source = false;
+
+                // Check if RHS is a call to a taint source
+                if (auto* call = dynamic_cast<ast::CallExpr*>(rhs_expr)) {
+                    if (auto* member_rhs = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+                        std::string full_name;
+                        if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_rhs->getObject())) {
+                            full_name = obj_id->getName() + ".";
+                        }
+                        full_name += member_rhs->getMember();
+                        is_source = governance_->isTaintSource(full_name);
+                    }
+                    if (auto* call_id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+                        is_source = governance_->isTaintSource(call_id->getName());
+                    }
+                }
+                // Check if RHS is polyglot output
+                if (dynamic_cast<ast::InlineCodeExpr*>(rhs_expr)) {
+                    is_source = governance_->isTaintSource("polyglot_output");
+                }
+
+                // Propagation: check if RHS references any tainted variable
+                bool propagated = expressionContainsTaint(rhs_expr);
+
+                // BUG-D: Check if RHS was a function call that returned tainted data
+                if (!is_source && !propagated && dynamic_cast<ast::CallExpr*>(rhs_expr)) {
+                    if (governance_->lastReturnWasTainted()) {
+                        propagated = true;
+                    }
+                }
+
+                if (is_source || propagated) {
+                    governance_->markTainted(id->getName());
+                } else {
+                    governance_->clearTaint(id->getName());
+                }
+
+                // Sanitizer check
+                if (auto* call = dynamic_cast<ast::CallExpr*>(rhs_expr)) {
+                    if (auto* call_id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+                        if (governance_->isSanitizer(call_id->getName())) {
+                            governance_->clearTaint(id->getName());
+                        }
+                    }
+                }
+            }
         } else if (auto* member = dynamic_cast<ast::MemberExpr*>(node.getLeft())) {
             // Struct field assignment: obj.field = value
             auto obj = eval(*member->getObject());
@@ -4624,6 +4876,27 @@ void Interpreter::visit(ast::CallExpr& node) {
                         if (module_alias == "http") {
                             std::string err = governance_->checkNetworkAllowed();
                             if (!err.empty()) throw std::runtime_error(err);
+
+                            // BUG-F: Taint sink check on URL argument (SSRF prevention)
+                            if (!node.getArgs().empty()) {
+                                if (auto* url_id = dynamic_cast<ast::IdentifierExpr*>(node.getArgs()[0].get())) {
+                                    std::string terr = governance_->checkTaintedSink(
+                                        url_id->getName(), "http." + func_name,
+                                        current_file_, node.getLocation().line);
+                                    if (!terr.empty()) throw std::runtime_error(terr);
+                                }
+                            }
+                        }
+                        // BUG-G: Taint sink check for env.set_var (prevent tainted data escaping to env)
+                        if (module_alias == "env" && func_name == "set_var") {
+                            if (node.getArgs().size() >= 2) {
+                                if (auto* val_id = dynamic_cast<ast::IdentifierExpr*>(node.getArgs()[1].get())) {
+                                    std::string terr = governance_->checkTaintedSink(
+                                        val_id->getName(), "env.set_var",
+                                        current_file_, node.getLocation().line);
+                                    if (!terr.empty()) throw std::runtime_error(terr);
+                                }
+                            }
                         }
                         // Filesystem check for file module
                         if (module_alias == "file") {
@@ -4633,6 +4906,18 @@ void Interpreter::visit(ast::CallExpr& node) {
                                                   ? "read" : "write";
                             std::string err = governance_->checkFilesystemAllowed(fs_mode);
                             if (!err.empty()) throw std::runtime_error(err);
+
+                            // Taint tracking: check if write args contain tainted data
+                            if (func_name == "write" || func_name == "append") {
+                                for (size_t ai = 0; ai < node.getArgs().size(); ++ai) {
+                                    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(node.getArgs()[ai].get())) {
+                                        std::string terr = governance_->checkTaintedSink(
+                                            id->getName(), "file." + func_name,
+                                            current_file_, node.getLocation().line);
+                                        if (!terr.empty()) throw std::runtime_error(terr);
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -5307,6 +5592,21 @@ void Interpreter::visit(ast::CallExpr& node) {
                 throw std::runtime_error(oss.str());
             }
 
+            // Governance v4: Check input contracts (direct call path)
+            if (governance_ && governance_->isActive()) {
+                std::vector<std::string> arg_types;
+                for (const auto& arg : args) {
+                    arg_types.push_back(arg ? getTypeName(arg) : "null");
+                }
+                std::string input_err = governance_->checkFunctionInputContract(
+                    func->name, arg_types, node.getLocation().line);
+                if (!input_err.empty()) {
+                    governance_->logContractCheck(func->name, "FAIL", input_err,
+                                                  current_file_, node.getLocation().line);
+                    throw std::runtime_error(input_err);
+                }
+            }
+
             // Phase 2.4.4 Phase 3: Handle generic type arguments (explicit or inferred)
             std::map<std::string, ast::Type> type_substitutions;
             if (!func->type_parameters.empty()) {
@@ -5535,8 +5835,14 @@ void Interpreter::visit(ast::CallExpr& node) {
                 std::string contract_err = governance_->checkFunctionContract(
                     func->name, result_str, result_type, func->source_line);
                 if (!contract_err.empty()) {
+                    // BUG-Q: Audit logging for contract check on direct call path
+                    governance_->logContractCheck(func->name, "FAIL", contract_err,
+                                                  current_file_, node.getLocation().line);
                     throw std::runtime_error(contract_err);
                 }
+                // BUG-Q: Log successful contract check too
+                governance_->logContractCheck(func->name, "PASS", "return_type=" + result_type,
+                                              current_file_, node.getLocation().line);
             }
 
             LOG_TRACE("[CALL] Function {} executed\n", func->name);
@@ -6691,6 +6997,15 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         // Check polyglot block count limit
         std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
         if (!count_err.empty()) throw std::runtime_error(count_err);
+
+        // Taint tracking: check if tainted variables are bound to shell blocks
+        if (language == "shell" || language == "sh" || language == "bash") {
+            for (const auto& bv : bound_vars) {
+                std::string terr = governance_->checkTaintedSink(
+                    bv, "shell_exec", current_file_, node.getLocation().line);
+                if (!terr.empty()) throw std::runtime_error(terr);
+            }
+        }
     }
 
     // Phase 2.2: Bind variables using string serialization
@@ -7245,6 +7560,15 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             fprintf(stderr, "[polyglot] %s returned: %s (%.1fms)\n",
                     language.c_str(), result_str.c_str(), trace_ms);
             fprintf(stderr, "[polyglot] -- end %s --\n\n", language.c_str());
+        }
+
+        // Governance v4: Log polyglot execution to audit trail
+        if (governance_ && governance_->isActive()) {
+            auto audit_end = std::chrono::steady_clock::now();
+            int64_t duration_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                audit_end - polyglot_trace_start).count();
+            governance_->logPolyglotExecution(language, bound_vars, duration_us,
+                                              current_file_, node.getLocation().line);
         }
 
     } catch (const std::exception& e) {
@@ -7951,6 +8275,16 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 
             std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
             if (!count_err.empty()) throw std::runtime_error(count_err);
+
+            // BUG-J: Taint sink check for bound variables in parallel polyglot
+            if (lang_str == "shell" || lang_str == "bash" || lang_str == "sh") {
+                for (const auto& bound_var : inline_code->getBoundVariables()) {
+                    std::string terr = governance_->checkTaintedSink(
+                        bound_var, "shell_exec",
+                        current_file_, gov_line);
+                    if (!terr.empty()) throw std::runtime_error(terr);
+                }
+            }
         }
 
         std::vector<std::string> lines;
@@ -8185,6 +8519,11 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                         throw std::runtime_error(output_err);
                     }
                 }
+
+                // BUG-P: Audit logging for parallel polyglot execution
+                std::vector<std::string> bound_vars(block.read_vars.begin(), block.read_vars.end());
+                governance_->logPolyglotExecution(lang_str, bound_vars, 0,
+                    current_file_, block.node ? block.node->getLocation().line : 0);
             }
 
             // Store result value

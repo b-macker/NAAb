@@ -324,6 +324,7 @@ struct EnumDef {
 struct FutureValue {
     std::shared_future<std::shared_ptr<Value>> future;
     std::string description;  // for error messages (e.g., "async fn fetch_data")
+    std::string func_name;    // BUG-K: for return contract check at await
 };
 
 // Runtime value types
@@ -649,6 +650,9 @@ private:
 
     // Parallel polyglot execution
     void executePolyglotGroupParallel(const DependencyGroup& group);
+
+    // Governance v4: Taint propagation through expression trees
+    bool expressionContainsTaint(ast::Expr* expr);
 
     // Variable access helper
     std::shared_ptr<Value> getVariable(const std::string& name) const;

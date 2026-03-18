@@ -1092,6 +1092,10 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (le.contains("checks_passed")) rules_.audit.log_events.checks_passed = le["checks_passed"].get<bool>();
             if (le.contains("checks_failed")) rules_.audit.log_events.checks_failed = le["checks_failed"].get<bool>();
             if (le.contains("overrides")) rules_.audit.log_events.overrides = le["overrides"].get<bool>();
+            if (le.contains("polyglot_executed")) rules_.audit.log_events.polyglot_executed = le["polyglot_executed"].get<bool>();
+            if (le.contains("polyglot_timing")) rules_.audit.log_events.polyglot_timing = le["polyglot_timing"].get<bool>();
+            if (le.contains("taint_decisions")) rules_.audit.log_events.taint_decisions = le["taint_decisions"].get<bool>();
+            if (le.contains("contract_checks")) rules_.audit.log_events.contract_checks = le["contract_checks"].get<bool>();
         }
     }
 
@@ -1360,6 +1364,7 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             auto [en, lv] = parseEnforcementLevel(ct["level"]);
             if (en) rules_.contracts.level = lv;
         }
+        if (ct.contains("validate_inputs")) rules_.contracts.validate_inputs = ct["validate_inputs"].get<bool>();
         if (ct.contains("functions") && ct["functions"].is_object()) {
             for (auto& [fn_name, fn_obj] : ct["functions"].items()) {
                 if (!fn_obj.is_object()) continue;
@@ -1394,6 +1399,9 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 if (fn_obj.contains("return_length_min")) fc.return_length_min = fn_obj["return_length_min"].get<int>();
                 if (fn_obj.contains("return_length_max")) fc.return_length_max = fn_obj["return_length_max"].get<int>();
                 if (fn_obj.contains("return_not_null")) fc.return_not_null = fn_obj["return_not_null"].get<bool>();
+                if (fn_obj.contains("params") && fn_obj["params"].is_array()) {
+                    for (auto& p : fn_obj["params"]) fc.params.push_back(p.get<std::string>());
+                }
                 rules_.contracts.functions[fn_name] = std::move(fc);
             }
         }
@@ -1411,6 +1419,28 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         if (bl.contains("tolerance")) rules_.baselines.tolerance = bl["tolerance"].get<double>();
         if (bl.contains("auto_record")) rules_.baselines.auto_record = bl["auto_record"].get<bool>();
         if (bl.contains("hash_keys")) rules_.baselines.hash_keys = bl["hash_keys"].get<bool>();
+    }
+
+    // Taint Tracking
+    if (j.contains("taint_tracking") && j["taint_tracking"].is_object()) {
+        auto& tt = j["taint_tracking"];
+        if (tt.contains("enabled")) rules_.taint_tracking.enabled = tt["enabled"].get<bool>();
+        if (tt.contains("level")) rules_.taint_tracking.level = tt["level"].get<std::string>();
+        if (tt.contains("sources") && tt["sources"].is_array()) {
+            for (const auto& s : tt["sources"]) {
+                rules_.taint_tracking.sources.push_back(s.get<std::string>());
+            }
+        }
+        if (tt.contains("sinks") && tt["sinks"].is_array()) {
+            for (const auto& s : tt["sinks"]) {
+                rules_.taint_tracking.sinks.push_back(s.get<std::string>());
+            }
+        }
+        if (tt.contains("sanitizers") && tt["sanitizers"].is_array()) {
+            for (const auto& s : tt["sanitizers"]) {
+                rules_.taint_tracking.sanitizers.push_back(s.get<std::string>());
+            }
+        }
     }
 }
 
@@ -3067,6 +3097,67 @@ std::string GovernanceEngine::checkFunctionContract(
     return "";
 }
 
+// --- Input Contract Validation (v4) ---
+
+std::string GovernanceEngine::checkFunctionInputContract(
+    const std::string& func_name,
+    const std::vector<std::string>& arg_types,
+    int line) {
+
+    if (!rules_.contracts.validate_inputs) return "";
+
+    auto it = rules_.contracts.functions.find(func_name);
+    if (it == rules_.contracts.functions.end()) return "";
+
+    const auto& contract = it->second;
+    if (contract.params.empty()) return "";
+
+    // Check argument count
+    if (arg_types.size() != contract.params.size()) {
+        std::string msg = "Contract violation [" + func_name + "]: expected " +
+                          std::to_string(contract.params.size()) + " arguments, got " +
+                          std::to_string(arg_types.size());
+        if (line > 0) msg += " (line " + std::to_string(line) + ")";
+
+        EnforcementLevel lvl = (contract.level != EnforcementLevel::NONE)
+            ? contract.level : rules_.contracts.level;
+        if (lvl == EnforcementLevel::HARD || (lvl == EnforcementLevel::SOFT && !override_enabled_)) {
+            return msg;
+        }
+        fmt::print(stderr, "[GOVERNANCE] WARNING: {}\n", msg);
+        return "";
+    }
+
+    // Check each argument type
+    for (size_t i = 0; i < contract.params.size(); ++i) {
+        const auto& param_spec = contract.params[i];
+        // Parse "name:type" format
+        auto colon_pos = param_spec.find(':');
+        if (colon_pos == std::string::npos) continue;  // No type constraint
+
+        std::string param_name = param_spec.substr(0, colon_pos);
+        std::string expected_type = param_spec.substr(colon_pos + 1);
+
+        if (expected_type == "any") continue;  // Accept anything
+
+        if (i < arg_types.size() && arg_types[i] != expected_type) {
+            std::string msg = "Contract violation [" + func_name + "]: parameter '" +
+                              param_name + "' expected type '" + expected_type +
+                              "', got '" + arg_types[i] + "'";
+            if (line > 0) msg += " (line " + std::to_string(line) + ")";
+
+            EnforcementLevel lvl = (contract.level != EnforcementLevel::NONE)
+                ? contract.level : rules_.contracts.level;
+            if (lvl == EnforcementLevel::HARD || (lvl == EnforcementLevel::SOFT && !override_enabled_)) {
+                return msg;
+            }
+            fmt::print(stderr, "[GOVERNANCE] WARNING: {}\n", msg);
+        }
+    }
+
+    return "";
+}
+
 // --- Complexity Floor Check ---
 
 std::string GovernanceEngine::checkComplexityFloor(
@@ -4173,6 +4264,95 @@ bool GovernanceEngine::looksLikeHex(const std::string& str) {
     } catch (...) { return false; }
 }
 
+// --- Taint Tracking ---
+void GovernanceEngine::markTainted(const std::string& var_name) {
+    if (!rules_.taint_tracking.enabled) return;
+    std::lock_guard<std::mutex> lock(taint_mutex_);
+    taint_set_.insert(var_name);
+}
+
+void GovernanceEngine::clearTaint(const std::string& var_name) {
+    std::lock_guard<std::mutex> lock(taint_mutex_);
+    taint_set_.erase(var_name);
+}
+
+bool GovernanceEngine::isTainted(const std::string& var_name) const {
+    std::lock_guard<std::mutex> lock(taint_mutex_);
+    return taint_set_.count(var_name) > 0;
+}
+
+// BUG-O: Save/restore taint state for module loading isolation
+std::unordered_set<std::string> GovernanceEngine::saveTaintState() const {
+    std::lock_guard<std::mutex> lock(taint_mutex_);
+    return taint_set_;
+}
+
+void GovernanceEngine::restoreTaintState(const std::unordered_set<std::string>& state) {
+    std::lock_guard<std::mutex> lock(taint_mutex_);
+    taint_set_ = state;
+}
+
+// BUG-D: Track function return taint
+bool GovernanceEngine::lastReturnWasTainted() const {
+    return last_return_tainted_;
+}
+
+void GovernanceEngine::setLastReturnTainted(bool v) {
+    last_return_tainted_ = v;
+}
+
+bool GovernanceEngine::isTaintSource(const std::string& func_name) const {
+    if (!rules_.taint_tracking.enabled) return false;
+    for (const auto& src : rules_.taint_tracking.sources) {
+        if (func_name.find(src) != std::string::npos) return true;
+    }
+    return false;
+}
+
+bool GovernanceEngine::isSanitizer(const std::string& func_name) const {
+    if (!rules_.taint_tracking.enabled) return false;
+    for (const auto& san : rules_.taint_tracking.sanitizers) {
+        if (func_name.find(san) != std::string::npos) return true;
+    }
+    return false;
+}
+
+std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
+                                                const std::string& sink_type,
+                                                const std::string& file, int line) {
+    if (!rules_.taint_tracking.enabled) return "";
+    {
+        std::lock_guard<std::mutex> lock(taint_mutex_);
+        if (taint_set_.count(var_name) == 0) return "";
+    }
+
+    // Check if this sink type is in the configured sinks
+    bool is_sink = false;
+    for (const auto& s : rules_.taint_tracking.sinks) {
+        if (sink_type.find(s) != std::string::npos) { is_sink = true; break; }
+    }
+    if (!is_sink) return "";
+
+    // Log the decision
+    logTaintDecision(var_name, "BLOCKED", sink_type, file, line);
+
+    std::string msg = "Taint tracking violation: variable '" + var_name +
+                      "' contains untrusted data and reached sink '" + sink_type +
+                      "' without sanitization";
+    if (!file.empty()) msg += " at " + file + ":" + std::to_string(line);
+
+    // Enforce based on level
+    if (rules_.taint_tracking.level == "hard") {
+        return msg;  // Caller will throw
+    } else if (rules_.taint_tracking.level == "soft") {
+        if (!override_enabled_) return msg;
+        // With override, fall through to warning
+    }
+    // Advisory: just warn
+    fmt::print(stderr, "[GOVERNANCE] WARNING: {}\n", msg);
+    return "";
+}
+
 // --- Audit Trail ---
 void GovernanceEngine::logAuditEvent(const std::string& event_type,
                                       const std::string& rule_name,
@@ -4208,6 +4388,52 @@ void GovernanceEngine::logAuditEvent(const std::string& event_type,
             ofs << entry.dump() << "\n";
         }
     } catch (...) {}
+}
+
+void GovernanceEngine::logPolyglotExecution(const std::string& language,
+                                              const std::vector<std::string>& bound_vars,
+                                              int64_t duration_us,
+                                              const std::string& file, int line) {
+    if (!rules_.audit.log_events.polyglot_executed &&
+        !rules_.audit.log_events.polyglot_timing) return;
+
+    std::string vars_str;
+    for (size_t i = 0; i < bound_vars.size(); ++i) {
+        if (i > 0) vars_str += ", ";
+        vars_str += bound_vars[i];
+    }
+
+    std::string msg = "lang=" + language;
+    if (!vars_str.empty()) msg += " vars=[" + vars_str + "]";
+    if (rules_.audit.log_events.polyglot_timing) {
+        msg += " duration=" + std::to_string(duration_us) + "us";
+    }
+
+    logAuditEvent("polyglot_executed", "polyglot", msg, file, line);
+}
+
+void GovernanceEngine::logTaintDecision(const std::string& var_name,
+                                         const std::string& decision,
+                                         const std::string& sink,
+                                         const std::string& file, int line) {
+    if (!rules_.audit.log_events.taint_decisions) return;
+
+    std::string msg = "var=" + var_name + " decision=" + decision;
+    if (!sink.empty()) msg += " sink=" + sink;
+
+    logAuditEvent("taint_decision", "taint_tracking", msg, file, line);
+}
+
+void GovernanceEngine::logContractCheck(const std::string& func_name,
+                                         const std::string& result,
+                                         const std::string& detail,
+                                         const std::string& file, int line) {
+    if (!rules_.audit.log_events.contract_checks) return;
+
+    std::string msg = "func=" + func_name + " result=" + result;
+    if (!detail.empty()) msg += " " + detail;
+
+    logAuditEvent("contract_check", "contracts", msg, file, line);
 }
 
 std::string GovernanceEngine::computeAuditHash(const std::string& data) const {

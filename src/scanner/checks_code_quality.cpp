@@ -6,6 +6,7 @@
 #include <sstream>
 #include <functional>
 #include <unordered_set>
+#include <unordered_map>
 #include <algorithm>
 #include <fmt/core.h>
 #include <cmath>
@@ -319,6 +320,180 @@ void ScannerEngine::checkCodeQuality(const std::string& filepath,
                     addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
                              "Condition always true: identical string comparison", s,
                              "Remove or fix the condition");
+                    found = true;
+                }
+            }
+
+            // Enhanced: len(x) comparisons — len() never returns negative
+            if (!found) {
+                // len(x) < 0 or len(x) <= -1 → always false
+                static const std::regex len_lt_zero(R"(len\s*\([^)]+\)\s*<\s*0\b)");
+                static const std::regex len_le_neg(R"(len\s*\([^)]+\)\s*<=\s*-\d+)");
+                if (std::regex_search(s, len_lt_zero) || std::regex_search(s, len_le_neg)) {
+                    addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
+                             "Condition always false: len() never returns negative", s,
+                             "Remove or fix the condition");
+                    found = true;
+                }
+            }
+            if (!found) {
+                // len(x) >= 0 → always true
+                static const std::regex len_ge_zero(R"(len\s*\([^)]+\)\s*>=\s*0\b)");
+                if (std::regex_search(s, len_ge_zero)) {
+                    addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
+                             "Condition always true: len() is always >= 0", s,
+                             "Remove or fix the condition");
+                    found = true;
+                }
+            }
+
+            // Enhanced: contradictory comparisons — x > N and x < N
+            if (!found) {
+                static const std::regex contra_gt_lt(R"((\w+)\s*>\s*(\d+)\s+and\s+\1\s*<\s*(\d+))");
+                std::smatch cm;
+                if (std::regex_search(s, cm, contra_gt_lt)) {
+                    int lo = std::stoi(cm[2].str());
+                    int hi = std::stoi(cm[3].str());
+                    if (lo >= hi) {
+                        addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
+                                 fmt::format("Condition always false: {} > {} and {} < {} is impossible",
+                                             cm[1].str(), lo, cm[1].str(), hi), s,
+                                 "Remove or fix the condition");
+                        found = true;
+                    }
+                }
+            }
+
+            // Enhanced: null access — x == null and x.method()
+            if (!found) {
+                static const std::regex null_and_access(R"((\w+)\s*==\s*null\s+and\s+\1\s*\.)");
+                if (std::regex_search(s, null_and_access)) {
+                    addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
+                             "Dead code: if x == null then x has no methods", s,
+                             "Use x != null to guard method access");
+                    found = true;
+                }
+            }
+
+            // Enhanced: contradictory type checks — type(x) == "A" and type(x) == "B"
+            if (!found) {
+                static const std::regex contra_type(
+                    R"RE(type\s*\(\s*(\w+)\s*\)\s*==\s*"(\w+)"\s+and\s+type\s*\(\s*\1\s*\)\s*==\s*"(\w+)")RE");
+                std::smatch tm;
+                if (std::regex_search(s, tm, contra_type) && tm[2].str() != tm[3].str()) {
+                    addIssue(issues, filepath, i + 1, "dead_conditional", CAT,
+                             fmt::format("Condition always false: {} can't be both \"{}\" and \"{}\"",
+                                         tm[1].str(), tm[2].str(), tm[3].str()), s,
+                             "Remove or fix the condition");
+                    found = true;
+                }
+            }
+        }
+    }
+
+    // 6b. dead_conditional_dataflow — range tracking from clamp/max/min/for
+    if (isEnabled(CAT, "dead_conditional_dataflow")) {
+        // Track variable ranges within each function scope
+        static const std::regex func_start_df(R"(^(?:export\s+)?fn\s+\w+)");
+        static const std::regex main_start_df(R"(^main\s*\{)");
+
+        // Range extraction patterns
+        static const std::regex max_pat(R"(^let\s+(\w+)\s*=\s*math\.max\s*\(\s*(-?\d+(?:\.\d+)?)\s*,)");
+        static const std::regex min_pat(R"(^let\s+(\w+)\s*=\s*math\.min\s*\(\s*(-?\d+(?:\.\d+)?)\s*,)");
+        static const std::regex clamp_pat(R"(^let\s+(\w+)\s*=\s*(?:math\.)?clamp\s*\([^,]+,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\))");
+        // math.max(lo, math.min(hi, expr)) → range [lo, hi]
+        static const std::regex max_min_pat(R"(^let\s+(\w+)\s*=\s*math\.max\s*\(\s*(-?\d+(?:\.\d+)?)\s*,\s*math\.min\s*\(\s*(-?\d+(?:\.\d+)?)\s*,)");
+        // for i in lo..hi
+        static const std::regex for_range_pat(R"(^for\s+(\w+)\s+in\s+(-?\d+)\s*\.\.\s*(-?\d+))");
+
+        // Comparison patterns in if conditions
+        static const std::regex if_var_lt(R"(^if\s+(\w+)\s*<\s*(-?\d+(?:\.\d+)?))");
+        static const std::regex if_var_gt(R"(^if\s+(\w+)\s*>\s*(-?\d+(?:\.\d+)?))");
+        static const std::regex if_var_le(R"(^if\s+(\w+)\s*<=\s*(-?\d+(?:\.\d+)?))");
+        static const std::regex if_var_ge(R"(^if\s+(\w+)\s*>=\s*(-?\d+(?:\.\d+)?))");
+
+        struct Range { double lo; double hi; };
+        std::unordered_map<std::string, Range> range_map;
+        constexpr double INF = 1e18;
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            std::string s = cq_trim(lines[i]);
+            std::smatch m;
+
+            // Reset range map at function/main boundaries
+            if (std::regex_search(s, func_start_df) || std::regex_search(s, main_start_df)) {
+                range_map.clear();
+            }
+
+            // Extract ranges from assignments
+            if (std::regex_search(s, m, max_min_pat)) {
+                // math.max(lo, math.min(hi, expr)) → [lo, hi]
+                range_map[m[1].str()] = {std::stod(m[2].str()), std::stod(m[3].str())};
+            } else if (std::regex_search(s, m, clamp_pat)) {
+                // clamp(expr, lo, hi) → [lo, hi]
+                range_map[m[1].str()] = {std::stod(m[2].str()), std::stod(m[3].str())};
+            } else if (std::regex_search(s, m, max_pat)) {
+                // math.max(N, expr) → [N, +inf]
+                range_map[m[1].str()] = {std::stod(m[2].str()), INF};
+            } else if (std::regex_search(s, m, min_pat)) {
+                // math.min(N, expr) → [-inf, N]
+                range_map[m[1].str()] = {-INF, std::stod(m[2].str())};
+            } else if (std::regex_search(s, m, for_range_pat)) {
+                // for i in lo..hi → [lo, hi-1]
+                range_map[m[1].str()] = {std::stod(m[2].str()), std::stod(m[3].str()) - 1};
+            }
+
+            // Check if conditions against known ranges
+            if (std::regex_search(s, m, if_var_lt)) {
+                auto it = range_map.find(m[1].str());
+                if (it != range_map.end()) {
+                    double cmp_val = std::stod(m[2].str());
+                    if (it->second.lo >= cmp_val) {
+                        addIssue(issues, filepath, i + 1, "dead_conditional_dataflow", CAT,
+                                 fmt::format("Condition always false: '{}' has minimum {} (from clamp/max), can't be < {}",
+                                             m[1].str(), it->second.lo, cmp_val), s,
+                                 "Remove dead conditional or fix the range");
+                    }
+                }
+            } else if (std::regex_search(s, m, if_var_gt)) {
+                auto it = range_map.find(m[1].str());
+                if (it != range_map.end()) {
+                    double cmp_val = std::stod(m[2].str());
+                    if (it->second.hi <= cmp_val) {
+                        addIssue(issues, filepath, i + 1, "dead_conditional_dataflow", CAT,
+                                 fmt::format("Condition always false: '{}' has maximum {} (from clamp/min), can't be > {}",
+                                             m[1].str(), it->second.hi, cmp_val), s,
+                                 "Remove dead conditional or fix the range");
+                    }
+                }
+            } else if (std::regex_search(s, m, if_var_le)) {
+                auto it = range_map.find(m[1].str());
+                if (it != range_map.end()) {
+                    double cmp_val = std::stod(m[2].str());
+                    if (it->second.lo > cmp_val) {
+                        addIssue(issues, filepath, i + 1, "dead_conditional_dataflow", CAT,
+                                 fmt::format("Condition always false: '{}' has minimum {} (from clamp/max), can't be <= {}",
+                                             m[1].str(), it->second.lo, cmp_val), s,
+                                 "Remove dead conditional or fix the range");
+                    }
+                }
+            } else if (std::regex_search(s, m, if_var_ge)) {
+                auto it = range_map.find(m[1].str());
+                if (it != range_map.end()) {
+                    double cmp_val = std::stod(m[2].str());
+                    if (it->second.hi < cmp_val) {
+                        addIssue(issues, filepath, i + 1, "dead_conditional_dataflow", CAT,
+                                 fmt::format("Condition always false: '{}' has maximum {} (from clamp/min), can't be >= {}",
+                                             m[1].str(), it->second.hi, cmp_val), s,
+                                 "Remove dead conditional or fix the range");
+                    }
+                    // Also detect always-true: if x >= lo when x.lo >= lo
+                    if (it->second.lo >= cmp_val) {
+                        addIssue(issues, filepath, i + 1, "dead_conditional_dataflow", CAT,
+                                 fmt::format("Condition always true: '{}' has minimum {} (from clamp/max), always >= {}",
+                                             m[1].str(), it->second.lo, cmp_val), s,
+                                 "Remove dead conditional or fix the range");
+                    }
                 }
             }
         }

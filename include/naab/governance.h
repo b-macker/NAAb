@@ -805,6 +805,9 @@ struct LogEventsConfig {
     bool execution_start = true;
     bool execution_end = true;
     bool polyglot_executed = true;
+    bool polyglot_timing = false;
+    bool taint_decisions = false;
+    bool contract_checks = false;
 };
 
 struct RetentionConfig {
@@ -961,10 +964,12 @@ struct FunctionContract {
     int return_length_min = -1;        // -1 = not set
     int return_length_max = -1;
     bool return_not_null = false;
+    std::vector<std::string> params;   // v4: input params, format "name:type" (type = any|int|float|string|bool|dict|array)
 };
 
 struct ContractsConfig {
     EnforcementLevel level = EnforcementLevel::SOFT;
+    bool validate_inputs = false;
     std::map<std::string, FunctionContract> functions;
 };
 
@@ -1096,6 +1101,18 @@ struct BaselinesConfig {
 };
 
 // ============================================================================
+// Taint Tracking Configuration
+// ============================================================================
+
+struct TaintTrackingConfig {
+    bool enabled = false;
+    std::string level = "hard";  // hard, soft, advisory
+    std::vector<std::string> sources;      // e.g., "env.get", "io.read_line", "file.read", "polyglot_output"
+    std::vector<std::string> sinks;        // e.g., "shell_exec", "file.write", "file.append"
+    std::vector<std::string> sanitizers;   // e.g., "validate_", "sanitize_", "escape_", "int(", "float("
+};
+
+// ============================================================================
 // Master Rules Structure
 // ============================================================================
 
@@ -1120,6 +1137,7 @@ struct GovernanceRules {
     PolyglotConfig polyglot;
     PolyglotOptimizationConfig polyglot_optimization;
     ContractsConfig contracts;
+    TaintTrackingConfig taint_tracking;
     BaselinesConfig baselines;
     ProjectContextConfig project_context;
 
@@ -1368,6 +1386,10 @@ public:
                                        const std::string& result_type,
                                        int line = 0);
 
+    std::string checkFunctionInputContract(const std::string& func_name,
+                                            const std::vector<std::string>& arg_types,
+                                            int line = 0);
+
     // --- Complexity Floor Check ---
     // Verifies that functions meet minimum structural complexity
     std::string checkComplexityFloor(const std::string& code,
@@ -1445,6 +1467,42 @@ public:
                        const std::string& file = "",
                        int line = 0);
 
+    void logPolyglotExecution(const std::string& language,
+                              const std::vector<std::string>& bound_vars,
+                              int64_t duration_us,
+                              const std::string& file = "",
+                              int line = 0);
+
+    void logTaintDecision(const std::string& var_name,
+                          const std::string& decision,
+                          const std::string& sink,
+                          const std::string& file = "",
+                          int line = 0);
+
+    void logContractCheck(const std::string& func_name,
+                          const std::string& result,
+                          const std::string& detail,
+                          const std::string& file = "",
+                          int line = 0);
+
+    // --- Taint Tracking ---
+    void markTainted(const std::string& var_name);
+    void clearTaint(const std::string& var_name);
+    bool isTainted(const std::string& var_name) const;
+    std::string checkTaintedSink(const std::string& var_name,
+                                  const std::string& sink_type,
+                                  const std::string& file, int line);
+    bool isTaintSource(const std::string& func_name) const;
+    bool isSanitizer(const std::string& func_name) const;
+
+    // BUG-O: Save/restore taint state for module loading isolation
+    std::unordered_set<std::string> saveTaintState() const;
+    void restoreTaintState(const std::unordered_set<std::string>& state);
+
+    // BUG-D: Track if last function return was tainted
+    bool lastReturnWasTainted() const;
+    void setLastReturnTainted(bool v);
+
     // --- Hooks ---
     void fireHook(const HookConfig& hook,
                   const std::unordered_map<std::string, std::string>& vars);
@@ -1458,6 +1516,9 @@ private:
     std::string loaded_path_;
     GovernanceRules rules_;
     std::vector<CheckResult> check_results_;
+    std::unordered_set<std::string> taint_set_;
+    mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
+    bool last_return_tainted_ = false;  // BUG-D: Track function return taint
 
     // Rate limiters
     RateLimiter polyglot_rate_;

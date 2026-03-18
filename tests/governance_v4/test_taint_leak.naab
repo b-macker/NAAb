@@ -1,0 +1,56 @@
+// Test: Does taint leak across function boundaries via global taint set?
+// This is the critical state consistency test
+
+use env
+
+fn create_tainted() {
+    // Creates a variable named "data" that's tainted
+    let data = env.get("HOME")
+    // "data" is now in the global taint_set_
+}
+
+fn use_clean_data() {
+    let passed = 0
+    let total = 0
+
+    // Test: If another function also uses a variable named "data",
+    // is it falsely tainted because of the global taint set?
+    total = total + 1
+    let data = "totally_safe_string"
+    // "data" should NOT be tainted — it's a new local variable
+    // BUT if taint_set_ is global and name-based, "data" is still in the set
+    try {
+        <<shell[data]
+echo $data
+>>
+        passed = passed + 1  // If we get here, no false positive
+        print("GOOD: No false taint on same-named variable")
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("Taint") or err_str.contains("taint") {
+            print("BUG: False positive — taint leaked across function boundary via name collision")
+            // This is a real bug if it happens
+        } else {
+            // Some other error
+            print("Other error: " + err_str)
+        }
+    }
+
+    return [passed, total]
+}
+
+main {
+    // First, create a tainted "data" in one function
+    create_tainted()
+
+    // Now use a clean "data" in another function
+    let result = use_clean_data()
+
+    print(string(result[0]) + "/" + string(result[1]) + " taint leak tests")
+
+    if result[0] == result[1] {
+        print("PASS")
+    } else {
+        print("FAIL: Taint state leaked across function boundaries")
+    }
+}

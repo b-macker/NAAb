@@ -1,0 +1,73 @@
+// Test: Data flow dead conditional detection
+// Scanner should detect dead conditionals based on value range tracking
+
+fn test_clamp_dead_check() {
+    let raw_score = 150
+    let score = math.max(0, math.min(100, raw_score))
+    // score is [0, 100] — these are dead:
+    if score < 0 {
+        print("dead: score clamped to [0,100]")
+    }
+    if score > 100 {
+        print("dead: score clamped to [0,100]")
+    }
+    // This is valid:
+    if score > 50 {
+        print("valid check within range")
+    }
+}
+
+fn test_max_dead_check() {
+    let raw = -5
+    let val = math.max(0, raw)
+    // val is [0, +inf] — this is dead:
+    if val < 0 {
+        print("dead: val floored at 0")
+    }
+    // This is valid:
+    if val > 10 {
+        print("valid: val could be > 10")
+    }
+}
+
+fn test_min_dead_check() {
+    let raw = 999
+    let capped = math.min(100, raw)
+    // capped is [-inf, 100] — this is dead:
+    if capped > 100 {
+        print("dead: capped at 100")
+    }
+    // This is valid:
+    if capped < 50 {
+        print("valid: capped could be < 50")
+    }
+}
+
+fn test_for_range_dead_check() {
+    for i in 0..10 {
+        // i is [0, 9] — this is dead:
+        if i < 0 {
+            print("dead: i starts at 0")
+        }
+        if i >= 0 {
+            print("always true: i always >= 0")
+        }
+    }
+}
+
+fn test_valid_checks_not_flagged() {
+    let score = math.max(0, math.min(100, 75))
+    if score > 0 {
+        print("valid")
+    }
+    if score < 100 {
+        print("valid")
+    }
+    if score == 50 {
+        print("valid")
+    }
+}
+
+main {
+    print("Scanner test file - run with: naab-lang --scan test_dead_conditional_dataflow.naab")
+}
