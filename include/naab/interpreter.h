@@ -325,6 +325,7 @@ struct FutureValue {
     std::shared_future<std::shared_ptr<Value>> future;
     std::string description;  // for error messages (e.g., "async fn fetch_data")
     std::string func_name;    // BUG-K: for return contract check at await
+    std::atomic<bool> return_tainted{false};  // BUG-AwaitExpr: async return taint flag
 };
 
 // Runtime value types
@@ -518,6 +519,10 @@ public:
     void disableGovernance() {
         governance_.reset();
     }
+    // Governance v4: Taint tracking getter (BUG-AwaitExpr fix)
+    bool wasLastReturnTainted() const {
+        return governance_ ? governance_->wasLastReturnTainted() : false;
+    }
 
 private:
     std::shared_ptr<Environment> global_env_;
@@ -653,6 +658,8 @@ private:
 
     // Governance v4: Taint propagation through expression trees
     bool expressionContainsTaint(ast::Expr* expr);
+    // Governance v4: Helper to check if CompoundStmt can produce tainted return (BUG-MatchExpr fix)
+    bool compoundStmtContainsTaint(ast::CompoundStmt* stmt);
     // Governance v4: Check expression-level taint at sink (handles both identifiers and complex expressions)
     std::string checkExpressionTaintedSink(ast::Expr* expr, const std::string& sink_type,
                                             const std::string& file, int line);

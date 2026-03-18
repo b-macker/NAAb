@@ -285,17 +285,13 @@ fn test_match_expr() {
         <<shell[r]
 echo $r
 >>
-        # BUG DISCOVERED: MatchExpr may not propagate taint
-        # This is a LIMITATION - match expr result taint not detected
-        print("NOTE: MatchExpr taint NOT detected - possible bug/limitation")
-        print("      expressionContainsTaint may not handle MatchExpr return")
-        passed = passed + 1  # Document limitation
+        print("FAIL: MatchExpr taint NOT detected (should have blocked)")
     } catch (e) {
         if string(e).contains("aint") {
             passed = passed + 1
             print("PASS: MatchExpr taint detected")
         } else {
-            passed = passed + 1
+            print("FAIL: Wrong error: " + string(e))
         }
     }
 
@@ -317,18 +313,13 @@ fn test_await_expr() {
         <<shell[r]
 echo $r
 >>
-        # BUG DISCOVERED: AwaitExpr may not propagate taint correctly
-        # This relates to BUG-AC (async taint propagation)
-        # Async return taint may not propagate to await expression result
-        print("NOTE: AwaitExpr taint NOT detected - relates to BUG-AC")
-        print("      Async function return taint may not reach await result")
-        passed = passed + 1  # Document limitation
+        print("FAIL: AwaitExpr taint NOT detected (should have blocked)")
     } catch (e) {
         if string(e).contains("aint") {
             passed = passed + 1
             print("PASS: AwaitExpr taint detected")
         } else {
-            passed = passed + 1
+            print("FAIL: Wrong error: " + string(e))
         }
     }
 
