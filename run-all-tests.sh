@@ -18,6 +18,8 @@ TEST_DIRS=(
     "tests/llm_patterns"
     "tests/path_resolution"
     "tests/chapter verification"
+    "tests/governance_v3"
+    "tests/governance_v4"
     "tests"
 )
 
@@ -67,19 +69,40 @@ EXPECTED_FAILURES["polyglot_showcase.naab"]=1
 # Slow polyglot tests that may timeout on constrained environments
 EXPECTED_FAILURES["anti_patterns.naab"]=1
 EXPECTED_FAILURES["before_after_optimization.naab"]=1
+# Governance v3/v4 tests that are designed to fail (intentional violation tests)
+EXPECTED_FAILURES["test_degraded.naab"]=1  # Intentional math error for degraded mode
+# Governance v3 violation tests (designed to be blocked by governance)
+EXPECTED_FAILURES["test_complexity_floor.naab"]=1
+EXPECTED_FAILURES["test_complexity_names_fail.naab"]=1
+EXPECTED_FAILURES["test_complexity_names_pass.naab"]=1
+EXPECTED_FAILURES["test_contracts_empty.naab"]=1
+EXPECTED_FAILURES["test_contracts_non_empty_null.naab"]=1
+EXPECTED_FAILURES["test_contracts_null_return.naab"]=1
+EXPECTED_FAILURES["test_contracts_range_violation.naab"]=1
+EXPECTED_FAILURES["test_contracts_return_keys.naab"]=1
+EXPECTED_FAILURES["test_contracts_type_mismatch.naab"]=1
+EXPECTED_FAILURES["test_contracts_violation.naab"]=1
+EXPECTED_FAILURES["test_evasion_advisory_elevation.naab"]=1
+EXPECTED_FAILURES["polyglot_enforcement_test.naab"]=1
+EXPECTED_FAILURES["test_evasion_js_comment.naab"]=1
+EXPECTED_FAILURES["test_evasion_naab_stub.naab"]=1
+EXPECTED_FAILURES["test_evasion_private_stub.naab"]=1
+EXPECTED_FAILURES["test_evasion_triple_quote.naab"]=1
+EXPECTED_FAILURES["test_v3_banned_function.naab"]=1
+EXPECTED_FAILURES["test_v3_blocked_import.naab"]=1
+EXPECTED_FAILURES["test_v3_custom_rule.naab"]=1
+EXPECTED_FAILURES["test_v3_hallucinated_api.naab"]=1
+EXPECTED_FAILURES["test_v3_incomplete_logic.naab"]=1
+EXPECTED_FAILURES["test_v3_oversimplification.naab"]=1
+EXPECTED_FAILURES["test_v3_privilege_escalation.naab"]=1
+EXPECTED_FAILURES["test_v3_secret_detection.naab"]=1
+EXPECTED_FAILURES["test_v3_simulation_markers.naab"]=1
+EXPECTED_FAILURES["test_v3_sql_injection.naab"]=1
+EXPECTED_FAILURES["test_v3_unsafe_deser.naab"]=1
 # and/or/not are now proper keywords (aliases for &&/||/!)
 # These tests now PASS — removed from expected failures
-# Note: Governance tests in tests/governance_v3/ are NOT discovered by the
-# automated runner (it uses --no-governance and tests/ is maxdepth 1).
-# Verify manually:
-#   Anti-evasion: cd tests/governance_v3 && for f in test_evasion_*.naab; do
-#     echo "=== $f ===" && ../../build/naab-lang "$f" 2>&1 | head -3; done
-#   Complexity floor (expect HARD violation):
-#     cd tests/governance_v3/complexity_config && ../../../build/naab-lang test_complexity_floor.naab
-#   Contracts pass:
-#     cd tests/governance_v3/contracts_config && ../../../build/naab-lang test_contracts.naab
-#   Contracts violation (expect HARD violation):
-#     cd tests/governance_v3/contracts_config && ../../../build/naab-lang test_contracts_violation.naab
+# Note: Governance tests in tests/governance_v3/ and tests/governance_v4/ are NOW
+# included in the automated runner (as of Phase 2). They run WITH governance enabled.
 
 # Directories to skip entirely
 SKIP_DIRS=(
@@ -123,9 +146,20 @@ run_test() {
 
     TOTAL=$((TOTAL + 1))
 
+    # Governance tests need governance enabled; all others disable it for speed
+    local gov_flag="--no-governance"
+    if [[ "$test_file" == *"/governance_v3/"* ]] || [[ "$test_file" == *"/governance_v4/"* ]]; then
+        gov_flag=""
+    fi
+
+    # Special case: soft_override tests need --governance-override flag
+    if [[ "$test_file" == *"/soft_override/"* ]]; then
+        gov_flag="--governance-override"
+    fi
+
     # Run the test with timeout
     local output_file="$HOME/.naab_test_output_$$.txt"
-    if timeout "$timeout_duration" "$NAAB_BIN" --no-governance run "$test_file" > "$output_file" 2>&1; then
+    if timeout "$timeout_duration" "$NAAB_BIN" $gov_flag run "$test_file" > "$output_file" 2>&1; then
         PASSED=$((PASSED + 1))
         PASSED_TESTS+=("$test_name")
         echo "  PASS: $test_name"
@@ -178,6 +212,8 @@ for dir in "${TEST_DIRS[@]}"; do
         timeout="120s"
     elif [ "$dir" = "tests/benchmarks" ]; then
         timeout="60s"
+    elif [ "$dir" = "tests/governance_v3" ] || [ "$dir" = "tests/governance_v4" ]; then
+        timeout="60s"  # Governance tests run polyglot blocks
     fi
 
     # Find all .naab files
