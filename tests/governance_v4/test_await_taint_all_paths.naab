@@ -1,0 +1,219 @@
+// Test: AwaitExpr taint propagation across ALL consumption paths
+// Verifies fixes for Issues #1-4 from critical review
+
+use env
+
+async fn get_tainted() {
+    return env.get("HOME")
+}
+
+async fn get_clean() {
+    return "clean_value"
+}
+
+async fn get_tainted_list() {
+    let t = env.get("HOME")
+    return [t, "item2"]
+}
+
+fn test_vardecl_path() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: let x = await get_tainted() — VarDecl path
+    total = total + 1
+    let x = await get_tainted()
+    try {
+        <<shell[x]
+echo $x
+>>
+        print("FAIL: VarDecl await taint NOT detected")
+    } catch (e) {
+        if string(e).contains("aint") {
+            passed = passed + 1
+            print("PASS: VarDecl await taint detected")
+        } else {
+            print("FAIL: Wrong error: " + string(e))
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_assignment_path() {
+    let passed = 0
+    let total = 0
+
+    // Test 2: x = await get_tainted() — Assignment path (Issue #1)
+    total = total + 1
+    let x = "clean"
+    x = await get_tainted()
+    try {
+        <<shell[x]
+echo $x
+>>
+        print("FAIL: Assignment await taint NOT detected")
+    } catch (e) {
+        if string(e).contains("aint") {
+            passed = passed + 1
+            print("PASS: Assignment await taint detected")
+        } else {
+            print("FAIL: Wrong error: " + string(e))
+        }
+    }
+
+    return [passed, total]
+}
+
+fn return_await_tainted() {
+    return await get_tainted()
+}
+
+fn test_return_path() {
+    let passed = 0
+    let total = 0
+
+    // Test 3: return await get_tainted() — ReturnStmt path (Issue #2)
+    total = total + 1
+    let r = return_await_tainted()
+    try {
+        <<shell[r]
+echo $r
+>>
+        print("FAIL: Return-await taint chain NOT detected")
+    } catch (e) {
+        if string(e).contains("aint") {
+            passed = passed + 1
+            print("PASS: Return-await taint chain detected")
+        } else {
+            print("FAIL: Wrong error: " + string(e))
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_for_path() {
+    let passed = 0
+    let total = 0
+
+    // Test 4: for item in await get_tainted_list() — ForStmt path (Issue #3)
+    total = total + 1
+    let blocked = false
+    for item in await get_tainted_list() {
+        try {
+            <<shell[item]
+echo $item
+>>
+        } catch (e) {
+            if string(e).contains("aint") {
+                blocked = true
+            }
+        }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: ForStmt await taint detected")
+    } else {
+        print("FAIL: ForStmt await taint NOT detected")
+    }
+
+    return [passed, total]
+}
+
+fn wrapper_fn() {
+    return await get_tainted()
+}
+
+fn double_wrapper() {
+    return wrapper_fn()
+}
+
+fn test_wrapper_chain() {
+    let passed = 0
+    let total = 0
+
+    // Test 5: Taint chain: double_wrapper -> wrapper_fn -> await get_tainted
+    total = total + 1
+    let r = double_wrapper()
+    try {
+        <<shell[r]
+echo $r
+>>
+        print("FAIL: Wrapper chain taint NOT detected")
+    } catch (e) {
+        if string(e).contains("aint") {
+            passed = passed + 1
+            print("PASS: Wrapper chain taint detected")
+        } else {
+            print("FAIL: Wrong error: " + string(e))
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_clean_async() {
+    let passed = 0
+    let total = 0
+
+    // Test 6: Clean async return should NOT be tainted (no false positives)
+    total = total + 1
+    let clean = await get_clean()
+    try {
+        <<shell[clean]
+echo $clean
+>>
+        passed = passed + 1
+        print("PASS: Clean async return NOT tainted (correct)")
+    } catch (e) {
+        if string(e).contains("aint") {
+            print("FAIL: Clean async return falsely detected as tainted")
+        } else {
+            print("FAIL: Unexpected error: " + string(e))
+        }
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    print("=== AWAIT TAINT ALL PATHS ===")
+    print("")
+
+    let r1 = test_vardecl_path()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_assignment_path()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_return_path()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_for_path()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_wrapper_chain()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_clean_async()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    print("")
+    print(string(total_passed) + "/" + string(total_tests) + " await taint path tests passed")
+
+    if total_passed == total_tests {
+        print("PASS")
+    } else {
+        print("FAIL: " + string(total_tests - total_passed) + " tests failed")
+    }
+}

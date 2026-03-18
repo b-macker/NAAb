@@ -1502,7 +1502,6 @@ public:
     // BUG-D: Track if last function return was tainted
     bool lastReturnWasTainted() const;
     void setLastReturnTainted(bool v);
-    bool wasLastReturnTainted() const { return last_return_tainted_; }
 
     // --- Hooks ---
     void fireHook(const HookConfig& hook,

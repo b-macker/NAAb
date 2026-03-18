@@ -804,13 +804,13 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
             parent_taint = governance_->saveTaintState();
         }
 
-        // BUG-AwaitExpr fix: Create FutureValue BEFORE lambda so lambda can capture pointer to set taint flag
+        // BUG-AwaitExpr fix: Create FutureValue BEFORE lambda so lambda can capture taint flag
         auto future_val = std::make_shared<FutureValue>();
         future_val->description = "async fn " + func->name;
         future_val->func_name = func->name;  // BUG-K: for return contract check at await
-        FutureValue* future_ptr = future_val.get();  // Raw pointer for lambda capture
+        auto taint_flag = future_val->return_tainted;  // shared_ptr copy for lifetime safety
 
-        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path, parent_taint, future_ptr]() -> std::shared_ptr<Value> {
+        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path, parent_taint, taint_flag]() -> std::shared_ptr<Value> {
             Interpreter async_interp;
             async_interp.setGlobalEnv(global);
 
@@ -831,7 +831,7 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
                 auto result = async_interp.executeBodyInEnv(*body, func_env);
                 // BUG-AwaitExpr fix: Capture taint state BEFORE async_interp is destroyed
                 if (async_interp.wasLastReturnTainted()) {
-                    future_ptr->return_tainted.store(true);
+                    taint_flag->store(true);
                 }
                 return result;
             } catch (const std::exception& e) {
@@ -2580,7 +2580,7 @@ void Interpreter::visit(ast::AwaitExpr& node) {
         }
 
         // BUG-AwaitExpr fix: Propagate async return taint to current context
-        if ((*future_ptr)->return_tainted.load() && governance_ && governance_->isActive()) {
+        if ((*future_ptr)->return_tainted->load() && governance_ && governance_->isActive()) {
             governance_->setLastReturnTainted(true);
         }
 
@@ -2841,44 +2841,6 @@ void Interpreter::visit(ast::ContinueStmt& node) {
     continuing_ = true;
 }
 
-// Governance v4: Helper to check if a CompoundStmt (block) can produce a tainted return value
-// Used by MatchExpr arms, function bodies, etc. (BUG-MatchExpr fix)
-bool Interpreter::compoundStmtContainsTaint(ast::CompoundStmt* stmt) {
-    if (!stmt || !governance_ || !governance_->isActive()) return false;
-
-    const auto& statements = stmt->getStatements();
-    if (statements.empty()) return false;
-
-    // Check all return statements in the block
-    for (const auto& s : statements) {
-        if (auto* ret = dynamic_cast<ast::ReturnStmt*>(s.get())) {
-            if (ret->getExpr() && expressionContainsTaint(ret->getExpr())) {
-                return true;
-            }
-        }
-
-        // Check nested blocks (if statements inside block)
-        if (auto* if_stmt = dynamic_cast<ast::IfStmt*>(s.get())) {
-            if (auto* then_block = dynamic_cast<ast::CompoundStmt*>(if_stmt->getThenBranch())) {
-                if (compoundStmtContainsTaint(then_block)) return true;
-            }
-            if (if_stmt->getElseBranch()) {
-                if (auto* else_block = dynamic_cast<ast::CompoundStmt*>(if_stmt->getElseBranch())) {
-                    if (compoundStmtContainsTaint(else_block)) return true;
-                }
-            }
-        }
-    }
-
-    // Check final statement (implicit return)
-    // If last statement is expression statement, that's the return value
-    auto* last = statements.back().get();
-    if (auto* expr_stmt = dynamic_cast<ast::ExprStmt*>(last)) {
-        return expressionContainsTaint(expr_stmt->getExpr());
-    }
-
-    return false;
-}
 
 // Governance v4: Recursively check if an expression tree references any tainted variable
 // Covers ALL 15 expression AST node types (BUG-S through BUG-Z completeness)
@@ -2981,7 +2943,13 @@ bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
 
     // BUG-Y: Await expression (await async_func())
     if (auto* aw = dynamic_cast<ast::AwaitExpr*>(expr)) {
-        return expressionContainsTaint(aw->getExpr());
+        // Check if the inner expression (the call) references tainted vars
+        if (expressionContainsTaint(aw->getExpr())) return true;
+        // Also check if the async function RETURNED tainted data
+        // (runtime check — safe because expressionContainsTaint is always
+        //  called after eval() has already executed the expression)
+        if (governance_ && governance_->lastReturnWasTainted()) return true;
+        return false;
     }
 
     // BUG-Z: Range expression (tainted..10)
@@ -3099,13 +3067,6 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
 
         // BUG-D: Check if init was a function call that returned tainted data
         if (!is_source && !propagated && dynamic_cast<ast::CallExpr*>(init_expr)) {
-            if (governance_->lastReturnWasTainted()) {
-                propagated = true;
-            }
-        }
-
-        // BUG-AwaitExpr: Check if init was an await expression that returned tainted data
-        if (!is_source && !propagated && dynamic_cast<ast::AwaitExpr*>(init_expr)) {
             if (governance_->lastReturnWasTainted()) {
                 propagated = true;
             }
