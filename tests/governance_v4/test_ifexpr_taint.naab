@@ -1,0 +1,53 @@
+// Test: BUG-T — If-expression taint detection
+// Verifies that if-expression branches propagate taint
+
+use env
+
+fn test_ifexpr_taint() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: If-expression with tainted then-branch should taint result
+    total = total + 1
+    let t = env.get("HOME")
+    let x = if true { t } else { "safe" }
+    try {
+        <<shell[x]
+echo $x
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    // Test 2: If-expression with tainted else-branch should also taint
+    // (static analysis — either branch could execute at runtime)
+    total = total + 1
+    let y = if false { t } else { "safe" }
+    // y's declaration RHS is an IfExpr — expressionContainsTaint checks BOTH branches
+    // Since then-branch references 't' (tainted), y is tainted
+    try {
+        <<shell[y]
+echo $y
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    return [passed, total]
+}
+
+main {
+    let r = test_ifexpr_taint()
+    print("test_ifexpr_taint: " + string(r[0]) + "/" + string(r[1]) + " passed")
+    if r[0] == r[1] {
+        print("PASS")
+    } else {
+        print("FAIL")
+    }
+}

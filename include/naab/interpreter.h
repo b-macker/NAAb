@@ -653,6 +653,9 @@ private:
 
     // Governance v4: Taint propagation through expression trees
     bool expressionContainsTaint(ast::Expr* expr);
+    // Governance v4: Check expression-level taint at sink (handles both identifiers and complex expressions)
+    std::string checkExpressionTaintedSink(ast::Expr* expr, const std::string& sink_type,
+                                            const std::string& file, int line);
 
     // Variable access helper
     std::shared_ptr<Value> getVariable(const std::string& name) const;

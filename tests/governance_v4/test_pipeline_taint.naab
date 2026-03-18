@@ -1,0 +1,63 @@
+// Test: Pipeline taint propagation
+// Verifies that taint flows through pipeline operator and function returns
+
+use env
+
+fn identity(x) {
+    return x
+}
+
+fn clean(x) {
+    return "safe"
+}
+
+fn test_pipeline_taint() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Pipeline through identity preserves taint (via lastReturnTainted)
+    total = total + 1
+    let t = env.get("HOME")
+    let x = t |> identity
+    try {
+        <<shell[x]
+echo $x
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    // Test 2: Pipeline expression with tainted input — conservatively tainted
+    // Even though clean() returns "safe", the expression `t2 |> clean` syntactically
+    // contains tainted variable t2, so the result is conservatively marked tainted.
+    // This is correct behavior for static expression-level taint analysis.
+    total = total + 1
+    let t2 = env.get("HOME")
+    let y = t2 |> clean
+    try {
+        <<shell[y]
+echo $y
+>>
+        // Expression contains tainted var — should be blocked
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    return [passed, total]
+}
+
+main {
+    let r = test_pipeline_taint()
+    print("test_pipeline_taint: " + string(r[0]) + "/" + string(r[1]) + " passed")
+    if r[0] == r[1] {
+        print("PASS")
+    } else {
+        print("FAIL")
+    }
+}

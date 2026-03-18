@@ -1,0 +1,38 @@
+{
+    "version": "4.0",
+    "description": "Mixed enforcement levels — advisory taint + hard contracts",
+    "languages": {
+        "allowed": ["python", "shell"],
+        "blocked": ["javascript", "rust", "cpp", "go"]
+    },
+    "capabilities": {
+        "network": false,
+        "filesystem": "read"
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "advisory",
+        "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
+        "sinks": ["shell_exec", "file.write", "file.append", "http.", "env.set_var"],
+        "sanitizers": ["validate_", "sanitize_", "escape_", "int(", "float("]
+    },
+    "contracts": {
+        "level": "hard",
+        "validate_inputs": true,
+        "functions": {
+            "process_order": {
+                "params": ["order_id:string", "items:array"],
+                "return_type": "dict"
+            }
+        }
+    },
+    "audit": {
+        "level": "full",
+        "output_file": ".governance-audit-mixed.jsonl",
+        "log_events": {
+            "polyglot_executed": true,
+            "taint_decisions": true,
+            "contract_checks": true
+        }
+    }
+}

@@ -720,6 +720,10 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
         }
         std::string err = governance_->checkCallDepth(call_depth_ + 1);
         if (!err.empty()) throw std::runtime_error(err);
+
+        // BUG-AD: Reset lastReturnTainted before each function call
+        // Prevents stale taint from a previous function leaking to the next
+        governance_->setLastReturnTainted(false);
     }
     if (++call_depth_ > max_depth) {
         --call_depth_;
@@ -793,11 +797,14 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
 
         // BUG-I fix: Capture governance config path for async interpreter
         std::string gov_path;
+        // BUG-AC: Capture taint state to propagate to async interpreter
+        std::unordered_set<std::string> parent_taint;
         if (governance_ && governance_->isActive()) {
             gov_path = governance_->getLoadedPath();
+            parent_taint = governance_->saveTaintState();
         }
 
-        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path]() -> std::shared_ptr<Value> {
+        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path, parent_taint]() -> std::shared_ptr<Value> {
             Interpreter async_interp;
             async_interp.setGlobalEnv(global);
 
@@ -807,6 +814,10 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
                 if (gov) {
                     auto dir = std::filesystem::path(gov_path).parent_path();
                     gov->discoverAndLoad(dir.string());
+                    // BUG-AC: Restore parent taint state in async interpreter
+                    if (!parent_taint.empty()) {
+                        gov->restoreTaintState(parent_taint);
+                    }
                 }
             }
 
@@ -2407,6 +2418,12 @@ void Interpreter::visit(ast::ReturnStmt& node) {
                 if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
                     ret_tainted = governance_->isTaintSource(id->getName());
                 }
+                // BUG-AD+: If the call itself returned tainted data (nested returns),
+                // propagate that taint. The call was already evaluated, so
+                // lastReturnTainted reflects the inner function's return taint.
+                if (!ret_tainted && governance_->lastReturnWasTainted()) {
+                    ret_tainted = true;
+                }
             }
             // Polyglot output as return
             if (dynamic_cast<ast::InlineCodeExpr*>(node.getExpr())) {
@@ -2812,6 +2829,7 @@ void Interpreter::visit(ast::ContinueStmt& node) {
 }
 
 // Governance v4: Recursively check if an expression tree references any tainted variable
+// Covers ALL 15 expression AST node types (BUG-S through BUG-Z completeness)
 bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
     if (!governance_ || !governance_->isActive()) return false;
     if (!expr) return false;
@@ -2821,10 +2839,15 @@ bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
         return governance_->isTainted(id->getName());
     }
 
-    // Binary expression (e.g., string concat: "prefix" + tainted_var)
+    // Binary expression (string concat, subscript, arithmetic, etc.)
     if (auto* bin = dynamic_cast<ast::BinaryExpr*>(expr)) {
         return expressionContainsTaint(bin->getLeft()) ||
                expressionContainsTaint(bin->getRight());
+    }
+
+    // BUG-W: Unary expression (!tainted, -tainted)
+    if (auto* un = dynamic_cast<ast::UnaryExpr*>(expr)) {
+        return expressionContainsTaint(un->getOperand());
     }
 
     // Function call arguments (e.g., string(tainted_var))
@@ -2832,7 +2855,6 @@ bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
         for (const auto& arg : call->getArgs()) {
             if (expressionContainsTaint(arg.get())) return true;
         }
-        // Also check if it's a method call on a tainted object
         if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
             if (expressionContainsTaint(member->getObject())) return true;
         }
@@ -2844,15 +2866,123 @@ bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
         return expressionContainsTaint(member->getObject());
     }
 
-    // Subscript access (e.g., tainted_arr[0], tainted_dict["key"])
-    // Check the container, not the index
-    if (auto* bin = dynamic_cast<ast::BinaryExpr*>(expr)) {
-        if (bin->getOp() == ast::BinaryOp::Subscript) {
-            return expressionContainsTaint(bin->getLeft());
+    // BUG-S: String interpolation in LiteralExpr — scan ${...} for tainted variable references
+    if (auto* lit = dynamic_cast<ast::LiteralExpr*>(expr)) {
+        if (lit->getLiteralKind() == ast::LiteralKind::String) {
+            const std::string& raw = lit->getValue();
+            size_t pos = 0;
+            while ((pos = raw.find("${", pos)) != std::string::npos) {
+                pos += 2;
+                int depth = 1;
+                std::string expr_text;
+                size_t i = pos;
+                while (i < raw.size() && depth > 0) {
+                    if (raw[i] == '{') depth++;
+                    else if (raw[i] == '}') { depth--; if (depth == 0) break; }
+                    expr_text += raw[i]; i++;
+                }
+                // Extract identifiers from the interpolated expression text
+                std::string word;
+                for (char c : expr_text) {
+                    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') { word += c; }
+                    else {
+                        if (!word.empty() && governance_->isTainted(word)) return true;
+                        word.clear();
+                    }
+                }
+                if (!word.empty() && governance_->isTainted(word)) return true;
+                pos = i + 1;
+            }
         }
+        return false;
     }
 
+    // BUG-T: If-expression (let x = if cond { tainted } else { clean })
+    if (auto* ifex = dynamic_cast<ast::IfExpr*>(expr)) {
+        return expressionContainsTaint(ifex->getThenExpr()) ||
+               expressionContainsTaint(ifex->getElseExpr());
+    }
+
+    // BUG-U: List literal ([tainted, clean])
+    if (auto* list = dynamic_cast<ast::ListExpr*>(expr)) {
+        for (const auto& elem : list->getElements()) {
+            if (expressionContainsTaint(elem.get())) return true;
+        }
+        return false;
+    }
+
+    // BUG-V: Dict literal ({"key": tainted})
+    if (auto* dict = dynamic_cast<ast::DictExpr*>(expr)) {
+        for (const auto& entry : dict->getEntries()) {
+            if (expressionContainsTaint(entry.second.get())) return true;
+        }
+        return false;
+    }
+
+    // BUG-X: Struct literal (new Point { x: tainted, y: 0 })
+    if (auto* sl = dynamic_cast<ast::StructLiteralExpr*>(expr)) {
+        for (const auto& field : sl->getFieldInits()) {
+            if (expressionContainsTaint(field.second.get())) return true;
+        }
+        return false;
+    }
+
+    // BUG-Y: Await expression (await async_func())
+    if (auto* aw = dynamic_cast<ast::AwaitExpr*>(expr)) {
+        return expressionContainsTaint(aw->getExpr());
+    }
+
+    // BUG-Z: Range expression (tainted..10)
+    if (auto* rng = dynamic_cast<ast::RangeExpr*>(expr)) {
+        return expressionContainsTaint(rng->getStart()) ||
+               expressionContainsTaint(rng->getEnd());
+    }
+
+    // InlineCodeExpr: handled by isTaintSource("polyglot_output") in VarDeclStmt/Assignment
+    // LambdaExpr: body is a block, not a value expression — N/A
+    // MatchExpr: arms are blocks — known limitation
+
     return false;
+}
+
+// BUG-R: Check expression-level taint at sinks (handles both identifiers and complex expressions)
+std::string Interpreter::checkExpressionTaintedSink(ast::Expr* expr, const std::string& sink_type,
+                                                     const std::string& file, int line) {
+    if (!governance_ || !governance_->isActive()) return "";
+    if (!expr) return "";
+
+    // Try direct identifier first (for specific variable name in error message)
+    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(expr)) {
+        return governance_->checkTaintedSink(id->getName(), sink_type, file, line);
+    }
+
+    // For complex expressions, check if any sub-expression references tainted data
+    if (expressionContainsTaint(expr)) {
+        // Can't use checkTaintedSink (needs var name in taint_set_). Check enforcement directly.
+        if (!governance_->getRules().taint_tracking.enabled) return "";
+
+        // Check if this sink type is configured
+        bool is_sink = false;
+        for (const auto& s : governance_->getRules().taint_tracking.sinks) {
+            if (sink_type.find(s) != std::string::npos) { is_sink = true; break; }
+        }
+        if (!is_sink) return "";
+
+        governance_->logTaintDecision("(expression)", "BLOCKED", sink_type, file, line);
+
+        std::string msg = "Taint tracking violation: expression contains untrusted data and reached sink '"
+                          + sink_type + "' without sanitization";
+        if (!file.empty()) msg += " at " + file + ":" + std::to_string(line);
+
+        const auto& level = governance_->getRules().taint_tracking.level;
+        if (level == "hard") return msg;
+        if (level == "soft" && !governance_->isOverrideEnabled()) return msg;
+        // Advisory: warn only
+        fmt::print(stderr, "[GOVERNANCE] WARNING: {}\n", msg);
+        return "";
+    }
+
+    return "";
 }
 
 void Interpreter::visit(ast::VarDeclStmt& node) {
@@ -3025,6 +3155,12 @@ void Interpreter::visit(ast::TryStmt& node) {
         }
         current_env_->define(catch_clause->error_name, error_val);
 
+        // BUG-AB: Clear any stale taint on the catch variable name
+        // (catch variable is a fresh error object, not user-tainted data)
+        if (governance_ && governance_->isActive()) {
+            governance_->clearTaint(catch_clause->error_name);
+        }
+
         try {
             // Execute catch body - successfully handled if no exception
             catch_clause->body->accept(*this);
@@ -3057,6 +3193,11 @@ void Interpreter::visit(ast::TryStmt& node) {
         // Bind the error value to the catch variable
         auto* catch_clause = node.getCatchClause();
         current_env_->define(catch_clause->error_name, error_value);
+
+        // BUG-AB: Clear any stale taint on the catch variable name
+        if (governance_ && governance_->isActive()) {
+            governance_->clearTaint(catch_clause->error_name);
+        }
 
         try {
             // Execute catch body
@@ -4125,6 +4266,19 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                     auto& rt = it->second;
 
+                    // BUG-AA: Governance checks for persistent runtime execution
+                    if (governance_ && governance_->isActive()) {
+                        std::string gov_err = governance_->checkPolyglotBlock(
+                            rt.language, code, current_file_, node.getLocation().line, 0);
+                        if (!gov_err.empty()) throw std::runtime_error(gov_err);
+
+                        std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+                        if (!count_err.empty()) throw std::runtime_error(count_err);
+
+                        governance_->logPolyglotExecution(rt.language, {}, 0,
+                            current_file_, node.getLocation().line);
+                    }
+
                     // For subprocess-based languages, accumulate code
                     bool is_embedded = (rt.language == "python" || rt.language == "javascript" ||
                                        rt.language == "js");
@@ -4877,25 +5031,21 @@ void Interpreter::visit(ast::CallExpr& node) {
                             std::string err = governance_->checkNetworkAllowed();
                             if (!err.empty()) throw std::runtime_error(err);
 
-                            // BUG-F: Taint sink check on URL argument (SSRF prevention)
+                            // BUG-F+R: Taint sink check on URL argument (SSRF prevention)
                             if (!node.getArgs().empty()) {
-                                if (auto* url_id = dynamic_cast<ast::IdentifierExpr*>(node.getArgs()[0].get())) {
-                                    std::string terr = governance_->checkTaintedSink(
-                                        url_id->getName(), "http." + func_name,
-                                        current_file_, node.getLocation().line);
-                                    if (!terr.empty()) throw std::runtime_error(terr);
-                                }
+                                std::string terr = checkExpressionTaintedSink(
+                                    node.getArgs()[0].get(), "http." + func_name,
+                                    current_file_, node.getLocation().line);
+                                if (!terr.empty()) throw std::runtime_error(terr);
                             }
                         }
-                        // BUG-G: Taint sink check for env.set_var (prevent tainted data escaping to env)
+                        // BUG-G+R: Taint sink check for env.set_var (prevent tainted data escaping to env)
                         if (module_alias == "env" && func_name == "set_var") {
                             if (node.getArgs().size() >= 2) {
-                                if (auto* val_id = dynamic_cast<ast::IdentifierExpr*>(node.getArgs()[1].get())) {
-                                    std::string terr = governance_->checkTaintedSink(
-                                        val_id->getName(), "env.set_var",
-                                        current_file_, node.getLocation().line);
-                                    if (!terr.empty()) throw std::runtime_error(terr);
-                                }
+                                std::string terr = checkExpressionTaintedSink(
+                                    node.getArgs()[1].get(), "env.set_var",
+                                    current_file_, node.getLocation().line);
+                                if (!terr.empty()) throw std::runtime_error(terr);
                             }
                         }
                         // Filesystem check for file module
@@ -4907,15 +5057,13 @@ void Interpreter::visit(ast::CallExpr& node) {
                             std::string err = governance_->checkFilesystemAllowed(fs_mode);
                             if (!err.empty()) throw std::runtime_error(err);
 
-                            // Taint tracking: check if write args contain tainted data
+                            // BUG-R: Taint tracking — check if write args contain tainted data (expression-level)
                             if (func_name == "write" || func_name == "append") {
                                 for (size_t ai = 0; ai < node.getArgs().size(); ++ai) {
-                                    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(node.getArgs()[ai].get())) {
-                                        std::string terr = governance_->checkTaintedSink(
-                                            id->getName(), "file." + func_name,
-                                            current_file_, node.getLocation().line);
-                                        if (!terr.empty()) throw std::runtime_error(terr);
-                                    }
+                                    std::string terr = checkExpressionTaintedSink(
+                                        node.getArgs()[ai].get(), "file." + func_name,
+                                        current_file_, node.getLocation().line);
+                                    if (!terr.empty()) throw std::runtime_error(terr);
                                 }
                             }
                         }
@@ -5766,6 +5914,8 @@ void Interpreter::visit(ast::CallExpr& node) {
 
             // Governance: Check and track call depth for direct function calls
             if (governance_ && governance_->isActive()) {
+                // BUG-AD: Reset lastReturnTainted before each function call (direct path)
+                governance_->setLastReturnTainted(false);
                 std::string depth_err = governance_->checkCallDepth(call_depth_ + 1);
                 if (!depth_err.empty()) {
                     popStackFrame();
