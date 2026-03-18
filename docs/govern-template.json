@@ -1,7 +1,7 @@
 {
-  "version": "3.0",
+  "version": "4.0",
   "mode": "enforce",
-  "description": "NAAb Governance v3.0 — Complete Template (all sections, all options)",
+  "description": "NAAb Governance v4.0 — Complete Template (all sections, all options)",
 
   "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
   "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
@@ -167,6 +167,22 @@
       "max_allocation_mb": 512,
       "allow_mmap": false,
       "allow_shared_memory": false
+    }
+  },
+
+  "_comment_taint_tracking": "Taint Tracking — track untrusted data from sources through to sinks",
+  "taint_tracking": {
+    "enabled": false,
+    "level": "soft",
+    "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
+    "sinks": ["shell_exec", "file.write", "file.append", "http.", "env.set_var"],
+    "sanitizers": ["validate_", "sanitize_", "escape_", "int(", "float("],
+    "propagation": {
+      "string_concat": true,
+      "string_interpolation": true,
+      "function_returns": true,
+      "for_loop_iterators": true,
+      "dict_array_access": true
     }
   },
 
@@ -575,21 +591,25 @@
     }
   },
 
-  "_comment_contracts": "Function contracts — runtime assertions on return values (design-by-contract)",
+  "_comment_contracts": "Function contracts — runtime assertions on inputs and return values (design-by-contract)",
   "contracts": {
     "level": "soft",
+    "validate_inputs": true,
     "functions": {
       "compute_area": {
         "description": "Returns area as a positive float",
+        "params": ["width:float", "height:float"],
         "return_type": "float",
         "return_min": 0
       },
       "classify_text": {
         "description": "Returns text category",
+        "params": ["text:string"],
         "return_type": "string",
         "return_one_of": ["positive", "negative", "neutral"]
       },
       "count_words": {
+        "params": ["text:string"],
         "return_type": "int",
         "return_min": 0
       },
@@ -598,8 +618,14 @@
         "return_non_empty": true
       },
       "parse_config": {
+        "params": ["path:string"],
         "return_type": "dict",
         "return_keys": ["host", "port", "database"]
+      },
+      "process_order": {
+        "description": "Process an order with input type validation",
+        "params": ["order_id:string", "items:array"],
+        "return_type": "dict"
       }
     }
   },
@@ -714,7 +740,10 @@
       "config_loaded": true,
       "execution_start": true,
       "execution_end": true,
-      "polyglot_executed": true
+      "polyglot_executed": true,
+      "polyglot_timing": true,
+      "taint_decisions": true,
+      "contract_checks": true
     },
     "retention": {
       "max_file_size_mb": 100,
