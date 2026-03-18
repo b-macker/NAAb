@@ -1,0 +1,7 @@
+// Module B for circular import test
+
+use env
+
+export fn func_b() {
+    return env.get("HOME")
+}

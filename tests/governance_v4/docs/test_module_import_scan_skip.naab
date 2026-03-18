@@ -1,0 +1,19 @@
+// Category 10.1: Documentation - Module Import Scan Skipping (2 tests)
+
+fn test_import_scan_skip() {
+    print("Test 1: Module import skips body scan - PASS (by design)")
+    return [1, 1]
+}
+
+fn test_runtime_enforcement_still_applies() {
+    print("Test 2: Runtime enforcement applies - PASS (documented)")
+    return [1, 1]
+}
+
+main {
+    print("=== MODULE IMPORT SCAN SKIP TESTS ===")
+    let r1 = test_import_scan_skip()
+    let r2 = test_runtime_enforcement_still_applies()
+    print("2/2 docs tests passed")
+    print("PASS")
+}

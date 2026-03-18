@@ -1,5 +1,6 @@
-// Test: BUG-F/G — Exhaustive taint sink checks
-// Verifies http URL, env.set_var, file.write all block tainted data
+// Test: BUG-F/G — Shell and env.set_var sink checks
+// Verifies shell_exec and env.set_var block tainted data
+// NOTE: http and file.write sinks are tested in sinks/test_all_sinks_comprehensive.naab
 
 use env
 

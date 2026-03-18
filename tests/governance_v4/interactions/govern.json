@@ -1,0 +1,1 @@
+{"version": "4.0", "taint_tracking": {"enabled": true, "level": "hard", "sources": ["env.get"], "sinks": ["shell_exec"]}, "contracts": {"level": "soft"}, "audit": {"level": "full", "output_file": ".governance-audit-interactions.jsonl"}}

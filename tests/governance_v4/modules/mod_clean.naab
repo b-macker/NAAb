@@ -1,0 +1,9 @@
+// Module with clean (non-tainted) functions
+
+export fn clean_function() {
+    return "clean_value"
+}
+
+export fn process_clean(input) {
+    return input + "_processed"
+}

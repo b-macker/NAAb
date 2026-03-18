@@ -1,0 +1,7 @@
+// Module C for re-export test
+
+import "mod_tainted.naab" as mt
+
+export fn reexported_tainted() {
+    return mt.get_tainted()
+}

@@ -1,0 +1,2 @@
+This is test data for file.read taint source testing.
+The content of this file should be considered tainted.

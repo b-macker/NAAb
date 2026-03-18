@@ -1,0 +1,1 @@
+{"version": "4.0", "languages": {"allowed": ["python", "shell"]}, "taint_tracking": {"enabled": true, "level": "hard", "sources": ["env.get", "polyglot_output"], "sinks": ["shell_exec"]}}

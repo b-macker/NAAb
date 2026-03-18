@@ -1,0 +1,12 @@
+// Module with functions that return tainted data
+
+use env
+
+export fn get_tainted() {
+    return env.get("HOME")
+}
+
+export fn process_and_taint(input) {
+    let t = env.get("USER")
+    return input + t
+}

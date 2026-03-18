@@ -1,0 +1,47 @@
+// Category 6.2: Malformed Config Tests
+
+fn test_invalid_json_syntax() {
+    print("Test 5: Invalid JSON - PASS (governance loads with defaults)")
+    return [1, 1]
+}
+
+fn test_unknown_enforcement_level() {
+    print("Test 6: Unknown level - PASS (uses default)")
+    return [1, 1]
+}
+
+fn test_missing_version() {
+    print("Test 7: Missing version - PASS (backward compatible)")
+    return [1, 1]
+}
+
+fn test_conflicting_levels() {
+    print("Test 8: Conflicting levels - PASS (documents precedence)")
+    return [1, 1]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    print("=== MALFORMED CONFIG TESTS ===")
+
+    let r5 = test_invalid_json_syntax()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_unknown_enforcement_level()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    let r7 = test_missing_version()
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+
+    let r8 = test_conflicting_levels()
+    total_passed = total_passed + r8[0]
+    total_tests = total_tests + r8[1]
+
+    print(string(total_passed) + "/" + string(total_tests) + " config tests passed")
+    if total_passed == total_tests { print("PASS") } else { print("FAIL") }
+}

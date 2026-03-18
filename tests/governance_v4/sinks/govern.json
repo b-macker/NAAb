@@ -1,0 +1,23 @@
+{
+    "version": "4.0",
+    "description": "Comprehensive sink coverage - all security sinks tested",
+    "languages": {
+        "allowed": ["python", "shell"],
+        "blocked": ["javascript", "rust", "cpp"]
+    },
+    "capabilities": {
+        "network": true,
+        "filesystem": "write"
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "sources": ["env.get", "file.read", "polyglot_output"],
+        "sinks": ["shell_exec", "file.write", "file.append", "http.", "env.set_var"],
+        "sanitizers": ["validate_", "sanitize_", "escape_", "int(", "float("]
+    },
+    "audit": {
+        "level": "basic",
+        "output_file": ".governance-audit-sinks.jsonl"
+    }
+}

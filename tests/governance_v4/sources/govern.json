@@ -1,0 +1,23 @@
+{
+    "version": "4.0",
+    "description": "Comprehensive source coverage - all taint sources tested",
+    "languages": {
+        "allowed": ["python", "shell"],
+        "blocked": ["javascript", "rust"]
+    },
+    "capabilities": {
+        "network": false,
+        "filesystem": "read"
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "sources": ["env.get", "file.read", "file.read_lines", "polyglot_output", "io.read_line"],
+        "sinks": ["shell_exec", "env.set_var"],
+        "sanitizers": ["validate_", "sanitize_", "escape_", "int(", "float("]
+    },
+    "audit": {
+        "level": "basic",
+        "output_file": ".governance-audit-sources.jsonl"
+    }
+}

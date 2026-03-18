@@ -1,0 +1,11 @@
+// Module A for circular import test
+
+import "mod_b.naab" as b
+
+export fn func_a() {
+    return "from_a"
+}
+
+export fn call_b() {
+    return b.func_b()
+}
