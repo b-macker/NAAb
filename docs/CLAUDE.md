@@ -306,6 +306,13 @@ main {
 18. Python polyglot: Do NOT use `return` — causes `SyntaxError: 'return' outside function`
 19. Value semantics: modifying a nested dict/array requires re-assigning to parent (see Value Semantics section)
 20. The `..` range operator can collide with `".."` string literals — use intermediate variables: `let dots = ".."; path.contains(dots)`
+21. Don't name variables `result_` — governance warns it shadows an internal name. Use `result` instead.
+22. Wrap polyglot blocks in `try { } catch (e) { }` — governance warns if polyglot blocks lack error handling.
+23. Don't bind variables to polyglot blocks you don't use — governance warns about unused bindings.
+24. With taint tracking enabled, ALL polyglot languages check tainted bindings (not just shell). Add `"python_exec"`, `"go_exec"`, etc. to sinks if you want enforcement.
+25. Taint sanitizers use PREFIX matching: `"validate_"` matches `validate_input` but NOT `revalidate_input`. `"int("` matches `int(x)` but NOT `print(x)`.
+26. You can bind NAAb dicts/arrays directly to polyglot blocks — NAAb serializes them natively per language. No need for `json.stringify()` → bind → `json.loads()` roundtrip.
+27. Use `"polyglot_output:python"` in govern.json sources for per-language taint (only taints Python output, not Go/JS/etc.)
 
 ## Complexity Scoring (for governance)
 

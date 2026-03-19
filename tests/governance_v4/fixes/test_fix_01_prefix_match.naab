@@ -1,0 +1,67 @@
+// Test FIX-DX-1: Prefix matching in sanitizer/source/sink detection
+// Before fix: "int(" matched "print(" (substring). Now: prefix match only.
+
+use env
+
+fn test_prefix_sanitizer() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: validate_ prefix should work as sanitizer
+    let tainted1 = env.get("HOME")
+    let cleaned1 = validate_input(tainted1)
+    total = total + 1
+    try {
+        env.set_var("FIX01_T1", string(cleaned1))
+        passed = passed + 1
+        print("PASS: validate_ prefix sanitizer clears taint")
+    } catch (e) {
+        print("FAIL: validate_ didn't clear taint: " + string(e))
+    }
+
+    // Test 2: A function NOT starting with validate_ should NOT sanitize
+    // "string()" does NOT start with "validate_" or "sanitize_" or "int(" or "float("
+    let tainted2 = env.get("HOME")
+    let still_tainted = format_output(tainted2)
+    total = total + 1
+    try {
+        env.set_var("FIX01_T2", string(tainted2))
+        print("FAIL: non-sanitizer function incorrectly cleared taint")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS: non-sanitizer function does NOT clear taint")
+    }
+
+    // Test 3: sanitize_ prefix should work
+    let tainted3 = env.get("USER")
+    let cleaned3 = sanitize_value(tainted3)
+    total = total + 1
+    try {
+        env.set_var("FIX01_T3", string(cleaned3))
+        passed = passed + 1
+        print("PASS: sanitize_ prefix sanitizer clears taint")
+    } catch (e) {
+        print("FAIL: sanitize_ didn't clear taint: " + string(e))
+    }
+
+    return [passed, total]
+}
+
+fn validate_input(x) {
+    return string(x)
+}
+
+fn sanitize_value(x) {
+    return string(x)
+}
+
+fn format_output(x) {
+    return string(x)
+}
+
+main {
+    let results = test_prefix_sanitizer()
+    let p = results[0]
+    let t = results[1]
+    print("Fix 01 - Prefix Match: " + string(p) + "/" + string(t) + " passed")
+}

@@ -1094,6 +1094,19 @@ void Interpreter::visit(ast::Program& node) {
         export_stmt->accept(*this);
     }
 
+    // FIX-DX-8: Validate scope patterns against actual function names
+    if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
+        auto all_names = current_env_->getAllNames();
+        std::vector<std::string> func_names;
+        for (const auto& fname : all_names) {
+            auto val = current_env_->get(fname);
+            if (val && std::holds_alternative<std::shared_ptr<FunctionValue>>(val->data)) {
+                func_names.push_back(fname);
+            }
+        }
+        governance_->validateScopePatterns(func_names);
+    }
+
     // Governance: Check require_main_block before execution
     if (governance_ && governance_->isActive() && governance_->requiresMainBlock() && module_loading_depth_ == 0) {
         if (!node.getMainBlock()) {
@@ -2433,9 +2446,10 @@ void Interpreter::visit(ast::ReturnStmt& node) {
                     ret_tainted = true;
                 }
             }
-            // Polyglot output as return
-            if (dynamic_cast<ast::InlineCodeExpr*>(node.getExpr())) {
-                ret_tainted = governance_->isTaintSource("polyglot_output");
+            // Polyglot output as return (FIX-DX-12: per-language taint)
+            if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(node.getExpr())) {
+                ret_tainted = governance_->isTaintSource("polyglot_output") ||
+                              governance_->isTaintSource("polyglot_output:" + ice->getLanguage());
             }
         }
 
@@ -3028,6 +3042,19 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
     }
     explain("Declaring variable '" + node.getName() + "'");
 
+    // FIX-DX-4: Warn if variable name shadows interpreter internals
+    {
+        static const std::unordered_set<std::string> RESERVED_NAMES = {
+            "result_", "returning_", "breaking_", "continuing_",
+            "current_env_", "global_env_", "governance_"
+        };
+        if (RESERVED_NAMES.count(node.getName())) {
+            fmt::print(stderr, "[WARN] Variable '{}' shadows an internal name at {}:{}. "
+                       "Consider using a different name (e.g., 'result' instead of 'result_').\n",
+                       node.getName(), current_file_, node.getLocation().line);
+        }
+    }
+
     std::shared_ptr<Value> value;
     if (node.getInit()) {
         value = eval(*node.getInit());
@@ -3057,8 +3084,10 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
             }
         }
         // Check if init is an inline code (polyglot output)
-        if (dynamic_cast<ast::InlineCodeExpr*>(init_expr)) {
-            is_source = governance_->isTaintSource("polyglot_output");
+        // FIX-DX-12: Support per-language taint: "polyglot_output:python" etc.
+        if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(init_expr)) {
+            is_source = governance_->isTaintSource("polyglot_output") ||
+                        governance_->isTaintSource("polyglot_output:" + ice->getLanguage());
         }
 
         // Propagation: check if any sub-expression references a tainted variable
@@ -3084,6 +3113,17 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
         if (auto* call = dynamic_cast<ast::CallExpr*>(init_expr)) {
             if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
                 if (governance_->isSanitizer(id->getName())) {
+                    governance_->clearTaint(node.getName());
+                }
+            }
+            // FIX-DX-3: Also check MemberExpr sanitizers (e.g., utils.sanitize_input())
+            if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+                std::string full_name;
+                if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
+                    full_name = obj_id->getName() + ".";
+                }
+                full_name += member->getMember();
+                if (governance_->isSanitizer(full_name)) {
                     governance_->clearTaint(node.getName());
                 }
             }
@@ -3367,8 +3407,10 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     }
                 }
                 // Check if RHS is polyglot output
-                if (dynamic_cast<ast::InlineCodeExpr*>(rhs_expr)) {
-                    is_source = governance_->isTaintSource("polyglot_output");
+                // FIX-DX-12: Support per-language taint
+                if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(rhs_expr)) {
+                    is_source = governance_->isTaintSource("polyglot_output") ||
+                                governance_->isTaintSource("polyglot_output:" + ice->getLanguage());
                 }
 
                 // Propagation: check if RHS references any tainted variable
@@ -3391,6 +3433,17 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 if (auto* call = dynamic_cast<ast::CallExpr*>(rhs_expr)) {
                     if (auto* call_id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
                         if (governance_->isSanitizer(call_id->getName())) {
+                            governance_->clearTaint(id->getName());
+                        }
+                    }
+                    // FIX-DX-3: Also check MemberExpr sanitizers (e.g., utils.sanitize_input())
+                    if (auto* mem = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+                        std::string full_name;
+                        if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(mem->getObject())) {
+                            full_name = obj_id->getName() + ".";
+                        }
+                        full_name += mem->getMember();
+                        if (governance_->isSanitizer(full_name)) {
                             governance_->clearTaint(id->getName());
                         }
                     }
@@ -7167,7 +7220,17 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     auto& registry = runtime::LanguageRegistry::instance();
     auto* executor = registry.getExecutor(language);
     if (!executor) {
-        throw std::runtime_error("No executor found for language: " + language);
+        // FIX-DX-14: Enhanced error with install guidance
+        std::string msg = "No executor found for language: " + language + "\n\n";
+        if (language == "nim") msg += "  Install: pkg install nim (Termux) / brew install nim / apt install nim\n";
+        else if (language == "go") msg += "  Install: pkg install golang (Termux) / brew install go / apt install golang\n";
+        else if (language == "python") msg += "  Ensure python3 is in PATH: pkg install python (Termux)\n";
+        else if (language == "javascript" || language == "js") msg += "  Ensure node is in PATH: pkg install nodejs (Termux)\n";
+        else if (language == "rust") msg += "  Install: pkg install rust (Termux) / curl https://sh.rustup.rs -sSf | sh\n";
+        else if (language == "zig") msg += "  Install: brew install zig / snap install zig\n";
+        else if (language == "julia") msg += "  Install: brew install julia / snap install julia\n";
+        msg += "\n  Verify: which " + language + "\n";
+        throw std::runtime_error(msg);
     }
 
     // Governance v3.0: Comprehensive polyglot block check
@@ -7181,11 +7244,21 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
         if (!count_err.empty()) throw std::runtime_error(count_err);
 
-        // Taint tracking: check if tainted variables are bound to shell blocks
-        if (language == "shell" || language == "sh" || language == "bash") {
+        // FIX-DX-2: Taint tracking for ALL language bindings (not just shell)
+        // Each language gets its own sink type (e.g., "python_exec", "go_exec")
+        // Only blocks if that sink is configured in govern.json — backward compatible
+        {
+            std::string sink_type;
+            if (language == "shell" || language == "sh" || language == "bash") {
+                sink_type = "shell_exec";
+            } else if (language == "js") {
+                sink_type = "javascript_exec";
+            } else {
+                sink_type = language + "_exec";
+            }
             for (const auto& bv : bound_vars) {
                 std::string terr = governance_->checkTaintedSink(
-                    bv, "shell_exec", current_file_, node.getLocation().line);
+                    bv, sink_type, current_file_, node.getLocation().line);
                 if (!terr.empty()) throw std::runtime_error(terr);
             }
         }
@@ -7204,6 +7277,37 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 
         // For all languages: use string serialization
         std::string serialized = serializeValueForLanguage(value, language);
+
+        // FIX-DX-10: Warn when complex types bound to languages needing manual parsing
+        if (value) {
+            bool is_complex_type = (
+                std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data) ||
+                std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data));
+            if (is_complex_type) {
+                if (language == "go") {
+                    fmt::print(stderr, "[HINT] Binding NAAb dict/array to Go var '{}' — "
+                               "use json.Unmarshal([]byte({}), &target) to parse.\n",
+                               var_name, var_name);
+                } else if (language == "nim") {
+                    fmt::print(stderr, "[HINT] Binding NAAb dict/array to Nim var '{}' — "
+                               "use parseJson({}) to access fields.\n",
+                               var_name, var_name);
+                }
+            }
+        }
+
+        // FIX-DX-13: Hint when bound string looks like JSON (roundtrip waste)
+        if (value && std::holds_alternative<std::string>(value->data)) {
+            const auto& sv = std::get<std::string>(value->data);
+            if (sv.size() >= 2 && (sv[0] == '{' || sv[0] == '[') &&
+                (sv.back() == '}' || sv.back() == ']')) {
+                fmt::print(stderr, "[HINT] Variable '{}' looks like a JSON string. "
+                           "NAAb can bind dicts/arrays directly (serializes natively per language).\n"
+                           "  Instead of: let s = json.stringify(data)  <<{}[s]>>\n"
+                           "  Try:        <<{}[data]>>  (avoids parse/stringify roundtrip)\n",
+                           var_name, language, language);
+            }
+        }
 
         if (language == "python") {
             var_declarations += var_name + " = " + serialized + "\n";
@@ -7485,6 +7589,23 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             }
             if (warn_count >= 2) break;  // Max 2 warnings per block
         }
+
+        // FIX-DX-5 (FIX 19b): Warn about bound variables not used in polyglot code
+        for (const auto& bv : bound_vars) {
+            bool found = false;
+            size_t bpos = code_stripped.find(bv);
+            while (bpos != std::string::npos) {
+                bool ws = (bpos == 0 || (!std::isalnum(code_stripped[bpos - 1]) && code_stripped[bpos - 1] != '_'));
+                bool we = (bpos + bv.size() >= code_stripped.size() ||
+                           (!std::isalnum(code_stripped[bpos + bv.size()]) && code_stripped[bpos + bv.size()] != '_'));
+                if (ws && we) { found = true; break; }
+                bpos = code_stripped.find(bv, bpos + 1);
+            }
+            if (!found) {
+                fmt::print(stderr, "[WARN] Bound variable '{}' is never used in <<{}>> block at {}:{}.\n",
+                           bv, language, current_file_, node.getLocation().line);
+            }
+        }
     }
 
     // Layer 3: Polyglot-aware debug tracing (before execution)
@@ -7706,6 +7827,13 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                         << "        b, _ := json.Marshal(data)\n"
                         << "        fmt.Println(string(b))\n"
                         << "    }\n"
+                        << "    >>\n";
+                // FIX-DX-9: Nim-specific JSON error guidance
+                } else if (language == "nim") {
+                    oss << "  \xE2\x9C\x93 Right:\n"
+                        << "    <<nim -> JSON\n"
+                        << "    import json\n"
+                        << "    echo $(%*{\"key\": %*[1, 2, 3]})\n"
                         << "    >>\n";
                 } else {
                     oss << "  \xE2\x9C\x93 Right:\n"

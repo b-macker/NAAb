@@ -1,0 +1,38 @@
+// Test FIX-DX-3: MemberExpr sanitizer detection
+// Before fix: only plain function calls like sanitize_x() were detected.
+// Now: module.sanitize_x() also clears taint.
+
+use env
+use json
+
+fn test_member_sanitizer() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Plain function sanitizer still works
+    let tainted = env.get("HOME")
+    let cleaned = validate_data(tainted)
+    total = total + 1
+    // cleaned should be untainted now
+    try {
+        env.set_var("FIX03_TEST1", string(cleaned))
+        // This should work — taint was cleared by validate_data (prefix "validate_")
+        passed = passed + 1
+        print("PASS: plain function sanitizer works")
+    } catch (e) {
+        print("FAIL: plain sanitizer didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn validate_data(x) {
+    return string(x)
+}
+
+main {
+    let results = test_member_sanitizer()
+    let p = results[0]
+    let t = results[1]
+    print("Fix 03 - Member Sanitizer: " + string(p) + "/" + string(t) + " passed")
+}

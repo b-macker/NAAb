@@ -1,0 +1,61 @@
+// Test FIX-DX-2: All-language polyglot binding taint checks
+// Before fix: only shell bindings checked. Now: all languages checked.
+
+use env
+use json
+
+fn test_python_taint_binding() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Tainted var bound to python should be blocked
+    // (govern.json has "python_exec" in sinks)
+    let tainted = env.get("HOME")
+    total = total + 1
+    try {
+        let result_ = <<python[tainted] -> JSON
+import json
+print(json.dumps({"val": tainted}))
+>>
+        print("FAIL: tainted var passed to python unchecked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS: tainted var blocked when bound to python")
+    }
+
+    // Test 2: Clean var bound to python should work fine
+    let clean = "hello"
+    total = total + 1
+    try {
+        let result2 = <<python[clean] -> JSON
+import json
+print(json.dumps({"val": clean}))
+>>
+        passed = passed + 1
+        print("PASS: clean var passes python binding")
+    } catch (e) {
+        print("FAIL: clean var incorrectly blocked: " + string(e))
+    }
+
+    // Test 3: Shell taint check still works (backward compat)
+    let tainted2 = env.get("USER")
+    total = total + 1
+    try {
+        let result3 = <<shell[tainted2]
+echo $tainted2
+>>
+        print("FAIL: tainted var passed to shell unchecked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS: shell taint check still works")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let results = test_python_taint_binding()
+    let p = results[0]
+    let t = results[1]
+    print("Fix 02 - All-Lang Taint: " + string(p) + "/" + string(t) + " passed")
+}

@@ -5,6 +5,27 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-03-19
+
+### Fixed
+- **Taint matching: substring→prefix** — `isTaintSource()`, `isSanitizer()`, `checkTaintedSink()` now use prefix matching instead of substring. `"int("` no longer matches `"print("`. (FIX-DX-1)
+- **All-language polyglot taint checks** — tainted variable binding checks now apply to all languages (Python, Go, JS, Nim), not just Shell. Configure per-language sinks: `"python_exec"`, `"go_exec"`, etc. (FIX-DX-2)
+- **MemberExpr sanitizer detection** — `module.sanitize_foo()` calls now correctly clear taint (was only detecting plain `sanitize_foo()` calls). (FIX-DX-3)
+
+### Added
+- **Reserved name warning** — warns when variables shadow interpreter internals like `result_`. (FIX-DX-4)
+- **Unused binding detection** — warns when polyglot-bound variables are never used in the block code. (FIX-DX-5)
+- **Duplicate call detection** — advisory when same function (e.g., `json.parse()`) is called multiple times in a function body. (FIX-DX-6)
+- **Try/catch polyglot advisory** — warns when polyglot blocks lack error handling. (FIX-DX-7)
+- **Scope pattern validation** — warns when governance scope patterns match zero functions in the file. (FIX-DX-8)
+- **Nim JSON error helper** — language-specific `-> JSON` guidance for Nim polyglot blocks. (FIX-DX-9)
+- **Type-safe binding hints** — hints for Go/Nim when complex types (dict/array) need manual parsing. (FIX-DX-10)
+- **Cross-language hallucination patterns** — expanded Nim (+5) and Go (+3) patterns for cross-language API confusion. (FIX-DX-11)
+- **Per-language polyglot_output taint** — `"polyglot_output:python"` syntax for language-specific taint sources. (FIX-DX-12)
+- **JSON roundtrip hint** — detects `json.stringify()` → bind → `json.loads()` waste pattern. (FIX-DX-13)
+- **Missing executor helper** — install guidance per language when executor not found. (FIX-DX-14)
+- **govern.json schema validation** — warns about sanitizer patterns prone to false positives and empty scope patterns. (FIX-DX-15)
+
 ## [0.3.1] - 2026-03-05
 
 ### Added

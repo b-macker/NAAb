@@ -1460,6 +1460,9 @@ public:
     std::string generateHtmlReport() const;
     void writeReports() const;
 
+    // FIX-DX-8: Scope pattern validation
+    void validateScopePatterns(const std::vector<std::string>& function_names);
+
     // --- Audit Trail ---
     void logAuditEvent(const std::string& event_type,
                        const std::string& rule_name,

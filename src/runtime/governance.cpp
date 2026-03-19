@@ -1488,6 +1488,22 @@ bool GovernanceEngine::loadFromFile(const std::string& path) {
         // EVA-11/EVA-12: Enforce minimum levels for anti-evasion checks
         enforceMinimumLevels();
 
+        // FIX-DX-15: Schema validation warnings
+        // Warn about sanitizer patterns prone to false positives
+        for (const auto& san : rules_.taint_tracking.sanitizers) {
+            if (!san.empty() && san.back() == '(') {
+                fmt::print(stderr, "[WARN] Sanitizer '{}' ends with '(' — with prefix matching, "
+                           "names like 'sprint(' or 'print(' will also match if they start with '{}'. "
+                           "Consider using a prefix like 'sanitize_' instead.\n", san, san);
+            }
+        }
+        // Warn about empty scope patterns
+        for (const auto& scope : rules_.scopes) {
+            if (scope.glob_pattern.empty()) {
+                fmt::print(stderr, "[WARN] A scope has an empty pattern — will match nothing.\n");
+            }
+        }
+
         return true;
     } catch (const nlohmann::json::parse_error& e) {
         throw std::runtime_error(fmt::format(
@@ -3342,6 +3358,51 @@ std::string GovernanceEngine::checkNaabFunctionBody(
         }
     }
 
+    // FIX-DX-6: Advisory — detect duplicate function calls (e.g., json.parse() called twice)
+    {
+        std::unordered_map<std::string, int> call_counts;
+        size_t ci = 0;
+        while (ci < stripped.size()) {
+            if (std::isalpha(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_') {
+                std::string word1;
+                while (ci < stripped.size() &&
+                       (std::isalnum(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_'))
+                    word1 += stripped[ci++];
+                if (ci < stripped.size() && stripped[ci] == '.') {
+                    ci++;
+                    std::string word2;
+                    while (ci < stripped.size() &&
+                           (std::isalnum(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_'))
+                        word2 += stripped[ci++];
+                    if (ci < stripped.size() && stripped[ci] == '(') {
+                        call_counts[word1 + "." + word2 + "("]++;
+                    }
+                }
+            } else {
+                ci++;
+            }
+        }
+        for (const auto& [call, count] : call_counts) {
+            if (count >= 2) {
+                fmt::print(stderr, "[ADVISORY] '{}' called {} times in '{}' at line {} — "
+                           "consider storing result in a variable.\n",
+                           call, count, function_name, line);
+            }
+        }
+    }
+
+    // FIX-DX-7: Advisory — polyglot blocks without try/catch wrapping
+    if (il_cfg.enabled) {
+        bool has_polyglot_block = source_code.find("<<") != std::string::npos;
+        bool has_try_block = source_code.find("try") != std::string::npos;
+        if (has_polyglot_block && !has_try_block) {
+            fmt::print(stderr, "[ADVISORY] Function '{}' has polyglot blocks without try/catch "
+                       "at line {}.\n  Polyglot blocks can fail (compile errors, timeouts, "
+                       "missing executors).\n  Consider wrapping in try/catch for graceful "
+                       "error handling.\n", function_name, line);
+        }
+    }
+
     return "";
 }
 
@@ -3448,6 +3509,10 @@ static const std::vector<std::pair<std::string, std::string>> GO_HALLUCINATION_P
     {"\\.push\\(", ".push() is JavaScript — in Go, use append(slice, elem)"},
     {"\\bdef\\s+\\w+", "def is Python — in Go, use func"},
     {"\\bfunction\\s+\\w+", "function is JavaScript — in Go, use func"},
+    // FIX-DX-11: Additional cross-language patterns
+    {"\\.forEach\\(", ".forEach() is JavaScript — in Go, use for _, v := range slice"},
+    {"\\.map\\(", ".map() is JavaScript — in Go, use a for loop with append"},
+    {"\\.filter\\(", ".filter() is JavaScript — in Go, use a for loop with condition"},
 };
 
 // Ruby patterns: Python/JS idioms in Ruby
@@ -3474,7 +3539,7 @@ static const std::vector<std::pair<std::string, std::string>> SHELL_HALLUCINATIO
     {"\\bimport\\s+", "import is Python — in Shell, use source or . to include files"},
 };
 
-// Nim patterns: Python/JS idioms in Nim
+// Nim patterns: Python/JS idioms in Nim (FIX-DX-11: expanded)
 static const std::vector<std::pair<std::string, std::string>> NIM_HALLUCINATION_PATTERNS = {
     {"\\bconsole\\.log\\(", "console.log() is JavaScript — in Nim, use echo"},
     {"\\bnull\\b", "null is JavaScript — in Nim, use nil"},
@@ -3483,6 +3548,11 @@ static const std::vector<std::pair<std::string, std::string>> NIM_HALLUCINATION_
     {"\\bFalse\\b", "False is Python — in Nim, use false (lowercase)"},
     {"\\bdef\\s+\\w+", "def is Python — in Nim, use proc or func"},
     {"\\blen\\(", "len() is also valid in Nim — make sure to use it without import"},
+    {"\\.upper\\(", ".upper() is Python — in Nim, use .toUpperAscii()"},
+    {"\\.lower\\(", ".lower() is Python — in Nim, use .toLowerAscii()"},
+    {"\\.append\\(", ".append() is Python — in Nim, use .add()"},
+    {"\\.strip\\(\\)", ".strip() is Python — in Nim, use strip() from strutils (import strutils)"},
+    {"\\bprint\\(", "print() is Python — in Nim, use echo"},
 };
 
 // Cross-language confusion patterns
@@ -4304,7 +4374,22 @@ void GovernanceEngine::setLastReturnTainted(bool v) {
 bool GovernanceEngine::isTaintSource(const std::string& func_name) const {
     if (!rules_.taint_tracking.enabled) return false;
     for (const auto& src : rules_.taint_tracking.sources) {
-        if (func_name.find(src) != std::string::npos) return true;
+        // FIX-DX-1: PREFIX match (not substring) to avoid false positives
+        // e.g., "env.get" matches "env.get_var" but NOT "prevent.get"
+        if (func_name.size() >= src.size() &&
+            func_name.compare(0, src.size(), src) == 0) return true;
+        // Also check after module dot: "json.env.get" → check "env.get" prefix
+        auto dot = func_name.rfind('.');
+        if (dot != std::string::npos && dot > 0) {
+            // Check each dot-separated suffix for prefix match
+            size_t pos = 0;
+            while ((pos = func_name.find('.', pos)) != std::string::npos) {
+                std::string suffix = func_name.substr(pos + 1);
+                if (suffix.size() >= src.size() &&
+                    suffix.compare(0, src.size(), src) == 0) return true;
+                pos++;
+            }
+        }
     }
     return false;
 }
@@ -4312,7 +4397,19 @@ bool GovernanceEngine::isTaintSource(const std::string& func_name) const {
 bool GovernanceEngine::isSanitizer(const std::string& func_name) const {
     if (!rules_.taint_tracking.enabled) return false;
     for (const auto& san : rules_.taint_tracking.sanitizers) {
-        if (func_name.find(san) != std::string::npos) return true;
+        // FIX-DX-1: PREFIX match (not substring) to avoid false positives
+        // e.g., "validate_" matches "validate_input" but NOT "revalidate_input"
+        // e.g., "int(" matches "int(x)" but NOT "print(x)" or "hint(x)"
+        if (func_name.size() >= san.size() &&
+            func_name.compare(0, san.size(), san) == 0) return true;
+        // Also check after module dot: "utils.validate_input" → check "validate_" prefix
+        size_t pos = 0;
+        while ((pos = func_name.find('.', pos)) != std::string::npos) {
+            std::string suffix = func_name.substr(pos + 1);
+            if (suffix.size() >= san.size() &&
+                suffix.compare(0, san.size(), san) == 0) return true;
+            pos++;
+        }
     }
     return false;
 }
@@ -4326,10 +4423,13 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
         if (taint_set_.count(var_name) == 0) return "";
     }
 
-    // Check if this sink type is in the configured sinks
+    // FIX-DX-1: PREFIX match for sink types (not substring)
     bool is_sink = false;
     for (const auto& s : rules_.taint_tracking.sinks) {
-        if (sink_type.find(s) != std::string::npos) { is_sink = true; break; }
+        if (sink_type.size() >= s.size() &&
+            sink_type.compare(0, s.size(), s) == 0) { is_sink = true; break; }
+        // Also check exact match for dotted sinks like "env.set_var"
+        if (sink_type == s) { is_sink = true; break; }
     }
     if (!is_sink) return "";
 
@@ -4351,6 +4451,39 @@ std::string GovernanceEngine::checkTaintedSink(const std::string& var_name,
     // Advisory: just warn
     fmt::print(stderr, "[GOVERNANCE] WARNING: {}\n", msg);
     return "";
+}
+
+// FIX-DX-8: Validate scope patterns against actual function names
+void GovernanceEngine::validateScopePatterns(const std::vector<std::string>& function_names) {
+    for (const auto& scope : rules_.scopes) {
+        if (scope.glob_pattern.empty()) continue;
+        bool any_match = false;
+        for (const auto& fn : function_names) {
+            // Simple glob match: only supports * wildcard
+            const std::string& pat = scope.glob_pattern;
+            if (pat == "*") { any_match = true; break; }
+            auto star = pat.find('*');
+            if (star == std::string::npos) {
+                // Exact match
+                if (fn == pat) { any_match = true; break; }
+            } else {
+                // Prefix*suffix match
+                std::string prefix = pat.substr(0, star);
+                std::string suffix = pat.substr(star + 1);
+                if (fn.size() >= prefix.size() + suffix.size() &&
+                    fn.compare(0, prefix.size(), prefix) == 0 &&
+                    (suffix.empty() || fn.compare(fn.size() - suffix.size(), suffix.size(), suffix) == 0)) {
+                    any_match = true;
+                    break;
+                }
+            }
+        }
+        if (!any_match) {
+            fmt::print(stderr, "[WARN] Governance scope (pattern '{}') "
+                       "matched zero functions in this file.\n",
+                       scope.glob_pattern);
+        }
+    }
 }
 
 // --- Audit Trail ---
