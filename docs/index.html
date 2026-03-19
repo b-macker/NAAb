@@ -686,7 +686,7 @@
         <div class="stat reveal reveal-delay-1"><div class="num">3-tier</div><div class="label">Enforcement</div></div>
         <div class="stat reveal reveal-delay-2"><div class="num">12</div><div class="label">Languages Governed</div></div>
         <div class="stat reveal reveal-delay-3"><div class="num">13</div><div class="label">Stdlib Modules</div></div>
-        <div class="stat reveal reveal-delay-4"><div class="num">325</div><div class="label">Tests Passing</div></div>
+        <div class="stat reveal reveal-delay-4"><div class="num">339</div><div class="label">Tests Passing</div></div>
     </div>
 </div>
 
@@ -770,6 +770,10 @@
             <div class="gov-card reveal">
                 <h4><span class="tag tag-advisory">Advisory</span> Project Context Awareness</h4>
                 <p>Opt-in: governance reads your CLAUDE.md, .editorconfig, .eslintrc, package.json and more. Extracts rules, bans, and style preferences — then supplements govern.json without overriding it. Three layers, each toggleable.</p>
+            </div>
+            <div class="gov-card reveal">
+                <h4><span class="tag tag-hard">Hard</span> Taint Tracking</h4>
+                <p>Tracks untrusted data (env variables, polyglot output) through all 15 AST expression types. Blocks tainted data at configured sinks (shell execution, env writes). Prefix-based sanitizer detection clears taint. Works across async boundaries and module imports.</p>
             </div>
             <div class="gov-card reveal">
                 <h4><span class="tag tag-soft">Soft</span> Cross-Language Verification</h4>
@@ -1155,7 +1159,7 @@ mean=30, stdev=15.8
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">5</strong> scripts</div>
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">4</strong> languages</div>
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">50+</strong> checks</div>
-                <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">64</strong> regression tests</div>
+                <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">339</strong> regression tests</div>
             </div>
             <a href="https://b-macker.github.io/naab-bolo/" class="btn btn-primary" style="display: inline-block;">Learn More</a>
         </div>

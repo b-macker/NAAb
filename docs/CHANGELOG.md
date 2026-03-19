@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.2] - 2026-03-19
 
+### Added
+- **Exhaustive governance edge-case test suite** — 197 tests across 19 files covering bypass paths, state consistency, async/degraded scenarios, expression taint for all 15 AST types, scope pattern matching, per-language taint, enforcement levels, config edge cases, cross-feature interactions, and documented known limitations.
+
 ### Fixed
 - **Taint matching: substring→prefix** — `isTaintSource()`, `isSanitizer()`, `checkTaintedSink()` now use prefix matching instead of substring. `"int("` no longer matches `"print("`. (FIX-DX-1)
 - **All-language polyglot taint checks** — tainted variable binding checks now apply to all languages (Python, Go, JS, Nim), not just Shell. Configure per-language sinks: `"python_exec"`, `"go_exec"`, etc. (FIX-DX-2)

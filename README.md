@@ -105,6 +105,7 @@ NAAb's governance engine is what sets it apart. Drop a `govern.json` in your pro
 | **Incomplete Logic** | `except: pass`, bare raises, `"something went wrong"` messages | 40+ patterns |
 | **Security** | SQL injection, path traversal, shell injection, hardcoded secrets | Entropy-based detection |
 | **Code Quality** | TODO/FIXME, debug artifacts, mock data, hardcoded URLs/IPs | Dead code detection |
+| **Taint Tracking** | Untrusted data (`env.get`, polyglot output) reaching sinks (shell, env) | Source/sink/sanitizer with prefix matching |
 | **PII Exposure** | SSN patterns, credit card numbers, API keys in strings | Regex + entropy |
 
 ### Three Enforcement Levels
@@ -445,7 +446,7 @@ naab-lang bolo.naab report ./src --format sarif --output results.sarif
 naab-lang bolo.naab ai-check ./ml-models
 ```
 
-**50+ checks · 4 languages · 64 regression tests** → [Get started](https://github.com/b-macker/naab-bolo)
+**50+ checks · 4 languages · 339 regression tests** → [Get started](https://github.com/b-macker/naab-bolo)
 
 ### NAAb Pivot — Code Evolution & Optimization
 
@@ -501,8 +502,8 @@ Source Code (.naab)
   └── Shell executor (subprocess)
 ```
 
-- **73,000+** lines of C++17
-- **208** test files, **325** mono test assertions
+- **81,000+** lines of C++17
+- **339** regression tests across **666** test files, **325** mono test assertions
 - **13** standard library modules with **204** error messages
 - Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
 
