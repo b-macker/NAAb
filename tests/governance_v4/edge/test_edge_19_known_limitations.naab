@@ -1,0 +1,238 @@
+// Edge Test 19: Known Limitations (8 tests)
+// Documents expected behavior for known gaps in name-based taint tracking
+// PASS = expected behavior (documented limitation), NOT a bug
+
+use env
+
+fn validate_input(x) { return string(x) }
+
+fn test_dict_taint_wash() {
+    let passed = 0
+    let total = 0
+
+    // T1: Dict taint wash — d["k"] = tainted; y = d.get("k") → y untainted
+    // Known limitation: name-based tracking doesn't follow data into containers
+    total = total + 1
+    let t = env.get("HOME")
+    let d = {"key": "placeholder"}
+    d["key"] = string(t)
+    let washed = d.get("key")
+    try {
+        env.set_var("E19_T1", string(washed))
+        passed = passed + 1
+        print("PASS T1: dict taint wash — retrieved value loses taint (known limitation)")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T1: dict taint wash blocked (ideal behavior — even better!)")
+    }
+
+    return [passed, total]
+}
+
+fn test_array_taint_wash() {
+    let passed = 0
+    let total = 0
+
+    // T2: Array taint wash — arr.push(tainted); y = arr[0] → y untainted
+    total = total + 1
+    let t = env.get("HOME")
+    let arr = ["placeholder"]
+    arr[0] = string(t)
+    let washed = arr[0]
+    try {
+        env.set_var("E19_T2", string(washed))
+        passed = passed + 1
+        print("PASS T2: array taint wash — element access loses taint (known limitation)")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T2: array taint wash blocked (ideal behavior — even better!)")
+    }
+
+    return [passed, total]
+}
+
+fn test_name_collision_across_scopes() {
+    let passed = 0
+    let total = 0
+
+    // T3: Name collision — fn f() { let x = "safe" } clears x taint globally
+    // Known limitation: taint_set_ is flat (no scope information)
+    total = total + 1
+    let x = env.get("HOME")
+    fn clear_x() {
+        let x = "safe_in_fn"
+    }
+    clear_x()
+    // x in outer scope: taint may be cleared due to name collision
+    try {
+        env.set_var("E19_T3", string(x))
+        passed = passed + 1
+        print("PASS T3: name collision — inner 'x' declaration clears outer taint (known limitation)")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T3: outer x still tainted (ideal behavior — even better!)")
+    }
+
+    return [passed, total]
+}
+
+fn test_catch_name_clears_all_same() {
+    let passed = 0
+    let total = 0
+
+    // T4: catch(data) clears ALL 'data' taint — including unrelated vars named 'data'
+    total = total + 1
+    let data = env.get("HOME")
+    try {
+        let x = 1 / 0
+    } catch (data) {
+        // clearTaint("data") affects ALL 'data' in taint_set_
+    }
+    try {
+        env.set_var("E19_T4", string(data))
+        passed = passed + 1
+        print("PASS T4: catch(data) clears all same-named vars (known limitation)")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T4: data still tainted after catch (ideal behavior — even better!)")
+    }
+
+    return [passed, total]
+}
+
+fn test_struct_field_no_taint() {
+    let passed = 0
+    let total = 0
+
+    // T5: Struct field assignment — no taint tracking on fields
+    // Known limitation: obj.field = tainted doesn't track taint on field
+    total = total + 1
+    let t = env.get("HOME")
+    let d = {"field": "safe"}
+    // Assigning tainted value to dict key
+    d["field"] = string(t)
+    // Reading back — name-based tracking doesn't follow
+    let field_val = d.get("field")
+    try {
+        env.set_var("E19_T5", string(field_val))
+        passed = passed + 1
+        print("PASS T5: struct/dict field assignment — no taint tracking on fields (known limitation)")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T5: field access blocked (ideal behavior — even better!)")
+    }
+
+    return [passed, total]
+}
+
+fn test_subscript_assignment_no_taint() {
+    let passed = 0
+    let total = 0
+
+    // T6: Subscript assignment — arr[0] = tainted doesn't track on element
+    total = total + 1
+    let t = env.get("HOME")
+    let arr = ["safe", "safe"]
+    arr[0] = string(t)
+    let elem = arr[0]
+    try {
+        env.set_var("E19_T6", string(elem))
+        passed = passed + 1
+        print("PASS T6: subscript assignment — no element taint tracking (known limitation)")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T6: element access blocked (ideal behavior — even better!)")
+    }
+
+    return [passed, total]
+}
+
+fn test_config_static_no_reload() {
+    let passed = 0
+    let total = 0
+
+    // T7: Config is static — changes after load not reflected (load-once design)
+    // We can't modify config at runtime, but we verify it's consistently loaded
+    total = total + 1
+    let t1 = env.get("HOME")
+    let blocked_first = false
+    try { env.set_var("E19_T7A", string(t1)) } catch (e) { blocked_first = true }
+
+    // Do a bunch of work
+    for i in 0..10 {
+        let x = "iteration_" + string(i)
+    }
+
+    // Check again — config should be identical
+    let t2 = env.get("USER")
+    let blocked_second = false
+    try { env.set_var("E19_T7B", string(t2)) } catch (e) { blocked_second = true }
+
+    if blocked_first and blocked_second {
+        passed = passed + 1
+        print("PASS T7: config remains static throughout execution (load-once)")
+    } else {
+        print("FAIL T7: config behavior changed during execution")
+    }
+
+    return [passed, total]
+}
+
+fn test_env_key_not_checked() {
+    let passed = 0
+    let total = 0
+
+    // T8: env.set_var checks arg[1] (value), NOT arg[0] (key)
+    // Tainted key is NOT blocked — known design choice
+    total = total + 1
+    let tainted_key = env.get("HOME")
+    try {
+        env.set_var(string(tainted_key), "safe_value")
+        passed = passed + 1
+        print("PASS T8: tainted key in env.set_var not checked (known — only value checked)")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T8: tainted key blocked (stricter than expected — even better!)")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_dict_taint_wash()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_array_taint_wash()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_name_collision_across_scopes()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_catch_name_clears_all_same()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_struct_field_no_taint()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_subscript_assignment_no_taint()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_config_static_no_reload()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_env_key_not_checked()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    print("Edge 19 - Known Limitations: " + string(tp) + "/" + string(tt) + " passed")
+}

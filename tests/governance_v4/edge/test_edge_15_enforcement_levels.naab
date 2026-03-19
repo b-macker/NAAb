@@ -1,0 +1,273 @@
+// Edge Test 15: Enforcement Levels — Hard/Soft/Advisory (10 tests)
+// Tests behavior of different taint_tracking.level values
+// Code paths: checkTaintedSink (4445-4452), checkExpressionTaintedSink (3024-3029)
+// NOTE: This file uses the default govern.json (level: "hard")
+// Advisory and disabled tests are conceptual — we test current hard mode thoroughly
+
+use env
+
+fn validate_input(x) { return string(x) }
+
+fn test_hard_always_blocks() {
+    let passed = 0
+    let total = 0
+
+    // T1: Hard mode — always blocks tainted at sink
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        env.set_var("E15_T1", string(t))
+        print("FAIL T1: hard mode didn't block tainted sink")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T1: hard mode blocks tainted variable at sink")
+    }
+
+    return [passed, total]
+}
+
+fn test_hard_blocks_expression() {
+    let passed = 0
+    let total = 0
+
+    // T2: Hard mode blocks expression-level taint
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        env.set_var("E15_T2", t + "_suffix")
+        print("FAIL T2: hard mode didn't block expression taint")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T2: hard mode blocks expression (t + str) at sink")
+    }
+
+    return [passed, total]
+}
+
+fn test_after_caught_hard_error() {
+    let passed = 0
+    let total = 0
+
+    // T3: After caught hard error, governance still active
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        env.set_var("E15_T3A", string(t))
+    } catch (e) {
+        // First block caught
+    }
+    // Second attempt — should still block
+    try {
+        env.set_var("E15_T3B", string(t))
+        print("FAIL T3: governance inactive after caught hard error")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T3: governance still active after caught hard error")
+    }
+
+    return [passed, total]
+}
+
+fn test_multiple_sequential_blocks() {
+    let passed = 0
+    let total = 0
+
+    // T4: Multiple sequential blocks — each independently enforced
+    total = total + 1
+    let t = env.get("HOME")
+    let blocks = 0
+    for i in 0..5 {
+        try {
+            env.set_var("E15_T4_" + string(i), string(t))
+        } catch (e) {
+            blocks = blocks + 1
+        }
+    }
+    if blocks == 5 {
+        passed = passed + 1
+        print("PASS T4: 5 sequential blocks — all enforced independently")
+    } else {
+        print("FAIL T4: only " + string(blocks) + "/5 blocks enforced")
+    }
+
+    return [passed, total]
+}
+
+fn test_clean_passes_at_hard() {
+    let passed = 0
+    let total = 0
+
+    // T5: Clean variable passes at hard level
+    total = total + 1
+    let clean = "safe_value"
+    try {
+        env.set_var("E15_T5", clean)
+        passed = passed + 1
+        print("PASS T5: clean variable passes at hard level")
+    } catch (e) {
+        print("FAIL T5: clean variable blocked at hard level")
+    }
+
+    return [passed, total]
+}
+
+fn test_sanitized_passes_at_hard() {
+    let passed = 0
+    let total = 0
+
+    // T6: Sanitized variable passes at hard level
+    total = total + 1
+    let t = env.get("HOME")
+    let cleaned = validate_input(t)
+    try {
+        env.set_var("E15_T6", string(cleaned))
+        passed = passed + 1
+        print("PASS T6: sanitized variable passes at hard level")
+    } catch (e) {
+        print("FAIL T6: sanitized variable blocked at hard level")
+    }
+
+    return [passed, total]
+}
+
+fn test_hard_blocks_interpolation() {
+    let passed = 0
+    let total = 0
+
+    // T7: Hard mode blocks string interpolation with taint
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        env.set_var("E15_T7", "${t}")
+        print("FAIL T7: hard mode didn't block interpolation taint")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T7: hard mode blocks interpolation with tainted var")
+    }
+
+    return [passed, total]
+}
+
+fn test_hard_blocks_shell_binding() {
+    let passed = 0
+    let total = 0
+
+    // T8: Hard mode blocks shell binding with taint
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        <<shell[t]
+echo "test"
+>>
+        print("FAIL T8: hard mode didn't block tainted shell binding")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T8: hard mode blocks tainted shell binding")
+    }
+
+    return [passed, total]
+}
+
+fn test_governance_consistent_after_mixed() {
+    let passed = 0
+    let total = 0
+
+    // T9: Mixed operations — governance consistent throughout
+    total = total + 1
+    let t = env.get("HOME")
+    let clean = "safe"
+    let results_correct = true
+
+    // Clean passes
+    try { env.set_var("E15_T9A", clean) } catch (e) { results_correct = false }
+    // Tainted blocks
+    try { env.set_var("E15_T9B", string(t)) } catch (e) { }
+    // Clean after tainted still passes
+    try { env.set_var("E15_T9C", "another_safe") } catch (e) { results_correct = false }
+    // Tainted again still blocks
+    let blocked = false
+    try { env.set_var("E15_T9D", string(t)) } catch (e) { blocked = true }
+
+    if results_correct and blocked {
+        passed = passed + 1
+        print("PASS T9: mixed operations — governance consistent throughout")
+    } else {
+        print("FAIL T9: governance inconsistent during mixed operations")
+    }
+
+    return [passed, total]
+}
+
+fn test_hard_blocks_all_sinks() {
+    let passed = 0
+    let total = 0
+
+    // T10: Hard mode blocks at all configured sinks
+    total = total + 1
+    let t = env.get("HOME")
+    let env_blocked = false
+    let shell_blocked = false
+
+    try { env.set_var("E15_T10A", string(t)) } catch (e) { env_blocked = true }
+    try {
+        <<shell[t]
+echo "test"
+>>
+    } catch (e) { shell_blocked = true }
+
+    if env_blocked and shell_blocked {
+        passed = passed + 1
+        print("PASS T10: hard mode blocks at all configured sinks (env + shell)")
+    } else {
+        print("FAIL T10: hard mode missed some sinks (env:" + string(env_blocked) + " shell:" + string(shell_blocked) + ")")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_hard_always_blocks()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_hard_blocks_expression()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_after_caught_hard_error()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_multiple_sequential_blocks()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_clean_passes_at_hard()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_sanitized_passes_at_hard()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_hard_blocks_interpolation()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_hard_blocks_shell_binding()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    let r9 = test_governance_consistent_after_mixed()
+    tp = tp + r9[0]
+    tt = tt + r9[1]
+
+    let r10 = test_hard_blocks_all_sinks()
+    tp = tp + r10[0]
+    tt = tt + r10[1]
+
+    print("Edge 15 - Enforcement Levels: " + string(tp) + "/" + string(tt) + " passed")
+}

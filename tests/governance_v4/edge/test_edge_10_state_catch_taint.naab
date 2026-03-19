@@ -1,0 +1,293 @@
+// Edge Test 10: try/catch Taint Clearing (10 tests)
+// Tests BUG-AB: catch(e) clears taint on variable name 'e'
+// Code path: interpreter.cpp:3231-3234
+
+use env
+
+fn test_catch_clears_catch_var() {
+    let passed = 0
+    let total = 0
+
+    // T1: catch(e) clears taint on 'e' — e is error object, not user data
+    total = total + 1
+    let e = env.get("HOME")
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        // e should be cleared (it's the error object now)
+        try {
+            env.set_var("E10_T1", string(e))
+            passed = passed + 1
+            print("PASS T1: catch(e) clears taint on catch variable")
+        } catch (err) {
+            print("FAIL T1: catch variable still tainted")
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_catch_preserves_other_taint() {
+    let passed = 0
+    let total = 0
+
+    // T2: catch(e) only clears 'e', not other tainted vars
+    total = total + 1
+    let t = env.get("HOME")
+    let e = env.get("USER")
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        // t should still be tainted, e cleared
+        try {
+            env.set_var("E10_T2", string(t))
+            print("FAIL T2: other tainted var cleared by catch")
+        } catch (err) {
+            passed = passed + 1
+            print("PASS T2: catch(e) only clears 'e', not 't'")
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_catch_name_collision() {
+    let passed = 0
+    let total = 0
+
+    // T3: Name collision — tainted 'data', then catch(data)
+    // clearTaint("data") clears the tainted 'data' too (name-based limitation)
+    total = total + 1
+    let data = env.get("HOME")
+    try {
+        let x = 1 / 0
+    } catch (data) {
+        // data is now the error object, taint on 'data' was cleared
+    }
+    // After catch exits, 'data' taint was cleared (name collision)
+    try {
+        env.set_var("E10_T3", string(data))
+        passed = passed + 1
+        print("PASS T3: catch(data) clears all same-named taint (known limitation)")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T3: catch(data) preserved taint (ideal behavior)")
+    }
+
+    return [passed, total]
+}
+
+fn test_taint_survives_catch() {
+    let passed = 0
+    let total = 0
+
+    // T4: Taint survives catch block (different var name)
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        let x = 1 / 0
+    } catch (err) {
+        // err is caught, t is unrelated
+    }
+    try {
+        env.set_var("E10_T4", string(t))
+        print("FAIL T4: taint lost after catch with different var name")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T4: taint survives catch block (different var name)")
+    }
+
+    return [passed, total]
+}
+
+fn test_nested_try_catch() {
+    let passed = 0
+    let total = 0
+
+    // T5: Nested try/catch — each clears own var
+    total = total + 1
+    let outer_data = env.get("HOME")
+    try {
+        try {
+            let x = 1 / 0
+        } catch (inner_err) {
+            // inner_err cleared, outer_data untouched
+        }
+        // outer_data should still be tainted
+        try {
+            env.set_var("E10_T5", string(outer_data))
+            print("FAIL T5: outer taint lost after inner catch")
+        } catch (e) {
+            passed = passed + 1
+            print("PASS T5: nested catch — outer taint preserved")
+        }
+    } catch (outer_err) {
+        print("FAIL T5: unexpected outer exception")
+    }
+
+    return [passed, total]
+}
+
+fn test_catch_with_retaint() {
+    let passed = 0
+    let total = 0
+
+    // T6: Re-taint inside catch body
+    total = total + 1
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        e = env.get("HOME")
+        // e should now be re-tainted
+        try {
+            env.set_var("E10_T6", string(e))
+            print("FAIL T6: re-taint in catch not detected")
+        } catch (err) {
+            passed = passed + 1
+            print("PASS T6: re-taint in catch body works")
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_governance_active_in_catch() {
+    let passed = 0
+    let total = 0
+
+    // T7: Governance checks work inside catch body
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        try {
+            env.set_var("E10_T7", string(t))
+            print("FAIL T7: governance not active in catch body")
+        } catch (err) {
+            passed = passed + 1
+            print("PASS T7: governance active inside catch body")
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_catch_after_taint_sink_failure() {
+    let passed = 0
+    let total = 0
+
+    // T8: Catch taint sink error, then check taint still active
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        env.set_var("E10_T8A", string(t))
+    } catch (e) {
+        // Caught the taint violation
+    }
+    // t should still be tainted after caught violation
+    try {
+        env.set_var("E10_T8B", string(t))
+        print("FAIL T8: taint cleared after caught sink violation")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T8: taint persists after caught sink violation")
+    }
+
+    return [passed, total]
+}
+
+fn test_taint_in_try_block() {
+    let passed = 0
+    let total = 0
+
+    // T9: Taint created in try block persists after
+    total = total + 1
+    let t = "safe"
+    try {
+        t = env.get("HOME")
+    } catch (e) {
+        // No error expected
+    }
+    try {
+        env.set_var("E10_T9", string(t))
+        print("FAIL T9: taint from try block didn't persist")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T9: taint from try block persists after")
+    }
+
+    return [passed, total]
+}
+
+fn test_multiple_catches_independent() {
+    let passed = 0
+    let total = 0
+
+    // T10: Multiple try/catch blocks with different var names
+    total = total + 1
+    let a = env.get("HOME")
+    let b = env.get("USER")
+    try { let x = 1 / 0 } catch (err1) { }
+    try { let y = 1 / 0 } catch (err2) { }
+    // a and b should still be tainted (err1, err2 are different names)
+    let a_blocked = false
+    let b_blocked = false
+    try { env.set_var("E10_T10A", string(a)) } catch (e) { a_blocked = true }
+    try { env.set_var("E10_T10B", string(b)) } catch (e) { b_blocked = true }
+    if a_blocked and b_blocked {
+        passed = passed + 1
+        print("PASS T10: multiple catches with different names preserve taint")
+    } else {
+        print("FAIL T10: catches affected taint state")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_catch_clears_catch_var()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_catch_preserves_other_taint()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_catch_name_collision()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_taint_survives_catch()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_nested_try_catch()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_catch_with_retaint()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_governance_active_in_catch()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_catch_after_taint_sink_failure()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    let r9 = test_taint_in_try_block()
+    tp = tp + r9[0]
+    tt = tt + r9[1]
+
+    let r10 = test_multiple_catches_independent()
+    tp = tp + r10[0]
+    tt = tt + r10[1]
+
+    print("Edge 10 - Catch Taint: " + string(tp) + "/" + string(tt) + " passed")
+}

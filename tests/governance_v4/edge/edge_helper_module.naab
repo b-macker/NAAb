@@ -1,0 +1,27 @@
+// Helper module for edge tests — exports tainted and clean functions
+use env
+
+export fn get_tainted_value() {
+    return env.get("HOME")
+}
+
+export fn get_clean_value() {
+    return "safe_value"
+}
+
+export fn validate_data(x) {
+    return string(x)
+}
+
+export fn format_data(x) {
+    return string(x)
+}
+
+export fn wrap_tainted() {
+    let inner = env.get("HOME")
+    return inner
+}
+
+export fn double_wrap() {
+    return wrap_tainted()
+}

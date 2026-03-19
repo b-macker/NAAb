@@ -1,0 +1,32 @@
+{
+    "version": "3.0",
+    "languages": {
+        "allowed": ["python", "shell", "go", "javascript", "nim"]
+    },
+    "capabilities": {
+        "network": false,
+        "filesystem": "read",
+        "env_access": true,
+        "shell": true
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "sources": ["env.get", "polyglot_output", "polyglot_output:python"],
+        "sinks": ["shell_exec", "python_exec", "env.set_var"],
+        "sanitizers": ["validate_", "sanitize_", "clean_"]
+    },
+    "scopes": [
+        { "pattern": "handle_*", "overrides": {} },
+        { "pattern": "test_*", "overrides": {} },
+        { "pattern": "*_handler", "overrides": {} },
+        { "pattern": "get_*_value", "overrides": {} },
+        { "pattern": "nonexistent_prefix_*", "overrides": {} }
+    ],
+    "code_quality": {
+        "no_oversimplification": { "enabled": false },
+        "no_incomplete_logic": { "enabled": false },
+        "no_simulation_markers": { "enabled": false },
+        "complexity_floor": { "enabled": false }
+    }
+}

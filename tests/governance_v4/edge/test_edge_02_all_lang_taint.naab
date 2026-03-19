@@ -1,0 +1,278 @@
+// Edge Test 02: All-Language Polyglot Binding Taint (FIX-DX-2)
+// Tests sink_type construction from language in InlineCodeExpr
+// Code path: interpreter.cpp:7247-7264
+
+use env
+
+fn validate_input(x) { return string(x) }
+
+fn test_shell_binding_tainted() {
+    let passed = 0
+    let total = 0
+
+    // T1: Shell backward compat — <<shell[tainted]>> → sink_type="shell_exec"
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        <<shell[t]
+echo "test"
+>>
+        print("FAIL T1: shell binding with tainted var not blocked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T1: shell binding tainted var blocked (shell_exec sink)")
+    }
+
+    // T2: Bash alias → sink_type="shell_exec"
+    total = total + 1
+    let t2 = env.get("HOME")
+    try {
+        <<bash[t2]
+echo "test"
+>>
+        print("FAIL T2: bash binding with tainted var not blocked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T2: bash alias tainted var blocked (shell_exec sink)")
+    }
+
+    // T3: Sh alias → sink_type="shell_exec"
+    total = total + 1
+    let t3 = env.get("HOME")
+    try {
+        <<sh[t3]
+echo "test"
+>>
+        print("FAIL T3: sh binding with tainted var not blocked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T3: sh alias tainted var blocked (shell_exec sink)")
+    }
+
+    return [passed, total]
+}
+
+fn test_python_binding_tainted() {
+    let passed = 0
+    let total = 0
+
+    // T4: Python with python_exec sink — blocked
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        <<python[t]
+print("test")
+>>
+        print("FAIL T4: python binding with tainted var not blocked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T4: python binding tainted var blocked (python_exec sink)")
+    }
+
+    return [passed, total]
+}
+
+fn test_non_sink_languages() {
+    let passed = 0
+    let total = 0
+
+    // T5: Go — go_exec NOT in sinks list → should pass governance
+    // (may fail at executor level if go not installed, but governance passes)
+    total = total + 1
+    let t = env.get("HOME")
+    let go_governance_blocked = false
+    try {
+        <<go[t]
+package main
+import "fmt"
+func main() { fmt.Println("test") }
+>>
+    } catch (e) {
+        let err_str = string(e)
+        // Check if blocked by governance taint or by executor
+        if err_str == "Governance violation: Tainted variable 't' used in go_exec sink" {
+            go_governance_blocked = true
+        }
+    }
+    if !go_governance_blocked {
+        passed = passed + 1
+        print("PASS T5: go binding — go_exec not in sinks, governance passes")
+    } else {
+        print("FAIL T5: go binding blocked by governance (go_exec shouldn't be a sink)")
+    }
+
+    // T6: JavaScript — js normalized to javascript_exec, NOT in sinks
+    total = total + 1
+    let t2 = env.get("HOME")
+    let js_governance_blocked = false
+    try {
+        <<javascript[t2]
+console.log("test")
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str == "Governance violation: Tainted variable 't2' used in javascript_exec sink" {
+            js_governance_blocked = true
+        }
+    }
+    if !js_governance_blocked {
+        passed = passed + 1
+        print("PASS T6: js binding — javascript_exec not in sinks, governance passes")
+    } else {
+        print("FAIL T6: js binding blocked by governance (javascript_exec shouldn't be a sink)")
+    }
+
+    return [passed, total]
+}
+
+fn test_clean_bindings() {
+    let passed = 0
+    let total = 0
+
+    // T7: Clean variable at shell sink — passes
+    total = total + 1
+    let clean = "safe_value"
+    try {
+        <<shell[clean]
+echo "$clean"
+>>
+        passed = passed + 1
+        print("PASS T7: clean variable passes shell binding")
+    } catch (e) {
+        // Could be executor error, not governance
+        let err_str = string(e)
+        if err_str == "Governance violation: Tainted variable 'clean' used in shell_exec sink" {
+            print("FAIL T7: clean variable blocked at shell binding")
+        } else {
+            passed = passed + 1
+            print("PASS T7: clean variable passes governance (executor error ok)")
+        }
+    }
+
+    // T8: Clean variable at python sink — passes
+    total = total + 1
+    let clean2 = "safe"
+    try {
+        <<python[clean2]
+print(clean2)
+>>
+        passed = passed + 1
+        print("PASS T8: clean variable passes python binding")
+    } catch (e) {
+        let err_str = string(e)
+        if err_str == "Governance violation: Tainted variable 'clean2' used in python_exec sink" {
+            print("FAIL T8: clean variable blocked at python binding")
+        } else {
+            passed = passed + 1
+            print("PASS T8: clean variable passes governance (executor error ok)")
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_multiple_bindings() {
+    let passed = 0
+    let total = 0
+
+    // T9: Multiple bindings, one tainted — blocks
+    total = total + 1
+    let clean = "safe"
+    let tainted = env.get("HOME")
+    try {
+        <<shell[clean, tainted]
+echo "$clean $tainted"
+>>
+        print("FAIL T9: mixed bindings not blocked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T9: mixed bindings (clean + tainted) blocked at shell sink")
+    }
+
+    // T10: No bindings — no taint check needed
+    total = total + 1
+    try {
+        <<shell
+echo "no bindings"
+>>
+        passed = passed + 1
+        print("PASS T10: no bindings — shell passes (nothing to check)")
+    } catch (e) {
+        print("FAIL T10: no-binding shell errored: " + string(e))
+    }
+
+    return [passed, total]
+}
+
+fn test_post_sanitizer_binding() {
+    let passed = 0
+    let total = 0
+
+    // T11: Post-sanitizer binding — sanitized then bound
+    total = total + 1
+    let t = env.get("HOME")
+    let cleaned = validate_input(t)
+    try {
+        <<shell[cleaned]
+echo "$cleaned"
+>>
+        passed = passed + 1
+        print("PASS T11: sanitized variable passes shell binding")
+    } catch (e) {
+        let err_str = string(e)
+        if err_str == "Governance violation: Tainted variable 'cleaned' used in shell_exec sink" {
+            print("FAIL T11: sanitized variable still blocked")
+        } else {
+            passed = passed + 1
+            print("PASS T11: sanitized variable passes governance (executor error ok)")
+        }
+    }
+
+    // T12: Re-tainted after sanitize — blocks
+    total = total + 1
+    let t2 = env.get("HOME")
+    let cleaned2 = validate_input(t2)
+    cleaned2 = env.get("USER")
+    try {
+        <<shell[cleaned2]
+echo "$cleaned2"
+>>
+        print("FAIL T12: re-tainted binding not blocked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T12: re-tainted after sanitize blocked at shell binding")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_shell_binding_tainted()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_python_binding_tainted()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_non_sink_languages()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_clean_bindings()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_multiple_bindings()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_post_sanitizer_binding()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    print("Edge 02 - All Lang Taint: " + string(tp) + "/" + string(tt) + " passed")
+}

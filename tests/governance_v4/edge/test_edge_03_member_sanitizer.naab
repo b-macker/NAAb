@@ -1,0 +1,251 @@
+// Edge Test 03: MemberExpr Sanitizer Detection (FIX-DX-3)
+// Tests sanitizer detection on module.method() calls
+// Code paths: VarDecl (3119-3129), Assignment (3439-3449)
+
+use env
+import "edge_helper_module.naab" as utils
+
+fn validate_input(x) { return string(x) }
+fn sanitize_data(x) { return string(x) }
+fn clean_value(x) { return string(x) }
+fn format_data(x) { return string(x) }
+
+fn test_plain_sanitizer_vardecl() {
+    let passed = 0
+    let total = 0
+
+    // T1: Plain sanitizer VarDecl — validate_input(tainted)
+    total = total + 1
+    let t = env.get("HOME")
+    let cleaned = validate_input(t)
+    try {
+        env.set_var("E03_T1", string(cleaned))
+        passed = passed + 1
+        print("PASS T1: plain sanitizer VarDecl clears taint")
+    } catch (e) {
+        print("FAIL T1: plain sanitizer VarDecl didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_module_sanitizer_vardecl() {
+    let passed = 0
+    let total = 0
+
+    // T2: Module sanitizer VarDecl — utils.validate_data(tainted)
+    total = total + 1
+    let t = env.get("HOME")
+    let cleaned = utils.validate_data(t)
+    try {
+        env.set_var("E03_T2", string(cleaned))
+        passed = passed + 1
+        print("PASS T2: module sanitizer VarDecl clears taint")
+    } catch (e) {
+        print("FAIL T2: module sanitizer VarDecl didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_plain_sanitizer_assignment() {
+    let passed = 0
+    let total = 0
+
+    // T3: Plain sanitizer Assignment — y = validate_input(tainted)
+    total = total + 1
+    let t = env.get("HOME")
+    let y = "initial"
+    y = validate_input(t)
+    try {
+        env.set_var("E03_T3", string(y))
+        passed = passed + 1
+        print("PASS T3: plain sanitizer Assignment clears taint")
+    } catch (e) {
+        print("FAIL T3: plain sanitizer Assignment didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_module_sanitizer_assignment() {
+    let passed = 0
+    let total = 0
+
+    // T4: Module sanitizer Assignment — y = utils.validate_data(tainted)
+    total = total + 1
+    let t = env.get("HOME")
+    let y = "initial"
+    y = utils.validate_data(t)
+    try {
+        env.set_var("E03_T4", string(y))
+        passed = passed + 1
+        print("PASS T4: module sanitizer Assignment clears taint")
+    } catch (e) {
+        print("FAIL T4: module sanitizer Assignment didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_non_sanitizer_member() {
+    let passed = 0
+    let total = 0
+
+    // T5: Non-sanitizer member — utils.format_data(tainted) — format not a sanitizer prefix
+    total = total + 1
+    let t = env.get("HOME")
+    let y = utils.format_data(t)
+    try {
+        env.set_var("E03_T5", string(y))
+        print("FAIL T5: non-sanitizer member cleared taint")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T5: non-sanitizer member (format_data) preserves taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_sanitizer_propagation_race() {
+    let passed = 0
+    let total = 0
+
+    // T6: Sanitizer wins over propagation — validate clears despite taint in arg
+    total = total + 1
+    let t = env.get("HOME")
+    let result = validate_input(t)
+    try {
+        env.set_var("E03_T6", string(result))
+        passed = passed + 1
+        print("PASS T6: sanitizer wins over taint propagation")
+    } catch (e) {
+        print("FAIL T6: taint propagation overrode sanitizer")
+    }
+
+    return [passed, total]
+}
+
+fn test_chained_sanitizer() {
+    let passed = 0
+    let total = 0
+
+    // T7: Chained — validate_input(format_data(tainted)) — outer is sanitizer
+    total = total + 1
+    let t = env.get("HOME")
+    let result = validate_input(format_data(t))
+    try {
+        env.set_var("E03_T7", string(result))
+        passed = passed + 1
+        print("PASS T7: chained calls — outer sanitizer clears taint")
+    } catch (e) {
+        print("FAIL T7: chained calls — outer sanitizer didn't clear")
+    }
+
+    return [passed, total]
+}
+
+fn test_sanitizer_at_sink_direct() {
+    let passed = 0
+    let total = 0
+
+    // T8: Sanitizer result at sink — must assign first, then use at sink
+    // Expression-level sink check is conservative: sees tainted arg in CallExpr
+    // Sanitizer clearing only happens in VarDecl/Assignment paths
+    total = total + 1
+    let t = env.get("HOME")
+    let sanitized = validate_input(t)
+    try {
+        env.set_var("E03_T8", string(sanitized))
+        passed = passed + 1
+        print("PASS T8: sanitizer result via assignment passes sink")
+    } catch (e) {
+        print("FAIL T8: sanitizer result via assignment blocked")
+    }
+
+    return [passed, total]
+}
+
+fn test_non_sanitizer_at_sink() {
+    let passed = 0
+    let total = 0
+
+    // T9: Non-sanitizer at sink — env.set_var("K", format_data(tainted))
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        env.set_var("E03_T9", format_data(t))
+        print("FAIL T9: non-sanitizer at sink passed")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T9: non-sanitizer (format_data) at sink blocked")
+    }
+
+    return [passed, total]
+}
+
+fn test_double_sanitizer() {
+    let passed = 0
+    let total = 0
+
+    // T10: Double sanitizer — sanitize_data(validate_input(tainted))
+    total = total + 1
+    let t = env.get("HOME")
+    let result = sanitize_data(validate_input(t))
+    try {
+        env.set_var("E03_T10", string(result))
+        passed = passed + 1
+        print("PASS T10: double sanitizer clears taint")
+    } catch (e) {
+        print("FAIL T10: double sanitizer didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_plain_sanitizer_vardecl()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_module_sanitizer_vardecl()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_plain_sanitizer_assignment()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_module_sanitizer_assignment()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_non_sanitizer_member()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_sanitizer_propagation_race()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_chained_sanitizer()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_sanitizer_at_sink_direct()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    let r9 = test_non_sanitizer_at_sink()
+    tp = tp + r9[0]
+    tt = tt + r9[1]
+
+    let r10 = test_double_sanitizer()
+    tp = tp + r10[0]
+    tt = tt + r10[1]
+
+    print("Edge 03 - Member Sanitizer: " + string(tp) + "/" + string(tt) + " passed")
+}

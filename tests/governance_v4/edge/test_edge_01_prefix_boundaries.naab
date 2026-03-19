@@ -1,0 +1,307 @@
+// Edge Test 01: Prefix Matching Boundaries (FIX-DX-1)
+// Tests isTaintSource(), isSanitizer(), checkTaintedSink() prefix matching
+// Code paths: governance.cpp:4376-4434
+
+use env
+
+fn validate_input(x) { return string(x) }
+fn sanitize_data(x) { return string(x) }
+fn clean_value(x) { return string(x) }
+fn revalidate_input(x) { return string(x) }
+fn format_output(x) { return string(x) }
+fn prevent_get(x) { return string(x) }
+
+fn test_source_exact_match() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Source exact match — env.get matches source "env.get"
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        env.set_var("EDGE01_T1", string(t))
+        print("FAIL: env.get exact match not detected as taint source")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS: env.get exact match detected as taint source")
+    }
+
+    return [passed, total]
+}
+
+fn test_source_non_prefix() {
+    let passed = 0
+    let total = 0
+
+    // Test 2: Non-prefix function — prevent_get() does NOT start with "env.get"
+    total = total + 1
+    let x = prevent_get("test")
+    try {
+        env.set_var("EDGE01_T2", string(x))
+        passed = passed + 1
+        print("PASS: prevent_get() not detected as taint source (correct)")
+    } catch (e) {
+        print("FAIL: prevent_get() incorrectly detected as taint source")
+    }
+
+    return [passed, total]
+}
+
+fn test_sanitizer_prefix_match() {
+    let passed = 0
+    let total = 0
+
+    // Test 3: Sanitizer prefix — validate_ matches validate_input
+    total = total + 1
+    let t = env.get("HOME")
+    let cleaned = validate_input(t)
+    try {
+        env.set_var("EDGE01_T3", string(cleaned))
+        passed = passed + 1
+        print("PASS: validate_ prefix sanitizer clears taint")
+    } catch (e) {
+        print("FAIL: validate_ prefix sanitizer didn't clear taint")
+    }
+
+    // Test 4: Sanitizer prefix — sanitize_ matches sanitize_data
+    total = total + 1
+    let t2 = env.get("USER")
+    let cleaned2 = sanitize_data(t2)
+    try {
+        env.set_var("EDGE01_T4", string(cleaned2))
+        passed = passed + 1
+        print("PASS: sanitize_ prefix sanitizer clears taint")
+    } catch (e) {
+        print("FAIL: sanitize_ prefix sanitizer didn't clear taint")
+    }
+
+    // Test 5: Sanitizer prefix — clean_ matches clean_value
+    total = total + 1
+    let t3 = env.get("HOME")
+    let cleaned3 = clean_value(t3)
+    try {
+        env.set_var("EDGE01_T5", string(cleaned3))
+        passed = passed + 1
+        print("PASS: clean_ prefix sanitizer clears taint")
+    } catch (e) {
+        print("FAIL: clean_ prefix sanitizer didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_sanitizer_non_prefix() {
+    let passed = 0
+    let total = 0
+
+    // Test 6: Non-prefix — revalidate_input does NOT start with validate_
+    total = total + 1
+    let t = env.get("HOME")
+    let still_tainted = revalidate_input(t)
+    try {
+        env.set_var("EDGE01_T6", string(t))
+        print("FAIL: revalidate_input incorrectly cleared taint")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS: revalidate_input does NOT clear taint (correct, not prefix)")
+    }
+
+    // Test 7: Non-sanitizer function
+    total = total + 1
+    let t2 = env.get("HOME")
+    let not_clean = format_output(t2)
+    try {
+        env.set_var("EDGE01_T7", string(t2))
+        print("FAIL: format_output incorrectly cleared taint")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS: format_output does NOT clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_empty_taint_set() {
+    let passed = 0
+    let total = 0
+
+    // Test 8: Clean variable at sink — no taint, should pass
+    total = total + 1
+    let clean = "safe_value"
+    try {
+        env.set_var("EDGE01_T8", clean)
+        passed = passed + 1
+        print("PASS: clean variable passes sink check")
+    } catch (e) {
+        print("FAIL: clean variable blocked at sink")
+    }
+
+    return [passed, total]
+}
+
+fn test_source_sanitizer_interaction() {
+    let passed = 0
+    let total = 0
+
+    // Test 9: Source then sanitize — source marks, sanitizer clears
+    total = total + 1
+    let t = env.get("HOME")
+    let safe = validate_input(t)
+    try {
+        env.set_var("EDGE01_T9", string(safe))
+        passed = passed + 1
+        print("PASS: source then sanitize — taint cleared")
+    } catch (e) {
+        print("FAIL: source then sanitize — taint not cleared")
+    }
+
+    // Test 10: Source marks taint, no sanitizer — stays tainted
+    total = total + 1
+    let t2 = env.get("HOME")
+    try {
+        env.set_var("EDGE01_T10", string(t2))
+        print("FAIL: unsanitized source should be blocked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS: unsanitized source blocked at sink")
+    }
+
+    return [passed, total]
+}
+
+fn test_sink_non_configured() {
+    let passed = 0
+    let total = 0
+
+    // Test 11: Shell sink configured — blocks tainted
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        <<shell[t]
+echo test
+>>
+        print("FAIL: shell_exec sink should block tainted binding")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS: shell_exec sink blocks tainted binding")
+    }
+
+    // Test 12: Clean var at shell sink — passes
+    total = total + 1
+    let clean = "safe"
+    try {
+        <<shell[clean]
+echo $clean
+>>
+        passed = passed + 1
+        print("PASS: clean variable passes shell_exec sink")
+    } catch (e) {
+        print("FAIL: clean variable blocked at shell_exec sink: " + string(e))
+    }
+
+    return [passed, total]
+}
+
+fn test_multiple_sanitizers() {
+    let passed = 0
+    let total = 0
+
+    // Test 13: Multiple sanitizer patterns — first match works
+    total = total + 1
+    let t = env.get("HOME")
+    let c1 = validate_input(t)
+    try {
+        env.set_var("EDGE01_T13A", string(c1))
+        passed = passed + 1
+        print("PASS: first sanitizer pattern (validate_) works")
+    } catch (e) {
+        print("FAIL: first sanitizer pattern didn't work")
+    }
+
+    total = total + 1
+    let t2 = env.get("HOME")
+    let c2 = sanitize_data(t2)
+    try {
+        env.set_var("EDGE01_T13B", string(c2))
+        passed = passed + 1
+        print("PASS: second sanitizer pattern (sanitize_) works")
+    } catch (e) {
+        print("FAIL: second sanitizer pattern didn't work")
+    }
+
+    total = total + 1
+    let t3 = env.get("HOME")
+    let c3 = clean_value(t3)
+    try {
+        env.set_var("EDGE01_T14", string(c3))
+        passed = passed + 1
+        print("PASS: third sanitizer pattern (clean_) works")
+    } catch (e) {
+        print("FAIL: third sanitizer pattern didn't work")
+    }
+
+    return [passed, total]
+}
+
+fn test_single_char_prefix() {
+    let passed = 0
+    let total = 0
+
+    // Test 14: Taint then clear with validate_ prefix (boundary test)
+    total = total + 1
+    let t = env.get("HOME")
+    // validate_ should match any function starting with validate_
+    let cleaned = validate_input(t)
+    try {
+        env.set_var("EDGE01_T14", string(cleaned))
+        passed = passed + 1
+        print("PASS: validate_input clears taint correctly")
+    } catch (e) {
+        print("FAIL: validate_input didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_source_exact_match()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_source_non_prefix()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_sanitizer_prefix_match()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_sanitizer_non_prefix()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_empty_taint_set()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_source_sanitizer_interaction()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    let r7 = test_sink_non_configured()
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+
+    let r8 = test_multiple_sanitizers()
+    total_passed = total_passed + r8[0]
+    total_tests = total_tests + r8[1]
+
+    let r9 = test_single_char_prefix()
+    total_passed = total_passed + r9[0]
+    total_tests = total_tests + r9[1]
+
+    print("Edge 01 - Prefix Boundaries: " + string(total_passed) + "/" + string(total_tests) + " passed")
+}

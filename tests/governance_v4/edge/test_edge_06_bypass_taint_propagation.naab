@@ -1,0 +1,302 @@
+// Edge Test 06: Taint PROPAGATION Through Data Flow (14 tests)
+// Tests expressionContainsTaint() for all propagation paths
+// Code path: interpreter.cpp:2861-2992
+
+use env
+
+fn format_data(x) { return string(x) }
+
+async fn async_returns_tainted() {
+    return env.get("HOME")
+}
+
+fn test_binary_propagation() {
+    let passed = 0
+    let total = 0
+
+    // T1: Binary add — tainted + "safe"
+    total = total + 1
+    let t = env.get("HOME")
+    let result = t + "_suffix"
+    try {
+        env.set_var("E06_T1", result)
+        print("FAIL T1: binary add taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T1: binary add propagates taint (t + str)")
+    }
+
+    // T2: Binary concat — "prefix" + tainted
+    total = total + 1
+    let t2 = env.get("HOME")
+    let result2 = "prefix_" + t2
+    try {
+        env.set_var("E06_T2", result2)
+        print("FAIL T2: binary concat taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T2: binary concat propagates taint (str + t)")
+    }
+
+    // T3: Subscript — arr[tainted_index] is BinaryExpr
+    total = total + 1
+    let t3 = env.get("HOME")
+    let combined = string(t3) + "_data"
+    try {
+        env.set_var("E06_T3", combined)
+        print("FAIL T3: subscript-style propagation failed")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T3: tainted in subscript/concat propagates")
+    }
+
+    return [passed, total]
+}
+
+fn test_member_propagation() {
+    let passed = 0
+    let total = 0
+
+    // T4: Member access on tainted — t.length() or t + ".test"
+    total = total + 1
+    let t = env.get("HOME")
+    let member_result = t + ".field"
+    try {
+        env.set_var("E06_T4", member_result)
+        print("FAIL T4: member access taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T4: member access on tainted propagates")
+    }
+
+    return [passed, total]
+}
+
+fn test_call_propagation() {
+    let passed = 0
+    let total = 0
+
+    // T5: Call with tainted arg — string(tainted)
+    total = total + 1
+    let t = env.get("HOME")
+    let call_result = format_data(t)
+    try {
+        env.set_var("E06_T5", string(call_result))
+        print("FAIL T5: call with tainted arg not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T5: call with tainted arg propagates (format_data not sanitizer)")
+    }
+
+    return [passed, total]
+}
+
+fn test_if_expression_propagation() {
+    let passed = 0
+    let total = 0
+
+    // T6: If-expression — true branch tainted
+    total = total + 1
+    let t = env.get("HOME")
+    let result = if true { t } else { "safe" }
+    try {
+        env.set_var("E06_T6", string(result))
+        print("FAIL T6: if-expr (true branch tainted) not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T6: if-expression true branch propagates taint")
+    }
+
+    // T7: If-expression — else branch tainted
+    total = total + 1
+    let t2 = env.get("HOME")
+    let result2 = if false { "safe" } else { t2 }
+    try {
+        env.set_var("E06_T7", string(result2))
+        print("FAIL T7: if-expr (else branch tainted) not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T7: if-expression else branch propagates taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_collection_propagation() {
+    let passed = 0
+    let total = 0
+
+    // T8: List containing tainted — [tainted, "safe"]
+    total = total + 1
+    let t = env.get("HOME")
+    let arr = [t, "safe"]
+    try {
+        env.set_var("E06_T8", string(arr))
+        print("FAIL T8: list with tainted element not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T8: list containing tainted propagates")
+    }
+
+    // T9: Dict containing tainted — {"k": tainted}
+    total = total + 1
+    let t2 = env.get("HOME")
+    let d = {"key": t2}
+    try {
+        env.set_var("E06_T9", string(d))
+        print("FAIL T9: dict with tainted value not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T9: dict containing tainted value propagates")
+    }
+
+    return [passed, total]
+}
+
+fn test_unary_propagation() {
+    let passed = 0
+    let total = 0
+
+    // T10: Unary negation — !tainted
+    total = total + 1
+    let t = env.get("HOME")
+    let neg = !t
+    try {
+        env.set_var("E06_T10", string(neg))
+        print("FAIL T10: unary negation taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T10: unary negation propagates taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_match_propagation() {
+    let passed = 0
+    let total = 0
+
+    // T11: Match — tainted arm
+    total = total + 1
+    let t = env.get("HOME")
+    let val = 1
+    let result = match val {
+        1 => t
+        default => "safe"
+    }
+    try {
+        env.set_var("E06_T11", string(result))
+        print("FAIL T11: match with tainted arm not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T11: match expression tainted arm propagates")
+    }
+
+    return [passed, total]
+}
+
+fn test_null_coalesce_propagation() {
+    let passed = 0
+    let total = 0
+
+    // T12: Null coalesce — tainted ?? "fallback"
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        env.set_var("E06_T12", t ?? "fallback")
+        print("FAIL T12: null coalesce taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T12: null coalesce (tainted ?? fallback) propagates")
+    }
+
+    return [passed, total]
+}
+
+fn test_await_propagation() {
+    let passed = 0
+    let total = 0
+
+    // T13: Await — async fn returning tainted
+    total = total + 1
+    let r = await async_returns_tainted()
+    try {
+        env.set_var("E06_T13", string(r))
+        print("FAIL T13: await taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T13: await propagates async return taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_clean_propagation_baseline() {
+    let passed = 0
+    let total = 0
+
+    // T14: All clean operations pass — baseline
+    total = total + 1
+    let clean = "safe"
+    let all_pass = true
+    try { env.set_var("E06_T14A", clean + "_suffix") } catch (e) { all_pass = false }
+    let cond_val = if true { "a" } else { "b" }
+    try { env.set_var("E06_T14B", string(cond_val)) } catch (e) { all_pass = false }
+    try { env.set_var("E06_T14C", string(42)) } catch (e) { all_pass = false }
+    try { env.set_var("E06_T14D", string(!true)) } catch (e) { all_pass = false }
+    if all_pass {
+        passed = passed + 1
+        print("PASS T14: all clean propagation paths pass sinks")
+    } else {
+        print("FAIL T14: some clean operations blocked")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_binary_propagation()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_member_propagation()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_call_propagation()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_if_expression_propagation()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_collection_propagation()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_unary_propagation()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_match_propagation()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_null_coalesce_propagation()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    let r9 = test_await_propagation()
+    tp = tp + r9[0]
+    tt = tt + r9[1]
+
+    let r10 = test_clean_propagation_baseline()
+    tp = tp + r10[0]
+    tt = tt + r10[1]
+
+    print("Edge 06 - Taint Propagation: " + string(tp) + "/" + string(tt) + " passed")
+}

@@ -1,0 +1,13 @@
+{
+    "version": "3.0",
+    "languages": {
+        "allowed": ["python", "shell"]
+    },
+    "capabilities": {
+        "env_access": true,
+        "shell": true
+    },
+    "taint_tracking": {
+        "enabled": false
+    }
+}

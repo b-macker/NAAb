@@ -1,0 +1,204 @@
+// Edge Test 13: Scope Pattern Glob Matching (FIX-DX-8)
+// Tests validateScopePatterns() pattern matching
+// Code path: governance.cpp:4457-4487
+
+use env
+
+// Functions matching various scope patterns from govern.json:
+// "handle_*", "test_*", "*_handler", "get_*_value", "nonexistent_prefix_*"
+
+fn handle_cpu() {
+    return "cpu_handled"
+}
+
+fn handle_memory() {
+    return "memory_handled"
+}
+
+fn test_scope_one() {
+    return "scope_test"
+}
+
+fn cpu_handler() {
+    return "cpu_handler_result"
+}
+
+fn memory_handler() {
+    return "memory_handler_result"
+}
+
+fn get_env_value() {
+    return "env_value"
+}
+
+fn get_data_value() {
+    return "data_value"
+}
+
+fn unmatched_function() {
+    return "no_scope_match"
+}
+
+fn test_prefix_patterns() {
+    let passed = 0
+    let total = 0
+
+    // T1: "handle_*" matches handle_cpu
+    total = total + 1
+    let result = handle_cpu()
+    if result == "cpu_handled" {
+        passed = passed + 1
+        print("PASS T1: handle_* pattern matches handle_cpu")
+    } else {
+        print("FAIL T1: handle_* pattern issue")
+    }
+
+    // T2: "handle_*" matches handle_memory
+    total = total + 1
+    let result2 = handle_memory()
+    if result2 == "memory_handled" {
+        passed = passed + 1
+        print("PASS T2: handle_* pattern matches handle_memory")
+    } else {
+        print("FAIL T2: handle_* pattern issue")
+    }
+
+    // T3: "test_*" matches test_scope_one
+    total = total + 1
+    let result3 = test_scope_one()
+    if result3 == "scope_test" {
+        passed = passed + 1
+        print("PASS T3: test_* pattern matches test_scope_one")
+    } else {
+        print("FAIL T3: test_* pattern issue")
+    }
+
+    return [passed, total]
+}
+
+fn test_suffix_patterns() {
+    let passed = 0
+    let total = 0
+
+    // T4: "*_handler" matches cpu_handler
+    total = total + 1
+    let result = cpu_handler()
+    if result == "cpu_handler_result" {
+        passed = passed + 1
+        print("PASS T4: *_handler pattern matches cpu_handler")
+    } else {
+        print("FAIL T4: *_handler pattern issue")
+    }
+
+    // T5: "*_handler" matches memory_handler
+    total = total + 1
+    let result2 = memory_handler()
+    if result2 == "memory_handler_result" {
+        passed = passed + 1
+        print("PASS T5: *_handler pattern matches memory_handler")
+    } else {
+        print("FAIL T5: *_handler pattern issue")
+    }
+
+    return [passed, total]
+}
+
+fn test_infix_patterns() {
+    let passed = 0
+    let total = 0
+
+    // T6: "get_*_value" matches get_env_value
+    total = total + 1
+    let result = get_env_value()
+    if result == "env_value" {
+        passed = passed + 1
+        print("PASS T6: get_*_value pattern matches get_env_value")
+    } else {
+        print("FAIL T6: get_*_value pattern issue")
+    }
+
+    // T7: "get_*_value" matches get_data_value
+    total = total + 1
+    let result2 = get_data_value()
+    if result2 == "data_value" {
+        passed = passed + 1
+        print("PASS T7: get_*_value pattern matches get_data_value")
+    } else {
+        print("FAIL T7: get_*_value pattern issue")
+    }
+
+    return [passed, total]
+}
+
+fn test_unmatched_functions() {
+    let passed = 0
+    let total = 0
+
+    // T8: Function not matching any pattern still runs
+    total = total + 1
+    let result = unmatched_function()
+    if result == "no_scope_match" {
+        passed = passed + 1
+        print("PASS T8: unmatched function runs without scope issues")
+    } else {
+        print("FAIL T8: unmatched function issue")
+    }
+
+    return [passed, total]
+}
+
+fn test_governance_in_scoped_functions() {
+    let passed = 0
+    let total = 0
+
+    // T9: Governance taint checks work inside scoped functions
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        env.set_var("E13_T9", string(t))
+        print("FAIL T9: taint check not working in test_ scoped function")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T9: taint check works inside test_* scoped function")
+    }
+
+    // T10: Clean operations pass in scoped functions
+    total = total + 1
+    let clean = "safe"
+    try {
+        env.set_var("E13_T10", clean)
+        passed = passed + 1
+        print("PASS T10: clean operation passes in scoped function")
+    } catch (e) {
+        print("FAIL T10: clean operation blocked in scoped function")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_prefix_patterns()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_suffix_patterns()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_infix_patterns()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_unmatched_functions()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_governance_in_scoped_functions()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    print("Edge 13 - Scope Patterns: " + string(tp) + "/" + string(tt) + " passed")
+}

@@ -1,0 +1,299 @@
+// Edge Test 09: lastReturnTainted State Machine (12 tests)
+// Tests reset, set, read cycles of lastReturnTainted
+// Code paths: Reset (724-726), Set (2456), Read (3098-3101, 3420-3423, 2445)
+
+use env
+
+fn returns_tainted() {
+    return env.get("HOME")
+}
+
+fn returns_clean() {
+    return "safe_value"
+}
+
+fn returns_tainted_var() {
+    let t = env.get("HOME")
+    return t
+}
+
+fn wraps_tainted() {
+    return returns_tainted()
+}
+
+fn double_wraps() {
+    return wraps_tainted()
+}
+
+fn returns_literal() {
+    return "literal_safe"
+}
+
+fn validate_input(x) { return string(x) }
+
+fn test_basic_return_taint() {
+    let passed = 0
+    let total = 0
+
+    // T1: fn returns tainted → caller sees taint
+    total = total + 1
+    let r = returns_tainted()
+    try {
+        env.set_var("E09_T1", string(r))
+        print("FAIL T1: return taint not propagated to caller")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T1: fn returning env.get() propagates taint to caller")
+    }
+
+    // T2: fn returns clean → caller NOT tainted
+    total = total + 1
+    let r2 = returns_clean()
+    try {
+        env.set_var("E09_T2", string(r2))
+        passed = passed + 1
+        print("PASS T2: fn returning clean value → caller not tainted")
+    } catch (e) {
+        print("FAIL T2: fn returning clean incorrectly tainted caller")
+    }
+
+    return [passed, total]
+}
+
+fn test_reset_between_calls() {
+    let passed = 0
+    let total = 0
+
+    // T3: Reset between calls — tainted_fn then clean_fn
+    total = total + 1
+    let r1 = returns_tainted()
+    let r2 = returns_clean()
+    // r2 should NOT be tainted (lastReturnTainted reset before clean_fn call)
+    try {
+        env.set_var("E09_T3", string(r2))
+        passed = passed + 1
+        print("PASS T3: lastReturnTainted reset between calls")
+    } catch (e) {
+        print("FAIL T3: lastReturnTainted leaked between calls")
+    }
+
+    return [passed, total]
+}
+
+fn test_nested_return() {
+    let passed = 0
+    let total = 0
+
+    // T4: Nested return: wraps_tainted() → returns_tainted()
+    total = total + 1
+    let r = wraps_tainted()
+    try {
+        env.set_var("E09_T4", string(r))
+        print("FAIL T4: nested return taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T4: nested return (wrap → tainted) propagates")
+    }
+
+    // T5: Double nested
+    total = total + 1
+    let r2 = double_wraps()
+    try {
+        env.set_var("E09_T5", string(r2))
+        print("FAIL T5: double nested taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T5: double nested return propagates taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_return_literal() {
+    let passed = 0
+    let total = 0
+
+    // T6: Return literal → not tainted
+    total = total + 1
+    let r = returns_literal()
+    try {
+        env.set_var("E09_T6", string(r))
+        passed = passed + 1
+        print("PASS T6: return literal → not tainted")
+    } catch (e) {
+        print("FAIL T6: return literal incorrectly tainted")
+    }
+
+    return [passed, total]
+}
+
+fn test_return_tainted_var() {
+    let passed = 0
+    let total = 0
+
+    // T7: Return tainted variable
+    total = total + 1
+    let r = returns_tainted_var()
+    try {
+        env.set_var("E09_T7", string(r))
+        print("FAIL T7: return tainted var not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T7: return tainted variable propagates to caller")
+    }
+
+    return [passed, total]
+}
+
+fn returns_conditional_taint(flag) {
+    let t = env.get("HOME")
+    if flag {
+        return t
+    }
+    return "safe"
+}
+
+fn test_conditional_return() {
+    let passed = 0
+    let total = 0
+
+    // T8: Conditional return — tainted path
+    total = total + 1
+    let r = returns_conditional_taint(true)
+    try {
+        env.set_var("E09_T8", string(r))
+        print("FAIL T8: conditional tainted return not detected")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T8: conditional return (tainted path) propagates")
+    }
+
+    // T9: Conditional return — safe path
+    total = total + 1
+    let r2 = returns_conditional_taint(false)
+    try {
+        env.set_var("E09_T9", string(r2))
+        passed = passed + 1
+        print("PASS T9: conditional return (safe path) not tainted")
+    } catch (e) {
+        print("FAIL T9: conditional return (safe path) incorrectly tainted")
+    }
+
+    return [passed, total]
+}
+
+fn test_return_in_assignment() {
+    let passed = 0
+    let total = 0
+
+    // T10: Assignment from tainted return
+    total = total + 1
+    let x = "initial"
+    x = returns_tainted()
+    try {
+        env.set_var("E09_T10", string(x))
+        print("FAIL T10: assignment from tainted return not detected")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T10: assignment from tainted return propagates")
+    }
+
+    return [passed, total]
+}
+
+fn test_return_taint_sequence() {
+    let passed = 0
+    let total = 0
+
+    // T11: Multiple calls in sequence — each independent
+    total = total + 1
+    let a = returns_tainted()
+    let b = returns_clean()
+    let c = returns_tainted()
+    let a_blocked = false
+    let b_passed = false
+    let c_blocked = false
+    try { env.set_var("E09_T11A", string(a)) } catch (e) { a_blocked = true }
+    try {
+        env.set_var("E09_T11B", string(b))
+        b_passed = true
+    } catch (e) { }
+    try { env.set_var("E09_T11C", string(c)) } catch (e) { c_blocked = true }
+    if a_blocked and b_passed and c_blocked {
+        passed = passed + 1
+        print("PASS T11: sequential calls — independent taint per call")
+    } else {
+        print("FAIL T11: sequential calls — not independent")
+    }
+
+    return [passed, total]
+}
+
+fn returns_from_try() {
+    try {
+        return env.get("HOME")
+    } catch (e) {
+        return "error"
+    }
+}
+
+fn test_return_from_try() {
+    let passed = 0
+    let total = 0
+
+    // T12: Return from within try block
+    total = total + 1
+    let r = returns_from_try()
+    try {
+        env.set_var("E09_T12", string(r))
+        print("FAIL T12: return from try not tainted")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T12: return from try block propagates taint")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_basic_return_taint()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_reset_between_calls()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_nested_return()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_return_literal()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_return_tainted_var()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_conditional_return()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_return_in_assignment()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_return_taint_sequence()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    let r9 = test_return_from_try()
+    tp = tp + r9[0]
+    tt = tt + r9[1]
+
+    print("Edge 09 - Return Taint State: " + string(tp) + "/" + string(tt) + " passed")
+}

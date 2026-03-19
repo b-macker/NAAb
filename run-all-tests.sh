@@ -99,6 +99,8 @@ EXPECTED_FAILURES["test_v3_secret_detection.naab"]=1
 EXPECTED_FAILURES["test_v3_simulation_markers.naab"]=1
 EXPECTED_FAILURES["test_v3_sql_injection.naab"]=1
 EXPECTED_FAILURES["test_v3_unsafe_deser.naab"]=1
+# Edge test helper module (not a standalone test, imported by edge tests)
+EXPECTED_FAILURES["edge_helper_module.naab"]=1
 # and/or/not are now proper keywords (aliases for &&/||/!)
 # These tests now PASS — removed from expected failures
 # Note: Governance tests in tests/governance_v3/ and tests/governance_v4/ are NOW
@@ -152,8 +154,8 @@ run_test() {
         gov_flag=""
     fi
 
-    # Special case: soft_override tests need --governance-override flag
-    if [[ "$test_file" == *"/soft_override/"* ]]; then
+    # Special case: soft_override and edge tests need --governance-override flag
+    if [[ "$test_file" == *"/soft_override/"* ]] || [[ "$test_file" == *"/edge/"* ]]; then
         gov_flag="--governance-override"
     fi
 

@@ -1,0 +1,260 @@
+// Edge Test 12: Async Under Failure Conditions (8 tests)
+// Tests governance resilience when async operations fail
+// Code paths: callFunction async (798-840), AwaitExpr (2566-2606)
+
+use env
+
+async fn async_throws() {
+    let x = 1 / 0
+    return "never_reached"
+}
+
+async fn async_returns_tainted() {
+    return env.get("HOME")
+}
+
+async fn async_returns_clean() {
+    return "safe_async_value"
+}
+
+fn test_async_throw_parent_unaffected() {
+    let passed = 0
+    let total = 0
+
+    // T1: Async throws — parent governance unaffected
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        let r = await async_throws()
+    } catch (e) {
+        // Async error caught
+    }
+    // Parent governance should still block tainted sinks
+    try {
+        env.set_var("E12_T1", string(t))
+        print("FAIL T1: governance broken after async throw")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T1: governance still active after caught async throw")
+    }
+
+    return [passed, total]
+}
+
+fn test_governance_after_caught_async_error() {
+    let passed = 0
+    let total = 0
+
+    // T2: Governance still enforcing after caught async error
+    total = total + 1
+    try {
+        let r = await async_throws()
+    } catch (e) {
+        // Error caught
+    }
+    let fresh = env.get("USER")
+    try {
+        env.set_var("E12_T2", string(fresh))
+        print("FAIL T2: governance not enforcing after caught async error")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T2: fresh taint detected after caught async error")
+    }
+
+    return [passed, total]
+}
+
+fn test_multiple_async_one_fails() {
+    let passed = 0
+    let total = 0
+
+    // T3: Multiple async — one fails, others complete
+    total = total + 1
+    let clean_result = "unset"
+    let error_caught = false
+    try {
+        let r = await async_throws()
+    } catch (e) {
+        error_caught = true
+    }
+    let r2 = await async_returns_clean()
+    clean_result = string(r2)
+    if error_caught and clean_result == "safe_async_value" {
+        passed = passed + 1
+        print("PASS T3: failed async doesn't affect subsequent clean async")
+    } else {
+        print("FAIL T3: async failure affected other operations")
+    }
+
+    return [passed, total]
+}
+
+fn test_taint_after_failed_async() {
+    let passed = 0
+    let total = 0
+
+    // T4: Taint check after failed async — consistent state
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        let r = await async_throws()
+    } catch (e) {
+        // Caught
+    }
+    // t should still be tainted from before the failed async
+    try {
+        env.set_var("E12_T4", string(t))
+        print("FAIL T4: taint lost after failed async")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T4: taint persists through failed async")
+    }
+
+    return [passed, total]
+}
+
+fn test_rapid_async_cycle() {
+    let passed = 0
+    let total = 0
+
+    // T5: Rapid async spawn/await cycle (5 iterations)
+    total = total + 1
+    let all_correct = true
+    for i in 0..5 {
+        let r = await async_returns_tainted()
+        try {
+            env.set_var("E12_T5_" + string(i), string(r))
+            all_correct = false
+        } catch (e) {
+            // Expected — blocked
+        }
+    }
+    if all_correct {
+        passed = passed + 1
+        print("PASS T5: rapid async cycle — 5 iterations all blocked consistently")
+    } else {
+        print("FAIL T5: rapid async cycle — some iterations passed")
+    }
+
+    return [passed, total]
+}
+
+fn test_failed_await_no_stale_taint() {
+    let passed = 0
+    let total = 0
+
+    // T6: Failed await doesn't leave stale lastReturnTainted
+    total = total + 1
+    try {
+        let r = await async_throws()
+    } catch (e) {
+        // Error caught
+    }
+    // Next clean operation should not be tainted
+    let clean = await async_returns_clean()
+    try {
+        env.set_var("E12_T6", string(clean))
+        passed = passed + 1
+        print("PASS T6: failed await doesn't leave stale return taint")
+    } catch (e) {
+        print("FAIL T6: stale return taint after failed await")
+    }
+
+    return [passed, total]
+}
+
+fn test_mixed_async_sequence() {
+    let passed = 0
+    let total = 0
+
+    // T7: Mixed sequence: tainted → fail → clean → tainted
+    total = total + 1
+    let a = await async_returns_tainted()
+    try { let b = await async_throws() } catch (e) { }
+    let c = await async_returns_clean()
+    let d = await async_returns_tainted()
+
+    let a_blocked = false
+    let c_passed = false
+    let d_blocked = false
+
+    try { env.set_var("E12_T7A", string(a)) } catch (e) { a_blocked = true }
+    try {
+        env.set_var("E12_T7C", string(c))
+        c_passed = true
+    } catch (e) { }
+    try { env.set_var("E12_T7D", string(d)) } catch (e) { d_blocked = true }
+
+    if a_blocked and c_passed and d_blocked {
+        passed = passed + 1
+        print("PASS T7: mixed async sequence — each independently enforced")
+    } else {
+        print("FAIL T7: mixed async sequence — inconsistent enforcement")
+    }
+
+    return [passed, total]
+}
+
+fn test_governance_after_many_errors() {
+    let passed = 0
+    let total = 0
+
+    // T8: Governance after many caught errors — no degradation
+    total = total + 1
+    for i in 0..10 {
+        try {
+            let r = await async_throws()
+        } catch (e) {
+            // Caught
+        }
+    }
+    let t = env.get("HOME")
+    try {
+        env.set_var("E12_T8", string(t))
+        print("FAIL T8: governance degraded after 10 caught errors")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T8: governance still strong after 10 caught async errors")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_async_throw_parent_unaffected()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_governance_after_caught_async_error()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_multiple_async_one_fails()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_taint_after_failed_async()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_rapid_async_cycle()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_failed_await_no_stale_taint()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_mixed_async_sequence()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_governance_after_many_errors()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    print("Edge 12 - Async Degraded: " + string(tp) + "/" + string(tt) + " passed")
+}

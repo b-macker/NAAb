@@ -1,0 +1,264 @@
+// Edge Test 18: Cross-Feature Interactions (10 tests)
+// Tests taint + loops + nested functions + pipeline + recursion + multiple sources
+// Code paths: multiple overlapping governance code paths
+
+use env
+import "edge_helper_module.naab" as utils
+
+fn validate_input(x) { return string(x) }
+fn format_data(x) { return string(x) }
+
+fn test_taint_plus_loop() {
+    let passed = 0
+    let total = 0
+
+    // T1: Taint in for loop body, check after loop
+    total = total + 1
+    let t = "safe"
+    for i in 0..3 {
+        t = env.get("HOME")
+    }
+    try {
+        env.set_var("E18_T1", string(t))
+        print("FAIL T1: taint from loop body not persisted")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T1: taint in loop body persists after loop")
+    }
+
+    return [passed, total]
+}
+
+fn inner_taints() {
+    let x = env.get("HOME")
+    return x
+}
+
+fn test_taint_nested_function() {
+    let passed = 0
+    let total = 0
+
+    // T2: Inner function taints, outer checks via return
+    total = total + 1
+    let result = inner_taints()
+    try {
+        env.set_var("E18_T2", string(result))
+        print("FAIL T2: inner function taint not propagated to outer")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T2: inner function taint propagates through return")
+    }
+
+    return [passed, total]
+}
+
+fn test_taint_module_import() {
+    let passed = 0
+    let total = 0
+
+    // T3: Taint from imported module function
+    total = total + 1
+    let result = utils.get_tainted_value()
+    try {
+        env.set_var("E18_T3", string(result))
+        print("FAIL T3: module taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T3: taint from imported module function propagates")
+    }
+
+    return [passed, total]
+}
+
+fn test_taint_null_coalesce() {
+    let passed = 0
+    let total = 0
+
+    // T4: Taint + null coalesce
+    total = total + 1
+    let t = env.get("HOME")
+    let result = t ?? "default"
+    try {
+        env.set_var("E18_T4", string(result))
+        print("FAIL T4: null coalesce didn't preserve taint")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T4: taint + null coalesce — taint preserved")
+    }
+
+    return [passed, total]
+}
+
+fn test_multiple_taint_sources() {
+    let passed = 0
+    let total = 0
+
+    // T5: Multiple taint sources — both tracked independently
+    total = total + 1
+    let a = env.get("HOME")
+    let b = env.get("USER")
+    let combined = string(a) + string(b)
+    try {
+        env.set_var("E18_T5", combined)
+        print("FAIL T5: combined taint sources not blocked")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T5: multiple taint sources both tracked")
+    }
+
+    return [passed, total]
+}
+
+fn recursive_taint(depth) {
+    if depth <= 0 {
+        return env.get("HOME")
+    }
+    return recursive_taint(depth - 1)
+}
+
+fn test_taint_recursion() {
+    let passed = 0
+    let total = 0
+
+    // T6: Taint + recursion — recursive function with taint source
+    total = total + 1
+    let result = recursive_taint(3)
+    try {
+        env.set_var("E18_T6", string(result))
+        print("FAIL T6: recursive taint not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T6: recursive taint propagates through return chain")
+    }
+
+    return [passed, total]
+}
+
+fn test_taint_polyglot_sanitizer_chain() {
+    let passed = 0
+    let total = 0
+
+    // T7: Polyglot output → sanitizer → sink (should pass)
+    total = total + 1
+    let raw = <<shell
+echo "raw_output"
+>>
+    let cleaned = validate_input(raw)
+    try {
+        env.set_var("E18_T7", string(cleaned))
+        passed = passed + 1
+        print("PASS T7: polyglot → sanitizer → sink chain passes")
+    } catch (e) {
+        print("FAIL T7: polyglot → sanitizer → sink chain blocked")
+    }
+
+    return [passed, total]
+}
+
+fn test_clean_after_tainted_loop() {
+    let passed = 0
+    let total = 0
+
+    // T8: Clean operation after tainted loop
+    total = total + 1
+    for i in 0..3 {
+        let t = env.get("HOME")
+        try { env.set_var("E18_T8_" + string(i), string(t)) } catch (e) { }
+    }
+    let clean = "safe_after_loop"
+    try {
+        env.set_var("E18_T8_CLEAN", clean)
+        passed = passed + 1
+        print("PASS T8: clean operation passes after tainted loop")
+    } catch (e) {
+        print("FAIL T8: clean operation blocked after tainted loop")
+    }
+
+    return [passed, total]
+}
+
+fn test_taint_if_branch_only() {
+    let passed = 0
+    let total = 0
+
+    // T9: Taint only in one if branch
+    total = total + 1
+    let x = "safe"
+    if true {
+        x = env.get("HOME")
+    }
+    try {
+        env.set_var("E18_T9", string(x))
+        print("FAIL T9: taint from if branch not detected")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T9: taint from taken if branch persists")
+    }
+
+    return [passed, total]
+}
+
+fn test_module_clean_passes() {
+    let passed = 0
+    let total = 0
+
+    // T10: Module clean function — should pass sinks
+    total = total + 1
+    let result = utils.get_clean_value()
+    try {
+        env.set_var("E18_T10", string(result))
+        passed = passed + 1
+        print("PASS T10: module clean function result passes sink")
+    } catch (e) {
+        print("FAIL T10: module clean function result blocked")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_taint_plus_loop()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_taint_nested_function()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_taint_module_import()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_taint_null_coalesce()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_multiple_taint_sources()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_taint_recursion()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_taint_polyglot_sanitizer_chain()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_clean_after_tainted_loop()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    let r9 = test_taint_if_branch_only()
+    tp = tp + r9[0]
+    tt = tt + r9[1]
+
+    let r10 = test_module_clean_passes()
+    tp = tp + r10[0]
+    tt = tt + r10[1]
+
+    print("Edge 18 - Taint Interactions: " + string(tp) + "/" + string(tt) + " passed")
+}

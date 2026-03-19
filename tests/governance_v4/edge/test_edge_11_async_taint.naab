@@ -1,0 +1,230 @@
+// Edge Test 11: Async Taint Snapshot and Propagation (10 tests)
+// Tests saveTaintState/restoreTaintState, return_tainted flag
+// Code paths: callFunction async branch (798-840), AwaitExpr (2566-2606)
+
+use env
+
+async fn async_returns_tainted() {
+    return env.get("HOME")
+}
+
+async fn async_returns_clean() {
+    return "safe_async_value"
+}
+
+async fn async_reads_parent_taint(var_name) {
+    // This async fn inherits parent taint state via snapshot
+    // It can check if a variable is tainted by trying a sink
+    try {
+        env.set_var("E11_INNER", string(var_name))
+        return "clean"
+    } catch (e) {
+        return "blocked"
+    }
+}
+
+async fn async_throws_error() {
+    let x = 1 / 0
+    return "never_reached"
+}
+
+fn test_async_return_taint() {
+    let passed = 0
+    let total = 0
+
+    // T1: Async returns tainted → await propagates to caller
+    total = total + 1
+    let r = await async_returns_tainted()
+    try {
+        env.set_var("E11_T1", string(r))
+        print("FAIL T1: async return taint not propagated via await")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T1: async return taint propagated through await")
+    }
+
+    // T2: Async returns clean → caller not tainted
+    total = total + 1
+    let r2 = await async_returns_clean()
+    try {
+        env.set_var("E11_T2", string(r2))
+        passed = passed + 1
+        print("PASS T2: async clean return → caller not tainted")
+    } catch (e) {
+        print("FAIL T2: async clean return incorrectly tainted")
+    }
+
+    return [passed, total]
+}
+
+fn test_sequential_awaits() {
+    let passed = 0
+    let total = 0
+
+    // T3: Sequential awaits — each independent
+    total = total + 1
+    let a = await async_returns_tainted()
+    let b = await async_returns_clean()
+    // b should NOT be tainted (lastReturnTainted reset between calls)
+    try {
+        env.set_var("E11_T3", string(b))
+        passed = passed + 1
+        print("PASS T3: sequential awaits — clean after tainted is independent")
+    } catch (e) {
+        print("FAIL T3: sequential awaits — clean leaked from previous tainted")
+    }
+
+    return [passed, total]
+}
+
+fn test_async_exception() {
+    let passed = 0
+    let total = 0
+
+    // T4: Failed async doesn't set return_tainted
+    total = total + 1
+    try {
+        let r = await async_throws_error()
+    } catch (e) {
+        // Async threw — return_tainted should not be set
+    }
+    // Next clean call should not see stale taint
+    let r2 = await async_returns_clean()
+    try {
+        env.set_var("E11_T4", string(r2))
+        passed = passed + 1
+        print("PASS T4: failed async doesn't set stale return taint")
+    } catch (e) {
+        print("FAIL T4: failed async left stale return taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_two_async_independent() {
+    let passed = 0
+    let total = 0
+
+    // T5: Two async functions — independent taint
+    total = total + 1
+    let a = await async_returns_tainted()
+    let b = await async_returns_clean()
+    let a_blocked = false
+    let b_passed = false
+    try { env.set_var("E11_T5A", string(a)) } catch (e) { a_blocked = true }
+    try {
+        env.set_var("E11_T5B", string(b))
+        b_passed = true
+    } catch (e) { }
+    if a_blocked and b_passed {
+        passed = passed + 1
+        print("PASS T5: two async functions have independent taint")
+    } else {
+        print("FAIL T5: async taint not independent")
+    }
+
+    return [passed, total]
+}
+
+fn test_await_non_future() {
+    let passed = 0
+    let total = 0
+
+    // T6: Await on non-future passes through (identity)
+    total = total + 1
+    let x = await "not_a_future"
+    try {
+        env.set_var("E11_T6", string(x))
+        passed = passed + 1
+        print("PASS T6: await on non-future passes through without taint effect")
+    } catch (e) {
+        print("FAIL T6: await on non-future caused taint issue")
+    }
+
+    return [passed, total]
+}
+
+fn test_governance_after_async_error() {
+    let passed = 0
+    let total = 0
+
+    // T7: Governance still active after caught async error
+    total = total + 1
+    try {
+        let r = await async_throws_error()
+    } catch (e) {
+        // Async error caught
+    }
+    // Governance should still work
+    let t = env.get("HOME")
+    try {
+        env.set_var("E11_T7", string(t))
+        print("FAIL T7: governance inactive after async error")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T7: governance still active after caught async error")
+    }
+
+    return [passed, total]
+}
+
+fn test_rapid_async_cycle() {
+    let passed = 0
+    let total = 0
+
+    // T8: Rapid async spawn/await cycle (5 iterations)
+    total = total + 1
+    let all_correct = true
+    for i in 0..5 {
+        let r = await async_returns_tainted()
+        try {
+            env.set_var("E11_T8_" + string(i), string(r))
+            all_correct = false
+        } catch (e) {
+            // Expected — blocked
+        }
+    }
+    if all_correct {
+        passed = passed + 1
+        print("PASS T8: rapid async cycle — 5 iterations all consistent")
+    } else {
+        print("FAIL T8: rapid async cycle — inconsistent blocking")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_async_return_taint()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_sequential_awaits()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_async_exception()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_two_async_independent()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_await_non_future()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_governance_after_async_error()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_rapid_async_cycle()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    print("Edge 11 - Async Taint: " + string(tp) + "/" + string(tt) + " passed")
+}

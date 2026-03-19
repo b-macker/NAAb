@@ -1,0 +1,267 @@
+// Edge Test 07: Sanitizer Bypass and Clearing Vectors (10 tests)
+// Tests how taint gets cleared and potential bypass paths
+// Code paths: isSanitizer (4397-4414), clearTaint, VarDecl (3106-3130), Assignment (3428-3449)
+
+use env
+
+fn validate_input(x) { return string(x) }
+fn sanitize_data(x) { return string(x) }
+fn format_data(x) { return string(x) }
+
+fn test_valid_sanitizer_clears() {
+    let passed = 0
+    let total = 0
+
+    // T1: Valid sanitizer clears taint
+    total = total + 1
+    let t = env.get("HOME")
+    let cleaned = validate_input(t)
+    try {
+        env.set_var("E07_T1", string(cleaned))
+        passed = passed + 1
+        print("PASS T1: validate_input() clears taint")
+    } catch (e) {
+        print("FAIL T1: validate_input() didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_reassignment_clears() {
+    let passed = 0
+    let total = 0
+
+    // T2: Reassignment to literal clears taint
+    total = total + 1
+    let t = env.get("HOME")
+    t = "safe_literal"
+    try {
+        env.set_var("E07_T2", string(t))
+        passed = passed + 1
+        print("PASS T2: reassignment to literal clears taint")
+    } catch (e) {
+        print("FAIL T2: reassignment to literal didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_sanitizer_then_retaint() {
+    let passed = 0
+    let total = 0
+
+    // T3: Sanitize then re-taint — final state is tainted
+    total = total + 1
+    let t = env.get("HOME")
+    t = validate_input(t)
+    t = env.get("USER")
+    try {
+        env.set_var("E07_T3", string(t))
+        print("FAIL T3: re-tainted after sanitize not caught")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T3: sanitize then re-taint → still tainted")
+    }
+
+    return [passed, total]
+}
+
+fn test_non_sanitizer_no_clear() {
+    let passed = 0
+    let total = 0
+
+    // T4: Non-sanitizer function doesn't clear — format_data not a sanitizer
+    total = total + 1
+    let t = env.get("HOME")
+    let result = format_data(t)
+    try {
+        env.set_var("E07_T4", string(result))
+        print("FAIL T4: non-sanitizer cleared taint")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T4: non-sanitizer (format_data) doesn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_catch_clears_same_name() {
+    let passed = 0
+    let total = 0
+
+    // T5: catch(e) clears same-name var — BUG-AB
+    total = total + 1
+    let e = env.get("HOME")
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        // e is now error object, taint cleared
+        try {
+            env.set_var("E07_T5", string(e))
+            passed = passed + 1
+            print("PASS T5: catch(e) clears taint on 'e'")
+        } catch (err) {
+            print("FAIL T5: catch(e) didn't clear taint on 'e'")
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_catch_only_clears_named() {
+    let passed = 0
+    let total = 0
+
+    // T6: catch(e) only clears 'e', not other vars
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        try {
+            env.set_var("E07_T6", string(t))
+            print("FAIL T6: catch cleared taint on unrelated var")
+        } catch (err) {
+            passed = passed + 1
+            print("PASS T6: catch(e) only clears 'e', not 't'")
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_let_redeclaration_clears() {
+    let passed = 0
+    let total = 0
+
+    // T7: Let redeclaration to safe value — clears taint
+    total = total + 1
+    let t = env.get("HOME")
+    let t = "safe_redeclared"
+    try {
+        env.set_var("E07_T7", string(t))
+        passed = passed + 1
+        print("PASS T7: let redeclaration to safe clears taint")
+    } catch (e) {
+        print("FAIL T7: let redeclaration didn't clear taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_sanitizer_in_loop() {
+    let passed = 0
+    let total = 0
+
+    // T8: Sanitizer in loop — each iteration clears
+    total = total + 1
+    let all_clean = true
+    for i in 0..3 {
+        let t = env.get("HOME")
+        let cleaned = validate_input(t)
+        try {
+            env.set_var("E07_T8_" + string(i), string(cleaned))
+        } catch (e) {
+            all_clean = false
+        }
+    }
+    if all_clean {
+        passed = passed + 1
+        print("PASS T8: sanitizer in loop clears each iteration")
+    } else {
+        print("FAIL T8: sanitizer in loop didn't clear all iterations")
+    }
+
+    return [passed, total]
+}
+
+fn test_conditional_sanitizer() {
+    let passed = 0
+    let total = 0
+
+    // T9: Conditional sanitizer — only clears if branch taken
+    total = total + 1
+    let t = env.get("HOME")
+    if true {
+        t = validate_input(t)
+    }
+    try {
+        env.set_var("E07_T9", string(t))
+        passed = passed + 1
+        print("PASS T9: conditional sanitizer (branch taken) clears")
+    } catch (e) {
+        print("FAIL T9: conditional sanitizer (branch taken) didn't clear")
+    }
+
+    return [passed, total]
+}
+
+fn test_multiple_sanitizer_prefixes() {
+    let passed = 0
+    let total = 0
+
+    // T10: Multiple sanitizer prefixes — all work
+    total = total + 1
+    let t1 = env.get("HOME")
+    let t2 = env.get("HOME")
+    let c1 = validate_input(t1)
+    let c2 = sanitize_data(t2)
+    let all_clean = true
+    try { env.set_var("E07_T10A", string(c1)) } catch (e) { all_clean = false }
+    try { env.set_var("E07_T10B", string(c2)) } catch (e) { all_clean = false }
+    if all_clean {
+        passed = passed + 1
+        print("PASS T10: multiple sanitizer prefixes (validate_, sanitize_) both clear")
+    } else {
+        print("FAIL T10: some sanitizer prefixes didn't clear")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_valid_sanitizer_clears()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_reassignment_clears()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_sanitizer_then_retaint()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_non_sanitizer_no_clear()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_catch_clears_same_name()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_catch_only_clears_named()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_let_redeclaration_clears()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_sanitizer_in_loop()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    let r9 = test_conditional_sanitizer()
+    tp = tp + r9[0]
+    tt = tt + r9[1]
+
+    let r10 = test_multiple_sanitizer_prefixes()
+    tp = tp + r10[0]
+    tt = tt + r10[1]
+
+    print("Edge 07 - Sanitizer Bypass: " + string(tp) + "/" + string(tt) + " passed")
+}

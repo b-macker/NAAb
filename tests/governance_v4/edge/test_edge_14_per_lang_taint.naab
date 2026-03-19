@@ -1,0 +1,275 @@
+// Edge Test 14: Per-Language Polyglot Output Taint (FIX-DX-12)
+// Tests polyglot_output:language specific taint sources
+// Code paths: VarDecl (3087-3090), Assignment (3410-3413), Return (2449-2452)
+// Config has: "polyglot_output" (generic) and "polyglot_output:python" (per-lang)
+
+use env
+
+fn test_generic_source_python() {
+    let passed = 0
+    let total = 0
+
+    // T1: Generic polyglot_output taints Python output
+    total = total + 1
+    let py_out = <<python
+print("hello from python")
+>>
+    try {
+        env.set_var("E14_T1", string(py_out))
+        print("FAIL T1: generic polyglot_output didn't taint python output")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T1: generic polyglot_output taints python output")
+    }
+
+    return [passed, total]
+}
+
+fn test_generic_source_shell() {
+    let passed = 0
+    let total = 0
+
+    // T2: Generic polyglot_output taints Shell output
+    total = total + 1
+    let sh_out = <<shell
+echo "hello from shell"
+>>
+    try {
+        env.set_var("E14_T2", string(sh_out))
+        print("FAIL T2: generic polyglot_output didn't taint shell output")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T2: generic polyglot_output taints shell output")
+    }
+
+    return [passed, total]
+}
+
+fn test_per_lang_python_taints() {
+    let passed = 0
+    let total = 0
+
+    // T3: polyglot_output:python taints Python specifically
+    total = total + 1
+    let py_out = <<python
+print("python specific")
+>>
+    try {
+        env.set_var("E14_T3", string(py_out))
+        print("FAIL T3: polyglot_output:python didn't taint python output")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T3: polyglot_output:python taints python output")
+    }
+
+    return [passed, total]
+}
+
+fn test_per_lang_assignment() {
+    let passed = 0
+    let total = 0
+
+    // T4: Per-lang taint in assignment path
+    total = total + 1
+    let x = "initial"
+    x = <<python
+print("reassigned python")
+>>
+    try {
+        env.set_var("E14_T4", string(x))
+        print("FAIL T4: per-lang taint in assignment not detected")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T4: per-lang taint works in assignment path")
+    }
+
+    return [passed, total]
+}
+
+fn returns_python_output() {
+    return <<python
+print("from return")
+>>
+}
+
+fn test_per_lang_return() {
+    let passed = 0
+    let total = 0
+
+    // T5: Per-lang taint in return statement
+    total = total + 1
+    let result = returns_python_output()
+    try {
+        env.set_var("E14_T5", string(result))
+        print("FAIL T5: per-lang taint in return not propagated")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T5: per-lang taint propagates through return")
+    }
+
+    return [passed, total]
+}
+
+fn test_shell_output_tainted() {
+    let passed = 0
+    let total = 0
+
+    // T6: Shell output also tainted (via generic polyglot_output source)
+    total = total + 1
+    let sh_result = <<shell
+echo "shell data"
+>>
+    try {
+        env.set_var("E14_T6", string(sh_result))
+        print("FAIL T6: shell output not tainted (generic source should catch)")
+    } catch (e) {
+        passed = passed + 1
+        print("PASS T6: shell output tainted via generic polyglot_output")
+    }
+
+    return [passed, total]
+}
+
+fn test_sanitized_polyglot_output() {
+    let passed = 0
+    let total = 0
+
+    // T7: Polyglot output sanitized — should pass sinks
+    total = total + 1
+    let raw = <<python
+print("raw output")
+>>
+    let cleaned = validate_poly(raw)
+    try {
+        env.set_var("E14_T7", string(cleaned))
+        passed = passed + 1
+        print("PASS T7: sanitized polyglot output passes sink")
+    } catch (e) {
+        print("FAIL T7: sanitized polyglot output still blocked")
+    }
+
+    return [passed, total]
+}
+
+fn validate_poly(x) { return string(x) }
+
+fn test_multiple_polyglot_outputs() {
+    let passed = 0
+    let total = 0
+
+    // T8: Multiple polyglot outputs — each independently tainted
+    total = total + 1
+    let py1 = <<python
+print("output 1")
+>>
+    let py2 = <<python
+print("output 2")
+>>
+    let both_blocked = true
+    try { env.set_var("E14_T8A", string(py1)) } catch (e) { }
+    try {
+        env.set_var("E14_T8B", string(py2))
+        both_blocked = false
+    } catch (e) { }
+    if both_blocked {
+        passed = passed + 1
+        print("PASS T8: multiple polyglot outputs each independently tainted")
+    } else {
+        print("FAIL T8: some polyglot outputs lost taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_polyglot_in_loop() {
+    let passed = 0
+    let total = 0
+
+    // T9: Polyglot output in loop — each iteration tainted
+    total = total + 1
+    let all_tainted = true
+    for i in 0..3 {
+        let out = <<shell
+echo "iteration"
+>>
+        try {
+            env.set_var("E14_T9_" + string(i), string(out))
+            all_tainted = false
+        } catch (e) {
+            // Expected — blocked
+        }
+    }
+    if all_tainted {
+        passed = passed + 1
+        print("PASS T9: polyglot output in loop — each iteration tainted")
+    } else {
+        print("FAIL T9: some loop iterations lost taint")
+    }
+
+    return [passed, total]
+}
+
+fn test_clean_literal_passes() {
+    let passed = 0
+    let total = 0
+
+    // T10: Clean literal always passes (baseline)
+    total = total + 1
+    let clean = "not_from_polyglot"
+    try {
+        env.set_var("E14_T10", clean)
+        passed = passed + 1
+        print("PASS T10: clean literal passes (polyglot taint doesn't leak)")
+    } catch (e) {
+        print("FAIL T10: clean literal blocked by polyglot taint")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let tp = 0
+    let tt = 0
+
+    let r1 = test_generic_source_python()
+    tp = tp + r1[0]
+    tt = tt + r1[1]
+
+    let r2 = test_generic_source_shell()
+    tp = tp + r2[0]
+    tt = tt + r2[1]
+
+    let r3 = test_per_lang_python_taints()
+    tp = tp + r3[0]
+    tt = tt + r3[1]
+
+    let r4 = test_per_lang_assignment()
+    tp = tp + r4[0]
+    tt = tt + r4[1]
+
+    let r5 = test_per_lang_return()
+    tp = tp + r5[0]
+    tt = tt + r5[1]
+
+    let r6 = test_shell_output_tainted()
+    tp = tp + r6[0]
+    tt = tt + r6[1]
+
+    let r7 = test_sanitized_polyglot_output()
+    tp = tp + r7[0]
+    tt = tt + r7[1]
+
+    let r8 = test_multiple_polyglot_outputs()
+    tp = tp + r8[0]
+    tt = tt + r8[1]
+
+    let r9 = test_polyglot_in_loop()
+    tp = tp + r9[0]
+    tt = tt + r9[1]
+
+    let r10 = test_clean_literal_passes()
+    tp = tp + r10[0]
+    tt = tt + r10[1]
+
+    print("Edge 14 - Per-Lang Taint: " + string(tp) + "/" + string(tt) + " passed")
+}
