@@ -663,6 +663,9 @@ private:
     // REFACTOR-1: Unified taint decision helpers (replace 10 copy-pasted blocks)
     bool checkRhsTainted(ast::Expr* rhs_expr);
     bool checkRhsSanitized(ast::Expr* rhs_expr);
+    // FIX-D: Deduplicated polyglot bound-variable taint sink check
+    void checkPolyglotBoundVarTaint(const std::string& language,
+        const std::vector<std::string>& bound_vars, int line);
     // Governance v4: Helper to check if CompoundStmt can produce tainted return (BUG-MatchExpr fix)
     // Governance v4: Check expression-level taint at sink (handles both identifiers and complex expressions)
     std::string checkExpressionTaintedSink(ast::Expr* expr, const std::string& sink_type,

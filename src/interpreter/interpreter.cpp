@@ -2938,7 +2938,11 @@ bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
         // Also check if the async function RETURNED tainted data
         // (runtime check — safe because expressionContainsTaint is always
         //  called after eval() has already executed the expression)
-        if (governance_ && governance_->lastReturnWasTainted()) return true;
+        // FIX-A: Consume-once — reset after reading
+        if (governance_ && governance_->lastReturnWasTainted()) {
+            governance_->setLastReturnTainted(false);
+            return true;
+        }
         return false;
     }
 
@@ -2998,7 +3002,11 @@ bool Interpreter::checkRhsTainted(ast::Expr* rhs_expr) {
 
     // 3. Return taint (any function call in expression tree that returned tainted data)
     // BUG-5: Removed CallExpr guard — nested calls (e.g., arr[get_tainted()]) were missed
-    if (governance_->lastReturnWasTainted()) return true;
+    // FIX-A: Consume-once — reset after reading to prevent stale taint on next statement
+    if (governance_->lastReturnWasTainted()) {
+        governance_->setLastReturnTainted(false);
+        return true;
+    }
 
     return false;
 }
@@ -3022,6 +3030,24 @@ bool Interpreter::checkRhsSanitized(ast::Expr* rhs_expr) {
         if (governance_->isSanitizer(full_name)) return true;
     }
     return false;
+}
+
+// FIX-D: Deduplicated polyglot bound-variable taint sink check
+void Interpreter::checkPolyglotBoundVarTaint(const std::string& language,
+    const std::vector<std::string>& bound_vars, int line) {
+    if (!governance_ || !governance_->isActive()) return;
+    std::string sink_type;
+    if (language == "shell" || language == "sh" || language == "bash") {
+        sink_type = "shell_exec";
+    } else if (language == "js") {
+        sink_type = "javascript_exec";
+    } else {
+        sink_type = language + "_exec";
+    }
+    for (const auto& bv : bound_vars) {
+        std::string terr = governance_->checkTaintedSink(bv, sink_type, current_file_, line);
+        if (!terr.empty()) throw std::runtime_error(terr);
+    }
 }
 
 // BUG-R: Check expression-level taint at sinks (handles both identifiers and complex expressions)
@@ -7235,24 +7261,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
         if (!count_err.empty()) throw std::runtime_error(count_err);
 
-        // FIX-DX-2: Taint tracking for ALL language bindings (not just shell)
-        // Each language gets its own sink type (e.g., "python_exec", "go_exec")
-        // Only blocks if that sink is configured in govern.json — backward compatible
-        {
-            std::string sink_type;
-            if (language == "shell" || language == "sh" || language == "bash") {
-                sink_type = "shell_exec";
-            } else if (language == "js") {
-                sink_type = "javascript_exec";
-            } else {
-                sink_type = language + "_exec";
-            }
-            for (const auto& bv : bound_vars) {
-                std::string terr = governance_->checkTaintedSink(
-                    bv, sink_type, current_file_, node.getLocation().line);
-                if (!terr.empty()) throw std::runtime_error(terr);
-            }
-        }
+        // FIX-DX-2 + FIX-D: Taint tracking for ALL language bindings
+        checkPolyglotBoundVarTaint(language, bound_vars, node.getLocation().line);
     }
 
     // Phase 2.2: Bind variables using string serialization
@@ -8578,23 +8588,8 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
             if (!count_err.empty()) throw std::runtime_error(count_err);
 
-            // BUG-J + BUG-4: Taint sink check for ALL language bindings in parallel polyglot
-            // (was shell-only, now matches FIX-DX-2 direct polyglot path)
-            {
-                std::string sink_type;
-                if (lang_str == "shell" || lang_str == "sh" || lang_str == "bash") {
-                    sink_type = "shell_exec";
-                } else if (lang_str == "js") {
-                    sink_type = "javascript_exec";
-                } else {
-                    sink_type = lang_str + "_exec";
-                }
-                for (const auto& bound_var : inline_code->getBoundVariables()) {
-                    std::string terr = governance_->checkTaintedSink(
-                        bound_var, sink_type, current_file_, gov_line);
-                    if (!terr.empty()) throw std::runtime_error(terr);
-                }
-            }
+            // BUG-J + BUG-4 + FIX-D: Taint sink check for ALL language bindings
+            checkPolyglotBoundVarTaint(lang_str, inline_code->getBoundVariables(), gov_line);
         }
 
         std::vector<std::string> lines;

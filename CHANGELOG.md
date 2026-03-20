@@ -19,10 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ForStmt taint from sources — `for item in env.get("PATH")` now marks loop variable as tainted (BUG-2)
 - ReturnStmt taint collapsed to unified `checkRhsTainted()` helper — 33 lines to 3 (BUG-3)
 - Parallel polyglot all-language taint — was shell-only, now checks python_exec, go_exec, etc. (BUG-4)
-- `checkRhsTainted()` nested CallExpr guard removed — `let x = arr[get_tainted()]` now detects inner return taint (BUG-5)
+- `checkRhsTainted()` nested CallExpr guard removed + consume-once semantics — `let x = arr[get_tainted()]` detects inner return taint without false-positiving on subsequent literals (BUG-5 + FIX-A)
+- Deduplicated polyglot sink-type mapping into `checkPolyglotBoundVarTaint()` helper (FIX-D)
 
 ### Changed
-- Governance regression suite: 319 → 352+ tests (split categories: passes, error behavior, missing executor)
+- Governance regression suite: 319 → 339 tests (split categories: passes, error behavior, missing executor)
 - Mono exhaustive test: 292 → 293 PASS (0 FAIL)
 - Test runner categories split: error behavior tests vs missing executor tests vs skip files
 - Real taint e2e integration test added (12 scenarios exercising full taint pipeline)

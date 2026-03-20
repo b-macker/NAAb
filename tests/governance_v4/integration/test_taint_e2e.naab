@@ -287,6 +287,8 @@ data
 }
 
 // Test 12: Clean data should NOT be blocked
+// (Also validates FIX-A: after get_tainted_value(), the flag is consumed,
+//  so this clean binding must NOT be falsely tainted)
 fn test_clean_data_allowed() {
     let passed = 0
     let total = 0
@@ -297,6 +299,56 @@ fn test_clean_data_allowed() {
     try {
         let r = <<shell[clean]
 echo $clean
+>>
+        allowed = true
+    } catch (e) {
+        allowed = false
+    }
+    if allowed {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// Test 13: FIX-A — literal after tainted-return must NOT be tainted (consume-once)
+fn test_no_stale_taint_on_literal() {
+    let passed = 0
+    let total = 0
+
+    // get_tainted_value() sets lastReturnWasTainted=true
+    // FIX-A: checkRhsTainted consumes the flag, so next let should be clean
+    total = total + 1
+    let tainted = get_tainted_value()
+    let clean_num = 42
+    let allowed = false
+    try {
+        let r = <<shell[clean_num]
+echo $clean_num
+>>
+        allowed = true
+    } catch (e) {
+        allowed = false
+    }
+    if allowed {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// Test 14: FIX-A — clean function return after tainted-return must NOT be tainted
+fn test_no_stale_taint_on_clean_return() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let tainted = get_tainted_value()
+    let clean_result = wrap_value("safe string")
+    let allowed = false
+    try {
+        let r = <<shell[clean_result]
+echo $clean_result
 >>
         allowed = true
     } catch (e) {
@@ -372,6 +424,16 @@ main {
     print("  test_clean_data_allowed: " + string(r12[0]) + "/" + string(r12[1]))
     total_passed = total_passed + r12[0]
     total_tests = total_tests + r12[1]
+
+    let r13 = test_no_stale_taint_on_literal()
+    print("  test_no_stale_taint_on_literal: " + string(r13[0]) + "/" + string(r13[1]))
+    total_passed = total_passed + r13[0]
+    total_tests = total_tests + r13[1]
+
+    let r14 = test_no_stale_taint_on_clean_return()
+    print("  test_no_stale_taint_on_clean_return: " + string(r14[0]) + "/" + string(r14[1]))
+    total_passed = total_passed + r14[0]
+    total_tests = total_tests + r14[1]
 
     print("")
     print("Taint E2E: " + string(total_passed) + "/" + string(total_tests))
