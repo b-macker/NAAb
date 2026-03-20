@@ -5,6 +5,54 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-19
+
+### Added
+- **Advisory Noise Reduction** — governance output reduced from 100+ lines to 3-5
+  - Grouped duplicate call warnings (DX-6): deferred, deduplicated, configurable threshold
+  - Grouped polyglot try/catch warnings (DX-7): compact multi-function summary
+  - `emitAdvisory()` centralized output with `output.max_advisories` cap (default 15)
+  - Suppression summary: "... and N more advisories suppressed"
+- **Configurable advisory thresholds** in govern.json:
+  - `code_quality.duplicate_calls` — enabled, threshold (default 3), max_entries (default 5)
+  - `code_quality.polyglot_try_catch` — enabled, max_entries (default 3)
+  - `output.max_advisories` (default 15, 0 = unlimited), `output.advisory_summary`
+- **15 DX Governance Improvements** (DX-1 through DX-15):
+  - Taint matching changed from substring to prefix (DX-1)
+  - All-language polyglot binding taint checks — python_exec, go_exec, etc. (DX-2)
+  - MemberExpr sanitizer detection — module.sanitize_foo() clears taint (DX-3)
+  - Reserved name warnings — result_, returning_, etc. (DX-4)
+  - Unused binding detection within same scope block (DX-5)
+  - Duplicate call detection in function bodies (DX-6)
+  - Try/catch polyglot advisory warning (DX-7)
+  - Scope pattern validation with glob matching (DX-8)
+  - Nim JSON error helper for -> JSON blocks (DX-9)
+  - Type-safe binding hints for Go/Nim complex types (DX-10)
+  - Cross-language hallucination detection — +5 Nim, +3 Go patterns (DX-11)
+  - Per-language polyglot_output taint — "polyglot_output:python" syntax (DX-12)
+  - JSON roundtrip waste detection (DX-13)
+  - Missing executor install guidance per language (DX-14)
+  - govern.json schema validation with sanitizer false positive warnings (DX-15)
+- **Exhaustive Governance Test Suite** — 197 edge-case tests across 19 files
+  - 10 categories: sinks, sources, expressions, async, modules, degraded, recursive, polyglot, interactions, docs
+  - Chaos testing: taint washing, silent swallow, direct bypass, concurrent taint, GC stress
+- **C++ Native Scanner** (`naab-lang --scan`) — 139 checks across 11 source files
+  - 6 categories: redundancy, code_quality, complexity, style, security, language-specific
+  - Language modules: Python (14), JavaScript (12), C++ (12), Go (9), Rust (10), NAAb (11)
+  - Text + JSON + SARIF output, govern.json configurable
+- **GC Cycle Detector Fix** (BUG-10) — env_stack_ tracks all live environments during GC
+
+### Fixed
+- Optimization hints verbose 10-line block printed at all enforcement levels — now only for "hard"
+- MatchExpr taint propagation — match arms now checked via expressionContainsTaint
+- AwaitExpr taint propagation — async return taint chain fixed with lastReturnWasTainted check
+- 7 critical review followup fixes: assignment/return/for-stmt await paths, dead code removal
+- Polyglot return in functions (BUG-1) — returning_ flag checked in CompoundStmt loop
+
+### Changed
+- govern-template.json synced to v4.0 (was v3.0 at root level)
+- Governance regression suite: 208 → 339 tests (100% pass rate)
+
 ## [0.4.0] - 2026-03-18
 
 ### Added
