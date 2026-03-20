@@ -2976,6 +2976,14 @@ bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
 bool Interpreter::checkRhsTainted(ast::Expr* rhs_expr) {
     if (!governance_ || !governance_->isActive() || !rhs_expr) return false;
 
+    // FIX-A: Capture and consume lastReturnWasTainted IMMEDIATELY.
+    // This flag was set during eval() by a function call within this statement.
+    // We must consume it now regardless of which step returns true, otherwise
+    // a step-2 short-circuit (expressionContainsTaint) leaves the flag stale
+    // for the next statement (e.g., `let x = 80.0` after tainted dict access).
+    bool return_was_tainted = governance_->lastReturnWasTainted();
+    governance_->setLastReturnTainted(false);
+
     // 1. Direct source check (env.get, io.read_line, etc.)
     if (auto* call = dynamic_cast<ast::CallExpr*>(rhs_expr)) {
         if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
@@ -3001,12 +3009,7 @@ bool Interpreter::checkRhsTainted(ast::Expr* rhs_expr) {
     if (expressionContainsTaint(rhs_expr)) return true;
 
     // 3. Return taint (any function call in expression tree that returned tainted data)
-    // BUG-5: Removed CallExpr guard — nested calls (e.g., arr[get_tainted()]) were missed
-    // FIX-A: Consume-once — reset after reading to prevent stale taint on next statement
-    if (governance_->lastReturnWasTainted()) {
-        governance_->setLastReturnTainted(false);
-        return true;
-    }
+    if (return_was_tainted) return true;
 
     return false;
 }
