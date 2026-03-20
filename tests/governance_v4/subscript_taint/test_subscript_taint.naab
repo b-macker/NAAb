@@ -1,0 +1,282 @@
+// Test: FIX-3/4/5 — Subscript, struct field, and dot-method taint propagation
+// Verifies that dict["k"] = tainted, arr[0] = tainted, obj.field = tainted,
+// arr.push(tainted), dict.put("k", tainted) all propagate taint to the container
+
+use env
+use string
+
+struct Config {
+    name: string,
+    value: string
+}
+
+fn test_dict_subscript_taint() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: dict["key"] = env.get("HOME") should taint dict
+    total = total + 1
+    let t = env.get("HOME")
+    let d = {}
+    d["path"] = t
+    try {
+        <<shell[d]
+echo $d
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    // Test 2: dict["key"] = clean_value should NOT taint dict
+    total = total + 1
+    let d2 = {}
+    d2["name"] = "safe_value"
+    let val = d2["name"]
+    try {
+        <<shell[val]
+echo $val
+>>
+        passed = passed + 1
+    } catch (e) {
+        // Should NOT block — clean value
+    }
+
+    // Test 3: taint propagation through variable assignment to dict
+    total = total + 1
+    let tainted_var = env.get("HOME")
+    let d3 = {}
+    d3["x"] = tainted_var
+    try {
+        <<shell[d3]
+echo $d3
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    return [passed, total]
+}
+
+fn get_home() {
+    return env.get("HOME")
+}
+
+fn test_dict_subscript_return_taint() {
+    let passed = 0
+    let total = 0
+
+    // Test 4: dict["k"] = get_tainted() — propagation through function return
+    total = total + 1
+    let d = {}
+    d["home"] = get_home()
+    try {
+        <<shell[d]
+echo $d
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_array_subscript_taint() {
+    let passed = 0
+    let total = 0
+
+    // Test 5: arr[0] = env.get("HOME") should taint arr
+    total = total + 1
+    let t = env.get("HOME")
+    let arr = ["placeholder"]
+    arr[0] = t
+    try {
+        <<shell[arr]
+echo $arr
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    // Test 6: arr[0] = clean_value should NOT taint arr
+    total = total + 1
+    let arr2 = ["placeholder"]
+    arr2[0] = "safe"
+    let first = arr2[0]
+    try {
+        <<shell[first]
+echo $first
+>>
+        passed = passed + 1
+    } catch (e) {
+        // Should NOT block
+    }
+
+    return [passed, total]
+}
+
+fn test_struct_field_taint() {
+    let passed = 0
+    let total = 0
+
+    // Test 7: obj.field = tainted should taint obj
+    total = total + 1
+    let t = env.get("HOME")
+    let cfg = new Config { name: "test", value: "clean" }
+    cfg.value = t
+    try {
+        <<shell[cfg]
+echo $cfg
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    // Test 8: obj.field = clean should NOT taint obj
+    total = total + 1
+    let cfg2 = new Config { name: "test", value: "clean" }
+    cfg2.value = "still_clean"
+    let v = cfg2.value
+    try {
+        <<shell[v]
+echo $v
+>>
+        passed = passed + 1
+    } catch (e) {
+        // Should NOT block
+    }
+
+    return [passed, total]
+}
+
+fn test_dot_push_taint() {
+    let passed = 0
+    let total = 0
+
+    // Test 9: arr.push(tainted) should taint arr
+    total = total + 1
+    let t = env.get("HOME")
+    let arr = ["clean"]
+    arr.push(t)
+    try {
+        <<shell[arr]
+echo $arr
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    // Test 10: arr.push(clean) should NOT taint arr
+    total = total + 1
+    let arr2 = ["clean"]
+    arr2.push("also_clean")
+    let first = arr2[0]
+    try {
+        <<shell[first]
+echo $first
+>>
+        passed = passed + 1
+    } catch (e) {
+        // Should NOT block
+    }
+
+    return [passed, total]
+}
+
+fn test_dot_put_taint() {
+    let passed = 0
+    let total = 0
+
+    // Test 11: dict.put("k", tainted) should taint dict
+    total = total + 1
+    let t = env.get("HOME")
+    let d = {}
+    d.put("path", t)
+    try {
+        <<shell[d]
+echo $d
+>>
+    } catch (e) {
+        let err_str = string(e)
+        if err_str.contains("aint") {
+            passed = passed + 1
+        }
+    }
+
+    // Test 12: dict.put("k", clean) should NOT taint dict
+    total = total + 1
+    let d2 = {}
+    d2.put("name", "safe")
+    let val = d2["name"]
+    try {
+        <<shell[val]
+echo $val
+>>
+        passed = passed + 1
+    } catch (e) {
+        // Should NOT block
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_dict_subscript_taint()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+    print("dict subscript taint: " + string(r1[0]) + "/" + string(r1[1]))
+
+    let r2 = test_dict_subscript_return_taint()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+    print("dict subscript return taint: " + string(r2[0]) + "/" + string(r2[1]))
+
+    let r3 = test_array_subscript_taint()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+    print("array subscript taint: " + string(r3[0]) + "/" + string(r3[1]))
+
+    let r4 = test_struct_field_taint()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+    print("struct field taint: " + string(r4[0]) + "/" + string(r4[1]))
+
+    let r5 = test_dot_push_taint()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+    print("dot push taint: " + string(r5[0]) + "/" + string(r5[1]))
+
+    let r6 = test_dot_put_taint()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+    print("dot put taint: " + string(r6[0]) + "/" + string(r6[1]))
+
+    print("")
+    print("TOTAL: " + string(total_passed) + "/" + string(total_tests))
+
+    if total_passed == total_tests {
+        print("ALL TESTS PASSED")
+    } else {
+        print("FAILURES: " + string(total_tests - total_passed))
+    }
+}

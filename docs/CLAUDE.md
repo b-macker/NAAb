@@ -185,7 +185,7 @@ length, char_at, index_of, substring, reverse, repeat, pad_left, pad_right
 
 ### math
 abs, floor, ceil, round, min, max, pow, sqrt, random, sin, cos, PI, E
-**GOTCHA**: Use `math.PI` and `math.E` (uppercase), NOT `math.pi`/`math.e`
+Both `math.PI` and `math.pi` work (case-insensitive). Same for `math.E`/`math.e`.
 
 ### json
 parse, stringify
@@ -284,7 +284,7 @@ main {
 
 ## Known Gotchas (avoid these mistakes)
 1. `array.push/pop/shift/unshift` MUTATE the original array
-2. Float-to-string adds 6 decimals: `3.14` becomes `"3.140000"` — use `int(round(x))` for clean numbers
+2. Float-to-string uses trimmed format: `3.14` stays `"3.14"` (no trailing zeros)
 3. `True`/`False`/`None` are NOT NAAb keywords — use `true`/`false`/`null`
 4. `elif` does NOT exist — use `else if`
 5. `.len()` does NOT exist — use `.length()` or `len(x)`

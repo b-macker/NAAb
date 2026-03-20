@@ -5,6 +5,21 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-03-20
+
+### Fixed
+- Float serialization in polyglot bindings — `serializeValueForLanguage()` used `std::to_string()` (6 decimals), now uses `%.15g` matching `Value::toString()` (FIX-1)
+- Dict key escaping in polyglot serialization — keys with `"`, `\`, `\n` now properly escaped across all 7 language paths (FIX-2)
+- Subscript assignment taint propagation — `dict["k"] = tainted` and `arr[0] = tainted` now mark container as tainted (FIX-3)
+- Struct field assignment taint propagation — `obj.field = tainted` now marks struct as tainted (FIX-4)
+- Dot-notation method mutation taint — `arr.push(tainted)`, `dict.put("k", tainted)` now propagate taint at 4 code locations (FIX-5)
+- Stale mono test assertion — float concatenation test updated from `"3.140000"` to `"3.14"` (FIX-6)
+- Documentation: math.pi/math.e gotcha removed (both cases work), float format gotcha updated
+
+### Changed
+- Governance regression suite: 319 → 340 tests (100% pass rate)
+- Mono exhaustive test: 292 → 293 PASS (0 FAIL)
+
 ## [0.5.0] - 2026-03-19
 
 ### Added

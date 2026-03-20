@@ -5,29 +5,115 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.2] - 2026-03-19
-
-### Added
-- **Exhaustive governance edge-case test suite** — 197 tests across 19 files covering bypass paths, state consistency, async/degraded scenarios, expression taint for all 15 AST types, scope pattern matching, per-language taint, enforcement levels, config edge cases, cross-feature interactions, and documented known limitations.
+## [0.5.1] - 2026-03-20
 
 ### Fixed
-- **Taint matching: substring→prefix** — `isTaintSource()`, `isSanitizer()`, `checkTaintedSink()` now use prefix matching instead of substring. `"int("` no longer matches `"print("`. (FIX-DX-1)
-- **All-language polyglot taint checks** — tainted variable binding checks now apply to all languages (Python, Go, JS, Nim), not just Shell. Configure per-language sinks: `"python_exec"`, `"go_exec"`, etc. (FIX-DX-2)
-- **MemberExpr sanitizer detection** — `module.sanitize_foo()` calls now correctly clear taint (was only detecting plain `sanitize_foo()` calls). (FIX-DX-3)
+- Float serialization in polyglot bindings — `serializeValueForLanguage()` used `std::to_string()` (6 decimals), now uses `%.15g` matching `Value::toString()` (FIX-1)
+- Dict key escaping in polyglot serialization — keys with `"`, `\`, `\n` now properly escaped across all 7 language paths (FIX-2)
+- Subscript assignment taint propagation — `dict["k"] = tainted` and `arr[0] = tainted` now mark container as tainted (FIX-3)
+- Struct field assignment taint propagation — `obj.field = tainted` now marks struct as tainted (FIX-4)
+- Dot-notation method mutation taint — `arr.push(tainted)`, `dict.put("k", tainted)` now propagate taint at 4 code locations (FIX-5)
+- Stale mono test assertion — float concatenation test updated from `"3.140000"` to `"3.14"` (FIX-6)
+- Documentation: math.pi/math.e gotcha removed (both cases work), float format gotcha updated
+
+### Changed
+- Governance regression suite: 319 → 340 tests (100% pass rate)
+- Mono exhaustive test: 292 → 293 PASS (0 FAIL)
+
+## [0.5.0] - 2026-03-19
 
 ### Added
-- **Reserved name warning** — warns when variables shadow interpreter internals like `result_`. (FIX-DX-4)
-- **Unused binding detection** — warns when polyglot-bound variables are never used in the block code. (FIX-DX-5)
-- **Duplicate call detection** — advisory when same function (e.g., `json.parse()`) is called multiple times in a function body. (FIX-DX-6)
-- **Try/catch polyglot advisory** — warns when polyglot blocks lack error handling. (FIX-DX-7)
-- **Scope pattern validation** — warns when governance scope patterns match zero functions in the file. (FIX-DX-8)
-- **Nim JSON error helper** — language-specific `-> JSON` guidance for Nim polyglot blocks. (FIX-DX-9)
-- **Type-safe binding hints** — hints for Go/Nim when complex types (dict/array) need manual parsing. (FIX-DX-10)
-- **Cross-language hallucination patterns** — expanded Nim (+5) and Go (+3) patterns for cross-language API confusion. (FIX-DX-11)
-- **Per-language polyglot_output taint** — `"polyglot_output:python"` syntax for language-specific taint sources. (FIX-DX-12)
-- **JSON roundtrip hint** — detects `json.stringify()` → bind → `json.loads()` waste pattern. (FIX-DX-13)
-- **Missing executor helper** — install guidance per language when executor not found. (FIX-DX-14)
-- **govern.json schema validation** — warns about sanitizer patterns prone to false positives and empty scope patterns. (FIX-DX-15)
+- **Advisory Noise Reduction** — governance output reduced from 100+ lines to 3-5
+  - Grouped duplicate call warnings (DX-6): deferred, deduplicated, configurable threshold
+  - Grouped polyglot try/catch warnings (DX-7): compact multi-function summary
+  - `emitAdvisory()` centralized output with `output.max_advisories` cap (default 15)
+  - Suppression summary: "... and N more advisories suppressed"
+- **Configurable advisory thresholds** in govern.json:
+  - `code_quality.duplicate_calls` — enabled, threshold (default 3), max_entries (default 5)
+  - `code_quality.polyglot_try_catch` — enabled, max_entries (default 3)
+  - `output.max_advisories` (default 15, 0 = unlimited), `output.advisory_summary`
+- **15 DX Governance Improvements** (DX-1 through DX-15):
+  - Taint matching changed from substring to prefix (DX-1)
+  - All-language polyglot binding taint checks — python_exec, go_exec, etc. (DX-2)
+  - MemberExpr sanitizer detection — module.sanitize_foo() clears taint (DX-3)
+  - Reserved name warnings — result_, returning_, etc. (DX-4)
+  - Unused binding detection within same scope block (DX-5)
+  - Duplicate call detection in function bodies (DX-6)
+  - Try/catch polyglot advisory warning (DX-7)
+  - Scope pattern validation with glob matching (DX-8)
+  - Nim JSON error helper for -> JSON blocks (DX-9)
+  - Type-safe binding hints for Go/Nim complex types (DX-10)
+  - Cross-language hallucination detection — +5 Nim, +3 Go patterns (DX-11)
+  - Per-language polyglot_output taint — "polyglot_output:python" syntax (DX-12)
+  - JSON roundtrip waste detection (DX-13)
+  - Missing executor install guidance per language (DX-14)
+  - govern.json schema validation with sanitizer false positive warnings (DX-15)
+- **Exhaustive Governance Test Suite** — 197 edge-case tests across 19 files
+  - 10 categories: sinks, sources, expressions, async, modules, degraded, recursive, polyglot, interactions, docs
+  - Chaos testing: taint washing, silent swallow, direct bypass, concurrent taint, GC stress
+- **C++ Native Scanner** (`naab-lang --scan`) — 139 checks across 11 source files
+  - 6 categories: redundancy, code_quality, complexity, style, security, language-specific
+  - Language modules: Python (14), JavaScript (12), C++ (12), Go (9), Rust (10), NAAb (11)
+  - Text + JSON + SARIF output, govern.json configurable
+- **GC Cycle Detector Fix** (BUG-10) — env_stack_ tracks all live environments during GC
+
+### Fixed
+- Optimization hints verbose 10-line block printed at all enforcement levels — now only for "hard"
+- MatchExpr taint propagation — match arms now checked via expressionContainsTaint
+- AwaitExpr taint propagation — async return taint chain fixed with lastReturnWasTainted check
+- 7 critical review followup fixes: assignment/return/for-stmt await paths, dead code removal
+- Polyglot return in functions (BUG-1) — returning_ flag checked in CompoundStmt loop
+
+### Changed
+- govern-template.json synced to v4.0 (was v3.0 at root level)
+- Governance regression suite: 208 → 339 tests (100% pass rate)
+
+## [0.4.0] - 2026-03-18
+
+### Added
+- **Governance v4.0 — Taint Tracking** — variable-level tracking of untrusted data from
+  sources (env.get, io.read_line, file.read, polyglot_output) through to sinks (shell_exec,
+  file.write, http.*, env.set_var) with configurable enforcement (hard/soft/advisory)
+  - Propagation through string concatenation, interpolation, function returns, for-loop iterators
+  - Sanitizer functions clear taint (validate_*, sanitize_*, escape_*, int(), float())
+  - Name collision fix: taint cleared on variable redeclaration with clean value
+  - Thread-safe taint_set_ with mutex for async/parallel execution
+  - Taint state saved/restored around module loading to prevent cross-module leaks
+- **Cross-Module Input Contracts** — parameter type validation at function call sites
+  via govern.json `contracts.functions.*.params` (format: `"name:type"`)
+  - `validate_inputs: true` enables input contract checking
+  - Checked on both callFunction() and direct call dispatch paths
+- **Enhanced Audit Trail** — JSONL logging with tamper-evident hash chains
+  - `polyglot_timing`: execution duration per polyglot block
+  - `taint_decisions`: every taint mark/clear/block decision logged
+  - `contract_checks`: every contract pass/fail logged with details
+  - Parallel polyglot blocks now logged in audit trail
+- **Dead Conditional Scanner** — regex-based detection for impossible conditions
+  - `len(x) < 0`, contradictory comparisons, null access after null check, type impossibilities
+  - Data flow analysis: range tracking from math.max/min/clamp/for-loops
+- **Configurable Scanner** — govern.json `scanner` section with per-check enable/disable
+- **17 Edge Case Bugs Fixed** during exhaustive hardening:
+  - Assignment path taint tracking (BUG-A)
+  - Expression tree taint propagation for string concat/interpolation (BUG-B/C)
+  - Function return taint via lastReturnTainted flag (BUG-D)
+  - For-loop iterator taint from tainted iterables (BUG-E)
+  - HTTP URL taint sink check / SSRF prevention (BUG-F)
+  - env.set_var() taint sink check (BUG-G)
+  - Async interpreter governance propagation (BUG-I)
+  - Parallel polyglot bound variable taint check (BUG-J)
+  - Await resolution return contract check (BUG-K)
+  - taint_set_ mutex for thread safety (BUG-N)
+  - Module loading taint state isolation (BUG-O)
+  - Parallel polyglot audit logging (BUG-P)
+  - Direct call path contract audit logging (BUG-Q)
+
+### Changed
+- govern.json template updated with v4.0 sections (taint_tracking, enhanced contracts, audit)
+- FutureValue now stores func_name for return contract checking at await resolution
+
+### Tests
+- 49 governance v4 tests across 12 test files (all passing)
+- 208/208 regression suite (100% pass rate)
 
 ## [0.3.1] - 2026-03-05
 

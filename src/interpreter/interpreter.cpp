@@ -3462,6 +3462,20 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 auto& struct_val = *struct_ptr;
                 struct_val->setField(member->getMember(), right);
                 result_ = right;
+
+                // FIX-4: Taint propagation for struct field assignment
+                if (governance_ && governance_->isActive()) {
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject());
+                    if (obj_id) {
+                        bool rhs_tainted = expressionContainsTaint(node.getRight());
+                        if (!rhs_tainted && dynamic_cast<ast::CallExpr*>(node.getRight())) {
+                            rhs_tainted = governance_->lastReturnWasTainted();
+                        }
+                        if (rhs_tainted) {
+                            governance_->markTainted(obj_id->getName());
+                        }
+                    }
+                }
             } else {
                 std::ostringstream oss;
                 oss << "Type error: Cannot assign to property of non-struct value\n\n";
@@ -3510,6 +3524,20 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     // Modify list in place (safe cast after bounds check)
                     list[static_cast<size_t>(index)] = right;
                     result_ = right;
+
+                    // FIX-3: Taint propagation for array subscript assignment
+                    if (governance_ && governance_->isActive()) {
+                        auto* container_id = dynamic_cast<ast::IdentifierExpr*>(subscript->getLeft());
+                        if (container_id) {
+                            bool rhs_tainted = expressionContainsTaint(node.getRight());
+                            if (!rhs_tainted && dynamic_cast<ast::CallExpr*>(node.getRight())) {
+                                rhs_tainted = governance_->lastReturnWasTainted();
+                            }
+                            if (rhs_tainted) {
+                                governance_->markTainted(container_id->getName());
+                            }
+                        }
+                    }
                 }
                 // Check if container is a dictionary
                 else if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&container->data)) {
@@ -3519,6 +3547,20 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     // Insert or update the key
                     dict[key] = right;
                     result_ = right;
+
+                    // FIX-3: Taint propagation for dict subscript assignment
+                    if (governance_ && governance_->isActive()) {
+                        auto* container_id = dynamic_cast<ast::IdentifierExpr*>(subscript->getLeft());
+                        if (container_id) {
+                            bool rhs_tainted = expressionContainsTaint(node.getRight());
+                            if (!rhs_tainted && dynamic_cast<ast::CallExpr*>(node.getRight())) {
+                                rhs_tainted = governance_->lastReturnWasTainted();
+                            }
+                            if (rhs_tainted) {
+                                governance_->markTainted(container_id->getName());
+                            }
+                        }
+                    }
                 } else {
                     std::ostringstream oss;
                     oss << "Type error: Subscript assignment not supported\n\n";
@@ -4507,6 +4549,16 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (obj_id && current_env_->has(obj_id->getName())) {
                         current_env_->set(obj_id->getName(), obj_val);
                     }
+                    // FIX-5: Taint propagation for dict.put/set (value is arg[1])
+                    if (governance_ && governance_->isActive() && obj_id && node.getArgs().size() >= 2) {
+                        bool val_tainted = expressionContainsTaint(node.getArgs()[1].get());
+                        if (!val_tainted && dynamic_cast<ast::CallExpr*>(node.getArgs()[1].get())) {
+                            val_tainted = governance_->lastReturnWasTainted();
+                        }
+                        if (val_tainted) {
+                            governance_->markTainted(obj_id->getName());
+                        }
+                    }
                     result_ = std::make_shared<Value>();
                     return;
                 }
@@ -4557,6 +4609,16 @@ void Interpreter::visit(ast::CallExpr& node) {
                     auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
                     if (obj_id && current_env_->has(obj_id->getName())) {
                         current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    // FIX-5: Taint propagation for arr.push/add/append (value is arg[0])
+                    if (governance_ && governance_->isActive() && obj_id && !node.getArgs().empty()) {
+                        bool val_tainted = expressionContainsTaint(node.getArgs()[0].get());
+                        if (!val_tainted && dynamic_cast<ast::CallExpr*>(node.getArgs()[0].get())) {
+                            val_tainted = governance_->lastReturnWasTainted();
+                        }
+                        if (val_tainted) {
+                            governance_->markTainted(obj_id->getName());
+                        }
                     }
                     result_ = obj_val;
                     return;
@@ -5246,6 +5308,16 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (obj_id && current_env_->has(obj_id->getName())) {
                     current_env_->set(obj_id->getName(), obj);
                 }
+                // FIX-5: Taint propagation for dict.put/set (value is arg[1])
+                if (governance_ && governance_->isActive() && obj_id && node.getArgs().size() >= 2) {
+                    bool val_tainted = expressionContainsTaint(node.getArgs()[1].get());
+                    if (!val_tainted && dynamic_cast<ast::CallExpr*>(node.getArgs()[1].get())) {
+                        val_tainted = governance_->lastReturnWasTainted();
+                    }
+                    if (val_tainted) {
+                        governance_->markTainted(obj_id->getName());
+                    }
+                }
                 result_ = std::make_shared<Value>();
                 return;
             }
@@ -5377,6 +5449,16 @@ void Interpreter::visit(ast::CallExpr& node) {
                 auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
                 if (obj_id && current_env_->has(obj_id->getName())) {
                     current_env_->set(obj_id->getName(), obj);
+                }
+                // FIX-5: Taint propagation for arr.push/add/append (value is arg[0])
+                if (governance_ && governance_->isActive() && obj_id && !node.getArgs().empty()) {
+                    bool val_tainted = expressionContainsTaint(node.getArgs()[0].get());
+                    if (!val_tainted && dynamic_cast<ast::CallExpr*>(node.getArgs()[0].get())) {
+                        val_tainted = governance_->lastReturnWasTainted();
+                    }
+                    if (val_tainted) {
+                        governance_->markTainted(obj_id->getName());
+                    }
                 }
                 result_ = obj;
                 return;
@@ -9016,9 +9098,11 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
         return std::to_string(std::get<int>(value->data));
     }
 
-    // Float
+    // Float — use %.15g to match Value::toString() (not std::to_string which gives 6 decimals)
     if (std::holds_alternative<double>(value->data)) {
-        return std::to_string(std::get<double>(value->data));
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%.15g", std::get<double>(value->data));
+        return std::string(buf);
     }
 
     // String
@@ -9163,6 +9247,20 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
     if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
         const auto& dict = std::get<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data);
 
+        // FIX-2: Helper to escape dict keys (prevents broken/injectable code in target languages)
+        auto escapeKey = [](const std::string& k) -> std::string {
+            std::string escaped;
+            for (char c : k) {
+                if (c == '"') escaped += "\\\"";
+                else if (c == '\\') escaped += "\\\\";
+                else if (c == '\n') escaped += "\\n";
+                else if (c == '\r') escaped += "\\r";
+                else if (c == '\t') escaped += "\\t";
+                else escaped += c;
+            }
+            return escaped;
+        };
+
         // Ruby: use hash rocket syntax {key => value}
         if (language == "ruby") {
             std::string result = "{";
@@ -9170,7 +9268,7 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + key + "\" => " + serializeValueForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language);
             }
             result += "}";
             return result;
@@ -9183,7 +9281,7 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + key + "\" => " + serializeValueForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language);
             }
             result += ")";
             return result;
@@ -9196,7 +9294,7 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + key + "\": " + serializeValueForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language);
             }
             result += "}";
             return result;
@@ -9207,7 +9305,7 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
             // Generate a block expression that creates a HashMap
             std::string result = "{ let mut __m = std::collections::HashMap::new(); ";
             for (const auto& [key, val] : dict) {
-                result += "__m.insert(\"" + key + "\".to_string(), " + serializeValueForLanguage(val, language) + "); ";
+                result += "__m.insert(\"" + escapeKey(key) + "\".to_string(), " + serializeValueForLanguage(val, language) + "); ";
             }
             result += "__m }";
             return result;
@@ -9220,7 +9318,7 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "{\"" + key + "\", " + serializeValueForLanguage(val, language) + "}";
+                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language) + "}";
             }
             result += "}";
             return result;
@@ -9233,7 +9331,7 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "{\"" + key + "\", " + serializeValueForLanguage(val, language) + "}";
+                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language) + "}";
             }
             result += "}";
             return result;
@@ -9245,7 +9343,7 @@ std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>&
         for (const auto& [key, val] : dict) {
             if (!first) result += ", ";
             first = false;
-            result += "\"" + key + "\": " + serializeValueForLanguage(val, language);
+            result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language);
         }
         result += "}";
         return result;

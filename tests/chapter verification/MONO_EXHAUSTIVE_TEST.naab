@@ -285,8 +285,8 @@ main {
     // IMPROVEMENT OPPORTUNITY: Implement int(), float(), string(), bool() cast functions
     // For now, use string concatenation for type coercion:
     assert_eq("" + 42, "42", "string coercion via concatenation")
-    // GOTCHA: Float-to-string uses %f format (6 decimal places), NOT minimal representation
-    assert_eq("" + 3.14, "3.140000", "float to string via concatenation (6 decimals)")
+    // Float-to-string uses %.15g format (trimmed, no trailing zeros)
+    assert_eq("" + 3.14, "3.14", "float to string via concatenation (trimmed)")
     assert_eq("" + true, "true", "bool to string via concatenation")
 
     // len() builtin
