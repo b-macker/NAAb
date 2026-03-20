@@ -25,86 +25,79 @@ TEST_DIRS=(
 
 PASSED=0
 FAILED=0
-EXPECTED_FAIL=0
+ERROR_BEHAVIOR=0
+MISSING_EXECUTOR=0
 SKIPPED=0
 TOTAL=0
 
 declare -a FAILED_TESTS
 declare -a PASSED_TESTS
-declare -a EXPECTED_FAILED_TESTS
 
-# Files that are EXPECTED to fail (intentional error tests, missing compilers, etc.)
-declare -A EXPECTED_FAILURES
-# Intentional error message tests (designed to exit non-zero)
-EXPECTED_FAILURES["test_block_error.naab"]=1
-EXPECTED_FAILURES["test_class_error.naab"]=1
-EXPECTED_FAILURES["test_var_error.naab"]=1
-EXPECTED_FAILURES["test_var_toplevel_error.naab"]=1
-EXPECTED_FAILURES["test_func_main_error.naab"]=1
-EXPECTED_FAILURES["test_reserved_keyword_error.naab"]=1
-EXPECTED_FAILURES["test_sys_hint.naab"]=1
-EXPECTED_FAILURES["test_variable_binding_error.naab"]=1
-EXPECTED_FAILURES["parser_errors_test.naab"]=1
-# Gorilla test #4 helper error tests (designed to trigger helpful parse/runtime errors)
-EXPECTED_FAILURES["test_try_expression_error.naab"]=1
-EXPECTED_FAILURES["test_throw_expression_error.naab"]=1
-EXPECTED_FAILURES["test_throw_match_error.naab"]=1
-EXPECTED_FAILURES["test_string_match_error.naab"]=1
-# test_catch_syntax.naab - fixed (catch parens)
-EXPECTED_FAILURES["test_js_variable_binding_error.naab"]=1
-EXPECTED_FAILURES["test_unclosed_block.naab"]=1
-# Intentional error demos
-# test_csharp_stats.naab is in ch0_full_projects (skipped dir)
-# system_monitor.naab - fixed
-# feature_showcase.naab - fixed (all 8 sections pass)
-# Tutorial with polyglot cascading errors
-EXPECTED_FAILURES["TUTORIAL_POLYGLOT_BLOCKS.naab"]=1
-# Environment-dependent: require compilers not available on all platforms (C++, Go, Nim, Julia)
-EXPECTED_FAILURES["cpp_math.naab"]=1
-EXPECTED_FAILURES["test_all_languages_full.naab"]=1
-EXPECTED_FAILURES["test_cross_lang_extended.naab"]=1
-EXPECTED_FAILURES["test_cross_lang_simple.naab"]=1
-EXPECTED_FAILURES["nim_test.naab"]=1
-EXPECTED_FAILURES["polyglot_showcase.naab"]=1
-# Slow polyglot tests that may timeout on constrained environments
-EXPECTED_FAILURES["anti_patterns.naab"]=1
-EXPECTED_FAILURES["before_after_optimization.naab"]=1
-# Governance v3/v4 tests that are designed to fail (intentional violation tests)
-EXPECTED_FAILURES["test_degraded.naab"]=1  # Intentional math error for degraded mode
-# Governance v3 violation tests (designed to be blocked by governance)
-EXPECTED_FAILURES["test_complexity_floor.naab"]=1
-EXPECTED_FAILURES["test_complexity_names_fail.naab"]=1
-EXPECTED_FAILURES["test_complexity_names_pass.naab"]=1
-EXPECTED_FAILURES["test_contracts_empty.naab"]=1
-EXPECTED_FAILURES["test_contracts_non_empty_null.naab"]=1
-EXPECTED_FAILURES["test_contracts_null_return.naab"]=1
-EXPECTED_FAILURES["test_contracts_range_violation.naab"]=1
-EXPECTED_FAILURES["test_contracts_return_keys.naab"]=1
-EXPECTED_FAILURES["test_contracts_type_mismatch.naab"]=1
-EXPECTED_FAILURES["test_contracts_violation.naab"]=1
-EXPECTED_FAILURES["test_evasion_advisory_elevation.naab"]=1
-EXPECTED_FAILURES["polyglot_enforcement_test.naab"]=1
-EXPECTED_FAILURES["test_evasion_js_comment.naab"]=1
-EXPECTED_FAILURES["test_evasion_naab_stub.naab"]=1
-EXPECTED_FAILURES["test_evasion_private_stub.naab"]=1
-EXPECTED_FAILURES["test_evasion_triple_quote.naab"]=1
-EXPECTED_FAILURES["test_v3_banned_function.naab"]=1
-EXPECTED_FAILURES["test_v3_blocked_import.naab"]=1
-EXPECTED_FAILURES["test_v3_custom_rule.naab"]=1
-EXPECTED_FAILURES["test_v3_hallucinated_api.naab"]=1
-EXPECTED_FAILURES["test_v3_incomplete_logic.naab"]=1
-EXPECTED_FAILURES["test_v3_oversimplification.naab"]=1
-EXPECTED_FAILURES["test_v3_privilege_escalation.naab"]=1
-EXPECTED_FAILURES["test_v3_secret_detection.naab"]=1
-EXPECTED_FAILURES["test_v3_simulation_markers.naab"]=1
-EXPECTED_FAILURES["test_v3_sql_injection.naab"]=1
-EXPECTED_FAILURES["test_v3_unsafe_deser.naab"]=1
-# Edge test helper module (not a standalone test, imported by edge tests)
-EXPECTED_FAILURES["edge_helper_module.naab"]=1
-# and/or/not are now proper keywords (aliases for &&/||/!)
-# These tests now PASS — removed from expected failures
-# Note: Governance tests in tests/governance_v3/ and tests/governance_v4/ are NOW
-# included in the automated runner (as of Phase 2). They run WITH governance enabled.
+# Category 1: Tests DESIGNED to exit non-zero (error behavior verification)
+declare -A EXPECTED_ERROR_TESTS
+# Parser/runtime error message tests
+EXPECTED_ERROR_TESTS["test_block_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_class_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_var_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_var_toplevel_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_func_main_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_reserved_keyword_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_sys_hint.naab"]=1
+EXPECTED_ERROR_TESTS["test_variable_binding_error.naab"]=1
+EXPECTED_ERROR_TESTS["parser_errors_test.naab"]=1
+# Gorilla test #4 helper error tests
+EXPECTED_ERROR_TESTS["test_try_expression_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_throw_expression_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_throw_match_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_string_match_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_js_variable_binding_error.naab"]=1
+EXPECTED_ERROR_TESTS["test_unclosed_block.naab"]=1
+# Governance v3/v4 tests designed to be blocked by governance
+EXPECTED_ERROR_TESTS["test_degraded.naab"]=1
+EXPECTED_ERROR_TESTS["test_complexity_floor.naab"]=1
+EXPECTED_ERROR_TESTS["test_complexity_names_fail.naab"]=1
+EXPECTED_ERROR_TESTS["test_complexity_names_pass.naab"]=1
+EXPECTED_ERROR_TESTS["test_contracts_empty.naab"]=1
+EXPECTED_ERROR_TESTS["test_contracts_non_empty_null.naab"]=1
+EXPECTED_ERROR_TESTS["test_contracts_null_return.naab"]=1
+EXPECTED_ERROR_TESTS["test_contracts_range_violation.naab"]=1
+EXPECTED_ERROR_TESTS["test_contracts_return_keys.naab"]=1
+EXPECTED_ERROR_TESTS["test_contracts_type_mismatch.naab"]=1
+EXPECTED_ERROR_TESTS["test_contracts_violation.naab"]=1
+EXPECTED_ERROR_TESTS["test_evasion_advisory_elevation.naab"]=1
+EXPECTED_ERROR_TESTS["polyglot_enforcement_test.naab"]=1
+EXPECTED_ERROR_TESTS["test_evasion_js_comment.naab"]=1
+EXPECTED_ERROR_TESTS["test_evasion_naab_stub.naab"]=1
+EXPECTED_ERROR_TESTS["test_evasion_private_stub.naab"]=1
+EXPECTED_ERROR_TESTS["test_evasion_triple_quote.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_banned_function.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_blocked_import.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_custom_rule.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_hallucinated_api.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_incomplete_logic.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_oversimplification.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_privilege_escalation.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_secret_detection.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_simulation_markers.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_sql_injection.naab"]=1
+EXPECTED_ERROR_TESTS["test_v3_unsafe_deser.naab"]=1
+
+# Category 2: Tests that need compilers/executors not installed on this platform
+declare -A MISSING_EXECUTOR_TESTS
+MISSING_EXECUTOR_TESTS["cpp_math.naab"]=1                    # needs g++
+MISSING_EXECUTOR_TESTS["test_all_languages_full.naab"]=1     # needs 12 executors
+MISSING_EXECUTOR_TESTS["test_cross_lang_extended.naab"]=1    # needs C#, Go, Rust
+MISSING_EXECUTOR_TESTS["test_cross_lang_simple.naab"]=1      # needs JS runtime
+MISSING_EXECUTOR_TESTS["nim_test.naab"]=1                    # needs nim compiler
+MISSING_EXECUTOR_TESTS["polyglot_showcase.naab"]=1           # needs Nim, Zig, Julia, Go
+MISSING_EXECUTOR_TESTS["anti_patterns.naab"]=1               # needs Nim, Zig, Julia, Go, Rust
+MISSING_EXECUTOR_TESTS["before_after_optimization.naab"]=1   # needs C++, Zig, Julia, Go
+MISSING_EXECUTOR_TESTS["TUTORIAL_POLYGLOT_BLOCKS.naab"]=1    # needs C++, C#, Go, Ruby, Rust
+
+# Category 3: Files that are NOT standalone tests (should not be run directly)
+declare -A SKIP_FILES
+SKIP_FILES["edge_helper_module.naab"]=1   # imported by edge tests, not standalone
+SKIP_FILES["chaos_module_taint.naab"]=1   # imported by chaos tests, not standalone
 
 # Directories to skip entirely
 SKIP_DIRS=(
@@ -146,6 +139,12 @@ run_test() {
         return
     fi
 
+    # Skip non-standalone files
+    if [ "${SKIP_FILES[$test_name]}" = "1" ]; then
+        SKIPPED=$((SKIPPED + 1))
+        return
+    fi
+
     TOTAL=$((TOTAL + 1))
 
     # Governance tests need governance enabled; all others disable it for speed
@@ -167,11 +166,13 @@ run_test() {
         echo "  PASS: $test_name"
     else
         local exit_code=$?
-        # Check if this is an expected failure
-        if [ "${EXPECTED_FAILURES[$test_name]}" = "1" ]; then
-            EXPECTED_FAIL=$((EXPECTED_FAIL + 1))
-            EXPECTED_FAILED_TESTS+=("$test_name")
-            echo "  XFAIL: $test_name (expected)"
+        # Check which category this failure belongs to
+        if [ "${EXPECTED_ERROR_TESTS[$test_name]}" = "1" ]; then
+            ERROR_BEHAVIOR=$((ERROR_BEHAVIOR + 1))
+            echo "  XFAIL: $test_name (error behavior test)"
+        elif [ "${MISSING_EXECUTOR_TESTS[$test_name]}" = "1" ]; then
+            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
+            echo "  XFAIL: $test_name (missing executor)"
         elif [ $exit_code -eq 124 ]; then
             echo "  TIMEOUT: $test_name (>$timeout_duration)"
             FAILED=$((FAILED + 1))
@@ -237,18 +238,17 @@ echo "════════════════════════�
 echo "  TEST SUMMARY"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
-echo "Total Tests:      $TOTAL"
-echo "Passed:           $PASSED"
-echo "Expected Fails:   $EXPECTED_FAIL"
-echo "Unexpected Fails: $FAILED"
+echo "Total Tests:        $TOTAL"
+echo "  Passed:           $PASSED"
+echo "  Error behavior:   $ERROR_BEHAVIOR (tests designed to exit non-zero)"
+echo "  Missing executor: $MISSING_EXECUTOR (require compilers not on this platform)"
+echo "  Unexpected fails: $FAILED"
 if [ $SKIPPED -gt 0 ]; then
-    echo "Skipped:          $SKIPPED"
+    echo "  Skipped:          $SKIPPED (non-standalone files + excluded dirs)"
 fi
-ACCOUNTED=$((PASSED + EXPECTED_FAIL))
+ACCOUNTED=$((PASSED + ERROR_BEHAVIOR + MISSING_EXECUTOR))
 echo ""
-echo "  Real passes:      $PASSED"
-echo "  Expected failures: $EXPECTED_FAIL (tests verifying error behavior)"
-echo "  Accounted for:     $ACCOUNTED / $TOTAL ($(awk "BEGIN {printf \"%.1f\", ($ACCOUNTED/$TOTAL)*100}")%)"
+echo "  Accounted for:    $ACCOUNTED / $TOTAL ($(awk "BEGIN {printf \"%.1f\", ($ACCOUNTED/$TOTAL)*100}")%)"
 echo ""
 
 if [ $FAILED -gt 0 ]; then
@@ -259,7 +259,7 @@ if [ $FAILED -gt 0 ]; then
     echo ""
     exit 1
 else
-    echo "ALL $TOTAL TESTS ACCOUNTED FOR ($PASSED passed + $EXPECTED_FAIL expected failures)"
+    echo "ALL $TOTAL TESTS ACCOUNTED FOR ($PASSED passed + $ERROR_BEHAVIOR error behavior + $MISSING_EXECUTOR missing executor)"
     echo ""
     exit 0
 fi

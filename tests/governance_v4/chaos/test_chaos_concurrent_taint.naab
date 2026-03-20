@@ -1,0 +1,176 @@
+// CHAOS TEST 3: Concurrent Taint (maps to Distributed S3: Split-Brain)
+//
+// Two async functions can independently taint/untaint variables.
+// Tests that taint propagates correctly from both when awaited,
+// and that there's no cross-contamination between async results.
+
+use env
+
+async fn taint_source_a() {
+    return env.get("HOME")
+}
+
+async fn taint_source_b() {
+    return env.get("USER")
+}
+
+async fn clean_source() {
+    return "clean_value"
+}
+
+fn test_dual_async_taint() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Both async returns correctly propagate taint
+    total = total + 1
+    let a = await taint_source_a()
+    let b = await taint_source_b()
+    let both_blocked = true
+    try {
+        <<shell[a]
+echo $a
+>>
+        both_blocked = false
+    } catch (e) {
+        // expected
+    }
+    try {
+        <<shell[b]
+echo $b
+>>
+        both_blocked = false
+    } catch (e) {
+        // expected
+    }
+    if both_blocked {
+        passed = passed + 1
+        print("PASS: Both async tainted returns are blocked")
+    } else {
+        print("FAIL: At least one async tainted return was not blocked")
+    }
+
+    return [passed, total]
+}
+
+fn test_async_taint_cleared_by_reassignment() {
+    let passed = 0
+    let total = 0
+
+    // Test 2: Clean reassignment clears taint from async result
+    total = total + 1
+    let x = await taint_source_a()
+    x = "clean"
+    try {
+        <<shell[x]
+echo $x
+>>
+        passed = passed + 1
+        print("PASS: Reassignment clears taint from async result")
+    } catch (e) {
+        print("FAIL: Taint not cleared by reassignment: " + string(e))
+    }
+
+    return [passed, total]
+}
+
+fn test_async_clean_overwrites_tainted() {
+    let passed = 0
+    let total = 0
+
+    // Test 3: Clean async return overwrites tainted value
+    total = total + 1
+    let r = await taint_source_a()
+    r = await clean_source()
+    try {
+        <<shell[r]
+echo $r
+>>
+        passed = passed + 1
+        print("PASS: Clean async return correctly clears previous taint")
+    } catch (e) {
+        if string(e).contains("aint") {
+            print("FAIL: Clean async return didn't clear taint")
+            print("  NOTE: This means taint 'sticks' even after clean reassignment from async")
+        } else {
+            print("FAIL: Wrong error: " + string(e))
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_async_taint_isolation() {
+    let passed = 0
+    let total = 0
+
+    // Test 4: No cross-contamination between async results
+    total = total + 1
+    let tainted_result = await taint_source_a()
+    let clean_result = await clean_source()
+
+    // clean_result should NOT be tainted just because tainted_result is
+    let clean_ok = false
+    let tainted_ok = false
+    try {
+        <<shell[clean_result]
+echo $clean_result
+>>
+        clean_ok = true
+    } catch (e) {
+        print("  NOTE: Clean async result falsely tainted — cross-contamination!")
+    }
+    try {
+        <<shell[tainted_result]
+echo $tainted_result
+>>
+    } catch (e) {
+        tainted_ok = true
+    }
+
+    if clean_ok {
+        if tainted_ok {
+            passed = passed + 1
+            print("PASS: No cross-contamination between async results")
+        } else {
+            print("FAIL: Tainted result was not blocked")
+        }
+    } else {
+        print("FAIL: Cross-contamination — clean async result falsely tainted")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    print("=== CHAOS TEST 3: CONCURRENT TAINT (S3) ===")
+    print("")
+
+    let r1 = test_dual_async_taint()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_async_taint_cleared_by_reassignment()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_async_clean_overwrites_tainted()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_async_taint_isolation()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    print("")
+    print(string(total_passed) + "/" + string(total_tests) + " concurrent taint tests passed")
+
+    if total_passed == total_tests {
+        print("PASS")
+    } else {
+        print("FAIL: " + string(total_tests - total_passed) + " tests failed")
+    }
+}

@@ -15,10 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dot-notation method mutation taint — `arr.push(tainted)`, `dict.put("k", tainted)` now propagate taint at 4 code locations (FIX-5)
 - Stale mono test assertion — float concatenation test updated from `"3.140000"` to `"3.14"` (FIX-6)
 - Documentation: math.pi/math.e gotcha removed (both cases work), float format gotcha updated
+- Catch-throw taint restore — exception paths in catch blocks now restore outer taint state (BUG-1)
+- ForStmt taint from sources — `for item in env.get("PATH")` now marks loop variable as tainted (BUG-2)
+- ReturnStmt taint collapsed to unified `checkRhsTainted()` helper — 33 lines to 3 (BUG-3)
+- Parallel polyglot all-language taint — was shell-only, now checks python_exec, go_exec, etc. (BUG-4)
+- `checkRhsTainted()` nested CallExpr guard removed — `let x = arr[get_tainted()]` now detects inner return taint (BUG-5)
 
 ### Changed
-- Governance regression suite: 319 → 340 tests (all accounted: passes + expected failures)
+- Governance regression suite: 319 → 352+ tests (split categories: passes, error behavior, missing executor)
 - Mono exhaustive test: 292 → 293 PASS (0 FAIL)
+- Test runner categories split: error behavior tests vs missing executor tests vs skip files
+- Real taint e2e integration test added (12 scenarios exercising full taint pipeline)
 
 ## [0.5.0] - 2026-03-19
 

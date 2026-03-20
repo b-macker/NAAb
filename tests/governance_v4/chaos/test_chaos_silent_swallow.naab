@@ -1,0 +1,204 @@
+// CHAOS TEST 12: Silent Swallow (maps to Distributed S12: Silent Failure)
+//
+// Tests that governance failures are NEVER silently swallowed.
+// Every taint violation must produce a visible error — no silent passes.
+
+use env
+
+fn test_taint_violation_always_throws() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Taint violation produces catchable error
+    total = total + 1
+    let t = env.get("HOME")
+    let threw = false
+    try {
+        <<shell[t]
+echo $t
+>>
+    } catch (e) {
+        threw = true
+    }
+    if threw {
+        passed = passed + 1
+        print("PASS: Taint violation throws (not silently swallowed)")
+    } else {
+        print("FAIL: Taint violation was silently swallowed!")
+    }
+
+    return [passed, total]
+}
+
+fn test_taint_error_message_contains_info() {
+    let passed = 0
+    let total = 0
+
+    // Test 2: Error message contains useful taint information
+    total = total + 1
+    let t = env.get("HOME")
+    try {
+        <<shell[t]
+echo $t
+>>
+        print("FAIL: Expected taint error")
+    } catch (e) {
+        let msg = string(e)
+        if msg.contains("aint") {
+            passed = passed + 1
+            print("PASS: Error message mentions taint")
+        } else {
+            print("FAIL: Error message doesn't mention taint: " + msg)
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_env_set_var_violation_throws() {
+    let passed = 0
+    let total = 0
+
+    // Test 3: env.set_var taint violation also throws
+    total = total + 1
+    let t = env.get("HOME")
+    let threw = false
+    try {
+        env.set_var("CHAOS_SILENT", t)
+    } catch (e) {
+        threw = true
+    }
+    if threw {
+        passed = passed + 1
+        print("PASS: env.set_var taint violation throws")
+    } else {
+        print("FAIL: env.set_var taint violation silently swallowed!")
+    }
+
+    return [passed, total]
+}
+
+fn test_no_false_positives_on_clean() {
+    let passed = 0
+    let total = 0
+
+    // Test 4: Clean values never trigger false governance errors
+    total = total + 1
+    let clean_vals = ["hello", "world", "test_value", "123", "path/to/file"]
+    let false_positive = false
+    for val in clean_vals {
+        try {
+            <<shell[val]
+echo $val
+>>
+        } catch (e) {
+            if string(e).contains("aint") {
+                false_positive = true
+                print("FAIL: False positive taint on clean value: " + val)
+            }
+        }
+    }
+    if false_positive == false {
+        passed = passed + 1
+        print("PASS: No false positives on 5 clean values")
+    }
+
+    return [passed, total]
+}
+
+fn test_governance_error_not_catchable_as_clean() {
+    let passed = 0
+    let total = 0
+
+    // Test 5: Governance error can't be used to extract tainted data
+    total = total + 1
+    let t = env.get("HOME")
+    let extracted = ""
+    try {
+        <<shell[t]
+echo $t
+>>
+    } catch (e) {
+        extracted = string(e)
+    }
+    // 'extracted' is the error message, not the tainted value
+    if extracted.contains("aint") {
+        passed = passed + 1
+        print("PASS: Caught error is governance message, not tainted data")
+    } else {
+        print("FAIL: Unexpected error content: " + extracted)
+    }
+
+    return [passed, total]
+}
+
+fn test_repeated_violations_all_throw() {
+    let passed = 0
+    let total = 0
+
+    // Test 6: Repeated violations all throw — no "give up" behavior
+    total = total + 1
+    let t = env.get("HOME")
+    let deny_count = 0
+    for i in 0..10 {
+        try {
+            <<shell[t]
+echo $t
+>>
+        } catch (e) {
+            if string(e).contains("aint") {
+                deny_count = deny_count + 1
+            }
+        }
+    }
+    if deny_count == 10 {
+        passed = passed + 1
+        print("PASS: All 10 repeated violations correctly denied")
+    } else {
+        print("FAIL: Only " + string(deny_count) + "/10 violations caught")
+        print("  NOTE: Governance may have 'given up' after some failures")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    print("=== CHAOS TEST 12: SILENT SWALLOW (S12) ===")
+    print("")
+
+    let r1 = test_taint_violation_always_throws()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_taint_error_message_contains_info()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_env_set_var_violation_throws()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_no_false_positives_on_clean()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_governance_error_not_catchable_as_clean()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_repeated_violations_all_throw()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    print("")
+    print(string(total_passed) + "/" + string(total_tests) + " silent swallow tests passed")
+
+    if total_passed == total_tests {
+        print("PASS")
+    } else {
+        print("FAIL: " + string(total_tests - total_passed) + " tests failed")
+    }
+}

@@ -2426,39 +2426,9 @@ void Interpreter::visit(ast::ReturnStmt& node) {
         }
     }
 
-    // BUG-D: Track if return expression contains tainted data or IS a taint source
+    // BUG-D + BUG-3: Track if return expression contains tainted data (REFACTOR-1)
     if (governance_ && governance_->isActive() && node.getExpr()) {
-        bool ret_tainted = expressionContainsTaint(node.getExpr());
-
-        // Also check if the return expression is itself a taint source call
-        if (!ret_tainted) {
-            if (auto* call = dynamic_cast<ast::CallExpr*>(node.getExpr())) {
-                if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
-                    std::string full_name;
-                    if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
-                        full_name = obj_id->getName() + ".";
-                    }
-                    full_name += member->getMember();
-                    ret_tainted = governance_->isTaintSource(full_name);
-                }
-                if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
-                    ret_tainted = governance_->isTaintSource(id->getName());
-                }
-                // BUG-AD+: If the call itself returned tainted data (nested returns),
-                // propagate that taint. The call was already evaluated, so
-                // lastReturnTainted reflects the inner function's return taint.
-                if (!ret_tainted && governance_->lastReturnWasTainted()) {
-                    ret_tainted = true;
-                }
-            }
-            // Polyglot output as return (FIX-DX-12: per-language taint)
-            if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(node.getExpr())) {
-                ret_tainted = governance_->isTaintSource("polyglot_output") ||
-                              governance_->isTaintSource("polyglot_output:" + ice->getLanguage());
-            }
-        }
-
-        governance_->setLastReturnTainted(ret_tainted);
+        governance_->setLastReturnTainted(checkRhsTainted(node.getExpr()));
     }
 
     returning_ = true;
@@ -2660,9 +2630,10 @@ void Interpreter::visit(ast::ForStmt& node) {
 
     auto iterable = eval(*node.getIter());
 
-    // BUG-E: If iterable is tainted, mark loop variable as tainted
+    // BUG-E + BUG-2: If iterable is tainted, mark loop variable as tainted
+    // Uses checkRhsTainted (source + propagation + return taint) instead of just expressionContainsTaint
     if (governance_ && governance_->isActive()) {
-        if (expressionContainsTaint(node.getIter())) {
+        if (checkRhsTainted(node.getIter())) {
             governance_->markTainted(node.getVar());
         }
     }
@@ -3025,9 +2996,9 @@ bool Interpreter::checkRhsTainted(ast::Expr* rhs_expr) {
     // 2. Propagation (tainted variable in expression tree)
     if (expressionContainsTaint(rhs_expr)) return true;
 
-    // 3. Return taint (function call that returned tainted data)
-    if (dynamic_cast<ast::CallExpr*>(rhs_expr) && governance_->lastReturnWasTainted())
-        return true;
+    // 3. Return taint (any function call in expression tree that returned tainted data)
+    // BUG-5: Removed CallExpr guard — nested calls (e.g., arr[get_tainted()]) were missed
+    if (governance_->lastReturnWasTainted()) return true;
 
     return false;
 }
@@ -3240,28 +3211,31 @@ void Interpreter::visit(ast::TryStmt& node) {
             governance_->clearTaint(catch_clause->error_name);
         }
 
+        // BUG-1: Lambda to restore catch variable taint on ALL exit paths (happy + throw)
+        auto restore_catch_taint = [&]() {
+            if (governance_ && governance_->isActive()) {
+                if (catch_var_was_tainted) governance_->markTainted(catch_clause->error_name);
+                else governance_->clearTaint(catch_clause->error_name);
+            }
+        };
+
         try {
             // Execute catch body - successfully handled if no exception
             catch_clause->body->accept(*this);
         } catch (NaabError&) {
-            // Exception thrown from catch block - propagate it
+            // BUG-1: Restore taint before propagating exception
+            restore_catch_taint();
             current_env_ = prev_env;
             throw;
         } catch (const std::exception& std_error) {
-            // Convert std::exception to NaabError
+            // BUG-1: Restore taint before propagating exception
+            restore_catch_taint();
             current_env_ = prev_env;
             throw createError(std_error.what(), ErrorType::RUNTIME_ERROR);
         }
 
-        // REFACTOR-2: Restore outer taint state for catch variable name
-        if (governance_ && governance_->isActive()) {
-            if (catch_var_was_tainted) {
-                governance_->markTainted(catch_clause->error_name);
-            } else {
-                governance_->clearTaint(catch_clause->error_name);
-            }
-        }
-
+        // BUG-1: Restore on happy path too
+        restore_catch_taint();
         current_env_ = prev_env;
     } catch (const std::exception& std_error) {
         // Convert std::exception to NaabError and execute catch block
@@ -3289,27 +3263,31 @@ void Interpreter::visit(ast::TryStmt& node) {
             governance_->clearTaint(catch_clause->error_name);
         }
 
+        // BUG-1: Lambda to restore catch variable taint on ALL exit paths (happy + throw)
+        auto restore_catch_taint2 = [&]() {
+            if (governance_ && governance_->isActive()) {
+                if (catch_var_was_tainted2) governance_->markTainted(catch_clause->error_name);
+                else governance_->clearTaint(catch_clause->error_name);
+            }
+        };
+
         try {
             // Execute catch body
             catch_clause->body->accept(*this);
         } catch (NaabError&) {
-            // Exception thrown from catch block - propagate it
+            // BUG-1: Restore taint before propagating exception
+            restore_catch_taint2();
             current_env_ = prev_env;
             throw;
         } catch (const std::exception& nested_error) {
-            // Another std::exception from catch block - convert and propagate
+            // BUG-1: Restore taint before propagating exception
+            restore_catch_taint2();
             current_env_ = prev_env;
             throw createError(nested_error.what(), ErrorType::RUNTIME_ERROR);
         }
 
-        // REFACTOR-2: Restore outer taint state for catch variable name
-        if (governance_ && governance_->isActive()) {
-            if (catch_var_was_tainted2) {
-                governance_->markTainted(catch_clause->error_name);
-            } else {
-                governance_->clearTaint(catch_clause->error_name);
-            }
-        }
+        // BUG-1: Restore on happy path too
+        restore_catch_taint2();
 
         current_env_ = prev_env;
     }
@@ -8600,12 +8578,20 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
             if (!count_err.empty()) throw std::runtime_error(count_err);
 
-            // BUG-J: Taint sink check for bound variables in parallel polyglot
-            if (lang_str == "shell" || lang_str == "bash" || lang_str == "sh") {
+            // BUG-J + BUG-4: Taint sink check for ALL language bindings in parallel polyglot
+            // (was shell-only, now matches FIX-DX-2 direct polyglot path)
+            {
+                std::string sink_type;
+                if (lang_str == "shell" || lang_str == "sh" || lang_str == "bash") {
+                    sink_type = "shell_exec";
+                } else if (lang_str == "js") {
+                    sink_type = "javascript_exec";
+                } else {
+                    sink_type = lang_str + "_exec";
+                }
                 for (const auto& bound_var : inline_code->getBoundVariables()) {
                     std::string terr = governance_->checkTaintedSink(
-                        bound_var, "shell_exec",
-                        current_file_, gov_line);
+                        bound_var, sink_type, current_file_, gov_line);
                     if (!terr.empty()) throw std::runtime_error(terr);
                 }
             }

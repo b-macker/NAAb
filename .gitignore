@@ -143,6 +143,12 @@ dismiss-test-alerts.sh
 EXECUTOR_IMPLEMENTATION_SUMMARY.md
 TESTING_STATUS.md
 
+# Governance audit logs (generated during test runs)
+.governance-audit*.jsonl
+
+# Test-generated artifact files
+/test_*.txt
+
 # Root-level scan artifacts (test8/ has its own)
 /quality-report.json
 /quality-report.txt

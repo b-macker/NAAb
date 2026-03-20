@@ -1,0 +1,31 @@
+{
+    "version": "4.0",
+    "description": "Chaos test governance — strict taint, full audit",
+    "languages": {
+        "allowed": ["python", "shell"]
+    },
+    "capabilities": {
+        "network": false,
+        "filesystem": "read"
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
+        "sinks": ["shell_exec", "file.write", "file.append", "http.", "env.set_var"],
+        "sanitizers": ["validate_", "sanitize_", "escape_", "int(", "float("]
+    },
+    "audit": {
+        "level": "full",
+        "output_file": ".governance-audit-chaos.jsonl",
+        "log_events": {
+            "polyglot_executed": true,
+            "polyglot_timing": true,
+            "taint_decisions": true,
+            "contract_checks": true
+        },
+        "tamper_evidence": {
+            "enabled": true
+        }
+    }
+}

@@ -1,0 +1,19 @@
+// Helper module for chaos test 5 (module boundary tests)
+// Exports functions that return tainted and clean values
+
+use env
+
+export fn get_env_value() {
+    let data = env.get("HOME")
+    return data
+}
+
+export fn clean_function() {
+    return "safe_value"
+}
+
+export fn get_internal_tainted() {
+    // Creates internal tainted variable named "internal_data"
+    let internal_data = env.get("HOME")
+    return "clean_return"
+}

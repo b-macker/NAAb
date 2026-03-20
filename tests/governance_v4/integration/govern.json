@@ -1,0 +1,67 @@
+{
+  "version": "4.0",
+  "mode": "enforce",
+  "description": "Integration test govern.json — exercises full taint pipeline",
+
+  "languages": {
+    "allowed": ["python", "shell"],
+    "blocked": [],
+    "require_explicit": false,
+    "per_language": {
+      "python": { "timeout": 10, "max_lines": 50 },
+      "shell": { "timeout": 5, "max_lines": 20, "shell_injection": true, "shell_injection_level": "hard" }
+    }
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read" },
+    "shell": { "enabled": true },
+    "env_access": true
+  },
+
+  "limits": {
+    "timeout": { "global": 60, "per_block": 10 },
+    "execution": { "call_depth": 50, "loop_iterations": 10000, "polyglot_blocks": 20 },
+    "code": { "max_lines_per_block": 100, "max_nesting_depth": 4, "max_functions": 30 }
+  },
+
+  "requirements": {
+    "main_block": { "enabled": true, "level": "soft" },
+    "naming_conventions": { "enabled": false }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "enabled": true, "level": "hard" },
+    "shell_injection": { "enabled": true, "level": "hard" },
+    "resource_abuse": { "enabled": true, "level": "hard" }
+  },
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "hard",
+    "sources": ["env.get", "io.read_line", "polyglot_output"],
+    "sinks": ["shell_exec", "python_exec", "env.set_var"],
+    "sanitizers": ["validate_", "sanitize_", "escape_", "int(", "float(", "string("]
+  },
+
+  "code_quality": {
+    "no_secrets": { "enabled": false },
+    "no_placeholders": { "enabled": false },
+    "no_oversimplification": { "enabled": false },
+    "no_incomplete_logic": { "enabled": false },
+    "duplicate_calls": { "enabled": false },
+    "polyglot_try_catch": { "enabled": false }
+  },
+
+  "scopes": [
+    { "pattern": "test_*", "overrides": {} }
+  ],
+
+  "output": {
+    "summary": { "enabled": false },
+    "errors": { "verbose": false, "show_help": false },
+    "formatting": { "color": false, "unicode_symbols": false },
+    "max_advisories": 0
+  }
+}
