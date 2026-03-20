@@ -244,8 +244,11 @@ echo "Unexpected Fails: $FAILED"
 if [ $SKIPPED -gt 0 ]; then
     echo "Skipped:          $SKIPPED"
 fi
-EFFECTIVE=$((PASSED + EXPECTED_FAIL))
-echo "Success Rate:     $(awk "BEGIN {printf \"%.1f\", ($EFFECTIVE/$TOTAL)*100}")% ($EFFECTIVE/$TOTAL)"
+ACCOUNTED=$((PASSED + EXPECTED_FAIL))
+echo ""
+echo "  Real passes:      $PASSED"
+echo "  Expected failures: $EXPECTED_FAIL (tests verifying error behavior)"
+echo "  Accounted for:     $ACCOUNTED / $TOTAL ($(awk "BEGIN {printf \"%.1f\", ($ACCOUNTED/$TOTAL)*100}")%)"
 echo ""
 
 if [ $FAILED -gt 0 ]; then
@@ -256,7 +259,7 @@ if [ $FAILED -gt 0 ]; then
     echo ""
     exit 1
 else
-    echo "ALL $TOTAL TESTS ACCOUNTED FOR ($PASSED passed, $EXPECTED_FAIL expected failures)"
+    echo "ALL $TOTAL TESTS ACCOUNTED FOR ($PASSED passed + $EXPECTED_FAIL expected failures)"
     echo ""
     exit 0
 fi

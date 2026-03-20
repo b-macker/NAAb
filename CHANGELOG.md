@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation: math.pi/math.e gotcha removed (both cases work), float format gotcha updated
 
 ### Changed
-- Governance regression suite: 319 → 340 tests (100% pass rate)
+- Governance regression suite: 319 → 340 tests (all accounted: passes + expected failures)
 - Mono exhaustive test: 292 → 293 PASS (0 FAIL)
 
 ## [0.5.0] - 2026-03-19

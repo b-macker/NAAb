@@ -523,12 +523,6 @@ int main(int argc, char** argv) {
         // Configure Python import blocking based on sandbox level
         // NOTE: Temporarily disabled while using pure C API (PythonCExecutor)
         // TODO: Re-implement import blocking in PythonCExecutor for security
-        // Unrestricted mode allows all imports (including os, subprocess, etc.)
-        // if (sandbox_level == "unrestricted") {
-        //     naab::runtime::PythonExecutor::setBlockDangerousImports(false);
-        // } else {
-        //     naab::runtime::PythonExecutor::setBlockDangerousImports(true);
-        // }
 
         if (verbose) {
             fmt::print("[Security] Sandbox level: {}, timeout: {}s, memory: {}MB, network: {}\n",

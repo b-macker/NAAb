@@ -14,7 +14,6 @@ namespace naab {
 
 // Forward declarations for runtime executors
 namespace runtime {
-    class PythonExecutor;
     class JsExecutor;
     class CppExecutor;
     class RustExecutor;

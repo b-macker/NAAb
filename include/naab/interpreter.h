@@ -660,6 +660,9 @@ private:
 
     // Governance v4: Taint propagation through expression trees
     bool expressionContainsTaint(ast::Expr* expr);
+    // REFACTOR-1: Unified taint decision helpers (replace 10 copy-pasted blocks)
+    bool checkRhsTainted(ast::Expr* rhs_expr);
+    bool checkRhsSanitized(ast::Expr* rhs_expr);
     // Governance v4: Helper to check if CompoundStmt can produce tainted return (BUG-MatchExpr fix)
     // Governance v4: Check expression-level taint at sink (handles both identifiers and complex expressions)
     std::string checkExpressionTaintedSink(ast::Expr* expr, const std::string& sink_type,

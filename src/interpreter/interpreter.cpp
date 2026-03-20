@@ -2997,6 +2997,62 @@ bool Interpreter::expressionContainsTaint(ast::Expr* expr) {
     return false;
 }
 
+// REFACTOR-1: Unified check — is the RHS expression tainted? (source, propagation, or return taint)
+bool Interpreter::checkRhsTainted(ast::Expr* rhs_expr) {
+    if (!governance_ || !governance_->isActive() || !rhs_expr) return false;
+
+    // 1. Direct source check (env.get, io.read_line, etc.)
+    if (auto* call = dynamic_cast<ast::CallExpr*>(rhs_expr)) {
+        if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+            std::string full_name;
+            if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
+                full_name = obj_id->getName() + ".";
+            }
+            full_name += member->getMember();
+            if (governance_->isTaintSource(full_name)) return true;
+        }
+        if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+            if (governance_->isTaintSource(id->getName())) return true;
+        }
+    }
+    // Polyglot output source (FIX-DX-12: per-language taint)
+    if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(rhs_expr)) {
+        if (governance_->isTaintSource("polyglot_output") ||
+            governance_->isTaintSource("polyglot_output:" + ice->getLanguage()))
+            return true;
+    }
+
+    // 2. Propagation (tainted variable in expression tree)
+    if (expressionContainsTaint(rhs_expr)) return true;
+
+    // 3. Return taint (function call that returned tainted data)
+    if (dynamic_cast<ast::CallExpr*>(rhs_expr) && governance_->lastReturnWasTainted())
+        return true;
+
+    return false;
+}
+
+// REFACTOR-1: Unified check — is the RHS a sanitizer call?
+bool Interpreter::checkRhsSanitized(ast::Expr* rhs_expr) {
+    if (!governance_ || !governance_->isActive() || !rhs_expr) return false;
+    auto* call = dynamic_cast<ast::CallExpr*>(rhs_expr);
+    if (!call) return false;
+
+    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+        if (governance_->isSanitizer(id->getName())) return true;
+    }
+    // FIX-DX-3: MemberExpr sanitizers (e.g., utils.sanitize_input())
+    if (auto* mem = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+        std::string full_name;
+        if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(mem->getObject())) {
+            full_name = obj_id->getName() + ".";
+        }
+        full_name += mem->getMember();
+        if (governance_->isSanitizer(full_name)) return true;
+    }
+    return false;
+}
+
 // BUG-R: Check expression-level taint at sinks (handles both identifiers and complex expressions)
 std::string Interpreter::checkExpressionTaintedSink(ast::Expr* expr, const std::string& sink_type,
                                                      const std::string& file, int line) {
@@ -3067,71 +3123,15 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
         value = std::make_shared<Value>();
     }
 
-    // Governance v4: Taint tracking — mark variables from taint sources
+    // Governance v4: Taint tracking — mark variables from taint sources (REFACTOR-1)
     if (governance_ && governance_->isActive() && node.getInit()) {
-        bool is_source = false;
-        auto* init_expr = node.getInit();
-
-        // Check if init is a call to a taint source (e.g., env.get(), io.read_line())
-        if (auto* call = dynamic_cast<ast::CallExpr*>(init_expr)) {
-            // Method calls: module.func()
-            if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
-                std::string full_name;
-                if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
-                    full_name = obj_id->getName() + ".";
-                }
-                full_name += member->getMember();
-                is_source = governance_->isTaintSource(full_name);
-            }
-            // Free function calls: func()
-            if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
-                is_source = governance_->isTaintSource(id->getName());
-            }
-        }
-        // Check if init is an inline code (polyglot output)
-        // FIX-DX-12: Support per-language taint: "polyglot_output:python" etc.
-        if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(init_expr)) {
-            is_source = governance_->isTaintSource("polyglot_output") ||
-                        governance_->isTaintSource("polyglot_output:" + ice->getLanguage());
-        }
-
-        // Propagation: check if any sub-expression references a tainted variable
-        // (covers direct identifier, string concat, dict access, function args, etc.)
-        bool propagated = expressionContainsTaint(init_expr);
-
-        // BUG-D: Check if init was a function call that returned tainted data
-        if (!is_source && !propagated && dynamic_cast<ast::CallExpr*>(init_expr)) {
-            if (governance_->lastReturnWasTainted()) {
-                propagated = true;
-            }
-        }
-
-        if (is_source || propagated) {
+        if (checkRhsTainted(node.getInit())) {
             governance_->markTainted(node.getName());
         } else {
-            // Not a source and not propagated — clear any stale taint on this name
-            // (prevents false positives from name collisions across function calls)
             governance_->clearTaint(node.getName());
         }
-
-        // Sanitizer: if RHS is a call to a sanitizer, also clear taint
-        if (auto* call = dynamic_cast<ast::CallExpr*>(init_expr)) {
-            if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
-                if (governance_->isSanitizer(id->getName())) {
-                    governance_->clearTaint(node.getName());
-                }
-            }
-            // FIX-DX-3: Also check MemberExpr sanitizers (e.g., utils.sanitize_input())
-            if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
-                std::string full_name;
-                if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
-                    full_name = obj_id->getName() + ".";
-                }
-                full_name += member->getMember();
-                if (governance_->isSanitizer(full_name)) {
-                    governance_->clearTaint(node.getName());
-                }
-            }
+        if (checkRhsSanitized(node.getInit())) {
+            governance_->clearTaint(node.getName());
         }
     }
 
@@ -3233,9 +3233,10 @@ void Interpreter::visit(ast::TryStmt& node) {
         }
         current_env_->define(catch_clause->error_name, error_val);
 
-        // BUG-AB: Clear any stale taint on the catch variable name
-        // (catch variable is a fresh error object, not user-tainted data)
+        // BUG-AB + REFACTOR-2: Scoped catch variable taint — save/restore outer taint state
+        bool catch_var_was_tainted = false;
         if (governance_ && governance_->isActive()) {
+            catch_var_was_tainted = governance_->isTainted(catch_clause->error_name);
             governance_->clearTaint(catch_clause->error_name);
         }
 
@@ -3250,6 +3251,15 @@ void Interpreter::visit(ast::TryStmt& node) {
             // Convert std::exception to NaabError
             current_env_ = prev_env;
             throw createError(std_error.what(), ErrorType::RUNTIME_ERROR);
+        }
+
+        // REFACTOR-2: Restore outer taint state for catch variable name
+        if (governance_ && governance_->isActive()) {
+            if (catch_var_was_tainted) {
+                governance_->markTainted(catch_clause->error_name);
+            } else {
+                governance_->clearTaint(catch_clause->error_name);
+            }
         }
 
         current_env_ = prev_env;
@@ -3272,8 +3282,10 @@ void Interpreter::visit(ast::TryStmt& node) {
         auto* catch_clause = node.getCatchClause();
         current_env_->define(catch_clause->error_name, error_value);
 
-        // BUG-AB: Clear any stale taint on the catch variable name
+        // BUG-AB + REFACTOR-2: Scoped catch variable taint — save/restore outer taint state
+        bool catch_var_was_tainted2 = false;
         if (governance_ && governance_->isActive()) {
+            catch_var_was_tainted2 = governance_->isTainted(catch_clause->error_name);
             governance_->clearTaint(catch_clause->error_name);
         }
 
@@ -3288,6 +3300,15 @@ void Interpreter::visit(ast::TryStmt& node) {
             // Another std::exception from catch block - convert and propagate
             current_env_ = prev_env;
             throw createError(nested_error.what(), ErrorType::RUNTIME_ERROR);
+        }
+
+        // REFACTOR-2: Restore outer taint state for catch variable name
+        if (governance_ && governance_->isActive()) {
+            if (catch_var_was_tainted2) {
+                governance_->markTainted(catch_clause->error_name);
+            } else {
+                governance_->clearTaint(catch_clause->error_name);
+            }
         }
 
         current_env_ = prev_env;
@@ -3392,66 +3413,15 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             current_env_->set(id->getName(), value_to_assign);
             result_ = value_to_assign;
 
-            // Governance v4: Taint tracking on assignment (mirrors VarDeclStmt logic)
+            // Governance v4: Taint tracking on assignment (REFACTOR-1)
             if (governance_ && governance_->isActive()) {
-                auto* rhs_expr = node.getRight();
-                bool is_source = false;
-
-                // Check if RHS is a call to a taint source
-                if (auto* call = dynamic_cast<ast::CallExpr*>(rhs_expr)) {
-                    if (auto* member_rhs = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
-                        std::string full_name;
-                        if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_rhs->getObject())) {
-                            full_name = obj_id->getName() + ".";
-                        }
-                        full_name += member_rhs->getMember();
-                        is_source = governance_->isTaintSource(full_name);
-                    }
-                    if (auto* call_id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
-                        is_source = governance_->isTaintSource(call_id->getName());
-                    }
-                }
-                // Check if RHS is polyglot output
-                // FIX-DX-12: Support per-language taint
-                if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(rhs_expr)) {
-                    is_source = governance_->isTaintSource("polyglot_output") ||
-                                governance_->isTaintSource("polyglot_output:" + ice->getLanguage());
-                }
-
-                // Propagation: check if RHS references any tainted variable
-                bool propagated = expressionContainsTaint(rhs_expr);
-
-                // BUG-D: Check if RHS was a function call that returned tainted data
-                if (!is_source && !propagated && dynamic_cast<ast::CallExpr*>(rhs_expr)) {
-                    if (governance_->lastReturnWasTainted()) {
-                        propagated = true;
-                    }
-                }
-
-                if (is_source || propagated) {
+                if (checkRhsTainted(node.getRight())) {
                     governance_->markTainted(id->getName());
                 } else {
                     governance_->clearTaint(id->getName());
                 }
-
-                // Sanitizer check
-                if (auto* call = dynamic_cast<ast::CallExpr*>(rhs_expr)) {
-                    if (auto* call_id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
-                        if (governance_->isSanitizer(call_id->getName())) {
-                            governance_->clearTaint(id->getName());
-                        }
-                    }
-                    // FIX-DX-3: Also check MemberExpr sanitizers (e.g., utils.sanitize_input())
-                    if (auto* mem = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
-                        std::string full_name;
-                        if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(mem->getObject())) {
-                            full_name = obj_id->getName() + ".";
-                        }
-                        full_name += mem->getMember();
-                        if (governance_->isSanitizer(full_name)) {
-                            governance_->clearTaint(id->getName());
-                        }
-                    }
+                if (checkRhsSanitized(node.getRight())) {
+                    governance_->clearTaint(id->getName());
                 }
             }
         } else if (auto* member = dynamic_cast<ast::MemberExpr*>(node.getLeft())) {
@@ -3463,18 +3433,10 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 struct_val->setField(member->getMember(), right);
                 result_ = right;
 
-                // FIX-4: Taint propagation for struct field assignment
-                if (governance_ && governance_->isActive()) {
+                // FIX-4: Taint propagation for struct field assignment (REFACTOR-1)
+                if (governance_ && governance_->isActive() && checkRhsTainted(node.getRight())) {
                     auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject());
-                    if (obj_id) {
-                        bool rhs_tainted = expressionContainsTaint(node.getRight());
-                        if (!rhs_tainted && dynamic_cast<ast::CallExpr*>(node.getRight())) {
-                            rhs_tainted = governance_->lastReturnWasTainted();
-                        }
-                        if (rhs_tainted) {
-                            governance_->markTainted(obj_id->getName());
-                        }
-                    }
+                    if (obj_id) governance_->markTainted(obj_id->getName());
                 }
             } else {
                 std::ostringstream oss;
@@ -3525,18 +3487,10 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     list[static_cast<size_t>(index)] = right;
                     result_ = right;
 
-                    // FIX-3: Taint propagation for array subscript assignment
-                    if (governance_ && governance_->isActive()) {
+                    // FIX-3: Taint propagation for array subscript assignment (REFACTOR-1)
+                    if (governance_ && governance_->isActive() && checkRhsTainted(node.getRight())) {
                         auto* container_id = dynamic_cast<ast::IdentifierExpr*>(subscript->getLeft());
-                        if (container_id) {
-                            bool rhs_tainted = expressionContainsTaint(node.getRight());
-                            if (!rhs_tainted && dynamic_cast<ast::CallExpr*>(node.getRight())) {
-                                rhs_tainted = governance_->lastReturnWasTainted();
-                            }
-                            if (rhs_tainted) {
-                                governance_->markTainted(container_id->getName());
-                            }
-                        }
+                        if (container_id) governance_->markTainted(container_id->getName());
                     }
                 }
                 // Check if container is a dictionary
@@ -3548,18 +3502,10 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     dict[key] = right;
                     result_ = right;
 
-                    // FIX-3: Taint propagation for dict subscript assignment
-                    if (governance_ && governance_->isActive()) {
+                    // FIX-3: Taint propagation for dict subscript assignment (REFACTOR-1)
+                    if (governance_ && governance_->isActive() && checkRhsTainted(node.getRight())) {
                         auto* container_id = dynamic_cast<ast::IdentifierExpr*>(subscript->getLeft());
-                        if (container_id) {
-                            bool rhs_tainted = expressionContainsTaint(node.getRight());
-                            if (!rhs_tainted && dynamic_cast<ast::CallExpr*>(node.getRight())) {
-                                rhs_tainted = governance_->lastReturnWasTainted();
-                            }
-                            if (rhs_tainted) {
-                                governance_->markTainted(container_id->getName());
-                            }
-                        }
+                        if (container_id) governance_->markTainted(container_id->getName());
                     }
                 } else {
                     std::ostringstream oss;
@@ -4549,15 +4495,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (obj_id && current_env_->has(obj_id->getName())) {
                         current_env_->set(obj_id->getName(), obj_val);
                     }
-                    // FIX-5: Taint propagation for dict.put/set (value is arg[1])
-                    if (governance_ && governance_->isActive() && obj_id && node.getArgs().size() >= 2) {
-                        bool val_tainted = expressionContainsTaint(node.getArgs()[1].get());
-                        if (!val_tainted && dynamic_cast<ast::CallExpr*>(node.getArgs()[1].get())) {
-                            val_tainted = governance_->lastReturnWasTainted();
-                        }
-                        if (val_tainted) {
-                            governance_->markTainted(obj_id->getName());
-                        }
+                    // FIX-5: Taint propagation for dict.put/set (REFACTOR-1)
+                    if (governance_ && governance_->isActive() && obj_id && node.getArgs().size() >= 2
+                        && checkRhsTainted(node.getArgs()[1].get())) {
+                        governance_->markTainted(obj_id->getName());
                     }
                     result_ = std::make_shared<Value>();
                     return;
@@ -4610,15 +4551,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (obj_id && current_env_->has(obj_id->getName())) {
                         current_env_->set(obj_id->getName(), obj_val);
                     }
-                    // FIX-5: Taint propagation for arr.push/add/append (value is arg[0])
-                    if (governance_ && governance_->isActive() && obj_id && !node.getArgs().empty()) {
-                        bool val_tainted = expressionContainsTaint(node.getArgs()[0].get());
-                        if (!val_tainted && dynamic_cast<ast::CallExpr*>(node.getArgs()[0].get())) {
-                            val_tainted = governance_->lastReturnWasTainted();
-                        }
-                        if (val_tainted) {
-                            governance_->markTainted(obj_id->getName());
-                        }
+                    // FIX-5: Taint propagation for arr.push/add/append (REFACTOR-1)
+                    if (governance_ && governance_->isActive() && obj_id && !node.getArgs().empty()
+                        && checkRhsTainted(node.getArgs()[0].get())) {
+                        governance_->markTainted(obj_id->getName());
                     }
                     result_ = obj_val;
                     return;
@@ -5308,15 +5244,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (obj_id && current_env_->has(obj_id->getName())) {
                     current_env_->set(obj_id->getName(), obj);
                 }
-                // FIX-5: Taint propagation for dict.put/set (value is arg[1])
-                if (governance_ && governance_->isActive() && obj_id && node.getArgs().size() >= 2) {
-                    bool val_tainted = expressionContainsTaint(node.getArgs()[1].get());
-                    if (!val_tainted && dynamic_cast<ast::CallExpr*>(node.getArgs()[1].get())) {
-                        val_tainted = governance_->lastReturnWasTainted();
-                    }
-                    if (val_tainted) {
-                        governance_->markTainted(obj_id->getName());
-                    }
+                // FIX-5: Taint propagation for dict.put/set (REFACTOR-1)
+                if (governance_ && governance_->isActive() && obj_id && node.getArgs().size() >= 2
+                    && checkRhsTainted(node.getArgs()[1].get())) {
+                    governance_->markTainted(obj_id->getName());
                 }
                 result_ = std::make_shared<Value>();
                 return;
@@ -5450,15 +5381,10 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (obj_id && current_env_->has(obj_id->getName())) {
                     current_env_->set(obj_id->getName(), obj);
                 }
-                // FIX-5: Taint propagation for arr.push/add/append (value is arg[0])
-                if (governance_ && governance_->isActive() && obj_id && !node.getArgs().empty()) {
-                    bool val_tainted = expressionContainsTaint(node.getArgs()[0].get());
-                    if (!val_tainted && dynamic_cast<ast::CallExpr*>(node.getArgs()[0].get())) {
-                        val_tainted = governance_->lastReturnWasTainted();
-                    }
-                    if (val_tainted) {
-                        governance_->markTainted(obj_id->getName());
-                    }
+                // FIX-5: Taint propagation for arr.push/add/append (REFACTOR-1)
+                if (governance_ && governance_->isActive() && obj_id && !node.getArgs().empty()
+                    && checkRhsTainted(node.getArgs()[0].get())) {
+                    governance_->markTainted(obj_id->getName());
                 }
                 result_ = obj;
                 return;

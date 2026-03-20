@@ -11,7 +11,7 @@
 namespace naab {
 namespace runtime {
 
-// Adapter class that wraps PythonExecutor for the language registry
+// Adapter class that wraps PythonCExecutor for the language registry
 class PyExecutorAdapter : public Executor {
 public:
     PyExecutorAdapter();

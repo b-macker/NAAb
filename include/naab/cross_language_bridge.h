@@ -92,7 +92,7 @@ public:
     bool isMarshallable(const std::shared_ptr<interpreter::Value>& val);
 
 #ifdef HAVE_PYBIND11
-    // Convert structs (Week 5 - Python marshalling) - PUBLIC for PythonExecutor
+    // Convert structs (Week 5 - Python marshalling) - PUBLIC for PythonCExecutor
     py::object structToPython(const std::shared_ptr<interpreter::StructValue>& s);
     std::shared_ptr<interpreter::Value> pythonToStruct(
         py::object obj, const std::string& expected_type_name);
