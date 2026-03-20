@@ -680,6 +680,17 @@ struct ComplexityFloorConfig {
     std::vector<ComplexityFloorRule> rules; // Name-specific rules
 };
 
+struct DuplicateCallsConfig {
+    bool enabled = true;
+    int threshold = 3;           // Warn at N+ calls per function (was hardcoded 2)
+    int max_entries = 5;         // Max unique calls to show in grouped output
+};
+
+struct PolyglotTryCatchConfig {
+    bool enabled = true;         // Also requires no_incomplete_logic.enabled for backward compat
+    int max_entries = 3;         // Max functions to list in grouped output
+};
+
 struct CodeQualityConfig {
     NoSecretsConfig no_secrets;
     NoPlaceholdersConfig no_placeholders;
@@ -702,6 +713,8 @@ struct CodeQualityConfig {
     NoIncompleteLogicConfig no_incomplete_logic;
     NoHallucinatedApisConfig no_hallucinated_apis;
     ComplexityFloorConfig complexity_floor;
+    DuplicateCallsConfig duplicate_calls;
+    PolyglotTryCatchConfig polyglot_try_catch;
 };
 
 // ============================================================================
@@ -784,6 +797,8 @@ struct OutputConfig {
     ErrorOutputConfig errors;
     FormattingConfig formatting;
     FileOutputConfig file_output;
+    int max_advisories = 15;       // Cap total [ADVISORY] messages (0 = unlimited)
+    bool advisory_summary = true;  // Show "... and N more" when capped
 };
 
 // ============================================================================
@@ -1452,6 +1467,10 @@ public:
     std::string formatSummaryOneLine() const;
     void resetCheckResults() { check_results_.clear(); }
 
+    // --- Advisory Output Control ---
+    void emitAdvisory(const std::string& msg);
+    void flushGroupedAdvisories();
+
     // Report generation
     std::string generateJsonReport() const;
     std::string generateSarifReport() const;
@@ -1522,6 +1541,13 @@ private:
     std::unordered_set<std::string> taint_set_;
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
     bool last_return_tainted_ = false;  // BUG-D: Track function return taint
+
+    // Advisory dedup tracking
+    struct DupCallEntry { std::string function_name; int count; int line; };
+    std::unordered_map<std::string, std::vector<DupCallEntry>> dup_call_summary_;
+    std::vector<std::pair<std::string, int>> ptc_functions_; // polyglot try/catch: {name, line}
+    int advisory_count_ = 0;
+    int advisory_suppressed_ = 0;
 
     // Rate limiters
     RateLimiter polyglot_rate_;

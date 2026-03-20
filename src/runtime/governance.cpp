@@ -1008,6 +1008,21 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
                 }
             }
         }
+
+        // Duplicate calls config
+        if (cq.contains("duplicate_calls") && cq["duplicate_calls"].is_object()) {
+            auto& dc = cq["duplicate_calls"];
+            if (dc.contains("enabled")) rules_.code_quality.duplicate_calls.enabled = dc["enabled"].get<bool>();
+            if (dc.contains("threshold")) rules_.code_quality.duplicate_calls.threshold = dc["threshold"].get<int>();
+            if (dc.contains("max_entries")) rules_.code_quality.duplicate_calls.max_entries = dc["max_entries"].get<int>();
+        }
+
+        // Polyglot try/catch config
+        if (cq.contains("polyglot_try_catch") && cq["polyglot_try_catch"].is_object()) {
+            auto& ptc = cq["polyglot_try_catch"];
+            if (ptc.contains("enabled")) rules_.code_quality.polyglot_try_catch.enabled = ptc["enabled"].get<bool>();
+            if (ptc.contains("max_entries")) rules_.code_quality.polyglot_try_catch.max_entries = ptc["max_entries"].get<int>();
+        }
     }
 
     // V3 Custom Rules
@@ -1074,6 +1089,8 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (fo.contains("report_sarif") && !fo["report_sarif"].is_null()) rules_.output.file_output.report_sarif = fo["report_sarif"].get<std::string>();
             if (fo.contains("report_junit") && !fo["report_junit"].is_null()) rules_.output.file_output.report_junit = fo["report_junit"].get<std::string>();
         }
+        if (out.contains("max_advisories")) rules_.output.max_advisories = out["max_advisories"].get<int>();
+        if (out.contains("advisory_summary")) rules_.output.advisory_summary = out["advisory_summary"].get<bool>();
     }
 
     // V3 Audit (expanded)
@@ -2021,6 +2038,76 @@ std::string GovernanceEngine::checkHardcodedResults(
     recordPass("code_quality.no_hardcoded_results",
         rules_.no_hardcoded_results_level);
     return "";
+}
+
+// ============================================================================
+// Advisory Output Control
+// ============================================================================
+
+void GovernanceEngine::emitAdvisory(const std::string& msg) {
+    int max = rules_.output.max_advisories;
+    if (max > 0 && advisory_count_ >= max) {
+        advisory_suppressed_++;
+        return;
+    }
+    advisory_count_++;
+    fmt::print(stderr, "{}\n", msg);
+}
+
+void GovernanceEngine::flushGroupedAdvisories() {
+    // 1. Grouped duplicate call warnings
+    if (!dup_call_summary_.empty()) {
+        std::string msg = "[ADVISORY] Duplicate calls (store results in variables):";
+        int shown = 0;
+        for (const auto& [call, entries] : dup_call_summary_) {
+            if (shown >= rules_.code_quality.duplicate_calls.max_entries) {
+                msg += fmt::format("\n  ... and {} more unique calls",
+                    static_cast<int>(dup_call_summary_.size()) - shown);
+                break;
+            }
+            // Build compact location list
+            std::string locs;
+            for (size_t i = 0; i < entries.size() && i < 3; i++) {
+                if (i > 0) locs += ", ";
+                locs += fmt::format("{}:{}", entries[i].function_name, entries[i].line);
+            }
+            if (entries.size() > 3) {
+                locs += fmt::format(", +{} more", entries.size() - 3);
+            }
+            msg += fmt::format("\n  {}  — {}x in: {}", call, entries[0].count, locs);
+            shown++;
+        }
+        emitAdvisory(msg);
+    }
+
+    // 2. Grouped polyglot try/catch warnings
+    if (!ptc_functions_.empty()) {
+        std::string msg = "[ADVISORY] Polyglot blocks without try/catch:";
+        int shown = 0;
+        for (const auto& [name, line] : ptc_functions_) {
+            if (shown >= rules_.code_quality.polyglot_try_catch.max_entries) {
+                msg += fmt::format(", +{} more",
+                    static_cast<int>(ptc_functions_.size()) - shown);
+                break;
+            }
+            msg += (shown == 0 ? " " : ", ") + fmt::format("{}:{}", name, line);
+            shown++;
+        }
+        msg += "\n  Wrap polyglot blocks in try/catch for graceful error handling.";
+        emitAdvisory(msg);
+    }
+
+    // 3. Suppression summary
+    if (advisory_suppressed_ > 0 && rules_.output.advisory_summary) {
+        fmt::print(stderr, "[ADVISORY] ... and {} more advisories suppressed "
+                   "(increase output.max_advisories to see all)\n", advisory_suppressed_);
+    }
+
+    // Reset
+    dup_call_summary_.clear();
+    ptc_functions_.clear();
+    advisory_count_ = 0;
+    advisory_suppressed_ = 0;
 }
 
 // ============================================================================
@@ -3358,48 +3445,50 @@ std::string GovernanceEngine::checkNaabFunctionBody(
         }
     }
 
-    // FIX-DX-6: Advisory — detect duplicate function calls (e.g., json.parse() called twice)
+    // FIX-DX-6: Detect duplicate function calls — deferred to grouped output
     {
-        std::unordered_map<std::string, int> call_counts;
-        size_t ci = 0;
-        while (ci < stripped.size()) {
-            if (std::isalpha(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_') {
-                std::string word1;
-                while (ci < stripped.size() &&
-                       (std::isalnum(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_'))
-                    word1 += stripped[ci++];
-                if (ci < stripped.size() && stripped[ci] == '.') {
-                    ci++;
-                    std::string word2;
+        auto& dc_cfg = rules_.code_quality.duplicate_calls;
+        if (dc_cfg.enabled) {
+            std::unordered_map<std::string, int> call_counts;
+            size_t ci = 0;
+            while (ci < stripped.size()) {
+                if (std::isalpha(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_') {
+                    std::string word1;
                     while (ci < stripped.size() &&
                            (std::isalnum(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_'))
-                        word2 += stripped[ci++];
-                    if (ci < stripped.size() && stripped[ci] == '(') {
-                        call_counts[word1 + "." + word2 + "("]++;
+                        word1 += stripped[ci++];
+                    if (ci < stripped.size() && stripped[ci] == '.') {
+                        ci++;
+                        std::string word2;
+                        while (ci < stripped.size() &&
+                               (std::isalnum(static_cast<unsigned char>(stripped[ci])) || stripped[ci] == '_'))
+                            word2 += stripped[ci++];
+                        if (ci < stripped.size() && stripped[ci] == '(') {
+                            call_counts[word1 + "." + word2 + "("]++;
+                        }
                     }
+                } else {
+                    ci++;
                 }
-            } else {
-                ci++;
             }
-        }
-        for (const auto& [call, count] : call_counts) {
-            if (count >= 2) {
-                fmt::print(stderr, "[ADVISORY] '{}' called {} times in '{}' at line {} — "
-                           "consider storing result in a variable.\n",
-                           call, count, function_name, line);
+            for (const auto& [call, count] : call_counts) {
+                if (count >= dc_cfg.threshold) {
+                    dup_call_summary_[call].push_back({function_name, count, line});
+                }
             }
         }
     }
 
-    // FIX-DX-7: Advisory — polyglot blocks without try/catch wrapping
-    if (il_cfg.enabled) {
-        bool has_polyglot_block = source_code.find("<<") != std::string::npos;
-        bool has_try_block = source_code.find("try") != std::string::npos;
-        if (has_polyglot_block && !has_try_block) {
-            fmt::print(stderr, "[ADVISORY] Function '{}' has polyglot blocks without try/catch "
-                       "at line {}.\n  Polyglot blocks can fail (compile errors, timeouts, "
-                       "missing executors).\n  Consider wrapping in try/catch for graceful "
-                       "error handling.\n", function_name, line);
+    // FIX-DX-7: Polyglot blocks without try/catch — deferred to grouped output
+    // Keep il_cfg.enabled check for backward compatibility
+    {
+        auto& ptc_cfg = rules_.code_quality.polyglot_try_catch;
+        if (il_cfg.enabled && ptc_cfg.enabled) {
+            bool has_polyglot_block = source_code.find("<<") != std::string::npos;
+            bool has_try_block = source_code.find("try") != std::string::npos;
+            if (has_polyglot_block && !has_try_block) {
+                ptc_functions_.push_back({function_name, line});
+            }
         }
     }
 
@@ -4809,16 +4898,22 @@ std::string GovernanceEngine::checkPolyglotOptimization(
     }
 
     if (should_suggest && show_suggestions) {
-        suggestBetterLanguage(
-            language, code,
-            analyzer::taskIntentToString(result.primary_task),
-            {result.optimal_language},
-            result.improvement_percent,
-            result.reasons
-        );
+        // Build concise note for all levels
+        std::string note = fmt::format(
+            "Consider using {} instead of {} (score: {}/100 vs {}/100, +{}% improvement)",
+            result.optimal_language, language,
+            result.optimal_language_score, result.current_language_score,
+            result.improvement_percent);
 
-        // Build enforcement message based on level
         if (level == "hard") {
+            // Verbose hint block only for hard enforcement
+            suggestBetterLanguage(
+                language, code,
+                analyzer::taskIntentToString(result.primary_task),
+                {result.optimal_language},
+                result.improvement_percent,
+                result.reasons
+            );
             message = fmt::format(
                 "HARD violation: Suboptimal language choice\n"
                 "  Current: {} (score: {}/100)\n"
@@ -4830,21 +4925,12 @@ std::string GovernanceEngine::checkPolyglotOptimization(
                 result.improvement_percent
             );
         } else if (level == "soft") {
-            // SOFT optimization violations are advisory-only (warn, don't block).
-            // Blocking on language choice causes LLMs to enter infinite
-            // language-switching loops, which is worse than a suboptimal choice.
-            message = fmt::format(
-                "Note: Consider using {} instead of {} (score: {}/100 vs {}/100, +{}% improvement)",
-                result.optimal_language, language,
-                result.optimal_language_score, result.current_language_score,
-                result.improvement_percent
-            );
-            fmt::print(stderr, "[governance] {}\n", message);
+            // 1-line advisory via centralized emitAdvisory
+            emitAdvisory(fmt::format("[governance] {}", note));
+            message = note;
         } else if (level == "advisory") {
-            message = fmt::format(
-                "Advisory: Consider using {} instead of {} for +{}% improvement",
-                result.optimal_language, language, result.improvement_percent
-            );
+            // Record only — no output (check_results_ below handles it)
+            message = note;
         }
 
         // Record check result
@@ -4861,8 +4947,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         check.line = line;
         check_results_.push_back(check);
 
-        // Return message based on enforcement level
-        // Only HARD blocks execution. SOFT optimization is advisory (printed above).
+        // Only HARD blocks execution
         if (level == "hard") {
             return message;
         }

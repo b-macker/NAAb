@@ -1144,6 +1144,11 @@ void Interpreter::visit(ast::Program& node) {
         node.getMainBlock()->accept(*this);
     }
 
+    // Flush grouped advisories (duplicate calls, polyglot try/catch)
+    if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
+        governance_->flushGroupedAdvisories();
+    }
+
     // Governance: Print execution summary and write reports (only for top-level program)
     if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
         if (governance_verbose_) {

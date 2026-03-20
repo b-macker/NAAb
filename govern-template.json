@@ -1,7 +1,7 @@
 {
-  "version": "3.0",
+  "version": "4.0",
   "mode": "enforce",
-  "description": "NAAb Governance v3.0 — Complete Template (all sections, all options)",
+  "description": "NAAb Governance v4.0 — Complete Template (all sections, all options)",
 
   "_comment_modes": "mode: 'enforce' (default), 'audit' (dry-run), 'off' (disabled)",
   "_comment_levels": "Enforcement levels: 'hard' (block, no override), 'soft' (block, --governance-override allows), 'advisory' (warn only)",
@@ -167,6 +167,23 @@
       "max_allocation_mb": 512,
       "allow_mmap": false,
       "allow_shared_memory": false
+    }
+  },
+
+  "_comment_taint_tracking": "Taint Tracking — track untrusted data from sources through to sinks",
+  "_comment_taint_matching": "Sources/sanitizers/sinks use PREFIX matching (not substring). 'validate_' matches 'validate_input' but NOT 'revalidate'. 'int(' matches 'int(x)' but NOT 'print(x)'. For per-language polyglot taint, use 'polyglot_output:python' syntax. For per-language sink checks, add 'python_exec', 'go_exec', etc.",
+  "taint_tracking": {
+    "enabled": false,
+    "level": "soft",
+    "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
+    "sinks": ["shell_exec", "python_exec", "go_exec", "javascript_exec", "nim_exec", "file.write", "file.append", "http.", "env.set_var"],
+    "sanitizers": ["validate_", "sanitize_", "escape_"],
+    "propagation": {
+      "string_concat": true,
+      "string_interpolation": true,
+      "function_returns": true,
+      "for_loop_iterators": true,
+      "dict_array_access": true
     }
   },
 
@@ -500,7 +517,7 @@
     "complexity_floor": {
       "level": "soft",
       "min_score": 10,
-      "check_polyglot": true,
+      "check_polyglot": false,
       "check_naab": true,
       "skip_if_has_polyglot_block": true,
       "rules": [
@@ -572,24 +589,37 @@
       "check_made_up_functions": true,
       "check_wrong_syntax": true,
       "case_sensitive": true
+    },
+    "duplicate_calls": {
+      "enabled": true,
+      "threshold": 3,
+      "max_entries": 5
+    },
+    "polyglot_try_catch": {
+      "enabled": true,
+      "max_entries": 3
     }
   },
 
-  "_comment_contracts": "Function contracts — runtime assertions on return values (design-by-contract)",
+  "_comment_contracts": "Function contracts — runtime assertions on inputs and return values (design-by-contract)",
   "contracts": {
     "level": "soft",
+    "validate_inputs": true,
     "functions": {
       "compute_area": {
         "description": "Returns area as a positive float",
+        "params": ["width:float", "height:float"],
         "return_type": "float",
         "return_min": 0
       },
       "classify_text": {
         "description": "Returns text category",
+        "params": ["text:string"],
         "return_type": "string",
         "return_one_of": ["positive", "negative", "neutral"]
       },
       "count_words": {
+        "params": ["text:string"],
         "return_type": "int",
         "return_min": 0
       },
@@ -598,8 +628,14 @@
         "return_non_empty": true
       },
       "parse_config": {
+        "params": ["path:string"],
         "return_type": "dict",
         "return_keys": ["host", "port", "database"]
+      },
+      "process_order": {
+        "description": "Process an order with input type validation",
+        "params": ["order_id:string", "items:array"],
+        "return_type": "dict"
       }
     }
   },
@@ -695,7 +731,9 @@
       "report_junit": "",
       "report_csv": "",
       "report_html": ""
-    }
+    },
+    "max_advisories": 15,
+    "advisory_summary": true
   },
 
   "audit": {
@@ -714,7 +752,10 @@
       "config_loaded": true,
       "execution_start": true,
       "execution_end": true,
-      "polyglot_executed": true
+      "polyglot_executed": true,
+      "polyglot_timing": true,
+      "taint_decisions": true,
+      "contract_checks": true
     },
     "retention": {
       "max_file_size_mb": 100,
@@ -1032,16 +1073,19 @@
       "exclude_patterns": ["node_modules", ".git", "__pycache__", "build", "dist"]
     },
 
-    "_comment_categories": "127 checks across 6 categories + 6 language modules. Each check: enabled (bool), level (hard/soft/advisory), options (thresholds)",
+    "_comment_categories": "139 checks across 6 categories + 6 language modules. Each check: enabled (bool), level (hard/soft/advisory), options (thresholds)",
 
     "redundancy": {
       "obvious_comments":       { "enabled": true, "level": "advisory" },
       "over_abstraction":       { "enabled": true, "level": "advisory" },
       "redundant_try_catch":    { "enabled": true, "level": "soft" },
+      "suspicious_try_catch":   { "enabled": true, "level": "soft" },
       "generic_variable_names": { "enabled": true, "level": "soft", "names": ["data", "temp", "tmp", "val", "x", "y", "foo", "bar", "baz", "stuff", "thing", "obj", "item", "result"] },
       "excessive_comments":     { "enabled": true, "level": "advisory", "threshold": 0.6 },
       "apologetic_comments":    { "enabled": true, "level": "soft" },
       "placeholder_code":       { "enabled": true, "level": "soft" },
+      "gaming_comments":        { "enabled": true, "level": "soft" },
+      "trivial_constant_alias": { "enabled": true, "level": "soft" },
       "restating_docstrings":   { "enabled": true, "level": "advisory" },
       "unnecessary_else_after_return": { "enabled": true, "level": "advisory" },
       "wrapper_classes":        { "enabled": true, "level": "advisory" },
@@ -1110,33 +1154,33 @@
     "lang_rules": {
       "python": {
         "bare_except":           { "enabled": true, "level": "soft" },
-        "mutable_default_arg":   { "enabled": true, "level": "hard" },
-        "star_import":           { "enabled": true, "level": "soft" },
-        "assert_in_production":  { "enabled": true, "level": "soft" },
-        "f_string_in_old_python": { "enabled": true, "level": "advisory" },
+        "mutable_default_args":  { "enabled": true, "level": "hard" },
+        "star_imports":          { "enabled": true, "level": "soft" },
+        "assert_for_validation": { "enabled": true, "level": "soft" },
         "global_keyword":        { "enabled": true, "level": "soft" },
         "nested_comprehension":  { "enabled": true, "level": "soft" },
-        "broad_exception":       { "enabled": true, "level": "soft" },
+        "broad_exception_type":  { "enabled": true, "level": "soft" },
         "open_without_with":     { "enabled": true, "level": "soft" },
-        "type_comparison":       { "enabled": true, "level": "soft" },
-        "late_import":           { "enabled": true, "level": "advisory" },
-        "class_too_many_responsibilities": { "enabled": true, "level": "advisory" },
-        "dataclass_candidate":   { "enabled": true, "level": "advisory" },
+        "type_check_isinstance": { "enabled": true, "level": "soft" },
+        "import_inside_function": { "enabled": true, "level": "advisory" },
+        "mutable_class_vars":    { "enabled": true, "level": "advisory" },
+        "string_format_mix":     { "enabled": true, "level": "advisory" },
+        "duplicate_dict_key":    { "enabled": true, "level": "hard" },
         "f_string_without_expression": { "enabled": true, "level": "advisory" }
       },
       "javascript": {
         "loose_equality":        { "enabled": true, "level": "soft" },
-        "var_declaration":       { "enabled": true, "level": "soft" },
+        "var_usage":             { "enabled": true, "level": "soft" },
         "eval_usage":            { "enabled": true, "level": "hard" },
         "for_in_array":          { "enabled": true, "level": "soft" },
         "prototype_pollution":   { "enabled": true, "level": "hard" },
         "document_write":        { "enabled": true, "level": "soft" },
-        "innerHTML":             { "enabled": true, "level": "soft" },
+        "innerhtml_assignment":  { "enabled": true, "level": "soft" },
         "promise_no_catch":      { "enabled": true, "level": "soft" },
         "async_no_await":        { "enabled": true, "level": "soft" },
         "callback_hell":         { "enabled": true, "level": "soft" },
-        "module_system_mix":     { "enabled": true, "level": "advisory" },
-        "implicit_global":       { "enabled": true, "level": "soft" }
+        "no_strict_mode":        { "enabled": true, "level": "advisory" },
+        "implicit_globals":      { "enabled": true, "level": "soft" }
       },
       "naab": {
         "value_semantics_bug":   { "enabled": true, "level": "hard" },
@@ -1149,6 +1193,42 @@
         "missing_export":        { "enabled": true, "level": "advisory" },
         "dict_bracket_access":   { "enabled": true, "level": "soft" },
         "python_return_in_block": { "enabled": true, "level": "hard" }
+      },
+      "cpp": {
+        "raw_new_delete":        { "enabled": true, "level": "soft" },
+        "using_namespace_std_header": { "enabled": true, "level": "soft" },
+        "c_style_casts":         { "enabled": true, "level": "soft" },
+        "goto_usage":            { "enabled": true, "level": "soft" },
+        "manual_memory":         { "enabled": true, "level": "soft" },
+        "macro_functions":       { "enabled": true, "level": "advisory" },
+        "missing_virtual_dtor":  { "enabled": true, "level": "soft" },
+        "exception_by_value":    { "enabled": true, "level": "soft" },
+        "string_c_str_misuse":   { "enabled": true, "level": "soft" },
+        "include_guard_missing": { "enabled": true, "level": "advisory" },
+        "array_decay":           { "enabled": true, "level": "advisory" }
+      },
+      "go": {
+        "ignored_error":         { "enabled": true, "level": "soft" },
+        "panic_in_library":      { "enabled": true, "level": "soft" },
+        "empty_interface_abuse": { "enabled": true, "level": "advisory" },
+        "error_string_format":   { "enabled": true, "level": "advisory" },
+        "shadow_err":            { "enabled": true, "level": "soft" },
+        "naked_return":          { "enabled": true, "level": "advisory" },
+        "goroutine_leak":        { "enabled": true, "level": "soft" },
+        "defer_in_loop":         { "enabled": true, "level": "soft" },
+        "init_function":         { "enabled": true, "level": "advisory" }
+      },
+      "rust": {
+        "unsafe_blocks":         { "enabled": true, "level": "soft" },
+        "todo_unimplemented":    { "enabled": true, "level": "soft" },
+        "string_push":           { "enabled": true, "level": "advisory" },
+        "unwrap_in_prod":        { "enabled": true, "level": "soft" },
+        "needless_lifetimes":    { "enabled": true, "level": "advisory" },
+        "clone_abuse":           { "enabled": true, "level": "advisory" },
+        "manual_map":            { "enabled": true, "level": "advisory" },
+        "expect_without_msg":    { "enabled": true, "level": "soft" },
+        "return_impl_trait":     { "enabled": true, "level": "advisory" },
+        "box_vec":               { "enabled": true, "level": "advisory" }
       }
     },
 

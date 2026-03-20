@@ -589,6 +589,15 @@
       "check_made_up_functions": true,
       "check_wrong_syntax": true,
       "case_sensitive": true
+    },
+    "duplicate_calls": {
+      "enabled": true,
+      "threshold": 3,
+      "max_entries": 5
+    },
+    "polyglot_try_catch": {
+      "enabled": true,
+      "max_entries": 3
     }
   },
 
@@ -722,7 +731,9 @@
       "report_junit": "",
       "report_csv": "",
       "report_html": ""
-    }
+    },
+    "max_advisories": 15,
+    "advisory_summary": true
   },
 
   "audit": {
