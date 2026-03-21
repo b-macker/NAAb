@@ -461,6 +461,48 @@ fn test_compound_subscript() {
     return [passed, total]
 }
 
+// T15.12: 'in' containment operator
+fn test_in_operator() {
+    let passed = 0
+    let total = 0
+
+    // key in dict (found)
+    total = total + 1
+    let d = {"name": "Alice", "age": 30}
+    if "name" in d { passed = passed + 1 }
+
+    // key in dict (not found)
+    total = total + 1
+    if !("xyz" in d) { passed = passed + 1 }
+
+    // item in array (found)
+    total = total + 1
+    let arr = [10, 20, 30]
+    if 20 in arr { passed = passed + 1 }
+
+    // item in array (not found)
+    total = total + 1
+    if !(99 in arr) { passed = passed + 1 }
+
+    // substring in string (found)
+    total = total + 1
+    let s = "hello world"
+    if "world" in s { passed = passed + 1 }
+
+    // substring in string (not found)
+    total = total + 1
+    if !("xyz" in s) { passed = passed + 1 }
+
+    // in with empty containers
+    total = total + 1
+    if !("x" in {}) { passed = passed + 1 }
+
+    total = total + 1
+    if !(1 in []) { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -519,6 +561,11 @@ main {
     print("  T15.11 compound_subscript: " + string(r11[0]) + "/" + string(r11[1]))
     total_passed = total_passed + r11[0]
     total_tests = total_tests + r11[1]
+
+    let r12 = test_in_operator()
+    print("  T15.12 in_operator: " + string(r12[0]) + "/" + string(r12[1]))
+    total_passed = total_passed + r12[0]
+    total_tests = total_tests + r12[1]
 
     print("")
     print("Operators Matrix: " + string(total_passed) + "/" + string(total_tests))

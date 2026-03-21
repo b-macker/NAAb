@@ -49,6 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `??=` also works on subscripts: `arr[0] ??= "default"`
   - Supports both literal and variable indices
 - 7 compound subscript tests in `test_operators_matrix.naab` (68 → 75 assertions)
+- **`in` containment operator** — check membership in dicts, arrays, and strings
+  - `if "key" in dict { }` — check if key exists in dict
+  - `if item in array { }` — check if item is in array
+  - `if "sub" in string { }` — check if substring exists
+  - Returns boolean, works with `!` for negation: `if !("x" in d) { }`
+- 8 `in` operator tests in `test_operators_matrix.naab` (75 → 83 assertions)
 
 ## [0.5.2] - 2026-03-21
 

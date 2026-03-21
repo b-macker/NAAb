@@ -754,6 +754,7 @@ enum class BinaryOp {
     Eq, Ne, Lt, Le, Gt, Ge,
     And, Or,
     NullCoalesce,  // ??
+    In,            // in (containment check)
     Assign,
     Pipeline,  // |>
     Subscript,  // []

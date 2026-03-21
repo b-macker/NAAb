@@ -79,6 +79,13 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 - `arr[i] ??= val` — null coalescing assignment on subscripts
 - Works with both literal and variable indices
 
+### Containment Operator (`in`)
+- `if "key" in dict { }` — check if key exists in dict
+- `if item in array { }` — check if item is in array
+- `if "sub" in string { }` — check if substring exists in string
+- Returns boolean; negate with `!`: `if !("x" in d) { }`
+- Does NOT conflict with `for x in collection` — parsed at different precedence
+
 ### Structs and Enums (top-level only)
 ```naab
 struct Point {

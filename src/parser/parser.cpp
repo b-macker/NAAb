@@ -1991,10 +1991,12 @@ std::unique_ptr<ast::Expr> Parser::parseComparison() {
             op = ast::BinaryOp::Gt;
         } else if (match(lexer::TokenType::GE)) {
             op = ast::BinaryOp::Ge;
+        } else if (match(lexer::TokenType::IN)) {
+            op = ast::BinaryOp::In;
         } else {
             break;
         }
-        skipNewlines(); // Add this line
+        skipNewlines();
         auto right = parseTerm();
         left = std::make_unique<ast::BinaryExpr>(
             op,

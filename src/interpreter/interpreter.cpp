@@ -4340,6 +4340,39 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             break;
         }
 
+        case ast::BinaryOp::In: {
+            // Containment check: item in collection
+            // dict: check if key exists
+            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&right->data)) {
+                std::string key = left->toString();
+                result_ = std::make_shared<Value>(dict_ptr->find(key) != dict_ptr->end());
+            }
+            // array: check if item is in array
+            else if (auto* arr_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&right->data)) {
+                bool found = false;
+                std::string needle = left->toString();
+                for (const auto& item : *arr_ptr) {
+                    if (item->toString() == needle) { found = true; break; }
+                }
+                result_ = std::make_shared<Value>(found);
+            }
+            // string: check if substring exists
+            else if (auto* str_ptr = std::get_if<std::string>(&right->data)) {
+                std::string needle = left->toString();
+                result_ = std::make_shared<Value>(str_ptr->find(needle) != std::string::npos);
+            }
+            else {
+                throw std::runtime_error(
+                    "Type error: 'in' operator requires a dict, array, or string on the right side\n\n"
+                    "  Got: " + getTypeName(right) + "\n\n"
+                    "  Example:\n"
+                    "    if \"key\" in my_dict { }    // dict key check\n"
+                    "    if item in my_array { }     // array membership\n"
+                    "    if \"sub\" in my_string { }  // substring check\n");
+            }
+            break;
+        }
+
         case ast::BinaryOp::Subscript: {
             // Dictionary or list subscript: obj[key] or arr[index]
 
