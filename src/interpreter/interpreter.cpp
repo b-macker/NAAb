@@ -6727,6 +6727,45 @@ void Interpreter::visit(ast::CallExpr& node) {
         runGarbageCollection(current_env_);  // Pass current environment
         result_ = std::make_shared<Value>();  // Return void
     }
+    // Array/string slicing: __slice(collection, start, end)
+    else if (func_name == "__slice") {
+        if (args.size() != 3) throw std::runtime_error("__slice() takes exactly 3 arguments");
+        auto& collection = args[0];
+        int start = 0, end = 0;
+        if (auto* si = std::get_if<int>(&args[1]->data)) start = *si;
+        else if (auto* sd = std::get_if<double>(&args[1]->data)) start = static_cast<int>(*sd);
+        else throw std::runtime_error("Slice start index must be a number");
+        if (auto* ei = std::get_if<int>(&args[2]->data)) end = *ei;
+        else if (auto* ed = std::get_if<double>(&args[2]->data)) end = static_cast<int>(*ed);
+        else throw std::runtime_error("Slice end index must be a number");
+
+        if (auto* arr = std::get_if<std::vector<std::shared_ptr<Value>>>(&collection->data)) {
+            int len = static_cast<int>(arr->size());
+            if (start < 0) start = std::max(0, len + start);
+            if (end < 0) end = std::max(0, len + end);
+            if (start > len) start = len;
+            if (end > len) end = len;
+            if (start >= end) {
+                result_ = std::make_shared<Value>(std::vector<std::shared_ptr<Value>>{});
+            } else {
+                std::vector<std::shared_ptr<Value>> sliced(arr->begin() + start, arr->begin() + end);
+                result_ = std::make_shared<Value>(sliced);
+            }
+        } else if (auto* str = std::get_if<std::string>(&collection->data)) {
+            int len = static_cast<int>(str->size());
+            if (start < 0) start = std::max(0, len + start);
+            if (end < 0) end = std::max(0, len + end);
+            if (start > len) start = len;
+            if (end > len) end = len;
+            if (start >= end) {
+                result_ = std::make_shared<Value>(std::string(""));
+            } else {
+                result_ = std::make_shared<Value>(str->substr(start, end - start));
+            }
+        } else {
+            throw std::runtime_error("Slice operator requires an array or string");
+        }
+    }
     else {
         // Function not found - provide targeted hints for common mistakes
         std::ostringstream oss;

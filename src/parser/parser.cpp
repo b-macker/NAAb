@@ -1993,6 +1993,29 @@ std::unique_ptr<ast::Expr> Parser::parseComparison() {
             op = ast::BinaryOp::Ge;
         } else if (match(lexer::TokenType::IN)) {
             op = ast::BinaryOp::In;
+        } else if (check(lexer::TokenType::NOT)) {
+            // "not in" — negate the in check
+            size_t save = pos_;
+            advance();
+            if (match(lexer::TokenType::IN)) {
+                skipNewlines();
+                auto right = parseTerm();
+                auto in_expr = std::make_unique<ast::BinaryExpr>(
+                    ast::BinaryOp::In,
+                    std::move(left),
+                    std::move(right),
+                    ast::SourceLocation()
+                );
+                left = std::make_unique<ast::UnaryExpr>(
+                    ast::UnaryOp::Not,
+                    std::move(in_expr),
+                    ast::SourceLocation()
+                );
+                continue;
+            } else {
+                pos_ = save;  // backtrack
+                break;
+            }
         } else {
             break;
         }
@@ -2199,15 +2222,31 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
         }
         // Array/Dict subscript
         else if (match(lexer::TokenType::LBRACKET)) {
+            // Check for slice syntax: arr[start:end]
             auto index = parseExpression();
-            expect(lexer::TokenType::RBRACKET, "Expected ']'");
+            if (match(lexer::TokenType::COLON)) {
+                // Slice: arr[start:end] → __slice(arr, start, end)
+                auto end_expr = parseExpression();
+                expect(lexer::TokenType::RBRACKET, "Expected ']' after slice");
 
-            expr = std::make_unique<ast::BinaryExpr>(
-                ast::BinaryOp::Subscript,
-                std::move(expr),
-                std::move(index),
-                ast::SourceLocation()
-            );
+                // Build: __slice(arr, start, end)
+                auto callee = std::make_unique<ast::IdentifierExpr>("__slice", ast::SourceLocation());
+                std::vector<std::unique_ptr<ast::Expr>> args;
+                args.push_back(std::move(expr));
+                args.push_back(std::move(index));
+                args.push_back(std::move(end_expr));
+                expr = std::make_unique<ast::CallExpr>(
+                    std::move(callee), std::move(args), std::vector<ast::Type>{}, ast::SourceLocation());
+            } else {
+                expect(lexer::TokenType::RBRACKET, "Expected ']'");
+
+                expr = std::make_unique<ast::BinaryExpr>(
+                    ast::BinaryOp::Subscript,
+                    std::move(expr),
+                    std::move(index),
+                    ast::SourceLocation()
+                );
+            }
         }
         else {
             break;

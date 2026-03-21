@@ -2,6 +2,7 @@
 // Tests all 14 binary ops and 3 unary ops from ast.h BinaryOp/UnaryOp
 
 use string
+use array
 
 // T15.1: Arithmetic type interactions
 fn test_arithmetic_types() {
@@ -531,6 +532,84 @@ fn test_string_repeat() {
     return [passed, total]
 }
 
+fn test_not_in() {
+    let passed = 0
+    let total = 0
+
+    // not in array - absent element
+    total = total + 1
+    if 99 not in [1, 2, 3] { passed = passed + 1 }
+
+    // not in array - present element (should be false)
+    total = total + 1
+    if !(2 not in [1, 2, 3]) { passed = passed + 1 }
+
+    // not in dict - absent key
+    total = total + 1
+    let d = {"a": 1, "b": 2}
+    if "z" not in d { passed = passed + 1 }
+
+    // not in dict - present key (should be false)
+    total = total + 1
+    if !("a" not in d) { passed = passed + 1 }
+
+    // not in string - absent substring
+    total = total + 1
+    if "xyz" not in "hello world" { passed = passed + 1 }
+
+    // not in string - present substring (should be false)
+    total = total + 1
+    if !("llo" not in "hello") { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_slicing() {
+    let passed = 0
+    let total = 0
+
+    // basic array slice
+    total = total + 1
+    let arr = [10, 20, 30, 40, 50]
+    let s = arr[1:3]
+    if s[0] == 20 and s[1] == 30 and array.length(s) == 2 { passed = passed + 1 }
+
+    // array slice from start
+    total = total + 1
+    let s2 = arr[0:2]
+    if s2[0] == 10 and s2[1] == 20 and array.length(s2) == 2 { passed = passed + 1 }
+
+    // array slice to end
+    total = total + 1
+    let s3 = arr[3:5]
+    if s3[0] == 40 and s3[1] == 50 { passed = passed + 1 }
+
+    // empty slice (start == end)
+    total = total + 1
+    let s4 = arr[2:2]
+    if array.length(s4) == 0 { passed = passed + 1 }
+
+    // negative start index
+    total = total + 1
+    let s5 = arr[-2:5]
+    if s5[0] == 40 and s5[1] == 50 { passed = passed + 1 }
+
+    // string slicing
+    total = total + 1
+    let str = "hello world"
+    if str[0:5] == "hello" { passed = passed + 1 }
+
+    // string slice mid
+    total = total + 1
+    if str[6:11] == "world" { passed = passed + 1 }
+
+    // string negative index
+    total = total + 1
+    if str[-5:11] == "world" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -599,6 +678,16 @@ main {
     print("  T15.13 string_repeat: " + string(r13[0]) + "/" + string(r13[1]))
     total_passed = total_passed + r13[0]
     total_tests = total_tests + r13[1]
+
+    let r14 = test_not_in()
+    print("  T15.14 not_in: " + string(r14[0]) + "/" + string(r14[1]))
+    total_passed = total_passed + r14[0]
+    total_tests = total_tests + r14[1]
+
+    let r15 = test_slicing()
+    print("  T15.15 slicing: " + string(r15[0]) + "/" + string(r15[1]))
+    total_passed = total_passed + r15[0]
+    total_tests = total_tests + r15[1]
 
     print("")
     print("Operators Matrix: " + string(total_passed) + "/" + string(total_tests))

@@ -59,6 +59,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Commutative: `3 * "abc"` also works
   - `"x" * 0` → `""`, `"" * 5` → `""`
 - 5 string repeat tests in `test_operators_matrix.naab` (83 → 88 assertions)
+- **`not in` operator** — readable negation of containment check
+  - `if 99 not in arr { }` — equivalent to `!(99 in arr)` but more readable
+  - Works with arrays, dicts, and strings
+  - Desugars to `UnaryExpr(Not, BinaryExpr(In, ...))` at parse time
+- 6 `not in` tests in `test_operators_matrix.naab` (88 → 94 assertions)
+- **Array/string slicing** — `arr[start:end]` syntax for extracting sub-sequences
+  - `arr[1:3]` returns elements at indices 1 and 2 (end exclusive)
+  - `str[0:5]` returns substring from index 0 to 4
+  - Negative indices: `arr[-2:5]` counts from end
+  - Empty slice when start >= end: `arr[3:3]` → `[]`
+  - Desugars to `__slice(collection, start, end)` builtin
+- 8 slicing tests in `test_operators_matrix.naab` (94 → 102 assertions)
 
 ## [0.5.2] - 2026-03-21
 

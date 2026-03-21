@@ -331,7 +331,7 @@ main {
 10. Dict iteration: `for key in my_dict { }` works
 11. Null comparison: use `x == null` not `x === null` (no triple equals)
 12. String concatenation with `+` is permissive (auto-converts numbers)
-13. Arithmetic with strings is STRICT — `"5" + 3` works (string concat), `"5" * 3` errors
+13. Arithmetic with strings is STRICT — `"5" + 3` works (string concat), but `"5" * 3` is STRING REPEAT (returns `"555"`). Only `int * string` or `string * int` works for repetition.
 14. `array.find` takes a PREDICATE function, not a value
 15. `||` (and its alias `or`) ALWAYS returns boolean (true/false), NEVER the operand value.
     `null || "fallback"` returns `true` (NOT "fallback"!).
@@ -349,6 +349,8 @@ main {
 25. Taint sanitizers use PREFIX matching: `"validate_"` matches `validate_input` but NOT `revalidate_input`. `"int("` matches `int(x)` but NOT `print(x)`.
 26. You can bind NAAb dicts/arrays directly to polyglot blocks — NAAb serializes them natively per language. No need for `json.stringify()` → bind → `json.loads()` roundtrip.
 27. Use `"polyglot_output:python"` in govern.json sources for per-language taint (only taints Python output, not Go/JS/etc.)
+28. `not in` is a single operator: `if "key" not in dict { }` — more readable than `!(key in dict)`
+29. Array/string slicing uses `[start:end]` (end exclusive): `arr[1:3]` returns 2 elements. Negative indices count from end: `arr[-2:5]`
 
 ## Complexity Scoring (for governance)
 
