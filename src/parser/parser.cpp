@@ -1760,6 +1760,50 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
             ast::SourceLocation()
         );
     }
+    // Null coalescing assignment: x ??= y  →  x = x ?? y
+    else if (match(lexer::TokenType::QUESTION_QUESTION_EQ)) {
+        skipNewlines();
+        auto value = parseAssignment();  // Right-associative
+
+        // Clone the left-hand side for the ?? expression
+        auto* id = dynamic_cast<ast::IdentifierExpr*>(expr.get());
+        auto* member = dynamic_cast<ast::MemberExpr*>(expr.get());
+
+        std::unique_ptr<ast::Expr> lhs_copy;
+        if (id) {
+            lhs_copy = std::make_unique<ast::IdentifierExpr>(id->getName(), ast::SourceLocation());
+        } else if (member) {
+            auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject());
+            if (obj_id) {
+                auto obj_copy = std::make_unique<ast::IdentifierExpr>(obj_id->getName(), ast::SourceLocation());
+                lhs_copy = std::make_unique<ast::MemberExpr>(std::move(obj_copy), member->getMember(), ast::SourceLocation());
+            }
+        }
+
+        if (!lhs_copy) {
+            throw ParseError(formatError(
+                "Null coalescing assignment (??=) requires a simple target:\n"
+                "  variable or member access (obj.field)\n\n"
+                "  Example:\n"
+                "    x ??= \"default\"         // variable\n"
+                "    config.timeout ??= 30   // member access\n",
+                tokens_[pos_ - 1]));
+        }
+
+        // Build: x = x ?? y
+        auto coalesce_expr = std::make_unique<ast::BinaryExpr>(
+            ast::BinaryOp::NullCoalesce,
+            std::move(lhs_copy),
+            std::move(value),
+            ast::SourceLocation()
+        );
+        expr = std::make_unique<ast::BinaryExpr>(
+            ast::BinaryOp::Assign,
+            std::move(expr),
+            std::move(coalesce_expr),
+            ast::SourceLocation()
+        );
+    }
 
     return expr;
 }

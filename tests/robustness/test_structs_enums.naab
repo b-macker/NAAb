@@ -320,6 +320,55 @@ fn test_optional_chaining() {
     return [passed, total]
 }
 
+fn test_dict_methods() {
+    let passed = 0
+    let total = 0
+
+    // dict.entries() returns array of [key, value] pairs
+    total = total + 1
+    let d = {"a": 1, "b": 2}
+    let e = d.entries()
+    if e.length() == 2 { passed = passed + 1 }
+
+    // entries values are accessible
+    total = total + 1
+    let found_a = false
+    let found_b = false
+    for entry in e {
+        if entry[0] == "a" { found_a = true }
+        if entry[0] == "b" { found_b = true }
+    }
+    if found_a && found_b { passed = passed + 1 }
+
+    // for [k, v] in dict.entries() destructuring
+    total = total + 1
+    let sum = 0
+    for [k, v] in d.entries() {
+        sum = sum + v
+    }
+    if sum == 3 { passed = passed + 1 }
+
+    // dict.merge() combines two dicts
+    total = total + 1
+    let d1 = {"x": 10}
+    let d2 = {"y": 20}
+    d1.merge(d2)
+    if d1.get("x") == 10 && d1.get("y") == 20 { passed = passed + 1 }
+
+    // merge overwrites existing keys
+    total = total + 1
+    let d3 = {"a": 1}
+    d3.merge({"a": 99, "b": 2})
+    if d3.get("a") == 99 && d3.get("b") == 2 { passed = passed + 1 }
+
+    // entries on empty dict
+    total = total + 1
+    let empty = {}
+    if empty.entries().length() == 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -353,6 +402,11 @@ main {
     print("  T18.6 optional_chaining: " + string(r6[0]) + "/" + string(r6[1]))
     total_passed = total_passed + r6[0]
     total_tests = total_tests + r6[1]
+
+    let r7 = test_dict_methods()
+    print("  T18.7 dict_methods: " + string(r7[0]) + "/" + string(r7[1]))
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
 
     print("")
     print("Structs/Enums: " + string(total_passed) + "/" + string(total_tests))

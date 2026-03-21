@@ -4740,6 +4740,32 @@ void Interpreter::visit(ast::CallExpr& node) {
                     result_ = std::make_shared<Value>(dict);
                     return;
                 }
+                if (method_name == "entries") {
+                    std::vector<std::shared_ptr<Value>> entries;
+                    for (const auto& pair : dict) {
+                        std::vector<std::shared_ptr<Value>> entry;
+                        entry.push_back(std::make_shared<Value>(pair.first));
+                        entry.push_back(pair.second);
+                        entries.push_back(std::make_shared<Value>(entry));
+                    }
+                    result_ = std::make_shared<Value>(entries);
+                    return;
+                }
+                if (method_name == "merge") {
+                    if (args.empty()) throw std::runtime_error("dict.merge() requires 1 argument (another dict)");
+                    auto other = args[0];
+                    if (auto* other_dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&other->data)) {
+                        for (const auto& pair : *other_dict) {
+                            dict[pair.first] = pair.second;
+                        }
+                        auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                        if (obj_id && current_env_->has(obj_id->getName())) {
+                            current_env_->set(obj_id->getName(), obj_val);
+                        }
+                    }
+                    result_ = obj_val;
+                    return;
+                }
                 // Not a built-in - fall through to check if it's a function stored in dict
             }
 

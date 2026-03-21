@@ -68,6 +68,11 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 - `false ?? "x"` returns `false` (only null triggers the fallback, NOT falsy values)
 - NOTE: `||` (and `or`) returns boolean, `??` returns the actual value
 
+### Null Coalescing Assignment (??=)
+- `x ??= "default"` — assigns only if `x` is currently null
+- `false`, `0`, `""` are NOT null — ??= does nothing for these values
+- Works with member access: `config.timeout ??= 30`
+
 ### Structs and Enums (top-level only)
 ```naab
 struct Point {

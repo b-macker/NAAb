@@ -33,6 +33,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `for [a, b, c] in array_of_arrays { }` — destructure nested arrays
   - `for [first, ...rest] in rows { }` — spread in loop patterns
 - 5 for-loop destructuring tests in `test_control_flow.naab` (34 → 39 assertions)
+- **Dict dot-methods `entries()` and `merge()`** — added to primary CallExpr dispatch path
+  - `d.entries()` returns array of `[key, value]` pairs
+  - `d.merge(other)` merges another dict into `d`, overwriting existing keys
+  - `for [k, v] in d.entries() { }` — full destructuring support
+- 6 dict method tests in `test_structs_enums.naab` (34 → 40 assertions)
+- **Null coalescing assignment (`??=`)** — assign only if variable is currently null
+  - `x ??= "default"` assigns `"default"` only when `x` is null
+  - Falsy values (`false`, `0`, `""`) are NOT null — assignment is skipped
+  - Supports variables and member access targets (`obj.field ??= val`)
+  - Desugars to `x = x ?? val` — no new AST node needed
+- 6 nullish assignment tests in `test_operators_matrix.naab` (62 → 68 assertions)
 
 ## [0.5.2] - 2026-03-21
 

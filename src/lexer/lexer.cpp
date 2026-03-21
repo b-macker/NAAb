@@ -758,8 +758,13 @@ std::vector<Token> Lexer::tokenize() {
             case '.': tokens_.emplace_back(TokenType::DOT, ".", line, col); break;
             case '?':
                 if (peekChar() && *peekChar() == '?') {
-                    tokens_.emplace_back(TokenType::QUESTION_QUESTION, "??", line, col);
                     advance();
+                    if (peekChar() && *peekChar() == '=') {
+                        tokens_.emplace_back(TokenType::QUESTION_QUESTION_EQ, "??=", line, col);
+                        advance();
+                    } else {
+                        tokens_.emplace_back(TokenType::QUESTION_QUESTION, "??", line, col);
+                    }
                 } else if (peekChar() && *peekChar() == '.') {
                     tokens_.emplace_back(TokenType::QUESTION_DOT, "?.", line, col);
                     advance();

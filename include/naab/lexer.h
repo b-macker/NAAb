@@ -66,6 +66,7 @@ enum class TokenType {
     QUESTION,      // ?
     QUESTION_DOT,  // ?.
     QUESTION_QUESTION, // ??
+    QUESTION_QUESTION_EQ, // ??=
     COLON,         // :
     DOUBLE_COLON,  // ::
 

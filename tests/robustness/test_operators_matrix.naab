@@ -369,6 +369,51 @@ fn test_array_concat_subscript() {
     return [passed, total]
 }
 
+// T15.10: Null coalescing assignment (??=)
+fn test_nullish_assign() {
+    let passed = 0
+    let total = 0
+
+    // null ??= assigns
+    total = total + 1
+    let x = null
+    x ??= 42
+    if x == 42 { passed = passed + 1 }
+
+    // non-null ??= is no-op
+    total = total + 1
+    let y = 10
+    y ??= 99
+    if y == 10 { passed = passed + 1 }
+
+    // false is NOT null — no-op
+    total = total + 1
+    let z = false
+    z ??= true
+    if z == false { passed = passed + 1 }
+
+    // 0 is NOT null — no-op
+    total = total + 1
+    let n = 0
+    n ??= 100
+    if n == 0 { passed = passed + 1 }
+
+    // empty string is NOT null — no-op
+    total = total + 1
+    let s = ""
+    s ??= "default"
+    if s == "" { passed = passed + 1 }
+
+    // chain multiple ??=
+    total = total + 1
+    let a = null
+    a ??= "first"
+    a ??= "second"
+    if a == "first" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -417,6 +462,11 @@ main {
     print("  T15.9 array_concat_subscript: " + string(r9[0]) + "/" + string(r9[1]))
     total_passed = total_passed + r9[0]
     total_tests = total_tests + r9[1]
+
+    let r10 = test_nullish_assign()
+    print("  T15.10 nullish_assign: " + string(r10[0]) + "/" + string(r10[1]))
+    total_passed = total_passed + r10[0]
+    total_tests = total_tests + r10[1]
 
     print("")
     print("Operators Matrix: " + string(total_passed) + "/" + string(total_tests))
