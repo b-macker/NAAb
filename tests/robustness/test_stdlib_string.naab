@@ -212,6 +212,34 @@ fn test_edge_cases() {
     return [passed, total]
 }
 
+// T13.6: format/fmt
+fn test_format() {
+    let passed = 0
+    let total = 0
+
+    // single substitution
+    total = total + 1
+    let r1 = string.format("Hello {}", "world")
+    if r1 == "Hello world" { passed = passed + 1 }
+
+    // multiple substitutions
+    total = total + 1
+    let r2 = string.format("{} + {} = {}", "1", "2", "3")
+    if r2 == "1 + 2 = 3" { passed = passed + 1 }
+
+    // no substitutions
+    total = total + 1
+    let r3 = string.format("no subs")
+    if r3 == "no subs" { passed = passed + 1 }
+
+    // fmt alias
+    total = total + 1
+    let r4 = string.fmt("Hi {}", "there")
+    if r4 == "Hi there" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -240,6 +268,11 @@ main {
     print("  T13.5 edge_cases: " + string(r5[0]) + "/" + string(r5[1]))
     total_passed = total_passed + r5[0]
     total_tests = total_tests + r5[1]
+
+    let r6 = test_format()
+    print("  T13.6 format: " + string(r6[0]) + "/" + string(r6[1]))
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
 
     print("")
     print("Stdlib String: " + string(total_passed) + "/" + string(total_tests))

@@ -3,6 +3,7 @@
 
 use env
 use time
+use string
 
 // T19.1: Environment operations
 fn test_env_ops() {
@@ -98,6 +99,87 @@ fn test_time_ops() {
     return [passed, total]
 }
 
+// T19.3: Env advanced — get_int, get_float, get_bool, get_args, list
+fn test_env_advanced() {
+    let passed = 0
+    let total = 0
+
+    // set a numeric var, then get_int
+    total = total + 1
+    env.set_var("NAAB_TEST_INT", "42")
+    let vi = env.get_int("NAAB_TEST_INT")
+    if vi == 42 { passed = passed + 1 }
+
+    // get_int with default for missing var
+    total = total + 1
+    let vi2 = env.get_int("NAAB_MISSING_999", 99)
+    if vi2 == 99 { passed = passed + 1 }
+
+    // set a float var, then get_float
+    total = total + 1
+    env.set_var("NAAB_TEST_FLOAT", "3.14")
+    let vf = env.get_float("NAAB_TEST_FLOAT")
+    if vf > 3.13 && vf < 3.15 { passed = passed + 1 }
+
+    // set a bool var, then get_bool
+    total = total + 1
+    env.set_var("NAAB_TEST_BOOL", "true")
+    let vb = env.get_bool("NAAB_TEST_BOOL")
+    if vb == true { passed = passed + 1 }
+
+    // list returns array of env var names
+    total = total + 1
+    let names = env.list()
+    if names != null { passed = passed + 1 }
+
+    // cleanup
+    env.delete_var("NAAB_TEST_INT")
+    env.delete_var("NAAB_TEST_FLOAT")
+    env.delete_var("NAAB_TEST_BOOL")
+
+    return [passed, total]
+}
+
+// T19.4: Time advanced — hour, minute, second, weekday, format_timestamp
+fn test_time_advanced() {
+    let passed = 0
+    let total = 0
+
+    let ts = time.now()
+
+    // hour 0-23
+    total = total + 1
+    let h = time.hour(ts)
+    if h >= 0 && h <= 23 { passed = passed + 1 }
+
+    // minute 0-59
+    total = total + 1
+    let m = time.minute(ts)
+    if m >= 0 && m <= 59 { passed = passed + 1 }
+
+    // second 0-59
+    total = total + 1
+    let s = time.second(ts)
+    if s >= 0 && s <= 59 { passed = passed + 1 }
+
+    // weekday 0-6
+    total = total + 1
+    let wd = time.weekday(ts)
+    if wd >= 0 && wd <= 6 { passed = passed + 1 }
+
+    // format_timestamp
+    total = total + 1
+    let formatted = time.format_timestamp(ts, "%Y")
+    if formatted == "2026" { passed = passed + 1 }
+
+    // format_timestamp with month
+    total = total + 1
+    let fmt2 = time.format_timestamp(ts, "%Y-%m")
+    if string.length(fmt2) >= 6 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -111,6 +193,16 @@ main {
     print("  T19.2 time_ops: " + string(r2[0]) + "/" + string(r2[1]))
     total_passed = total_passed + r2[0]
     total_tests = total_tests + r2[1]
+
+    let r3 = test_env_advanced()
+    print("  T19.3 env_advanced: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_time_advanced()
+    print("  T19.4 time_advanced: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
 
     print("")
     print("Stdlib Env/Time: " + string(total_passed) + "/" + string(total_tests))

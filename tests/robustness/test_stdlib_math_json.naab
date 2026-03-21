@@ -195,6 +195,71 @@ fn test_regex_ops() {
     return [passed, total]
 }
 
+// T14.6: JSON advanced — parse_object, parse_array, pretty
+fn test_json_advanced() {
+    let passed = 0
+    let total = 0
+
+    // parse_object
+    total = total + 1
+    let obj = json.parse_object("{\"name\": \"Alice\", \"age\": 30}")
+    if obj["name"] == "Alice" { passed = passed + 1 }
+
+    // parse_array
+    total = total + 1
+    let arr = json.parse_array("[1, 2, 3]")
+    if array.length(arr) == 3 && arr[0] == 1 { passed = passed + 1 }
+
+    // pretty
+    total = total + 1
+    let pretty_str = json.pretty({"a": 1})
+    if string.contains(pretty_str, "a") { passed = passed + 1 }
+
+    // parse_object with nested
+    total = total + 1
+    let nested = json.parse_object("{\"x\": {\"y\": 42}}")
+    if nested["x"]["y"] == 42 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T14.7: Regex advanced — find_all, replace_first, groups, find_groups, escape
+fn test_regex_advanced() {
+    let passed = 0
+    let total = 0
+
+    // find_all
+    total = total + 1
+    let all = regex.find_all("abc123def456", "[0-9]+")
+    if array.length(all) == 2 { passed = passed + 1 }
+
+    // replace_first (only first match)
+    total = total + 1
+    let r1 = regex.replace_first("aaa", "a", "b")
+    if r1 == "baa" { passed = passed + 1 }
+
+    // groups
+    total = total + 1
+    let g = regex.groups("2026-03-21", "(\\d{4})-(\\d{2})-(\\d{2})")
+    if array.length(g) >= 3 { passed = passed + 1 }
+
+    // escape special chars
+    total = total + 1
+    let esc = regex.escape("hello.world")
+    if string.contains(esc, "\\") { passed = passed + 1 }
+
+    // is_valid with invalid regex
+    total = total + 1
+    if !regex.is_valid("[invalid") { passed = passed + 1 }
+
+    // find_groups returns array of matches (each with groups)
+    total = total + 1
+    let fg = regex.find_groups("test123end", "(\\w+)(\\d+)(\\w+)")
+    if array.length(fg) >= 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -223,6 +288,16 @@ main {
     print("  T14.5 regex_ops: " + string(r5[0]) + "/" + string(r5[1]))
     total_passed = total_passed + r5[0]
     total_tests = total_tests + r5[1]
+
+    let r6 = test_json_advanced()
+    print("  T14.6 json_advanced: " + string(r6[0]) + "/" + string(r6[1]))
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    let r7 = test_regex_advanced()
+    print("  T14.7 regex_advanced: " + string(r7[0]) + "/" + string(r7[1]))
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
 
     print("")
     print("Stdlib Math/JSON/Regex: " + string(total_passed) + "/" + string(total_tests))
