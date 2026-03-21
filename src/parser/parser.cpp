@@ -1724,6 +1724,7 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
         // Clone the left-hand side for the arithmetic expression
         auto* id = dynamic_cast<ast::IdentifierExpr*>(expr.get());
         auto* member = dynamic_cast<ast::MemberExpr*>(expr.get());
+        auto* subscript = dynamic_cast<ast::BinaryExpr*>(expr.get());
 
         std::unique_ptr<ast::Expr> lhs_copy;
         if (id) {
@@ -1734,15 +1735,37 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
                 auto obj_copy = std::make_unique<ast::IdentifierExpr>(obj_id->getName(), ast::SourceLocation());
                 lhs_copy = std::make_unique<ast::MemberExpr>(std::move(obj_copy), member->getMember(), ast::SourceLocation());
             }
+        } else if (subscript && subscript->getOp() == ast::BinaryOp::Subscript) {
+            // arr[i] += val  →  arr[i] = arr[i] + val
+            auto* sub_obj = dynamic_cast<ast::IdentifierExpr*>(subscript->getLeft());
+            if (sub_obj) {
+                auto obj_copy = std::make_unique<ast::IdentifierExpr>(sub_obj->getName(), ast::SourceLocation());
+                // Clone the index expression (identifier or literal)
+                std::unique_ptr<ast::Expr> idx_copy;
+                if (auto* idx_id = dynamic_cast<ast::IdentifierExpr*>(subscript->getRight())) {
+                    idx_copy = std::make_unique<ast::IdentifierExpr>(idx_id->getName(), ast::SourceLocation());
+                } else if (auto* idx_lit = dynamic_cast<ast::LiteralExpr*>(subscript->getRight())) {
+                    idx_copy = std::make_unique<ast::LiteralExpr>(idx_lit->getLiteralKind(), idx_lit->getValue(), ast::SourceLocation());
+                }
+                if (idx_copy) {
+                    lhs_copy = std::make_unique<ast::BinaryExpr>(
+                        ast::BinaryOp::Subscript,
+                        std::move(obj_copy),
+                        std::move(idx_copy),
+                        ast::SourceLocation()
+                    );
+                }
+            }
         }
 
         if (!lhs_copy) {
             throw ParseError(formatError(
                 "Compound assignment (+=, -=, etc.) requires a simple target:\n"
-                "  variable or member access (obj.field)\n\n"
+                "  variable, member access, or subscript\n\n"
                 "  Example:\n"
-                "    x += 1           // variable\n"
-                "    obj.count += 1   // member access",
+                "    x += 1             // variable\n"
+                "    obj.count += 1     // member access\n"
+                "    arr[0] += 1        // subscript",
                 op_token));
         }
 
@@ -1768,6 +1791,7 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
         // Clone the left-hand side for the ?? expression
         auto* id = dynamic_cast<ast::IdentifierExpr*>(expr.get());
         auto* member = dynamic_cast<ast::MemberExpr*>(expr.get());
+        auto* sub = dynamic_cast<ast::BinaryExpr*>(expr.get());
 
         std::unique_ptr<ast::Expr> lhs_copy;
         if (id) {
@@ -1778,15 +1802,31 @@ std::unique_ptr<ast::Expr> Parser::parseAssignment() {
                 auto obj_copy = std::make_unique<ast::IdentifierExpr>(obj_id->getName(), ast::SourceLocation());
                 lhs_copy = std::make_unique<ast::MemberExpr>(std::move(obj_copy), member->getMember(), ast::SourceLocation());
             }
+        } else if (sub && sub->getOp() == ast::BinaryOp::Subscript) {
+            auto* sub_obj = dynamic_cast<ast::IdentifierExpr*>(sub->getLeft());
+            if (sub_obj) {
+                auto obj_copy = std::make_unique<ast::IdentifierExpr>(sub_obj->getName(), ast::SourceLocation());
+                std::unique_ptr<ast::Expr> idx_copy;
+                if (auto* idx_id = dynamic_cast<ast::IdentifierExpr*>(sub->getRight())) {
+                    idx_copy = std::make_unique<ast::IdentifierExpr>(idx_id->getName(), ast::SourceLocation());
+                } else if (auto* idx_lit = dynamic_cast<ast::LiteralExpr*>(sub->getRight())) {
+                    idx_copy = std::make_unique<ast::LiteralExpr>(idx_lit->getLiteralKind(), idx_lit->getValue(), ast::SourceLocation());
+                }
+                if (idx_copy) {
+                    lhs_copy = std::make_unique<ast::BinaryExpr>(
+                        ast::BinaryOp::Subscript, std::move(obj_copy), std::move(idx_copy), ast::SourceLocation());
+                }
+            }
         }
 
         if (!lhs_copy) {
             throw ParseError(formatError(
                 "Null coalescing assignment (??=) requires a simple target:\n"
-                "  variable or member access (obj.field)\n\n"
+                "  variable, member access, or subscript\n\n"
                 "  Example:\n"
                 "    x ??= \"default\"         // variable\n"
-                "    config.timeout ??= 30   // member access\n",
+                "    config.timeout ??= 30   // member access\n"
+                "    arr[0] ??= \"fill\"       // subscript\n",
                 tokens_[pos_ - 1]));
         }
 

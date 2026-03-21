@@ -414,6 +414,53 @@ fn test_nullish_assign() {
     return [passed, total]
 }
 
+// T15.11: Compound subscript assignment (arr[i] += val, dict["k"] -= val)
+fn test_compound_subscript() {
+    let passed = 0
+    let total = 0
+
+    // array[literal] +=
+    total = total + 1
+    let arr = [10, 20, 30]
+    arr[0] += 5
+    if arr[0] == 15 { passed = passed + 1 }
+
+    // array[literal] -=
+    total = total + 1
+    arr[2] -= 10
+    if arr[2] == 20 { passed = passed + 1 }
+
+    // dict[literal] +=
+    total = total + 1
+    let d = {"count": 0}
+    d["count"] += 1
+    if d["count"] == 1 { passed = passed + 1 }
+
+    // dict[literal] *=
+    total = total + 1
+    d["count"] *= 5
+    if d["count"] == 5 { passed = passed + 1 }
+
+    // array[variable] +=
+    total = total + 1
+    let i = 1
+    arr[i] += 100
+    if arr[1] == 120 { passed = passed + 1 }
+
+    // subscript ??= on null element
+    total = total + 1
+    let items = [null, "existing"]
+    items[0] ??= "filled"
+    if items[0] == "filled" { passed = passed + 1 }
+
+    // subscript ??= on non-null (no-op)
+    total = total + 1
+    items[1] ??= "replaced"
+    if items[1] == "existing" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -467,6 +514,11 @@ main {
     print("  T15.10 nullish_assign: " + string(r10[0]) + "/" + string(r10[1]))
     total_passed = total_passed + r10[0]
     total_tests = total_tests + r10[1]
+
+    let r11 = test_compound_subscript()
+    print("  T15.11 compound_subscript: " + string(r11[0]) + "/" + string(r11[1]))
+    total_passed = total_passed + r11[0]
+    total_tests = total_tests + r11[1]
 
     print("")
     print("Operators Matrix: " + string(total_passed) + "/" + string(total_tests))

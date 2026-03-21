@@ -44,6 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Supports variables and member access targets (`obj.field ??= val`)
   - Desugars to `x = x ?? val` — no new AST node needed
 - 6 nullish assignment tests in `test_operators_matrix.naab` (62 → 68 assertions)
+- **Compound subscript assignment** — `arr[i] += val`, `dict["key"] -= val`
+  - All 5 compound operators work: `+=`, `-=`, `*=`, `/=`, `%=`
+  - `??=` also works on subscripts: `arr[0] ??= "default"`
+  - Supports both literal and variable indices
+- 7 compound subscript tests in `test_operators_matrix.naab` (68 → 75 assertions)
 
 ## [0.5.2] - 2026-03-21
 

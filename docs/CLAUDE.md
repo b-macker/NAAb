@@ -72,6 +72,12 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 - `x ??= "default"` — assigns only if `x` is currently null
 - `false`, `0`, `""` are NOT null — ??= does nothing for these values
 - Works with member access: `config.timeout ??= 30`
+- Works with subscripts: `arr[0] ??= "fill"`, `dict["key"] ??= 0`
+
+### Compound Assignment on Subscripts
+- `arr[i] += val`, `dict["key"] -= val` — all 5 operators (`+=`, `-=`, `*=`, `/=`, `%=`)
+- `arr[i] ??= val` — null coalescing assignment on subscripts
+- Works with both literal and variable indices
 
 ### Structs and Enums (top-level only)
 ```naab

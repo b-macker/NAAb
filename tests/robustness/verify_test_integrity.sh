@@ -26,7 +26,7 @@ declare -A EXPECTED_SUMMARY
 EXPECTED_SUMMARY["test_stdlib_array"]="Stdlib Array: 40/40"
 EXPECTED_SUMMARY["test_stdlib_string"]="Stdlib String: 44/44"
 EXPECTED_SUMMARY["test_stdlib_math_json"]="Stdlib Math/JSON/Regex: 49/49"
-EXPECTED_SUMMARY["test_operators_matrix"]="Operators Matrix: 68/68"
+EXPECTED_SUMMARY["test_operators_matrix"]="Operators Matrix: 75/75"
 EXPECTED_SUMMARY["test_closures_scope"]="Closures/Scope: 43/43"
 EXPECTED_SUMMARY["test_control_flow"]="Control Flow: 39/39"
 EXPECTED_SUMMARY["test_structs_enums"]="Structs/Enums: 40/40"
@@ -37,7 +37,7 @@ declare -A EXPECTED_COUNT
 EXPECTED_COUNT["test_stdlib_array"]=40
 EXPECTED_COUNT["test_stdlib_string"]=44
 EXPECTED_COUNT["test_stdlib_math_json"]=49
-EXPECTED_COUNT["test_operators_matrix"]=68
+EXPECTED_COUNT["test_operators_matrix"]=75
 EXPECTED_COUNT["test_closures_scope"]=43
 EXPECTED_COUNT["test_control_flow"]=39
 EXPECTED_COUNT["test_structs_enums"]=40
