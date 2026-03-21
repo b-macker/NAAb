@@ -486,6 +486,101 @@ fn test_for_destructuring() {
     return [passed, total]
 }
 
+fn test_match_guards_destructure() {
+    let passed = 0
+    let total = 0
+
+    // guard clause: binding + condition
+    total = total + 1
+    let score = 85
+    let grade = match score {
+        s if s >= 90 => "A"
+        s if s >= 80 => "B"
+        s if s >= 70 => "C"
+        _ => "F"
+    }
+    if grade == "B" { passed = passed + 1 }
+
+    // guard with wildcard
+    total = total + 1
+    let r1 = match 42 {
+        _ if false => "never"
+        _ => "default"
+    }
+    if r1 == "default" { passed = passed + 1 }
+
+    // guard cascade: first matching guard wins
+    total = total + 1
+    let x = 15
+    let r2 = match x {
+        n if n > 20 => "big"
+        n if n > 10 => "medium"
+        n if n > 0 => "small"
+        _ => "zero"
+    }
+    if r2 == "medium" { passed = passed + 1 }
+
+    // array destructuring in match
+    total = total + 1
+    let point = [3, 4]
+    let r3 = match point {
+        [0, 0] => "origin"
+        [x, 0] => f"x-axis: {x}"
+        [0, y] => f"y-axis: {y}"
+        [x, y] => f"point: {x}, {y}"
+    }
+    if r3 == "point: 3, 4" { passed = passed + 1 }
+
+    // array destructuring with literal match
+    total = total + 1
+    let pair = [1, 2]
+    let r4 = match pair {
+        [1, 2] => "one-two"
+        [a, b] => f"other: {a}, {b}"
+    }
+    if r4 == "one-two" { passed = passed + 1 }
+
+    // binding pattern (lone identifier)
+    total = total + 1
+    let val = 99
+    let r5 = match val {
+        1 => "one"
+        2 => "two"
+        other => f"got: {other}"
+    }
+    if r5 == "got: 99" { passed = passed + 1 }
+
+    // origin match via array destructuring
+    total = total + 1
+    let origin = [0, 0]
+    let r6 = match origin {
+        [0, 0] => "origin"
+        [x, y] => "not origin"
+    }
+    if r6 == "origin" { passed = passed + 1 }
+
+    // guard uses bound variable in expression
+    total = total + 1
+    let r7 = match -5 {
+        n if n * n > 20 => "large squared"
+        n if n < 0 => "negative"
+        _ => "other"
+    }
+    if r7 == "large squared" { passed = passed + 1 }
+
+    // destructure + guard combined
+    total = total + 1
+    let coords = [10, 20]
+    let r8 = match coords {
+        [x, y] if x + y > 25 => "far"
+        [x, y] if x + y > 10 => "medium"
+        _ => "close"
+    }
+    if r8 == "far" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -534,6 +629,11 @@ main {
     print("  T17.9 for_destructuring: " + string(r9[0]) + "/" + string(r9[1]))
     total_passed = total_passed + r9[0]
     total_tests = total_tests + r9[1]
+
+    let r10 = test_match_guards_destructure()
+    print("  T17.10 match_guards_destructure: " + string(r10[0]) + "/" + string(r10[1]))
+    total_passed = total_passed + r10[0]
+    total_tests = total_tests + r10[1]
 
     print("")
     print("Control Flow: " + string(total_passed) + "/" + string(total_tests))

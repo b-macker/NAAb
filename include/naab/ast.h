@@ -1058,9 +1058,10 @@ private:
     std::unique_ptr<CompoundStmt> body_;
 };
 
-// Match arm: pattern => body
+// Match arm: pattern [if guard] => body
 struct MatchArm {
     std::unique_ptr<Expr> pattern;  // nullptr means wildcard (_)
+    std::unique_ptr<Expr> guard;    // Optional guard clause (nullptr = no guard)
     std::unique_ptr<Expr> body;
 };
 

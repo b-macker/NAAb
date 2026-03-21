@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Supports arbitrary expressions: `f"result: {2 + 3}"`
   - `${}` also works inside f-strings for backward compatibility
 - 6 f-string tests in `test_stdlib_string.naab` (44 → 50 assertions)
+- **Pattern matching enhancements** — guard clauses, binding patterns, array destructuring
+  - Guard clauses: `n if n > 0 => "positive"` — condition checked after pattern match
+  - Binding patterns: `other => f"got: {other}"` — identifier binds the subject value
+  - Array destructuring: `[x, y] => f"point: {x}, {y}"` — match and destructure arrays
+  - Literal array elements must match exactly: `[0, 0] => "origin"`
+  - Combined: `[x, y] if x + y > 25 => "far"` — destructure + guard
+- 9 match enhancement tests in `test_control_flow.naab` (39 → 48 assertions)
 
 ## [0.5.3] - 2026-03-21
 

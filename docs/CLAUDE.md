@@ -352,6 +352,8 @@ main {
 28. `not in` is a single operator: `if "key" not in dict { }` — more readable than `!(key in dict)`
 29. Array/string slicing uses `[start:end]` (end exclusive): `arr[1:3]` returns 2 elements. Negative indices count from end: `arr[-2:5]`
 30. f-strings use `f"hello {name}"` — bare `{expr}` is interpolated. Regular `"strings"` require `${expr}` for interpolation. Both work inside f-strings.
+31. Match patterns: identifiers in match arms are BINDINGS (like Rust), not variable lookups. `n if n > 0 => ...` binds the subject to `n` then checks the guard. To compare against a variable, use `_ if x == myVar => ...`
+32. Match array destructuring: `[0, y] => ...` matches arrays where first element is 0 and binds second to `y`. All elements must be accounted for (length must match).
 
 ## Complexity Scoring (for governance)
 

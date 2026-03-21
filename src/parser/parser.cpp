@@ -2796,6 +2796,12 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
             pattern = parseLogicalOr();
         }
 
+        // Optional guard clause: pattern if condition => body
+        std::unique_ptr<ast::Expr> guard;
+        if (match(lexer::TokenType::IF)) {
+            guard = parseLogicalOr();
+        }
+
         expect(lexer::TokenType::FAT_ARROW, "Expected '=>' after match pattern");
         skipNewlines();
 
@@ -2850,7 +2856,7 @@ std::unique_ptr<ast::Expr> Parser::parseMatchExpr() {
         auto body = parseLogicalOr();
         skipNewlines();
 
-        arms.push_back(ast::MatchArm{std::move(pattern), std::move(body)});
+        arms.push_back(ast::MatchArm{std::move(pattern), std::move(guard), std::move(body)});
 
         // Optional comma or newline between arms
         if (check(lexer::TokenType::COMMA)) {

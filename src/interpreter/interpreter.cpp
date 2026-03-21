@@ -2488,40 +2488,103 @@ void Interpreter::visit(ast::MatchExpr& node) {
     auto subject = eval(*node.getSubject());
 
     for (auto& arm : node.getArms()) {
+        // Create a new scope for each arm (for binding patterns)
+        auto arm_env = std::make_shared<Environment>(current_env_);
+        auto saved_env = current_env_;
+
         if (!arm.pattern) {
             // Wildcard (_) — always matches
+            // Evaluate guard if present
+            if (arm.guard) {
+                current_env_ = arm_env;
+                auto guard_val = eval(*arm.guard);
+                current_env_ = saved_env;
+                if (!guard_val->toBool()) continue;
+            }
+            current_env_ = arm_env;
             arm.body->accept(*this);
+            current_env_ = saved_env;
             return;
         }
 
-        auto pattern_val = eval(*arm.pattern);
-
-        // Compare subject to pattern using same logic as BinaryOp::Eq
         bool matches = false;
-        bool subj_null = isNull(subject);
-        bool pat_null = isNull(pattern_val);
 
-        if (subj_null && pat_null) {
+        // Check if pattern is a binding identifier (a lone variable name, not a literal/expr)
+        auto* ident = dynamic_cast<ast::IdentifierExpr*>(arm.pattern.get());
+        bool is_binding = (ident != nullptr);
+
+        // Check if pattern is array destructuring [a, b, c]
+        auto* list_pat = dynamic_cast<ast::ListExpr*>(arm.pattern.get());
+
+        if (is_binding) {
+            // Binding pattern: always matches, binds subject to name
             matches = true;
-        } else if (!subj_null && !pat_null) {
-            bool subj_numeric = std::holds_alternative<int>(subject->data) ||
-                                std::holds_alternative<double>(subject->data);
-            bool pat_numeric = std::holds_alternative<int>(pattern_val->data) ||
-                               std::holds_alternative<double>(pattern_val->data);
+            arm_env->define(ident->getName(), subject);
+        } else if (list_pat) {
+            // Array destructuring pattern
+            auto* subj_arr = std::get_if<std::vector<std::shared_ptr<Value>>>(&subject->data);
+            if (subj_arr && subj_arr->size() == list_pat->getElements().size()) {
+                matches = true;
+                for (size_t i = 0; i < list_pat->getElements().size(); i++) {
+                    auto* elem_ident = dynamic_cast<ast::IdentifierExpr*>(list_pat->getElements()[i].get());
+                    if (elem_ident) {
+                        // Identifier element: bind the value
+                        arm_env->define(elem_ident->getName(), (*subj_arr)[i]);
+                    } else {
+                        // Literal element: must match exactly
+                        auto pat_elem = eval(*list_pat->getElements()[i]);
+                        auto& subj_elem = (*subj_arr)[i];
+                        bool elem_match = false;
+                        bool s_null = isNull(subj_elem), p_null = isNull(pat_elem);
+                        if (s_null && p_null) {
+                            elem_match = true;
+                        } else if (!s_null && !p_null) {
+                            bool s_num = std::holds_alternative<int>(subj_elem->data) || std::holds_alternative<double>(subj_elem->data);
+                            bool p_num = std::holds_alternative<int>(pat_elem->data) || std::holds_alternative<double>(pat_elem->data);
+                            if (s_num && p_num) elem_match = subj_elem->toFloat() == pat_elem->toFloat();
+                            else elem_match = subj_elem->toString() == pat_elem->toString();
+                        }
+                        if (!elem_match) { matches = false; break; }
+                    }
+                }
+            }
+        } else {
+            // Value pattern: evaluate and compare
+            auto pattern_val = eval(*arm.pattern);
+            bool subj_null = isNull(subject);
+            bool pat_null = isNull(pattern_val);
 
-            if (subj_numeric && pat_numeric) {
-                matches = subject->toFloat() == pattern_val->toFloat();
-            } else if (std::holds_alternative<std::string>(subject->data) &&
-                       std::holds_alternative<std::string>(pattern_val->data)) {
-                matches = subject->toString() == pattern_val->toString();
-            } else if (std::holds_alternative<bool>(subject->data) &&
-                       std::holds_alternative<bool>(pattern_val->data)) {
-                matches = subject->toBool() == pattern_val->toBool();
+            if (subj_null && pat_null) {
+                matches = true;
+            } else if (!subj_null && !pat_null) {
+                bool subj_numeric = std::holds_alternative<int>(subject->data) ||
+                                    std::holds_alternative<double>(subject->data);
+                bool pat_numeric = std::holds_alternative<int>(pattern_val->data) ||
+                                   std::holds_alternative<double>(pattern_val->data);
+
+                if (subj_numeric && pat_numeric) {
+                    matches = subject->toFloat() == pattern_val->toFloat();
+                } else if (std::holds_alternative<std::string>(subject->data) &&
+                           std::holds_alternative<std::string>(pattern_val->data)) {
+                    matches = subject->toString() == pattern_val->toString();
+                } else if (std::holds_alternative<bool>(subject->data) &&
+                           std::holds_alternative<bool>(pattern_val->data)) {
+                    matches = subject->toBool() == pattern_val->toBool();
+                }
             }
         }
 
         if (matches) {
+            // Evaluate guard in arm scope (bindings are available)
+            if (arm.guard) {
+                current_env_ = arm_env;
+                auto guard_val = eval(*arm.guard);
+                current_env_ = saved_env;
+                if (!guard_val->toBool()) continue;  // Guard failed, try next arm
+            }
+            current_env_ = arm_env;
             arm.body->accept(*this);
+            current_env_ = saved_env;
             return;
         }
     }
