@@ -129,7 +129,7 @@ private:
     std::string readIdentifier();
     std::string readBlockId();
     std::string readNumber();
-    std::string readString();
+    std::string readString(bool is_fstring = false);
     std::string readInlineCode();  // Read code between << and >>
 
     // Keywords map

@@ -240,6 +240,41 @@ fn test_format() {
     return [passed, total]
 }
 
+fn test_fstrings() {
+    let passed = 0
+    let total = 0
+
+    // basic f-string interpolation
+    total = total + 1
+    let name = "world"
+    if f"hello {name}" == "hello world" { passed = passed + 1 }
+
+    // f-string with arithmetic expression
+    total = total + 1
+    if f"result: {2 + 3}" == "result: 5" { passed = passed + 1 }
+
+    // f-string with no interpolation (plain text)
+    total = total + 1
+    if f"plain text" == "plain text" { passed = passed + 1 }
+
+    // f-string with multiple interpolations
+    total = total + 1
+    let a = "foo"
+    let b = "bar"
+    if f"{a} and {b}" == "foo and bar" { passed = passed + 1 }
+
+    // regular string ignores bare braces
+    total = total + 1
+    let regular = "no {interp}"
+    if regular == "no {interp}" { passed = passed + 1 }
+
+    // f-string with ${} also works (backward compat)
+    total = total + 1
+    if f"${name} too" == "world too" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -273,6 +308,11 @@ main {
     print("  T13.6 format: " + string(r6[0]) + "/" + string(r6[1]))
     total_passed = total_passed + r6[0]
     total_tests = total_tests + r6[1]
+
+    let r7 = test_fstrings()
+    print("  T13.7 fstrings: " + string(r7[0]) + "/" + string(r7[1]))
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
 
     print("")
     print("Stdlib String: " + string(total_passed) + "/" + string(total_tests))

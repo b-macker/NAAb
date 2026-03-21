@@ -24,7 +24,7 @@ TEST_FILES=(
 # Expected runtime summary lines (Layer 5 manifest)
 declare -A EXPECTED_SUMMARY
 EXPECTED_SUMMARY["test_stdlib_array"]="Stdlib Array: 40/40"
-EXPECTED_SUMMARY["test_stdlib_string"]="Stdlib String: 44/44"
+EXPECTED_SUMMARY["test_stdlib_string"]="Stdlib String: 50/50"
 EXPECTED_SUMMARY["test_stdlib_math_json"]="Stdlib Math/JSON/Regex: 49/49"
 EXPECTED_SUMMARY["test_operators_matrix"]="Operators Matrix: 102/102"
 EXPECTED_SUMMARY["test_closures_scope"]="Closures/Scope: 43/43"
@@ -35,7 +35,7 @@ EXPECTED_SUMMARY["test_stdlib_env_time"]="Stdlib Env/Time: 33/33"
 # Expected assertion counts per file
 declare -A EXPECTED_COUNT
 EXPECTED_COUNT["test_stdlib_array"]=40
-EXPECTED_COUNT["test_stdlib_string"]=44
+EXPECTED_COUNT["test_stdlib_string"]=50
 EXPECTED_COUNT["test_stdlib_math_json"]=49
 EXPECTED_COUNT["test_operators_matrix"]=102
 EXPECTED_COUNT["test_closures_scope"]=43

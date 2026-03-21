@@ -217,7 +217,7 @@ std::string Lexer::readNumber() {
     return number;
 }
 
-std::string Lexer::readString() {
+std::string Lexer::readString(bool is_fstring) {
     char quote = *currentChar();
     advance();  // Skip opening quote
 
@@ -295,6 +295,12 @@ std::string Lexer::readString() {
             value += ch;   // $
             advance();
             value += *currentChar();  // {
+            advance();
+            interp_depth = 1;
+        } else if (is_fstring && ch == '{') {
+            // f-string: bare { starts interpolation (equivalent to ${)
+            value += '$';  // Insert $ so interpreter sees ${...}
+            value += ch;   // {
             advance();
             interp_depth = 1;
         } else {
@@ -459,6 +465,15 @@ std::vector<Token> Lexer::tokenize() {
             int line = line_, col = column_;
             std::string block_id = readBlockId();
             tokens_.emplace_back(TokenType::BLOCK_ID, block_id, line, col);
+            continue;
+        }
+
+        // f-string: f"hello {name}" — shorthand for "hello ${name}"
+        if (ch == 'f' && peekChar() && (*peekChar() == '"' || *peekChar() == '\'')) {
+            int line = line_, col = column_;
+            advance();  // skip 'f'
+            std::string str = readString(true);  // is_fstring=true
+            tokens_.emplace_back(TokenType::STRING, str, line, col);
             continue;
         }
 

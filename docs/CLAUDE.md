@@ -351,6 +351,7 @@ main {
 27. Use `"polyglot_output:python"` in govern.json sources for per-language taint (only taints Python output, not Go/JS/etc.)
 28. `not in` is a single operator: `if "key" not in dict { }` — more readable than `!(key in dict)`
 29. Array/string slicing uses `[start:end]` (end exclusive): `arr[1:3]` returns 2 elements. Negative indices count from end: `arr[-2:5]`
+30. f-strings use `f"hello {name}"` — bare `{expr}` is interpolated. Regular `"strings"` require `${expr}` for interpolation. Both work inside f-strings.
 
 ## Complexity Scoring (for governance)
 
