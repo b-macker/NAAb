@@ -25,7 +25,15 @@ for test_file in \
     "$DIR/test_encoding_edge_cases.naab" \
     "$DIR/test_concurrency_state.naab" \
     "$DIR/test_crash_regression.naab" \
-    "$DIR/test_security_bypass.naab"; do
+    "$DIR/test_security_bypass.naab" \
+    "$DIR/test_stdlib_array.naab" \
+    "$DIR/test_stdlib_string.naab" \
+    "$DIR/test_stdlib_math_json.naab" \
+    "$DIR/test_operators_matrix.naab" \
+    "$DIR/test_closures_scope.naab" \
+    "$DIR/test_control_flow.naab" \
+    "$DIR/test_structs_enums.naab" \
+    "$DIR/test_stdlib_env_time.naab"; do
 
     test_name=$(basename "$test_file" .naab)
     echo "--- $test_name ---"

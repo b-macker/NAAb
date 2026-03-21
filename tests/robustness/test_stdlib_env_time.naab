@@ -1,0 +1,117 @@
+// Test 19: Env & Time Stdlib — exhaustive coverage
+// Tests env_impl.cpp and time_impl.cpp
+
+use env
+use time
+
+// T19.1: Environment operations
+fn test_env_ops() {
+    let passed = 0
+    let total = 0
+
+    // get HOME returns non-empty
+    total = total + 1
+    let home = env.get("HOME")
+    if home != null && home != "" { passed = passed + 1 }
+
+    // get nonexistent returns null or empty
+    total = total + 1
+    let nope = env.get("NONEXISTENT_VAR_NAAB_TEST_12345")
+    if nope == null || nope == "" { passed = passed + 1 }
+
+    // has HOME
+    total = total + 1
+    if env.has("HOME") { passed = passed + 1 }
+
+    // has nonexistent
+    total = total + 1
+    if !env.has("NONEXISTENT_VAR_NAAB_TEST_12345") { passed = passed + 1 }
+
+    // set_var then get
+    total = total + 1
+    env.set_var("NAAB_TEST_VAR_42", "hello_naab")
+    let val = env.get("NAAB_TEST_VAR_42")
+    if val == "hello_naab" { passed = passed + 1 }
+
+    // delete_var then has
+    total = total + 1
+    env.delete_var("NAAB_TEST_VAR_42")
+    if !env.has("NAAB_TEST_VAR_42") { passed = passed + 1 }
+
+    // get_all returns dict with HOME
+    total = total + 1
+    let all = env.get_all()
+    if all != null { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T19.2: Time operations
+fn test_time_ops() {
+    let passed = 0
+    let total = 0
+
+    // now returns positive int
+    total = total + 1
+    let ts = time.now()
+    if ts > 0 { passed = passed + 1 }
+
+    // now_millis returns positive int
+    total = total + 1
+    let ms = time.now_millis()
+    if ms > 0 { passed = passed + 1 }
+
+    // now_millis > now (millis are bigger numbers)
+    total = total + 1
+    let s = time.now()
+    let m = time.now_millis()
+    if m > s { passed = passed + 1 }
+
+    // year >= 2026
+    total = total + 1
+    let y = time.year(time.now())
+    if y >= 2026 { passed = passed + 1 }
+
+    // month 1-12
+    total = total + 1
+    let mo = time.month(time.now())
+    if mo >= 1 && mo <= 12 { passed = passed + 1 }
+
+    // day 1-31
+    total = total + 1
+    let d = time.day(time.now())
+    if d >= 1 && d <= 31 { passed = passed + 1 }
+
+    // sleep doesn't crash (10ms)
+    total = total + 1
+    let before = time.now_millis()
+    time.sleep(0.01)
+    let after = time.now_millis()
+    if after >= before { passed = passed + 1 }
+
+    // two now() calls: second >= first
+    total = total + 1
+    let t1 = time.now()
+    let t2 = time.now()
+    if t2 >= t1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_env_ops()
+    print("  T19.1 env_ops: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_time_ops()
+    print("  T19.2 time_ops: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    print("")
+    print("Stdlib Env/Time: " + string(total_passed) + "/" + string(total_tests))
+}

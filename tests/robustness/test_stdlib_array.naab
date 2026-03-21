@@ -1,0 +1,367 @@
+// Test 12: Array Stdlib — exhaustive coverage of all 17 array functions
+// Tests every function in src/stdlib/array_impl.cpp
+
+use array
+
+// T12.1: Basic operations — length, push, pop, shift, unshift, first, last
+fn test_basic_ops() {
+    let passed = 0
+    let total = 0
+
+    // length normal
+    total = total + 1
+    if array.length([1, 2, 3]) == 3 {
+        passed = passed + 1
+    }
+
+    // length empty
+    total = total + 1
+    if array.length([]) == 0 {
+        passed = passed + 1
+    }
+
+    // push
+    total = total + 1
+    let arr = [1, 2]
+    arr.push(3)
+    if array.length(arr) == 3 && arr[2] == 3 {
+        passed = passed + 1
+    }
+
+    // pop returns last element
+    total = total + 1
+    let arr2 = [10, 20, 30]
+    let popped = array.pop(arr2)
+    if popped == 30 && array.length(arr2) == 2 {
+        passed = passed + 1
+    }
+
+    // shift returns first element
+    total = total + 1
+    let arr3 = [10, 20, 30]
+    let shifted = array.shift(arr3)
+    if shifted == 10 && array.length(arr3) == 2 {
+        passed = passed + 1
+    }
+
+    // unshift adds to start
+    total = total + 1
+    let arr4 = array.unshift([2, 3], 1)
+    if arr4[0] == 1 && array.length(arr4) == 3 {
+        passed = passed + 1
+    }
+
+    // first
+    total = total + 1
+    if array.first([10, 20, 30]) == 10 {
+        passed = passed + 1
+    }
+
+    // last
+    total = total + 1
+    if array.last([10, 20, 30]) == 30 {
+        passed = passed + 1
+    }
+
+    // first on empty returns null
+    total = total + 1
+    if array.first([]) == null {
+        passed = passed + 1
+    }
+
+    // last on empty returns null
+    total = total + 1
+    if array.last([]) == null {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T12.2: Higher-order functions — map_fn, filter_fn, reduce_fn, find
+fn test_higher_order() {
+    let passed = 0
+    let total = 0
+
+    // map_fn doubles
+    total = total + 1
+    let mapped = array.map_fn([1, 2, 3], fn(x) { return x * 2 })
+    if mapped[0] == 2 && mapped[1] == 4 && mapped[2] == 6 {
+        passed = passed + 1
+    }
+
+    // map_fn empty array
+    total = total + 1
+    let mapped_empty = array.map_fn([], fn(x) { return x })
+    if array.length(mapped_empty) == 0 {
+        passed = passed + 1
+    }
+
+    // filter_fn
+    total = total + 1
+    let filtered = array.filter_fn([1, 2, 3, 4, 5], fn(x) { return x > 3 })
+    if array.length(filtered) == 2 && filtered[0] == 4 && filtered[1] == 5 {
+        passed = passed + 1
+    }
+
+    // filter_fn all rejected
+    total = total + 1
+    let none = array.filter_fn([1, 2, 3], fn(x) { return false })
+    if array.length(none) == 0 {
+        passed = passed + 1
+    }
+
+    // reduce_fn sum
+    total = total + 1
+    let sum = array.reduce_fn([1, 2, 3, 4], fn(acc, x) { return acc + x }, 0)
+    if sum == 10 {
+        passed = passed + 1
+    }
+
+    // reduce_fn empty returns initial
+    total = total + 1
+    let init = array.reduce_fn([], fn(acc, x) { return acc + x }, 42)
+    if init == 42 {
+        passed = passed + 1
+    }
+
+    // find found
+    total = total + 1
+    let found = array.find([1, 2, 3], fn(x) { return x == 2 })
+    if found == 2 {
+        passed = passed + 1
+    }
+
+    // find not found
+    total = total + 1
+    let not_found = array.find([1, 2, 3], fn(x) { return x == 99 })
+    if not_found == null {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T12.3: Search, slice, join
+fn test_search_slice_join() {
+    let passed = 0
+    let total = 0
+
+    // contains found
+    total = total + 1
+    if array.contains([1, 2, 3], 2) {
+        passed = passed + 1
+    }
+
+    // contains not found
+    total = total + 1
+    if !array.contains([1, 2, 3], 99) {
+        passed = passed + 1
+    }
+
+    // contains empty
+    total = total + 1
+    if !array.contains([], 1) {
+        passed = passed + 1
+    }
+
+    // slice normal
+    total = total + 1
+    let sliced = array.slice([10, 20, 30, 40, 50], 1, 3)
+    if array.length(sliced) == 2 && sliced[0] == 20 && sliced[1] == 30 {
+        passed = passed + 1
+    }
+
+    // slice start >= end returns empty
+    total = total + 1
+    let empty_slice = array.slice([10, 20, 30], 0, 0)
+    if array.length(empty_slice) == 0 {
+        passed = passed + 1
+    }
+
+    // slice end clamped
+    total = total + 1
+    let clamped = array.slice([10, 20, 30], 0, 100)
+    if array.length(clamped) == 3 {
+        passed = passed + 1
+    }
+
+    // join
+    total = total + 1
+    let joined = array.join(["a", "b", "c"], ", ")
+    if joined == "a, b, c" {
+        passed = passed + 1
+    }
+
+    // join empty
+    total = total + 1
+    let joined_empty = array.join([], ", ")
+    if joined_empty == "" {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T12.4: Sort and reverse
+fn test_sort_reverse() {
+    let passed = 0
+    let total = 0
+
+    // sort ints
+    total = total + 1
+    let sorted = array.sort([3, 1, 2])
+    if sorted[0] == 1 && sorted[1] == 2 && sorted[2] == 3 {
+        passed = passed + 1
+    }
+
+    // sort empty
+    total = total + 1
+    let sorted_empty = array.sort([])
+    if array.length(sorted_empty) == 0 {
+        passed = passed + 1
+    }
+
+    // sort strings
+    total = total + 1
+    let sorted_str = array.sort(["c", "a", "b"])
+    if sorted_str[0] == "a" && sorted_str[1] == "b" && sorted_str[2] == "c" {
+        passed = passed + 1
+    }
+
+    // reverse
+    total = total + 1
+    let rev = array.reverse([1, 2, 3])
+    if rev[0] == 3 && rev[1] == 2 && rev[2] == 1 {
+        passed = passed + 1
+    }
+
+    // reverse empty
+    total = total + 1
+    let rev_empty = array.reverse([])
+    if array.length(rev_empty) == 0 {
+        passed = passed + 1
+    }
+
+    // reverse single
+    total = total + 1
+    let rev_one = array.reverse([42])
+    if rev_one[0] == 42 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T12.5: Error cases and edge cases
+fn test_edge_cases() {
+    let passed = 0
+    let total = 0
+
+    // pop empty throws
+    total = total + 1
+    let pop_threw = false
+    try {
+        let arr = []
+        array.pop(arr)
+    } catch (e) {
+        pop_threw = true
+    }
+    if pop_threw {
+        passed = passed + 1
+    }
+
+    // shift empty throws
+    total = total + 1
+    let shift_threw = false
+    try {
+        let arr = []
+        array.shift(arr)
+    } catch (e) {
+        shift_threw = true
+    }
+    if shift_threw {
+        passed = passed + 1
+    }
+
+    // slice negative start clamped to 0
+    total = total + 1
+    let neg_slice = array.slice([10, 20, 30], -1, 2)
+    if array.length(neg_slice) == 2 && neg_slice[0] == 10 {
+        passed = passed + 1
+    }
+
+    // push-pop roundtrip
+    total = total + 1
+    let arr = [1, 2, 3]
+    arr.push(99)
+    let val = array.pop(arr)
+    if val == 99 && array.length(arr) == 3 {
+        passed = passed + 1
+    }
+
+    // multiple pushes maintain order
+    total = total + 1
+    let arr2 = []
+    arr2.push(1)
+    arr2.push(2)
+    arr2.push(3)
+    if arr2[0] == 1 && arr2[1] == 2 && arr2[2] == 3 {
+        passed = passed + 1
+    }
+
+    // contains with string elements
+    total = total + 1
+    if array.contains(["hello", "world"], "world") {
+        passed = passed + 1
+    }
+
+    // map_fn with string conversion
+    total = total + 1
+    let strs = array.map_fn([1, 2, 3], fn(x) { return "item_" + string(x) })
+    if strs[0] == "item_1" && strs[2] == "item_3" {
+        passed = passed + 1
+    }
+
+    // reduce_fn string concat
+    total = total + 1
+    let concat = array.reduce_fn(["a", "b", "c"], fn(acc, x) { return acc + x }, "")
+    if concat == "abc" {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_basic_ops()
+    print("  T12.1 basic_ops: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_higher_order()
+    print("  T12.2 higher_order: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_search_slice_join()
+    print("  T12.3 search_slice_join: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_sort_reverse()
+    print("  T12.4 sort_reverse: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_edge_cases()
+    print("  T12.5 edge_cases: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    print("")
+    print("Stdlib Array: " + string(total_passed) + "/" + string(total_tests))
+}

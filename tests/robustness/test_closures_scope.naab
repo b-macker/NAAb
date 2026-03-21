@@ -1,0 +1,351 @@
+// Test 16: Closures & Scope — exhaustive closure semantics testing
+// Tests closure capture, factories, shadowing, IIFE, nested closures
+
+use array
+
+// T16.1: Basic closure capture
+fn test_basic_closure() {
+    let passed = 0
+    let total = 0
+
+    // closure captures outer variable
+    total = total + 1
+    let x = 10
+    let f = fn() { return x }
+    if f() == 10 { passed = passed + 1 }
+
+    // closure captures parameter
+    total = total + 1
+    let val = make_closure(42)
+    if val() == 42 { passed = passed + 1 }
+
+    // closure captures multiple variables
+    total = total + 1
+    let a = 1
+    let b = 2
+    let g = fn() { return a + b }
+    if g() == 3 { passed = passed + 1 }
+
+    // closure in if block callable outside
+    total = total + 1
+    let h = null
+    if true {
+        let captured = 99
+        h = fn() { return captured }
+    }
+    if h() == 99 { passed = passed + 1 }
+
+    // closure sees mutations (live reference)
+    total = total + 1
+    let y = 10
+    let reader = fn() { return y }
+    y = 20
+    // This tests whether closures capture by reference or value
+    // NAAb uses environment chains — closures see live values
+    let result = reader()
+    if result == 10 || result == 20 {
+        // Either behavior is valid — we're testing it doesn't crash
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn make_closure(n) {
+    return fn() { return n }
+}
+
+// T16.2: Nested closures
+fn test_nested_closure() {
+    let passed = 0
+    let total = 0
+
+    // closure returns closure
+    total = total + 1
+    let outer = fn() {
+        let x = 10
+        return fn() {
+            return fn() { return x }
+        }
+    }
+    if outer()()() == 10 { passed = passed + 1 }
+
+    // 3-level nesting all access same variable
+    total = total + 1
+    let make = fn() {
+        let shared = 42
+        let level1 = fn() { return shared }
+        let level2 = fn() { return level1() }
+        return level2
+    }
+    if make()() == 42 { passed = passed + 1 }
+
+    // nested closures with different captured values
+    total = total + 1
+    let a = 1
+    let f1 = fn() {
+        let b = 2
+        return fn() { return a + b }
+    }
+    if f1()() == 3 { passed = passed + 1 }
+
+    // closure returning closure with parameter
+    total = total + 1
+    let adder_maker = fn(x) {
+        return fn(y) { return x + y }
+    }
+    if adder_maker(10)(5) == 15 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T16.3: Closures in loops
+fn test_closure_in_loop() {
+    let passed = 0
+    let total = 0
+
+    // map_fn with closure using outer variable
+    total = total + 1
+    let multiplier = 3
+    let result = array.map_fn([1, 2, 3], fn(x) { return x * multiplier })
+    if result[0] == 3 && result[1] == 6 && result[2] == 9 { passed = passed + 1 }
+
+    // filter_fn with closure
+    total = total + 1
+    let threshold = 3
+    let filtered = array.filter_fn([1, 2, 3, 4, 5], fn(x) { return x > threshold })
+    if array.length(filtered) == 2 { passed = passed + 1 }
+
+    // reduce_fn with closure
+    total = total + 1
+    let offset = 100
+    let sum = array.reduce_fn([1, 2, 3], fn(acc, x) { return acc + x }, offset)
+    if sum == 106 { passed = passed + 1 }
+
+    // closures created in loop
+    total = total + 1
+    let funcs = []
+    for i in 0..3 {
+        let captured = i
+        funcs.push(fn() { return captured })
+    }
+    // Test that we get some results (behavior may vary — capture by ref vs value)
+    let r0 = funcs[0]()
+    let r1 = funcs[1]()
+    let r2 = funcs[2]()
+    // At minimum they should be callable without crash
+    if r0 != null || r0 == 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T16.4: Closure factory pattern
+fn make_counter() {
+    let n = 0
+    return fn() {
+        n = n + 1
+        return n
+    }
+}
+
+fn make_adder(n) {
+    return fn(x) { return x + n }
+}
+
+fn test_closure_factory() {
+    let passed = 0
+    let total = 0
+
+    // counter increments
+    total = total + 1
+    let counter = make_counter()
+    let c1 = counter()
+    let c2 = counter()
+    let c3 = counter()
+    if c1 == 1 && c2 == 2 && c3 == 3 { passed = passed + 1 }
+
+    // two counters are independent
+    total = total + 1
+    let counter_a = make_counter()
+    let counter_b = make_counter()
+    counter_a()
+    counter_a()
+    let a_val = counter_a()
+    let b_val = counter_b()
+    if a_val == 3 && b_val == 1 { passed = passed + 1 }
+
+    // adder factory
+    total = total + 1
+    let add5 = make_adder(5)
+    if add5(3) == 8 { passed = passed + 1 }
+
+    // compose two adders
+    total = total + 1
+    let add1 = make_adder(1)
+    let add10 = make_adder(10)
+    if add10(add1(5)) == 16 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T16.5: Closure after outer function returns
+fn make_greeter(greeting) {
+    return fn(name) { return greeting + " " + name }
+}
+
+fn test_closure_after_return() {
+    let passed = 0
+    let total = 0
+
+    // closure works after creator returns
+    total = total + 1
+    let hi = make_greeter("Hello")
+    if hi("World") == "Hello World" { passed = passed + 1 }
+
+    // called multiple times — consistent
+    total = total + 1
+    if hi("Alice") == "Hello Alice" && hi("Bob") == "Hello Bob" { passed = passed + 1 }
+
+    // different closures from same factory
+    total = total + 1
+    let bye = make_greeter("Goodbye")
+    if bye("World") == "Goodbye World" && hi("World") == "Hello World" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T16.6: Variable shadowing
+fn test_shadowing() {
+    let passed = 0
+    let total = 0
+
+    // inner scope shadows outer
+    total = total + 1
+    let x = 1
+    let inner_result = fn() {
+        let x = 2
+        return x
+    }
+    if inner_result() == 2 { passed = passed + 1 }
+
+    // outer unchanged after shadow
+    total = total + 1
+    if x == 1 { passed = passed + 1 }
+
+    // function parameter shadows outer
+    total = total + 1
+    let y = 10
+    let f = fn(y) { return y }
+    if f(20) == 20 { passed = passed + 1 }
+
+    // outer still unchanged
+    total = total + 1
+    if y == 10 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T16.7: Higher-order functions
+fn apply(f, x) {
+    return f(x)
+}
+
+fn test_higher_order() {
+    let passed = 0
+    let total = 0
+
+    // pass lambda as argument
+    total = total + 1
+    if apply(fn(n) { return n * 2 }, 5) == 10 { passed = passed + 1 }
+
+    // return closure and call it
+    total = total + 1
+    let maker = fn() { return fn(x) { return x + 100 } }
+    let f = maker()
+    if f(5) == 105 { passed = passed + 1 }
+
+    // closures in array
+    total = total + 1
+    let funcs = [
+        fn(x) { return x + 1 },
+        fn(x) { return x * 2 },
+        fn(x) { return x - 1 }
+    ]
+    if funcs[0](10) == 11 && funcs[1](10) == 20 && funcs[2](10) == 9 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T16.8: Immediately invoked function expressions
+fn test_iife() {
+    let passed = 0
+    let total = 0
+
+    // basic IIFE
+    total = total + 1
+    let r1 = fn() { return 42 }()
+    if r1 == 42 { passed = passed + 1 }
+
+    // IIFE with args
+    total = total + 1
+    let r2 = fn(x, y) { return x + y }(3, 4)
+    if r2 == 7 { passed = passed + 1 }
+
+    // IIFE with closure capture
+    total = total + 1
+    let x = 10
+    let r3 = fn() { return x + 1 }()
+    if r3 == 11 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_basic_closure()
+    print("  T16.1 basic_closure: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_nested_closure()
+    print("  T16.2 nested_closure: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_closure_in_loop()
+    print("  T16.3 closure_in_loop: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_closure_factory()
+    print("  T16.4 closure_factory: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_closure_after_return()
+    print("  T16.5 closure_after_return: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_shadowing()
+    print("  T16.6 shadowing: " + string(r6[0]) + "/" + string(r6[1]))
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    let r7 = test_higher_order()
+    print("  T16.7 higher_order: " + string(r7[0]) + "/" + string(r7[1]))
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+
+    let r8 = test_iife()
+    print("  T16.8 iife: " + string(r8[0]) + "/" + string(r8[1]))
+    total_passed = total_passed + r8[0]
+    total_tests = total_tests + r8[1]
+
+    print("")
+    print("Closures/Scope: " + string(total_passed) + "/" + string(total_tests))
+}

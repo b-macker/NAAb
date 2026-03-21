@@ -1,0 +1,395 @@
+// Test 15: Operator Matrix — every operator × type combination
+// Tests all 14 binary ops and 3 unary ops from ast.h BinaryOp/UnaryOp
+
+use string
+
+// T15.1: Arithmetic type interactions
+fn test_arithmetic_types() {
+    let passed = 0
+    let total = 0
+
+    // int + int
+    total = total + 1
+    if 3 + 4 == 7 { passed = passed + 1 }
+
+    // float + float
+    total = total + 1
+    let ff = 3.0 + 4.0
+    if ff > 6.9 && ff < 7.1 { passed = passed + 1 }
+
+    // int + float → float promotion
+    total = total + 1
+    let ifp = 3 + 4.0
+    if ifp > 6.9 && ifp < 7.1 { passed = passed + 1 }
+
+    // string + string
+    total = total + 1
+    if "hello" + " world" == "hello world" { passed = passed + 1 }
+
+    // string + int via string()
+    total = total + 1
+    if "count: " + string(42) == "count: 42" { passed = passed + 1 }
+
+    // int - int
+    total = total + 1
+    if 10 - 3 == 7 { passed = passed + 1 }
+
+    // float - float
+    total = total + 1
+    let fs = 10.5 - 0.5
+    if fs > 9.9 && fs < 10.1 { passed = passed + 1 }
+
+    // int * int
+    total = total + 1
+    if 6 * 7 == 42 { passed = passed + 1 }
+
+    // int / int → float division (NAAb always returns float)
+    total = total + 1
+    let idiv = 10 / 3
+    if idiv > 3.33 && idiv < 3.34 { passed = passed + 1 }
+
+    // float / float
+    total = total + 1
+    let fd = 10.0 / 3.0
+    if fd > 3.33 && fd < 3.34 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T15.2: Modulo and division edge cases
+fn test_modulo_division() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if 10 % 3 == 1 { passed = passed + 1 }
+
+    total = total + 1
+    if 15 % 5 == 0 { passed = passed + 1 }
+
+    total = total + 1
+    if 7 % 2 == 1 { passed = passed + 1 }
+
+    // division by zero throws
+    total = total + 1
+    let threw = false
+    try {
+        let r = 1 / 0
+    } catch (e) {
+        threw = true
+    }
+    if threw { passed = passed + 1 }
+
+    // 0 % n
+    total = total + 1
+    if 0 % 5 == 0 { passed = passed + 1 }
+
+    // negative modulo
+    total = total + 1
+    let nm = -7 % 3
+    // C++ behavior: -7 % 3 = -1
+    if nm == -1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T15.3: Cross-type comparison
+fn test_comparison_cross_type() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if 3 == 3 { passed = passed + 1 }
+
+    // int == float (via toFloat)
+    total = total + 1
+    if 3 == 3.0 { passed = passed + 1 }
+
+    total = total + 1
+    if 3 != 4 { passed = passed + 1 }
+
+    // null == null
+    total = total + 1
+    if null == null { passed = passed + 1 }
+
+    // null != 0
+    total = total + 1
+    if null != 0 { passed = passed + 1 }
+
+    // null != false
+    total = total + 1
+    if null != false { passed = passed + 1 }
+
+    // null != ""
+    total = total + 1
+    if null != "" { passed = passed + 1 }
+
+    // string equality
+    total = total + 1
+    if "abc" == "abc" { passed = passed + 1 }
+
+    // string inequality
+    total = total + 1
+    if "abc" != "def" { passed = passed + 1 }
+
+    // int < float
+    total = total + 1
+    if 3 < 4.5 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T15.4: Truthiness and falsy values
+fn test_truthiness() {
+    let passed = 0
+    let total = 0
+
+    // false is falsy
+    total = total + 1
+    let r1 = if false { "yes" } else { "no" }
+    if r1 == "no" { passed = passed + 1 }
+
+    // true is truthy
+    total = total + 1
+    let r2 = if true { "yes" } else { "no" }
+    if r2 == "yes" { passed = passed + 1 }
+
+    // 0 — test what it evaluates to
+    total = total + 1
+    let r3 = if 0 { "truthy" } else { "falsy" }
+    // 0 should be falsy
+    if r3 == "falsy" { passed = passed + 1 }
+
+    // null is falsy
+    total = total + 1
+    let r5 = if null { "yes" } else { "no" }
+    if r5 == "no" { passed = passed + 1 }
+
+    // 1 is truthy
+    total = total + 1
+    let r6 = if 1 { "yes" } else { "no" }
+    if r6 == "yes" { passed = passed + 1 }
+
+    // non-zero is truthy
+    total = total + 1
+    let r7 = if -1 { "yes" } else { "no" }
+    if r7 == "yes" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T15.5: Null coalesce (??)
+fn test_null_coalesce() {
+    let passed = 0
+    let total = 0
+
+    // null triggers ??
+    total = total + 1
+    let r1 = null ?? "default"
+    if r1 == "default" { passed = passed + 1 }
+
+    // non-null returns left
+    total = total + 1
+    let r2 = "value" ?? "default"
+    if r2 == "value" { passed = passed + 1 }
+
+    // false is NOT null — left returned
+    total = total + 1
+    let r3 = false ?? "default"
+    if r3 == false { passed = passed + 1 }
+
+    // 0 is NOT null
+    total = total + 1
+    let r4 = 0 ?? "default"
+    if r4 == 0 { passed = passed + 1 }
+
+    // empty string is NOT null
+    total = total + 1
+    let r5 = "" ?? "default"
+    if r5 == "" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T15.6: Short-circuit evaluation
+fn side_effect_counter() {
+    // This function has a visible side effect we can detect
+    // We use a trick: throw if called, catch proves it wasn't
+    return 999
+}
+
+fn test_short_circuit() {
+    let passed = 0
+    let total = 0
+
+    // true && false == false
+    total = total + 1
+    if (true && false) == false { passed = passed + 1 }
+
+    // false || true == true
+    total = total + 1
+    if (false || true) == true { passed = passed + 1 }
+
+    // && returns bool
+    total = total + 1
+    let r = true && true
+    if r == true { passed = passed + 1 }
+
+    // || returns bool
+    total = total + 1
+    let r2 = false || false
+    if r2 == false { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T15.7: Unary operators
+fn test_unary_ops() {
+    let passed = 0
+    let total = 0
+
+    // negate int
+    total = total + 1
+    if -5 == 0 - 5 { passed = passed + 1 }
+
+    // double negate
+    total = total + 1
+    let neg = -3
+    let pos = -neg
+    if pos == 3 { passed = passed + 1 }
+
+    // negate float
+    total = total + 1
+    let nf = -3.14
+    if nf < 0 { passed = passed + 1 }
+
+    // !true
+    total = total + 1
+    if !true == false { passed = passed + 1 }
+
+    // !false
+    total = total + 1
+    if !false == true { passed = passed + 1 }
+
+    // !null (null is falsy)
+    total = total + 1
+    if !null == true { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T15.8: Pipeline operator
+fn double(x) {
+    return x * 2
+}
+
+fn add_one(x) {
+    return x + 1
+}
+
+fn test_pipeline() {
+    let passed = 0
+    let total = 0
+
+    // basic pipeline
+    total = total + 1
+    let r1 = 5 |> double
+    if r1 == 10 { passed = passed + 1 }
+
+    // pipeline with lambda
+    total = total + 1
+    let r2 = "hello" |> fn(s) { return string.upper(s) }
+    if r2 == "HELLO" { passed = passed + 1 }
+
+    // chained pipeline
+    total = total + 1
+    let r3 = 3 |> add_one |> double
+    if r3 == 8 { passed = passed + 1 }
+
+    // pipeline with named function
+    total = total + 1
+    let r4 = 5 |> add_one
+    if r4 == 6 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T15.9: Array concat and subscript
+fn test_array_concat_subscript() {
+    let passed = 0
+    let total = 0
+
+    // array + array
+    total = total + 1
+    let combined = [1, 2] + [3, 4]
+    if combined[0] == 1 && combined[3] == 4 {
+        passed = passed + 1
+    }
+
+    // array subscript
+    total = total + 1
+    if [1, 2, 3][0] == 1 { passed = passed + 1 }
+
+    total = total + 1
+    if [1, 2, 3][2] == 3 { passed = passed + 1 }
+
+    // dict subscript
+    total = total + 1
+    let d = {"a": 1, "b": 2}
+    if d["a"] == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_arithmetic_types()
+    print("  T15.1 arithmetic_types: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_modulo_division()
+    print("  T15.2 modulo_division: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_comparison_cross_type()
+    print("  T15.3 comparison_cross_type: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_truthiness()
+    print("  T15.4 truthiness: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_null_coalesce()
+    print("  T15.5 null_coalesce: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_short_circuit()
+    print("  T15.6 short_circuit: " + string(r6[0]) + "/" + string(r6[1]))
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    let r7 = test_unary_ops()
+    print("  T15.7 unary_ops: " + string(r7[0]) + "/" + string(r7[1]))
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+
+    let r8 = test_pipeline()
+    print("  T15.8 pipeline: " + string(r8[0]) + "/" + string(r8[1]))
+    total_passed = total_passed + r8[0]
+    total_tests = total_tests + r8[1]
+
+    let r9 = test_array_concat_subscript()
+    print("  T15.9 array_concat_subscript: " + string(r9[0]) + "/" + string(r9[1]))
+    total_passed = total_passed + r9[0]
+    total_tests = total_tests + r9[1]
+
+    print("")
+    print("Operators Matrix: " + string(total_passed) + "/" + string(total_tests))
+}

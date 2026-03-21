@@ -1,0 +1,483 @@
+// Test 17: Control Flow — exhaustive break/continue/return/try/catch/match
+// Tests all control flow interactions and edge cases
+
+use array
+
+// T17.1: Nested break and continue
+fn test_nested_break_continue() {
+    let passed = 0
+    let total = 0
+
+    // break in inner loop: outer continues
+    total = total + 1
+    let outer_count = 0
+    for i in 0..3 {
+        outer_count = outer_count + 1
+        for j in 0..10 {
+            if j == 2 { break }
+        }
+    }
+    if outer_count == 3 { passed = passed + 1 }
+
+    // continue in inner loop
+    total = total + 1
+    let sum = 0
+    for i in 0..3 {
+        for j in 0..5 {
+            if j % 2 == 0 { continue }
+            sum = sum + 1
+        }
+    }
+    // j=1,3 for each of 3 outer iterations = 6
+    if sum == 6 { passed = passed + 1 }
+
+    // break in while inside for
+    total = total + 1
+    let for_count = 0
+    for i in 0..3 {
+        for_count = for_count + 1
+        let w = 0
+        while true {
+            w = w + 1
+            if w == 2 { break }
+        }
+    }
+    if for_count == 3 { passed = passed + 1 }
+
+    // continue skips rest of iteration
+    total = total + 1
+    let collected = []
+    for i in 0..5 {
+        if i == 2 { continue }
+        collected.push(i)
+    }
+    if array.length(collected) == 4 && !array.contains(collected, 2) { passed = passed + 1 }
+
+    // nested 3-deep: break only innermost
+    total = total + 1
+    let level1 = 0
+    let level2 = 0
+    let level3 = 0
+    for a in 0..3 {
+        level1 = level1 + 1
+        for b in 0..3 {
+            level2 = level2 + 1
+            for c in 0..10 {
+                level3 = level3 + 1
+                if c == 1 { break }
+            }
+        }
+    }
+    if level1 == 3 && level2 == 9 && level3 == 18 { passed = passed + 1 }
+
+    // verify counter after inner break
+    total = total + 1
+    let after = 0
+    for i in 0..3 {
+        for j in 0..100 {
+            break
+        }
+        after = after + 1
+    }
+    if after == 3 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T17.2: Return from loops
+fn return_from_for() {
+    for i in 0..10 {
+        if i == 3 { return "found_3" }
+    }
+    return "not_found"
+}
+
+fn return_from_while() {
+    let i = 0
+    while i < 100 {
+        if i == 5 { return "found_5" }
+        i = i + 1
+    }
+    return "not_found"
+}
+
+fn return_from_nested() {
+    for i in 0..5 {
+        for j in 0..5 {
+            if i == 2 && j == 3 { return "found_2_3" }
+        }
+    }
+    return "not_found"
+}
+
+fn return_value_from_loop() {
+    let result = 0
+    for i in 0..10 {
+        result = result + i
+        if result > 10 { return result }
+    }
+    return result
+}
+
+fn test_return_in_loops() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if return_from_for() == "found_3" { passed = passed + 1 }
+
+    total = total + 1
+    if return_from_while() == "found_5" { passed = passed + 1 }
+
+    total = total + 1
+    if return_from_nested() == "found_2_3" { passed = passed + 1 }
+
+    total = total + 1
+    let rv = return_value_from_loop()
+    if rv == 15 { passed = passed + 1 }
+
+    // code after return not reached
+    total = total + 1
+    let after_return_val = fn() {
+        return 1
+        return 2
+    }
+    if after_return_val() == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T17.3: Return from try/catch
+fn return_from_try() {
+    try {
+        return "from_try"
+    } catch (e) {
+        return "from_catch"
+    }
+    return "after"
+}
+
+fn return_from_catch() {
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        return "caught"
+    }
+    return "after"
+}
+
+fn return_from_catch_with_throw() {
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        return "error: " + string(e)
+    }
+    return "no_error"
+}
+
+fn test_return_in_try() {
+    let passed = 0
+    let total = 0
+
+    // return from try block
+    total = total + 1
+    if return_from_try() == "from_try" { passed = passed + 1 }
+
+    // return from catch block
+    total = total + 1
+    if return_from_catch() == "caught" { passed = passed + 1 }
+
+    // return with error info
+    total = total + 1
+    let r = return_from_catch_with_throw()
+    if r != "no_error" { passed = passed + 1 }
+
+    // nested try — return propagates
+    total = total + 1
+    let nested = fn() {
+        try {
+            try {
+                return "inner"
+            } catch (e) {
+                return "inner_catch"
+            }
+        } catch (e2) {
+            return "outer_catch"
+        }
+        return "after"
+    }
+    if nested() == "inner" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T17.4: Nested try/catch
+fn test_nested_try_catch() {
+    let passed = 0
+    let total = 0
+
+    // inner catch handles
+    total = total + 1
+    let inner_caught = false
+    try {
+        try {
+            let x = 1 / 0
+        } catch (e) {
+            inner_caught = true
+        }
+    } catch (e2) {
+        inner_caught = false
+    }
+    if inner_caught { passed = passed + 1 }
+
+    // throw from catch → caught by outer
+    total = total + 1
+    let outer_caught = false
+    try {
+        try {
+            let x = 1 / 0
+        } catch (e) {
+            let y = 1 / 0
+        }
+    } catch (e2) {
+        outer_caught = true
+    }
+    if outer_caught { passed = passed + 1 }
+
+    // no exception → catch not entered
+    total = total + 1
+    let catch_entered = false
+    try {
+        let x = 42
+    } catch (e) {
+        catch_entered = true
+    }
+    if !catch_entered { passed = passed + 1 }
+
+    // error message accessible
+    total = total + 1
+    let msg = ""
+    try {
+        let x = 1 / 0
+    } catch (e) {
+        msg = string(e)
+    }
+    if msg != "" { passed = passed + 1 }
+
+    // deeply nested: only innermost catch fires
+    total = total + 1
+    let which_caught = "none"
+    try {
+        try {
+            try {
+                let x = 1 / 0
+            } catch (e) {
+                which_caught = "inner"
+            }
+        } catch (e2) {
+            which_caught = "middle"
+        }
+    } catch (e3) {
+        which_caught = "outer"
+    }
+    if which_caught == "inner" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T17.5: Empty iterations
+fn test_empty_iterations() {
+    let passed = 0
+    let total = 0
+
+    // for over empty array
+    total = total + 1
+    let ran = false
+    for x in [] {
+        ran = true
+    }
+    if !ran { passed = passed + 1 }
+
+    // for 0..0 (empty range)
+    total = total + 1
+    let ran2 = false
+    for i in 0..0 {
+        ran2 = true
+    }
+    if !ran2 { passed = passed + 1 }
+
+    // while false
+    total = total + 1
+    let ran3 = false
+    while false {
+        ran3 = true
+    }
+    if !ran3 { passed = passed + 1 }
+
+    // single iteration
+    total = total + 1
+    let count = 0
+    for i in 0..1 {
+        count = count + 1
+    }
+    if count == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T17.6: Match patterns
+fn test_match_patterns() {
+    let passed = 0
+    let total = 0
+
+    // match int
+    total = total + 1
+    let r1 = match 2 {
+        1 => "one"
+        2 => "two"
+        3 => "three"
+        _ => "other"
+    }
+    if r1 == "two" { passed = passed + 1 }
+
+    // match string
+    total = total + 1
+    let r2 = match "hello" {
+        "hi" => 1
+        "hello" => 2
+        _ => 0
+    }
+    if r2 == 2 { passed = passed + 1 }
+
+    // wildcard catches unmatched
+    total = total + 1
+    let r3 = match 99 {
+        1 => "one"
+        _ => "default"
+    }
+    if r3 == "default" { passed = passed + 1 }
+
+    // match null
+    total = total + 1
+    let r4 = match null {
+        null => "is_null"
+        _ => "not_null"
+    }
+    if r4 == "is_null" { passed = passed + 1 }
+
+    // no match throws
+    total = total + 1
+    let threw = false
+    try {
+        let r5 = match 99 {
+            1 => "one"
+            2 => "two"
+        }
+    } catch (e) {
+        threw = true
+    }
+    if threw { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T17.7: Multiple returns
+fn first_return_wins() {
+    return 1
+    return 2
+}
+
+fn conditional_return(x) {
+    if x > 0 { return "pos" }
+    return "non-pos"
+}
+
+fn test_multiple_returns() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if first_return_wins() == 1 { passed = passed + 1 }
+
+    total = total + 1
+    if conditional_return(5) == "pos" { passed = passed + 1 }
+
+    total = total + 1
+    if conditional_return(-1) == "non-pos" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// T17.8: Implicit return — NAAb returns last evaluated value
+fn no_return() {
+    let x = 42
+}
+
+fn explicit_null() {
+    return null
+}
+
+fn test_implicit_return() {
+    let passed = 0
+    let total = 0
+
+    // no explicit return → returns last evaluated value (42)
+    total = total + 1
+    let r1 = no_return()
+    if r1 == 42 { passed = passed + 1 }
+
+    // explicit return null
+    total = total + 1
+    let r2 = explicit_null()
+    if r2 == null { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_nested_break_continue()
+    print("  T17.1 nested_break_continue: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_return_in_loops()
+    print("  T17.2 return_in_loops: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_return_in_try()
+    print("  T17.3 return_in_try: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_nested_try_catch()
+    print("  T17.4 nested_try_catch: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_empty_iterations()
+    print("  T17.5 empty_iterations: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_match_patterns()
+    print("  T17.6 match_patterns: " + string(r6[0]) + "/" + string(r6[1]))
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    let r7 = test_multiple_returns()
+    print("  T17.7 multiple_returns: " + string(r7[0]) + "/" + string(r7[1]))
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+
+    let r8 = test_implicit_return()
+    print("  T17.8 implicit_return: " + string(r8[0]) + "/" + string(r8[1]))
+    total_passed = total_passed + r8[0]
+    total_tests = total_tests + r8[1]
+
+    print("")
+    print("Control Flow: " + string(total_passed) + "/" + string(total_tests))
+}
