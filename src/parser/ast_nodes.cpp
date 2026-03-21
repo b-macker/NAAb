@@ -217,5 +217,9 @@ void RuntimeDeclStmt::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void DestructureStmt::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 } // namespace ast
 } // namespace naab

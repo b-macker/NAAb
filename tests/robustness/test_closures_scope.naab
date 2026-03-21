@@ -302,6 +302,60 @@ fn test_iife() {
     return [passed, total]
 }
 
+// T16.9: Destructuring
+fn get_pair() { return [10, 20] }
+fn get_user_dict() { return {"name": "Alice", "age": 30} }
+
+fn test_destructuring() {
+    let passed = 0
+    let total = 0
+
+    // array destructuring from literal
+    total = total + 1
+    let [a, b] = [1, 2]
+    if a == 1 && b == 2 { passed = passed + 1 }
+
+    // array destructuring from function
+    total = total + 1
+    let [x, y] = get_pair()
+    if x == 10 && y == 20 { passed = passed + 1 }
+
+    // partial destructuring (extra elements ignored)
+    total = total + 1
+    let [first, second] = [100, 200, 300]
+    if first == 100 && second == 200 { passed = passed + 1 }
+
+    // dict destructuring
+    total = total + 1
+    let {name, age} = get_user_dict()
+    if name == "Alice" && age == 30 { passed = passed + 1 }
+
+    // dict destructuring missing key = null
+    total = total + 1
+    let {city, zip} = {"city": "NYC"}
+    if city == "NYC" && zip == null { passed = passed + 1 }
+
+    // mixed types in array
+    total = total + 1
+    let [num, str, flag] = [42, "hello", true]
+    if num == 42 && str == "hello" && flag == true { passed = passed + 1 }
+
+    // destructure existing variable
+    total = total + 1
+    let arr = [5, 10]
+    let [p_count, t_count] = arr
+    if p_count == 5 && t_count == 10 { passed = passed + 1 }
+
+    // value semantics — destructured vars are copies
+    total = total + 1
+    let orig = [1, 2, 3]
+    let [c1, c2, c3] = orig
+    orig.push(4)
+    if array.length(orig) == 4 && c3 == 3 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -345,6 +399,11 @@ main {
     print("  T16.8 iife: " + string(r8[0]) + "/" + string(r8[1]))
     total_passed = total_passed + r8[0]
     total_tests = total_tests + r8[1]
+
+    let r9 = test_destructuring()
+    print("  T16.9 destructuring: " + string(r9[0]) + "/" + string(r9[1]))
+    total_passed = total_passed + r9[0]
+    total_tests = total_tests + r9[1]
 
     print("")
     print("Closures/Scope: " + string(total_passed) + "/" + string(total_tests))

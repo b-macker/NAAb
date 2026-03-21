@@ -3232,6 +3232,83 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
     current_env_->define(node.getName(), value);
 }
 
+// Destructuring: let [a, b] = expr  OR  let {x, y} = expr
+void Interpreter::visit(ast::DestructureStmt& node) {
+    auto value = eval(*node.getInit());
+    const auto& names = node.getNames();
+
+    if (node.getDestructureKind() == ast::DestructureStmt::Kind::Array) {
+        // Array destructuring: value must be an array
+        auto* arr = std::get_if<std::vector<std::shared_ptr<Value>>>(&value->data);
+        if (!arr) {
+            throw std::runtime_error(
+                "Destructuring error: Cannot destructure non-array value\n\n"
+                "  Expected: array with " + std::to_string(names.size()) + " elements\n"
+                "  Got: " + getValueTypeName(value) + "\n\n"
+                "  Help:\n"
+                "  - Array destructuring requires an array on the right side\n\n"
+                "  Example:\n"
+                "    let [a, b, c] = [1, 2, 3]\n");
+        }
+        if (arr->size() < names.size()) {
+            throw std::runtime_error(
+                "Destructuring error: Not enough elements to destructure\n\n"
+                "  Expected: at least " + std::to_string(names.size()) + " elements\n"
+                "  Got: " + std::to_string(arr->size()) + " elements\n\n"
+                "  Help:\n"
+                "  - The array must have at least as many elements as names\n");
+        }
+        for (size_t i = 0; i < names.size(); ++i) {
+            auto elem = copyValue((*arr)[i]);
+            current_env_->define(names[i], elem);
+
+            // Governance taint: propagate from array source
+            if (governance_ && governance_->isActive()) {
+                if (governance_->isTainted("__destructure_source__") ||
+                    checkRhsTainted(node.getInit())) {
+                    governance_->markTainted(names[i]);
+                }
+            }
+        }
+    } else {
+        // Dict destructuring: value must be a dict
+        auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&value->data);
+        if (!dict) {
+            throw std::runtime_error(
+                "Destructuring error: Cannot destructure non-dict value\n\n"
+                "  Expected: dict with keys: " + [&]() {
+                    std::string keys;
+                    for (size_t i = 0; i < names.size(); ++i) {
+                        if (i > 0) keys += ", ";
+                        keys += "\"" + names[i] + "\"";
+                    }
+                    return keys;
+                }() + "\n"
+                "  Got: " + getValueTypeName(value) + "\n\n"
+                "  Help:\n"
+                "  - Dict destructuring requires a dict on the right side\n\n"
+                "  Example:\n"
+                "    let {name, age} = {\"name\": \"Alice\", \"age\": 30}\n");
+        }
+        for (const auto& name : names) {
+            auto it = dict->find(name);
+            if (it != dict->end()) {
+                auto elem = copyValue(it->second);
+                current_env_->define(name, elem);
+            } else {
+                current_env_->define(name, std::make_shared<Value>());  // null for missing keys
+            }
+
+            // Governance taint: propagate from dict source
+            if (governance_ && governance_->isActive()) {
+                if (checkRhsTainted(node.getInit())) {
+                    governance_->markTainted(name);
+                }
+            }
+        }
+    }
+}
+
 // Phase 4.1: Exception handling
 void Interpreter::visit(ast::TryStmt& node) {
     try {

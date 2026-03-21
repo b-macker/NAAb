@@ -67,6 +67,7 @@ enum class NodeKind {
     FunctionDeclStmt, // Nested function declaration statement
     StructDeclStmt,   // Nested struct declaration statement
     RuntimeDeclStmt,  // Phase 12: runtime name = language.start()
+    DestructureStmt,  // Destructuring: let [a, b] = expr / let {x, y} = expr
 
     // Expressions
     BinaryExpr,
@@ -678,6 +679,30 @@ private:
     std::string language_;
 };
 
+// Destructuring assignment: let [a, b, c] = expr  OR  let {x, y} = expr
+class DestructureStmt : public Stmt {
+public:
+    enum class Kind { Array, Dict };
+
+    DestructureStmt(Kind kind,
+                    std::vector<std::string> names,
+                    std::unique_ptr<Expr> init,
+                    SourceLocation loc = SourceLocation())
+        : Stmt(NodeKind::DestructureStmt, loc),
+          kind_(kind), names_(std::move(names)), init_(std::move(init)) {}
+
+    Kind getDestructureKind() const { return kind_; }
+    const std::vector<std::string>& getNames() const { return names_; }
+    Expr* getInit() const { return init_.get(); }
+
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    Kind kind_;
+    std::vector<std::string> names_;
+    std::unique_ptr<Expr> init_;
+};
+
 // ============================================================================
 // Expressions
 // ============================================================================
@@ -1153,6 +1178,7 @@ public:
     virtual void visit(FunctionDeclStmt& node) = 0;  // Nested function declaration
     virtual void visit(StructDeclStmt& node) = 0;    // Nested struct declaration
     virtual void visit(RuntimeDeclStmt& node) { (void)node; }  // Phase 12: Persistent runtime
+    virtual void visit(DestructureStmt& node) { (void)node; }  // Destructuring assignment
 
     virtual void visit(BinaryExpr& node) = 0;
     virtual void visit(UnaryExpr& node) = 0;

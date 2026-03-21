@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Combines with `??`: `user?.name ?? "default"` for fallback values
   - Works with structs, dicts, arrays, strings — any member/method access
 - 9 optional chaining tests in `test_structs_enums.naab` (25 → 34 assertions)
+- **Destructuring assignment** — extract values from arrays and dicts into variables
+  - Array: `let [a, b, c] = [1, 2, 3]` — positional extraction
+  - Dict: `let {name, age} = get_user()` — key-based extraction
+  - Partial: extra array elements ignored, missing dict keys become null
+  - Value semantics preserved (destructured values are copies)
+  - Taint propagation supported for governance
+- 8 destructuring tests in `test_closures_scope.naab` (30 → 38 assertions)
 
 ## [0.5.2] - 2026-03-21
 

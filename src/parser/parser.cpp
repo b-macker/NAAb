@@ -1209,6 +1209,13 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
         return parseThrowStmt();
     }
     if (check(lexer::TokenType::LET) || check(lexer::TokenType::CONST)) {
+        // Check for destructuring pattern: let [a, b] = ... or let {x, y} = ...
+        size_t next = pos_ + 1;
+        if (next < tokens_.size() &&
+            (tokens_[next].type == lexer::TokenType::LBRACKET ||
+             tokens_[next].type == lexer::TokenType::LBRACE)) {
+            return parseDestructureStmt();
+        }
         return parseVarDeclStmt();
     }
     // Phase 12: runtime name = language.start()
@@ -1542,6 +1549,59 @@ std::unique_ptr<ast::VarDeclStmt> Parser::parseVarDeclStmt() {
         opt_type,
         ast::SourceLocation(start.line, start.column)
     );
+}
+
+std::unique_ptr<ast::DestructureStmt> Parser::parseDestructureStmt() {
+    auto start = current();
+    bool is_const = match(lexer::TokenType::CONST);
+    if (!is_const) {
+        expect(lexer::TokenType::LET, "Expected 'let' or 'const'");
+    }
+
+    ast::DestructureStmt::Kind kind;
+    std::vector<std::string> names;
+
+    if (match(lexer::TokenType::LBRACKET)) {
+        // Array destructuring: let [a, b, c] = expr
+        kind = ast::DestructureStmt::Kind::Array;
+        while (!check(lexer::TokenType::RBRACKET)) {
+            auto& name_token = current();
+            if (!isAllowedNameToken(name_token.type)) {
+                throw ParseError(formatError(
+                    "Expected variable name in destructuring pattern", name_token));
+            }
+            names.push_back(name_token.value);
+            advance();
+            if (!match(lexer::TokenType::COMMA)) break;
+        }
+        expect(lexer::TokenType::RBRACKET, "Expected ']' after destructuring names");
+    } else if (match(lexer::TokenType::LBRACE)) {
+        // Dict destructuring: let {x, y, z} = expr
+        kind = ast::DestructureStmt::Kind::Dict;
+        while (!check(lexer::TokenType::RBRACE)) {
+            auto& name_token = current();
+            if (!isAllowedNameToken(name_token.type)) {
+                throw ParseError(formatError(
+                    "Expected variable name in destructuring pattern", name_token));
+            }
+            names.push_back(name_token.value);
+            advance();
+            if (!match(lexer::TokenType::COMMA)) break;
+        }
+        expect(lexer::TokenType::RBRACE, "Expected '}' after destructuring names");
+    } else {
+        throw ParseError(formatError(
+            "Expected '[' or '{' for destructuring pattern", current()));
+    }
+
+    expect(lexer::TokenType::EQ, "Expected '=' after destructuring pattern");
+    auto init = parseExpression();
+
+    optionalSemicolon();
+
+    return std::make_unique<ast::DestructureStmt>(
+        kind, std::move(names), std::move(init),
+        ast::SourceLocation(start.line, start.column));
 }
 
 std::unique_ptr<ast::ExprStmt> Parser::parseExprStmt() {

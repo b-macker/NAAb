@@ -99,6 +99,22 @@ let val = maybe_dict?.get("key")   // null if maybe_dict is null
 
 `?.` returns `null` immediately if the left side is `null`, instead of throwing an error. Chains propagate: `a?.b?.c` returns `null` if either `a` or `a.b` is `null`.
 
+### 20.1.9 Destructuring Assignment — Implemented (v0.5.3)
+
+Extract values from arrays and dicts into named variables:
+
+```naab
+// Array destructuring
+let [x, y, z] = [1, 2, 3]
+let [first, second] = get_coordinates()
+
+// Dict destructuring
+let {name, age} = get_user()
+let {city, zip} = {"city": "NYC"}  // zip is null (missing key)
+```
+
+Array destructuring is positional — extra elements are ignored. Dict destructuring matches by key name — missing keys produce `null`. Destructured values follow NAAb's value semantics (independent copies).
+
 ## 20.2 Planned Language Features
 
 ### 20.2.1 Enhanced Generics and Type System
@@ -109,17 +125,7 @@ Future work will focus on expanding the capabilities of the type system:
 *   **Variadic Generics**: Support functions that accept a variable number of type arguments.
 *   **Advanced Type Inference**: Further reduce the need for explicit type annotations.
 
-### 20.2.2 Destructuring
-
-Pattern-based variable extraction from data structures:
-
-```naab
-// Planned:
-let {name, age} = get_user()
-let [first, ...rest] = get_items()
-```
-
-### 20.2.3 String Interpolation in Polyglot Blocks
+### 20.2.2 String Interpolation in Polyglot Blocks
 
 Currently, NAAb variables must be explicitly bound to polyglot blocks. A future enhancement would allow inline interpolation:
 

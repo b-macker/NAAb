@@ -22,6 +22,13 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 - `const MAX = 100` — constant (UPPER_SNAKE_CASE)
 - NO `var` keyword — NAAb does not have `var`
 
+### Destructuring
+- Array: `let [a, b, c] = [1, 2, 3]` — positional extraction
+- Dict: `let {name, age} = get_user()` — key-based extraction by name
+- Extra array elements are ignored: `let [first, second] = [1, 2, 3]` works
+- Missing dict keys become `null`: `let {x, missing} = {"x": 1}` — missing is null
+- Works with function returns: `let [passed, total] = run_tests()`
+
 ### Functions
 - Use `fn` keyword: `fn my_function(param1, param2) { }`
 - `function`, `func`, `def` also work but `fn` is preferred

@@ -424,6 +424,7 @@ public:
     void visit(ast::FunctionDeclStmt& node) override;  // Nested function declaration
     void visit(ast::StructDeclStmt& node) override;    // Nested struct declaration
     void visit(ast::RuntimeDeclStmt& node) override;   // Phase 12: Persistent runtime
+    void visit(ast::DestructureStmt& node) override;   // Destructuring assignment
     void visit(ast::MainBlock& node) override;
     void visit(ast::CompoundStmt& node) override;
     void visit(ast::ExprStmt& node) override;
