@@ -798,3 +798,284 @@ NAAb extracts clear directives from LLM files using strong verbs ("always use", 
 Conflicts are resolved by `priority_source` (if set), otherwise linter configs win over LLM files, which win over manifests. Every skipped directive is reported with source and reason. Use `suppress_rules` to surgically suppress specific extractions by ID, or `dry_run: true` to preview without applying.
 
 See `docs/govern-template.json` for the full configuration reference.
+
+## 21.11 Taint Tracking
+
+Taint tracking is NAAb's most powerful security feature, introduced in governance v4.0. It automatically tracks untrusted data from where it enters your program (sources) through all transformations to where it leaves (sinks), blocking unsafe usage unless the data has been sanitized.
+
+### 21.11.1 How It Works
+
+1. **Sources** mark data as tainted when it enters from untrusted origins
+2. **Propagation** carries taint through string concatenation, interpolation, function returns, loop iterators, and container mutations
+3. **Sanitizers** clear taint when data passes through validation functions
+4. **Sinks** check for tainted data before performing dangerous operations
+
+### 21.11.2 Configuration
+
+```json
+{
+  "taint_tracking": {
+    "enabled": true,
+    "level": "hard",
+    "sources": ["env.get", "io.read_line", "file.read", "polyglot_output"],
+    "sinks": ["shell_exec", "python_exec", "go_exec", "javascript_exec",
+              "nim_exec", "file.write", "file.append", "http.", "env.set_var"],
+    "sanitizers": ["validate_", "sanitize_", "escape_"],
+    "propagation": {
+      "string_concat": true,
+      "string_interpolation": true,
+      "function_returns": true,
+      "for_loop_iterators": true,
+      "dict_array_access": true
+    }
+  }
+}
+```
+
+### 21.11.3 Sources
+
+Sources are functions whose return values are automatically marked as tainted:
+
+| Source | What It Tracks |
+|--------|---------------|
+| `env.get` | Environment variables (attacker-controlled in CI/CD) |
+| `io.read_line` | User input from stdin |
+| `file.read` | File contents (may be attacker-supplied) |
+| `polyglot_output` | Return values from polyglot blocks |
+| `polyglot_output:python` | Only Python block output (per-language) |
+
+**Per-language polyglot sources:** Use `"polyglot_output:python"` to taint only Python block output while leaving Go/JS/etc. untainted. This is useful when one language is trusted but another is not.
+
+### 21.11.4 Sinks
+
+Sinks are operations that must not receive tainted data:
+
+| Sink | What It Protects Against |
+|------|--------------------------|
+| `shell_exec` | Command injection in shell blocks |
+| `python_exec` | Code injection in Python blocks |
+| `go_exec`, `nim_exec`, etc. | Code injection in compiled language blocks |
+| `file.write`, `file.append` | Writing untrusted data to files |
+| `http.` | SSRF (Server-Side Request Forgery) via tainted URLs |
+| `env.set_var` | Environment variable injection |
+
+**Prefix matching:** `"http."` matches `http.get`, `http.post`, `http.put`, `http.delete` — any HTTP method.
+
+### 21.11.5 Sanitizers
+
+Sanitizer functions clear taint from variables. Matching uses **prefix matching**:
+
+| Sanitizer Prefix | Matches |
+|-----------------|---------|
+| `validate_` | `validate_input()`, `validate_url()`, etc. |
+| `sanitize_` | `sanitize_html()`, `sanitize_sql()`, etc. |
+| `escape_` | `escape_shell()`, `escape_html()`, etc. |
+| `int(` | `int(user_input)` — type casting as sanitization |
+| `float(` | `float(user_input)` — type casting as sanitization |
+
+**Member expressions work:** `module.sanitize_foo(x)` also clears taint.
+
+**Important:** Prefix matching means `"validate_"` matches `validate_input` but NOT `revalidate_input`.
+
+### 21.11.6 Propagation
+
+Taint propagates automatically through these paths:
+
+```naab
+// String concatenation
+let tainted = env.get("USER_INPUT")
+let msg = "Hello " + tainted           // msg is tainted
+
+// String interpolation
+let greeting = "Hello ${tainted}"       // greeting is tainted
+
+// Function returns
+fn get_data() {
+    let x = env.get("DATA")
+    return x                            // return value carries taint
+}
+let data = get_data()                   // data is tainted
+
+// For-loop iterators
+for item in env.get("PATH") {           // item is tainted
+    print(item)                         // safe (print is not a sink)
+}
+
+// Container mutations
+let arr = [1, 2, 3]
+arr.push(tainted)                       // arr is now tainted
+let dict = {"key": "clean"}
+dict["key"] = tainted                   // dict is now tainted
+```
+
+### 21.11.7 Examples
+
+**Example 1: Command injection prevention**
+
+```naab
+use env
+
+fn process_user_input() {
+    let user_file = env.get("USER_FILE")  // tainted
+
+    // BLOCKED: tainted data in shell block
+    // let result = <<shell[user_file]
+    //   cat ${user_file}
+    // >>
+
+    // SAFE: sanitize first
+    let safe_file = validate_filename(user_file)  // taint cleared
+    let result = <<shell[safe_file]
+      cat ${safe_file}
+    >>
+    return result
+}
+
+fn validate_filename(name) {
+    // Real validation logic here
+    if string.contains(name, "..") {
+        return "invalid"
+    }
+    return name
+}
+
+main {
+    process_user_input()
+}
+```
+
+**Example 2: SSRF prevention**
+
+```naab
+use env
+use http
+
+main {
+    let url = env.get("WEBHOOK_URL")  // tainted
+
+    // BLOCKED: tainted URL passed to http.get
+    // let response = http.get(url)
+
+    // SAFE: validate the URL first
+    let safe_url = validate_url(url)
+    let response = http.get(safe_url)
+}
+
+fn validate_url(url) {
+    if !string.starts_with(url, "https://") {
+        return "https://default.example.com"
+    }
+    return url
+}
+```
+
+**Example 3: Async taint propagation**
+
+```naab
+use env
+
+async fn fetch_data() {
+    let key = env.get("API_KEY")  // tainted
+    return key
+}
+
+main {
+    let data = await fetch_data()  // data is tainted (async propagation)
+    // Taint flows through await expressions
+}
+```
+
+### 21.11.8 Enforcement Levels
+
+| Level | Behavior |
+|-------|----------|
+| `hard` | Taint violation throws an error. Execution stops. Cannot be overridden. |
+| `soft` | Taint violation throws an error. Can be overridden with `--governance-override`. |
+| `advisory` | Taint violation emits a warning. Execution continues. |
+
+### 21.11.9 Limitations
+
+- **Async taint is snapshot-based:** Each async function gets a snapshot of the parent's taint state at creation time. Multi-level async chains (grandchild functions) may not see taint added by intermediate functions.
+- **Module imports skip body scan:** Taint is enforced at runtime, not during static import analysis. This is a performance optimization.
+- **Name-based tracking:** Taint is tracked by variable name, not by value identity. Reassigning a variable with clean data clears its taint.
+
+## 21.12 Cross-Module Contracts
+
+Governance v4 adds parameter type validation at function call sites:
+
+```json
+{
+  "contracts": {
+    "validate_inputs": true,
+    "functions": {
+      "process_data": {
+        "params": ["data:dict", "count:int"],
+        "return_type": "dict",
+        "return_keys": ["status", "result"]
+      },
+      "calculate_score": {
+        "params": ["values:array"],
+        "return_type": "number",
+        "return_min": 0,
+        "return_max": 100
+      }
+    }
+  }
+}
+```
+
+Contracts are checked on both `callFunction()` and direct call dispatch paths, with violations logged to the audit trail.
+
+## 21.13 Enhanced Audit Trail
+
+Governance v4 provides JSONL audit logging with tamper-evident hash chains:
+
+```json
+{
+  "audit": {
+    "level": "detailed",
+    "log_file": "governance_audit.jsonl",
+    "log_events": {
+      "polyglot_timing": true,
+      "taint_decisions": true,
+      "contract_checks": true,
+      "checks_passed": true,
+      "checks_failed": true
+    }
+  }
+}
+```
+
+Each audit entry includes a SHA-256 hash of the previous entry, creating a tamper-evident chain. Events logged include:
+
+- **polyglot_timing:** Execution duration per polyglot block
+- **taint_decisions:** Every taint mark/clear/block decision
+- **contract_checks:** Every contract pass/fail with parameter details
+
+## 21.14 The NAAb Scanner
+
+NAAb includes a built-in static analysis scanner accessible via `naab-lang --scan`:
+
+```bash
+# Scan a Python file
+naab-lang --scan script.py python
+
+# Auto-detect language
+naab-lang --scan src/utils.js auto
+
+# Scan with JSON output
+naab-lang --scan script.py python --governance-report report.json
+```
+
+The scanner provides 139 checks across 6 categories:
+
+| Category | Checks | What It Detects |
+|----------|--------|-----------------|
+| Redundancy | 30 | Dead variables, unused imports, duplicate expressions |
+| Code Quality | 20 | Magic numbers, long functions, deep nesting |
+| Complexity | 9 | Cyclomatic complexity, cognitive complexity |
+| Style | 12 | Naming conventions, formatting issues |
+| Security | 0 | (Covered by governance security checks) |
+| Language-specific | 68 | Python (14), JavaScript (12), C++ (12), Go (9), Rust (10), NAAb (11) |
+
+The scanner is configurable via the `"scanner"` section of `govern.json` and supports text, JSON, and SARIF output formats.
