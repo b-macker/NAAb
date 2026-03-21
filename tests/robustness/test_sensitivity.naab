@@ -155,6 +155,10 @@ fn test_operator_sensitivity() {
     total = total + 1
     if (null ?? "a") != ("x" ?? "a") { passed = passed + 1 }
 
+    // 7. string comparison distinguishes order
+    total = total + 1
+    if ("abc" < "def") != ("def" < "abc") { passed = passed + 1 }
+
     return [passed, total]
 }
 

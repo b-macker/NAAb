@@ -198,6 +198,16 @@ fn test_operator_mutations() {
     let w8 = !true == true
     if !w8 { passed = passed + 1 }
 
+    // 9. "def" < "abc" should be false (lexicographic)
+    total = total + 1
+    let w9 = "def" < "abc"
+    if !w9 { passed = passed + 1 }
+
+    // 10. "abc" > "def" should be false (lexicographic)
+    total = total + 1
+    let w10 = "abc" > "def"
+    if !w10 { passed = passed + 1 }
+
     return [passed, total]
 }
 

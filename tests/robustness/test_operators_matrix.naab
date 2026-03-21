@@ -144,6 +144,26 @@ fn test_comparison_cross_type() {
     total = total + 1
     if 5 >= 3 { passed = passed + 1 }
 
+    // string < (lexicographic)
+    total = total + 1
+    if "abc" < "def" { passed = passed + 1 }
+
+    // string > (lexicographic)
+    total = total + 1
+    if "def" > "abc" { passed = passed + 1 }
+
+    // string <= (equal strings)
+    total = total + 1
+    if "abc" <= "abc" { passed = passed + 1 }
+
+    // string >= (equal strings)
+    total = total + 1
+    if "abc" >= "abc" { passed = passed + 1 }
+
+    // empty string < non-empty
+    total = total + 1
+    if "" < "a" { passed = passed + 1 }
+
     return [passed, total]
 }
 

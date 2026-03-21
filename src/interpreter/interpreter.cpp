@@ -4010,19 +4010,43 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         }
 
         case ast::BinaryOp::Lt:
-            result_ = std::make_shared<Value>(left->toFloat() < right->toFloat());
+            if (std::holds_alternative<std::string>(left->data) &&
+                std::holds_alternative<std::string>(right->data)) {
+                result_ = std::make_shared<Value>(
+                    std::get<std::string>(left->data) < std::get<std::string>(right->data));
+            } else {
+                result_ = std::make_shared<Value>(left->toFloat() < right->toFloat());
+            }
             break;
 
         case ast::BinaryOp::Le:
-            result_ = std::make_shared<Value>(left->toFloat() <= right->toFloat());
+            if (std::holds_alternative<std::string>(left->data) &&
+                std::holds_alternative<std::string>(right->data)) {
+                result_ = std::make_shared<Value>(
+                    std::get<std::string>(left->data) <= std::get<std::string>(right->data));
+            } else {
+                result_ = std::make_shared<Value>(left->toFloat() <= right->toFloat());
+            }
             break;
 
         case ast::BinaryOp::Gt:
-            result_ = std::make_shared<Value>(left->toFloat() > right->toFloat());
+            if (std::holds_alternative<std::string>(left->data) &&
+                std::holds_alternative<std::string>(right->data)) {
+                result_ = std::make_shared<Value>(
+                    std::get<std::string>(left->data) > std::get<std::string>(right->data));
+            } else {
+                result_ = std::make_shared<Value>(left->toFloat() > right->toFloat());
+            }
             break;
 
         case ast::BinaryOp::Ge:
-            result_ = std::make_shared<Value>(left->toFloat() >= right->toFloat());
+            if (std::holds_alternative<std::string>(left->data) &&
+                std::holds_alternative<std::string>(right->data)) {
+                result_ = std::make_shared<Value>(
+                    std::get<std::string>(left->data) >= std::get<std::string>(right->data));
+            } else {
+                result_ = std::make_shared<Value>(left->toFloat() >= right->toFloat());
+            }
             break;
 
         case ast::BinaryOp::Pipeline: {
