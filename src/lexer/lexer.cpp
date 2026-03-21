@@ -757,6 +757,9 @@ std::vector<Token> Lexer::tokenize() {
                 if (peekChar() && *peekChar() == '?') {
                     tokens_.emplace_back(TokenType::QUESTION_QUESTION, "??", line, col);
                     advance();
+                } else if (peekChar() && *peekChar() == '.') {
+                    tokens_.emplace_back(TokenType::QUESTION_DOT, "?.", line, col);
+                    advance();
                 } else {
                     tokens_.emplace_back(TokenType::QUESTION, "?", line, col);
                 }

@@ -63,6 +63,7 @@ enum class TokenType {
     ARROW,         // ->
     FAT_ARROW,     // =>
     QUESTION,      // ?
+    QUESTION_DOT,  // ?.
     QUESTION_QUESTION, // ??
     COLON,         // :
     DOUBLE_COLON,  // ::

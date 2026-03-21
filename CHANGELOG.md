@@ -5,6 +5,17 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-03-21
+
+### Added
+- **Optional chaining (`?.`)** — safely access properties/methods of potentially null objects
+  - `user?.name` returns null if user is null, otherwise returns `user.name`
+  - `obj?.method()` returns null if obj is null, otherwise calls the method
+  - Chains: `a?.b?.c` propagates null through the chain
+  - Combines with `??`: `user?.name ?? "default"` for fallback values
+  - Works with structs, dicts, arrays, strings — any member/method access
+- 9 optional chaining tests in `test_structs_enums.naab` (25 → 34 assertions)
+
 ## [0.5.2] - 2026-03-21
 
 ### Added

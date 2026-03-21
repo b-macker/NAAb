@@ -4369,6 +4369,14 @@ void Interpreter::visit(ast::CallExpr& node) {
             auto obj_val = eval(*member_expr->getObject());
             std::string method_name = member_expr->getMember();
 
+            // Optional chaining: if object is null and ?. was used, return null
+            if (member_expr->isOptional()) {
+                if (!obj_val || std::holds_alternative<std::monostate>(obj_val->data)) {
+                    result_ = std::make_shared<Value>();  // null
+                    return;
+                }
+            }
+
             // Phase 12: Check if this is a persistent runtime .exec() call
             if (auto* str_val = std::get_if<std::string>(&obj_val->data)) {
                 if (str_val->find("__NAAB_RUNTIME__:") == 0 && method_name == "exec") {
@@ -6595,6 +6603,14 @@ void Interpreter::visit(ast::MemberExpr& node) {
     }
 
     auto obj = eval(*node.getObject());
+
+    // Optional chaining: if object is null and ?. was used, return null
+    if (node.isOptional()) {
+        if (!obj || std::holds_alternative<std::monostate>(obj->data)) {
+            result_ = std::make_shared<Value>();  // null
+            return;
+        }
+    }
 
     // Handle struct member access
     if (std::holds_alternative<std::shared_ptr<StructValue>>(obj->data)) {

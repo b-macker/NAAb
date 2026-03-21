@@ -793,12 +793,14 @@ class MemberExpr : public Expr {
 public:
     MemberExpr(std::unique_ptr<Expr> obj,
                const std::string& member,
-               SourceLocation loc = SourceLocation())
+               SourceLocation loc = SourceLocation(),
+               bool optional = false)
         : Expr(NodeKind::MemberExpr, loc),
-          obj_(std::move(obj)), member_(member) {}
+          obj_(std::move(obj)), member_(member), optional_(optional) {}
 
     Expr* getObject() const { return obj_.get(); }
     const std::string& getMember() const { return member_; }
+    bool isOptional() const { return optional_; }
 
     Type getType() const override;
     void accept(ASTVisitor& visitor) override;
@@ -806,6 +808,7 @@ public:
 private:
     std::unique_ptr<Expr> obj_;
     std::string member_;
+    bool optional_ = false;
 };
 
 // Variable reference: x

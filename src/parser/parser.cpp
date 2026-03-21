@@ -1935,8 +1935,9 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
                 ast::SourceLocation()
             );
         }
-        // Member access
-        else if (match(lexer::TokenType::DOT)) {
+        // Optional chaining (?.) or member access (.)
+        else if (match(lexer::TokenType::QUESTION_DOT) || match(lexer::TokenType::DOT)) {
+            bool is_optional = tokens_[pos_ - 1].type == lexer::TokenType::QUESTION_DOT;
             // Check for reserved keyword used as member name
             if (check(lexer::TokenType::NEW)) {
                 // Special hint for array.new() pattern
@@ -1987,7 +1988,8 @@ std::unique_ptr<ast::Expr> Parser::parsePostfix() {
             expr = std::make_unique<ast::MemberExpr>(
                 std::move(expr),
                 member_name,
-                ast::SourceLocation()
+                ast::SourceLocation(),
+                is_optional
             );
         }
         // Array/Dict subscript

@@ -1,93 +1,196 @@
 # Chapter 20: Future Roadmap
 
-NAAb is a living language, continuously evolving to meet the demands of modern polyglot development. This chapter outlines the exciting features and improvements planned for upcoming releases, providing a glimpse into the future of NAAb. It also highlights how you can contribute to this journey.
+NAAb is a living language, continuously evolving to meet the demands of modern polyglot development. This chapter outlines the current state of implemented features, what's planned for upcoming releases, and how you can contribute to the project.
 
-## 20.1 Upcoming Language Features
+## 20.1 Implemented Features (v0.5.x)
 
-The core language and Standard Library are largely complete, but several significant enhancements are planned to further strengthen NAAb's capabilities.
+The following features are fully implemented and tested:
 
-### 20.1.1 Asynchronous Programming (`async`/`await`)
+### 20.1.1 Asynchronous Programming (`async`/`await`) — Implemented
 
-A robust asynchronous programming model is critical for I/O-bound operations and responsive applications. NAAb plans to introduce `async`/`await` keywords, enabling non-blocking code that is easy to write and reason about. This will allow for efficient handling of network requests, file operations, and other long-running tasks without freezing the application.
+NAAb supports `async`/`await` for concurrent function execution:
 
-### 20.1.2 Full Null Safety Enforcement
+```naab
+async fn fetch_data(url) {
+    let result = <<python[url]
+import urllib.request
+urllib.request.urlopen(url).read().decode()
+    >>
+    return result
+}
 
-While NAAb is designed to be null-safe by default, the full compile-time enforcement of nullability rules is an ongoing effort. Future versions will eliminate `null` reference exceptions at compilation, forcing developers to explicitly handle optional values. This includes planned features like:
+main {
+    let data = await fetch_data("https://example.com")
+    print(data)
+}
+```
 
-*   **Optional Chaining (`?.`)**: Safely access properties of potentially `null` objects.
-*   **Null Coalescing (`??`)**: Provide default values for `null` expressions.
-*   **Non-Null Assertion (`!`)**: Explicitly assert that a nullable value is not `null`.
+Async functions run concurrently with independent taint state (snapshot-based isolation). See Chapter 8 for details.
 
-### 20.1.3 Enhanced Generics and Type System
+### 20.1.2 Null Coalescing (`??`) — Implemented
 
-Currently, NAAb supports defining and using generic structs and functions with type inference. Future work will focus on expanding the capabilities of the type system:
+The null coalescing operator provides default values for `null` expressions:
 
-*   **Type Constraints**: Allow generics to be constrained (e.g., `fn sort<T: Comparable>`).
-*   **Variadic Generics**: Support functions that accept a variable number of type arguments.
-*   **Advanced Type Inference**: Further reduce the need for explicit type annotations in complex scenarios.
+```naab
+let name = env.get("USER") ?? "anonymous"
+let config = settings.get("timeout") ?? 30
+```
 
-### 20.1.4 Governance Engine (Implemented)
+**Important:** `??` only triggers on `null`, not on falsy values like `false`, `0`, or `""`. This differs from JavaScript's `||` operator.
 
-The governance engine is now available in NAAb v3.0. It provides policy-as-code enforcement for polyglot blocks via `govern.json`, with 50+ built-in checks including:
+### 20.1.3 Governance Engine v4.0 — Implemented
 
-- **Security checks**: Secret detection, SQL injection, path traversal, privilege escalation, shell injection, unsafe deserialization
-- **Code quality checks**: Placeholder detection, dead code, debug artifacts, mock data, simulation markers
-- **LLM anti-drift checks**: Oversimplification detection, incomplete logic detection, hallucinated API detection with "did you mean?" suggestions
-- **Custom rules**: User-defined regex-based governance rules
-- **CI/CD integration**: SARIF, JUnit XML, and JSON report output
+The governance engine provides comprehensive policy-as-code enforcement:
+
+- **50+ built-in checks** across security, code quality, and LLM anti-drift categories
+- **Taint tracking** — variable-level tracking of untrusted data from sources through sinks
+- **Cross-module contracts** — parameter type validation at function call sites
+- **Enhanced audit trail** — JSONL logging with tamper-evident hash chains
+- **Built-in scanner** — 139 static analysis checks across 6 categories
+- **Project context awareness** — reads CLAUDE.md, .eslintrc, package.json to supplement govern.json
+- **15 polyglot languages** — Python, JavaScript, Shell, Go, Nim, Zig, Julia, Rust, C++, C#, Ruby, PHP + more
+- **CI/CD integration** — SARIF, JUnit XML, and JSON report output
 
 See [Chapter 21: Governance and LLM Code Quality](chapter21.md) for the full reference.
 
-## 20.2 The Tooling Roadmap
+### 20.1.4 Pattern Matching — Implemented
 
-A rich tooling ecosystem is paramount for developer productivity. NAAb has ambitious plans to provide a comprehensive suite of development tools.
+```naab
+match value {
+    1 => { print("one") }
+    2 => { print("two") }
+    default => { print("other") }
+}
+```
 
-### 20.2.1 Language Server Protocol (LSP)
+### 20.1.5 Lambda Expressions and Closures — Implemented
 
-The NAAb Language Server is being developed to provide IDE-like features in any editor that supports LSP. This will include:
+```naab
+let adder = fn(x) { return fn(y) { return x + y } }
+let add5 = adder(5)
+print(add5(3))  // 8
+```
 
-*   **Intelligent Autocompletion**: Suggesting keywords, variables, functions, and block IDs.
-*   **Real-time Diagnostics**: Highlighting syntax errors, type errors, and linting warnings directly in your code.
-*   **Hover Information**: Displaying type signatures, documentation, and block metadata on hover.
-*   **Go-to-Definition and Find References**: Seamless navigation through your codebase.
+### 20.1.6 Pipeline Operator — Implemented
 
-### 20.2.2 Formatter and Linter
+```naab
+let result = data |> transform |> analyze |> format
+```
 
-To maintain code quality and consistency across projects:
+### 20.1.7 String Comparison — Implemented (v0.5.2)
 
-*   **`naab-fmt`**: An opinionated code formatter that automatically applies a consistent style to your NAAb code.
-*   **`naab-lint`**: A static analysis tool to catch potential bugs, code smells, and enforce best practices.
+String `<`, `<=`, `>`, `>=` operators use lexicographic comparison:
 
-### 20.2.3 Debugger
+```naab
+if "apple" < "banana" { print("correct") }
+```
 
-A fully featured debugger (`naab-debug`) is planned, allowing developers to:
+### 20.1.8 Optional Chaining (`?.`) — Implemented (v0.5.3)
 
-*   Set breakpoints and step through NAAb code.
-*   Inspect variables and evaluate expressions at runtime.
-*   Navigate the call stack, even across polyglot boundaries.
+Safely access properties of potentially `null` objects without throwing:
 
-### 20.2.4 Package Manager
+```naab
+let city = user?.address?.city ?? "unknown"
 
-A dedicated package manager (`naab-pkg`) will simplify dependency management, block distribution, and project scaffolding.
+// Works with method calls too:
+let len = maybe_array?.length()    // null if maybe_array is null
+let val = maybe_dict?.get("key")   // null if maybe_dict is null
+```
 
-## 20.3 Contributing to NAAb
+`?.` returns `null` immediately if the left side is `null`, instead of throwing an error. Chains propagate: `a?.b?.c` returns `null` if either `a` or `a.b` is `null`.
 
-NAAb is an open-source project, and contributions are highly encouraged. Whether you're a language designer, a C++ developer, a technical writer, or a polyglot enthusiast, there are many ways to get involved.
+## 20.2 Planned Language Features
 
-### 20.3.1 Reporting Bugs and Suggesting Features
+### 20.2.1 Enhanced Generics and Type System
 
-If you encounter an issue (like those detailed in `ISSUES.md`) or have an idea for a new feature, please report it on the project's GitHub repository. Clear, detailed bug reports with reproducible steps are invaluable.
+Future work will focus on expanding the capabilities of the type system:
 
-### 20.3.2 Code Contributions
+*   **Type Constraints**: Allow generics to be constrained (e.g., `fn sort<T: Comparable>`).
+*   **Variadic Generics**: Support functions that accept a variable number of type arguments.
+*   **Advanced Type Inference**: Further reduce the need for explicit type annotations.
+
+### 20.2.2 Destructuring
+
+Pattern-based variable extraction from data structures:
+
+```naab
+// Planned:
+let {name, age} = get_user()
+let [first, ...rest] = get_items()
+```
+
+### 20.2.3 String Interpolation in Polyglot Blocks
+
+Currently, NAAb variables must be explicitly bound to polyglot blocks. A future enhancement would allow inline interpolation:
+
+```naab
+// Planned:
+let name = "world"
+<<python
+print(f"Hello {naab.name}")
+>>
+```
+
+## 20.3 The Tooling Roadmap
+
+### 20.3.1 Language Server Protocol (LSP) — In Progress
+
+The NAAb Language Server is being developed to provide IDE-like features:
+
+*   **Intelligent Autocompletion**: Keywords, variables, functions, stdlib methods.
+*   **Real-time Diagnostics**: Syntax errors, governance violations.
+*   **Hover Information**: Type signatures, documentation.
+*   **Go-to-Definition and Find References**: Codebase navigation.
+
+### 20.3.2 Formatter and Linter
+
+*   **`naab-fmt`**: Opinionated code formatter for consistent style.
+*   **`naab-lint`**: Static analysis (partially available via `naab-lang --scan`).
+
+### 20.3.3 Debugger
+
+A fully featured debugger (`naab-debug`) is planned:
+
+*   Breakpoints and step-through execution.
+*   Variable inspection and expression evaluation.
+*   Call stack navigation across polyglot boundaries.
+
+### 20.3.4 Package Manager
+
+A dedicated package manager (`naab-pkg`) for dependency management, block distribution, and project scaffolding.
+
+## 20.4 Test Suite Status
+
+NAAb maintains a comprehensive test suite with multiple verification layers:
+
+| Category | Tests | Description |
+|----------|-------|-------------|
+| Core regression | 358 | Full language + governance + polyglot |
+| Robustness | 313 | Exhaustive stdlib, operators, closures, control flow |
+| Mutations | 45 | Wrong-answer detection (meta-test) |
+| Sensitivity | 33 | Input-dependency verification (meta-test) |
+| Static audit | 7 | Structural integrity of test files |
+| Runtime manifest | 8 | Output verification against expected values |
+| Stdlib coverage | 92/92 | 100% of all stdlib functions tested |
+
+## 20.5 Contributing to NAAb
+
+NAAb is an open-source project, and contributions are highly encouraged.
+
+### 20.5.1 Reporting Bugs and Suggesting Features
+
+Report issues on the project's GitHub repository. Clear, detailed bug reports with reproducible steps are invaluable.
+
+### 20.5.2 Code Contributions
 
 The NAAb core is primarily written in C++. Contributions could involve:
 
-*   Implementing missing Standard Library functions (e.g., the `io.write` functions, `map`/`filter`/`reduce` for `array` module).
-*   Fixing existing bugs (e.g., the Pipeline Operator `ISS-003`, C++ header injection `ISS-004`).
-*   Implementing new language features (Generics, Null Safety).
-*   Developing new language executors.
+*   Implementing planned language features (optional chaining, destructuring, generics).
+*   Improving the LSP server.
+*   Adding new polyglot language executors.
+*   Enhancing governance checks and scanner rules.
 
-### 20.3.3 Documentation and Examples
+### 20.5.3 Documentation and Examples
 
 High-quality documentation is vital for adoption. Contributions to the user guide, API reference, tutorials, and code examples are always welcome.
 

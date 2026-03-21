@@ -44,6 +44,12 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 - `let x = if condition { value_a } else { value_b }` — returns a value
 - `let x = if a { 1 } else if b { 2 } else { 3 }` — else-if chains work
 
+### Optional Chaining (`?.`)
+- `user?.name` — returns `null` if `user` is null, otherwise returns `user.name`
+- `obj?.method()` — returns `null` if `obj` is null, otherwise calls the method
+- Chains propagate: `a?.b?.c` — returns null if any link is null
+- Combines with `??`: `user?.name ?? "anonymous"` — null-safe with fallback
+
 ### Null Coalesce Operator (??)
 - `let y = x ?? "default"` — returns `x` if non-null, otherwise `"default"`
 - Chainable: `a ?? b ?? c` — returns first non-null value
