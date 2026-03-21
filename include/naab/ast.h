@@ -680,6 +680,7 @@ private:
 };
 
 // Destructuring assignment: let [a, b, c] = expr  OR  let {x, y} = expr
+// Supports rest: let [first, ...rest] = expr (rest_index >= 0)
 class DestructureStmt : public Stmt {
 public:
     enum class Kind { Array, Dict };
@@ -687,13 +688,16 @@ public:
     DestructureStmt(Kind kind,
                     std::vector<std::string> names,
                     std::unique_ptr<Expr> init,
+                    int rest_index = -1,
                     SourceLocation loc = SourceLocation())
         : Stmt(NodeKind::DestructureStmt, loc),
-          kind_(kind), names_(std::move(names)), init_(std::move(init)) {}
+          kind_(kind), names_(std::move(names)), init_(std::move(init)),
+          rest_index_(rest_index) {}
 
     Kind getDestructureKind() const { return kind_; }
     const std::vector<std::string>& getNames() const { return names_; }
     Expr* getInit() const { return init_.get(); }
+    int getRestIndex() const { return rest_index_; }
 
     void accept(ASTVisitor& visitor) override;
 
@@ -701,6 +705,7 @@ private:
     Kind kind_;
     std::vector<std::string> names_;
     std::unique_ptr<Expr> init_;
+    int rest_index_;  // -1 = no rest, >= 0 = index of ...rest name
 };
 
 // ============================================================================

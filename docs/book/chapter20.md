@@ -108,12 +108,16 @@ Extract values from arrays and dicts into named variables:
 let [x, y, z] = [1, 2, 3]
 let [first, second] = get_coordinates()
 
+// Spread/rest operator
+let [head, ...tail] = [1, 2, 3, 4, 5]  // head=1, tail=[2,3,4,5]
+let [a, b, ...rest] = get_items()       // rest collects remaining
+
 // Dict destructuring
 let {name, age} = get_user()
 let {city, zip} = {"city": "NYC"}  // zip is null (missing key)
 ```
 
-Array destructuring is positional — extra elements are ignored. Dict destructuring matches by key name — missing keys produce `null`. Destructured values follow NAAb's value semantics (independent copies).
+Array destructuring is positional — extra elements are ignored (or collected with `...rest`). Dict destructuring matches by key name — missing keys produce `null`. Destructured values follow NAAb's value semantics (independent copies).
 
 ## 20.2 Planned Language Features
 

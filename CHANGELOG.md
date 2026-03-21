@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Value semantics preserved (destructured values are copies)
   - Taint propagation supported for governance
 - 8 destructuring tests in `test_closures_scope.naab` (30 → 38 assertions)
+- **Spread/rest operator (`...`)** in array destructuring
+  - `let [first, ...rest] = [1, 2, 3, 4]` — `rest` becomes `[2, 3, 4]`
+  - `...rest` must be the last element in the pattern
+  - Empty rest produces `[]` when array is exactly consumed
+  - Value semantics preserved (rest array is an independent copy)
+- 5 spread tests added to `test_closures_scope.naab` (38 → 43 assertions)
 
 ## [0.5.2] - 2026-03-21
 

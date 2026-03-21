@@ -353,6 +353,32 @@ fn test_destructuring() {
     orig.push(4)
     if array.length(orig) == 4 && c3 == 3 { passed = passed + 1 }
 
+    // spread: basic ...rest
+    total = total + 1
+    let [head, ...tail] = [10, 20, 30, 40]
+    if head == 10 && array.length(tail) == 3 { passed = passed + 1 }
+
+    // spread: rest elements correct
+    total = total + 1
+    if tail[0] == 20 && tail[1] == 30 && tail[2] == 40 { passed = passed + 1 }
+
+    // spread: two names + rest
+    total = total + 1
+    let [s1, s2, ...s_rest] = [1, 2, 3, 4, 5]
+    if s1 == 1 && s2 == 2 && array.length(s_rest) == 3 { passed = passed + 1 }
+
+    // spread: empty rest (exact match)
+    total = total + 1
+    let [only, ...empty] = [99]
+    if only == 99 && array.length(empty) == 0 { passed = passed + 1 }
+
+    // spread: rest is independent copy
+    total = total + 1
+    let src = [1, 2, 3, 4]
+    let [h, ...rem] = src
+    rem.push(99)
+    if array.length(src) == 4 && array.length(rem) == 4 { passed = passed + 1 }
+
     return [passed, total]
 }
 

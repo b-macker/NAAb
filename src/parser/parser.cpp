@@ -1560,11 +1560,30 @@ std::unique_ptr<ast::DestructureStmt> Parser::parseDestructureStmt() {
 
     ast::DestructureStmt::Kind kind;
     std::vector<std::string> names;
+    int rest_index = -1;
 
     if (match(lexer::TokenType::LBRACKET)) {
-        // Array destructuring: let [a, b, c] = expr
+        // Array destructuring: let [a, b, c] = expr  or  let [first, ...rest] = expr
         kind = ast::DestructureStmt::Kind::Array;
         while (!check(lexer::TokenType::RBRACKET)) {
+            // Check for ...rest spread element
+            if (match(lexer::TokenType::DOTDOTDOT)) {
+                rest_index = static_cast<int>(names.size());
+                auto& name_token = current();
+                if (!isAllowedNameToken(name_token.type)) {
+                    throw ParseError(formatError(
+                        "Expected variable name after '...' in destructuring", name_token));
+                }
+                names.push_back(name_token.value);
+                advance();
+                // ...rest must be last element
+                if (!check(lexer::TokenType::RBRACKET)) {
+                    throw ParseError(formatError(
+                        "Rest element '..." + names.back() + "' must be the last element in destructuring",
+                        current()));
+                }
+                break;
+            }
             auto& name_token = current();
             if (!isAllowedNameToken(name_token.type)) {
                 throw ParseError(formatError(
@@ -1601,6 +1620,7 @@ std::unique_ptr<ast::DestructureStmt> Parser::parseDestructureStmt() {
 
     return std::make_unique<ast::DestructureStmt>(
         kind, std::move(names), std::move(init),
+        rest_index,
         ast::SourceLocation(start.line, start.column));
 }
 

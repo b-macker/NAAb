@@ -59,6 +59,7 @@ enum class TokenType {
     NOT,           // !
     DOT,           // .
     DOTDOT,        // .. (range operator - exclusive)
+    DOTDOTDOT,     // ... (spread/rest operator)
     DOTDOT_EQ,     // ..= (range operator - inclusive)
     ARROW,         // ->
     FAT_ARROW,     // =>

@@ -28,6 +28,8 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 - Extra array elements are ignored: `let [first, second] = [1, 2, 3]` works
 - Missing dict keys become `null`: `let {x, missing} = {"x": 1}` — missing is null
 - Works with function returns: `let [passed, total] = run_tests()`
+- Spread/rest: `let [first, ...rest] = [1, 2, 3, 4]` — `rest` is `[2, 3, 4]`
+- `...rest` must be the last element; produces `[]` if no remaining elements
 
 ### Functions
 - Use `fn` keyword: `fn my_function(param1, param2) { }`

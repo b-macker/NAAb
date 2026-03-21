@@ -3250,24 +3250,34 @@ void Interpreter::visit(ast::DestructureStmt& node) {
                 "  Example:\n"
                 "    let [a, b, c] = [1, 2, 3]\n");
         }
-        if (arr->size() < names.size()) {
+        int rest_idx = node.getRestIndex();
+        size_t required = (rest_idx >= 0) ? static_cast<size_t>(rest_idx) : names.size();
+        if (arr->size() < required) {
             throw std::runtime_error(
                 "Destructuring error: Not enough elements to destructure\n\n"
-                "  Expected: at least " + std::to_string(names.size()) + " elements\n"
+                "  Expected: at least " + std::to_string(required) + " elements\n"
                 "  Got: " + std::to_string(arr->size()) + " elements\n\n"
                 "  Help:\n"
                 "  - The array must have at least as many elements as names\n");
         }
-        for (size_t i = 0; i < names.size(); ++i) {
-            auto elem = copyValue((*arr)[i]);
-            current_env_->define(names[i], elem);
 
-            // Governance taint: propagate from array source
-            if (governance_ && governance_->isActive()) {
-                if (governance_->isTainted("__destructure_source__") ||
-                    checkRhsTainted(node.getInit())) {
-                    governance_->markTainted(names[i]);
+        bool is_tainted = governance_ && governance_->isActive() && checkRhsTainted(node.getInit());
+
+        for (size_t i = 0; i < names.size(); ++i) {
+            if (rest_idx >= 0 && i == static_cast<size_t>(rest_idx)) {
+                // This is the ...rest element — collect remaining into array
+                std::vector<std::shared_ptr<Value>> rest_arr;
+                for (size_t j = static_cast<size_t>(rest_idx); j < arr->size(); ++j) {
+                    rest_arr.push_back(copyValue((*arr)[j]));
                 }
+                current_env_->define(names[i], std::make_shared<Value>(rest_arr));
+            } else {
+                auto elem = copyValue((*arr)[i]);
+                current_env_->define(names[i], elem);
+            }
+
+            if (is_tainted) {
+                governance_->markTainted(names[i]);
             }
         }
     } else {

@@ -701,19 +701,22 @@ std::vector<Token> Lexer::tokenize() {
         }
 
         if (ch == '.' && next && *next == '.') {
-            // Check for ..= (inclusive range)
             auto third = peekChar(2);
+            // Check for ... (spread/rest)
+            if (third && *third == '.') {
+                tokens_.emplace_back(TokenType::DOTDOTDOT, "...", line, col);
+                advance(); advance(); advance();
+                continue;
+            }
+            // Check for ..= (inclusive range)
             if (third && *third == '=') {
                 tokens_.emplace_back(TokenType::DOTDOT_EQ, "..=", line, col);
-                advance();
-                advance();
-                advance();
+                advance(); advance(); advance();
                 continue;
             }
             // Otherwise it's .. (exclusive range)
             tokens_.emplace_back(TokenType::DOTDOT, "..", line, col);
-            advance();
-            advance();
+            advance(); advance();
             continue;
         }
 
