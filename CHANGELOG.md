@@ -8,20 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.5.2] - 2026-03-21
 
 ### Added
-- **Exhaustive Robustness Test Suite** — 8 test files, 297 assertions covering core language correctness
+- **Exhaustive Robustness Test Suite** — 8 test files, 308 assertions covering core language correctness
   - `test_stdlib_array.naab` (40) — all 16 array functions + empty/error edge cases
   - `test_stdlib_string.naab` (44) — all 19 string functions + format/fmt + boundary/error cases
-  - `test_stdlib_math_json.naab` (45) — math, json (all 6 fns), regex (11/12 fns) including advanced
+  - `test_stdlib_math_json.naab` (49) — math (15), json (all 6), regex (all 12) including advanced
   - `test_operators_matrix.naab` (57) — all 17 operators × type matrix, truthiness, ??, |>
   - `test_closures_scope.naab` (30) — capture, factory, nested, shadow, IIFE, higher-order
   - `test_control_flow.naab` (34) — nested break/continue, return in loops/try, match, empty iter
   - `test_structs_enums.naab` (25) — struct create/modify, enum match, value semantics
-  - `test_stdlib_env_time.naab` (26) — env get/set/delete/get_int/get_float/get_bool/list, time now/year/month/day/hour/minute/second/weekday/format_timestamp/sleep
+  - `test_stdlib_env_time.naab` (33) — env (all 12 fns), time (all 12 fns) including parse_datetime
 - **Meta-Test Validation Suite** — 5-layer system proving test assertions are genuine
   - Layer 1: Static integrity audit (7 checks: no trivial assertions, balanced counts, no orphans)
   - Layer 2: Mutation testing — 43 deliberately wrong assertions, all correctly detected
   - Layer 3: Sensitivity testing — 32 tests proving outputs depend on inputs
-  - Layer 4: Coverage verification — cross-references stdlib C++ source against test usage (75% stdlib, 17/17 operators, 11/11 patterns)
+  - Layer 4: Coverage verification — cross-references stdlib C++ source against test usage (100% stdlib, 17/17 operators, 11/11 patterns)
   - Layer 5: Runtime count verification — manifest-based output validation for all 8 test files
   - `run_meta_tests.sh` — master runner for all 5 layers
 - **Loop iteration governance enforcement** — `checkLoopIterations()` wired into all 5 loop paths (range-inclusive, range-exclusive, dict, list, while)
@@ -34,8 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Test suite: 340 → 358 tests (0 unexpected failures)
-- Stdlib coverage: 75% → 94% (87/92 functions tested, 4 modules at FULL coverage)
-- Robustness suite: 86 → 456 assertions (86 original + 297 exhaustive + 43 mutations + 32 sensitivity)
+- Stdlib coverage: 75% → 100% (92/92 functions tested, all 7 modules at FULL coverage)
+- Robustness suite: 86 → 469 assertions (86 original + 308 exhaustive + 43 mutations + 32 sensitivity)
 
 ## [0.5.1] - 2026-03-20
 

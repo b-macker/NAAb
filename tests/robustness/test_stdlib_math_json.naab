@@ -257,6 +257,31 @@ fn test_regex_advanced() {
     let fg = regex.find_groups("test123end", "(\\w+)(\\d+)(\\w+)")
     if array.length(fg) >= 1 { passed = passed + 1 }
 
+    // find returns matched substring
+    total = total + 1
+    let f1 = regex.find("hello123world", "[0-9]+")
+    if f1 == "123" { passed = passed + 1 }
+
+    // find returns null on no match
+    total = total + 1
+    let f2 = regex.find("hello", "[0-9]+")
+    if f2 == null { passed = passed + 1 }
+
+    // compile_pattern returns the pattern string if valid
+    total = total + 1
+    let cp = regex.compile_pattern("[a-z]+")
+    if cp == "[a-z]+" { passed = passed + 1 }
+
+    // compile_pattern throws on invalid regex
+    total = total + 1
+    let cp_threw = false
+    try {
+        regex.compile_pattern("[invalid")
+    } catch (e) {
+        cp_threw = true
+    }
+    if cp_threw { passed = passed + 1 }
+
     return [passed, total]
 }
 

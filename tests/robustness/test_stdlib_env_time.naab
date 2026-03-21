@@ -132,6 +132,26 @@ fn test_env_advanced() {
     let names = env.list()
     if names != null { passed = passed + 1 }
 
+    // parse_env_file parses env content string
+    total = total + 1
+    let parsed = env.parse_env_file("FOO=bar\nBAZ=qux")
+    if parsed["FOO"] == "bar" && parsed["BAZ"] == "qux" { passed = passed + 1 }
+
+    // parse_env_file skips comments and empty lines
+    total = total + 1
+    let parsed2 = env.parse_env_file("# comment\n\nKEY=val")
+    if parsed2["KEY"] == "val" { passed = passed + 1 }
+
+    // load_dotenv lenient mode returns empty on missing file
+    total = total + 1
+    let dotenv_result = env.load_dotenv("/tmp/naab_nonexistent_dotenv_file_99999")
+    if dotenv_result != null { passed = passed + 1 }
+
+    // get_args returns an array
+    total = total + 1
+    let args = env.get_args()
+    if args != null { passed = passed + 1 }
+
     // cleanup
     env.delete_var("NAAB_TEST_INT")
     env.delete_var("NAAB_TEST_FLOAT")
@@ -176,6 +196,27 @@ fn test_time_advanced() {
     total = total + 1
     let fmt2 = time.format_timestamp(ts, "%Y-%m")
     if string.length(fmt2) >= 6 { passed = passed + 1 }
+
+    // parse_datetime parses date string to timestamp
+    total = total + 1
+    let parsed_ts = time.parse_datetime("2026-01-15 10:00:00", "%Y-%m-%d %H:%M:%S")
+    if parsed_ts > 0 { passed = passed + 1 }
+
+    // parse_datetime roundtrip: parse then extract year
+    total = total + 1
+    let pt2 = time.parse_datetime("2025-06-15", "%Y-%m-%d")
+    let pt2_year = time.year(pt2)
+    if pt2_year == 2025 { passed = passed + 1 }
+
+    // parse_datetime throws on bad format
+    total = total + 1
+    let pd_threw = false
+    try {
+        time.parse_datetime("not-a-date", "%Y-%m-%d")
+    } catch (e) {
+        pd_threw = true
+    }
+    if pd_threw { passed = passed + 1 }
 
     return [passed, total]
 }
