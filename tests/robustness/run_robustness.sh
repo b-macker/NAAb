@@ -33,7 +33,9 @@ for test_file in \
     "$DIR/test_closures_scope.naab" \
     "$DIR/test_control_flow.naab" \
     "$DIR/test_structs_enums.naab" \
-    "$DIR/test_stdlib_env_time.naab"; do
+    "$DIR/test_stdlib_env_time.naab" \
+    "$DIR/test_mutations.naab" \
+    "$DIR/test_sensitivity.naab"; do
 
     test_name=$(basename "$test_file" .naab)
     echo "--- $test_name ---"

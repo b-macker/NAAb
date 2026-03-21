@@ -136,6 +136,14 @@ fn test_comparison_cross_type() {
     total = total + 1
     if 3 < 4.5 { passed = passed + 1 }
 
+    // less-than-or-equal
+    total = total + 1
+    if 3 <= 3 { passed = passed + 1 }
+
+    // greater-than-or-equal
+    total = total + 1
+    if 5 >= 3 { passed = passed + 1 }
+
     return [passed, total]
 }
 
