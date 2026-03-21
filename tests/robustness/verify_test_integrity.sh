@@ -28,7 +28,7 @@ EXPECTED_SUMMARY["test_stdlib_string"]="Stdlib String: 44/44"
 EXPECTED_SUMMARY["test_stdlib_math_json"]="Stdlib Math/JSON/Regex: 49/49"
 EXPECTED_SUMMARY["test_operators_matrix"]="Operators Matrix: 62/62"
 EXPECTED_SUMMARY["test_closures_scope"]="Closures/Scope: 43/43"
-EXPECTED_SUMMARY["test_control_flow"]="Control Flow: 34/34"
+EXPECTED_SUMMARY["test_control_flow"]="Control Flow: 39/39"
 EXPECTED_SUMMARY["test_structs_enums"]="Structs/Enums: 34/34"
 EXPECTED_SUMMARY["test_stdlib_env_time"]="Stdlib Env/Time: 33/33"
 
@@ -39,7 +39,7 @@ EXPECTED_COUNT["test_stdlib_string"]=44
 EXPECTED_COUNT["test_stdlib_math_json"]=49
 EXPECTED_COUNT["test_operators_matrix"]=62
 EXPECTED_COUNT["test_closures_scope"]=43
-EXPECTED_COUNT["test_control_flow"]=34
+EXPECTED_COUNT["test_control_flow"]=39
 EXPECTED_COUNT["test_structs_enums"]=34
 EXPECTED_COUNT["test_stdlib_env_time"]=33
 

@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Empty rest produces `[]` when array is exactly consumed
   - Value semantics preserved (rest array is an independent copy)
 - 5 spread tests added to `test_closures_scope.naab` (38 → 43 assertions)
+- **For loop destructuring** — iterate with pattern matching
+  - `for [key, val] in dict { }` — destructure key-value pairs from dicts
+  - `for [a, b, c] in array_of_arrays { }` — destructure nested arrays
+  - `for [first, ...rest] in rows { }` — spread in loop patterns
+- 5 for-loop destructuring tests in `test_control_flow.naab` (34 → 39 assertions)
 
 ## [0.5.2] - 2026-03-21
 

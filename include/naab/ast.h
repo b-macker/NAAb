@@ -382,9 +382,23 @@ public:
         : Stmt(NodeKind::ForStmt, loc),
           var_(var), iter_(std::move(iter)), body_(std::move(body)) {}
 
+    // Destructuring for loop: for [a, b] in collection { }
+    ForStmt(std::vector<std::string> destructure_names,
+            std::unique_ptr<Expr> iter,
+            std::unique_ptr<Stmt> body,
+            int rest_index = -1,
+            SourceLocation loc = SourceLocation())
+        : Stmt(NodeKind::ForStmt, loc),
+          iter_(std::move(iter)), body_(std::move(body)),
+          destructure_names_(std::move(destructure_names)),
+          rest_index_(rest_index) {}
+
     const std::string& getVar() const { return var_; }
     Expr* getIter() const { return iter_.get(); }
     Stmt* getBody() const { return body_.get(); }
+    const std::vector<std::string>& getDestructureNames() const { return destructure_names_; }
+    bool isDestructuring() const { return !destructure_names_.empty(); }
+    int getRestIndex() const { return rest_index_; }
 
     void accept(ASTVisitor& visitor) override;
 
@@ -392,6 +406,8 @@ private:
     std::string var_;
     std::unique_ptr<Expr> iter_;
     std::unique_ptr<Stmt> body_;
+    std::vector<std::string> destructure_names_;  // empty = normal, non-empty = destructuring
+    int rest_index_ = -1;  // -1 = no rest, >= 0 = index of ...rest name
 };
 
 // while (cond) { body }

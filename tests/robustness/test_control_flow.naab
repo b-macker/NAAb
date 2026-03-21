@@ -434,6 +434,58 @@ fn test_implicit_return() {
     return [passed, total]
 }
 
+// T17.9: For loop destructuring
+fn test_for_destructuring() {
+    let passed = 0
+    let total = 0
+
+    // for [a, b] over array of arrays
+    total = total + 1
+    let pairs = [[1, "one"], [2, "two"], [3, "three"]]
+    let sum = 0
+    for [num, name] in pairs {
+        sum = sum + num
+    }
+    if sum == 6 { passed = passed + 1 }
+
+    // for [key, val] in dict
+    total = total + 1
+    let d = {"x": 10, "y": 20}
+    let total_val = 0
+    for [k, v] in d {
+        total_val = total_val + v
+    }
+    if total_val == 30 { passed = passed + 1 }
+
+    // for [a, b, c] in nested
+    total = total + 1
+    let triples = [[1, 2, 3], [4, 5, 6]]
+    let sums = []
+    for [a, b, c] in triples {
+        sums.push(a + b + c)
+    }
+    if sums[0] == 6 && sums[1] == 15 { passed = passed + 1 }
+
+    // for [first, ...rest] with spread
+    total = total + 1
+    let rows = [[1, 2, 3, 4], [5, 6, 7, 8]]
+    let firsts = []
+    for [first, ...rest] in rows {
+        firsts.push(first)
+    }
+    if firsts[0] == 1 && firsts[1] == 5 { passed = passed + 1 }
+
+    // normal for still works
+    total = total + 1
+    let count = 0
+    for item in [10, 20, 30] {
+        count = count + item
+    }
+    if count == 60 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -477,6 +529,11 @@ main {
     print("  T17.8 implicit_return: " + string(r8[0]) + "/" + string(r8[1]))
     total_passed = total_passed + r8[0]
     total_tests = total_tests + r8[1]
+
+    let r9 = test_for_destructuring()
+    print("  T17.9 for_destructuring: " + string(r9[0]) + "/" + string(r9[1]))
+    total_passed = total_passed + r9[0]
+    total_tests = total_tests + r9[1]
 
     print("")
     print("Control Flow: " + string(total_passed) + "/" + string(total_tests))

@@ -1339,6 +1339,45 @@ std::unique_ptr<ast::ForStmt> Parser::parseForStmt() {
     // Allow optional parentheses: `for (x in items)` or `for x in items`
     bool has_parens = match(lexer::TokenType::LPAREN);
 
+    // Check for destructuring: for [a, b] in collection { }
+    if (check(lexer::TokenType::LBRACKET)) {
+        advance();  // consume [
+        std::vector<std::string> names;
+        int rest_index = -1;
+        while (!check(lexer::TokenType::RBRACKET)) {
+            if (match(lexer::TokenType::DOTDOTDOT)) {
+                rest_index = static_cast<int>(names.size());
+                auto& name_token = current();
+                if (!isAllowedNameToken(name_token.type)) {
+                    throw ParseError(formatError(
+                        "Expected variable name after '...' in for loop destructuring", name_token));
+                }
+                names.push_back(name_token.value);
+                advance();
+                break;
+            }
+            auto& name_token = current();
+            if (!isAllowedNameToken(name_token.type)) {
+                throw ParseError(formatError(
+                    "Expected variable name in for loop destructuring", name_token));
+            }
+            names.push_back(name_token.value);
+            advance();
+            if (!match(lexer::TokenType::COMMA)) break;
+        }
+        expect(lexer::TokenType::RBRACKET, "Expected ']' after for loop destructuring");
+        expect(lexer::TokenType::IN, "Expected 'in'");
+        auto iterable = parseExpression();
+        if (has_parens) {
+            expect(lexer::TokenType::RPAREN, "Expected ')' to close for loop parentheses");
+        }
+        skipNewlines();
+        auto body = parseStatement();
+        return std::make_unique<ast::ForStmt>(
+            std::move(names), std::move(iterable), std::move(body),
+            rest_index, ast::SourceLocation(start.line, start.column));
+    }
+
     // Accept identifiers and common keywords as loop variable names
     auto& var_tok = current();
     std::string var;

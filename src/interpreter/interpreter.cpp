@@ -2631,12 +2631,63 @@ void Interpreter::visit(ast::ForStmt& node) {
     auto iterable = eval(*node.getIter());
 
     // BUG-E + BUG-2: If iterable is tainted, mark loop variable as tainted
-    // Uses checkRhsTainted (source + propagation + return taint) instead of just expressionContainsTaint
     if (governance_ && governance_->isActive()) {
         if (checkRhsTainted(node.getIter())) {
-            governance_->markTainted(node.getVar());
+            if (node.isDestructuring()) {
+                for (const auto& name : node.getDestructureNames()) {
+                    governance_->markTainted(name);
+                }
+            } else {
+                governance_->markTainted(node.getVar());
+            }
         }
     }
+
+    // Helper lambda: bind loop element to destructured names or single var
+    auto defineLoopVar = [&](std::shared_ptr<Value> item) {
+        if (!node.isDestructuring()) {
+            current_env_->define(node.getVar(), item);
+            return;
+        }
+        const auto& names = node.getDestructureNames();
+        int rest_idx = node.getRestIndex();
+        // Array element destructuring
+        if (auto* arr = std::get_if<std::vector<std::shared_ptr<Value>>>(&item->data)) {
+            size_t required = (rest_idx >= 0) ? static_cast<size_t>(rest_idx) : names.size();
+            if (arr->size() < required) {
+                throw std::runtime_error(
+                    "For loop destructuring error: element has " + std::to_string(arr->size()) +
+                    " items, need at least " + std::to_string(required));
+            }
+            for (size_t i = 0; i < names.size(); ++i) {
+                if (rest_idx >= 0 && i == static_cast<size_t>(rest_idx)) {
+                    std::vector<std::shared_ptr<Value>> rest_arr;
+                    for (size_t j = static_cast<size_t>(rest_idx); j < arr->size(); ++j) {
+                        rest_arr.push_back((*arr)[j]);
+                    }
+                    current_env_->define(names[i], std::make_shared<Value>(rest_arr));
+                } else {
+                    current_env_->define(names[i], (*arr)[i]);
+                }
+            }
+        }
+        // Dict element destructuring (for [key, val] in dict)
+        else if (auto* dict_item = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&item->data)) {
+            for (const auto& name : names) {
+                auto it = dict_item->find(name);
+                if (it != dict_item->end()) {
+                    current_env_->define(name, it->second);
+                } else {
+                    current_env_->define(name, std::make_shared<Value>());
+                }
+            }
+        }
+        else {
+            throw std::runtime_error(
+                "For loop destructuring error: cannot destructure " + getValueTypeName(item) +
+                " — each element must be an array or dict");
+        }
+    };
 
     // Check if it's a range (dict with __is_range marker)
     if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&iterable->data)) {
@@ -2698,7 +2749,7 @@ void Interpreter::visit(ast::ForStmt& node) {
         }
     }
 
-    // Check if it's a dict (iterate over keys)
+    // Check if it's a dict (iterate over keys, or destructure [key, val])
     if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&iterable->data)) {
         size_t iter_count = 0;
         for (const auto& [key, val] : *dict) {
@@ -2706,7 +2757,15 @@ void Interpreter::visit(ast::ForStmt& node) {
                 std::string err = governance_->checkLoopIterations(++iter_count);
                 if (!err.empty()) throw std::runtime_error(err);
             }
-            current_env_->define(node.getVar(), std::make_shared<Value>(key));
+            if (node.isDestructuring()) {
+                // for [k, v] in dict — bind key and value
+                std::vector<std::shared_ptr<Value>> pair;
+                pair.push_back(std::make_shared<Value>(key));
+                pair.push_back(val);
+                defineLoopVar(std::make_shared<Value>(pair));
+            } else {
+                current_env_->define(node.getVar(), std::make_shared<Value>(key));
+            }
             node.getBody()->accept(*this);
             if (returning_) break;
             if (breaking_) { breaking_ = false; break; }
@@ -2724,7 +2783,7 @@ void Interpreter::visit(ast::ForStmt& node) {
                 std::string err = governance_->checkLoopIterations(++iter_count);
                 if (!err.empty()) throw std::runtime_error(err);
             }
-            current_env_->define(node.getVar(), item);
+            defineLoopVar(item);
             node.getBody()->accept(*this);
             if (returning_) break;
             if (breaking_) {

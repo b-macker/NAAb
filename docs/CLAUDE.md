@@ -42,6 +42,9 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 - NO `elif` — use `else if`
 - `and`, `or`, `not` work as aliases for `&&`, `||`, `!` (Python-style)
 - `for item in collection { }`
+- `for [key, val] in dict { }` — destructure key-value pairs
+- `for [a, b] in array_of_arrays { }` — destructure nested arrays
+- `for [first, ...rest] in rows { }` — spread in loop patterns
 - `for i in 0..10 { }` — range (exclusive), `0..=10` for inclusive
 - `while condition { }`
 - `match value { pattern => { } default => { } }`
