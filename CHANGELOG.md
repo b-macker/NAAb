@@ -55,6 +55,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `if "sub" in string { }` — check if substring exists
   - Returns boolean, works with `!` for negation: `if !("x" in d) { }`
 - 8 `in` operator tests in `test_operators_matrix.naab` (75 → 83 assertions)
+- **String repetition** — `"abc" * 3` → `"abcabcabc"`
+  - Commutative: `3 * "abc"` also works
+  - `"x" * 0` → `""`, `"" * 5` → `""`
+- 5 string repeat tests in `test_operators_matrix.naab` (83 → 88 assertions)
 
 ## [0.5.2] - 2026-03-21
 

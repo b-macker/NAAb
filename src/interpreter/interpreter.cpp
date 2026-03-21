@@ -3863,6 +3863,28 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         }
 
         case ast::BinaryOp::Mul: {
+            // String repetition: "abc" * 3 → "abcabcabc", 3 * "abc" → "abcabcabc"
+            {
+                std::string* str_val = nullptr;
+                int repeat = 0;
+                bool is_string_repeat = false;
+                if (auto* s = std::get_if<std::string>(&left->data)) {
+                    if (std::holds_alternative<int>(right->data)) {
+                        str_val = s; repeat = std::get<int>(right->data); is_string_repeat = true;
+                    }
+                } else if (auto* s2 = std::get_if<std::string>(&right->data)) {
+                    if (std::holds_alternative<int>(left->data)) {
+                        str_val = s2; repeat = std::get<int>(left->data); is_string_repeat = true;
+                    }
+                }
+                if (is_string_repeat) {
+                    std::string result;
+                    for (int i = 0; i < repeat; i++) result += *str_val;
+                    result_ = std::make_shared<Value>(result);
+                    break;
+                }
+            }
+
             // Type check: Multiplication requires numeric types
             bool left_is_numeric = std::holds_alternative<int>(left->data) ||
                                   std::holds_alternative<double>(left->data) ||
@@ -3873,7 +3895,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
             if (!left_is_numeric || !right_is_numeric) {
                 std::ostringstream oss;
-                oss << "Type error: Multiplication (*) requires numeric types\n\n";
+                oss << "Type error: Multiplication (*) requires numeric types or string * int\n\n";
 
                 if (!left_is_numeric && !right_is_numeric) {
                     oss << "  Both operands are non-numeric:\n";
@@ -3882,20 +3904,20 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 } else if (!left_is_numeric) {
                     oss << "  Left operand is non-numeric:\n";
                     oss << "    Got: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
-                    oss << "    Expected: int, float, or bool\n";
+                    oss << "    Expected: int, float, bool, or string\n";
                 } else {
                     oss << "  Right operand is non-numeric:\n";
                     oss << "    Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
-                    oss << "    Expected: int, float, or bool\n";
+                    oss << "    Expected: int, float, bool, or string\n";
                 }
 
                 oss << "\n  Help:\n";
                 oss << "  - For numbers: Use int or float values\n";
-                oss << "  - For string repetition: Some languages support \"ab\" * 3, but NAAb doesn't\n";
+                oss << "  - For string repetition: \"abc\" * 3 or 3 * \"abc\"\n";
                 oss << "  - For concatenation: Use + operator\n";
                 oss << "\n  Example:\n";
-                oss << "    ✗ Wrong: 5 * \"3\"      (int * string)\n";
-                oss << "    ✓ Right: 5 * 3         (int * int)\n";
+                oss << "    ✓ Right: 5 * 3           (int * int)\n";
+                oss << "    ✓ Right: \"ha\" * 3        (string repeat)\n";
 
                 throw std::runtime_error(oss.str());
             }

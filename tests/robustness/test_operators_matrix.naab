@@ -503,6 +503,34 @@ fn test_in_operator() {
     return [passed, total]
 }
 
+// T15.13: String repetition (string * int)
+fn test_string_repeat() {
+    let passed = 0
+    let total = 0
+
+    // "abc" * 3
+    total = total + 1
+    if "ha" * 3 == "hahaha" { passed = passed + 1 }
+
+    // 3 * "abc" (commutative)
+    total = total + 1
+    if 2 * "ab" == "abab" { passed = passed + 1 }
+
+    // * 0 gives empty string
+    total = total + 1
+    if "x" * 0 == "" { passed = passed + 1 }
+
+    // * 1 gives original
+    total = total + 1
+    if "hello" * 1 == "hello" { passed = passed + 1 }
+
+    // empty string * n
+    total = total + 1
+    if "" * 5 == "" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
 main {
     let total_passed = 0
     let total_tests = 0
@@ -566,6 +594,11 @@ main {
     print("  T15.12 in_operator: " + string(r12[0]) + "/" + string(r12[1]))
     total_passed = total_passed + r12[0]
     total_tests = total_tests + r12[1]
+
+    let r13 = test_string_repeat()
+    print("  T15.13 string_repeat: " + string(r13[0]) + "/" + string(r13[1]))
+    total_passed = total_passed + r13[0]
+    total_tests = total_tests + r13[1]
 
     print("")
     print("Operators Matrix: " + string(total_passed) + "/" + string(total_tests))
