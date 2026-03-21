@@ -20,6 +20,7 @@ TEST_DIRS=(
     "tests/chapter verification"
     "tests/governance_v3"
     "tests/governance_v4"
+    "tests/robustness"
     "tests"
 )
 
@@ -149,7 +150,7 @@ run_test() {
 
     # Governance tests need governance enabled; all others disable it for speed
     local gov_flag="--no-governance"
-    if [[ "$test_file" == *"/governance_v3/"* ]] || [[ "$test_file" == *"/governance_v4/"* ]]; then
+    if [[ "$test_file" == *"/governance_v3/"* ]] || [[ "$test_file" == *"/governance_v4/"* ]] || [[ "$test_file" == *"/robustness/"* ]]; then
         gov_flag=""
     fi
 

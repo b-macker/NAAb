@@ -1,0 +1,160 @@
+// Test 1: Instruction Following — does NAAb obey governance constraints
+// Maps to: governance enforcement levels, blocked languages, capability restrictions
+
+use env
+use string
+
+// T1.1: Blocked language should be rejected
+fn test_blocked_language() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let blocked = false
+    try {
+        let r = <<ruby
+puts "should not execute"
+>>
+    } catch (e) {
+        if string(e).contains("not allowed") || string(e).contains("blocked") || string(e).contains("anguage") {
+            blocked = true
+        }
+    }
+    if blocked {
+        passed = passed + 1
+    } else {
+        print("    DETAIL: Ruby block was NOT blocked by governance")
+    }
+
+    return [passed, total]
+}
+
+// T1.2: Network capability disabled — http should fail
+fn test_network_disabled() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let blocked = false
+    try {
+        let r = <<python
+import urllib.request
+urllib.request.urlopen("http://example.com")
+>>
+        // Even if python runs, governance should block network
+    } catch (e) {
+        blocked = true
+    }
+    if blocked {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T1.3: Call depth limit enforced
+fn recurse(n) {
+    if n <= 0 {
+        return 0
+    }
+    return recurse(n - 1)
+}
+
+fn test_call_depth_limit() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let hit_limit = false
+    try {
+        let r = recurse(100)
+    } catch (e) {
+        if string(e).contains("depth") || string(e).contains("stack") || string(e).contains("recursion") {
+            hit_limit = true
+        }
+    }
+    if hit_limit {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T1.4: Loop iteration limit enforced
+fn test_loop_limit() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let hit_limit = false
+    try {
+        let i = 0
+        for x in 0..100000 {
+            i = i + 1
+        }
+    } catch (e) {
+        if string(e).contains("iteration") || string(e).contains("loop") || string(e).contains("limit") {
+            hit_limit = true
+        }
+    }
+    if hit_limit {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T1.5: Secret detection blocks hardcoded credentials
+fn test_secret_detection() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let blocked = false
+    try {
+        let api_key = "AKIA1234567890ABCDEF"
+        let r = <<shell[api_key]
+echo $api_key
+>>
+    } catch (e) {
+        blocked = true
+    }
+    if blocked {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_blocked_language()
+    print("  T1.1 blocked_language: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_network_disabled()
+    print("  T1.2 network_disabled: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_call_depth_limit()
+    print("  T1.3 call_depth_limit: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_loop_limit()
+    print("  T1.4 loop_limit: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_secret_detection()
+    print("  T1.5 secret_detection: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    print("")
+    print("Instruction Following: " + string(total_passed) + "/" + string(total_tests))
+}

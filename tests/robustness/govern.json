@@ -1,0 +1,62 @@
+{
+  "version": "4.0",
+  "mode": "enforce",
+  "description": "Robustness test governance — strict security enforcement",
+
+  "languages": {
+    "allowed": ["python", "shell"],
+    "blocked": ["ruby", "php"],
+    "require_explicit": false,
+    "per_language": {
+      "python": { "timeout": 5, "max_lines": 50 },
+      "shell": { "timeout": 5, "max_lines": 20, "shell_injection": true, "shell_injection_level": "hard" }
+    }
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "none" },
+    "shell": { "enabled": true },
+    "env_access": false
+  },
+
+  "limits": {
+    "timeout": { "global": 30, "per_block": 5 },
+    "execution": { "call_depth": 30, "loop_iterations": 10000, "polyglot_blocks": 10 },
+    "code": { "max_lines_per_block": 50, "max_nesting_depth": 4, "max_functions": 20 }
+  },
+
+  "requirements": {
+    "main_block": { "enabled": true, "level": "soft" }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "enabled": true, "level": "hard" },
+    "shell_injection": { "enabled": true, "level": "hard" },
+    "resource_abuse": { "enabled": true, "level": "hard" }
+  },
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "hard",
+    "sources": ["env.get", "io.read_line", "polyglot_output"],
+    "sinks": ["shell_exec", "python_exec", "env.set_var"],
+    "sanitizers": ["validate_", "sanitize_", "escape_"]
+  },
+
+  "code_quality": {
+    "no_secrets": { "enabled": true, "level": "hard" },
+    "no_placeholders": { "enabled": false },
+    "no_oversimplification": { "enabled": false },
+    "no_incomplete_logic": { "enabled": false },
+    "duplicate_calls": { "enabled": false },
+    "polyglot_try_catch": { "enabled": false }
+  },
+
+  "output": {
+    "summary": { "enabled": false },
+    "errors": { "verbose": false, "show_help": false },
+    "formatting": { "color": false, "unicode_symbols": false },
+    "max_advisories": 0
+  }
+}

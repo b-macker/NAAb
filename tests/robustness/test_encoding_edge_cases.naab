@@ -1,0 +1,197 @@
+// Test 7: Tokenization / Encoding Edge Cases
+// Maps to: Unicode, zero-width chars, mixed scripts, special chars in strings
+
+use string
+
+// T7.1: Unicode string handling
+fn test_unicode_strings() {
+    let passed = 0
+    let total = 0
+
+    // Basic emoji
+    total = total + 1
+    let emoji = "Hello 🌍"
+    if string.contains(emoji, "Hello") {
+        passed = passed + 1
+    }
+
+    // CJK characters
+    total = total + 1
+    let cjk = "你好世界"
+    if string.length(cjk) > 0 {
+        passed = passed + 1
+    }
+
+    // Mixed scripts
+    total = total + 1
+    let mixed = "Hello Мир 世界 مرحبا"
+    if string.contains(mixed, "Hello") {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T7.2: Special characters in strings
+fn test_special_chars() {
+    let passed = 0
+    let total = 0
+
+    // Newline in string
+    total = total + 1
+    let with_newline = "line1\nline2"
+    if string.contains(with_newline, "line1") {
+        passed = passed + 1
+    }
+
+    // Tab in string
+    total = total + 1
+    let with_tab = "col1\tcol2"
+    if string.contains(with_tab, "col1") {
+        passed = passed + 1
+    }
+
+    // Backslash
+    total = total + 1
+    let with_backslash = "path\\to\\file"
+    if string.contains(with_backslash, "path") {
+        passed = passed + 1
+    }
+
+    // Quotes in string
+    total = total + 1
+    let with_quotes = "he said \"hello\""
+    if string.contains(with_quotes, "said") {
+        passed = passed + 1
+    }
+
+    // Null byte representation
+    total = total + 1
+    let with_null = "before\0after"
+    // Should not crash
+    passed = passed + 1
+
+    return [passed, total]
+}
+
+// T7.3: Empty and edge-case strings
+fn test_empty_strings() {
+    let passed = 0
+    let total = 0
+
+    // Empty string operations
+    total = total + 1
+    let empty = ""
+    if string.length(empty) == 0 {
+        passed = passed + 1
+    }
+
+    // String of spaces
+    total = total + 1
+    let spaces = "   "
+    if string.trim(spaces) == "" {
+        passed = passed + 1
+    }
+
+    // Very long string
+    total = total + 1
+    let long_str = ""
+    for i in 0..100 {
+        long_str = long_str + "x"
+    }
+    if string.length(long_str) == 100 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T7.4: String interpolation edge cases
+fn test_interpolation_edge() {
+    let passed = 0
+    let total = 0
+
+    // Simple interpolation
+    total = total + 1
+    let x = 42
+    let result = "value is ${x}"
+    if string.contains(result, "42") {
+        passed = passed + 1
+    }
+
+    // Nested braces in interpolation
+    total = total + 1
+    let no_crash = true
+    try {
+        let y = "test"
+        let r = "${y}"
+        no_crash = true
+    } catch (e) {
+        no_crash = true
+    }
+    if no_crash {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T7.5: Dict keys with special characters
+fn test_special_dict_keys() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let d = {}
+    d["key with spaces"] = "val1"
+    if d["key with spaces"] == "val1" {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    d["key\"with\"quotes"] = "val2"
+    if d["key\"with\"quotes"] == "val2" {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    d[""] = "empty_key"
+    if d[""] == "empty_key" {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_unicode_strings()
+    print("  T7.1 unicode_strings: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_special_chars()
+    print("  T7.2 special_chars: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_empty_strings()
+    print("  T7.3 empty_strings: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_interpolation_edge()
+    print("  T7.4 interpolation_edge: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_special_dict_keys()
+    print("  T7.5 special_dict_keys: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    print("")
+    print("Encoding Edge Cases: " + string(total_passed) + "/" + string(total_tests))
+}

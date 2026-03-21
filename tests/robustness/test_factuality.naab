@@ -1,0 +1,186 @@
+// Test 2: Hallucination / Factuality — does NAAb compute correctly
+// Maps to: arithmetic precision, type coercion, stdlib correctness
+
+use math
+use string
+use array
+
+// T2.1: Float precision — known IEEE 754 edge cases
+fn test_float_precision() {
+    let passed = 0
+    let total = 0
+
+    // 0.1 + 0.2 should NOT naively equal 0.3
+    total = total + 1
+    let sum = 0.1 + 0.2
+    if sum > 0.29 && sum < 0.31 {
+        passed = passed + 1
+    }
+
+    // Large integer precision
+    total = total + 1
+    let big = 9007199254740992
+    if big > 0 {
+        passed = passed + 1
+    }
+
+    // Division by zero
+    total = total + 1
+    let caught = false
+    try {
+        let r = 1 / 0
+    } catch (e) {
+        caught = true
+    }
+    if caught {
+        passed = passed + 1
+    }
+
+    // Negative zero
+    total = total + 1
+    let neg_zero = -0.0
+    if neg_zero == 0.0 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T2.2: String operations correctness
+fn test_string_ops() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if string.length("hello") == 5 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if string.upper("hello") == "HELLO" {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if string.lower("HELLO") == "hello" {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if string.contains("hello world", "world") {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if string.trim("  hello  ") == "hello" {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T2.3: Math stdlib correctness
+fn test_math_ops() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if math.abs(-42) == 42 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if math.max(3, 7) == 7 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if math.min(3, 7) == 3 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    let pi = math.pi
+    if pi > 3.14 && pi < 3.15 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if math.floor(3.7) == 3 {
+        passed = passed + 1
+    }
+
+    total = total + 1
+    if math.ceil(3.2) == 4 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+// T2.4: Type coercion correctness
+fn test_type_coercion() {
+    let passed = 0
+    let total = 0
+
+    // int to string
+    total = total + 1
+    if string(42) == "42" {
+        passed = passed + 1
+    }
+
+    // float to string
+    total = total + 1
+    let s = string(3.14)
+    if string.contains(s, "3.14") {
+        passed = passed + 1
+    }
+
+    // bool to string
+    total = total + 1
+    if string(true) == "true" {
+        passed = passed + 1
+    }
+
+    // string to int
+    total = total + 1
+    if int("42") == 42 {
+        passed = passed + 1
+    }
+
+    // string to float
+    total = total + 1
+    if float("3.14") > 3.13 && float("3.14") < 3.15 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_float_precision()
+    print("  T2.1 float_precision: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_string_ops()
+    print("  T2.2 string_ops: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_math_ops()
+    print("  T2.3 math_ops: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_type_coercion()
+    print("  T2.4 type_coercion: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    print("")
+    print("Factuality: " + string(total_passed) + "/" + string(total_tests))
+}

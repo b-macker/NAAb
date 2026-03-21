@@ -2655,7 +2655,12 @@ void Interpreter::visit(ast::ForStmt& node) {
 
             // Use <= for inclusive ranges, < for exclusive
             if (inclusive) {
+                size_t iter_count = 0;
                 for (int i = start; i <= end; i++) {
+                    if (governance_ && governance_->isActive()) {
+                        std::string err = governance_->checkLoopIterations(++iter_count);
+                        if (!err.empty()) throw std::runtime_error(err);
+                    }
                     current_env_->define(node.getVar(), std::make_shared<Value>(i));
                     node.getBody()->accept(*this);
                     if (returning_) break;
@@ -2669,7 +2674,12 @@ void Interpreter::visit(ast::ForStmt& node) {
                     }
                 }
             } else {
+                size_t iter_count = 0;
                 for (int i = start; i < end; i++) {
+                    if (governance_ && governance_->isActive()) {
+                        std::string err = governance_->checkLoopIterations(++iter_count);
+                        if (!err.empty()) throw std::runtime_error(err);
+                    }
                     current_env_->define(node.getVar(), std::make_shared<Value>(i));
                     node.getBody()->accept(*this);
                     if (returning_) break;
@@ -2690,7 +2700,12 @@ void Interpreter::visit(ast::ForStmt& node) {
 
     // Check if it's a dict (iterate over keys)
     if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&iterable->data)) {
+        size_t iter_count = 0;
         for (const auto& [key, val] : *dict) {
+            if (governance_ && governance_->isActive()) {
+                std::string err = governance_->checkLoopIterations(++iter_count);
+                if (!err.empty()) throw std::runtime_error(err);
+            }
             current_env_->define(node.getVar(), std::make_shared<Value>(key));
             node.getBody()->accept(*this);
             if (returning_) break;
@@ -2703,7 +2718,12 @@ void Interpreter::visit(ast::ForStmt& node) {
 
     // Otherwise, handle as list
     if (auto* list = std::get_if<std::vector<std::shared_ptr<Value>>>(&iterable->data)) {
+        size_t iter_count = 0;
         for (auto& item : *list) {
+            if (governance_ && governance_->isActive()) {
+                std::string err = governance_->checkLoopIterations(++iter_count);
+                if (!err.empty()) throw std::runtime_error(err);
+            }
             current_env_->define(node.getVar(), item);
             node.getBody()->accept(*this);
             if (returning_) break;
@@ -2767,9 +2787,15 @@ void Interpreter::visit(ast::WhileStmt& node) {
     // Increment loop depth for break/continue validation
     ++loop_depth_;
 
+    size_t iter_count = 0;
     while (true) {
         auto condition = eval(*node.getCondition());
         if (!condition->toBool()) break;
+
+        if (governance_ && governance_->isActive()) {
+            std::string err = governance_->checkLoopIterations(++iter_count);
+            if (!err.empty()) throw std::runtime_error(err);
+        }
 
         node.getBody()->accept(*this);
         if (returning_) break;
