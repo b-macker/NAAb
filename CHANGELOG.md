@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Meta-commands: `.help`, `.clear` (reset environment), `.exit`
   - Top-level declarations (`fn`, `struct`, `enum`, `use`, `import`) work correctly
   - History saved to `~/.naab_history`
+- **URL imports** — import NAAb modules directly from URLs
+  - `import "https://example.com/lib.naab" as mylib` — download and cache
+  - Cache stored in `~/.naab/cache/` with content-hashed filenames
+  - Cached modules are reused across runs (no re-download)
+  - Clear error messages on download failure
 
 ## [0.5.3] - 2026-03-21
 

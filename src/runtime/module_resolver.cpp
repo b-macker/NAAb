@@ -8,6 +8,8 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <functional>
+#include <curl/curl.h>
 
 namespace naab {
 namespace modules {
@@ -102,9 +104,93 @@ std::string ModuleResolver::canonicalizePath(const fs::path& path) {
     }
 }
 
+// Helper: Check if a string looks like a URL
+static bool isUrl(const std::string& spec) {
+    return spec.substr(0, 8) == "https://" || spec.substr(0, 7) == "http://";
+}
+
+// Helper: Generate cache path from URL
+static fs::path urlToCachePath(const std::string& url) {
+    // Hash the URL for a unique cache filename
+    std::hash<std::string> hasher;
+    size_t hash = hasher(url);
+
+    // Extract filename from URL for readability
+    std::string filename;
+    auto last_slash = url.rfind('/');
+    if (last_slash != std::string::npos) {
+        filename = url.substr(last_slash + 1);
+    }
+    // Ensure .naab extension
+    if (filename.size() < 5 || filename.substr(filename.size() - 5) != ".naab") {
+        filename += ".naab";
+    }
+
+    std::string home = getenv("HOME") ? getenv("HOME") : ".";
+    fs::path cache_dir = fs::path(home) / ".naab" / "cache";
+    return cache_dir / (std::to_string(hash) + "_" + filename);
+}
+
+// Helper: Download URL to file using curl
+static size_t writeFileCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+    size_t total = size * nmemb;
+    auto* file = static_cast<std::ofstream*>(userp);
+    file->write(static_cast<char*>(contents), static_cast<std::streamsize>(total));
+    return total;
+}
+
+static bool downloadUrl(const std::string& url, const fs::path& dest) {
+    // Create cache directory
+    fs::create_directories(dest.parent_path());
+
+    std::ofstream file(dest, std::ios::binary);
+    if (!file.is_open()) return false;
+
+    CURL* curl = curl_easy_init();
+    if (!curl) { file.close(); return false; }
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeFileCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &file);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "NAAb/1.0");
+
+    CURLcode res = curl_easy_perform(curl);
+
+    long response_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+
+    curl_easy_cleanup(curl);
+    file.close();
+
+    if (res != CURLE_OK || response_code < 200 || response_code >= 300) {
+        fs::remove(dest);
+        return false;
+    }
+    return true;
+}
+
 std::optional<fs::path> ModuleResolver::resolve(
     const std::string& module_spec,
     const fs::path& current_file_dir) {
+
+    // 0. URL imports: download and cache
+    if (isUrl(module_spec)) {
+        fs::path cached = urlToCachePath(module_spec);
+        if (fs::exists(cached)) {
+            return cached;  // Already cached
+        }
+        if (downloadUrl(module_spec, cached)) {
+            return cached;
+        }
+        throw std::runtime_error(
+            "Failed to download module: " + module_spec + "\n\n"
+            "  Help: Check that the URL is correct and accessible.\n"
+            "  Cache directory: ~/.naab/cache/\n");
+    }
 
     // 1. Try relative path resolution
     auto relative = resolveRelative(module_spec, current_file_dir);

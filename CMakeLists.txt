@@ -474,6 +474,7 @@ target_link_libraries(naab_runtime
     quickjs
     naab_block_enricher  # For library detection
     naab_security        # Phase 1: Security hardening
+    curl  # For URL imports in module resolver
     dl  # For dlopen/dlsym
     pthread  # Required by QuickJS
     m  # Math library required by QuickJS
