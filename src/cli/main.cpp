@@ -1,6 +1,7 @@
 // NAAb CLI - Main entry point
 // Commands: run, parse, check, fmt, blocks, etc.
 
+#include "repl.h"
 #include "naab/config.h"
 #include "naab/paths.h"
 #include "naab/lexer.h"
@@ -225,9 +226,8 @@ int main(int argc, char** argv) {
     initialize_executors();
 
     if (argc < 2) {
-        print_usage();
-        fflush(stdout);
-        return 1;
+        // No arguments — start REPL
+        return naab::repl::run();
     }
 
     // Pre-scan for global flags that can appear before the command
@@ -272,6 +272,8 @@ int main(int argc, char** argv) {
         } else if (arg == "--no-color") {
             global_no_color = true;
             command_arg_index++;
+        } else if (arg == "--repl") {
+            return naab::repl::run(global_no_governance);
         } else {
             break;  // Found the command or file
         }

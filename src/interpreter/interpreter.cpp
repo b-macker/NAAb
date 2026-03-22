@@ -2359,7 +2359,21 @@ void Interpreter::visit(ast::MainBlock& node) {
         }
     }
 
-    node.getBody()->accept(*this);
+    if (repl_mode_) {
+        // In REPL mode, execute main block body statements directly
+        // in current_env_ (global) so variables persist between inputs
+        auto* body = dynamic_cast<ast::CompoundStmt*>(node.getBody());
+        if (body) {
+            for (auto& stmt : body->getStatements()) {
+                stmt->accept(*this);
+                if (returning_ || breaking_ || continuing_) break;
+            }
+        } else {
+            node.getBody()->accept(*this);
+        }
+    } else {
+        node.getBody()->accept(*this);
+    }
 }
 
 void Interpreter::visit(ast::CompoundStmt& node) {

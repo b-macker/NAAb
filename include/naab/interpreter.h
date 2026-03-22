@@ -493,6 +493,7 @@ public:
 
     // Verbose mode support
     void setVerboseMode(bool v) { verbose_mode_ = v; }
+    void setReplMode(bool v) { repl_mode_ = v; }
     bool isVerboseMode() const { return verbose_mode_; }
 
     // Profile mode support
@@ -592,6 +593,7 @@ private:
 
     // Verbose mode
     bool verbose_mode_ = false;
+    bool repl_mode_ = false;
 
     // Governance verbose mode (show full check-by-check summary)
     bool governance_verbose_ = false;

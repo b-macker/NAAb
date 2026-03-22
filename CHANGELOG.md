@@ -43,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `http.head(url)`, `http.patch(url, body)` — additional HTTP methods
   - `io.input(prompt?)` — read line from stdin with optional prompt
   - New `path` module: `join`, `dirname`, `basename`, `extension`, `resolve`, `is_absolute`, `normalize`, `exists`
+- **REPL** — interactive Read-Eval-Print Loop
+  - `naab-lang` with no arguments starts the REPL; also `naab-lang --repl`
+  - Expressions auto-print: `3 + 4` shows `7`
+  - Variables, functions, structs persist across lines
+  - Multi-line input: open braces/brackets continue to next line (`...` prompt)
+  - Meta-commands: `.help`, `.clear` (reset environment), `.exit`
+  - Top-level declarations (`fn`, `struct`, `enum`, `use`, `import`) work correctly
+  - History saved to `~/.naab_history`
 
 ## [0.5.3] - 2026-03-21
 

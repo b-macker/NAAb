@@ -622,6 +622,7 @@ message(STATUS "  ✓ Scanner engine (naab_scanner)")
 # Main executable
 add_executable(naab-lang
     src/cli/main.cpp
+    src/cli/repl.cpp
 )
 target_link_libraries(naab-lang
     naab_lexer
