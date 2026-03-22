@@ -1,0 +1,234 @@
+// Test T27: Stdlib Path Module
+// Tests all 8 path functions: join, dirname, basename, extension, resolve, is_absolute, normalize, exists
+
+use path
+use string
+use array
+
+fn test_path_join() {
+    let passed = 0
+    let total = 0
+
+    // T27.1.1: join two parts
+    total = total + 1
+    let p = path.join("/home", "user")
+    if string.contains(p, "user") { passed = passed + 1 }
+
+    // T27.1.2: join three parts
+    total = total + 1
+    let p2 = path.join("/home", "user", "docs")
+    if string.contains(p2, "docs") { passed = passed + 1 }
+
+    // T27.1.3: join with absolute second path
+    total = total + 1
+    let p3 = path.join("relative", "/absolute")
+    if string.starts_with(p3, "/") { passed = passed + 1 }
+
+    // T27.1.4: join with empty parts
+    total = total + 1
+    let p4 = path.join("/home", "", "file.txt")
+    if string.contains(p4, "file.txt") { passed = passed + 1 }
+
+    // T27.1.5: join single part
+    total = total + 1
+    let p5 = path.join("/single")
+    if p5 == "/single" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_path_components() {
+    let passed = 0
+    let total = 0
+
+    // T27.2.1: dirname of file path
+    total = total + 1
+    let d = path.dirname("/home/user/file.txt")
+    if string.contains(d, "user") { passed = passed + 1 }
+
+    // T27.2.2: basename of file path
+    total = total + 1
+    let b = path.basename("/home/user/file.txt")
+    if b == "file.txt" { passed = passed + 1 }
+
+    // T27.2.3: extension of file
+    total = total + 1
+    let e = path.extension("/home/user/file.txt")
+    if e == ".txt" { passed = passed + 1 }
+
+    // T27.2.4: basename of path with no directory
+    total = total + 1
+    let b2 = path.basename("file.txt")
+    if b2 == "file.txt" { passed = passed + 1 }
+
+    // T27.2.5: extension with multiple dots
+    total = total + 1
+    let e2 = path.extension("archive.tar.gz")
+    if e2 == ".gz" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_path_resolve_normalize() {
+    let passed = 0
+    let total = 0
+
+    // T27.3.1: resolve returns absolute path
+    total = total + 1
+    let r = path.resolve(".")
+    if string.starts_with(r, "/") { passed = passed + 1 }
+
+    // T27.3.2: normalize removes redundant separators
+    total = total + 1
+    let n = path.normalize("/home//user///docs")
+    if !string.contains(n, "//") { passed = passed + 1 }
+
+    // T27.3.3: normalize handles dot components
+    total = total + 1
+    let n2 = path.normalize("/home/./user")
+    if !string.contains(n2, "./") { passed = passed + 1 }
+
+    // T27.3.4: normalize handles double-dot
+    total = total + 1
+    let n3 = path.normalize("/home/user/../docs")
+    if string.contains(n3, "docs") && !string.contains(n3, "..") { passed = passed + 1 }
+
+    // T27.3.5: resolve with absolute path
+    total = total + 1
+    let r2 = path.resolve("/absolute/path")
+    if string.starts_with(r2, "/") { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_path_predicates() {
+    let passed = 0
+    let total = 0
+
+    // T27.4.1: is_absolute with absolute path
+    total = total + 1
+    if path.is_absolute("/usr/bin") == true { passed = passed + 1 }
+
+    // T27.4.2: is_absolute with relative path
+    total = total + 1
+    if path.is_absolute("relative/path") == false { passed = passed + 1 }
+
+    // T27.4.3: exists for real directory
+    total = total + 1
+    if path.exists("/data") == true { passed = passed + 1 }
+
+    // T27.4.4: exists for nonexistent path
+    total = total + 1
+    if path.exists("/nonexistent_path_xyz_123") == false { passed = passed + 1 }
+
+    // T27.4.5: is_absolute with empty string
+    total = total + 1
+    if path.is_absolute("") == false { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_path_edge_cases() {
+    let passed = 0
+    let total = 0
+
+    // T27.5.1: root path
+    total = total + 1
+    let d = path.dirname("/")
+    // dirname of "/" is "/"
+    if d == "/" { passed = passed + 1 }
+
+    // T27.5.2: no extension file
+    total = total + 1
+    let e = path.extension("Makefile")
+    if e == "" { passed = passed + 1 }
+
+    // T27.5.3: hidden file (starts with dot)
+    total = total + 1
+    let b = path.basename("/home/.bashrc")
+    if b == ".bashrc" { passed = passed + 1 }
+
+    // T27.5.4: path.exists on actual test file
+    total = total + 1
+    if path.exists("/data/data/com.termux/files/home/.naab/language/tests/robustness/test_stdlib_path.naab") == true { passed = passed + 1 }
+
+    // T27.5.5: extension of hidden file with extension
+    total = total + 1
+    let e2 = path.extension("/home/.config.bak")
+    if e2 == ".bak" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_path_error_handling() {
+    let passed = 0
+    let total = 0
+
+    // T27.6.1: exists returns false for nonexistent, doesn't throw
+    total = total + 1
+    let result = path.exists("/definitely/not/real/path")
+    if result == false { passed = passed + 1 }
+
+    // T27.6.2: basename of root — returns empty or "/" depending on platform
+    total = total + 1
+    let b = path.basename("/")
+    if b == "/" || b == "" { passed = passed + 1 }
+
+    // T27.6.3: dirname of single filename
+    total = total + 1
+    let d = path.dirname("file.txt")
+    // should return "." or empty
+    if d == "." || d == "" { passed = passed + 1 }
+
+    // T27.6.4: extension of directory path
+    total = total + 1
+    let e = path.extension("/home/user/")
+    // no extension for directory
+    if e == "" { passed = passed + 1 }
+
+    // T27.6.5: normalize of already clean path
+    total = total + 1
+    let n = path.normalize("/home/user/docs")
+    if n == "/home/user/docs" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T27: Stdlib Path ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_path_join()
+    print("  T27.1 join: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_path_components()
+    print("  T27.2 components: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_path_resolve_normalize()
+    print("  T27.3 resolve_normalize: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_path_predicates()
+    print("  T27.4 predicates: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_path_edge_cases()
+    print("  T27.5 edge_cases: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_path_error_handling()
+    print("  T27.6 error_handling: " + string(r6[0]) + "/" + string(r6[1]))
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    print("")
+    print("Stdlib Path: " + string(total_passed) + "/" + string(total_tests))
+}

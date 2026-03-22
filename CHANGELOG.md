@@ -57,6 +57,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cached modules are reused across runs (no re-download)
   - Clear error messages on download failure
 
+### Fixed
+- **BUG-E1: Type checking bypass via `callFunction()`** — pipeline (`|>`), stdlib callbacks (`array.filter_fn`), lambda calls, and method dispatch now enforce parameter type annotations. Previously only direct `fn(args)` syntax checked types.
+- **BUG-E1b: Generator parameter type bypass** — generator functions now validate parameter types at creation time, before eager body execution.
+- **BUG-E2: Generator exception safety** — if a generator body throws, interpreter state (`active_generator_`, `current_env_`, `returning_`) is now properly restored via try/catch. Previously, an exception mid-generation corrupted state for subsequent operations.
+
+### Hardening
+- **229 new edge-case assertions** across 9 test files targeting bypass paths, state consistency, and cross-feature interactions:
+  - `test_type_enforcement.naab` (41 tests) — variable/param/return type checking, nullable, union types, struct types, error messages
+  - `test_type_bypass.naab` (25 tests) — pipeline, lambda, callback, method dispatch type enforcement (BUG-E1 verification)
+  - `test_generator_state.naab` (17 tests) — exception recovery, nested generators, reuse independence, break/continue state
+  - `test_interface_invariants.naab` (25 tests) — multi-struct, multi-interface, error paths, method as callback, f-string interaction
+  - `test_match_hardened.naab` (30 tests) — guard evaluation order, destructuring edge cases, guard+destructure combos, nested match
+  - `test_fstring_hardened.naab` (26 tests) — expression types, special values, mixed syntax, complex interpolation chains
+  - `test_stdlib_path.naab` (30 tests) — all 8 path functions, edge cases (root, hidden files, no extension), error handling
+  - `test_stdlib_file_new.naab` (20 tests) — copy/move/size/basename/dirname/extension with real filesystem operations
+  - `test_v060_interactions.naab` (15 tests) — typed generators, interface+generator, match+generator, f-string everywhere, full feature pipeline
+
 ## [0.5.3] - 2026-03-21
 
 ### Added

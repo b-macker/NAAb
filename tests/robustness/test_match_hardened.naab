@@ -1,0 +1,357 @@
+// Test T25: Pattern Matching Hardened
+// Guard clauses, destructuring edge cases, no-match behavior, interactions
+
+use string
+use array
+
+fn test_guard_evaluation_order() {
+    let passed = 0
+    let total = 0
+
+    // T25.1.1: first matching guard wins
+    total = total + 1
+    let result = match 15 {
+        n if n > 10 => "first"
+        n if n > 5 => "second"
+        _ => "default"
+    }
+    if result == "first" { passed = passed + 1 }
+
+    // T25.1.2: all guards fail — falls to wildcard
+    total = total + 1
+    let r2 = match 1 {
+        n if n > 100 => "big"
+        n if n > 50 => "medium"
+        _ => "small"
+    }
+    if r2 == "small" { passed = passed + 1 }
+
+    // T25.1.3: guard with complex expression (&&)
+    total = total + 1
+    let r3 = match 15 {
+        n if n > 10 && n < 20 => "teen"
+        _ => "other"
+    }
+    if r3 == "teen" { passed = passed + 1 }
+
+    // T25.1.4: guard with || (or)
+    total = total + 1
+    let r4 = match 5 {
+        n if n == 3 || n == 5 || n == 7 => "prime"
+        _ => "not prime"
+    }
+    if r4 == "prime" { passed = passed + 1 }
+
+    // T25.1.5: guard with function call
+    total = total + 1
+    fn is_even(x) { return x % 2 == 0 }
+    let r5 = match 8 {
+        n if is_even(n) => "even"
+        _ => "odd"
+    }
+    if r5 == "even" { passed = passed + 1 }
+
+    // T25.1.6: guard on wildcard pattern
+    total = total + 1
+    let r6 = match 42 {
+        _ if false => "never"
+        _ => "always"
+    }
+    if r6 == "always" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_destructure_edge_cases() {
+    let passed = 0
+    let total = 0
+
+    // T25.2.1: single element array destructure
+    total = total + 1
+    let r1 = match [42] {
+        [x] => f"got {x}"
+        _ => "no match"
+    }
+    if r1 == "got 42" { passed = passed + 1 }
+
+    // T25.2.2: three element array destructure
+    total = total + 1
+    let r2 = match [1, 2, 3] {
+        [a, b, c] => a + b + c
+        _ => -1
+    }
+    if r2 == 6 { passed = passed + 1 }
+
+    // T25.2.3: literal + variable mix
+    total = total + 1
+    let r3 = match [0, 99] {
+        [0, y] => f"zero and {y}"
+        [x, y] => f"{x} and {y}"
+        _ => "none"
+    }
+    if r3 == "zero and 99" { passed = passed + 1 }
+
+    // T25.2.4: nested match with different patterns
+    total = total + 1
+    let r4 = match [1, 2] {
+        [1, 2] => "exact"
+        [1, y] => "one and something"
+        _ => "other"
+    }
+    if r4 == "exact" { passed = passed + 1 }
+
+    // T25.2.5: destructure with all variables
+    total = total + 1
+    let r5 = match [10, 20] {
+        [x, y] => x + y
+        _ => 0
+    }
+    if r5 == 30 { passed = passed + 1 }
+
+    // T25.2.6: non-array value falls through array pattern
+    total = total + 1
+    let r6 = match 42 {
+        [x] => "array"
+        _ => "not array"
+    }
+    if r6 == "not array" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_guard_with_destructure() {
+    let passed = 0
+    let total = 0
+
+    // T25.3.1: destructured variables used in guard
+    total = total + 1
+    let r1 = match [10, 20] {
+        [x, y] if x + y > 25 => "big sum"
+        [x, y] => "small sum"
+        _ => "none"
+    }
+    if r1 == "big sum" { passed = passed + 1 }
+
+    // T25.3.2: guard filters which destructure matches
+    total = total + 1
+    let r2 = match [3, 7] {
+        [x, y] if x > y => "x bigger"
+        [x, y] if y > x => "y bigger"
+        _ => "equal"
+    }
+    if r2 == "y bigger" { passed = passed + 1 }
+
+    // T25.3.3: destructure + guard + f-string result
+    total = total + 1
+    let r3 = match [5, 10] {
+        [x, y] if x * y > 40 => f"{x}*{y}={x * y}"
+        _ => "small"
+    }
+    if r3 == "5*10=50" { passed = passed + 1 }
+
+    // T25.3.4: multiple destructure+guard arms in sequence
+    total = total + 1
+    let r4 = match [0, 0] {
+        [0, 0] => "origin"
+        [x, 0] if x > 0 => "positive x-axis"
+        [0, y] if y > 0 => "positive y-axis"
+        [x, y] => f"({x},{y})"
+    }
+    if r4 == "origin" { passed = passed + 1 }
+
+    // T25.3.5: guard with method call on destructured value
+    total = total + 1
+    let r5 = match [3, 4] {
+        [x, y] if x + y == 7 => "lucky seven"
+        _ => "unlucky"
+    }
+    if r5 == "lucky seven" { passed = passed + 1 }
+
+    // T25.3.6: destructure with literal match + guard on other element
+    total = total + 1
+    let r6 = match [1, 100] {
+        [1, y] if y > 50 => "one with big"
+        [1, y] => "one with small"
+        _ => "other"
+    }
+    if r6 == "one with big" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_match_value_types() {
+    let passed = 0
+    let total = 0
+
+    // T25.4.1: match on string
+    total = total + 1
+    let r1 = match "hello" {
+        "hello" => "greeting"
+        "bye" => "farewell"
+        _ => "unknown"
+    }
+    if r1 == "greeting" { passed = passed + 1 }
+
+    // T25.4.2: match on bool
+    total = total + 1
+    let r2 = match true {
+        true => "yes"
+        false => "no"
+    }
+    if r2 == "yes" { passed = passed + 1 }
+
+    // T25.4.3: match on negative number
+    total = total + 1
+    let r3 = match -5 {
+        n if n < 0 => "negative"
+        0 => "zero"
+        _ => "positive"
+    }
+    if r3 == "negative" { passed = passed + 1 }
+
+    // T25.4.4: match result assigned to typed variable
+    total = total + 1
+    let classification: string = match 42 {
+        n if n > 0 => "positive"
+        _ => "non-positive"
+    }
+    if classification == "positive" { passed = passed + 1 }
+
+    // T25.4.5: match as function return
+    total = total + 1
+    fn classify(n) {
+        return match n {
+            x if x > 100 => "huge"
+            x if x > 0 => "positive"
+            0 => "zero"
+            _ => "negative"
+        }
+    }
+    if classify(50) == "positive" && classify(0) == "zero" { passed = passed + 1 }
+
+    // T25.4.6: nested match expressions
+    total = total + 1
+    let outer = match 5 {
+        n if n > 0 => match n {
+            x if x > 10 => "big positive"
+            _ => "small positive"
+        }
+        _ => "non-positive"
+    }
+    if outer == "small positive" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_match_interactions() {
+    let passed = 0
+    let total = 0
+
+    // T25.5.1: match inside generator
+    total = total + 1
+    fn classify_gen(values) {
+        for v in values {
+            yield match v {
+                x if x > 0 => "pos"
+                0 => "zero"
+                _ => "neg"
+            }
+        }
+    }
+    let classes = []
+    for c in classify_gen([5, 0, -3]) {
+        classes = array.push(classes, c)
+    }
+    if classes[0] == "pos" && classes[1] == "zero" && classes[2] == "neg" { passed = passed + 1 }
+
+    // T25.5.2: match with f-string in result
+    total = total + 1
+    let name = "Alice"
+    let greeting = match name {
+        "Alice" => f"Hello, {name}!"
+        _ => f"Who is {name}?"
+    }
+    if greeting == "Hello, Alice!" { passed = passed + 1 }
+
+    // T25.5.3: match on array length via guard
+    total = total + 1
+    let arr = [1, 2, 3]
+    let desc = match arr {
+        a if array.length(a) > 5 => "long"
+        a if array.length(a) > 2 => "medium"
+        _ => "short"
+    }
+    if desc == "medium" { passed = passed + 1 }
+
+    // T25.5.4: match as last expression in function (implicit return)
+    total = total + 1
+    fn sign(n) {
+        return match n {
+            x if x > 0 => 1
+            0 => 0
+            _ => -1
+        }
+    }
+    if sign(42) == 1 && sign(0) == 0 && sign(-7) == -1 { passed = passed + 1 }
+
+    // T25.5.5: match in loop body
+    total = total + 1
+    let results = []
+    for i in [1, 2, 3, 4, 5] {
+        let cat = match i {
+            x if x % 2 == 0 => "even"
+            _ => "odd"
+        }
+        results = array.push(results, cat)
+    }
+    if results[0] == "odd" && results[1] == "even" && results[4] == "odd" { passed = passed + 1 }
+
+    // T25.5.6: chained matches
+    total = total + 1
+    let x = 15
+    let step1 = match x {
+        n if n > 10 => n - 10
+        _ => n
+    }
+    let step2 = match step1 {
+        n if n > 3 => "big"
+        _ => "small"
+    }
+    if step2 == "big" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T25: Match Hardened ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_guard_evaluation_order()
+    print("  T25.1 guard_eval_order: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_destructure_edge_cases()
+    print("  T25.2 destructure_edge: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_guard_with_destructure()
+    print("  T25.3 guard_destructure: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_match_value_types()
+    print("  T25.4 value_types: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_match_interactions()
+    print("  T25.5 interactions: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    print("")
+    print("Match Hardened: " + string(total_passed) + "/" + string(total_tests))
+}

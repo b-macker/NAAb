@@ -1,0 +1,206 @@
+// Test T28: Stdlib File New Functions
+// Tests copy, move, size, basename, dirname, extension
+// Uses temp files in /data/data/com.termux/files/usr/tmp/
+
+use file
+use string
+
+fn test_file_copy_move() {
+    let passed = 0
+    let total = 0
+    let tmp = "/data/data/com.termux/files/usr/tmp"
+
+    // Setup: write a test file
+    let src = tmp + "/naab_test_copy_src.txt"
+    let dst = tmp + "/naab_test_copy_dst.txt"
+    let moved_dst = tmp + "/naab_test_moved.txt"
+    file.write(src, "hello copy test")
+
+    // T28.1.1: copy file creates destination
+    total = total + 1
+    file.copy(src, dst)
+    if file.exists(dst) { passed = passed + 1 }
+
+    // T28.1.2: copied file has same content
+    total = total + 1
+    let content = file.read(dst)
+    if content == "hello copy test" { passed = passed + 1 }
+
+    // T28.1.3: source still exists after copy
+    total = total + 1
+    if file.exists(src) { passed = passed + 1 }
+
+    // T28.1.4: move file — destination exists
+    total = total + 1
+    file.move(dst, moved_dst)
+    if file.exists(moved_dst) { passed = passed + 1 }
+
+    // T28.1.5: move file — source removed
+    total = total + 1
+    if !file.exists(dst) { passed = passed + 1 }
+
+    // Cleanup
+    file.delete(src)
+    file.delete(moved_dst)
+
+    return [passed, total]
+}
+
+fn test_file_metadata() {
+    let passed = 0
+    let total = 0
+    let tmp = "/data/data/com.termux/files/usr/tmp"
+
+    // Setup
+    let test_file = tmp + "/naab_test_meta.txt"
+    file.write(test_file, "12345")
+
+    // T28.2.1: size returns a number
+    total = total + 1
+    let s = file.size(test_file)
+    if s >= 5 { passed = passed + 1 }
+
+    // T28.2.2: size of empty file
+    total = total + 1
+    let empty_file = tmp + "/naab_test_empty.txt"
+    file.write(empty_file, "")
+    let s2 = file.size(empty_file)
+    if s2 == 0 { passed = passed + 1 }
+
+    // T28.2.3: basename returns filename
+    total = total + 1
+    let b = file.basename(test_file)
+    if b == "naab_test_meta.txt" { passed = passed + 1 }
+
+    // T28.2.4: dirname returns directory
+    total = total + 1
+    let d = file.dirname(test_file)
+    if string.contains(d, "tmp") { passed = passed + 1 }
+
+    // T28.2.5: extension returns .txt
+    total = total + 1
+    let e = file.extension(test_file)
+    if e == ".txt" { passed = passed + 1 }
+
+    // Cleanup
+    file.delete(test_file)
+    file.delete(empty_file)
+
+    return [passed, total]
+}
+
+fn test_file_path_ops() {
+    let passed = 0
+    let total = 0
+
+    // T28.3.1: basename with no directory
+    total = total + 1
+    let b = file.basename("simple.txt")
+    if b == "simple.txt" { passed = passed + 1 }
+
+    // T28.3.2: extension with multiple dots
+    total = total + 1
+    let e = file.extension("archive.tar.gz")
+    if e == ".gz" { passed = passed + 1 }
+
+    // T28.3.3: extension with no dot
+    total = total + 1
+    let e2 = file.extension("Makefile")
+    if e2 == "" { passed = passed + 1 }
+
+    // T28.3.4: dirname of simple filename
+    total = total + 1
+    let d = file.dirname("file.txt")
+    if d == "." || d == "" { passed = passed + 1 }
+
+    // T28.3.5: basename of path with trailing component
+    total = total + 1
+    let b2 = file.basename("/usr/local/bin/naab")
+    if b2 == "naab" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_file_error_handling() {
+    let passed = 0
+    let total = 0
+
+    // T28.4.1: size of nonexistent file throws
+    total = total + 1
+    let caught = false
+    try {
+        file.size("/nonexistent_path_xyz.txt")
+    } catch (e) {
+        caught = true
+    }
+    if caught { passed = passed + 1 }
+
+    // T28.4.2: copy nonexistent source throws
+    total = total + 1
+    let caught2 = false
+    try {
+        file.copy("/nonexistent_src.txt", "/tmp/dst.txt")
+    } catch (e) {
+        caught2 = true
+    }
+    if caught2 { passed = passed + 1 }
+
+    // T28.4.3: move nonexistent source throws
+    total = total + 1
+    let caught3 = false
+    try {
+        file.move("/nonexistent_move.txt", "/tmp/dst.txt")
+    } catch (e) {
+        caught3 = true
+    }
+    if caught3 { passed = passed + 1 }
+
+    // T28.4.4: file.exists returns false for nonexistent
+    total = total + 1
+    if !file.exists("/definitely_not_real_file.txt") { passed = passed + 1 }
+
+    // T28.4.5: file operations don't corrupt state after error
+    total = total + 1
+    try {
+        file.size("/bad_path")
+    } catch (e) {
+        // should recover
+    }
+    // Verify we can still do normal operations
+    let tmp = "/data/data/com.termux/files/usr/tmp/naab_recovery_test.txt"
+    file.write(tmp, "ok")
+    let content = file.read(tmp)
+    file.delete(tmp)
+    if content == "ok" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T28: Stdlib File New ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_file_copy_move()
+    print("  T28.1 copy_move: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_file_metadata()
+    print("  T28.2 metadata: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_file_path_ops()
+    print("  T28.3 path_ops: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_file_error_handling()
+    print("  T28.4 error_handling: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    print("")
+    print("Stdlib File New: " + string(total_passed) + "/" + string(total_tests))
+}

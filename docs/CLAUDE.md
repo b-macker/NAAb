@@ -359,6 +359,9 @@ main {
 35. Generators use eager collection: `yield` pushes values into a list, then `for-in` iterates that list. This means infinite generators will collect forever — always use a bound (e.g., `while a < limit`).
 36. Generator detection is automatic: any function containing `yield` (at any nesting depth) becomes a generator. No special keyword or annotation needed.
 37. `for x in gen_fn(args)` is the only way to consume a generator. Calling `gen_fn(args)` directly returns a GeneratorValue object, not the yielded values.
+38. `catch (e)` variable `e` is a dict `{"message": "...", "type": "PolyglotError"}` — use `e["message"]` to get the error string, NOT `e` directly with `string.contains()`.
+39. Type annotations are enforced at runtime on ALL call paths: direct calls, pipeline (`|>`), callbacks (`array.map_fn`), lambda calls, and method dispatch. Generator params are also checked at creation time.
+40. Generator bodies that throw exceptions properly restore interpreter state (active_generator_, current_env_, returning_) — safe to catch and continue.
 
 ## Complexity Scoring (for governance)
 

@@ -1,0 +1,232 @@
+// Test T26: F-String Hardened
+// Edge cases: expressions, nested, special values, mixed syntax, interactions
+
+use string
+use array
+use math
+
+fn test_fstring_expressions() {
+    let passed = 0
+    let total = 0
+
+    // T26.1.1: arithmetic in f-string
+    total = total + 1
+    if f"result: {2 + 3}" == "result: 5" { passed = passed + 1 }
+
+    // T26.1.2: function call in f-string
+    total = total + 1
+    fn double(x) { return x * 2 }
+    if f"doubled: {double(5)}" == "doubled: 10" { passed = passed + 1 }
+
+    // T26.1.3: method call in f-string
+    total = total + 1
+    let arr = [1, 2, 3]
+    if f"len: {array.length(arr)}" == "len: 3" { passed = passed + 1 }
+
+    // T26.1.4: comparison in f-string
+    total = total + 1
+    let x = 5
+    if f"big: {x > 3}" == "big: true" { passed = passed + 1 }
+
+    // T26.1.5: array access in f-string
+    total = total + 1
+    let items = ["a", "b", "c"]
+    if f"first: {items[0]}" == "first: a" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_fstring_values() {
+    let passed = 0
+    let total = 0
+
+    // T26.2.1: integer interpolation
+    total = total + 1
+    let n = 42
+    if f"{n}" == "42" { passed = passed + 1 }
+
+    // T26.2.2: float interpolation
+    total = total + 1
+    let pi = 3.14
+    if string.starts_with(f"{pi}", "3.14") { passed = passed + 1 }
+
+    // T26.2.3: boolean interpolation
+    total = total + 1
+    let b = true
+    if f"{b}" == "true" { passed = passed + 1 }
+
+    // T26.2.4: string interpolation
+    total = total + 1
+    let s = "hello"
+    if f"{s}" == "hello" { passed = passed + 1 }
+
+    // T26.2.5: empty f-string (no interpolation)
+    total = total + 1
+    if f"" == "" { passed = passed + 1 }
+
+    // T26.2.6: f-string with no interpolation braces
+    total = total + 1
+    if f"plain text" == "plain text" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_fstring_mixed_syntax() {
+    let passed = 0
+    let total = 0
+
+    // T26.3.1: f-string and ${} syntax in same program
+    total = total + 1
+    let name = "world"
+    let f_ver = f"hello {name}"
+    let dollar_ver = "hello ${name}"
+    if f_ver == dollar_ver { passed = passed + 1 }
+
+    // T26.3.2: f-string concatenated with regular string
+    total = total + 1
+    let greeting = f"Hello, " + "World!"
+    if greeting == "Hello, World!" { passed = passed + 1 }
+
+    // T26.3.3: f-string as function argument
+    total = total + 1
+    fn echo(s) { return s }
+    let x = 42
+    if echo(f"val: {x}") == "val: 42" { passed = passed + 1 }
+
+    // T26.3.4: f-string in array
+    total = total + 1
+    let a = 1
+    let b = 2
+    let arr = [f"a={a}", f"b={b}"]
+    if arr[0] == "a=1" && arr[1] == "b=2" { passed = passed + 1 }
+
+    // T26.3.5: f-string in dict value
+    total = total + 1
+    let key = "name"
+    let d = {"info": f"key is {key}"}
+    if d["info"] == "key is name" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_fstring_complex() {
+    let passed = 0
+    let total = 0
+
+    // T26.4.1: multiple interpolations
+    total = total + 1
+    let a = 1
+    let b = 2
+    let c = 3
+    if f"{a} + {b} = {c}" == "1 + 2 = 3" { passed = passed + 1 }
+
+    // T26.4.2: interpolation with string concatenation inside
+    total = total + 1
+    let first = "John"
+    let last = "Doe"
+    let full = first + " " + last
+    if f"Name: {full}" == "Name: John Doe" { passed = passed + 1 }
+
+    // T26.4.3: nested function calls
+    total = total + 1
+    if f"abs: {math.abs(-42)}" == "abs: 42" { passed = passed + 1 }
+
+    // T26.4.4: f-string in match result
+    total = total + 1
+    let val = 5
+    let desc = match val {
+        n if n > 0 => f"positive: {n}"
+        _ => "non-positive"
+    }
+    if desc == "positive: 5" { passed = passed + 1 }
+
+    // T26.4.5: f-string in generator yield
+    total = total + 1
+    fn label_gen(items) {
+        let i = 0
+        for item in items {
+            yield f"item {i}: {item}"
+            i = i + 1
+        }
+    }
+    let labels = []
+    for l in label_gen(["a", "b", "c"]) {
+        labels = array.push(labels, l)
+    }
+    if labels[0] == "item 0: a" && labels[2] == "item 2: c" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_fstring_struct_interaction() {
+    let passed = 0
+    let total = 0
+
+    // T26.5.1: f-string with dict field access
+    total = total + 1
+    let point = {"x": 10, "y": 20}
+    let px = point["x"]
+    let py = point["y"]
+    if f"({px}, {py})" == "(10, 20)" { passed = passed + 1 }
+
+    // T26.5.2: f-string with computed value
+    total = total + 1
+    let width = 5
+    let height = 3
+    if f"area: {width * height}" == "area: 15" { passed = passed + 1 }
+
+    // T26.5.3: f-string with conditional value
+    total = total + 1
+    let score = 85
+    let letter = if score >= 90 { "A" } else { "B" }
+    let grade = f"Grade: {letter}"
+    if grade == "Grade: B" { passed = passed + 1 }
+
+    // T26.5.4: f-string with string method
+    total = total + 1
+    let name = "alice"
+    if f"Hello, {string.upper(name)}!" == "Hello, ALICE!" { passed = passed + 1 }
+
+    // T26.5.5: deeply nested interpolation chain
+    total = total + 1
+    let x = 10
+    let msg = f"result: {x * 2 + 1}"
+    let outer = f"message says: {msg}"
+    if outer == "message says: result: 21" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T26: F-String Hardened ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_fstring_expressions()
+    print("  T26.1 expressions: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_fstring_values()
+    print("  T26.2 values: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_fstring_mixed_syntax()
+    print("  T26.3 mixed_syntax: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_fstring_complex()
+    print("  T26.4 complex: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_fstring_struct_interaction()
+    print("  T26.5 struct_interaction: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    print("")
+    print("F-String Hardened: " + string(total_passed) + "/" + string(total_tests))
+}

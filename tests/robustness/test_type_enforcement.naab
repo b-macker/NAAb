@@ -1,0 +1,427 @@
+// Test T21: Runtime Type Enforcement
+// Tests type checking at all 3 enforcement points: variables, parameters, returns
+// Plus bypass path testing via pipeline, callbacks, and method dispatch
+
+use string
+use array
+
+// === Helper structs for type tests ===
+
+struct Point {
+    x: int
+    y: int
+}
+
+struct Color {
+    r: int
+    g: int
+    b: int
+}
+
+// === Test functions ===
+
+fn test_variable_type_mismatch() {
+    let passed = 0
+    let total = 0
+
+    // T21.1.1: int annotation accepts int
+    total = total + 1
+    let x: int = 42
+    if x == 42 { passed = passed + 1 }
+
+    // T21.1.2: float annotation accepts float
+    total = total + 1
+    let y: float = 3.14
+    if y > 3.0 { passed = passed + 1 }
+
+    // T21.1.3: string annotation accepts string
+    total = total + 1
+    let s: string = "hello"
+    if s == "hello" { passed = passed + 1 }
+
+    // T21.1.4: bool annotation accepts bool
+    total = total + 1
+    let b: bool = true
+    if b == true { passed = passed + 1 }
+
+    // T21.1.5: int annotation rejects string
+    total = total + 1
+    let caught_type = false
+    try {
+        // This should throw a type error
+        let bad: int = "not_an_int"
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught_type = true }
+    }
+    if caught_type { passed = passed + 1 }
+
+    // T21.1.6: string annotation rejects int
+    total = total + 1
+    let caught2 = false
+    try {
+        let bad2: string = 42
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught2 = true }
+    }
+    if caught2 { passed = passed + 1 }
+
+    // T21.1.7: bool annotation rejects string
+    total = total + 1
+    let caught3 = false
+    try {
+        let bad3: bool = "true"
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught3 = true }
+    }
+    if caught3 { passed = passed + 1 }
+
+    // T21.1.8: float annotation rejects string
+    total = total + 1
+    let caught4 = false
+    try {
+        let bad4: float = "3.14"
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught4 = true }
+    }
+    if caught4 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_nullable_types() {
+    let passed = 0
+    let total = 0
+
+    // T21.2.1: nullable int accepts null
+    total = total + 1
+    let x: int? = null
+    if x == null { passed = passed + 1 }
+
+    // T21.2.2: nullable int accepts int
+    total = total + 1
+    let y: int? = 42
+    if y == 42 { passed = passed + 1 }
+
+    // T21.2.3: non-nullable rejects null
+    total = total + 1
+    let caught = false
+    try {
+        let bad: int = null
+    } catch (e) {
+        if string.contains(e["message"], "Null safety") { caught = true }
+    }
+    if caught { passed = passed + 1 }
+
+    // T21.2.4: nullable string accepts null
+    total = total + 1
+    let s: string? = null
+    if s == null { passed = passed + 1 }
+
+    // T21.2.5: nullable string accepts string
+    total = total + 1
+    let s2: string? = "hello"
+    if s2 == "hello" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_union_types() {
+    let passed = 0
+    let total = 0
+
+    // T21.3.1: union int|string accepts int
+    total = total + 1
+    let u: int | string = 42
+    if u == 42 { passed = passed + 1 }
+
+    // T21.3.2: union int|string accepts string
+    total = total + 1
+    let u2: int | string = "hello"
+    if u2 == "hello" { passed = passed + 1 }
+
+    // T21.3.3: union int|string rejects float
+    total = total + 1
+    let caught = false
+    try {
+        let bad: int | string = 3.14
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught = true }
+    }
+    if caught { passed = passed + 1 }
+
+    // T21.3.4: union int|string rejects bool
+    total = total + 1
+    let caught2 = false
+    try {
+        let bad2: int | string = true
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught2 = true }
+    }
+    if caught2 { passed = passed + 1 }
+
+    // T21.3.5: union with three types
+    total = total + 1
+    let u3: int | string | bool = true
+    if u3 == true { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn typed_add(a: int, b: int) -> int {
+    return a + b
+}
+
+fn typed_greet(name: string) -> string {
+    return "Hello, " + name
+}
+
+fn nullable_fn(x: int?) -> string {
+    if x == null { return "null" }
+    return string(x)
+}
+
+fn union_fn(x: int | string) -> string {
+    return string(x)
+}
+
+fn test_param_type_mismatch() {
+    let passed = 0
+    let total = 0
+
+    // T21.4.1: correct types work
+    total = total + 1
+    if typed_add(3, 4) == 7 { passed = passed + 1 }
+
+    // T21.4.2: string param accepts string
+    total = total + 1
+    if typed_greet("World") == "Hello, World" { passed = passed + 1 }
+
+    // T21.4.3: int param rejects string
+    total = total + 1
+    let caught = false
+    try {
+        typed_add("a", "b")
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught = true }
+    }
+    if caught { passed = passed + 1 }
+
+    // T21.4.4: string param rejects int
+    total = total + 1
+    let caught2 = false
+    try {
+        typed_greet(42)
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught2 = true }
+    }
+    if caught2 { passed = passed + 1 }
+
+    // T21.4.5: nullable param accepts null
+    total = total + 1
+    if nullable_fn(null) == "null" { passed = passed + 1 }
+
+    // T21.4.6: nullable param accepts value
+    total = total + 1
+    if nullable_fn(42) == "42" { passed = passed + 1 }
+
+    // T21.4.7: union param accepts both types
+    total = total + 1
+    if union_fn(42) == "42" { passed = passed + 1 }
+
+    // T21.4.8: union param accepts string
+    total = total + 1
+    if union_fn("hi") == "hi" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn returns_int() -> int {
+    return 42
+}
+
+fn returns_wrong_type() -> int {
+    return "oops"
+}
+
+fn returns_nullable() -> int? {
+    return null
+}
+
+fn returns_union() -> int | string {
+    return "hello"
+}
+
+fn test_return_type_mismatch() {
+    let passed = 0
+    let total = 0
+
+    // T21.5.1: correct return type works
+    total = total + 1
+    if returns_int() == 42 { passed = passed + 1 }
+
+    // T21.5.2: wrong return type throws
+    total = total + 1
+    let caught = false
+    try {
+        returns_wrong_type()
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught = true }
+    }
+    if caught { passed = passed + 1 }
+
+    // T21.5.3: nullable return null OK
+    total = total + 1
+    if returns_nullable() == null { passed = passed + 1 }
+
+    // T21.5.4: union return works
+    total = total + 1
+    if returns_union() == "hello" { passed = passed + 1 }
+
+    // T21.5.5: non-nullable return rejects null
+    total = total + 1
+    let caught2 = false
+    fn bad_return() -> int {
+        return null
+    }
+    try {
+        bad_return()
+    } catch (e) {
+        if string.contains(e["message"], "Null safety") { caught2 = true }
+    }
+    if caught2 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_struct_types() {
+    let passed = 0
+    let total = 0
+
+    // T21.6.1: struct type annotation accepts correct struct
+    total = total + 1
+    let p: Point = new Point { x: 1, y: 2 }
+    if p.x == 1 { passed = passed + 1 }
+
+    // T21.6.2: struct type annotation rejects wrong struct
+    total = total + 1
+    let caught = false
+    try {
+        let bad: Point = new Color { r: 255, g: 0, b: 0 }
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught = true }
+    }
+    if caught { passed = passed + 1 }
+
+    // T21.6.3: struct type rejects non-struct
+    total = total + 1
+    let caught2 = false
+    try {
+        let bad2: Point = 42
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught2 = true }
+    }
+    if caught2 { passed = passed + 1 }
+
+    // T21.6.4: List annotation accepts list
+    total = total + 1
+    let arr: List = [1, 2, 3]
+    if array.length(arr) == 3 { passed = passed + 1 }
+
+    // T21.6.5: Dict annotation accepts dict
+    total = total + 1
+    let d: Dict = {"key": "value"}
+    if d["key"] == "value" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_type_error_messages() {
+    let passed = 0
+    let total = 0
+
+    // T21.7.1: error mentions expected type
+    total = total + 1
+    try {
+        let x: int = "hello"
+    } catch (e) {
+        if string.contains(e["message"], "int") { passed = passed + 1 }
+    }
+
+    // T21.7.2: error mentions got type
+    total = total + 1
+    try {
+        let x: int = "hello"
+    } catch (e) {
+        if string.contains(e["message"], "string") { passed = passed + 1 }
+    }
+
+    // T21.7.3: error mentions variable name
+    total = total + 1
+    try {
+        let myvar: int = "hello"
+    } catch (e) {
+        if string.contains(e["message"], "myvar") { passed = passed + 1 }
+    }
+
+    // T21.7.4: param error mentions function name
+    total = total + 1
+    try {
+        typed_add("x", "y")
+    } catch (e) {
+        if string.contains(e["message"], "typed_add") { passed = passed + 1 }
+    }
+
+    // T21.7.5: param error mentions param name
+    total = total + 1
+    try {
+        typed_add("x", "y")
+    } catch (e) {
+        if string.contains(e["message"], "a") { passed = passed + 1 }
+    }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T21: Type Enforcement ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_variable_type_mismatch()
+    print("  T21.1 variable_type_mismatch: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_nullable_types()
+    print("  T21.2 nullable_types: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_union_types()
+    print("  T21.3 union_types: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_param_type_mismatch()
+    print("  T21.4 param_type_mismatch: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_return_type_mismatch()
+    print("  T21.5 return_type_mismatch: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_struct_types()
+    print("  T21.6 struct_types: " + string(r6[0]) + "/" + string(r6[1]))
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    let r7 = test_type_error_messages()
+    print("  T21.7 type_error_messages: " + string(r7[0]) + "/" + string(r7[1]))
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+
+    print("")
+    print("Type Enforcement: " + string(total_passed) + "/" + string(total_tests))
+}

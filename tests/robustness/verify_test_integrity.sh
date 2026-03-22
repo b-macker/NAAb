@@ -7,9 +7,9 @@ DIR="tests/robustness"
 LAYER1_PASS=0
 LAYER1_TOTAL=7
 LAYER5_PASS=0
-LAYER5_TOTAL=10
+LAYER5_TOTAL=18
 
-# Files to validate (only the 8 new exhaustive test files)
+# Files to validate
 TEST_FILES=(
     "test_stdlib_array"
     "test_stdlib_string"
@@ -21,6 +21,14 @@ TEST_FILES=(
     "test_stdlib_env_time"
     "test_interfaces"
     "test_generators"
+    "test_type_enforcement"
+    "test_type_bypass"
+    "test_generator_state"
+    "test_interface_invariants"
+    "test_match_hardened"
+    "test_fstring_hardened"
+    "test_stdlib_path"
+    "test_v060_interactions"
 )
 
 # Expected runtime summary lines (Layer 5 manifest)
@@ -35,6 +43,14 @@ EXPECTED_SUMMARY["test_structs_enums"]="Structs/Enums: 40/40"
 EXPECTED_SUMMARY["test_stdlib_env_time"]="Stdlib Env/Time: 33/33"
 EXPECTED_SUMMARY["test_interfaces"]="Interfaces: 10/10"
 EXPECTED_SUMMARY["test_generators"]="Generators: 12/12"
+EXPECTED_SUMMARY["test_type_enforcement"]="Type Enforcement: 41/41"
+EXPECTED_SUMMARY["test_type_bypass"]="Type Bypass: 25/25"
+EXPECTED_SUMMARY["test_generator_state"]="Generator State: 17/17"
+EXPECTED_SUMMARY["test_interface_invariants"]="Interface Invariants: 25/25"
+EXPECTED_SUMMARY["test_match_hardened"]="Match Hardened: 30/30"
+EXPECTED_SUMMARY["test_fstring_hardened"]="F-String Hardened: 26/26"
+EXPECTED_SUMMARY["test_stdlib_path"]="Stdlib Path: 30/30"
+EXPECTED_SUMMARY["test_v060_interactions"]="Interactions: 15/15"
 
 # Expected assertion counts per file
 declare -A EXPECTED_COUNT
@@ -48,6 +64,14 @@ EXPECTED_COUNT["test_structs_enums"]=40
 EXPECTED_COUNT["test_stdlib_env_time"]=33
 EXPECTED_COUNT["test_interfaces"]=10
 EXPECTED_COUNT["test_generators"]=12
+EXPECTED_COUNT["test_type_enforcement"]=41
+EXPECTED_COUNT["test_type_bypass"]=25
+EXPECTED_COUNT["test_generator_state"]=17
+EXPECTED_COUNT["test_interface_invariants"]=25
+EXPECTED_COUNT["test_match_hardened"]=30
+EXPECTED_COUNT["test_fstring_hardened"]=26
+EXPECTED_COUNT["test_stdlib_path"]=30
+EXPECTED_COUNT["test_v060_interactions"]=15
 
 echo "═══════════════════════════════════════════════════════════"
 echo "  Layer 1: Static Integrity Audit"

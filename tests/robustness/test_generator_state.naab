@@ -1,0 +1,227 @@
+// Test T23: Generator State Consistency
+// Tests exception safety (BUG-E2 fix), nested generators, reuse, break/continue
+
+use string
+use array
+
+fn count_to(n) {
+    let i = 0
+    while i < n {
+        yield i
+        i = i + 1
+    }
+}
+
+fn throwing_generator(n) {
+    let i = 0
+    while i < n {
+        if i == 3 {
+            let bad: int = "crash"
+        }
+        yield i
+        i = i + 1
+    }
+}
+
+fn conditional_yield(n) {
+    let i = 0
+    while i < n {
+        if i % 2 == 0 { yield i }
+        i = i + 1
+    }
+}
+
+fn empty_generator() {
+    if false { yield 1 }
+}
+
+fn early_return_gen(n) {
+    let i = 0
+    while i < n {
+        if i >= 2 { return }
+        yield i
+        i = i + 1
+    }
+}
+
+fn test_exception_recovery() {
+    let passed = 0
+    let total = 0
+
+    // T23.1.1: generator throws — error caught
+    total = total + 1
+    let caught = false
+    try {
+        for x in throwing_generator(5) {}
+    } catch (e) { caught = true }
+    if caught { passed = passed + 1 }
+
+    // T23.1.2: normal generator works after exception (state not corrupt)
+    total = total + 1
+    let sum = 0
+    for x in count_to(3) { sum = sum + x }
+    if sum == 3 { passed = passed + 1 }
+
+    // T23.1.3: nested loop after exception
+    total = total + 1
+    let outer = 0
+    for x in count_to(2) {
+        for y in count_to(2) { outer = outer + 1 }
+    }
+    if outer == 4 { passed = passed + 1 }
+
+    // T23.1.4: regular function call after exception
+    total = total + 1
+    fn add(a, b) { return a + b }
+    if add(2, 3) == 5 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_nested_and_reuse() {
+    let passed = 0
+    let total = 0
+
+    // T23.2.1: two generators in sequence
+    total = total + 1
+    let s1 = 0
+    for x in count_to(3) { s1 = s1 + x }
+    let s2 = 0
+    for x in count_to(4) { s2 = s2 + x }
+    if s1 == 3 && s2 == 6 { passed = passed + 1 }
+
+    // T23.2.2: nested for-in
+    total = total + 1
+    let pairs = 0
+    for a in count_to(3) {
+        for b in count_to(3) { pairs = pairs + 1 }
+    }
+    if pairs == 9 { passed = passed + 1 }
+
+    // T23.2.3: same generator called twice — independent
+    total = total + 1
+    let r1 = []
+    for x in count_to(3) { r1 = array.push(r1, x) }
+    let r2 = []
+    for x in count_to(3) { r2 = array.push(r2, x) }
+    if r1[0] == r2[0] && r1[2] == r2[2] { passed = passed + 1 }
+
+    // T23.2.4: generator results collected to array
+    total = total + 1
+    let items = []
+    for x in count_to(5) { items = array.push(items, x) }
+    if array.length(items) == 5 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_break_continue() {
+    let passed = 0
+    let total = 0
+
+    // T23.3.1: break in generator loop
+    total = total + 1
+    let count = 0
+    for x in count_to(100) {
+        count = count + 1
+        if x >= 3 { break }
+    }
+    if count == 4 { passed = passed + 1 }
+
+    // T23.3.2: next loop works after break
+    total = total + 1
+    let sum = 0
+    for x in count_to(5) { sum = sum + x }
+    if sum == 10 { passed = passed + 1 }
+
+    // T23.3.3: break in inner, outer continues
+    total = total + 1
+    let oc = 0
+    for a in count_to(3) {
+        oc = oc + 1
+        for b in count_to(50) { if b >= 2 { break } }
+    }
+    if oc == 3 { passed = passed + 1 }
+
+    // T23.3.4: continue filters items
+    total = total + 1
+    let evens = []
+    for x in count_to(6) {
+        if x % 2 != 0 { continue }
+        evens = array.push(evens, x)
+    }
+    if array.length(evens) == 3 { passed = passed + 1 }
+
+    // T23.3.5: return from inside generator loop
+    total = total + 1
+    fn find_even() {
+        for x in count_to(10) {
+            if x > 0 && x % 2 == 0 { return x }
+        }
+        return -1
+    }
+    if find_even() == 2 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_control_flow() {
+    let passed = 0
+    let total = 0
+
+    // T23.4.1: conditional yield
+    total = total + 1
+    let evens = []
+    for x in conditional_yield(6) { evens = array.push(evens, x) }
+    if array.length(evens) == 3 && evens[0] == 0 && evens[2] == 4 { passed = passed + 1 }
+
+    // T23.4.2: empty generator
+    total = total + 1
+    let empty = []
+    for x in empty_generator() { empty = array.push(empty, x) }
+    if array.length(empty) == 0 { passed = passed + 1 }
+
+    // T23.4.3: early return generator
+    total = total + 1
+    let early = []
+    for x in early_return_gen(10) { early = array.push(early, x) }
+    if array.length(early) == 2 && early[0] == 0 { passed = passed + 1 }
+
+    // T23.4.4: generator value stored then iterated
+    total = total + 1
+    let gen_val = count_to(4)
+    let late = []
+    for x in gen_val { late = array.push(late, x) }
+    if array.length(late) == 4 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T23: Generator State ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_exception_recovery()
+    print("  T23.1 exception_recovery: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_nested_and_reuse()
+    print("  T23.2 nested_reuse: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_break_continue()
+    print("  T23.3 break_continue: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_control_flow()
+    print("  T23.4 control_flow: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    print("")
+    print("Generator State: " + string(total_passed) + "/" + string(total_tests))
+}

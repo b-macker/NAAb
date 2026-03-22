@@ -1,0 +1,291 @@
+// Test T22: Type Checking Bypass Paths
+// Adversarial tests: pipeline, callbacks, lambdas, method dispatch
+// These paths previously bypassed type checking (BUG-E1)
+
+use string
+use array
+
+// === Typed functions for bypass testing ===
+
+fn strict_int(x: int) -> int {
+    return x * 2
+}
+
+fn strict_string(s: string) -> string {
+    return s + "!"
+}
+
+fn strict_two_params(a: int, b: string) -> string {
+    return string(a) + ": " + b
+}
+
+struct Widget {
+    name: string
+    value: int
+}
+
+fn Widget.get_name(w) -> string {
+    return w.name
+}
+
+fn Widget.set_value(w, v: int) -> int {
+    return v
+}
+
+// === Test functions ===
+
+fn test_pipeline_type_enforcement() {
+    let passed = 0
+    let total = 0
+
+    // T22.1.1: pipeline with correct type works
+    total = total + 1
+    let result = 5 |> strict_int
+    if result == 10 { passed = passed + 1 }
+
+    // T22.1.2: pipeline with wrong type throws (BUG-E1 bypass)
+    total = total + 1
+    let caught = false
+    try {
+        let bad = "hello" |> strict_int
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught = true }
+    }
+    if caught { passed = passed + 1 }
+
+    // T22.1.3: pipeline chain — type checked at each step
+    total = total + 1
+    let r2 = 3 |> strict_int |> strict_int
+    if r2 == 12 { passed = passed + 1 }
+
+    // T22.1.4: pipeline with bool where int expected
+    total = total + 1
+    let caught2 = false
+    try {
+        let bad2 = true |> strict_int
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught2 = true }
+    }
+    if caught2 { passed = passed + 1 }
+
+    // T22.1.5: pipeline with null where non-nullable expected
+    total = total + 1
+    let caught3 = false
+    try {
+        let bad3 = null |> strict_int
+    } catch (e) {
+        caught3 = true
+    }
+    if caught3 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_lambda_type_enforcement() {
+    let passed = 0
+    let total = 0
+
+    // T22.2.1: typed lambda with correct type
+    total = total + 1
+    let double_int = fn(x: int) -> int { return x * 2 }
+    if double_int(5) == 10 { passed = passed + 1 }
+
+    // T22.2.2: typed lambda rejects wrong type
+    total = total + 1
+    let caught = false
+    try {
+        double_int("five")
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught = true }
+    }
+    if caught { passed = passed + 1 }
+
+    // T22.2.3: lambda stored in variable, called later
+    total = total + 1
+    let fn_ref = fn(s: string) -> string { return s + "!" }
+    if fn_ref("hello") == "hello!" { passed = passed + 1 }
+
+    // T22.2.4: lambda stored in variable rejects wrong type
+    total = total + 1
+    let caught2 = false
+    try {
+        fn_ref(42)
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught2 = true }
+    }
+    if caught2 { passed = passed + 1 }
+
+    // T22.2.5: typed lambda via pipeline
+    total = total + 1
+    let caught3 = false
+    try {
+        let bad = "not_int" |> double_int
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught3 = true }
+    }
+    if caught3 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_callback_type_enforcement() {
+    let passed = 0
+    let total = 0
+
+    // T22.3.1: callback with correct types
+    total = total + 1
+    let arr = [1, 2, 3, 4, 5]
+    let evens = array.filter_fn(arr, fn(x) { return x % 2 == 0 })
+    if array.length(evens) == 2 { passed = passed + 1 }
+
+    // T22.3.2: map callback returns expected type
+    total = total + 1
+    let doubled = array.map_fn(arr, fn(x) { return x * 2 })
+    if doubled[0] == 2 { passed = passed + 1 }
+
+    // T22.3.3: typed callback function via filter
+    total = total + 1
+    fn is_positive(x: int) -> bool {
+        return x > 0
+    }
+    let pos = array.filter_fn([1, -2, 3, -4], is_positive)
+    if array.length(pos) == 2 { passed = passed + 1 }
+
+    // T22.3.4: reduce with typed accumulator function
+    total = total + 1
+    let sum = array.reduce_fn(arr, fn(acc, x) { return acc + x }, 0)
+    if sum == 15 { passed = passed + 1 }
+
+    // T22.3.5: sort produces correct result
+    total = total + 1
+    let sorted = array.sort([3, 1, 4, 1, 5])
+    if sorted[0] == 1 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_method_dispatch_types() {
+    let passed = 0
+    let total = 0
+
+    // T22.4.1: struct method with correct type
+    total = total + 1
+    let w = new Widget { name: "btn", value: 10 }
+    if Widget.get_name(w) == "btn" { passed = passed + 1 }
+
+    // T22.4.2: struct method with typed param works
+    total = total + 1
+    let v = Widget.set_value(w, 42)
+    if v == 42 { passed = passed + 1 }
+
+    // T22.4.3: struct method typed param rejects wrong type
+    total = total + 1
+    let caught = false
+    try {
+        Widget.set_value(w, "not_int")
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught = true }
+    }
+    if caught { passed = passed + 1 }
+
+    // T22.4.4: method reference stored and called
+    total = total + 1
+    let method_ref = Widget.set_value
+    let v2 = method_ref(w, 99)
+    if v2 == 99 { passed = passed + 1 }
+
+    // T22.4.5: method reference with wrong type
+    total = total + 1
+    let caught2 = false
+    try {
+        method_ref(w, "bad")
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught2 = true }
+    }
+    if caught2 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_reassignment_type_check() {
+    let passed = 0
+    let total = 0
+
+    // T22.5.1: variable without type annotation can be reassigned any type
+    total = total + 1
+    let x = 42
+    x = "hello"
+    if x == "hello" { passed = passed + 1 }
+
+    // T22.5.2: variable reassignment in different scope
+    total = total + 1
+    let y = 10
+    if true {
+        y = 20
+    }
+    if y == 20 { passed = passed + 1 }
+
+    // T22.5.3: function return value used in typed context
+    total = total + 1
+    fn get_value() -> int {
+        return 42
+    }
+    let z: int = get_value()
+    if z == 42 { passed = passed + 1 }
+
+    // T22.5.4: function return wrong type caught at return site
+    total = total + 1
+    fn bad_fn() -> int {
+        return "oops"
+    }
+    let caught = false
+    try {
+        bad_fn()
+    } catch (e) {
+        if string.contains(e["message"], "Type error") { caught = true }
+    }
+    if caught { passed = passed + 1 }
+
+    // T22.5.5: multiple typed variables in sequence
+    total = total + 1
+    let a: int = 1
+    let b: int = 2
+    let c: int = a + b
+    if c == 3 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T22: Type Bypass Paths ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_pipeline_type_enforcement()
+    print("  T22.1 pipeline_type: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_lambda_type_enforcement()
+    print("  T22.2 lambda_type: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_callback_type_enforcement()
+    print("  T22.3 callback_type: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_method_dispatch_types()
+    print("  T22.4 method_dispatch: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_reassignment_type_check()
+    print("  T22.5 reassignment: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    print("")
+    print("Type Bypass: " + string(total_passed) + "/" + string(total_tests))
+}

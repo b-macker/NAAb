@@ -762,6 +762,29 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
 
     // Phase 5: Generator function — return GeneratorValue instead of executing
     if (func->is_generator) {
+        // FIX-E1b: Validate param types before creating generator
+        for (size_t i = 0; i < args.size() && i < func->param_types.size(); i++) {
+            const auto& pt = func->param_types[i];
+            if (pt.kind == ast::TypeKind::Any) continue;
+            if (!pt.is_nullable && isNull(args[i])) {
+                throw std::runtime_error(
+                    "Null safety error: Cannot pass null to non-nullable parameter '" +
+                    func->params[i] + "' of function '" + func->name + "'");
+            }
+            if (pt.kind == ast::TypeKind::Union) {
+                if (!valueMatchesUnion(args[i], pt.union_types)) {
+                    throw std::runtime_error(
+                        "Type error: Parameter '" + func->params[i] + "' of function '" +
+                        func->name + "' expects " + formatTypeName(pt) +
+                        ", but got " + getValueTypeName(args[i]));
+                }
+            } else if (!valueMatchesType(args[i], pt)) {
+                throw std::runtime_error(
+                    "Type error: Parameter '" + func->params[i] + "' of function '" +
+                    func->name + "' expects " + formatTypeName(pt) +
+                    ", but got " + getValueTypeName(args[i]));
+            }
+        }
         auto gen = std::make_shared<GeneratorValue>();
         gen->func = func;
         gen->args = args;
@@ -921,6 +944,47 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
             auto default_val = result_;
             current_env_ = saved_env;
             func_env->define(func->params[i], default_val);
+        }
+    }
+
+    // FIX-E1: Validate parameter types (same as CallExpr path at line ~6494)
+    // This ensures pipeline, stdlib callbacks, and method dispatch all enforce types
+    for (size_t i = 0; i < args.size() && i < func->param_types.size(); i++) {
+        const auto& param_type = func->param_types[i];
+        // Skip Any types (no constraint)
+        if (param_type.kind == ast::TypeKind::Any) continue;
+
+        // Null safety check
+        if (!param_type.is_nullable && isNull(args[i])) {
+            throw std::runtime_error(
+                "Null safety error: Cannot pass null to non-nullable parameter '" +
+                func->params[i] + "' of function '" + func->name + "'" +
+                "\n  Expected: " + formatTypeName(param_type) +
+                "\n  Got: null" +
+                "\n  Help: Change parameter to nullable: " +
+                formatTypeName(param_type) + "?"
+            );
+        }
+
+        // Union type check
+        if (param_type.kind == ast::TypeKind::Union) {
+            if (!valueMatchesUnion(args[i], param_type.union_types)) {
+                throw std::runtime_error(
+                    "Type error: Parameter '" + func->params[i] +
+                    "' of function '" + func->name +
+                    "' expects " + formatTypeName(param_type) +
+                    ", but got " + getValueTypeName(args[i])
+                );
+            }
+        }
+        // Non-union type check
+        else if (!valueMatchesType(args[i], param_type)) {
+            throw std::runtime_error(
+                "Type error: Parameter '" + func->params[i] +
+                "' of function '" + func->name +
+                "' expects " + formatTypeName(param_type) +
+                ", but got " + getValueTypeName(args[i])
+            );
         }
     }
 
@@ -3056,7 +3120,16 @@ void Interpreter::visit(ast::ForStmt& node) {
         returning_ = false;
         active_generator_ = gen.get();
 
-        func->body->accept(*this);
+        // FIX-E2: Exception safety — restore state even if generator body throws
+        try {
+            func->body->accept(*this);
+        } catch (...) {
+            current_env_ = saved_env;
+            result_ = saved_result;
+            returning_ = saved_returning;
+            active_generator_ = saved_generator;
+            throw;
+        }
 
         // Restore state
         current_env_ = saved_env;

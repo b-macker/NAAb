@@ -1,0 +1,252 @@
+// Test T29: Cross-Feature v0.6.0 Interactions
+// Tests combinations of type checking, generators, interfaces, match, f-strings
+
+use string
+use array
+
+interface Summarizable {
+    fn summary() -> string
+}
+
+struct Item implements Summarizable {
+    name: string
+    value: int
+}
+
+fn Item.summary(i) -> string {
+    return f"{i.name}={i.value}"
+}
+
+fn test_typed_generator() {
+    let passed = 0
+    let total = 0
+
+    // T29.1.1: generator with typed params
+    total = total + 1
+    fn range_typed(start: int, stop: int) {
+        let i = start
+        while i < stop { yield i; i = i + 1 }
+    }
+    let items = []
+    for x in range_typed(5, 8) { items = array.push(items, x) }
+    if items[0] == 5 && items[2] == 7 { passed = passed + 1 }
+
+    // T29.1.2: generator with different args — independent state
+    total = total + 1
+    let small = []
+    for x in range_typed(0, 2) { small = array.push(small, x) }
+    let big = []
+    for x in range_typed(10, 13) { big = array.push(big, x) }
+    if small[0] == 0 && big[0] == 10 { passed = passed + 1 }
+
+    // T29.1.3: generator consumed in typed context
+    total = total + 1
+    let sum: int = 0
+    for x in range_typed(1, 4) { sum = sum + x }
+    if sum == 6 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_interface_generator() {
+    let passed = 0
+    let total = 0
+
+    // T29.2.1: interface method via map callback
+    total = total + 1
+    let items = [
+        new Item { name: "a", value: 1 },
+        new Item { name: "b", value: 2 }
+    ]
+    let mapped = array.map_fn(items, Item.summary)
+    if mapped[0] == "a=1" && mapped[1] == "b=2" { passed = passed + 1 }
+
+    // T29.2.2: interface method result in f-string
+    total = total + 1
+    let i = new Item { name: "test", value: 42 }
+    if f"Item: {Item.summary(i)}" == "Item: test=42" { passed = passed + 1 }
+
+    // T29.2.3: interface method result used in match
+    total = total + 1
+    let desc = Item.summary(i)
+    let result = match desc {
+        s if string.contains(s, "42") => "has 42"
+        _ => "other"
+    }
+    if result == "has 42" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_match_in_generator() {
+    let passed = 0
+    let total = 0
+
+    // T29.3.1: match with guards inside generator
+    total = total + 1
+    fn classify_gen(values) {
+        for v in values {
+            yield match v {
+                n if n > 0 => "pos"
+                0 => "zero"
+                _ => "neg"
+            }
+        }
+    }
+    let classes = []
+    for c in classify_gen([5, 0, -3]) { classes = array.push(classes, c) }
+    if classes[0] == "pos" && classes[1] == "zero" && classes[2] == "neg" { passed = passed + 1 }
+
+    // T29.3.2: destructure + yield
+    total = total + 1
+    fn process_pairs(pairs) {
+        for pair in pairs {
+            let r = match pair {
+                [a, b] if a + b > 10 => f"big: {a}+{b}"
+                [a, b] => f"small: {a}+{b}"
+                _ => "unknown"
+            }
+            yield r
+        }
+    }
+    let results = []
+    for r in process_pairs([[1, 2], [5, 8]]) { results = array.push(results, r) }
+    if results[0] == "small: 1+2" && results[1] == "big: 5+8" { passed = passed + 1 }
+
+    // T29.3.3: match in loop body
+    total = total + 1
+    let cats = []
+    for i in [1, 2, 3, 4] {
+        let c = match i {
+            x if x % 2 == 0 => "even"
+            _ => "odd"
+        }
+        cats = array.push(cats, c)
+    }
+    if cats[0] == "odd" && cats[1] == "even" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_fstring_everywhere() {
+    let passed = 0
+    let total = 0
+
+    // T29.4.1: f-string in generator yield
+    total = total + 1
+    fn label_items(items) {
+        let idx = 0
+        for item in items {
+            yield f"[{idx}] {item}"
+            idx = idx + 1
+        }
+    }
+    let labels = []
+    for l in label_items(["a", "b"]) { labels = array.push(labels, l) }
+    if labels[0] == "[0] a" && labels[1] == "[1] b" { passed = passed + 1 }
+
+    // T29.4.2: f-string in typed function
+    total = total + 1
+    fn format_val(v: int) -> string { return f"value={v}" }
+    if format_val(42) == "value=42" { passed = passed + 1 }
+
+    // T29.4.3: f-string with match result
+    total = total + 1
+    let status = match 42 {
+        n if n > 0 => "positive"
+        _ => "other"
+    }
+    if f"Status: {status}" == "Status: positive" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_full_pipeline() {
+    let passed = 0
+    let total = 0
+
+    // T29.5.1: type check → generator → match → f-string chain
+    total = total + 1
+    fn gen_vals(n: int) {
+        let i = 1
+        while i <= n { yield i; i = i + 1 }
+    }
+    let out = []
+    for v in gen_vals(3) {
+        let cat = match v {
+            1 => "one"
+            2 => "two"
+            _ => "other"
+        }
+        out = array.push(out, f"{v}: {cat}")
+    }
+    if out[0] == "1: one" && out[1] == "2: two" && out[2] == "3: other" { passed = passed + 1 }
+
+    // T29.5.2: interface + generator + match + f-string
+    total = total + 1
+    let items = [
+        new Item { name: "alpha", value: 50 },
+        new Item { name: "beta", value: 150 }
+    ]
+    fn pipeline(items) {
+        for item in items {
+            let desc = Item.summary(item)
+            let cat = match item.value {
+                v if v > 100 => "high"
+                _ => "medium"
+            }
+            yield f"{desc} [{cat}]"
+        }
+    }
+    let output = []
+    for line in pipeline(items) { output = array.push(output, line) }
+    if output[0] == "alpha=50 [medium]" && output[1] == "beta=150 [high]" { passed = passed + 1 }
+
+    // T29.5.3: error recovery across features
+    total = total + 1
+    try {
+        fn bad_gen(x: int) { yield x }
+        for v in bad_gen("string") {}
+    } catch (e) {}
+    let m = match 5 {
+        n if n > 0 => "ok"
+        _ => "bad"
+    }
+    if m == "ok" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T29: v0.6.0 Interactions ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_typed_generator()
+    print("  T29.1 typed_gen: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_interface_generator()
+    print("  T29.2 iface_gen: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_match_in_generator()
+    print("  T29.3 match_gen: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_fstring_everywhere()
+    print("  T29.4 fstring: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_full_pipeline()
+    print("  T29.5 full_pipeline: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    print("")
+    print("Interactions: " + string(total_passed) + "/" + string(total_tests))
+}
