@@ -254,6 +254,8 @@ std::string Value::toString() const {
             return result;
         } else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) {
             return "<Future:" + arg->description + ">";
+        } else if constexpr (std::is_same_v<T, std::shared_ptr<GeneratorValue>>) {
+            return "<Generator:" + (arg->func ? arg->func->name : "anonymous") + ">";
         }
         return "unknown";
     }, data);
@@ -758,6 +760,15 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     }
     auto& func = *func_ptr;
 
+    // Phase 5: Generator function — return GeneratorValue instead of executing
+    if (func->is_generator) {
+        auto gen = std::make_shared<GeneratorValue>();
+        gen->func = func;
+        gen->args = args;
+        result_ = std::make_shared<Value>(gen);
+        return result_;
+    }
+
     // Phase 6: Async function — launch on separate thread, return FutureValue
     if (func->is_async) {
         // Validate args synchronously first
@@ -1072,6 +1083,11 @@ void Interpreter::visit(ast::Program& node) {
         use_stmt->accept(*this);
     }
 
+    // Phase 6: Process interface declarations (before structs so they're registered)
+    for (auto& iface_decl : node.getInterfaces()) {
+        iface_decl->accept(*this);
+    }
+
     // Process struct declarations
     for (auto& struct_decl : node.getStructs()) {
         struct_decl->accept(*this);
@@ -1086,6 +1102,48 @@ void Interpreter::visit(ast::Program& node) {
     LOG_DEBUG("Processing {} standalone functions\n", node.getFunctions().size());
     for (auto& func : node.getFunctions()) {
         func->accept(*this);
+    }
+
+    // Phase 6: Validate interface implementations (after functions are registered)
+    for (auto& struct_decl : node.getStructs()) {
+        for (const auto& iface_name : struct_decl->getImplements()) {
+            auto it = interface_registry_.find(iface_name);
+            if (it == interface_registry_.end()) continue;  // Error already caught in StructDecl visitor
+            for (const auto& method : it->second.methods) {
+                std::string fn_name = struct_decl->getName() + "." + method.name;
+                bool found = current_env_->has(fn_name);
+                if (!found) {
+                    std::string params_str;
+                    for (size_t i = 0; i < method.params.size(); i++) {
+                        if (i > 0) params_str += ", ";
+                        params_str += method.params[i].first;
+                        if (method.params[i].second.kind != ast::TypeKind::Any) {
+                            auto& ptype = method.params[i].second;
+                            std::string tname;
+                            switch (ptype.kind) {
+                                case ast::TypeKind::Int: tname = "int"; break;
+                                case ast::TypeKind::Float: tname = "float"; break;
+                                case ast::TypeKind::String: tname = "string"; break;
+                                case ast::TypeKind::Bool: tname = "bool"; break;
+                                case ast::TypeKind::Struct: tname = ptype.struct_name; break;
+                                default: tname = "any"; break;
+                            }
+                            params_str += ": " + tname;
+                        }
+                    }
+                    throw std::runtime_error(
+                        "Interface error: Missing method '" + method.name + "'\n\n"
+                        "  Struct '" + struct_decl->getName() + "' implements '" + iface_name + "'\n"
+                        "  but is missing required method: " + method.name + "\n\n"
+                        "  Help:\n"
+                        "  - Add the function: fn " + fn_name + "(" + params_str + ")\n\n"
+                        "  Example:\n"
+                        "    fn " + fn_name + "(" + params_str + ") {\n"
+                        "        // implementation\n"
+                        "    }\n");
+                }
+            }
+        }
     }
 
     // Phase 3.1: Process exports
@@ -2052,6 +2110,33 @@ void Interpreter::visit(ast::FunctionDecl& node) {
         node.isAsync()  // Phase 6: async function flag
     );
 
+    // Phase 5: Detect if function body contains yield (mark as generator)
+    // Simple check: walk top-level statements for YieldExpr
+    std::function<bool(ast::Stmt*)> containsYield = [&](ast::Stmt* stmt) -> bool {
+        if (!stmt) return false;
+        if (auto* compound = dynamic_cast<ast::CompoundStmt*>(stmt)) {
+            for (auto& s : compound->getStatements()) {
+                if (containsYield(s.get())) return true;
+            }
+        } else if (auto* expr_stmt = dynamic_cast<ast::ExprStmt*>(stmt)) {
+            if (dynamic_cast<ast::YieldExpr*>(expr_stmt->getExpr())) return true;
+        } else if (auto* if_stmt = dynamic_cast<ast::IfStmt*>(stmt)) {
+            if (containsYield(if_stmt->getThenBranch())) return true;
+            if (if_stmt->getElseBranch() && containsYield(if_stmt->getElseBranch())) return true;
+        } else if (auto* for_stmt = dynamic_cast<ast::ForStmt*>(stmt)) {
+            if (containsYield(for_stmt->getBody())) return true;
+        } else if (auto* while_stmt = dynamic_cast<ast::WhileStmt*>(stmt)) {
+            if (containsYield(while_stmt->getBody())) return true;
+        } else if (auto* try_stmt = dynamic_cast<ast::TryStmt*>(stmt)) {
+            if (containsYield(try_stmt->getTryBody())) return true;
+            if (try_stmt->getCatchClause()) {
+                if (containsYield(try_stmt->getCatchClause()->body.get())) return true;
+            }
+        }
+        return false;
+    };
+    func_value->is_generator = containsYield(body);
+
     // Store in environment
     // ISS-022 Fix: Use current_env_ instead of global_env_ so module functions
     // can access module imports (like stdlib modules)
@@ -2094,6 +2179,23 @@ void Interpreter::visit(ast::StructDecl& node) {
 
     // Register
     runtime::StructRegistry::instance().registerStruct(struct_def);
+
+    // Phase 6: Check that declared interfaces exist (method validation deferred to Program visitor)
+    for (const auto& iface_name : node.getImplements()) {
+        auto it = interface_registry_.find(iface_name);
+        if (it == interface_registry_.end()) {
+            throw std::runtime_error(
+                "Interface error: Unknown interface '" + iface_name + "'\n\n"
+                "  Struct '" + node.getName() + "' declares 'implements " + iface_name + "'\n"
+                "  but no interface with that name has been defined.\n\n"
+                "  Help:\n"
+                "  - Define the interface before the struct\n\n"
+                "  Example:\n"
+                "    interface " + iface_name + " {\n"
+                "        fn some_method() -> string\n"
+                "    }\n");
+        }
+    }
 
     LOG_DEBUG("[INFO] Defined struct: {}\n", node.getName());
 
@@ -2194,6 +2296,30 @@ void Interpreter::visit(ast::EnumDecl& node) {
                node.getName(), node.getVariants().size());
 
     // Enum declarations don't produce values
+    result_ = std::make_shared<Value>();
+}
+
+// Phase 6: Interface declaration visitor
+void Interpreter::visit(ast::InterfaceDecl& node) {
+    explain("Defining interface '" + node.getName() + "' with " +
+            std::to_string(node.getMethods().size()) + " methods");
+
+    // Store in interface registry (convert to copyable InterfaceMethodSig)
+    InterfaceInfo info;
+    for (const auto& m : node.getMethods()) {
+        InterfaceMethodSig sig;
+        sig.name = m.name;
+        sig.return_type = m.return_type;
+        for (const auto& p : m.params) {
+            sig.params.emplace_back(p.name, p.type);
+        }
+        info.methods.push_back(std::move(sig));
+    }
+    interface_registry_[node.getName()] = std::move(info);
+
+    LOG_DEBUG("[INFO] Defined interface: {} with {} methods\n",
+               node.getName(), node.getMethods().size());
+
     result_ = std::make_shared<Value>();
 }
 
@@ -2643,6 +2769,29 @@ void Interpreter::visit(ast::AwaitExpr& node) {
     result_ = value;
 }
 
+// Phase 5: Yield expression — suspend generator and pass value to consumer
+void Interpreter::visit(ast::YieldExpr& node) {
+    if (!active_generator_) {
+        throw std::runtime_error(
+            "Yield error: 'yield' used outside of a generator function\n\n"
+            "  'yield' can only be used inside functions that are called as generators.\n\n"
+            "  Example:\n"
+            "    fn count_up(n) {\n"
+            "        for i in 0..n {\n"
+            "            yield i\n"
+            "        }\n"
+            "    }\n"
+            "    for x in count_up(5) {\n"
+            "        print(x)\n"
+            "    }\n");
+    }
+
+    // Evaluate the yielded value and collect it
+    auto value = eval(*node.getExpr());
+    active_generator_->collected_values.push_back(value);
+    result_ = std::make_shared<Value>();  // yield itself returns void
+}
+
 void Interpreter::visit(ast::LambdaExpr& node) {
     // Create an anonymous FunctionValue with closure capture
     static int lambda_counter = 0;
@@ -2862,6 +3011,63 @@ void Interpreter::visit(ast::ForStmt& node) {
         return;
     }
 
+    // Phase 5: Generator iteration — eager collection approach
+    // Run generator function body eagerly, collecting yielded values into a list.
+    // Then iterate over the collected list.
+    if (auto* gen_ptr = std::get_if<std::shared_ptr<GeneratorValue>>(&iterable->data)) {
+        auto gen = *gen_ptr;
+        auto func = gen->func;
+
+        // Set up function environment
+        auto parent_env = func->closure ? func->closure : global_env_;
+        auto func_env = std::make_shared<Environment>(parent_env);
+        for (size_t i = 0; i < gen->args.size() && i < func->params.size(); i++) {
+            func_env->define(func->params[i], gen->args[i]);
+        }
+        for (size_t i = gen->args.size(); i < func->params.size(); i++) {
+            if (func->defaults[i]) {
+                auto def_val = eval(*func->defaults[i]);
+                func_env->define(func->params[i], def_val);
+            }
+        }
+
+        // Save interpreter state
+        auto saved_env = current_env_;
+        auto saved_result = result_;
+        auto saved_returning = returning_;
+        auto saved_generator = active_generator_;
+
+        // Run generator body eagerly — yield pushes to gen->collected_values
+        current_env_ = func_env;
+        returning_ = false;
+        active_generator_ = gen.get();
+
+        func->body->accept(*this);
+
+        // Restore state
+        current_env_ = saved_env;
+        result_ = saved_result;
+        returning_ = saved_returning;
+        active_generator_ = saved_generator;
+
+        // Now iterate over the collected values
+        size_t iter_count = 0;
+        for (auto& item : gen->collected_values) {
+            if (governance_ && governance_->isActive()) {
+                std::string err = governance_->checkLoopIterations(++iter_count);
+                if (!err.empty()) throw std::runtime_error(err);
+            }
+            defineLoopVar(item);
+            node.getBody()->accept(*this);
+            if (returning_) break;
+            if (breaking_) { breaking_ = false; break; }
+            if (continuing_) { continuing_ = false; continue; }
+        }
+
+        --loop_depth_;
+        return;
+    }
+
     // Non-iterable type - error
     --loop_depth_;
     throw std::runtime_error(
@@ -2870,6 +3076,7 @@ void Interpreter::visit(ast::ForStmt& node) {
         "  - Arrays:  for item in [1, 2, 3] { ... }\n"
         "  - Ranges:  for i in 0..10 { ... }\n"
         "  - Dicts:   for key in {\"a\": 1} { ... }  (iterates keys)\n"
+        "  - Generators: for x in gen_func() { ... }\n"
     );
 }
 
@@ -4626,6 +4833,19 @@ void Interpreter::visit(ast::CallExpr& node) {
     // Check if this is a member expression call (for method chaining)
     auto* member_expr = dynamic_cast<ast::MemberExpr*>(node.getCallee());
     if (member_expr) {
+        // Phase 6: Check for StructName.method() pattern (qualified function name)
+        auto* callee_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+        if (callee_id) {
+            std::string qualified_fn = callee_id->getName() + "." + member_expr->getMember();
+            if (current_env_->has(qualified_fn)) {
+                auto fn_val = current_env_->get(qualified_fn);
+                if (fn_val && std::holds_alternative<std::shared_ptr<FunctionValue>>(fn_val->data)) {
+                    callFunction(fn_val, args);
+                    return;
+                }
+            }
+        }
+
         // First check if the object is a dict/array/string with built-in methods
         // We need to evaluate the object BEFORE evaluating the full member access,
         // because built-in methods like .get(), .has() are not stored as dict keys
@@ -6165,6 +6385,15 @@ void Interpreter::visit(ast::CallExpr& node) {
         // Check for user-defined function
         if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&value->data)) {
             auto& func = *func_ptr;
+
+            // Phase 5: If this is a generator function, return GeneratorValue
+            if (func->is_generator) {
+                auto gen = std::make_shared<GeneratorValue>();
+                gen->func = func;
+                gen->args = args;
+                result_ = std::make_shared<Value>(gen);
+                return;
+            }
 
             // Check parameter count and defaults
             size_t min_args = 0;

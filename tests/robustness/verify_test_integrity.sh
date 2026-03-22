@@ -7,7 +7,7 @@ DIR="tests/robustness"
 LAYER1_PASS=0
 LAYER1_TOTAL=7
 LAYER5_PASS=0
-LAYER5_TOTAL=8
+LAYER5_TOTAL=9
 
 # Files to validate (only the 8 new exhaustive test files)
 TEST_FILES=(
@@ -19,6 +19,8 @@ TEST_FILES=(
     "test_control_flow"
     "test_structs_enums"
     "test_stdlib_env_time"
+    "test_interfaces"
+    "test_generators"
 )
 
 # Expected runtime summary lines (Layer 5 manifest)
@@ -31,6 +33,8 @@ EXPECTED_SUMMARY["test_closures_scope"]="Closures/Scope: 43/43"
 EXPECTED_SUMMARY["test_control_flow"]="Control Flow: 48/48"
 EXPECTED_SUMMARY["test_structs_enums"]="Structs/Enums: 40/40"
 EXPECTED_SUMMARY["test_stdlib_env_time"]="Stdlib Env/Time: 33/33"
+EXPECTED_SUMMARY["test_interfaces"]="Interfaces: 10/10"
+EXPECTED_SUMMARY["test_generators"]="Generators: 12/12"
 
 # Expected assertion counts per file
 declare -A EXPECTED_COUNT
@@ -42,6 +46,8 @@ EXPECTED_COUNT["test_closures_scope"]=43
 EXPECTED_COUNT["test_control_flow"]=48
 EXPECTED_COUNT["test_structs_enums"]=40
 EXPECTED_COUNT["test_stdlib_env_time"]=33
+EXPECTED_COUNT["test_interfaces"]=10
+EXPECTED_COUNT["test_generators"]=12
 
 echo "═══════════════════════════════════════════════════════════"
 echo "  Layer 1: Static Integrity Audit"

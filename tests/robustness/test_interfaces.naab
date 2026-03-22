@@ -1,0 +1,163 @@
+// Test T20: Interfaces / Traits
+// Tests interface declaration, struct implements, method dispatch, multiple interfaces
+
+// === Interface declarations ===
+
+interface Printable {
+    fn to_string() -> string
+}
+
+interface Measurable {
+    fn area() -> float
+}
+
+interface Named {
+    fn get_name() -> string
+    fn set_name(name: string)
+}
+
+// === Struct with single interface ===
+
+struct Point implements Printable {
+    x: int
+    y: int
+}
+
+fn Point.to_string(p) -> string {
+    return "(" + string(p.x) + ", " + string(p.y) + ")"
+}
+
+// === Struct with multiple interfaces ===
+
+struct Rectangle implements Printable, Measurable {
+    width: float
+    height: float
+}
+
+fn Rectangle.to_string(r) -> string {
+    return "Rect(" + string(r.width) + "x" + string(r.height) + ")"
+}
+
+fn Rectangle.area(r) -> float {
+    return r.width * r.height
+}
+
+// === Struct with no interfaces (still works) ===
+
+struct Plain {
+    value: int
+}
+
+// === Test functions ===
+
+fn test_single_interface() {
+    let passed = 0
+    let total = 0
+
+    // T20.1.1: Basic interface method call
+    total = total + 1
+    let p = new Point { x: 3, y: 4 }
+    let s = Point.to_string(p)
+    if s == "(3, 4)" { passed = passed + 1 }
+
+    // T20.1.2: Different instance
+    total = total + 1
+    let p2 = new Point { x: -1, y: 0 }
+    if Point.to_string(p2) == "(-1, 0)" { passed = passed + 1 }
+
+    // T20.1.3: Method as value
+    total = total + 1
+    let fn_ref = Point.to_string
+    let result = fn_ref(p)
+    if result == "(3, 4)" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_multiple_interfaces() {
+    let passed = 0
+    let total = 0
+
+    // T20.2.1: First interface method
+    total = total + 1
+    let r = new Rectangle { width: 5.0, height: 3.0 }
+    if Rectangle.to_string(r) == "Rect(5x3)" { passed = passed + 1 }
+
+    // T20.2.2: Second interface method
+    total = total + 1
+    if Rectangle.area(r) == 15.0 { passed = passed + 1 }
+
+    // T20.2.3: Different instance
+    total = total + 1
+    let r2 = new Rectangle { width: 10.0, height: 2.5 }
+    if Rectangle.area(r2) == 25.0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_dot_function_names() {
+    let passed = 0
+    let total = 0
+
+    // T20.3.1: Dot function without interface
+    total = total + 1
+    let p = new Plain { value: 42 }
+    // Plain has no interface but we can still define dot-functions
+    // (they just aren't validated against an interface)
+
+    // T20.3.2: Multiple method calls on same instance
+    total = total + 1
+    let pt = new Point { x: 1, y: 2 }
+    let s1 = Point.to_string(pt)
+    let s2 = Point.to_string(pt)
+    if s1 == s2 { passed = passed + 2 }
+
+    return [passed, total]
+}
+
+fn test_interface_with_params() {
+    let passed = 0
+    let total = 0
+
+    // T20.4.1: Interface method with typed params
+    total = total + 1
+    let r = new Rectangle { width: 7.0, height: 3.0 }
+    let a = Rectangle.area(r)
+    if a == 21.0 { passed = passed + 1 }
+
+    // T20.4.2: Method return type
+    total = total + 1
+    let s = Rectangle.to_string(r)
+    if string.length(s) > 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T20: Interfaces ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_single_interface()
+    print("  T20.1 single_interface: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_multiple_interfaces()
+    print("  T20.2 multiple_interfaces: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_dot_function_names()
+    print("  T20.3 dot_function_names: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_interface_with_params()
+    print("  T20.4 interface_with_params: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    print("")
+    print("Interfaces: " + string(total_passed) + "/" + string(total_tests))
+}

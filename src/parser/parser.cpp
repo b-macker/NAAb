@@ -464,6 +464,7 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
     std::vector<std::unique_ptr<ast::ExportStmt>> exports;
     std::vector<std::unique_ptr<ast::StructDecl>> structs;
     std::vector<std::unique_ptr<ast::EnumDecl>> enums;  // Phase 2.4.3
+    std::vector<std::unique_ptr<ast::InterfaceDecl>> interfaces;  // Phase 6
 
     // Parse module imports, exports, structs, and functions (Phase 3.1)
     while (!isAtEnd()) {
@@ -487,6 +488,9 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
         }
         else if (check(lexer::TokenType::ENUM)) {  // Phase 2.4.3
             enums.push_back(parseEnumDecl());
+        }
+        else if (check(lexer::TokenType::INTERFACE)) {
+            interfaces.push_back(parseInterfaceDecl());
         }
         else if (check(lexer::TokenType::FUNCTION) || check(lexer::TokenType::ASYNC)) {
             functions.push_back(parseFunctionDecl());
@@ -613,6 +617,9 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
     }
     for (auto& enum_decl : enums) {  // Phase 2.4.3
         program->addEnum(std::move(enum_decl));
+    }
+    for (auto& iface : interfaces) {
+        program->addInterface(std::move(iface));
     }
 
     return program;
@@ -886,6 +893,17 @@ std::unique_ptr<ast::FunctionDecl> Parser::parseFunctionDecl() {
     std::string name = current().value;
     advance();
 
+    // Phase 6: Support StructName.method_name syntax for interface methods
+    if (match(lexer::TokenType::DOT)) {
+        if (!isAllowedNameToken(current().type)) {
+            throw std::runtime_error(
+                fmt::format("Parse error at {}: Expected method name after '.'",
+                    formatLocation(current().line, current().column)));
+        }
+        name += "." + current().value;
+        advance();
+    }
+
     // Phase 2.4.1: Parse optional generic type parameters
     std::vector<std::string> type_params;
     if (match(lexer::TokenType::LT)) {
@@ -996,6 +1014,15 @@ std::unique_ptr<ast::StructDecl> Parser::parseStructDecl() {
         expect(lexer::TokenType::GT, "Expected '>' after type parameters");
     }
 
+    // Phase 6: Optional implements clause
+    std::vector<std::string> implements;
+    if (match(lexer::TokenType::IMPLEMENTS)) {
+        do {
+            auto& iface_name = expect(lexer::TokenType::IDENTIFIER, "Expected interface name");
+            implements.push_back(iface_name.value);
+        } while (match(lexer::TokenType::COMMA));
+    }
+
     expect(lexer::TokenType::LBRACE, "Expected '{' after struct name");
 
     std::vector<ast::StructField> fields;
@@ -1023,7 +1050,8 @@ std::unique_ptr<ast::StructDecl> Parser::parseStructDecl() {
     // Phase 2.4.1: Pass type_params to StructDecl constructor
     return std::make_unique<ast::StructDecl>(struct_name, std::move(fields),
                                              std::move(type_params),
-                                             ast::SourceLocation(start.line, start.column));
+                                             ast::SourceLocation(start.line, start.column),
+                                             std::move(implements));
 }
 
 // Phase 2.4.3: Parse enum declaration
@@ -1074,6 +1102,60 @@ std::unique_ptr<ast::EnumDecl> Parser::parseEnumDecl() {
 
     return std::make_unique<ast::EnumDecl>(enum_name, std::move(variants),
                                           ast::SourceLocation(start.line, start.column));
+}
+
+std::unique_ptr<ast::InterfaceDecl> Parser::parseInterfaceDecl() {
+    auto start = current();
+    expect(lexer::TokenType::INTERFACE, "Expected 'interface' keyword");
+
+    auto& name_token = expect(lexer::TokenType::IDENTIFIER, "Expected interface name");
+    std::string iface_name = name_token.value;
+
+    expect(lexer::TokenType::LBRACE, "Expected '{' after interface name");
+    skipNewlines();
+
+    std::vector<ast::InterfaceMethod> methods;
+
+    while (!check(lexer::TokenType::RBRACE) && !check(lexer::TokenType::END_OF_FILE)) {
+        expect(lexer::TokenType::FUNCTION, "Expected 'fn' in interface method declaration");
+
+        auto& method_name_token = expect(lexer::TokenType::IDENTIFIER, "Expected method name");
+        std::string method_name = method_name_token.value;
+
+        expect(lexer::TokenType::LPAREN, "Expected '(' after method name");
+
+        std::vector<ast::Parameter> params;
+        while (!check(lexer::TokenType::RPAREN)) {
+            if (!params.empty()) {
+                expect(lexer::TokenType::COMMA, "Expected ',' between parameters");
+            }
+            auto& param_name = expect(lexer::TokenType::IDENTIFIER, "Expected parameter name");
+            ast::Type param_type = ast::Type::makeAny();
+            if (match(lexer::TokenType::COLON)) {
+                param_type = parseType();
+            }
+            params.push_back(ast::Parameter{param_name.value, param_type, std::nullopt});
+        }
+        expect(lexer::TokenType::RPAREN, "Expected ')' after parameters");
+
+        ast::Type return_type = ast::Type::makeAny();
+        if (match(lexer::TokenType::ARROW) || match(lexer::TokenType::COLON)) {
+            return_type = parseType();
+        }
+
+        methods.push_back(ast::InterfaceMethod{method_name, std::move(params), return_type});
+
+        // Flexible separators
+        if (!check(lexer::TokenType::RBRACE)) {
+            match(lexer::TokenType::SEMICOLON) || match(lexer::TokenType::COMMA);
+        }
+        skipNewlines();
+    }
+
+    expect(lexer::TokenType::RBRACE, "Expected '}' to close interface");
+
+    return std::make_unique<ast::InterfaceDecl>(iface_name, std::move(methods),
+                                                ast::SourceLocation(start.line, start.column));
 }
 
 std::unique_ptr<ast::StructLiteralExpr> Parser::parseStructLiteral(
@@ -2561,6 +2643,21 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
         return std::make_unique<ast::IdentifierExpr>(name, loc);
     }
 
+    // Yield expression: yield expr (generators)
+    if (check(lexer::TokenType::YIELD)) {
+        if (pos_ + 1 < tokens_.size()) {
+            auto next_type = tokens_[pos_ + 1].type;
+            if (next_type != lexer::TokenType::RPAREN &&
+                next_type != lexer::TokenType::RBRACE &&
+                next_type != lexer::TokenType::COMMA &&
+                next_type != lexer::TokenType::NEWLINE &&
+                next_type != lexer::TokenType::SEMICOLON &&
+                next_type != lexer::TokenType::END_OF_FILE) {
+                return parseYieldExpr();
+            }
+        }
+    }
+
     // Match expression: match value { pattern => expr, ... }
     if (check(lexer::TokenType::MATCH)) {
         return parseMatchExpr();
@@ -2766,6 +2863,19 @@ std::unique_ptr<ast::Expr> Parser::parseAwaitExpr() {
     auto expr = parseLogicalOr();
 
     return std::make_unique<ast::AwaitExpr>(
+        std::move(expr),
+        ast::SourceLocation(start.line, start.column, filename_)
+    );
+}
+
+// Yield expression: yield expr (generators)
+std::unique_ptr<ast::Expr> Parser::parseYieldExpr() {
+    auto start = current();
+    expect(lexer::TokenType::YIELD, "Expected 'yield'");
+
+    auto expr = parseLogicalOr();
+
+    return std::make_unique<ast::YieldExpr>(
         std::move(expr),
         ast::SourceLocation(start.line, start.column, filename_)
     );

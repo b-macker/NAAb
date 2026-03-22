@@ -1,0 +1,208 @@
+// Test T21: Generators / Yield
+// Tests generator functions, yield keyword, for-in iteration, break, filtering
+
+fn count_up(n) {
+    for i in 0..n {
+        yield i
+    }
+}
+
+fn fibonacci(limit) {
+    let a = 0
+    let b = 1
+    while a < limit {
+        yield a
+        let temp = a + b
+        a = b
+        b = temp
+    }
+}
+
+fn filter_gen(arr, predicate) {
+    for x in arr {
+        if predicate(x) {
+            yield x
+        }
+    }
+}
+
+fn multi_yield() {
+    yield "first"
+    yield "second"
+    yield "third"
+}
+
+fn empty_gen() {
+    if false {
+        yield 1
+    }
+}
+
+fn nested_yield(rows) {
+    for row in rows {
+        for item in row {
+            yield item
+        }
+    }
+}
+
+fn test_basic_generator() {
+    let passed = 0
+    let total = 0
+
+    // T21.1.1: Simple count generator
+    total = total + 1
+    let results = []
+    for x in count_up(5) {
+        results.push(x)
+    }
+    if results.length() == 5 { passed = passed + 1 }
+
+    // T21.1.2: Values are correct
+    total = total + 1
+    if results[0] == 0 { if results[4] == 4 { passed = passed + 1 } }
+
+    // T21.1.3: Multi-yield (sequential yields)
+    total = total + 1
+    let items = []
+    for s in multi_yield() {
+        items.push(s)
+    }
+    if items.length() == 3 { if items[0] == "first" { if items[2] == "third" { passed = passed + 1 } } }
+
+    return [passed, total]
+}
+
+fn test_fibonacci_generator() {
+    let passed = 0
+    let total = 0
+
+    // T21.2.1: Fibonacci values
+    total = total + 1
+    let fibs = []
+    for n in fibonacci(50) {
+        fibs.push(n)
+    }
+    if fibs[0] == 0 { if fibs[1] == 1 { if fibs[2] == 1 { if fibs[3] == 2 { passed = passed + 1 } } } }
+
+    // T21.2.2: Fibonacci count (fib < 50)
+    total = total + 1
+    if fibs.length() == 10 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_filter_generator() {
+    let passed = 0
+    let total = 0
+
+    // T21.3.1: Filter even numbers
+    total = total + 1
+    let is_even = fn(x) { return x % 2 == 0 }
+    let evens = []
+    for e in filter_gen([1, 2, 3, 4, 5, 6], is_even) {
+        evens.push(e)
+    }
+    if evens.length() == 3 { passed = passed + 1 }
+
+    // T21.3.2: Filter values correct
+    total = total + 1
+    if evens[0] == 2 { if evens[1] == 4 { if evens[2] == 6 { passed = passed + 1 } } }
+
+    return [passed, total]
+}
+
+fn test_break_in_generator() {
+    let passed = 0
+    let total = 0
+
+    // T21.4.1: Break stops iteration
+    total = total + 1
+    let taken = []
+    for n in fibonacci(1000) {
+        if n > 10 {
+            break
+        }
+        taken.push(n)
+    }
+    if taken.length() == 7 { passed = passed + 1 }
+
+    // T21.4.2: Last taken value
+    total = total + 1
+    if taken[taken.length() - 1] == 8 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_empty_generator() {
+    let passed = 0
+    let total = 0
+
+    // T21.5.1: Empty generator yields nothing
+    total = total + 1
+    let count = 0
+    for x in empty_gen() {
+        count = count + 1
+    }
+    if count == 0 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+fn test_nested_yield() {
+    let passed = 0
+    let total = 0
+
+    // T21.6.1: Flatten nested arrays via generator
+    total = total + 1
+    let flat = []
+    for item in nested_yield([[1, 2], [3, 4], [5]]) {
+        flat.push(item)
+    }
+    if flat.length() == 5 { passed = passed + 1 }
+
+    // T21.6.2: Values in order
+    total = total + 1
+    if flat[0] == 1 { if flat[2] == 3 { if flat[4] == 5 { passed = passed + 1 } } }
+
+    return [passed, total]
+}
+
+main {
+    print("=== T21: Generators ===")
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_basic_generator()
+    print("  T21.1 basic_generator: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_fibonacci_generator()
+    print("  T21.2 fibonacci_generator: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_filter_generator()
+    print("  T21.3 filter_generator: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_break_in_generator()
+    print("  T21.4 break_in_generator: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_empty_generator()
+    print("  T21.5 empty_generator: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_nested_yield()
+    print("  T21.6 nested_yield: " + string(r6[0]) + "/" + string(r6[1]))
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    print("")
+    print("Generators: " + string(total_passed) + "/" + string(total_tests))
+}

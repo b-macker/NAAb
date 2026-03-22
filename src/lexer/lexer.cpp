@@ -51,6 +51,9 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"null", TokenType::NULL_LITERAL},
     {"ref", TokenType::REF},  // Phase 2.1: Reference types
     {"enum", TokenType::ENUM},  // Phase 2.4.3: Enum types
+    {"interface", TokenType::INTERFACE},  // Phase 6: Interface declarations
+    {"implements", TokenType::IMPLEMENTS}, // Phase 6: Struct implements interface
+    {"yield", TokenType::YIELD},          // Phase 5: Generator yield
     {"runtime", TokenType::RUNTIME},  // Phase 12: Persistent sub-runtime contexts
     {"true", TokenType::BOOLEAN},
     {"false", TokenType::BOOLEAN},

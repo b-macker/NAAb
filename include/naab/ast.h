@@ -23,6 +23,7 @@ class IfExpr;
 class LambdaExpr;
 class MatchExpr;
 class AwaitExpr;
+class YieldExpr;
 
 // Source location for error reporting
 struct SourceLocation {
@@ -48,6 +49,7 @@ enum class NodeKind {
     MainBlock,
     StructDecl,           // Struct declaration
     EnumDecl,             // Phase 2.4.3: Enum declaration
+    InterfaceDecl,        // Phase 6: Interface declaration
 
     // Statements
     CompoundStmt,
@@ -85,6 +87,7 @@ enum class NodeKind {
     LambdaExpr,           // Anonymous function: function(params) { body }
     MatchExpr,            // Match expression: match value { pattern => expr, ... }
     AwaitExpr,            // Await expression: await future_expr
+    YieldExpr,            // Yield expression: yield value (generators)
 };
 
 class ASTNode {
@@ -248,14 +251,17 @@ class StructDecl : public ASTNode {
 public:
     StructDecl(std::string name, std::vector<StructField> fields,
                std::vector<std::string> type_params,  // Phase 2.4.1: Generic type parameters
-               SourceLocation loc)
+               SourceLocation loc,
+               std::vector<std::string> implements = {})
         : ASTNode(NodeKind::StructDecl, loc),
           name_(std::move(name)), fields_(std::move(fields)),
-          type_params_(std::move(type_params)) {}
+          type_params_(std::move(type_params)),
+          implements_(std::move(implements)) {}
 
     const std::string& getName() const { return name_; }
     const std::vector<StructField>& getFields() const { return fields_; }
     const std::vector<std::string>& getTypeParams() const { return type_params_; }  // Phase 2.4.1
+    const std::vector<std::string>& getImplements() const { return implements_; }
 
     void accept(ASTVisitor& visitor) override;
 
@@ -263,6 +269,7 @@ private:
     std::string name_;
     std::vector<StructField> fields_;
     std::vector<std::string> type_params_;  // Phase 2.4.1: Generic type parameters (T, U, etc.)
+    std::vector<std::string> implements_;   // Phase 6: Interfaces this struct implements
 };
 
 // Phase 2.4.3: enum Name { Variant1, Variant2, ... }
@@ -289,6 +296,31 @@ public:
 private:
     std::string name_;
     std::vector<EnumVariant> variants_;
+};
+
+// Interface method signature (no body)
+struct InterfaceMethod {
+    std::string name;
+    std::vector<Parameter> params;
+    Type return_type;
+};
+
+// interface Printable { fn to_string() -> string }
+class InterfaceDecl : public ASTNode {
+public:
+    InterfaceDecl(std::string name, std::vector<InterfaceMethod> methods,
+                  SourceLocation loc = SourceLocation())
+        : ASTNode(NodeKind::InterfaceDecl, loc),
+          name_(std::move(name)), methods_(std::move(methods)) {}
+
+    const std::string& getName() const { return name_; }
+    const std::vector<InterfaceMethod>& getMethods() const { return methods_; }
+
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::string name_;
+    std::vector<InterfaceMethod> methods_;
 };
 
 // ============================================================================
@@ -1103,6 +1135,23 @@ private:
     std::unique_ptr<Expr> expr_;
 };
 
+// Yield expression: yield expr (generators)
+class YieldExpr : public Expr {
+public:
+    YieldExpr(std::unique_ptr<Expr> expr,
+              SourceLocation loc = SourceLocation())
+        : Expr(NodeKind::YieldExpr, loc),
+          expr_(std::move(expr)) {}
+
+    Expr* getExpr() { return expr_.get(); }
+
+    Type getType() const override { return Type::makeVoid(); }
+    void accept(ASTVisitor& visitor) override;
+
+private:
+    std::unique_ptr<Expr> expr_;
+};
+
 // ============================================================================
 // Program (top-level)
 // ============================================================================
@@ -1139,6 +1188,9 @@ public:
     const std::vector<std::unique_ptr<EnumDecl>>& getEnums() const {  // Phase 2.4.3
         return enums_;
     }
+    const std::vector<std::unique_ptr<InterfaceDecl>>& getInterfaces() const {
+        return interfaces_;
+    }
     MainBlock* getMainBlock() const { return main_block_.get(); }
 
     // Phase 3.1: Add module imports and exports
@@ -1157,6 +1209,9 @@ public:
     void addEnum(std::unique_ptr<EnumDecl> enum_decl) {  // Phase 2.4.3
         enums_.push_back(std::move(enum_decl));
     }
+    void addInterface(std::unique_ptr<InterfaceDecl> iface_decl) {
+        interfaces_.push_back(std::move(iface_decl));
+    }
 
     void accept(ASTVisitor& visitor) override;
 
@@ -1168,6 +1223,7 @@ private:
     std::vector<std::unique_ptr<FunctionDecl>> functions_;
     std::vector<std::unique_ptr<StructDecl>> structs_;  // Struct declarations
     std::vector<std::unique_ptr<EnumDecl>> enums_;  // Phase 2.4.3: Enum declarations
+    std::vector<std::unique_ptr<InterfaceDecl>> interfaces_;  // Phase 6: Interface declarations
     std::unique_ptr<MainBlock> main_block_;
 };
 
@@ -1247,10 +1303,18 @@ public:
         (void)node;
         throw std::runtime_error("AwaitExpr not supported by this visitor");
     }
+    virtual void visit(YieldExpr& node) {
+        (void)node;
+        throw std::runtime_error("YieldExpr not supported by this visitor");
+    }
     // Phase 2.4.3: Enum support
     virtual void visit(EnumDecl& node) {
         (void)node; // Mark as intentionally unused
         throw std::runtime_error("EnumDecl not supported by this visitor");
+    }
+    virtual void visit(InterfaceDecl& node) {
+        (void)node;
+        throw std::runtime_error("InterfaceDecl not supported by this visitor");
     }
 };
 

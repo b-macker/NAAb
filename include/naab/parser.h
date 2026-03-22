@@ -85,6 +85,7 @@ private:
     std::unique_ptr<ast::FunctionDecl> parseFunctionDecl();
     std::unique_ptr<ast::StructDecl> parseStructDecl();
     std::unique_ptr<ast::EnumDecl> parseEnumDecl();  // Phase 2.4.3
+    std::unique_ptr<ast::InterfaceDecl> parseInterfaceDecl();  // Phase 6
     std::unique_ptr<ast::StructLiteralExpr> parseStructLiteral(const std::string& struct_name);
     std::unique_ptr<ast::MainBlock> parseMainBlock();
 
@@ -121,6 +122,7 @@ private:
     std::unique_ptr<ast::Expr> parseIfExpr();
     std::unique_ptr<ast::Expr> parseMatchExpr();
     std::unique_ptr<ast::Expr> parseAwaitExpr();
+    std::unique_ptr<ast::Expr> parseYieldExpr();
     std::unique_ptr<ast::Expr> parseLambdaExpr();
 
     // Type parsing

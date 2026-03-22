@@ -201,6 +201,10 @@ void AwaitExpr::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 
+void YieldExpr::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
 void Program::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
@@ -218,6 +222,10 @@ void RuntimeDeclStmt::accept(ASTVisitor& visitor) {
 }
 
 void DestructureStmt::accept(ASTVisitor& visitor) {
+    visitor.visit(*this);
+}
+
+void InterfaceDecl::accept(ASTVisitor& visitor) {
     visitor.visit(*this);
 }
 

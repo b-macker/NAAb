@@ -21,6 +21,9 @@ enum class TokenType {
     CONFIG, MAIN, LET, CONST, AWAIT, NULL_LITERAL,
     REF,  // Phase 2.1: Reference types
     ENUM,  // Phase 2.4.3: Enum types
+    INTERFACE,  // Phase 6: Interface declarations
+    IMPLEMENTS, // Phase 6: Struct implements interface
+    YIELD,      // Phase 5: Generator yield
     RUNTIME,  // Phase 12: Persistent sub-runtime contexts
 
     // Literals

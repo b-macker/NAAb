@@ -21,6 +21,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Literal array elements must match exactly: `[0, 0] => "origin"`
   - Combined: `[x, y] if x + y > 25 => "far"` — destructure + guard
 - 9 match enhancement tests in `test_control_flow.naab` (39 → 48 assertions)
+- **Interfaces / traits** — declare interface contracts and validate struct implementations
+  - `interface Printable { fn to_string() -> string }` — define required method signatures
+  - `struct Point implements Printable { ... }` — declare interface compliance
+  - Multiple interfaces: `struct Box implements Printable, Measurable { ... }`
+  - Method validation: missing methods produce clear error messages with examples
+  - Duck typing via `fn StructName.method(instance)` free functions
+  - `StructName.method(instance)` call syntax for method dispatch
+- 10 interface tests in `test_interfaces.naab`
+- **Generators / yield** — generator functions with lazy iteration via `yield` keyword
+  - `yield value` inside a function makes it a generator (auto-detected)
+  - `for x in generator_fn(args)` iterates over yielded values
+  - Fibonacci, filtering, flattening patterns all work
+  - `break` in for-in loop stops iteration early
+  - Empty generators (no yields executed) produce zero iterations
+  - Nested yield: generators can yield from nested loops
+- 12 generator tests in `test_generators.naab`
 
 ## [0.5.3] - 2026-03-21
 

@@ -89,6 +89,7 @@ struct FunctionValue {
     int source_line;  // Phase 3.1: Line number for stack traces
     std::shared_ptr<Environment> closure;  // ISS-022: Closure environment for lexical scoping
     bool is_async = false;  // Phase 6: async function flag
+    bool is_generator = false;  // Phase 5: function contains yield
 
     FunctionValue(const std::string& n,
                   const std::vector<std::string>& p,
@@ -330,6 +331,13 @@ struct FutureValue {
     FutureValue() : return_tainted(std::make_shared<std::atomic<bool>>(false)) {}
 };
 
+// Generator value for yield-based iteration (eager collection)
+struct GeneratorValue {
+    std::shared_ptr<FunctionValue> func;  // The generator function
+    std::vector<std::shared_ptr<Value>> args;  // Arguments passed at creation
+    std::vector<std::shared_ptr<Value>> collected_values;  // Yielded values
+};
+
 // Runtime value types
 using ValueData = std::variant<
     std::monostate,  // void/null (index 0)
@@ -343,7 +351,8 @@ using ValueData = std::variant<
     std::shared_ptr<FunctionValue>,  // function (index 8)
     std::shared_ptr<PythonObjectValue>,  // python object (index 9)
     std::shared_ptr<StructValue>,  // struct (index 10)
-    std::shared_ptr<FutureValue>  // future (index 11) - Phase 6: async/await
+    std::shared_ptr<FutureValue>,  // future (index 11) - Phase 6: async/await
+    std::shared_ptr<GeneratorValue>  // generator (index 12) - Phase 5: generators
 >;
 
 class Value {
@@ -362,6 +371,7 @@ public:
     explicit Value(std::shared_ptr<PythonObjectValue> v) : data(std::move(v)) {}
     explicit Value(std::shared_ptr<StructValue> v) : data(std::move(v)) {}
     explicit Value(std::shared_ptr<FutureValue> v) : data(std::move(v)) {}
+    explicit Value(std::shared_ptr<GeneratorValue> v) : data(std::move(v)) {}
 
     std::string toString() const;
     bool toBool() const;
@@ -421,6 +431,7 @@ public:
     void visit(ast::FunctionDecl& node) override;
     void visit(ast::StructDecl& node) override;
     void visit(ast::EnumDecl& node) override;  // Phase 2.4.3
+    void visit(ast::InterfaceDecl& node) override;  // Phase 6
     void visit(ast::FunctionDeclStmt& node) override;  // Nested function declaration
     void visit(ast::StructDeclStmt& node) override;    // Nested struct declaration
     void visit(ast::RuntimeDeclStmt& node) override;   // Phase 12: Persistent runtime
@@ -433,6 +444,7 @@ public:
     void visit(ast::IfExpr& node) override;
     void visit(ast::MatchExpr& node) override;
     void visit(ast::AwaitExpr& node) override;
+    void visit(ast::YieldExpr& node) override;
     void visit(ast::LambdaExpr& node) override;
     void visit(ast::ForStmt& node) override;
     void visit(ast::WhileStmt& node) override;
@@ -535,6 +547,9 @@ private:
     bool breaking_;
     bool continuing_;
 
+    // Phase 5: Active generator context (set when running inside a generator)
+    GeneratorValue* active_generator_ = nullptr;
+
     int module_loading_depth_ = 0;  // >0 = loading module, skip main blocks
 
     // Block loading
@@ -619,6 +634,17 @@ private:
 
     // Scanner engine (loaded from govern.json "scanner" section)
     std::unique_ptr<scanner::ScannerEngine> scanner_;
+
+    // Phase 6: Interface registry — simplified method signatures (copyable)
+    struct InterfaceMethodSig {
+        std::string name;
+        std::vector<std::pair<std::string, ast::Type>> params;  // name, type (no default_value)
+        ast::Type return_type = ast::Type::makeAny();
+    };
+    struct InterfaceInfo {
+        std::vector<InterfaceMethodSig> methods;
+    };
+    std::unordered_map<std::string, InterfaceInfo> interface_registry_;
 
     // Phase 12: Persistent sub-runtime contexts
     // Maps runtime name -> {language, executor, code_buffer (for subprocess langs)}

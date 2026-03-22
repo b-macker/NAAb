@@ -354,6 +354,11 @@ main {
 30. f-strings use `f"hello {name}"` — bare `{expr}` is interpolated. Regular `"strings"` require `${expr}` for interpolation. Both work inside f-strings.
 31. Match patterns: identifiers in match arms are BINDINGS (like Rust), not variable lookups. `n if n > 0 => ...` binds the subject to `n` then checks the guard. To compare against a variable, use `_ if x == myVar => ...`
 32. Match array destructuring: `[0, y] => ...` matches arrays where first element is 0 and binds second to `y`. All elements must be accounted for (length must match).
+33. Interfaces use free functions: `fn StructName.method(instance)` — NAAb does NOT have `this`/`self`. Call via `StructName.method(instance)` syntax.
+34. Interface methods are validated AFTER all functions are defined. Order: interfaces → structs → functions → validation. Missing methods produce clear errors.
+35. Generators use eager collection: `yield` pushes values into a list, then `for-in` iterates that list. This means infinite generators will collect forever — always use a bound (e.g., `while a < limit`).
+36. Generator detection is automatic: any function containing `yield` (at any nesting depth) becomes a generator. No special keyword or annotation needed.
+37. `for x in gen_fn(args)` is the only way to consume a generator. Calling `gen_fn(args)` directly returns a GeneratorValue object, not the yielded values.
 
 ## Complexity Scoring (for governance)
 
