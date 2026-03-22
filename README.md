@@ -59,11 +59,11 @@ Prompts are suggestions. **`govern.json` is enforcement.** NAAb checks every pol
 | **Governance Engine** | 50+ checks, 3-tier enforcement (hard / soft / advisory), `govern.json` config |
 | **Polyglot Execution** | 12 languages in one file — Python, JavaScript, Rust, C++, Go, C#, Ruby, PHP, Shell, Nim, Zig, Julia |
 | **Smart Error Messages** | "Did you mean?" suggestions via Levenshtein distance, detailed fixes with examples |
-| **Standard Library** | 13 modules — array, string, math, json, http, file, time, debug, env, csv, regex, crypto, bolo |
-| **Language Features** | Pattern matching, async/await, lambdas, closures, pipeline operator, if-expressions |
+| **Standard Library** | 14 modules — array, string, math, json, http, file, path, time, debug, env, csv, regex, crypto, bolo |
+| **Language Features** | Generators/yield, interfaces, pattern matching with guards, f-strings, async/await, lambdas, closures, pipeline, destructuring |
 | **CI/CD Integration** | SARIF (GitHub Code Scanning), JUnit XML (Jenkins/GitLab), JSON reports |
 | **Project Context** | Auto-reads CLAUDE.md, .editorconfig, .eslintrc, package.json to supplement governance |
-| **Developer Tools** | REPL, LLM-friendly syntax (keyword aliases, optional semicolons), 204 error messages |
+| **Developer Tools** | Interactive REPL, URL imports, LLM-friendly syntax (keyword aliases, optional semicolons), 204 error messages |
 
 ---
 
@@ -79,6 +79,9 @@ ninja naab-lang -j$(nproc)
 
 # Run a file
 ./naab-lang hello.naab
+
+# Start interactive REPL
+./naab-lang
 ```
 
 ### Hello World
@@ -243,11 +246,21 @@ main {
     let message = match status {
         200 => "OK"
         404 => "Not Found"
-        500 => "Server Error"
+        n if n >= 500 => f"Server Error ({n})"  // guard clause
         _ => "Unknown"
     }
 
     print(message)  // "Not Found"
+
+    // Array destructuring in match
+    let point = [3, 4]
+    let label = match point {
+        [0, 0] => "origin"
+        [x, 0] => f"on x-axis at {x}"
+        [0, y] => f"on y-axis at {y}"
+        [x, y] => f"point ({x}, {y})"
+    }
+    print(label)  // "point (3, 4)"
 }
 ```
 
@@ -329,19 +342,75 @@ raise ValueError("something broke")
 }
 ```
 
+### Generators
+
+```naab
+fn fibonacci(limit) {
+    let a = 0
+    let b = 1
+    while a < limit {
+        yield a
+        let temp = a + b
+        a = b
+        b = temp
+    }
+}
+
+main {
+    for n in fibonacci(100) {
+        print(n)  // 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89
+    }
+}
+```
+
+### Interfaces
+
+```naab
+interface Printable {
+    fn to_string() -> string
+}
+
+struct Point implements Printable {
+    x: int
+    y: int
+}
+
+fn Point.to_string(p) -> string {
+    return f"({p.x}, {p.y})"
+}
+
+main {
+    let p = new Point { x: 3, y: 4 }
+    print(Point.to_string(p))  // "(3, 4)"
+}
+```
+
+### F-Strings
+
+```naab
+main {
+    let name = "World"
+    let count = 42
+    print(f"Hello {name}, you have {count} items")
+    print(f"Total: {count * 2}")  // expressions work too
+}
+```
+
 ### More Language Features
 
-- Variables, constants, functions
-- Structs, enums, classes
-- Module system with imports/exports
-- For loops, while loops, break/continue
+- Optional chaining (`user?.name`), null coalescing (`x ?? "default"`, `x ??= fallback`)
+- Destructuring (`let [a, b] = arr`, `let {x, y} = dict`)
+- Spread/rest (`[...arr1, ...arr2]`, `fn(...args)`)
+- `in` / `not in` operators, array slicing (`arr[1:3]`)
+- Structs, enums, module system with imports/exports/URL imports
+- For loops with destructuring, while loops, break/continue
 - Dictionaries and arrays with dot-notation methods
 
 ---
 
 ## Standard Library
 
-13 modules with 204 error messages, "Did you mean?" suggestions, and detailed documentation.
+14 modules with 204 error messages, "Did you mean?" suggestions, and detailed documentation.
 
 ```naab
 main {
@@ -371,8 +440,9 @@ main {
 | `string` | split, join, upper, lower, trim, replace, reverse, contains, starts_with, ends_with, length, char_at, index_of, substring, repeat, pad_left, pad_right |
 | `math` | sqrt, pow, abs, floor, ceil, round, min, max, sin, cos, random, PI, E |
 | `json` | parse, stringify |
-| `http` | get, post, put, delete (with headers and body) |
-| `file` | read, write, append, exists, delete, list_dir |
+| `http` | get, post, put, delete, head, patch (with headers, body, timeout) |
+| `file` | read, write, append, exists, delete, list_dir, create_dir, is_file, is_dir, read_lines, write_lines, copy, move, size, basename, dirname, extension |
+| `path` | join, dirname, basename, extension, resolve, is_absolute, normalize, exists |
 | `time` | now, now_millis, sleep, format_timestamp, parse_datetime, year, month, day, hour, minute, second, weekday |
 | `debug` | inspect, type, trace, watch, snapshot, diff, keys, values, log, timer, compare, stack, env |
 | `env` | get, set_var, list |
@@ -502,9 +572,9 @@ Source Code (.naab)
   └── Shell executor (subprocess)
 ```
 
-- **81,000+** lines of C++17
-- **339** regression tests across **666** test files, **325** mono test assertions
-- **13** standard library modules with **204** error messages
+- **82,000+** lines of C++17
+- **360** regression tests, **340** mono test assertions
+- **14** standard library modules with **204** error messages
 - Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
 
 ---
@@ -517,8 +587,8 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for build inst
 - Performance optimizations
 - New standard library modules
 - Documentation and tutorials
-- IDE integrations (Vim, Emacs, IntelliJ)
-- Package manager implementation
+- IDE integrations (Vim, Emacs, IntelliJ, VS Code)
+- Package registry (centralized module hosting)
 
 ---
 

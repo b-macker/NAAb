@@ -686,7 +686,7 @@
         <div class="stat reveal reveal-delay-1"><div class="num">3-tier</div><div class="label">Enforcement</div></div>
         <div class="stat reveal reveal-delay-2"><div class="num">12</div><div class="label">Languages Governed</div></div>
         <div class="stat reveal reveal-delay-3"><div class="num">13</div><div class="label">Stdlib Modules</div></div>
-        <div class="stat reveal reveal-delay-4"><div class="num">339</div><div class="label">Tests Passing</div></div>
+        <div class="stat reveal reveal-delay-4"><div class="num">360</div><div class="label">Tests Passing</div></div>
     </div>
 </div>
 
@@ -1009,7 +1009,7 @@ mean=30, stdev=15.8
             <div class="f-card reveal">
                 <div class="icon icon-purple">&#9889;</div>
                 <h3>Pattern Matching</h3>
-                <p>Expressive <code>match</code> expressions with exhaustive checking, wildcard patterns, and value binding.</p>
+                <p>Expressive <code>match</code> with guard clauses, array destructuring, binding patterns, and wildcard matching.</p>
             </div>
             <div class="f-card reveal">
                 <div class="icon icon-blue">&#8644;</div>
@@ -1051,6 +1051,21 @@ mean=30, stdev=15.8
                 <h3>Smart Errors</h3>
                 <p>"Did you mean?" suggestions for typos, detailed error messages with examples, and common mistake detection.</p>
             </div>
+            <div class="f-card reveal">
+                <div class="icon icon-orange">&#9881;</div>
+                <h3>Generators / Yield</h3>
+                <p>Lazy iteration with <code>yield</code>. Auto-detected generator functions work with <code>for-in</code> loops.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-cyan">&#9670;</div>
+                <h3>Interfaces</h3>
+                <p>Declare contracts with <code>interface</code>, validate with <code>implements</code>. Duck-typed method dispatch via free functions.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-red">&#62;</div>
+                <h3>Interactive REPL</h3>
+                <p>Run <code>naab-lang</code> with no args for an interactive session. Persistent state, multi-line input, auto-printing.</p>
+            </div>
         </div>
     </div>
 </section>
@@ -1062,7 +1077,7 @@ mean=30, stdev=15.8
     <div class="container">
         <div class="section-header">
             <div class="label">Standard Library</div>
-            <h2>13 modules. Batteries included.</h2>
+            <h2>14 modules. Batteries included.</h2>
             <p>A comprehensive standard library with 204 error messages, "Did you mean?" suggestions, and detailed documentation.</p>
         </div>
 
@@ -1071,8 +1086,9 @@ mean=30, stdev=15.8
             <div class="stdlib-item"><div class="name">string</div><div class="desc">Split, join, upper, lower, trim, replace, reverse</div></div>
             <div class="stdlib-item"><div class="name">math</div><div class="desc">Sqrt, pow, abs, floor, ceil, round, trig, random</div></div>
             <div class="stdlib-item"><div class="name">json</div><div class="desc">Parse, stringify, query, validate</div></div>
-            <div class="stdlib-item"><div class="name">http</div><div class="desc">GET, POST, PUT, DELETE with headers</div></div>
-            <div class="stdlib-item"><div class="name">file</div><div class="desc">Read, write, append, exists, delete, list</div></div>
+            <div class="stdlib-item"><div class="name">http</div><div class="desc">GET, POST, PUT, DELETE, HEAD, PATCH with headers</div></div>
+            <div class="stdlib-item"><div class="name">file</div><div class="desc">Read, write, copy, move, size, basename, dirname, extension</div></div>
+            <div class="stdlib-item"><div class="name">path</div><div class="desc">Join, dirname, basename, extension, resolve, normalize</div></div>
             <div class="stdlib-item"><div class="name">time</div><div class="desc">Now, sleep, format, parse, duration</div></div>
             <div class="stdlib-item"><div class="name">debug</div><div class="desc">Inspect, trace, watch, snapshot, diff, assert</div></div>
             <div class="stdlib-item"><div class="name">env</div><div class="desc">Get, set, list environment variables</div></div>
@@ -1159,7 +1175,7 @@ mean=30, stdev=15.8
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">5</strong> scripts</div>
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">4</strong> languages</div>
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">50+</strong> checks</div>
-                <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">339</strong> regression tests</div>
+                <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">360</strong> regression tests</div>
             </div>
             <a href="https://b-macker.github.io/naab-bolo/" class="btn btn-primary" style="display: inline-block;">Learn More</a>
         </div>

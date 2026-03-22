@@ -5,6 +5,157 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-03-21
+
+### Added
+- **f-string syntax** — `f"hello {name}"` as shorthand for `"hello ${name}"`
+  - Bare `{expr}` in f-strings is equivalent to `${expr}` in regular strings
+  - Regular strings still require `${}` — bare `{` is literal
+  - Supports arbitrary expressions: `f"result: {2 + 3}"`
+  - `${}` also works inside f-strings for backward compatibility
+- 6 f-string tests in `test_stdlib_string.naab` (44 → 50 assertions)
+- **Pattern matching enhancements** — guard clauses, binding patterns, array destructuring
+  - Guard clauses: `n if n > 0 => "positive"` — condition checked after pattern match
+  - Binding patterns: `other => f"got: {other}"` — identifier binds the subject value
+  - Array destructuring: `[x, y] => f"point: {x}, {y}"` — match and destructure arrays
+  - Literal array elements must match exactly: `[0, 0] => "origin"`
+  - Combined: `[x, y] if x + y > 25 => "far"` — destructure + guard
+- 9 match enhancement tests in `test_control_flow.naab` (39 → 48 assertions)
+- **Interfaces / traits** — declare interface contracts and validate struct implementations
+  - `interface Printable { fn to_string() -> string }` — define required method signatures
+  - `struct Point implements Printable { ... }` — declare interface compliance
+  - Multiple interfaces: `struct Box implements Printable, Measurable { ... }`
+  - Method validation: missing methods produce clear error messages with examples
+  - Duck typing via `fn StructName.method(instance)` free functions
+  - `StructName.method(instance)` call syntax for method dispatch
+- 10 interface tests in `test_interfaces.naab`
+- **Generators / yield** — generator functions with lazy iteration via `yield` keyword
+  - `yield value` inside a function makes it a generator (auto-detected)
+  - `for x in generator_fn(args)` iterates over yielded values
+  - Fibonacci, filtering, flattening patterns all work
+  - `break` in for-in loop stops iteration early
+  - Empty generators (no yields executed) produce zero iterations
+  - Nested yield: generators can yield from nested loops
+- 12 generator tests in `test_generators.naab`
+- **Stdlib completion** — new functions across file, http, path, and io modules
+  - `file.copy(src, dst)`, `file.move(src, dst)`, `file.size(path)` — file operations
+  - `file.basename(path)`, `file.dirname(path)`, `file.extension(path)` — path info from file module
+  - `http.head(url)`, `http.patch(url, body)` — additional HTTP methods
+  - `io.input(prompt?)` — read line from stdin with optional prompt
+  - New `path` module: `join`, `dirname`, `basename`, `extension`, `resolve`, `is_absolute`, `normalize`, `exists`
+- **REPL** — interactive Read-Eval-Print Loop
+  - `naab-lang` with no arguments starts the REPL; also `naab-lang --repl`
+  - Expressions auto-print: `3 + 4` shows `7`
+  - Variables, functions, structs persist across lines
+  - Multi-line input: open braces/brackets continue to next line (`...` prompt)
+  - Meta-commands: `.help`, `.clear` (reset environment), `.exit`
+  - Top-level declarations (`fn`, `struct`, `enum`, `use`, `import`) work correctly
+  - History saved to `~/.naab_history`
+- **URL imports** — import NAAb modules directly from URLs
+  - `import "https://example.com/lib.naab" as mylib` — download and cache
+  - Cache stored in `~/.naab/cache/` with content-hashed filenames
+  - Cached modules are reused across runs (no re-download)
+  - Clear error messages on download failure
+
+## [0.5.3] - 2026-03-21
+
+### Added
+- **Optional chaining (`?.`)** — safely access properties/methods of potentially null objects
+  - `user?.name` returns null if user is null, otherwise returns `user.name`
+  - `obj?.method()` returns null if obj is null, otherwise calls the method
+  - Chains: `a?.b?.c` propagates null through the chain
+  - Combines with `??`: `user?.name ?? "default"` for fallback values
+  - Works with structs, dicts, arrays, strings — any member/method access
+- 9 optional chaining tests in `test_structs_enums.naab` (25 → 34 assertions)
+- **Destructuring assignment** — extract values from arrays and dicts into variables
+  - Array: `let [a, b, c] = [1, 2, 3]` — positional extraction
+  - Dict: `let {name, age} = get_user()` — key-based extraction
+  - Partial: extra array elements ignored, missing dict keys become null
+  - Value semantics preserved (destructured values are copies)
+  - Taint propagation supported for governance
+- 8 destructuring tests in `test_closures_scope.naab` (30 → 38 assertions)
+- **Spread/rest operator (`...`)** in array destructuring
+  - `let [first, ...rest] = [1, 2, 3, 4]` — `rest` becomes `[2, 3, 4]`
+  - `...rest` must be the last element in the pattern
+  - Empty rest produces `[]` when array is exactly consumed
+  - Value semantics preserved (rest array is an independent copy)
+- 5 spread tests added to `test_closures_scope.naab` (38 → 43 assertions)
+- **For loop destructuring** — iterate with pattern matching
+  - `for [key, val] in dict { }` — destructure key-value pairs from dicts
+  - `for [a, b, c] in array_of_arrays { }` — destructure nested arrays
+  - `for [first, ...rest] in rows { }` — spread in loop patterns
+- 5 for-loop destructuring tests in `test_control_flow.naab` (34 → 39 assertions)
+- **Dict dot-methods `entries()` and `merge()`** — added to primary CallExpr dispatch path
+  - `d.entries()` returns array of `[key, value]` pairs
+  - `d.merge(other)` merges another dict into `d`, overwriting existing keys
+  - `for [k, v] in d.entries() { }` — full destructuring support
+- 6 dict method tests in `test_structs_enums.naab` (34 → 40 assertions)
+- **Null coalescing assignment (`??=`)** — assign only if variable is currently null
+  - `x ??= "default"` assigns `"default"` only when `x` is null
+  - Falsy values (`false`, `0`, `""`) are NOT null — assignment is skipped
+  - Supports variables and member access targets (`obj.field ??= val`)
+  - Desugars to `x = x ?? val` — no new AST node needed
+- 6 nullish assignment tests in `test_operators_matrix.naab` (62 → 68 assertions)
+- **Compound subscript assignment** — `arr[i] += val`, `dict["key"] -= val`
+  - All 5 compound operators work: `+=`, `-=`, `*=`, `/=`, `%=`
+  - `??=` also works on subscripts: `arr[0] ??= "default"`
+  - Supports both literal and variable indices
+- 7 compound subscript tests in `test_operators_matrix.naab` (68 → 75 assertions)
+- **`in` containment operator** — check membership in dicts, arrays, and strings
+  - `if "key" in dict { }` — check if key exists in dict
+  - `if item in array { }` — check if item is in array
+  - `if "sub" in string { }` — check if substring exists
+  - Returns boolean, works with `!` for negation: `if !("x" in d) { }`
+- 8 `in` operator tests in `test_operators_matrix.naab` (75 → 83 assertions)
+- **String repetition** — `"abc" * 3` → `"abcabcabc"`
+  - Commutative: `3 * "abc"` also works
+  - `"x" * 0` → `""`, `"" * 5` → `""`
+- 5 string repeat tests in `test_operators_matrix.naab` (83 → 88 assertions)
+- **`not in` operator** — readable negation of containment check
+  - `if 99 not in arr { }` — equivalent to `!(99 in arr)` but more readable
+  - Works with arrays, dicts, and strings
+  - Desugars to `UnaryExpr(Not, BinaryExpr(In, ...))` at parse time
+- 6 `not in` tests in `test_operators_matrix.naab` (88 → 94 assertions)
+- **Array/string slicing** — `arr[start:end]` syntax for extracting sub-sequences
+  - `arr[1:3]` returns elements at indices 1 and 2 (end exclusive)
+  - `str[0:5]` returns substring from index 0 to 4
+  - Negative indices: `arr[-2:5]` counts from end
+  - Empty slice when start >= end: `arr[3:3]` → `[]`
+  - Desugars to `__slice(collection, start, end)` builtin
+- 8 slicing tests in `test_operators_matrix.naab` (94 → 102 assertions)
+
+## [0.5.2] - 2026-03-21
+
+### Added
+- **Exhaustive Robustness Test Suite** — 8 test files, 308 assertions covering core language correctness
+  - `test_stdlib_array.naab` (40) — all 16 array functions + empty/error edge cases
+  - `test_stdlib_string.naab` (44) — all 19 string functions + format/fmt + boundary/error cases
+  - `test_stdlib_math_json.naab` (49) — math (15), json (all 6), regex (all 12) including advanced
+  - `test_operators_matrix.naab` (62) — all 17 operators × type matrix, truthiness, ??, |>, string comparison
+  - `test_closures_scope.naab` (30) — capture, factory, nested, shadow, IIFE, higher-order
+  - `test_control_flow.naab` (34) — nested break/continue, return in loops/try, match, empty iter
+  - `test_structs_enums.naab` (25) — struct create/modify, enum match, value semantics
+  - `test_stdlib_env_time.naab` (33) — env (all 12 fns), time (all 12 fns) including parse_datetime
+- **Meta-Test Validation Suite** — 5-layer system proving test assertions are genuine
+  - Layer 1: Static integrity audit (7 checks: no trivial assertions, balanced counts, no orphans)
+  - Layer 2: Mutation testing — 45 deliberately wrong assertions, all correctly detected
+  - Layer 3: Sensitivity testing — 33 tests proving outputs depend on inputs
+  - Layer 4: Coverage verification — cross-references stdlib C++ source against test usage (100% stdlib, 17/17 operators, 11/11 patterns)
+  - Layer 5: Runtime count verification — manifest-based output validation for all 8 test files
+  - `run_meta_tests.sh` — master runner for all 5 layers
+- **Loop iteration governance enforcement** — `checkLoopIterations()` wired into all 5 loop paths (range-inclusive, range-exclusive, dict, list, while)
+- Robustness tests integrated into `run-all-tests.sh` with governance enabled
+
+### Fixed
+- **String lexicographic comparison** — `<`, `<=`, `>`, `>=` now compare strings lexicographically instead of converting to float (which always returned false)
+- NAAb division always returns float (10/3 = 3.333, not 3) — test expectations corrected
+- Functions without explicit return yield last evaluated value, not null — test corrected
+
+### Changed
+- Test suite: 340 → 358 tests (0 unexpected failures)
+- Stdlib coverage: 75% → 100% (92/92 functions tested, all 7 modules at FULL coverage)
+- Robustness suite: 86 → 477 assertions (86 original + 313 exhaustive + 45 mutations + 33 sensitivity)
+
 ## [0.5.1] - 2026-03-20
 
 ### Fixed
