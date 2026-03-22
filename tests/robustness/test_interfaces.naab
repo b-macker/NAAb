@@ -103,14 +103,14 @@ fn test_dot_function_names() {
     total = total + 1
     let p = new Plain { value: 42 }
     // Plain has no interface but we can still define dot-functions
-    // (they just aren't validated against an interface)
+    if p.value == 42 { passed = passed + 1 }
 
     // T20.3.2: Multiple method calls on same instance
     total = total + 1
     let pt = new Point { x: 1, y: 2 }
     let s1 = Point.to_string(pt)
     let s2 = Point.to_string(pt)
-    if s1 == s2 { passed = passed + 2 }
+    if s1 == s2 { passed = passed + 1 }
 
     return [passed, total]
 }

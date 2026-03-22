@@ -7,7 +7,7 @@ DIR="tests/robustness"
 LAYER1_PASS=0
 LAYER1_TOTAL=7
 LAYER5_PASS=0
-LAYER5_TOTAL=9
+LAYER5_TOTAL=10
 
 # Files to validate (only the 8 new exhaustive test files)
 TEST_FILES=(
