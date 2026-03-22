@@ -37,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Empty generators (no yields executed) produce zero iterations
   - Nested yield: generators can yield from nested loops
 - 12 generator tests in `test_generators.naab`
+- **Stdlib completion** — new functions across file, http, path, and io modules
+  - `file.copy(src, dst)`, `file.move(src, dst)`, `file.size(path)` — file operations
+  - `file.basename(path)`, `file.dirname(path)`, `file.extension(path)` — path info from file module
+  - `http.head(url)`, `http.patch(url, body)` — additional HTTP methods
+  - `io.input(prompt?)` — read line from stdin with optional prompt
+  - New `path` module: `join`, `dirname`, `basename`, `extension`, `resolve`, `is_absolute`, `normalize`, `exists`
 
 ## [0.5.3] - 2026-03-21
 

@@ -37,7 +37,8 @@ bool IOModule::hasFunction(const std::string& name) const {
            name == "exists" || name == "list_dir" ||
            name == "write" || name == "write_error" || name == "read_line" ||
            name == "output" ||
-           name == "print" || name == "println" || name == "log";
+           name == "print" || name == "println" || name == "log" ||
+           name == "input";
 }
 
 std::shared_ptr<interpreter::Value> IOModule::call(
@@ -98,6 +99,20 @@ std::shared_ptr<interpreter::Value> IOModule::call(
             return std::make_shared<interpreter::Value>(line);
         }
         return std::make_shared<interpreter::Value>("");  // Return empty string on EOF
+    }
+
+    else if (function_name == "input") {
+        // Read line from stdin with optional prompt
+        if (!args.empty()) {
+            auto& out = g_pipe_mode ? std::cerr : std::cout;
+            out << args[0]->toString();
+            out.flush();
+        }
+        std::string line;
+        if (std::getline(std::cin, line)) {
+            return std::make_shared<interpreter::Value>(line);
+        }
+        return std::make_shared<interpreter::Value>("");
     }
 
     // Aliases: io.print(), io.println(), io.log() → same as io.write()
@@ -374,6 +389,7 @@ void StdLib::registerModules() {
     modules_["file"] = std::make_shared<FileModule>();
     modules_["debug"] = std::make_shared<DebugModule>();
     modules_["bolo"] = std::make_shared<BoloModule>();
+    modules_["path"] = std::make_shared<PathModule>();
 }
 
 std::shared_ptr<Module> StdLib::getModule(const std::string& name) const {

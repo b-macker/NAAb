@@ -541,6 +541,7 @@ add_library(naab_stdlib
     src/stdlib/file_impl.cpp
     src/stdlib/debug_impl.cpp
     src/stdlib/bolo_impl.cpp
+    src/stdlib/path_impl.cpp
     # Utility modules
     src/utils/error_formatter.cpp
     src/utils/string_utils.cpp

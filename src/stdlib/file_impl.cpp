@@ -27,7 +27,8 @@ bool FileModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "read", "write", "append", "exists", "delete",
         "list_dir", "create_dir", "is_file", "is_dir",
-        "read_lines", "write_lines"
+        "read_lines", "write_lines",
+        "copy", "move", "size", "basename", "dirname", "extension"
     };
     return functions.count(name) > 0;
 }
@@ -232,6 +233,71 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         return std::make_shared<interpreter::Value>();
     }
 
+    if (function_name == "copy") {
+        if (args.size() != 2) {
+            throw std::runtime_error("copy() takes exactly 2 arguments (source, destination)");
+        }
+        std::string src = getString(args[0]);
+        std::string dst = getString(args[1]);
+        std::error_code ec;
+        fs::copy(src, dst, fs::copy_options::overwrite_existing, ec);
+        if (ec) {
+            throw std::runtime_error("Failed to copy file: " + src + " -> " + dst + "\n  Error: " + ec.message());
+        }
+        return std::make_shared<interpreter::Value>();
+    }
+
+    if (function_name == "move") {
+        if (args.size() != 2) {
+            throw std::runtime_error("move() takes exactly 2 arguments (source, destination)");
+        }
+        std::string src = getString(args[0]);
+        std::string dst = getString(args[1]);
+        std::error_code ec;
+        fs::rename(src, dst, ec);
+        if (ec) {
+            throw std::runtime_error("Failed to move file: " + src + " -> " + dst + "\n  Error: " + ec.message());
+        }
+        return std::make_shared<interpreter::Value>();
+    }
+
+    if (function_name == "size") {
+        if (args.size() != 1) {
+            throw std::runtime_error("size() takes exactly 1 argument");
+        }
+        std::string path = getString(args[0]);
+        std::error_code ec;
+        auto sz = fs::file_size(path, ec);
+        if (ec) {
+            throw std::runtime_error("Failed to get file size: " + path + "\n  Error: " + ec.message());
+        }
+        return std::make_shared<interpreter::Value>(static_cast<int>(sz));
+    }
+
+    if (function_name == "basename") {
+        if (args.size() != 1) {
+            throw std::runtime_error("basename() takes exactly 1 argument");
+        }
+        std::string path = getString(args[0]);
+        return std::make_shared<interpreter::Value>(fs::path(path).filename().string());
+    }
+
+    if (function_name == "dirname") {
+        if (args.size() != 1) {
+            throw std::runtime_error("dirname() takes exactly 1 argument");
+        }
+        std::string path = getString(args[0]);
+        return std::make_shared<interpreter::Value>(fs::path(path).parent_path().string());
+    }
+
+    if (function_name == "extension") {
+        if (args.size() != 1) {
+            throw std::runtime_error("extension() takes exactly 1 argument");
+        }
+        std::string path = getString(args[0]);
+        return std::make_shared<interpreter::Value>(fs::path(path).extension().string());
+    }
+
     // Common LLM mistakes - Node.js/Python naming conventions
     if (function_name == "readFile" || function_name == "readFileSync" || function_name == "read_file") {
         throw std::runtime_error(
@@ -290,7 +356,8 @@ std::shared_ptr<interpreter::Value> FileModule::call(
     static const std::vector<std::string> FUNCTIONS = {
         "read", "write", "append", "exists", "delete",
         "list_dir", "create_dir", "is_file", "is_dir",
-        "read_lines", "write_lines"
+        "read_lines", "write_lines",
+        "copy", "move", "size", "basename", "dirname", "extension"
     };
     auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
     std::string suggestion = naab::utils::formatSuggestions(function_name, similar);

@@ -100,6 +100,10 @@ private:
         const std::vector<std::shared_ptr<interpreter::Value>>& args);
     std::shared_ptr<interpreter::Value> del(
         const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    std::shared_ptr<interpreter::Value> head(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    std::shared_ptr<interpreter::Value> patch(
+        const std::vector<std::shared_ptr<interpreter::Value>>& args);
 };
 
 // Collections Module - Advanced data structures

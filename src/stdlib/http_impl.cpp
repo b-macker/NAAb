@@ -84,6 +84,11 @@ std::shared_ptr<interpreter::Value> performRequest(
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     } else if (method == "DELETE") {
         curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+    } else if (method == "HEAD") {
+        curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    } else if (method == "PATCH") {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     }
 
     // Set write callback
@@ -159,7 +164,8 @@ std::shared_ptr<interpreter::Value> performRequest(
 }
 
 bool HTTPModule::hasFunction(const std::string& name) const {
-    return name == "get" || name == "post" || name == "put" || name == "delete";
+    return name == "get" || name == "post" || name == "put" || name == "delete"
+        || name == "head" || name == "patch";
 }
 
 std::shared_ptr<interpreter::Value> HTTPModule::call(
@@ -174,6 +180,10 @@ std::shared_ptr<interpreter::Value> HTTPModule::call(
         return put(args);
     } else if (function_name == "delete") {
         return del(args);
+    } else if (function_name == "head") {
+        return head(args);
+    } else if (function_name == "patch") {
+        return patch(args);
     }
 
     // Common LLM mistakes
@@ -190,7 +200,7 @@ std::shared_ptr<interpreter::Value> HTTPModule::call(
 
     // Fuzzy matching for typos
     static const std::vector<std::string> FUNCTIONS = {
-        "get", "post", "put", "delete"
+        "get", "post", "put", "delete", "head", "patch"
     };
     auto similar = naab::utils::findSimilar(function_name, FUNCTIONS);
     std::string suggestion = naab::utils::formatSuggestions(function_name, similar);
@@ -319,6 +329,60 @@ std::shared_ptr<interpreter::Value> HTTPModule::del(
     }
 
     return performRequest("DELETE", url, "", headers, timeout_ms);
+}
+
+std::shared_ptr<interpreter::Value> HTTPModule::head(
+    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+
+    if (args.empty()) {
+        throw std::runtime_error("http.head() requires URL argument");
+    }
+
+    std::string url = args[0]->toString();
+
+    std::unordered_map<std::string, std::string> headers;
+    if (args.size() >= 2) {
+        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[1]->data)) {
+            for (const auto& [k, v] : *dict) {
+                headers[k] = v->toString();
+            }
+        }
+    }
+
+    int timeout_ms = 30000;
+    if (args.size() >= 3) {
+        timeout_ms = args[2]->toInt();
+    }
+
+    return performRequest("HEAD", url, "", headers, timeout_ms);
+}
+
+std::shared_ptr<interpreter::Value> HTTPModule::patch(
+    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+
+    if (args.size() < 2) {
+        throw std::runtime_error("http.patch() requires URL and data arguments");
+    }
+
+    std::string url = args[0]->toString();
+    std::string data = args[1]->toString();
+
+    std::unordered_map<std::string, std::string> headers;
+    headers["Content-Type"] = "application/json";
+    if (args.size() >= 3) {
+        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[2]->data)) {
+            for (const auto& [k, v] : *dict) {
+                headers[k] = v->toString();
+            }
+        }
+    }
+
+    int timeout_ms = 30000;
+    if (args.size() >= 4) {
+        timeout_ms = args[3]->toInt();
+    }
+
+    return performRequest("PATCH", url, data, headers, timeout_ms);
 }
 
 } // namespace stdlib

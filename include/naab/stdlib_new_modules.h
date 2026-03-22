@@ -183,6 +183,16 @@ public:
         const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
 };
 
+// Path Module - Path manipulation utilities
+class PathModule : public Module {
+public:
+    std::string getName() const override { return "path"; }
+    bool hasFunction(const std::string& name) const override;
+    std::shared_ptr<interpreter::Value> call(
+        const std::string& function_name,
+        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+};
+
 } // namespace stdlib
 } // namespace naab
 
