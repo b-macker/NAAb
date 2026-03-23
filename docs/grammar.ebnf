@@ -1,0 +1,443 @@
+(* ====================================================================== *)
+(* NAAb Language — Formal Grammar (EBNF)                                  *)
+(*                                                                        *)
+(* Extracted from src/parser/parser.cpp (3,306 lines, recursive descent)  *)
+(* Notation: ISO 14977 EBNF                                               *)
+(*   { X }    = zero or more X                                            *)
+(*   [ X ]    = optional X                                                *)
+(*   X | Y    = alternation                                               *)
+(*   'kw'     = keyword terminal                                          *)
+(*   TOKEN    = lexer token (UPPER_CASE)                                  *)
+(*                                                                        *)
+(* Reference: include/naab/parser.h, include/naab/lexer.h                 *)
+(* Generated: 2026-03-22                                                  *)
+(* ====================================================================== *)
+
+
+(* ======================== 1. Program Structure ======================== *)
+
+Program
+    = { UseStmt }
+      { ModuleUseStmt | ImportStmt | ExportStmt
+      | StructDecl | EnumDecl | InterfaceDecl | FunctionDecl }
+      [ MainBlock ] ;
+
+(* Semicolons are always optional throughout the grammar (ASI).           *)
+(* Newlines are skipped between top-level items and inside blocks.        *)
+
+
+(* ===================== 2. Top-Level Declarations ====================== *)
+
+UseStmt
+    = 'use' ( BLOCK_ID | STRING | IDENTIFIER ) 'as' IDENTIFIER [';'] ;
+
+ModuleUseStmt
+    = 'use' IDENTIFIER { '.' IDENTIFIER } [ 'as' IDENTIFIER ] [';'] ;
+
+ImportStmt
+    = 'import' STRING 'as' Name [';']                       (* simple *)
+    | 'import' '*' 'as' Name 'from' STRING [';']            (* wildcard *)
+    | 'import' '{' ImportItems '}' 'from' STRING [';'] ;    (* named *)
+
+ImportItems
+    = ImportItem { ',' ImportItem } ;
+
+ImportItem
+    = IDENTIFIER [ 'as' Name ] ;
+
+ExportStmt
+    = 'export' FunctionDecl
+    | 'export' VarDeclStmt
+    | 'export' StructDecl
+    | 'export' EnumDecl
+    | 'export' 'default' Expression ;
+
+FunctionDecl
+    = [ 'async' ] FUNCTION_KW FuncName [ GenericParams ]
+      '(' [ ParameterList ] ')' [ ReturnType ]
+      CompoundStmt ;
+
+(* FUNCTION_KW matches any of: 'fn', 'function', 'func', 'def'           *)
+FUNCTION_KW
+    = 'fn' | 'function' | 'func' | 'def' ;
+
+FuncName
+    = Name [ '.' Name ] ;        (* StructName.method for interface impls *)
+
+GenericParams
+    = '<' IDENTIFIER { ',' IDENTIFIER } '>' ;
+
+ParameterList
+    = Parameter { ',' Parameter } ;
+
+Parameter
+    = Name [ ':' Type ] [ '=' Expression ] ;
+
+ReturnType
+    = '->' Type
+    | ':' Type ;
+
+StructDecl
+    = 'struct' Name [ GenericParams ] [ 'implements' InterfaceList ]
+      '{' { StructField } '}' ;
+
+InterfaceList
+    = IDENTIFIER { ',' IDENTIFIER } ;
+
+StructField
+    = IDENTIFIER ':' Type [ ',' | ';' ] ;
+
+EnumDecl
+    = 'enum' Name '{' { EnumVariant } '}' ;
+
+EnumVariant
+    = IDENTIFIER [ '=' NUMBER ] [ ',' | ';' ] ;
+
+InterfaceDecl
+    = 'interface' IDENTIFIER '{'
+      { InterfaceMethod }
+      '}' ;
+
+InterfaceMethod
+    = FUNCTION_KW IDENTIFIER '(' [ ParameterList ] ')' [ ReturnType ]
+      [ ',' | ';' ] ;
+
+MainBlock
+    = 'main' CompoundStmt ;
+
+
+(* =========================== 3. Statements ============================ *)
+
+Statement
+    = CompoundStmt
+    | ReturnStmt
+    | BreakStmt
+    | ContinueStmt
+    | IfStmt
+    | ForStmt
+    | WhileStmt
+    | TryStmt
+    | ThrowStmt
+    | VarDeclStmt
+    | DestructureStmt
+    | RuntimeDeclStmt
+    | FunctionDeclStmt
+    | StructDeclStmt
+    | MatchExprStmt
+    | ExprStmt ;
+
+CompoundStmt
+    = '{' { Statement } '}' ;
+
+ReturnStmt
+    = 'return' [ Expression ] [';'] ;
+
+BreakStmt
+    = 'break' [';'] ;
+
+ContinueStmt
+    = 'continue' [';'] ;
+
+IfStmt
+    = 'if' Expression Statement [ 'else' Statement ] ;
+
+ForStmt
+    = 'for' [ '(' ] ForTarget 'in' Expression [ ')' ] Statement ;
+
+ForTarget
+    = Name                                          (* simple *)
+    | '[' DestructureNames ']' ;                    (* destructuring *)
+
+DestructureNames
+    = { Name ',' } [ '...' Name ] Name ;
+    (* Names separated by commas, optional ...rest as last element *)
+
+WhileStmt
+    = 'while' Expression Statement ;
+
+TryStmt
+    = 'try' CompoundStmt
+      'catch' '(' IDENTIFIER [ ':' Type ] ')' CompoundStmt
+      [ 'finally' CompoundStmt ] ;
+
+ThrowStmt
+    = 'throw' Expression ;
+
+VarDeclStmt
+    = ( 'let' | 'const' ) Name [ ':' Type ] [ '=' Expression ] [';'] ;
+
+DestructureStmt
+    = ( 'let' | 'const' ) ArrayDestructure '=' Expression [';']
+    | ( 'let' | 'const' ) DictDestructure '=' Expression [';'] ;
+
+ArrayDestructure
+    = '[' Name { ',' Name } [ ',' '...' Name ] ']' ;
+
+DictDestructure
+    = '{' Name { ',' Name } '}' ;
+
+RuntimeDeclStmt
+    = 'runtime' IDENTIFIER '=' IDENTIFIER '.' 'start' '(' ')' ;
+
+FunctionDeclStmt
+    = FunctionDecl ;          (* nested function inside a block *)
+
+StructDeclStmt
+    = StructDecl ;            (* nested struct inside a block *)
+
+MatchExprStmt
+    = MatchExpr [';'] ;      (* match used as statement *)
+
+ExprStmt
+    = Expression [';'] ;
+
+
+(* =================== 4. Expressions (by precedence) =================== *)
+(*                                                                        *)
+(* 13 precedence levels, lowest (1) to highest (13).                      *)
+(* Each level calls the next-higher level for its operands.               *)
+(*                                                                        *)
+(* Level  Name           Operators              Assoc                     *)
+(* -----  -------------  ---------------------  -----                     *)
+(*   1    Assignment     = += -= *= /= %= ??=   right                     *)
+(*   2    Pipeline       |>                      left                      *)
+(*   3    NullCoalesce   ??                      left                      *)
+(*   4    LogicalOr      || or                   left                      *)
+(*   5    LogicalAnd     && and                  left                      *)
+(*   6    Equality       == !=                   left                      *)
+(*   7    Range          .. ..=                  non-assoc                 *)
+(*   8    Comparison     < <= > >= in  not in    left                      *)
+(*   9    Term           + -                     left                      *)
+(*  10    Factor         * / %                   left                      *)
+(*  11    Unary          - ! not  (prefix)       right                     *)
+(*  12    Postfix        () . ?. [] [:]          left                      *)
+(*  13    Primary        literals, ids, groups   —                         *)
+
+Expression
+    = Assignment ;
+
+Assignment
+    = Pipeline [ AssignOp Assignment ] ;  (* right-associative *)
+
+AssignOp
+    = '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '??=' ;
+
+Pipeline
+    = NullCoalesce { '|>' NullCoalesce } ;
+
+NullCoalesce
+    = LogicalOr { '??' LogicalOr } ;
+
+LogicalOr
+    = LogicalAnd { ( '||' | 'or' ) LogicalAnd } ;
+
+LogicalAnd
+    = Equality { ( '&&' | 'and' ) Equality } ;
+
+Equality
+    = Range { ( '==' | '!=' ) Range } ;
+
+Range
+    = Comparison [ ( '..' | '..=' ) Comparison ] ;
+
+Comparison
+    = Term { CompareOp Term } ;
+
+CompareOp
+    = '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in' ;
+
+Term
+    = Factor { ( '+' | '-' ) Factor } ;
+
+Factor
+    = Unary { ( '*' | '/' | '%' ) Unary } ;
+
+Unary
+    = '-' Unary
+    | ( '!' | 'not' ) Unary
+    | Postfix ;
+
+Postfix
+    = Primary { PostfixOp } ;
+
+PostfixOp
+    = CallOp | MemberOp | SubscriptOp ;
+
+CallOp
+    = [ '<' TypeList '>' ] '(' [ ArgList ] ')' ;
+    (* Optional generic type arguments before call: func<int>(x)          *)
+    (* Disambiguated from comparison by lookahead: <Types>( = call        *)
+
+MemberOp
+    = ( '.' | '?.' ) MemberName ;
+
+MemberName
+    = IDENTIFIER | KEYWORD_AS_MEMBER ;
+    (* Most keywords are valid member names — see isAllowedMemberToken()  *)
+
+SubscriptOp
+    = '[' Expression [ ':' Expression ] ']' ;
+    (* Single index: arr[i].  Slice: arr[start:end]                       *)
+
+ArgList
+    = Expression { ',' Expression } ;
+
+TypeList
+    = Type { ',' Type } ;
+
+
+(* ======================= 5. Primary Expressions ======================= *)
+
+Primary
+    = NUMBER
+    | STRING
+    | BOOLEAN                   (* 'true' | 'false' *)
+    | 'null'
+    | StructLiteral
+    | InlineCode
+    | IfExpr
+    | MatchExpr
+    | AwaitExpr
+    | YieldExpr
+    | LambdaExpr
+    | '(' Expression ')'       (* grouping *)
+    | ListLiteral
+    | DictLiteral
+    | Name ;                   (* identifier or keyword-as-name *)
+
+StructLiteral
+    = 'new' IDENTIFIER [ '.' IDENTIFIER ] [ '<' TypeList '>' ]
+      '{' { StructFieldInit } '}' ;
+
+StructFieldInit
+    = ( IDENTIFIER | STRING ) ':' Expression [ ',' | ';' ] ;
+
+InlineCode
+    = INLINE_CODE ;
+    (* Lexer produces a single INLINE_CODE token from << ... >> blocks.   *)
+    (* Format: "language[var1,var2]->ReturnType:code"                     *)
+    (* The >> closer must appear at the start of a line (column 0).       *)
+    (* >> inside polyglot code must be indented to avoid closing the block *)
+
+IfExpr
+    = 'if' Expression '{' Expression '}' 'else'
+      ( IfExpr | '{' Expression '}' ) ;
+
+MatchExpr
+    = 'match' Expression '{' MatchArm { MatchArm } '}' ;
+
+MatchArm
+    = MatchPattern [ 'if' LogicalOr ] '=>' LogicalOr [ ',' ] ;
+    (* Arm bodies use LogicalOr, not full Expression, to avoid            *)
+    (* consuming newlines greedily across arms.                           *)
+
+MatchPattern
+    = '_'                       (* wildcard *)
+    | LogicalOr ;              (* literal, identifier binding, or array destructure *)
+
+AwaitExpr
+    = 'await' LogicalOr ;
+
+YieldExpr
+    = 'yield' LogicalOr ;
+
+LambdaExpr
+    = FUNCTION_KW '(' [ ParameterList ] ')' [ ReturnType ] CompoundStmt ;
+    (* Disambiguated from function call by lookahead: if ')' is followed  *)
+    (* by '{', '->', or ':', it's a lambda. Otherwise it's a call.        *)
+
+ListLiteral
+    = '[' [ Expression { ',' Expression } ] ']' ;
+
+DictLiteral
+    = '{' [ DictEntry { ',' DictEntry } ] '}' ;
+
+DictEntry
+    = Expression ':' Expression ;
+
+
+(* ========================== 6. Type System ============================ *)
+
+Type
+    = BaseType { '|' BaseType } [ '?' ] ;
+    (* Union types: int | string.  Nullable suffix: int?                  *)
+
+BaseType
+    = [ 'ref' ] TypeName ;
+
+TypeName
+    = BuiltinType
+    | 'list' [ '<' Type '>' | '[' Type ']' ]
+    | 'dict' [ '<' Type ',' Type '>' | '[' Type ',' Type ']' ]
+    | 'function'
+    | QualifiedName [ '<' TypeList '>' ] ;
+
+BuiltinType
+    = 'int' | 'float' | 'string' | 'bool' | 'void' | 'any' ;
+    (* Many aliases are accepted: String→string, Int→int, Bool→bool,      *)
+    (* Map→dict, Array→list, Vec→list, Double→float, etc.                 *)
+    (* Single uppercase letter (T, U, V) = type parameter.                *)
+
+QualifiedName
+    = IDENTIFIER [ '.' IDENTIFIER ] ;
+    (* Module-qualified types: module.TypeName                            *)
+
+
+(* ======================== 7. Lexical Grammar ========================== *)
+
+(* --- Keyword Aliases ---                                                *)
+(* The following keywords map to the same token:                          *)
+(*   'fn', 'function', 'func', 'def'  → FUNCTION                         *)
+(*   'and'                             → && (AND)                         *)
+(*   'or'                              → || (OR)                          *)
+(*   'not'                             → !  (NOT)                         *)
+(*   'true', 'false'                   → BOOLEAN                          *)
+
+(* --- Name (identifier or contextual keyword) ---                        *)
+(* Many keywords can be used as identifiers in variable/parameter/field   *)
+(* positions. The parser uses isAllowedNameToken() which permits:         *)
+(*   config, init, module, from, default, match, method, new, class,      *)
+(*   enum, as, in, async, await, import, export, use, ref, function,      *)
+(*   struct, try, catch, throw, finally                                   *)
+(* Forbidden as names: if, else, for, while, break, continue, return,     *)
+(*   let, const, main, true, false, null                                  *)
+
+Name
+    = IDENTIFIER | CONTEXTUAL_KEYWORD ;
+
+(* --- Operators ---                                                      *)
+(* +  -  *  /  %                          arithmetic                      *)
+(* =  +=  -=  *=  /=  %=  ??=            assignment                      *)
+(* ==  !=  <  <=  >  >=                   comparison                      *)
+(* &&  ||  !  (and, or, not)              logical                         *)
+(* |>                                     pipeline                        *)
+(* ??                                     null coalesce                   *)
+(* ..  ..=                                range (exclusive, inclusive)     *)
+(* .  ?.                                  member access, optional chain   *)
+(* ->  =>                                 return type, match arm          *)
+(* ?                                      nullable type suffix            *)
+(* ...                                    spread / rest                   *)
+(* ::                                     (reserved)                      *)
+(* <<  >>                                 polyglot block delimiters       *)
+
+(* --- Delimiters ---                                                     *)
+(* (  )  {  }  [  ]  ,  ;  :                                              *)
+
+(* --- Literals ---                                                       *)
+(* NUMBER    = integer or float (contains '.' for float)                  *)
+(* STRING    = double-quoted, supports \n \t \\ \" escapes                *)
+(*             f"..." prefix for f-strings with {expr} interpolation      *)
+(*             Regular strings support ${expr} interpolation              *)
+(* BOOLEAN   = 'true' | 'false'                                          *)
+(* BLOCK_ID  = BLOCK-XXX-NNNNN format (block registry identifier)         *)
+
+(* --- Comments ---                                                       *)
+(* // ... (line comment, to end of line)                                  *)
+(* No block comments.                                                     *)
+
+(* --- Polyglot Blocks (Lexer-Level) ---                                  *)
+(* << triggers readInlineCode() which captures everything until >>        *)
+(* appears at the start of a line (after optional whitespace).            *)
+(* The captured content is emitted as a single INLINE_CODE token          *)
+(* with format: "language[bindings]->returntype:code"                     *)
+(* This means >> operators inside polyglot code MUST be indented.         *)
