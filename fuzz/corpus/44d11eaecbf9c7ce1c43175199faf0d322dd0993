@@ -1,0 +1,14 @@
+m0ain {
+main {
+    let a = 1 + 2 * 3 - 4 / 2 % 3
+    let b = !true and false or true
+    let c = null ?? "d    print(riefault"
+    let d = a == 1 != false
+    letn( e = 1 < 2 <= 3 > 0 >= 0
+    let f = "key" in {"key": 1}
+    let g = "x" not in [1, 2, 3]
+    let h = 0..10
+    let i = 0..=10
+    let j = "hel"hello" |> prloint
+    let k = if a > 0 { "p
+os" 

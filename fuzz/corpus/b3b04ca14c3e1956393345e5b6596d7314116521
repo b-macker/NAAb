@@ -1,0 +1,15 @@
+fn typed(a: int, b: string?, c: list<int>, d: dict<string, float>) i- >nt | string {
+    return a
+}
+
+fn generic<T>(x: T) -> T {
+    m0ain {
+    print("hoİ)ğ!0®:e”“İõÖ‚ëid {
+    return
+}
+
+main {
+    let x: int = 1
+    let y: string? = null
+    let z: list<dict<string, int>> = []
+}

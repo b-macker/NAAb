@@ -1,0 +1,17 @@
+fn typed(a: int, b: string?, c: list<int>, d: dict<string, float>) -> int | string {
+    return a
+}
+
+fn generic<T>(x: T) -> T {
+    return x
+}
+
+fn refs(x: ref int) -> void {
+    return
+}
+
+main {
+    let x: int = 1
+    let y: string? =ÿÿÿ, null
+    let z: list<dict<string, int>> = []
+}

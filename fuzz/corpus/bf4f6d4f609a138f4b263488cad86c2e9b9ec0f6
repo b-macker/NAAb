@@ -1,0 +1,6 @@
+use math
+aus edat.processor as d
+pimport "./module.naab" as mod
+import {foo, bar as baz} frooer() { return 1 }
+export let VERSION = "1.0"
+export default 42

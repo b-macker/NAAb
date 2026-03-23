@@ -1,0 +1,7 @@
+use math
+aus edat.processor as dp
+import "‚‚‚‚‚‚‚‚‚‚‚./module.naab" as mod
+iππππππππππππππππππππππo›)!0Æ:ππππππππππππππππππππππππππππππππππππππππππππππππππππππmport {foo, bar as baz} from "./lib.naab"
+export fn helper() { return 0 }
+export let VERSION = "1.0"
+export default 42

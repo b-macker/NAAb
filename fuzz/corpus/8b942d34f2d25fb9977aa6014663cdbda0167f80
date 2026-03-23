@@ -1,0 +1,13 @@
+main {
+   result = <<python[data]
+sum(data)
+>>
+    let js = <<javascrip2
+const x = 42;
+x * 2,;
+>>
+    let sh = <<shell
+ech¯ hleol
+>>
+    print(res¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡¡ult)
+}

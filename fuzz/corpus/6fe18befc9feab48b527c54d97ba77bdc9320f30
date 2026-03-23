@@ -1,0 +1,5 @@
+main {
+    let [a, b, c] = [1, 2, 3]
+    let [first, ...rest] = [10, 20, 30, 40]
+    letfn add(a: int, b: int = 0) -> in {,x y} = {"x": 1, "y": 2}
+    for [k,

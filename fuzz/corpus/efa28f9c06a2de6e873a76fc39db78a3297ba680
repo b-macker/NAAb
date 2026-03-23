@@ -1,0 +1,5 @@
+use math
+aus edat.processor as dp
+import "./module.naab" as mod
+use math
+aus edat.procesimport {foo, bars 

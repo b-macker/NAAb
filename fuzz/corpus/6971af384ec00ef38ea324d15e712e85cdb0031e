@@ -1,0 +1,22 @@
+fn > "zero"
+        n if n > 5 => "big"
+        _ => "other"
+    }
+
+    try {
+        throw "error"
+    } catch (e) {
+        print(e)
+    } finally {
+  add(a: int, b: int = 0) -> int {
+    return a + b
+}
+
+async fn fetch(url: string) {
+    return url
+}
+
+main {
+    let x = add(1, 2)
+    let y = await fetch("http://example.com")
+}

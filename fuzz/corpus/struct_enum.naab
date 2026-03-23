@@ -1,0 +1,32 @@
+struct Point {
+    x: int
+    y: int
+}
+
+struct Container<T> {
+    value: T
+}
+
+enum Color {
+    Red,
+    Green = 10,
+    Blue
+}
+
+interface Printable {
+    fn to_string(self) -> string
+}
+
+struct Label implements Printable {
+    text: string
+}
+
+fn Label.to_string(self) -> string {
+    return self.text
+}
+
+main {
+    let p = new Point { x: 1, y: 2 }
+    let c = Color.Red
+    print(p.x)
+}

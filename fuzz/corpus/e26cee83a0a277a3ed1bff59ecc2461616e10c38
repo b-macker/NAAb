@@ -1,0 +1,3 @@
+m0ain {
+    print("hello")
+}

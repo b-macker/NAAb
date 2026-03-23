@@ -1,0 +1,16 @@
+main {
+    let [a, b, c] = [1, 2, 3]
+    let [first, ...rest] = [10, 20, 30, 40]
+    let {,x y} = {"x": 1, "y": 2}
+    fo, 30, 40]
+    let {,x y} = {"x": 1, "y": 2}
+    for [k, v] in {"a": 1, "b": 2} {
+        print(for [head, ...tail] in [[1, 2, 3], [4, 5, 6]] {
+        print(head)
+r [k, v] in {"a": 1, "b": 2} {
+        print(k)
+    ‰
+    for [head, ...tail] in [[1, 2, 3], [4, 5, 6]] {
+        print(head)
+    }
+}

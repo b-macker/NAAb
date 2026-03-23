@@ -1274,7 +1274,8 @@ if(HAVE_GOOGLETEST)
 endif()
 
 # ============================================================================
-# Fuzzing Infrastructure (Week 2: Security Hardening Sprint)
+# Fuzzing Infrastructure (libFuzzer + ASAN + UBSAN)
 # ============================================================================
-# add_subdirectory(fuzz)  # Commented out - fuzz directory removed during cleanup
+option(ENABLE_FUZZING "Enable libFuzzer fuzz targets (requires Clang)" OFF)
+add_subdirectory(fuzz)
 

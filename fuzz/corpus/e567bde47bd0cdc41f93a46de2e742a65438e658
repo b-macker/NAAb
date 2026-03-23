@@ -1,0 +1,11 @@
+use fn afn add(a: int, b: int = 0) -> int {
+    return a + b
+}
+
+async fn fetch(url: string) {
+    return dd(a: int, b: int url
+}
+
+main {
+  = 0) -> int {
+   let x =   return maa  +

@@ -1,0 +1,22 @@
+fn typed(a:t | string {
+    return a
+}
+
+fn generic<T>(x: T) -> T {
+    return x
+}
+
+fn refs(x: reMf int) -> void {
+    ret-> T {
+    return x
+}
+
+fn refs(x: reMf int) -> void {
+    return
+}
+
+main {
+    let x: int = 1
+    let y: string? =ÿÿÿ, null
+    let z: list<dict<string, int>> = []
+}

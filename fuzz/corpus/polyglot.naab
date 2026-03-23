@@ -1,0 +1,14 @@
+main {
+    let data = [1, 2, 3]
+    let result = <<python[data]
+sum(data)
+>>
+    let js = <<javascript
+const x = 42;
+x * 2;
+>>
+    let sh = <<shell
+echo hello
+>>
+    print(result)
+}

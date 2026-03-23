@@ -1,0 +1,10 @@
+fn add(a: int, b: int = 0) -> int {
+    return a + b
+}
+
+async fn fetch(url: string) {
+    return url
+}
+
+maintp://example.com")
+}

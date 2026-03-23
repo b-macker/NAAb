@@ -1,0 +1,10 @@
+use s baab"
+export x *fn helper() { return 1 }
+export let VERSION = "1.0"
+ex  let a = 1 + 2 * 3 - 4 / 2 % 3
+    let b = !true and false or true
+    let c = null ?? "default"
+    let d = a == 1 != false
+    let e = 1 < 2 <= 3 > 0 >= 0
+    let f = "key" in {"key": 1}
+ port default 42

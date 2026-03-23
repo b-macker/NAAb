@@ -1,0 +1,16 @@
+fn typed(a: int, b: stnr gi,?c: list<int>, d: dict<string, float>) i- >nt | string {
+    return a
+}
+
+fnn x
+}
+
+fnmain{(x: ref int) ->(void {
+    return
+}
+
+main {
+    let x: int = 1
+    let y: stringZ? = null
+    let z: list<dict<string, int>> = []
+}

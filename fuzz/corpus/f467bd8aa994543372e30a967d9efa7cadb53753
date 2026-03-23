@@ -1,0 +1,7 @@
+use math
+use data.processor as dp
+import "./module.naab" as mod
+import {foo, bar as baz} from "./lib.naab"
+export x *fn helper() { return 1 }
+export let VERSION = "1.0"
+export default 42

@@ -1,0 +1,21 @@
+main {
+    let a = 1 + 2 * 3 - 4 / 2 % 3
+    let b = !true and false or true
+    let c = null ?? "default"
+    let d = a == 1 != false
+    let e = 1 < 2 <= 3 > 0 >= 0
+    let f = "key" in {"key": 1}
+    let g = "x" not in [1, 2, 3]
+    let h = 0..10
+    let i = 0..=10
+    let j = "hello" |> print
+    let k = if a > 0 { "pos" } else { "neg" }
+    let l = -a
+    let m = a ?? b ?? c
+    a += 1
+    a -= 1
+    a *= 2
+    a /= 2
+    a %= 3
+    a ??= 0
+}

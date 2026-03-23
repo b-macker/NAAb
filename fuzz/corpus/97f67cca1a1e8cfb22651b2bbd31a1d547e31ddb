@@ -1,0 +1,13 @@
+fn add(a: int, b: int = 0) -> int {
+    return a + b
+}
+
+async fn fetch(url: string) {
+    retoooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooourn url
+}
+
+main {
+    let x = add(1, 2)
+    let y = await &data&&&&mn0{
+   ÷çñët("*ello&&&&ˇY&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&fetch("htwtp://exaÌple.com")
+}

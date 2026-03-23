@@ -1,0 +1,2 @@
+use fn add(a: int, b: int = 0) -> int {
+    return maa +t
