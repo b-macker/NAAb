@@ -1,0 +1,186 @@
+// E2E Analytics Module
+// Features: generators, match, closures, math, higher-order functions
+
+use math
+use array
+use string
+
+// === Generators ===
+
+export fn transaction_stream(transactions) {
+    for t in transactions {
+        yield t
+    }
+}
+
+export fn filter_by_category(transactions, cat: string) {
+    for t in transactions {
+        if t.category == cat {
+            yield t
+        }
+    }
+}
+
+export fn filter_above(transactions, threshold: float) {
+    for t in transactions {
+        if t.amount > threshold {
+            yield t
+        }
+    }
+}
+
+export fn take_n(items, n: int) {
+    let count = 0
+    for item in items {
+        if count >= n { return }
+        yield item
+        count = count + 1
+    }
+}
+
+export fn enumerate_items(items) {
+    let idx = 0
+    for item in items {
+        yield [idx, item]
+        idx = idx + 1
+    }
+}
+
+// === Generator Chaining ===
+
+export fn chain_filter_take(transactions, cat: string, n: int) {
+    let count = 0
+    for t in transactions {
+        if t.category == cat {
+            if count >= n { return }
+            yield t
+            count = count + 1
+        }
+    }
+}
+
+// === Match / Classification ===
+
+export fn classify_risk(amount: float) -> string {
+    return match amount {
+        a if a > 10000.0 => "CRITICAL"
+        a if a > 5000.0 => "HIGH"
+        a if a > 1000.0 => "MEDIUM"
+        _ => "LOW"
+    }
+}
+
+export fn classify_category(cat: string) -> string {
+    return match cat {
+        "food" => "essential"
+        "rent" => "essential"
+        "salary" => "income"
+        "bonus" => "income"
+        "entertainment" => "discretionary"
+        _ => "other"
+    }
+}
+
+export fn risk_score(risk: string) -> float {
+    return match risk {
+        "CRITICAL" => 1.0
+        "HIGH" => 0.75
+        "MEDIUM" => 0.5
+        "LOW" => 0.25
+        _ => 0.0
+    }
+}
+
+// === Closures ===
+
+export fn make_accumulator() {
+    let total = 0.0
+    let count = 0
+    return fn(value) {
+        total = total + value
+        count = count + 1
+        return [total, count]
+    }
+}
+
+export fn make_running_avg() {
+    let sum = 0.0
+    let n = 0
+    return fn(value) {
+        sum = sum + value
+        n = n + 1
+        return sum / n
+    }
+}
+
+export fn make_threshold_counter(threshold: float) {
+    let above = 0
+    let below = 0
+    return fn(value) {
+        if value > threshold {
+            above = above + 1
+        } else {
+            below = below + 1
+        }
+        return [above, below]
+    }
+}
+
+// === Analysis Functions ===
+
+export fn compute_total(transactions) -> float {
+    let total = 0.0
+    for t in transactions {
+        total = total + t.amount
+    }
+    return total
+}
+
+export fn compute_average(transactions) -> float {
+    let total = 0.0
+    let count = 0
+    for t in transactions {
+        total = total + t.amount
+        count = count + 1
+    }
+    if count == 0 { return 0.0 }
+    return total / count
+}
+
+export fn find_max_transaction(transactions) {
+    let max_t = null
+    let max_amt = -999999.0
+    for t in transactions {
+        if t.amount > max_amt {
+            max_amt = t.amount
+            max_t = t
+        }
+    }
+    return max_t
+}
+
+export fn count_by_risk(transactions) {
+    let low = 0
+    let med = 0
+    let high = 0
+    let crit = 0
+    for t in transactions {
+        let risk = classify_risk(t.amount)
+        if risk == "LOW" { low = low + 1 }
+        if risk == "MEDIUM" { med = med + 1 }
+        if risk == "HIGH" { high = high + 1 }
+        if risk == "CRITICAL" { crit = crit + 1 }
+    }
+    return {"low": low, "medium": med, "high": high, "critical": crit}
+}
+
+// === Generator + Match + f-string Pipeline ===
+
+export fn analyze_stream(transactions) {
+    for t in transactions {
+        let risk = classify_risk(t.amount)
+        let cat_type = classify_category(t.category)
+        let score = risk_score(risk)
+        yield f"{t.id}: {risk} ({cat_type}) score={score}"
+    }
+}

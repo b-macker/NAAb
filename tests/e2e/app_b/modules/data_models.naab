@@ -1,0 +1,156 @@
+// E2E Data Models Module
+// Features: interfaces, structs, enums, type annotations, f-strings
+
+use string
+use array
+
+// === Interfaces ===
+
+interface Displayable {
+    fn display() -> string
+}
+
+interface Calculable {
+    fn compute() -> float
+}
+
+// === Structs ===
+
+struct Transaction implements Displayable {
+    id: string
+    amount: float
+    currency: string
+    category: string
+    timestamp: int
+}
+
+fn Transaction.display(t) -> string {
+    return f"TX({t.id}: {t.amount} {t.currency} [{t.category}])"
+}
+
+struct Portfolio implements Displayable, Calculable {
+    name: string
+    transactions: any
+    balance: float
+}
+
+fn Portfolio.display(p) -> string {
+    let count = array.length(p.transactions)
+    return f"Portfolio({p.name}: {count} txns, bal={p.balance})"
+}
+
+fn Portfolio.compute(p) -> float {
+    let total = 0.0
+    for t in p.transactions {
+        total = total + t.amount
+    }
+    return total
+}
+
+struct AnalysisResult {
+    score: float
+    risk: string
+    details: string
+    category: string
+}
+
+fn AnalysisResult.display(a) -> string {
+    return f"Analysis(score={a.score}, risk={a.risk})"
+}
+
+// === Enums ===
+
+enum RiskLevel {
+    LOW,
+    MEDIUM,
+    HIGH,
+    CRITICAL
+}
+
+enum TxType {
+    CREDIT,
+    DEBIT,
+    TRANSFER
+}
+
+// === Factory Functions (exported) ===
+
+export fn make_transaction(id: string, amount: float, currency: string, category: string, ts: int) {
+    return new Transaction {
+        id: id,
+        amount: amount,
+        currency: currency,
+        category: category,
+        timestamp: ts
+    }
+}
+
+export fn make_portfolio(name: string) {
+    return new Portfolio {
+        name: name,
+        transactions: [],
+        balance: 0.0
+    }
+}
+
+export fn add_transaction(portfolio, tx) {
+    let txns = array.push(portfolio.transactions, tx)
+    return new Portfolio {
+        name: portfolio.name,
+        transactions: txns,
+        balance: portfolio.balance + tx.amount
+    }
+}
+
+export fn make_result(score: float, risk: string, details: string, cat: string) {
+    return new AnalysisResult {
+        score: score,
+        risk: risk,
+        details: details,
+        category: cat
+    }
+}
+
+export fn display_transaction(t) -> string {
+    return Transaction.display(t)
+}
+
+export fn display_portfolio(p) -> string {
+    return Portfolio.display(p)
+}
+
+export fn compute_portfolio(p) -> float {
+    return Portfolio.compute(p)
+}
+
+export fn display_result(a) -> string {
+    return AnalysisResult.display(a)
+}
+
+export fn get_risk_label(level) -> string {
+    // Test both enum and string matching
+    if level == RiskLevel.LOW { return "LOW" }
+    if level == RiskLevel.MEDIUM { return "MEDIUM" }
+    if level == RiskLevel.HIGH { return "HIGH" }
+    if level == RiskLevel.CRITICAL { return "CRITICAL" }
+    // Also handle string input
+    return match level {
+        "LOW" => "LOW"
+        "MEDIUM" => "MEDIUM"
+        "HIGH" => "HIGH"
+        "CRITICAL" => "CRITICAL"
+        _ => "UNKNOWN"
+    }
+}
+
+export fn get_tx_type_label(t) -> string {
+    if t == TxType.CREDIT { return "CREDIT" }
+    if t == TxType.DEBIT { return "DEBIT" }
+    if t == TxType.TRANSFER { return "TRANSFER" }
+    return match t {
+        "CREDIT" => "CREDIT"
+        "DEBIT" => "DEBIT"
+        "TRANSFER" => "TRANSFER"
+        _ => "UNKNOWN"
+    }
+}

@@ -1,0 +1,62 @@
+═══════════════════════════════════════════════════════════
+  NAAb v0.6.0 A/B E2E Conformance Test
+  Date: Sun Mar 22 22:33:38 EDT 2026
+  Binary: /data/data/com.termux/files/home/.naab/language/build/naab-lang
+═══════════════════════════════════════════════════════════
+
+[A] Running App A with STRICT governance...
+--- App A Output ---
+[governance] Loaded: /data/data/com.termux/files/home/.naab/language/tests/e2e/app_a/govern.json (mode: enforce)
+=== E2E App A: STRICT Governance ===
+  Phase 1: Data Models
+    Phase 1: 20/20
+  Phase 2: Analytics
+    Phase 2: 30/30
+  Phase 3: Reporting / Stdlib
+    Phase 3: 35/35
+  Phase 4: Integration Pipeline
+    Phase 4: 25/25
+  Phase 5: Edge Cases
+    Phase 5: 20/20
+
+E2E RESULT: 130/130 passed, 0 failed
+--- App A Exit: 0 (0s) ---
+
+  [A] Completed in 0s
+[B] Running App B with ADVISORY governance...
+--- App B Output ---
+[governance] Loaded: /data/data/com.termux/files/home/.naab/language/tests/e2e/app_b/govern.json (mode: enforce)
+=== E2E App B: ADVISORY Governance ===
+  Phase 1: Data Models
+    Phase 1: 20/20
+  Phase 2: Analytics
+    Phase 2: 30/30
+  Phase 3: Reporting / Stdlib
+    Phase 3: 35/35
+  Phase 4: Integration Pipeline
+    Phase 4: 25/25
+  Phase 5: Edge Cases
+    Phase 5: 20/20
+
+E2E RESULT: 130/130 passed, 0 failed
+--- App B Exit: 0 (0s) ---
+
+  [B] Completed in 0s
+
+═══════════════════════════════════════════════════════════
+  RESULTS ANALYSIS
+═══════════════════════════════════════════════════════════
+  App A: E2E RESULT: 130/130 passed, 0 failed (exit 0)
+  App B: E2E RESULT: 130/130 passed, 0 failed (exit 0)
+
+  --- A/B Functional Parity Check ---
+  A/B Diff: IDENTICAL (functional parity CONFIRMED)
+
+═══════════════════════════════════════════════════════════
+  FINAL SUMMARY
+═══════════════════════════════════════════════════════════
+  App A (STRICT):   130/130 passed (exit 0, 0s)
+  App B (ADVISORY): 130/130 passed (exit 0, 0s)
+  A/B Parity:       PASS
+  VERDICT:          ALL CHECKS PASSED
+═══════════════════════════════════════════════════════════

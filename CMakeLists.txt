@@ -367,7 +367,12 @@ message(STATUS "  ✓ Security (timeouts, validation, integrity, audit, sandbox)
 # Interpreter
 add_library(naab_interpreter
     src/interpreter/interpreter.cpp
-    src/interpreter/evaluator.cpp
+    src/interpreter/type_system.cpp
+    src/interpreter/governance_taint.cpp
+    src/interpreter/modules.cpp
+    src/interpreter/expressions.cpp
+    src/interpreter/polyglot.cpp
+    src/interpreter/call_dispatch.cpp
     src/interpreter/environment.cpp
     src/interpreter/cycle_detector.cpp  # Phase 3.2: Garbage collection
     src/interpreter/error_context.cpp   # Phase 4.2: Enhanced error reporting

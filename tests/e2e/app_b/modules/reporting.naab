@@ -1,0 +1,165 @@
+// E2E Reporting Module
+// Features: stdlib coverage - string, json, math, array, path, regex, crypto, time
+
+use string
+use json
+use math
+use array
+use path
+use regex
+use crypto
+use time
+
+// === String Operations ===
+
+export fn format_currency(amount: float, currency: string) -> string {
+    let rounded = math.round(amount * 100.0) / 100.0
+    let str = string(rounded)
+    return currency + " " + str
+}
+
+export fn format_percentage(value: float) -> string {
+    let pct = math.round(value * 10000.0) / 100.0
+    return string(pct) + "%"
+}
+
+export fn pad_right_to(s: string, width: int) -> string {
+    let len = string.length(s)
+    let result = s
+    while len < width {
+        result = result + " "
+        len = len + 1
+    }
+    return result
+}
+
+export fn truncate(s: string, max_len: int) -> string {
+    if string.length(s) <= max_len { return s }
+    return string.substring(s, 0, max_len) + "..."
+}
+
+// === JSON Operations ===
+
+export fn to_json_report(data) -> string {
+    return json.stringify(data)
+}
+
+export fn parse_json_config(s: string) {
+    return json.parse(s)
+}
+
+export fn json_roundtrip(data) {
+    let encoded = json.stringify(data)
+    let decoded = json.parse(encoded)
+    return decoded
+}
+
+// === Math Operations ===
+
+export fn compute_stddev(values) -> float {
+    let n = array.length(values)
+    if n == 0 { return 0.0 }
+    let sum = 0.0
+    for v in values { sum = sum + v }
+    let mean = sum / n
+    let sq_sum = 0.0
+    for v in values {
+        let diff = v - mean
+        sq_sum = sq_sum + diff * diff
+    }
+    return math.sqrt(sq_sum / n)
+}
+
+export fn clamp(value: float, lo: float, hi: float) -> float {
+    return math.max(lo, math.min(hi, value))
+}
+
+// === Array Operations ===
+
+export fn unique_categories(transactions) {
+    let seen = {}
+    let result = []
+    for t in transactions {
+        if !seen.get(t.category) {
+            seen[t.category] = true
+            result = array.push(result, t.category)
+        }
+    }
+    return result
+}
+
+export fn sort_by_amount(transactions) {
+    return array.sort(transactions)
+}
+
+export fn top_n(items, n: int) {
+    let result = []
+    let count = 0
+    for item in items {
+        if count >= n { return result }
+        result = array.push(result, item)
+        count = count + 1
+    }
+    return result
+}
+
+// === Path Operations ===
+
+export fn build_report_path(base: string, name: string) -> string {
+    let p = path.join(base, name)
+    return path.normalize(p)
+}
+
+export fn get_report_extension(filepath: string) -> string {
+    return path.extension(filepath)
+}
+
+export fn get_report_basename(filepath: string) -> string {
+    return path.basename(filepath)
+}
+
+// === Regex Operations ===
+
+export fn validate_tx_id(id: string) -> bool {
+    return regex.matches(id, "^TX-[0-9]{4}$")
+}
+
+export fn extract_amount_str(text: string) -> string {
+    let m = regex.search(text, "[0-9]+\\.[0-9]+")
+    if m != null && m != "" { return m }
+    return ""
+}
+
+// === Crypto Operations ===
+
+export fn hash_report(data: string) -> string {
+    return crypto.sha256(data)
+}
+
+// === Time Operations ===
+
+export fn get_timestamp() -> int {
+    return time.now()
+}
+
+// === Report Generation ===
+
+export fn generate_summary(results, title: string) -> string {
+    let lines = []
+    lines = array.push(lines, "=== " + title + " ===")
+    for r in results {
+        let line = f"  {r.category}: score={r.score}, risk={r.risk}"
+        lines = array.push(lines, line)
+    }
+    lines = array.push(lines, "=== END ===")
+    return string.join(lines, "\n")
+}
+
+export fn generate_csv(headers, rows) -> string {
+    let result = string.join(headers, ",")
+    for row in rows {
+        let line = string.join(row, ",")
+        result = result + "\n" + line
+    }
+    return result
+}

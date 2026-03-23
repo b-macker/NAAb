@@ -1,0 +1,62 @@
+{
+  "version": "4.0",
+  "mode": "advisory",
+  "description": "E2E App B — ADVISORY governance (warnings only, no blocking)",
+
+  "languages": {
+    "allowed": ["python", "shell"],
+    "blocked": ["ruby", "php"],
+    "require_explicit": false,
+    "per_language": {
+      "python": { "timeout": 10, "max_lines": 100 },
+      "shell": { "timeout": 5, "max_lines": 30, "shell_injection": true, "shell_injection_level": "advisory" }
+    }
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read" },
+    "shell": { "enabled": false },
+    "env_access": false
+  },
+
+  "limits": {
+    "timeout": { "global": 60, "per_block": 10 },
+    "execution": { "call_depth": 50, "loop_iterations": 50000, "polyglot_blocks": 20 },
+    "code": { "max_lines_per_block": 100, "max_nesting_depth": 6, "max_functions": 50 }
+  },
+
+  "requirements": {
+    "main_block": { "enabled": true, "level": "advisory" }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "enabled": true, "level": "advisory" },
+    "shell_injection": { "enabled": true, "level": "advisory" },
+    "resource_abuse": { "enabled": true, "level": "advisory" }
+  },
+
+  "taint_tracking": {
+    "enabled": true,
+    "level": "advisory",
+    "sources": ["env.get", "io.read_line", "polyglot_output"],
+    "sinks": ["shell_exec", "python_exec", "env.set_var", "file.write"],
+    "sanitizers": ["validate_", "sanitize_", "escape_"]
+  },
+
+  "code_quality": {
+    "no_secrets": { "enabled": true, "level": "advisory" },
+    "no_placeholders": { "enabled": false },
+    "no_oversimplification": { "enabled": false },
+    "no_incomplete_logic": { "enabled": false },
+    "duplicate_calls": { "enabled": false },
+    "polyglot_try_catch": { "enabled": false }
+  },
+
+  "output": {
+    "summary": { "enabled": false },
+    "errors": { "verbose": false, "show_help": false },
+    "formatting": { "color": false, "unicode_symbols": false },
+    "max_advisories": 0
+  }
+}
