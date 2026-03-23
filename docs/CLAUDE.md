@@ -6,7 +6,7 @@ and add project-specific sections (governance rules, module specs, data paths) b
 ## About NAAb
 NAAb is a polyglot programming language. You embed other languages (Python, JavaScript,
 Shell, Go, Nim, Rust, C++, C#, Ruby, PHP, Zig, Julia) inside `<< >>` blocks within
-.naab files. A govern.json file enforces rules at execution time.
+.naab files. A govern.json file applies policy rules at execution time.
 DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 
 ## Critical Syntax Rules

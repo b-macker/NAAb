@@ -7,7 +7,7 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![Discussions](https://img.shields.io/badge/Discussions-enabled-blue.svg)](https://github.com/b-macker/NAAb/discussions)
 
-**Govern AI-generated code at the language level.** NAAb is a polyglot programming language that enforces code quality, security, and correctness as runtime constraints — not suggestions. A single `govern.json` controls what executes across 12 languages in one file.
+**Govern AI-generated code at the language level.** NAAb is a polyglot programming language that applies code quality, security, and correctness policies at runtime — catching mistakes before they execute. A single `govern.json` controls what executes across 12 languages in one file.
 
 ```json
 // govern.json — catches AI hallucinations before they execute
@@ -48,7 +48,7 @@ AI models generate code that looks right but isn't. Every session starts fresh �
 - **Security patterns bypassed** — hardcoded secrets, SQL injection, `except: pass` swallowing errors
 - **Language misuse** — Python for heavy computation, JavaScript for file operations, Shell for complex logic
 
-Prompts are suggestions. **`govern.json` is enforcement.** NAAb checks every polyglot block against your policies before execution — where it can't be bypassed.
+Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot block against your policies before execution — where it can't be bypassed.
 
 ---
 
@@ -56,7 +56,7 @@ Prompts are suggestions. **`govern.json` is enforcement.** NAAb checks every pol
 
 | Capability | Details |
 |---|---|
-| **Governance Engine** | 50+ checks, 3-tier enforcement (hard / soft / advisory), `govern.json` config |
+| **Governance Engine** | 50+ checks, 3-tier policy engine (hard / soft / advisory), `govern.json` config |
 | **Polyglot Execution** | 12 languages in one file — Python, JavaScript, Rust, C++, Go, C#, Ruby, PHP, Shell, Nim, Zig, Julia |
 | **Smart Error Messages** | "Did you mean?" suggestions via Levenshtein distance, detailed fixes with examples |
 | **Standard Library** | 14 modules — array, string, math, json, http, file, path, time, debug, env, csv, regex, crypto, bolo |
@@ -111,7 +111,7 @@ NAAb's governance engine is what sets it apart. Drop a `govern.json` in your pro
 | **Taint Tracking** | Untrusted data (`env.get`, polyglot output) reaching sinks (shell, env) | Source/sink/sanitizer with prefix matching |
 | **PII Exposure** | SSN patterns, credit card numbers, API keys in strings | Regex + entropy |
 
-### Three Enforcement Levels
+### Three Policy Levels
 
 - **HARD** — Block execution. Code does not run. No override.
 - **SOFT** — Block execution. Code does not run unless `--governance-override` is passed.
@@ -190,6 +190,8 @@ naab-lang app.naab --governance-report json > results.json
 ```
 
 > **[Build your govern.json interactively](https://b-macker.github.io/NAAb/governance.html)** | [Full governance reference (Chapter 21)](docs/book/chapter21.md)
+>
+> **[Security model & threat assumptions](docs/SECURITY.md)**
 
 ---
 
