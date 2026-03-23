@@ -1,0 +1,8 @@
+// Type error: returning string from int function
+fn get_number() -> int {
+    return "hello"
+}
+
+main {
+    get_number()
+}

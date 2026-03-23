@@ -21,6 +21,7 @@ TEST_DIRS=(
     "tests/governance_v3"
     "tests/governance_v4"
     "tests/robustness"
+    "tests/type_system/valid"
     "tests"
 )
 
@@ -231,6 +232,52 @@ for dir in "${TEST_DIRS[@]}"; do
             run_test "$test_file" "$timeout"
         done < <(find "$dir" -name "*.naab" -type f -print0 | sort -z)
     fi
+done
+
+# Type system error detection tests (run with --strict-types)
+echo ""
+echo "-----------------------------------------------------------"
+echo "  Testing: tests/type_system/errors (--strict-types)"
+echo "-----------------------------------------------------------"
+for f in tests/type_system/errors/*.naab; do
+    [ -f "$f" ] || continue
+    test_name=$(basename "$f")
+    TOTAL=$((TOTAL + 1))
+    output_file="$HOME/.naab_test_output_$$.txt"
+    if timeout 10s "$NAAB_BIN" --strict-types run "$f" > "$output_file" 2>&1; then
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("$test_name (should have type errors but passed)")
+        echo "  FAIL: $test_name — should have type errors but passed"
+    else
+        ERROR_BEHAVIOR=$((ERROR_BEHAVIOR + 1))
+        echo "  XFAIL: $test_name (type error caught)"
+    fi
+    rm -f "$output_file"
+done
+
+# Also verify valid code passes --strict-types
+echo ""
+echo "-----------------------------------------------------------"
+echo "  Testing: tests/type_system/valid (--strict-types)"
+echo "-----------------------------------------------------------"
+for f in tests/type_system/valid/*.naab; do
+    [ -f "$f" ] || continue
+    test_name=$(basename "$f")
+    TOTAL=$((TOTAL + 1))
+    output_file="$HOME/.naab_test_output_$$.txt"
+    if timeout 10s "$NAAB_BIN" --strict-types run "$f" > "$output_file" 2>&1; then
+        PASSED=$((PASSED + 1))
+        PASSED_TESTS+=("$test_name")
+        echo "  PASS: $test_name --strict-types"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("$test_name --strict-types (false positive)")
+        echo "  FAIL: $test_name --strict-types — false positive"
+        if [ -f "$output_file" ]; then
+            head -1 "$output_file" | sed 's/^/       /'
+        fi
+    fi
+    rm -f "$output_file"
 done
 
 # Print summary

@@ -1,0 +1,15 @@
+// Gradual typing: untyped code should work fine
+fn greet(name) {
+    return "Hello " + name
+}
+
+fn add(a, b) {
+    return a + b
+}
+
+main {
+    let result = greet("world")
+    print(result)
+    let sum = add(1, 2)
+    print(sum)
+}

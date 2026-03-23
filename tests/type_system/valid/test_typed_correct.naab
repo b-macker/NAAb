@@ -1,0 +1,24 @@
+// Correctly typed code should pass --strict-types
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+fn greet(name: string) -> string {
+    return "Hello " + name
+}
+
+struct Point {
+    x: int,
+    y: int
+}
+
+main {
+    let sum: int = add(1, 2)
+    print(sum)
+
+    let msg: string = greet("world")
+    print(msg)
+
+    let p = new Point { x: 10, y: 20 }
+    print(p.x)
+}

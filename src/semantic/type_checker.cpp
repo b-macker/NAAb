@@ -19,13 +19,40 @@ std::string Type::toString() const {
         case TypeKind::Float: return "float";
         case TypeKind::Bool: return "bool";
         case TypeKind::String: return "string";
-        case TypeKind::List: return "list";
-        case TypeKind::Dict: return "dict";
-        case TypeKind::Function: return "function";
+        case TypeKind::List:
+            return element_type ? "List<" + element_type->toString() + ">" : "list";
+        case TypeKind::Dict:
+            return (key_type && value_type) ?
+                "Dict<" + key_type->toString() + ", " + value_type->toString() + ">" : "dict";
+        case TypeKind::Function: {
+            std::string s = "(";
+            for (size_t i = 0; i < param_types.size(); ++i) {
+                if (i > 0) s += ", ";
+                s += param_types[i]->toString();
+            }
+            s += ") -> ";
+            s += return_type ? return_type->toString() : "void";
+            return s;
+        }
         case TypeKind::Block: return "block";
         case TypeKind::PythonObject: return "python_object";
         case TypeKind::Any: return "any";
         case TypeKind::Unknown: return "unknown";
+        case TypeKind::Struct:
+            return struct_name.empty() ? "struct" : struct_name;
+        case TypeKind::Enum:
+            return enum_name.empty() ? "enum" : enum_name;
+        case TypeKind::Union: {
+            std::string s;
+            for (size_t i = 0; i < union_types.size(); ++i) {
+                if (i > 0) s += " | ";
+                s += union_types[i]->toString();
+            }
+            return s.empty() ? "union" : s;
+        }
+        case TypeKind::Null: return "null";
+        case TypeKind::TypeParameter:
+            return type_param_name.empty() ? "T" : type_param_name;
     }
     return "?";
 }
@@ -33,8 +60,30 @@ std::string Type::toString() const {
 bool Type::isCompatibleWith(const Type& other) const {
     if (kind == TypeKind::Any || other.kind == TypeKind::Any) return true;
     if (kind == TypeKind::Unknown || other.kind == TypeKind::Unknown) return true;
-    if (kind == other.kind) return true;
+    if (kind == other.kind) {
+        // Same kind — check names for nominal types
+        if (kind == TypeKind::Struct) return struct_name == other.struct_name || struct_name.empty() || other.struct_name.empty();
+        if (kind == TypeKind::Enum) return enum_name == other.enum_name || enum_name.empty() || other.enum_name.empty();
+        return true;
+    }
+    // int → float promotion
     if (kind == TypeKind::Int && other.kind == TypeKind::Float) return true;
+    // null compatible with nullable types
+    if (kind == TypeKind::Null && other.is_nullable) return true;
+    if (other.kind == TypeKind::Null && is_nullable) return true;
+    // Union: check if type matches any union member
+    if (other.kind == TypeKind::Union) {
+        for (const auto& ut : other.union_types) {
+            if (isCompatibleWith(*ut)) return true;
+        }
+        return false;
+    }
+    if (kind == TypeKind::Union) {
+        for (const auto& ut : union_types) {
+            if (ut->isCompatibleWith(other)) return true;
+        }
+        return false;
+    }
     return false;
 }
 
@@ -48,19 +97,48 @@ std::shared_ptr<Type> Type::makeInt() { return std::make_shared<Type>(TypeKind::
 std::shared_ptr<Type> Type::makeFloat() { return std::make_shared<Type>(TypeKind::Float); }
 std::shared_ptr<Type> Type::makeBool() { return std::make_shared<Type>(TypeKind::Bool); }
 std::shared_ptr<Type> Type::makeString() { return std::make_shared<Type>(TypeKind::String); }
-std::shared_ptr<Type> Type::makeList(std::shared_ptr<Type>) {
-    return std::make_shared<Type>(TypeKind::List);
+std::shared_ptr<Type> Type::makeList(std::shared_ptr<Type> elem) {
+    auto t = std::make_shared<Type>(TypeKind::List);
+    t->element_type = elem;
+    return t;
 }
-std::shared_ptr<Type> Type::makeDict(std::shared_ptr<Type>, std::shared_ptr<Type>) {
-    return std::make_shared<Type>(TypeKind::Dict);
+std::shared_ptr<Type> Type::makeDict(std::shared_ptr<Type> key, std::shared_ptr<Type> value) {
+    auto t = std::make_shared<Type>(TypeKind::Dict);
+    t->key_type = key;
+    t->value_type = value;
+    return t;
 }
-std::shared_ptr<Type> Type::makeFunction(std::vector<std::shared_ptr<Type>>, std::shared_ptr<Type>) {
-    return std::make_shared<Type>(TypeKind::Function);
+std::shared_ptr<Type> Type::makeFunction(std::vector<std::shared_ptr<Type>> params, std::shared_ptr<Type> ret) {
+    auto t = std::make_shared<Type>(TypeKind::Function);
+    t->param_types = std::move(params);
+    t->return_type = ret;
+    return t;
 }
 std::shared_ptr<Type> Type::makeBlock() { return std::make_shared<Type>(TypeKind::Block); }
 std::shared_ptr<Type> Type::makePythonObject() { return std::make_shared<Type>(TypeKind::PythonObject); }
 std::shared_ptr<Type> Type::makeAny() { return std::make_shared<Type>(TypeKind::Any); }
 std::shared_ptr<Type> Type::makeUnknown() { return std::make_shared<Type>(TypeKind::Unknown); }
+std::shared_ptr<Type> Type::makeStruct(const std::string& name) {
+    auto t = std::make_shared<Type>(TypeKind::Struct);
+    t->struct_name = name;
+    return t;
+}
+std::shared_ptr<Type> Type::makeEnum(const std::string& name) {
+    auto t = std::make_shared<Type>(TypeKind::Enum);
+    t->enum_name = name;
+    return t;
+}
+std::shared_ptr<Type> Type::makeUnion(std::vector<std::shared_ptr<Type>> types) {
+    auto t = std::make_shared<Type>(TypeKind::Union);
+    t->union_types = std::move(types);
+    return t;
+}
+std::shared_ptr<Type> Type::makeNull() { return std::make_shared<Type>(TypeKind::Null); }
+std::shared_ptr<Type> Type::makeTypeParameter(const std::string& name) {
+    auto t = std::make_shared<Type>(TypeKind::TypeParameter);
+    t->type_param_name = name;
+    return t;
+}
 
 // ============================================================================
 // TypeError Implementation
@@ -105,6 +183,29 @@ TypeChecker::TypeChecker()
     : env_(std::make_shared<TypeEnvironment>()),
       current_type_(Type::makeVoid()),
       current_function_return_type_(nullptr) {
+    // Register builtins so the checker doesn't report false "undefined variable" errors
+    env_->define("print", Type::makeFunction({Type::makeAny()}, Type::makeVoid()));
+    env_->define("println", Type::makeFunction({Type::makeAny()}, Type::makeVoid()));
+    env_->define("len", Type::makeFunction({Type::makeAny()}, Type::makeInt()));
+    env_->define("str", Type::makeFunction({Type::makeAny()}, Type::makeString()));
+    env_->define("int", Type::makeFunction({Type::makeAny()}, Type::makeInt()));
+    env_->define("float", Type::makeFunction({Type::makeAny()}, Type::makeFloat()));
+    env_->define("typeof", Type::makeFunction({Type::makeAny()}, Type::makeString()));
+    env_->define("range", Type::makeFunction({Type::makeInt()}, Type::makeList(Type::makeInt())));
+    env_->define("assert", Type::makeFunction({Type::makeAny()}, Type::makeVoid()));
+    env_->define("error", Type::makeFunction({Type::makeAny()}, Type::makeVoid()));
+    env_->define("type", Type::makeFunction({Type::makeAny()}, Type::makeString()));
+    env_->define("toString", Type::makeFunction({Type::makeAny()}, Type::makeString()));
+    // Module namespaces (treated as Any — no cross-module type propagation)
+    for (const auto& mod : {"io", "math", "array", "string", "env", "json",
+                             "file", "regex", "http", "path", "os", "time",
+                             "crypto", "base64", "csv", "xml", "yaml"}) {
+        env_->define(mod, Type::makeAny());
+    }
+    // Constants
+    env_->define("null", Type::makeNull());
+    env_->define("true", Type::makeBool());
+    env_->define("false", Type::makeBool());
 }
 
 std::vector<TypeError> TypeChecker::check(std::shared_ptr<ast::Program> program) {
@@ -115,15 +216,28 @@ std::vector<TypeError> TypeChecker::check(std::shared_ptr<ast::Program> program)
     return errors_;
 }
 
-// Stub implementations - accept nodes but don't check yet
 void TypeChecker::visit(ast::Program& node) {
-    // Visit all top-level declarations
+    // Visit structs first (needed for field type lookups)
+    for (const auto& s : node.getStructs()) {
+        s->accept(*this);
+    }
+    // Visit enums
+    for (const auto& e : node.getEnums()) {
+        e->accept(*this);
+    }
+    // Visit interfaces
+    for (const auto& iface : node.getInterfaces()) {
+        iface->accept(*this);
+    }
+    // Visit functions
     for (const auto& func : node.getFunctions()) {
         func->accept(*this);
     }
+    // Visit exports
     for (const auto& exp : node.getExports()) {
         exp->accept(*this);
     }
+    // Visit main block
     if (node.getMainBlock()) {
         node.getMainBlock()->accept(*this);
     }
@@ -133,15 +247,6 @@ void TypeChecker::visit(ast::Program& node) {
 void TypeChecker::visit(ast::UseStatement&) { current_type_ = Type::makeVoid(); }
 void TypeChecker::visit(ast::FunctionDecl& node) {
     auto loc = node.getLocation();
-
-    // Check if async (not yet supported - deferred to Phase 6/v2.0)
-    if (node.isAsync()) {
-        reportError(
-            "Native async/await not yet implemented. Use polyglot async execution instead:\n"
-            "  Example: let result = <<python import asyncio; asyncio.run(my_async_func()) >>",
-            loc.line, loc.column
-        );
-    }
 
     // Phase 2: Build proper function type from parameters
     std::vector<std::shared_ptr<Type>> param_types;
@@ -310,11 +415,11 @@ void TypeChecker::visit(ast::VarDeclStmt& node) {
     // Step 2: Get declared type if present
     std::shared_ptr<Type> decl_type = Type::makeAny();
     if (node.getType().has_value()) {
-        // Type is already a Type object, convert to shared_ptr
-        const auto& type_val = node.getType().value();
-        // TODO: Convert ast::Type to typecheck::Type properly
-        // For now, we'll use the init type
-        decl_type = init_type;
+        decl_type = convertAstType(node.getType().value());
+        // Preserve nullable flag
+        if (node.getType().value().is_nullable) {
+            decl_type->is_nullable = true;
+        }
     }
 
     // Step 3: Check compatibility
@@ -421,6 +526,181 @@ void TypeChecker::visit(ast::FunctionDeclStmt& node) {
 void TypeChecker::visit(ast::StructDeclStmt& node) {
     // Delegate to the wrapped StructDecl
     node.getDecl()->accept(*this);
+}
+
+void TypeChecker::visit(ast::StructDecl& node) {
+    StructTypeInfo info;
+    info.name = node.getName();
+    for (const auto& field : node.getFields()) {
+        auto field_type = convertAstType(field.type);
+        info.fields.push_back({field.name, field_type});
+    }
+    struct_types_[node.getName()] = info;
+    env_->define(node.getName(), Type::makeStruct(node.getName()));
+
+    auto loc = node.getLocation();
+    semantic::Symbol struct_symbol(
+        node.getName(), semantic::SymbolKind::Class,
+        "struct " + node.getName(),
+        semantic::SourceLocation(current_filename_, loc.line, loc.column)
+    );
+    symbol_table_.define(node.getName(), std::move(struct_symbol));
+    current_type_ = Type::makeVoid();
+}
+
+void TypeChecker::visit(ast::StructLiteralExpr& node) {
+    auto struct_type = Type::makeStruct(node.getStructName());
+    auto loc = node.getLocation();
+
+    // Look up struct definition for field type checking
+    auto it = struct_types_.find(node.getStructName());
+    if (it != struct_types_.end()) {
+        for (const auto& [init_name, init_expr] : node.getFieldInits()) {
+            init_expr->accept(*this);
+            auto init_type = current_type_;
+
+            // Find field type in struct definition
+            for (const auto& [fname, ftype] : it->second.fields) {
+                if (fname == init_name) {
+                    if (!init_type->isCompatibleWith(*ftype)) {
+                        reportError(
+                            fmt::format("Struct '{}' field '{}' expects {}, got {}",
+                                node.getStructName(), init_name,
+                                ftype->toString(), init_type->toString()),
+                            loc.line, loc.column);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    current_type_ = struct_type;
+    node.setCachedType(current_type_);
+}
+
+void TypeChecker::visit(ast::EnumDecl& node) {
+    auto enum_type = Type::makeEnum(node.getName());
+    env_->define(node.getName(), enum_type);
+
+    // Register each variant
+    for (const auto& variant : node.getVariants()) {
+        env_->define(node.getName() + "." + variant.name, enum_type);
+    }
+
+    auto loc = node.getLocation();
+    semantic::Symbol enum_symbol(
+        node.getName(), semantic::SymbolKind::Enum,
+        "enum " + node.getName(),
+        semantic::SourceLocation(current_filename_, loc.line, loc.column)
+    );
+    symbol_table_.define(node.getName(), std::move(enum_symbol));
+    current_type_ = Type::makeVoid();
+}
+
+void TypeChecker::visit(ast::InterfaceDecl& node) {
+    // Register interface name in environment
+    env_->define(node.getName(), Type::makeAny());
+    current_type_ = Type::makeVoid();
+}
+
+void TypeChecker::visit(ast::RuntimeDeclStmt& node) {
+    env_->define(node.getName(), Type::makeAny());
+    current_type_ = Type::makeVoid();
+}
+
+void TypeChecker::visit(ast::DestructureStmt& node) {
+    if (node.getInit()) {
+        node.getInit()->accept(*this);
+    }
+    auto init_type = current_type_;
+
+    // Register each destructured name
+    for (const auto& name : node.getNames()) {
+        if (!name.empty() && name != "_") {
+            env_->define(name, Type::makeAny());
+        }
+    }
+    current_type_ = Type::makeVoid();
+}
+
+void TypeChecker::visit(ast::IfExpr& node) {
+    if (node.getCondition()) node.getCondition()->accept(*this);
+
+    std::shared_ptr<Type> then_type = Type::makeAny();
+    if (node.getThenExpr()) {
+        node.getThenExpr()->accept(*this);
+        then_type = current_type_;
+    }
+
+    std::shared_ptr<Type> else_type = Type::makeAny();
+    if (node.getElseExpr()) {
+        node.getElseExpr()->accept(*this);
+        else_type = current_type_;
+    }
+
+    // If both branches have the same type, use it; otherwise Any
+    if (then_type->isCompatibleWith(*else_type)) {
+        current_type_ = then_type;
+    } else {
+        current_type_ = Type::makeAny();
+    }
+    node.setCachedType(current_type_);
+}
+
+void TypeChecker::visit(ast::MatchExpr& node) {
+    if (node.getSubject()) node.getSubject()->accept(*this);
+
+    std::shared_ptr<Type> result_type = nullptr;
+    for (auto& arm : node.getArms()) {
+        if (arm.body) {
+            arm.body->accept(*this);
+            if (!result_type) result_type = current_type_;
+        }
+    }
+    current_type_ = result_type ? result_type : Type::makeAny();
+    node.setCachedType(current_type_);
+}
+
+void TypeChecker::visit(ast::LambdaExpr& node) {
+    std::vector<std::shared_ptr<Type>> param_types;
+    pushScope();
+    for (const auto& param : node.getParams()) {
+        auto pt = convertAstType(param.type);
+        param_types.push_back(pt);
+        env_->define(param.name, pt);
+    }
+    if (node.getBody()) node.getBody()->accept(*this);
+    auto return_type = current_type_;
+    popScope();
+    current_type_ = Type::makeFunction(std::move(param_types), return_type);
+    node.setCachedType(current_type_);
+}
+
+void TypeChecker::visit(ast::AwaitExpr& node) {
+    if (node.getExpr()) node.getExpr()->accept(*this);
+    // Await unwraps a future — result type is the inner type (approximated as Any)
+    current_type_ = Type::makeAny();
+    node.setCachedType(current_type_);
+}
+
+void TypeChecker::visit(ast::YieldExpr& node) {
+    if (node.getExpr()) node.getExpr()->accept(*this);
+    current_type_ = Type::makeVoid();
+    node.setCachedType(current_type_);
+}
+
+void TypeChecker::visit(ast::RangeExpr& node) {
+    if (node.getStart()) node.getStart()->accept(*this);
+    if (node.getEnd()) node.getEnd()->accept(*this);
+    current_type_ = Type::makeList(Type::makeInt());
+    node.setCachedType(current_type_);
+}
+
+void TypeChecker::visit(ast::InlineCodeExpr& node) {
+    // Polyglot output is untyped
+    current_type_ = Type::makeAny();
+    node.setCachedType(current_type_);
 }
 
 void TypeChecker::visit(ast::BinaryExpr& node) {
@@ -566,19 +846,32 @@ void TypeChecker::visit(ast::CallExpr& node) {
     node.setCachedType(current_type_);
 }
 void TypeChecker::visit(ast::MemberExpr& node) {
-    // Type check the object
     node.getObject()->accept(*this);
     auto object_type = current_type_;
 
-    // Phase 5: Member type lookup (deferred - requires struct/class type system)
-    // Would need to look up field type from struct definition:
-    // if (object_type->kind == TypeKind::Struct) {
-    //     current_type_ = lookupStructField(object_type->struct_name, member_name);
-    // }
-    // For now, assume member access returns Any
-    current_type_ = Type::makeAny();
+    // Look up struct field type
+    if (object_type->kind == TypeKind::Struct && !object_type->struct_name.empty()) {
+        auto it = struct_types_.find(object_type->struct_name);
+        if (it != struct_types_.end()) {
+            for (const auto& [fname, ftype] : it->second.fields) {
+                if (fname == node.getMember()) {
+                    current_type_ = ftype;
+                    node.setCachedType(current_type_);
+                    return;
+                }
+            }
+        }
+    }
 
-    // Phase 4: Cache type in AST node
+    // Enum variant access
+    if (object_type->kind == TypeKind::Enum) {
+        current_type_ = object_type;  // Variant has the enum type
+        node.setCachedType(current_type_);
+        return;
+    }
+
+    // Fallback for non-struct, unknown struct, or built-in methods
+    current_type_ = Type::makeAny();
     node.setCachedType(current_type_);
 }
 void TypeChecker::visit(ast::IdentifierExpr& node) {
@@ -703,6 +996,12 @@ std::shared_ptr<Type> TypeChecker::inferBinaryOpType(
     std::shared_ptr<Type> left,
     std::shared_ptr<Type> right,
     size_t line, size_t column) {
+
+    // If either side is Any or Unknown, result is Any (gradual typing)
+    if (left->kind == TypeKind::Any || left->kind == TypeKind::Unknown ||
+        right->kind == TypeKind::Any || right->kind == TypeKind::Unknown) {
+        return Type::makeAny();
+    }
 
     // Arithmetic operators: +, -, *, /, %
     if (op == "+" || op == "-" || op == "*" || op == "/" || op == "%") {
@@ -901,14 +1200,27 @@ std::shared_ptr<Type> TypeChecker::convertAstType(const ast::Type& ast_type) {
             }
             return Type::makeDict(Type::makeAny(), Type::makeAny());
         case ast::TypeKind::Function:
-            // Function types in ast::Type don't store signature details
-            // Signature comes from FunctionDecl's getParams() and getReturnType()
             return Type::makeFunction({}, Type::makeAny());
         case ast::TypeKind::Block:
             return Type::makeBlock();
+        case ast::TypeKind::Struct:
+            return Type::makeStruct(ast_type.struct_name);
+        case ast::TypeKind::Enum:
+            return Type::makeEnum(ast_type.enum_name);
+        case ast::TypeKind::Union: {
+            std::vector<std::shared_ptr<Type>> utypes;
+            for (const auto& ut : ast_type.union_types)
+                utypes.push_back(convertAstType(ut));
+            return Type::makeUnion(std::move(utypes));
+        }
+        case ast::TypeKind::TypeParameter:
+            return Type::makeTypeParameter(ast_type.type_parameter_name);
         case ast::TypeKind::Any:
-        default:
-            return Type::makeAny();
+        default: {
+            auto t = Type::makeAny();
+            t->is_nullable = ast_type.is_nullable;
+            return t;
+        }
     }
 }
 

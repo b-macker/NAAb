@@ -26,8 +26,13 @@ enum class TypeKind {
     Block,
     Function,
     PythonObject,
-    Any,      // For dynamic typing
-    Unknown   // For inference
+    Any,           // For dynamic typing
+    Unknown,       // For inference
+    Struct,        // Named struct type
+    Enum,          // Named enum type
+    Union,         // Union type (int | string)
+    Null,          // Null literal type
+    TypeParameter, // Generic type parameter (T, U)
 };
 
 // Forward declarations
@@ -47,6 +52,19 @@ public:
     // For function types
     std::vector<std::shared_ptr<Type>> param_types;
     std::shared_ptr<Type> return_type;
+
+    // For struct/enum types
+    std::string struct_name;
+    std::string enum_name;
+
+    // For union types
+    std::vector<std::shared_ptr<Type>> union_types;
+
+    // For generic type parameters
+    std::string type_param_name;
+
+    // Nullable flag
+    bool is_nullable = false;
 
     explicit Type(TypeKind k) : kind(k) {}
 
@@ -70,6 +88,11 @@ public:
     static std::shared_ptr<Type> makePythonObject();
     static std::shared_ptr<Type> makeAny();
     static std::shared_ptr<Type> makeUnknown();
+    static std::shared_ptr<Type> makeStruct(const std::string& name);
+    static std::shared_ptr<Type> makeEnum(const std::string& name);
+    static std::shared_ptr<Type> makeUnion(std::vector<std::shared_ptr<Type>> types);
+    static std::shared_ptr<Type> makeNull();
+    static std::shared_ptr<Type> makeTypeParameter(const std::string& name);
 };
 
 // Type error information
@@ -143,6 +166,21 @@ public:
     void visit(ast::DictExpr& node) override;
     void visit(ast::ListExpr& node) override;
 
+    // Additional visitors (Steps 4-5)
+    void visit(ast::StructDecl& node) override;
+    void visit(ast::StructLiteralExpr& node) override;
+    void visit(ast::EnumDecl& node) override;
+    void visit(ast::InterfaceDecl& node) override;
+    void visit(ast::RuntimeDeclStmt& node) override;
+    void visit(ast::DestructureStmt& node) override;
+    void visit(ast::IfExpr& node) override;
+    void visit(ast::MatchExpr& node) override;
+    void visit(ast::LambdaExpr& node) override;
+    void visit(ast::AwaitExpr& node) override;
+    void visit(ast::YieldExpr& node) override;
+    void visit(ast::RangeExpr& node) override;
+    void visit(ast::InlineCodeExpr& node) override;
+
 private:
     std::shared_ptr<TypeEnvironment> env_;
     std::shared_ptr<Type> current_type_;
@@ -152,6 +190,13 @@ private:
     // Current function return type (for return statement checking)
     std::shared_ptr<Type> current_function_return_type_;
     std::string current_filename_;  // Track current file for symbol locations
+
+    // Struct type registry (maps struct name → field name/type pairs)
+    struct StructTypeInfo {
+        std::string name;
+        std::vector<std::pair<std::string, std::shared_ptr<Type>>> fields;
+    };
+    std::unordered_map<std::string, StructTypeInfo> struct_types_;
 
     // Type inference helpers
     std::shared_ptr<Type> inferBinaryOpType(

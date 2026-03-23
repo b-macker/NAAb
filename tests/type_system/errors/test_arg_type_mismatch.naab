@@ -1,0 +1,8 @@
+// Type error: passing string to int parameter
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+main {
+    add("hello", "world")
+}

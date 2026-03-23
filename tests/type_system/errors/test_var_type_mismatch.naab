@@ -1,0 +1,9 @@
+// Type error: assigning string to int variable
+fn test() -> int {
+    let x: int = "hello"
+    return x
+}
+
+main {
+    test()
+}

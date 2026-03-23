@@ -1,0 +1,11 @@
+// Any escape hatch should work
+fn process(data: any) -> any {
+    return data
+}
+
+main {
+    let x: any = 42
+    let y: any = "hello"
+    print(process(x))
+    print(process(y))
+}

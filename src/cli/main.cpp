@@ -241,6 +241,7 @@ int main(int argc, char** argv) {
     bool global_explain = false;
     bool global_debug = false;
     bool global_no_color = false;
+    bool global_strict_types = false;
     int command_arg_index = 1;  // Index of the actual command/file in argv
 
     while (command_arg_index < argc) {
@@ -271,6 +272,9 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--no-color") {
             global_no_color = true;
+            command_arg_index++;
+        } else if (arg == "--strict-types") {
+            global_strict_types = true;
             command_arg_index++;
         } else if (arg == "--repl") {
             return naab::repl::run(global_no_governance);
@@ -371,6 +375,7 @@ int main(int argc, char** argv) {
         bool governance_override = global_governance_override;
         bool no_governance = global_no_governance;
         bool governance_verbose = global_governance_verbose;
+        bool strict_types = global_strict_types;
         bool governance_record_baselines = false;
         bool governance_check_baselines = false;
         std::string governance_report_json;
@@ -425,6 +430,8 @@ int main(int argc, char** argv) {
                 governance_record_baselines = true;
             } else if (arg == "--governance-check-baselines") {
                 governance_check_baselines = true;
+            } else if (arg == "--strict-types") {
+                strict_types = true;
             } else if (arg.substr(0, 2) == "--") {
                 // Unknown flag — give helpful error instead of treating as filename
                 fmt::print("Error: Unknown flag '{}'\n\n"
@@ -445,7 +452,8 @@ int main(int argc, char** argv) {
                            "    --governance-sarif <path>   Write SARIF governance report\n"
                            "    --governance-junit <path>   Write JUnit governance report\n"
                            "    --governance-record-baselines  Record output baselines\n"
-                           "    --governance-check-baselines   Check baselines (hard enforcement)\n\n"
+                           "    --governance-check-baselines   Check baselines (hard enforcement)\n"
+                           "    --strict-types        Abort on type errors (pre-execution check)\n\n"
                            "  Note: There is no --path flag. NAAb resolves modules relative to\n"
                            "  the script's directory. To use modules from another location,\n"
                            "  place the script in or near the modules directory, or use\n"
@@ -723,6 +731,31 @@ int main(int argc, char** argv) {
             parser.setSource(source, filename);  // Phase 3.1: Set source for AST location tracking
             auto program = parser.parseProgram();
             interpreter.profileEnd("Parsing");
+
+            // Type checking pass (advisory by default, strict with --strict-types)
+            if (strict_types || verbose) {
+                naab::typecheck::TypeChecker type_checker;
+                // Non-owning shared_ptr — type checker only reads the AST
+                auto program_ptr = std::shared_ptr<naab::ast::Program>(program.get(), [](naab::ast::Program*){});
+                auto type_errors = type_checker.check(program_ptr);
+                if (!type_errors.empty()) {
+                    if (strict_types) {
+                        fmt::print(stderr, "Type check failed ({} error{}):\n",
+                            type_errors.size(), type_errors.size() == 1 ? "" : "s");
+                        for (const auto& err : type_errors) {
+                            fmt::print(stderr, "  {}\n", err.toString());
+                        }
+                        fflush(stderr);
+                        _exit(1);
+                    } else if (verbose) {
+                        fmt::print(stderr, "[typecheck] {} warning{}:\n",
+                            type_errors.size(), type_errors.size() == 1 ? "" : "s");
+                        for (const auto& err : type_errors) {
+                            fmt::print(stderr, "  {}\n", err.toString());
+                        }
+                    }
+                }
+            }
 
             // Phase 3.1: Set source code for enhanced error messages
             interpreter.setSourceCode(source, filename);
