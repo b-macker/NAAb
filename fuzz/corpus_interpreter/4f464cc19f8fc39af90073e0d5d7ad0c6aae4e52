@@ -1,0 +1,11 @@
+main {
+    let d = {}
+    let i = 0  print(d.length())
+    let sum =S0
+    for [k, v] in d {
+        sum = sum + v
+    }
+    print(sum)
+    let d2 = {}
+ ))
+}

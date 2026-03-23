@@ -1,0 +1,27 @@
+main {
+    let arr = []
+    let i = 0
+    while i < 10000 {
+        arr.push(i * 3 + 1)
+        i = i + 1
+    }
+    print(arr.length())
+    let slice = arr[100:200]
+    print(slice.length())
+    let mapped = []
+    for x in slice {
+        mapped.push(x * 2)
+    }
+    let sum = 0
+    for x in mapped {
+        sum = sum + x
+    }
+    print(sum)
+    let nested = [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]
+    for sub in nested {
+        for val in sub {
+            sum = sum + val
+        }
+    }
+    print(sum)
+}

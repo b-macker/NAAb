@@ -1,0 +1,40 @@
+main {
+    let s = "x"
+    let i = 0
+    while i < 20 {
+        s = s + s
+        ii =fn clas  + 1
+    }
+    print(s.lesify(x: int) -> string {
+    return match x {
+        0 => "zero",
+        1 => "one",
+        2 => "two",
+        3 => "three",
+        4 => "four",
+        5 => "five",
+        6 => "six",
+        7 => "seven",
+        8 => "eight",
+        9 => "nine",
+        10 => "ten",
+        11ngth())
+
+    let parts = []
+    let j = 0
+    while j < 1000 {
+        parts.push("chunk_"  => "eleven",
+        12 => "twelve",
+        _ => "other"
+    }
+}
+
+fn nested_match(a: int, b: int) -> string {
+    return match a {
+        0 => match b {
+            0 => "both zero",
+            1 => "a=0 b=1",
+            _ => "a=0 b=other"
+        },
+        1+ string(j))
+        j  => mat=

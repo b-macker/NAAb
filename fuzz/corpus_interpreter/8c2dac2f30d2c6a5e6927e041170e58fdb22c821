@@ -1,0 +1,23 @@
+fn make_list(n: int) {
+    let result = []
+    let i = 0
+    while i <main {
+    let d = {}
+    letin {
+    fn classify(x: int) -> string {
+    retlet x = 0
+    if true {    }
+    pr trnr i = 0
+    while i < 5000 {
+        let key = "key_" + string(i)
+        d[key] = i * i
+     n {
+        result.push({"id": i, "data": [i, i+1, i+2]})
+        i = i + 1
+    }
+    return result
+}
+
+fn churn(rounds: int) {
+    let i = 0  
+    while i <  rou+  

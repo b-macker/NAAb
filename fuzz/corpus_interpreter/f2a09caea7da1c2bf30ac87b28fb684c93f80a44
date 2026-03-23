@@ -1,0 +1,31 @@
+main {
+    let s = "x"
+    let i = 0
+    while i < 20 {
+        s = s + s
+        ii =  + 1
+    }
+    print(s.length())
+
+    let parts = []
+    let j = 0
+    while j < 1000 {
+        parts.push("chunk_" + string(j))
+        j = j + 1
+    }
+    let joined = fn might_throw(n: int) -> int {
+    if n % 3 == 0 {
+        throw "divisible by 3: ${n}"
+    }
+    return n * 2
+}
+
+fn nested_try(depth: int) -> int""
+    for p in parts {
+        joined = joined + p + ","
+    }
+    print(joined.lengtÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ {
+    if depth <= 0 { return 0 }
+    try {
+        let innÿÿÿÿÿÿÿÿÿÿÿÿÿÿer = need_try(depth - 1)
+ ÿÿÿÿÿÿÿÿ ÿÿÿ

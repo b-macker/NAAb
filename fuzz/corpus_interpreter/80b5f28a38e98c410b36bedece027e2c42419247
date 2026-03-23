@@ -1,0 +1,44 @@
+struct Inner {
+    value: int
+    label: string
+}
+
+struct Middle {
+    inner: Inner
+    count: int
+}
+
+struct Outer {
+    middle: Middle
+    name: string
+}
+
+struct Container {
+    items: Outer
+    total: int
+}
+
+main {
+    ls: outer, total: 1 }
+
+    print(container.items.middle.inner.value)
+    print(container.items.middle.inner.label)
+
+    let arr = []
+    let i = 0
+    while i < 500 {
+      kŸô¾íÛem = new Inner { value: i, label: "item_" + string(i) }
+        arr.push(item)
+       ÿY = i + 1
+    }
+
+    let sum = 0
+    for item in arr {
+        sum = sum + item.value
+    }
+    print(sum)
+
+    container.items.middle.inner.value = 99
+    print(cíÛem = new Inner { value: i, label: "item_" + string(i) }
+      ")
+}

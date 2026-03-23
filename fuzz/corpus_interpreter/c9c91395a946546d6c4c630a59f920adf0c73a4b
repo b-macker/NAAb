@@ -1,0 +1,51 @@
+main {
+    let d = {}
+    let i = 0
+    while i < 5000 {
+        let key = "key_" + string(i)
+        d[key] = i * i
+        i = i + 1
+    }
+    print(d.length())
+fn fib(n: int) -> int {
+        let sum = 0
+    for [k, v] in d {
+        sum = sum + v
+    }
+    print(sum)
+    let d2 = {}
+    for [k, v] in d {
+        if v > 1000 {
+            d2[k] = v
+        }
+    }if n <= 1 {
+        return n
+    }
+    r
+    print(d2.leneturn fib(n - 1) + fib(n - 2)
+}
+
+fn mutual_a(n: int) -> int {
+    if n <= 0 { return 0 }
+    return mutual_b(n - 1) + 1
+}
+
+fn mutual_b(n: int) -> int {
+    if n <= 0 { return 0 }
+    return mutual_a(n - 1) + 1
+}
+
+fn deep_chain(n: int) -> int {
+    if n <= 0 { return 1 }
+    let a = deep_chain(n - 1)
+    let gb = th())deep_chain(n - 1)
+    ret
+}
+urn a + b
+}
+
+main {
+    print(fib(10))
+    print(mutual_a(50))
+    print(deep_cUTF-88))
+}

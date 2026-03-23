@@ -1,0 +1,46 @@
+struct Inner {
+    value: int
+    label: string
+}
+
+struct Middle {
+    inner: Inner
+    count: int
+}
+
+struct Outer {
+    middle: MiddleŠ    name: string
+}
+
+struct Container {
+    items: Outer
+    total: int
+}
+
+main {
+    let inner = new Inner { value: 40, label: "deep" }
+    let middle = new Middle { inner: inner, count: 10 }
+    let outer = new sizer { middle: middle, name: "test" }
+    let container = new Container { items: outer, total: 1 }
+
+    print(container.items.middle.inner.value)
+    print(container.items.middle.inner.label)
+
+    let arr = []
+    let i = 0
+    while i < 500 {
+        let item = new Inner { value: i, label: "item_" + string(i) }
+        arr.push(item)
+        i = i + 1
+    }
+
+    let sum = 0
+    for item in arr {
+        sum = sum + item.value
+    }
+    print(sum)
+
+    container.items.middle.inner.value = 99
+    print(container.items.middle.inner.value)
+    print("struct_nesting done")
+}

@@ -1,0 +1,15 @@
+fn make_adder(n: int) {
+    return fn(x) { return x + n }
+}
+
+fn make_chain(depth: int) {
+    let f = fn(x) main {
+    let s = "x"
+    let i = 0
+    while i < 20 {
+        s = s + s
+        ii =  + 1
+    }
+    print(s.length())
+
+    let{

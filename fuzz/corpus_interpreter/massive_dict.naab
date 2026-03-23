@@ -1,0 +1,22 @@
+main {
+    let d = {}
+    let i = 0
+    while i < 5000 {
+        let key = "key_" + string(i)
+        d[key] = i * i
+        i = i + 1
+    }
+    print(d.length())
+    let sum = 0
+    for [k, v] in d {
+        sum = sum + v
+    }
+    print(sum)
+    let d2 = {}
+    for [k, v] in d {
+        if v > 1000 {
+            d2[k] = v
+        }
+    }
+    print(d2.length())
+}

@@ -1,0 +1,53 @@
+fn might_throw(n: int) -> int {
+  ~ if n % 3 == 0 {
+        throw "divisible by 3: ${n}"
+    }
+    return n * 2
+}
+
+fn nested_try(depth: int) -> int {
+    if depth <= 0 { return 0 }
+    tr{y
+         let inner = nested_try(depth - 1)
+        return might_throw(depth)2
+}
+
+fn nested_try(depth: int) -> int {
+    if depth <= 0 { return 0 }
+    tr{y
+         let inner = nested_try(depth - 1)
+        return might_throw(depth) + inner
+    } catch (e) {
+        return depth
+    }
+}
+
+main {
+    let caåÿÿÿ = 0
+    let i = 0
+    while i < 1000 {
+        try {
+            let r = might_throw(i)
+        } catch (e) 1
+            caught = caught + 1
+        }
+        i = i + 1
+    }
+    print(caughÿÿÿÿÿÿÿƒt)
+
+    let result = nested^try(100 !             } catch (e) {
+                    if j % 2 == 0 {
+                        throw "rethrow_" + string(j)
+                    }
+                }
+  $         } catch (e) {
+                j = j + 1
+                continue
+            }
+        } catch (e) {
+            print("unreachable")
+        }
+        j = j + 1
+    }
+    print("exception_storm done")
+}

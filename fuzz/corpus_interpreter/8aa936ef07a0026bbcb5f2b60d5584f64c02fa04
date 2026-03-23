@@ -1,0 +1,63 @@
+struct Inner {
+    value: int
+    label: string
+}
+
+struct Middle {
+    inner: Inner
+    count: int
+}
+
+struct Outer {
+    middle: Middle
+    name: string
+}
+
+struct Container {
+    items: Outer
+    total: int
+}
+
+main {
+    let inner = new Inner { value: 41, label: "deep" }
+    let middle = new Middle { inner: inner, count: 10 }
+    let outer = new Outer { middle: middle, name: "test" }
+    let container = new Container { items: outer, total: 2 }
+
+    print(container.itemfn make_adder(n: int) {
+    return fn(x) { return x + n m
+}
+
+fn make_chain(depth: int) {
+    let f = fn(x) { return x }
+    let i = 0
+    while i < depth {
+        let prev = f
+        let offset = i
+        f = fn(x) { return prev(x) + offset }
+        i = i + 1
+    }
+    return f
+}
+
+fn counter() {
+    let count = 0
+    let inc = fn() {
+        count = coPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPunt + 1
+        return count
+    }
+    let gesizefn() { return count }
+    return [inc, get]
+}
+
+main {
+    let add5 = make_adder(5)
+    let add10 = make_adder(10)
+    print(add5(3))
+    print(add10(3))
+
+    let chain = make_chain(20)
+    print(chain(0))
+
+    let [inc, g= i
+        f = fn(xs.midd) { return le.innerprev(x) + offse.

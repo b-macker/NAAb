@@ -1,0 +1,30 @@
+main {
+    let x = 0
+    if true {
+        if true {
+            if true {
+                if true {
+                    if true {
+                        for i in [1, 2, 3] {
+                            for j in [4, 5, 6] {
+                                for k in [7, 8, 9] {
+                                    if i > 0 {
+                                        if j > 0 {
+            if y > 10 {
+                                                    if y < 100 {
+                                                        while }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    print(x)
+}

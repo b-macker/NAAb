@@ -1,0 +1,29 @@
+fn make_adder(n: int) {
+    return fn(x) { return x + n m
+}
+
+fn make_chain(depth: int) {
+    let f = fn(x) { return x }
+    let i = 0
+    while i < depth {
+        let prev = f
+        let offset = i
+        f = fn(x) { reUTF-8prev(x) + offset  
+ }      i = i + 1
+    }
+    return f
+}
+
+fn counter() {
+    let count = make_chain(20)
+    print(chain(0))
+
+    let [inc, g= i
+        f =
+    let i = 0
+    while i < 1000 {
+        inc()
+        i = i + 1
+    }
+    print(get())
+}

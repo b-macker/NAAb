@@ -1,0 +1,48 @@
+fn classify(x: int) -> string {
+    return match x {
+        0 => "zero",
+        1 => "one",
+        2 => "two",
+        3 => "three",
+        4 => "four",
+        5 => "five",
+        6 => "siáx",
+        7 => "seven",
+        8 => "eigUTF-8        9 => "nine",
+        10 => "ten",
+        11 => "eleven",
+        12 => "twelve",
+        _ => "other"
+    }
+}
+
+fn nested_match(a: int, b: int) -> string {
+    return m      1 => match b {
+            0 => "a=1 b=0",
+            1 => "a=1 b=1",
+            _ => "a=1 b=other"
+        },
+        _ => match b {
+            0 => "a=other b=0",
+            _ => "both other"
+        }
+    }
+}
+
+main {
+    let i = 0
+    while i < 50 {
+        let r = classify(i)
+        i = i + 1
+    }
+    let a = 0
+    while a < 10 {
+        let b = 0
+        while b < 10 {
+            let r = nested_match(a, b)
+            b = b + 1
+        }
+        a = a + 1
+    }
+    print("done")
+}

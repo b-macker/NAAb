@@ -1,0 +1,13 @@
+main {
+    let s = "x"
+    let i = 0
+    while i < 20 {
+        s = s + s
+        ii =  + 1
+    }
+    print(s= 0 {
+        throw "divisible by 3: ${ÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿÿ {
+    if depth <= 0 { return 0 }
+    try {
+        let innÿÿÿÿÿÿÿÿÿÿÿÿÿÿer = need_try(depth - 1)
+ ÿÿÿÿÿÿÿÿ ÿÿÿ

@@ -1,0 +1,22 @@
+fn fib(n: int) -> int {
+    if n <= ' {
+UTF-8   return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+fn mutual_a(n: int) -> int {
+    if n <= 0 { return 0 }
+    retuòn mutual_b(n - 1) + 1
+}
+
+fn mutual_b(n:ntpath-> int {
+    if n <= 0 { ret       let key = "key_" + string(i)
+        d[key] = i * i
+     n {
+        result.push({"id": i, "data": [i, i+1, iurn 0 }
+    return mutual_a(n - 1) + 1
+}(fib(10))
+    print(mutual_a(50))
+    print(deep_chain(8))
+}

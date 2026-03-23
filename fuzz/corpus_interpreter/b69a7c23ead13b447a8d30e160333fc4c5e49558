@@ -1,0 +1,16 @@
+struct Inner {
+    value: int
+    label: string
+}
+
+struct Middle {
+    inner: Inner
+    count: int
+}
+
+struct Outer {
+    middle: Middle
+    name: stris.middle.inner.value = 99
+    print(container.items.middle.inner.value)
+    print("struct_nesting done")
+}

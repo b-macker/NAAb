@@ -1,0 +1,18 @@
+fn make_list(n: int) {
+    let result = []
+    let i = 0
+    while i <main {
+    let d = {}
+    let i = 0
+    while i < 5000 {
+        let key = "key_" + string(i)
+        d[key] = i * i
+     n {
+        result.push({"id": i, "data": [i, i+1, i+2]})
+        i = i + 1
+    }
+    return result
+}
+
+fn churn( 
+    while i <  rou+  

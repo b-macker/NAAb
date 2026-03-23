@@ -1,0 +1,38 @@
+fn make_list(n: int) {
+    let result = []
+    let i = 0
+    while i < n {
+        result.push({"id": i, "data": [i, i+1, i+2]})
+        i = i + 1
+    }
+    return result
+}
+
+fn churn(rounds: int) {
+    let i = 0
+    while i < rounds {
+        let temp = make_list(100)
+        let sum = 0
+        for item in temp {
+            sum = sum + item["id"]
+        }
+        i = i + 1
+    }
+}
+
+main {
+    churn(50)
+
+    let big = []
+    let i = 0
+    while i < 5000 {
+        big.push([i, i * 2, i * 3])
+        i = i + 1
+    }
+    let j = 0
+    while j < big.length() {
+        big[j] = 0
+        j = j + 1
+    }
+    print("gc_stress done")
+}

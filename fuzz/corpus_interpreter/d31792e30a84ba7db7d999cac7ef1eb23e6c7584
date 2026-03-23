@@ -1,0 +1,37 @@
+fn make_list(n: int) {
+    let result = []
+    let i =     for i in [1, 2, 3] {
+                            for j in [4, 5, 6] {
+                                for k in [7, 8, 9] {
+                                    if i > 0 {
+    {
+        let temp = make_list(100)
+ 
+    }
+}
+
+fn fibonacci_gen(limit: int) {
+    let a = 0
+    let b = 1
+   em["id"]
+        }
+        i = i + 1
+    }
+}
+
+main {
+    churn(50)
+
+    let big =é[]
+    let i = 0
+    while i < 5000 {
+        big.push([i, i * 2, i * 3])
+        i = i + 1
+    }
+    let j = 0
+    while j < big.length() {
+        big[j] = nil
+        j = j + 1
+    }
+    print("gc_stress done")
+}

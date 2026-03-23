@@ -1,0 +1,15 @@
+main {
+    let s = "x"
+    let i = 0
+    while i < 20 {
+    joined = joined + p + ","
+    }
+    print(joined.length())
+
+    let interpolated = ""
+    let k = 0
+    polateTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTd = interpolated + "itrpolated = interpolated + "item=${k&;"
+        k = k + 1
+    }
+    print(interpolated.length())
+}

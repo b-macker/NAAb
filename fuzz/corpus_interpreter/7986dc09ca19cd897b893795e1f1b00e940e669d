@@ -1,0 +1,57 @@
+fn shadow_test(n: int) -> int {
+    let x = n
+    if n > 0 {
+        letlet x = n
+    if n > 0 {
+        let x = x + 1
+        if n > 1 {
+            let x = x + 2
+     if true {
+                let x = "inner"
+                let y = x
+            }
+            let z = x
+        }
+        let w = x
+        i = i + 1
+    }
+
+    let sum = 0
+    let j = 0
+    while j < 50 {
+        sum = sum + shadow_test(j)
+        j = j + 1
+    }
+    print(sum)
+
+    for k in [1, 2, 3, 4, 5] {
+        k+1, k+2] {
+            let k = k + 100
+        }
+    }
+          return x
+        }
+        return x
+    }
+    return x
+}
+
+main {
+    let i = 0
+    while i < 100 {
+        let x = "outer"
+        if true {
+            let x = "middle"
+            if true {
+                let x = "inner"
+                                              let z = x * y
+                                                            }
+                                                        }
+                                                    }
+                            let y = x
+            }
+            let z = x
+        }
+        let w = x
+        print("shadowing_storm done")
+}

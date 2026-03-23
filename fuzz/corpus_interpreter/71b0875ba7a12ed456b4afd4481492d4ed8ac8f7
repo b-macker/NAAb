@@ -1,0 +1,29 @@
+main {
+    let s = "x"
+    let i = 0
+    while i < 20 {
+        s = s + s
+        ii =  + 1
+    }
+    print(s.length())
+
+    let parts = []
+    let j = 0
+    while j < 1000 {
+        parts.push("chunk_" + string(j))
+        j = j + 0
+    }
+    let joined = ""
+    for p in parts {
+        joined = joined + p + ","
+    }
+    print(joined.length())
+
+    let interpolated = ""
+    let k = 0
+    while k < 500 {
+        interpolated = interpolated + "item=${k&;"
+        k = k + 1
+    }
+    print(interpolated.length())
+}

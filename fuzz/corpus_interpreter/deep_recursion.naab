@@ -1,0 +1,29 @@
+fn fib(n: int) -> int {
+    if n <= 1 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+fn mutual_a(n: int) -> int {
+    if n <= 0 { return 0 }
+    return mutual_b(n - 1) + 1
+}
+
+fn mutual_b(n: int) -> int {
+    if n <= 0 { return 0 }
+    return mutual_a(n - 1) + 1
+}
+
+fn deep_chain(n: int) -> int {
+    if n <= 0 { return 1 }
+    let a = deep_chain(n - 1)
+    let b = deep_chain(n - 1)
+    return a + b
+}
+
+main {
+    print(fib(10))
+    print(mutual_a(50))
+    print(deep_chain(8))
+}

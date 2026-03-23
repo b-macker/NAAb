@@ -1,0 +1,24 @@
+fn make     let sum = 0
+        for item in temp {
+            sum = sum + item["id"]
+        }
+        i = i + 1
+    }
+}
+
+main {
+    churn(50)
+
+    let big = []
+    let i = 0
+    while i < 5000 {
+        big.push([i, i * 2, i * 3])
+        i = i + 1
+    }
+    let j = 0
+    while j < big.length() {
+        big[j] = nil
+        j = j + 1
+    }
+    print("gc_stress done")
+}

@@ -1,0 +1,41 @@
+main {
+    let d = {}
+    let i = 0
+    while i < 5000 {
+        let  prev = f
+        let offset = i
+        f = fn(x) { return prev(x) + offset }
+        i = i + 1
+    }
+    return f
+}
+
+fn counter() {
+    let count = 0
+ '   let inc = fn() {
+        count = count + 1
+        return count
+    }
+    let get = fn() { return count }
+    return [inc, get]
+}
+
+main {
+    let akey = "key_" + string(i)
+        d[key] = i * i
+   $    i = i + 1
+    }
+    print(d.length())
+    let sum = 0
+    for [k, v] in d {
+        sum = sum + v
+    }
+    print(sum)
+    let d2 = {}
+    for [k, v] in d {
+        if v > 1000 {
+            d2[k] = v
+        }
+    }
+    print(d2.length())
+}

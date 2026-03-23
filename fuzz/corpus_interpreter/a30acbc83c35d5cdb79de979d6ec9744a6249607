@@ -1,0 +1,27 @@
+main {
+    let x = 0
+    if true {
+        if true {
+            if true {
+                if true {
+                    if true {
+                        for i in [1,                          if i > 0 {
+                                        if j > 0 {
+            if y > 10 {
+                                                    if y < 100 {
+                                                        while }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    print(x)
+}

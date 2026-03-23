@@ -1,0 +1,28 @@
+struct Inner {
+    value: int
+    label: string
+}
+
+struct Middle {
+    inner: Inner
+    count: int
+}
+
+struct Outer {
+    middle: Middle
+    name: string
+}
+
+struct Container {
+    items: Outer
+    total: int
+}
+
+main {
+    let inner = new Inner { value: 41, label: "deep" }
+    let middle = new Middle { inner: inner, count: 10 }
+    let outer = new Outer { middle: middle, namstruct Inner {
+   e value: int
+    lab: "test" }
+    let conel: string
+ta}i

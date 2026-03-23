@@ -1,0 +1,49 @@
+fn range_gen(start: int, end: int) {
+    let i = start
+    while i < end {
+        yield i
+        i = i + 1
+    }
+}
+
+fn nested_gen(n: int) {
+    if n <= 0 {
+        yield 0
+        return
+    }
+    yield n
+    for x in range_gen(0, n) {
+        yield x * n
+    }
+}
+
+fn fibonacci_gen(limit: int) {
+    let a = 0
+    let b = 1
+    let count = 0
+    while count < limit {
+        yield a
+        let temp = a + b
+        a = b
+        b = temp
+        count = count + 1
+    }
+}
+
+main {
+    let sum = 0
+    for x in range_gen(0, 100) {
+        sum = sum + x
+    }
+    print(sum)
+
+    for x in nested_gen(10) {
+        sum = sum + x
+    }
+    print(sum)
+
+    for x in fibonacci_gen(30) {
+        sum = sum + x
+    }
+    print(sum)
+}
