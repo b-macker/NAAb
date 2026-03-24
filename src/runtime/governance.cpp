@@ -821,6 +821,23 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         loadSimpleCheck("no_hardcoded_urls", rules_.code_quality.no_hardcoded_urls);
         loadSimpleCheck("no_hardcoded_ips", rules_.code_quality.no_hardcoded_ips);
 
+        // semantic_checks
+        if (cq.contains("semantic_checks")) {
+            if (cq["semantic_checks"].is_boolean() || cq["semantic_checks"].is_string()) {
+                auto [en, lv] = parseEnforcementLevel(cq["semantic_checks"]);
+                rules_.code_quality.semantic_checks.enabled = en;
+                rules_.code_quality.semantic_checks.level = lv;
+            } else if (cq["semantic_checks"].is_object()) {
+                auto& sc = cq["semantic_checks"];
+                rules_.code_quality.semantic_checks.enabled = true;
+                if (sc.contains("level")) { auto [en, lv] = parseEnforcementLevel(sc["level"]); rules_.code_quality.semantic_checks.level = lv; }
+                if (sc.contains("check_imports")) rules_.code_quality.semantic_checks.check_imports = sc["check_imports"].get<bool>();
+                if (sc.contains("check_api_signatures")) rules_.code_quality.semantic_checks.check_api_signatures = sc["check_api_signatures"].get<bool>();
+                if (sc.contains("check_shell_syntax")) rules_.code_quality.semantic_checks.check_shell_syntax = sc["check_shell_syntax"].get<bool>();
+                if (sc.contains("check_dangerous_eval")) rules_.code_quality.semantic_checks.check_dangerous_eval = sc["check_dangerous_eval"].get<bool>();
+            }
+        }
+
         // no_pii
         if (cq.contains("no_pii")) {
             if (cq["no_pii"].is_boolean() || cq["no_pii"].is_string()) {
@@ -3841,6 +3858,420 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
     return "";
 }
 
+// ==========================================================================
+// Semantic Checks — targeted validation for Python, JavaScript, Shell
+// ==========================================================================
+
+// Known Python stdlib modules + common third-party
+static const std::unordered_set<std::string> PYTHON_KNOWN_MODULES = {
+    // Python 3.x stdlib
+    "abc", "aifc", "argparse", "array", "ast", "asynchat", "asyncio", "asyncore",
+    "atexit", "audioop", "base64", "bdb", "binascii", "binhex", "bisect",
+    "builtins", "bz2", "calendar", "cgi", "cgitb", "chunk", "cmath", "cmd",
+    "code", "codecs", "codeop", "collections", "colorsys", "compileall",
+    "concurrent", "configparser", "contextlib", "contextvars", "copy", "copyreg",
+    "cProfile", "crypt", "csv", "ctypes", "curses", "dataclasses", "datetime",
+    "dbm", "decimal", "difflib", "dis", "distutils", "doctest", "email",
+    "encodings", "enum", "errno", "faulthandler", "fcntl", "filecmp", "fileinput",
+    "fnmatch", "formatter", "fractions", "ftplib", "functools", "gc", "getopt",
+    "getpass", "gettext", "glob", "grp", "gzip", "hashlib", "heapq", "hmac",
+    "html", "http", "idlelib", "imaplib", "imghdr", "imp", "importlib",
+    "inspect", "io", "ipaddress", "itertools", "json", "keyword", "lib2to3",
+    "linecache", "locale", "logging", "lzma", "mailbox", "mailcap", "marshal",
+    "math", "mimetypes", "mmap", "modulefinder", "multiprocessing", "netrc",
+    "nis", "nntplib", "numbers", "operator", "optparse", "os", "ossaudiodev",
+    "parser", "pathlib", "pdb", "pickle", "pickletools", "pipes", "pkgutil",
+    "platform", "plistlib", "poplib", "posix", "posixpath", "pprint",
+    "profile", "pstats", "pty", "pwd", "py_compile", "pyclbr", "pydoc",
+    "queue", "quopri", "random", "re", "readline", "reprlib", "resource",
+    "rlcompleter", "runpy", "sched", "secrets", "select", "selectors",
+    "shelve", "shlex", "shutil", "signal", "site", "smtpd", "smtplib",
+    "sndhdr", "socket", "socketserver", "sqlite3", "ssl", "stat", "statistics",
+    "string", "stringprep", "struct", "subprocess", "sunau", "symtable",
+    "sys", "sysconfig", "syslog", "tabnanny", "tarfile", "telnetlib", "tempfile",
+    "termios", "test", "textwrap", "threading", "time", "timeit", "tkinter",
+    "token", "tokenize", "tomllib", "trace", "traceback", "tracemalloc",
+    "tty", "turtle", "turtledemo", "types", "typing", "unicodedata",
+    "unittest", "urllib", "uu", "uuid", "venv", "warnings", "wave",
+    "weakref", "webbrowser", "winreg", "winsound", "wsgiref", "xdrlib",
+    "xml", "xmlrpc", "zipapp", "zipfile", "zipimport", "zlib",
+    // Internal/private modules that are valid
+    "_thread", "_io", "_collections", "_functools", "_operator",
+    // Common third-party
+    "numpy", "np", "pandas", "pd", "requests", "flask", "django",
+    "scipy", "matplotlib", "plt", "sklearn", "tensorflow", "tf",
+    "torch", "cv2", "PIL", "pillow", "sqlalchemy", "celery",
+    "pytest", "setuptools", "pip", "yaml", "pyyaml", "toml",
+    "aiohttp", "httpx", "fastapi", "uvicorn", "pydantic",
+    "beautifulsoup4", "bs4", "lxml", "scrapy", "selenium",
+    "boto3", "botocore", "paramiko", "fabric", "click",
+    "rich", "tqdm", "colorama", "pygments", "jinja2",
+    "cryptography", "bcrypt", "jwt", "dotenv", "six", "attrs",
+    "dateutil", "pytz", "tzdata", "chardet", "certifi",
+    "urllib3", "idna", "packaging", "appdirs", "distlib",
+    "virtualenv", "wheel", "twine", "black", "flake8",
+    "mypy", "pylint", "isort", "autopep8", "bandit",
+    "gunicorn", "gevent", "twisted", "tornado",
+    "redis", "pymongo", "psycopg2", "mysql",
+    "networkx", "sympy", "nltk", "spacy",
+};
+
+// Known Node.js builtins + common third-party
+static const std::unordered_set<std::string> JS_KNOWN_MODULES = {
+    // Node.js builtins
+    "assert", "buffer", "child_process", "cluster", "console", "constants",
+    "crypto", "dgram", "dns", "domain", "events", "fs", "http", "http2",
+    "https", "inspector", "module", "net", "os", "path", "perf_hooks",
+    "process", "punycode", "querystring", "readline", "repl", "stream",
+    "string_decoder", "sys", "timers", "tls", "trace_events", "tty",
+    "url", "util", "v8", "vm", "wasi", "worker_threads", "zlib",
+    // Common third-party
+    "express", "lodash", "underscore", "axios", "moment", "dayjs",
+    "react", "vue", "angular", "svelte", "next", "nuxt",
+    "webpack", "babel", "typescript", "esbuild", "vite", "rollup",
+    "jest", "mocha", "chai", "sinon", "supertest", "vitest",
+    "mongoose", "sequelize", "prisma", "knex", "typeorm",
+    "dotenv", "cors", "helmet", "morgan", "winston", "pino",
+    "ws", "redis", "ioredis", "pg", "mysql2",
+    "uuid", "chalk", "commander", "yargs", "inquirer",
+    "cheerio", "puppeteer", "sharp", "multer",
+    "jsonwebtoken", "bcrypt", "bcryptjs", "passport",
+};
+
+// Known shell commands
+static const std::unordered_set<std::string> SHELL_KNOWN_COMMANDS = {
+    // Core POSIX/GNU utilities
+    "echo", "printf", "cat", "head", "tail", "wc", "sort", "uniq",
+    "grep", "egrep", "fgrep", "sed", "awk", "cut", "tr", "paste",
+    "ls", "cp", "mv", "rm", "mkdir", "rmdir", "touch", "stat",
+    "chmod", "chown", "chgrp", "ln", "find", "xargs", "tee",
+    "cd", "pwd", "pushd", "popd", "export", "source", "eval",
+    "read", "test", "expr", "true", "false", "yes", "sleep",
+    "date", "cal", "who", "whoami", "id", "groups", "hostname",
+    "uname", "uptime", "df", "du", "free", "top", "ps", "kill",
+    "bg", "fg", "jobs", "wait", "nohup", "nice", "time", "timeout",
+    "tar", "gzip", "gunzip", "bzip2", "zip", "unzip", "xz",
+    "curl", "wget", "ssh", "scp", "rsync", "nc", "ping", "dig", "nslookup",
+    "git", "docker", "make", "cmake", "python", "python3", "node", "npm", "npx",
+    "pip", "pip3", "ruby", "perl", "java", "javac", "go", "rustc", "cargo",
+    "jq", "yq", "xmllint", "base64", "md5sum", "sha256sum", "shasum",
+    "diff", "patch", "comm", "join", "bc", "dc",
+    "env", "set", "unset", "trap", "shift", "getopts", "local", "return",
+    "if", "then", "else", "elif", "fi", "for", "do", "done", "while",
+    "until", "case", "esac", "select", "in", "function",
+    "break", "continue", "exit",
+    // Common tools
+    "apt", "apt-get", "brew", "yum", "dnf", "pacman", "pkg",
+    "systemctl", "service", "journalctl",
+    "crontab", "at", "screen", "tmux",
+    "vim", "vi", "nano", "less", "more", "man",
+    "which", "whereis", "type", "file", "realpath", "dirname", "basename",
+};
+
+// Shell command typos → suggestions
+static const std::unordered_map<std::string, std::string> SHELL_COMMAND_TYPOS = {
+    {"grpe", "grep"}, {"grrep", "grep"}, {"greep", "grep"},
+    {"awke", "awk"}, {"sde", "sed"}, {"mkdri", "mkdir"},
+    {"chmd", "chmod"}, {"cta", "cat"}, {"ehco", "echo"},
+    {"pritnf", "printf"}, {"pyhton", "python"}, {"pytohn", "python"},
+    {"touhc", "touch"}, {"rn", "rm"}, {"mdkir", "mkdir"},
+    {"whcih", "which"}, {"wegt", "wget"}, {"curlr", "curl"},
+    {"ecoh", "echo"}, {"caht", "cat"}, {"grp", "grep"},
+};
+
+// API signature check structure
+struct SemanticCheck {
+    std::string pattern;
+    std::string message;
+    std::string suggestion;
+};
+
+// Python API misuse patterns
+static const std::vector<SemanticCheck> PYTHON_API_CHECKS = {
+    {"range\\([^)]*\\d+\\.\\d+", "range() only accepts integers, not floats", "Use int(): range(int(n)) or use numpy.arange() for float ranges"},
+    {"re\\.sub\\(\\s*[^,)]+\\s*\\)", "re.sub() needs 3 args: pattern, replacement, string", "re.sub(r'pattern', 'replacement', text)"},
+    {"sorted\\([^)]*,\\s*reverse\\s*[^=\\s)]", "sorted() reverse parameter needs =True or =False", "sorted(lst, reverse=True)"},
+    {"=\\s*\\w+\\.sort\\(\\s*\\)", ".sort() returns None — it sorts in-place, don't assign result", "lst.sort()  # modifies lst in-place; or use sorted(lst)"},
+    {"=\\s*\\w+\\.update\\(", ".update() returns None — it modifies dict in-place, don't assign result", "d.update(other)  # modifies d; or use {**d, **other}"},
+    {"\\.split\\(\\s*\\d+\\s*\\)", "str.split() takes a string delimiter, not an integer", "s.split(',') or s.split() for whitespace"},
+    {"int\\(\\s*\\d+\\s*,\\s*\\d+", "int() with base requires string first arg, not int literal", "int('ff', 16) or int('101', 2)"},
+};
+
+// Python API checks that need RAW code (patterns involve string literals)
+static const std::vector<SemanticCheck> PYTHON_API_RAW_CHECKS = {
+    {"json\\.dumps\\(\\s*\\)", "json.dumps() requires at least 1 argument", "json.dumps(data)"},
+    {"json\\.loads\\(\\s*\\)", "json.loads() requires at least 1 argument", "json.loads(string)"},
+    {"open\\([^)]*['\"](?:rw|wr)['\"]", "Invalid file mode — 'rw'/'wr' don't exist", "Use 'r+' for read/write or 'w+' for write/read: open(f, 'r+')"},
+};
+
+// Python dangerous eval/exec patterns — RAW code (f-string/quote patterns)
+static const std::vector<SemanticCheck> PYTHON_EVAL_RAW_CHECKS = {
+    {"eval\\(\\s*f['\"]", "eval() with f-string is dangerous — user input can execute arbitrary code", "Use ast.literal_eval() for safe parsing of literals"},
+    {"exec\\(\\s*f['\"]", "exec() with f-string is dangerous — arbitrary code execution", "Avoid exec() with dynamic strings; use safer alternatives"},
+};
+
+// Python dangerous eval/exec patterns — CLEANED code (string content stripped)
+static const std::vector<SemanticCheck> PYTHON_EVAL_CHECKS = {
+    {"eval\\([^)]*\\+\\s*\\w", "eval() with string concatenation is dangerous — injection risk", "Use ast.literal_eval() or json.loads() for safe parsing"},
+    {"__import__\\(", "__import__() dynamic import is hard to audit and potentially dangerous", "Use regular import statements for clarity and safety"},
+};
+
+// JavaScript API misuse patterns
+static const std::vector<SemanticCheck> JS_API_CHECKS = {
+    {"Array\\.isArray\\(\\s*\\)", "Array.isArray() requires 1 argument", "Array.isArray(value)"},
+    {"new\\s+Promise\\(\\s*\\)", "new Promise() requires an executor function", "new Promise((resolve, reject) => { ... })"},
+};
+
+// JS API checks needing RAW code (patterns involve string/backtick delimiters)
+static const std::vector<SemanticCheck> JS_API_RAW_CHECKS = {
+    {"JSON\\.parse\\(\\s*\\)", "JSON.parse() requires at least 1 argument", "JSON.parse(jsonString)"},
+    {"JSON\\.stringify\\(\\s*\\)", "JSON.stringify() requires at least 1 argument", "JSON.stringify(data)"},
+    {"set(?:Timeout|Interval)\\(\\s*['\"]", "setTimeout/setInterval with string arg is like eval() — security risk", "Use a function: setTimeout(() => { ... }, ms)"},
+};
+
+// JavaScript dangerous patterns (need RAW code — patterns include backtick/quote chars)
+static const std::vector<SemanticCheck> JS_EVAL_CHECKS = {
+    {"eval\\(\\s*`", "eval() with template literal is dangerous — arbitrary code execution", "Use JSON.parse() for data or a safe parser"},
+    {"\\.innerHTML\\s*=\\s*[^'\"`\\s;]", "Setting innerHTML with a variable risks XSS attacks", "Use .textContent for plain text, or sanitize with DOMPurify"},
+    {"document\\.write\\(", "document.write() is dangerous and can overwrite the entire page", "Use DOM methods: .appendChild(), .textContent, .innerHTML with sanitized input"},
+};
+
+// Shell syntax validation patterns
+static const std::vector<SemanticCheck> SHELL_SYNTAX_CHECKS = {
+    {"\\[(?!\\[)[^ \\t\\n]", "Missing space after '[' in test command", "Use spaces: [ -f file ] not [-f file]"},
+    {"[^ \\t\\n]\\](?!\\])", "Missing space before ']' in test command", "Use spaces: [ -f file ] not [ -f file]"},
+    {"\\[\\s+[^\\]]*\\s+==\\s+", "'==' in [ ] is not POSIX — may fail on some shells", "Use '=' in [ ] or use [[ ]] for '==': [ \"$x\" = \"$y\" ]"},
+    {"\\]\\s+then\\b", "Missing ';' or newline between ']' and 'then'", "if [ condition ]; then  # add semicolon"},
+};
+
+// Shell safety patterns
+static const std::vector<SemanticCheck> SHELL_SAFETY_CHECKS = {
+    {"rm\\s+-[rR]f\\s+/\\s", "rm -rf / is extremely dangerous — will destroy the filesystem", "Never use rm -rf / — specify exact paths"},
+    {"rm\\s+-[rR]f\\s+/\\n", "rm -rf / is extremely dangerous — will destroy the filesystem", "Never use rm -rf / — specify exact paths"},
+    {"rm\\s+-[rR]f\\s+\"?\\$\\{?\\w*\\}?\"?/", "rm -rf with variable — if variable is empty, becomes rm -rf /", "Guard: [ -n \"$VAR\" ] && rm -rf \"$VAR/path\""},
+};
+
+// Unquoted variable check for shell (separate because more complex)
+static const std::vector<SemanticCheck> SHELL_UNQUOTED_VAR_CHECKS = {
+    {"(?:rm|mv|cp)\\s+(?:-[a-zA-Z]+\\s+)*[^\"']*\\$[a-zA-Z_]", "Unquoted variable in rm/mv/cp — empty variable causes unexpected behavior", "Always quote variables: rm \"$file\" not rm $file"},
+};
+
+std::string GovernanceEngine::checkSemanticIssues(
+    const std::string& language, const std::string& code, int line) {
+
+    auto& cfg = rules_.code_quality.semantic_checks;
+    if (!cfg.enabled) return "";
+
+    // Strip strings and comments for pattern matching
+    std::string code_no_strings = stripStringLiterals(code);
+    std::string clean = stripComments(code_no_strings, language);
+
+    // Helper: run a vector of SemanticCheck patterns against a target string
+    auto runChecksOn = [&](const std::vector<SemanticCheck>& checks,
+                           const std::string& target) -> std::string {
+        for (const auto& check : checks) {
+            try {
+                std::regex re(check.pattern, std::regex::ECMAScript);
+                std::smatch match;
+                if (std::regex_search(target, match, re)) {
+                    return enforce("code_quality.semantic_checks", cfg.level,
+                        formatError(cfg.level,
+                            fmt::format("Semantic issue in {} block: {}", language, check.message),
+                            line > 0 ? fmt::format("line {}", line) : "",
+                            "code_quality.semantic_checks",
+                            check.suggestion, "", ""));
+                }
+            } catch (const std::regex_error&) {}
+        }
+        return "";
+    };
+    // Convenience: run against cleaned (string+comment stripped) code
+    auto runChecks = [&](const std::vector<SemanticCheck>& checks) -> std::string {
+        return runChecksOn(checks, clean);
+    };
+    // Run against raw code (for patterns involving string literals like open("rw"), eval(f"..."))
+    auto runChecksRaw = [&](const std::vector<SemanticCheck>& checks) -> std::string {
+        return runChecksOn(checks, code);
+    };
+
+    // === PYTHON ===
+    if (language == "python") {
+        // 1. Import validation
+        if (cfg.check_imports) {
+            try {
+                std::regex import_re("(?:^|\\n)\\s*(?:import\\s+(\\w+)|from\\s+(\\w+)\\s+import)",
+                                     std::regex::ECMAScript);
+                auto begin = std::sregex_iterator(clean.begin(), clean.end(), import_re);
+                auto end_it = std::sregex_iterator();
+                for (auto it = begin; it != end_it; ++it) {
+                    std::string mod = (*it)[1].matched ? (*it)[1].str() : (*it)[2].str();
+                    if (PYTHON_KNOWN_MODULES.find(mod) == PYTHON_KNOWN_MODULES.end()) {
+                        return enforce("code_quality.semantic_checks", cfg.level,
+                            formatError(cfg.level,
+                                fmt::format("Unknown Python module '{}' — verify it's installed", mod),
+                                line > 0 ? fmt::format("line {}", line) : "",
+                                "code_quality.semantic_checks",
+                                "This module is not in Python's stdlib or common packages.\n"
+                                "  If it's a project dependency, ensure it's in requirements.txt.", "", ""));
+                    }
+                }
+            } catch (const std::regex_error&) {}
+        }
+
+        // 2. API signature checks (cleaned code for most, raw for string-literal patterns)
+        if (cfg.check_api_signatures) {
+            std::string err = runChecks(PYTHON_API_CHECKS);
+            if (!err.empty()) return err;
+            // open() mode check needs raw code (mode is a string literal)
+            err = runChecksRaw(PYTHON_API_RAW_CHECKS);
+            if (!err.empty()) return err;
+        }
+
+        // 3. Dangerous eval/exec
+        if (cfg.check_dangerous_eval) {
+            // f-string patterns need raw code (quote chars stripped otherwise)
+            std::string err = runChecksRaw(PYTHON_EVAL_RAW_CHECKS);
+            if (!err.empty()) return err;
+            // Concatenation/__import__ patterns use cleaned code
+            err = runChecks(PYTHON_EVAL_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
+
+    // === JAVASCRIPT ===
+    else if (language == "javascript" || language == "js" || language == "node") {
+        // 1. Import/require validation (RAW code — string literals contain module names)
+        if (cfg.check_imports) {
+            try {
+                // Check require() calls on RAW code (module name is in string)
+                std::regex require_re("require\\s*\\(\\s*['\"]([^'\"]+)['\"]\\s*\\)",
+                                      std::regex::ECMAScript);
+                auto begin = std::sregex_iterator(code.begin(), code.end(), require_re);
+                auto end_it = std::sregex_iterator();
+                for (auto it = begin; it != end_it; ++it) {
+                    std::string mod = (*it)[1].str();
+                    // Strip node: prefix
+                    if (mod.size() > 5 && mod.substr(0, 5) == "node:") mod = mod.substr(5);
+                    // Skip relative imports
+                    if (!mod.empty() && (mod[0] == '.' || mod[0] == '/')) continue;
+                    // Strip subpath: fs/promises → fs
+                    auto slash = mod.find('/');
+                    if (slash != std::string::npos && (mod.empty() || mod[0] != '@'))
+                        mod = mod.substr(0, slash);
+                    if (JS_KNOWN_MODULES.find(mod) == JS_KNOWN_MODULES.end()) {
+                        return enforce("code_quality.semantic_checks", cfg.level,
+                            formatError(cfg.level,
+                                fmt::format("Unknown Node.js module '{}' — verify it's installed", mod),
+                                line > 0 ? fmt::format("line {}", line) : "",
+                                "code_quality.semantic_checks",
+                                "This module is not a Node.js builtin or common package.\n"
+                                "  If it's a project dependency, ensure it's in package.json.", "", ""));
+                    }
+                }
+
+                // Check ES import ... from '...' statements on RAW code
+                std::regex import_re("from\\s+['\"]([^'\"]+)['\"]",
+                                     std::regex::ECMAScript);
+                begin = std::sregex_iterator(code.begin(), code.end(), import_re);
+                for (auto it = begin; it != end_it; ++it) {
+                    std::string mod = (*it)[1].str();
+                    if (mod.size() > 5 && mod.substr(0, 5) == "node:") mod = mod.substr(5);
+                    if (!mod.empty() && (mod[0] == '.' || mod[0] == '/')) continue;
+                    auto slash = mod.find('/');
+                    if (slash != std::string::npos && (mod.empty() || mod[0] != '@'))
+                        mod = mod.substr(0, slash);
+                    if (JS_KNOWN_MODULES.find(mod) == JS_KNOWN_MODULES.end()) {
+                        return enforce("code_quality.semantic_checks", cfg.level,
+                            formatError(cfg.level,
+                                fmt::format("Unknown Node.js module '{}' — verify it's installed", mod),
+                                line > 0 ? fmt::format("line {}", line) : "",
+                                "code_quality.semantic_checks",
+                                "This module is not a Node.js builtin or common package.\n"
+                                "  If it's a project dependency, ensure it's in package.json.", "", ""));
+                    }
+                }
+            } catch (const std::regex_error&) {}
+        }
+
+        // 2. API signature checks (cleaned + raw for string-literal patterns)
+        if (cfg.check_api_signatures) {
+            std::string err = runChecks(JS_API_CHECKS);
+            if (!err.empty()) return err;
+            err = runChecksRaw(JS_API_RAW_CHECKS);
+            if (!err.empty()) return err;
+        }
+
+        // 3. Dangerous patterns (raw code — patterns include backtick/quote chars)
+        if (cfg.check_dangerous_eval) {
+            std::string err = runChecksRaw(JS_EVAL_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
+
+    // === SHELL ===
+    else if (language == "shell" || language == "bash" || language == "sh") {
+        // 1. Syntax validation
+        if (cfg.check_shell_syntax) {
+            std::string err = runChecks(SHELL_SYNTAX_CHECKS);
+            if (!err.empty()) return err;
+        }
+
+        // 2. Command typo detection
+        if (cfg.check_imports) {
+            // Extract first word of each line in the cleaned code
+            std::istringstream stream(clean);
+            std::string cmd_line;
+            while (std::getline(stream, cmd_line)) {
+                // ltrim
+                size_t start = cmd_line.find_first_not_of(" \t");
+                if (start == std::string::npos) continue;
+                std::string trimmed = cmd_line.substr(start);
+                if (trimmed.empty() || trimmed[0] == '#') continue;
+                // Skip variable assignments (VAR=value), pipes, subshells
+                size_t eq_pos = trimmed.find('=');
+                size_t sp_pos = trimmed.find_first_of(" \t");
+                if (eq_pos != std::string::npos && (sp_pos == std::string::npos || eq_pos < sp_pos))
+                    continue;
+                // Skip lines starting with control chars
+                if (trimmed[0] == '|' || trimmed[0] == '&' || trimmed[0] == ';' ||
+                    trimmed[0] == '(' || trimmed[0] == ')' || trimmed[0] == '{' ||
+                    trimmed[0] == '}' || trimmed[0] == '!' || trimmed[0] == '$')
+                    continue;
+                // Extract first word
+                size_t word_end = trimmed.find_first_of(" \t;|&<>()");
+                std::string cmd = (word_end != std::string::npos)
+                    ? trimmed.substr(0, word_end) : trimmed;
+                if (cmd.empty()) continue;
+                // Skip paths (/usr/bin/foo, ./script)
+                if (cmd.find('/') != std::string::npos || cmd.find('.') == 0) continue;
+
+                // Check known typos first
+                auto typo_it = SHELL_COMMAND_TYPOS.find(cmd);
+                if (typo_it != SHELL_COMMAND_TYPOS.end()) {
+                    return enforce("code_quality.semantic_checks", cfg.level,
+                        formatError(cfg.level,
+                            fmt::format("Unknown command '{}' — did you mean '{}'?",
+                                cmd, typo_it->second),
+                            line > 0 ? fmt::format("line {}", line) : "",
+                            "code_quality.semantic_checks",
+                            fmt::format("Replace '{}' with '{}'", cmd, typo_it->second), "", ""));
+                }
+            }
+        }
+
+        // 3. Safety checks
+        if (cfg.check_dangerous_eval) {
+            std::string err = runChecks(SHELL_SAFETY_CHECKS);
+            if (!err.empty()) return err;
+            err = runChecks(SHELL_UNQUOTED_VAR_CHECKS);
+            if (!err.empty()) return err;
+        }
+    }
+
+    recordPass("code_quality.semantic_checks", cfg.level);
+    return "";
+}
+
 // --- Security: Shell Injection ---
 std::string GovernanceEngine::checkShellInjection(const std::string& code, int line) {
     auto& cfg = rules_.restrictions.shell_injection;
@@ -4362,6 +4793,8 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkIncompleteLogic(stripped, line);
     if (!err.empty()) return err;
     err = checkHallucinatedApis(lang, code, line);  // Has its own stripping
+    if (!err.empty()) return err;
+    err = checkSemanticIssues(lang, code, line);  // Has its own stripping
     if (!err.empty()) return err;
 
     // NOTE: Complexity floor intentionally NOT applied to polyglot blocks.

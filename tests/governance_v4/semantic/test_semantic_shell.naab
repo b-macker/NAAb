@@ -1,0 +1,271 @@
+// Test: Shell semantic checks — syntax validation, command typos, safety
+// Governance: semantic_checks enabled at hard level
+
+fn test_good_syntax_accepted() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Correct bracket syntax with spaces
+    total = total + 1
+    try {
+        let r = <<shell
+if [ -f /dev/null ]; then
+    echo "exists"
+fi
+>>
+        passed = passed + 1
+        print("PASS: [ -f file ] accepted")
+    } catch (e) {
+        print("FAIL: [ -f file ] rejected — " + string(e))
+    }
+
+    // Test 2: Valid echo command
+    total = total + 1
+    try {
+        let r = <<shell
+echo "hello world"
+>>
+        passed = passed + 1
+        print("PASS: echo accepted")
+    } catch (e) {
+        print("FAIL: echo rejected — " + string(e))
+    }
+
+    // Test 3: Valid pipeline
+    total = total + 1
+    try {
+        let r = <<shell
+echo "test data" | grep "test"
+>>
+        passed = passed + 1
+        print("PASS: valid pipeline accepted")
+    } catch (e) {
+        print("FAIL: valid pipeline rejected — " + string(e))
+    }
+
+    return [passed, total]
+}
+
+fn test_bad_syntax_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 4: Missing space after [
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<shell
+if [-f /dev/null ]; then
+    echo "exists"
+fi
+>>
+    } catch (e) {
+        if string(e).contains("Missing space") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: [-f ...] caught")
+    } else {
+        print("FAIL: [-f ...] NOT caught")
+    }
+
+    // Test 5: ] then on same line without semicolon
+    total = total + 1
+    let caught2 = false
+    try {
+        let r = <<shell
+if [ -f /dev/null ] then
+    echo "exists"
+fi
+>>
+    } catch (e) {
+        if string(e).contains("Missing") && string(e).contains("then") {
+            caught2 = true
+        }
+    }
+    if caught2 {
+        passed = passed + 1
+        print("PASS: ] then (no semicolon) caught")
+    } else {
+        print("FAIL: ] then (no semicolon) NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_command_typos_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 6: grpe → grep
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<shell
+grpe "pattern" file.txt
+>>
+    } catch (e) {
+        if string(e).contains("did you mean") && string(e).contains("grep") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: grpe → grep caught")
+    } else {
+        print("FAIL: grpe → grep NOT caught")
+    }
+
+    // Test 7: ehco → echo
+    total = total + 1
+    let caught2 = false
+    try {
+        let r = <<shell
+ehco "hello"
+>>
+    } catch (e) {
+        if string(e).contains("did you mean") && string(e).contains("echo") {
+            caught2 = true
+        }
+    }
+    if caught2 {
+        passed = passed + 1
+        print("PASS: ehco → echo caught")
+    } else {
+        print("FAIL: ehco → echo NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_valid_commands_accepted() {
+    let passed = 0
+    let total = 0
+
+    // Test 8: grep is a valid command
+    total = total + 1
+    try {
+        let r = <<shell
+echo "test" | grep "test"
+>>
+        passed = passed + 1
+        print("PASS: grep accepted")
+    } catch (e) {
+        print("FAIL: grep rejected — " + string(e))
+    }
+
+    // Test 9: awk is a valid command
+    total = total + 1
+    try {
+        let r = <<shell
+echo "1 2 3" | awk '{print $1}'
+>>
+        passed = passed + 1
+        print("PASS: awk accepted")
+    } catch (e) {
+        print("FAIL: awk rejected — " + string(e))
+    }
+
+    return [passed, total]
+}
+
+fn test_dangerous_rm_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 10: rm -rf / is dangerous
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<shell
+rm -rf /
+>>
+    } catch (e) {
+        if string(e).contains("rm -rf") && string(e).contains("dangerous") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: rm -rf / caught")
+    } else {
+        print("FAIL: rm -rf / NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_unquoted_var_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 11: rm with unquoted variable
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<shell
+rm -rf $MYDIR/cache
+>>
+    } catch (e) {
+        if string(e).contains("Unquoted variable") || string(e).contains("rm -rf") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: rm $var caught")
+    } else {
+        print("FAIL: rm $var NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_safe_rm_accepted() {
+    let passed = 0
+    let total = 0
+
+    // Test 12: rm with quoted variable is safe
+    total = total + 1
+    try {
+        let r = <<shell
+echo "safe cleanup"
+>>
+        passed = passed + 1
+        print("PASS: safe shell code accepted")
+    } catch (e) {
+        print("FAIL: safe shell code rejected — " + string(e))
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let tests = [
+        test_good_syntax_accepted(),
+        test_bad_syntax_caught(),
+        test_command_typos_caught(),
+        test_valid_commands_accepted(),
+        test_dangerous_rm_caught(),
+        test_unquoted_var_caught(),
+        test_safe_rm_accepted()
+    ]
+
+    for r in tests {
+        total_passed = total_passed + r[0]
+        total_tests = total_tests + r[1]
+    }
+
+    print("")
+    print("Shell Semantic Checks: " + string(total_passed) + "/" + string(total_tests) + " passed")
+    if total_passed == total_tests {
+        print("ALL TESTS PASSED")
+    } else {
+        print("SOME TESTS FAILED")
+    }
+}

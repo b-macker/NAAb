@@ -691,6 +691,15 @@ struct PolyglotTryCatchConfig {
     int max_entries = 3;         // Max functions to list in grouped output
 };
 
+struct SemanticChecksConfig {
+    bool enabled = false;
+    EnforcementLevel level = EnforcementLevel::ADVISORY;
+    bool check_imports = true;           // Validate imports against known modules
+    bool check_api_signatures = true;    // Validate common API call patterns
+    bool check_shell_syntax = true;      // Shell-specific syntax validation
+    bool check_dangerous_eval = true;    // eval/exec with dynamic strings
+};
+
 struct CodeQualityConfig {
     NoSecretsConfig no_secrets;
     NoPlaceholdersConfig no_placeholders;
@@ -715,6 +724,7 @@ struct CodeQualityConfig {
     ComplexityFloorConfig complexity_floor;
     DuplicateCallsConfig duplicate_calls;
     PolyglotTryCatchConfig polyglot_try_catch;
+    SemanticChecksConfig semantic_checks;
 };
 
 // ============================================================================
@@ -1330,6 +1340,8 @@ public:
     std::string checkIncompleteLogic(const std::string& code, int line = 0);
     std::string checkHallucinatedApis(const std::string& language,
                                        const std::string& code, int line = 0);
+    std::string checkSemanticIssues(const std::string& language,
+                                     const std::string& code, int line = 0);
 
     // Security checks
     std::string checkShellInjection(const std::string& code, int line = 0);

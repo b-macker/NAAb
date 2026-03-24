@@ -1,0 +1,319 @@
+// Test: JavaScript semantic checks — import validation, API signatures, dangerous patterns
+// Governance: semantic_checks enabled at hard level
+// Note: NAAb's JS executor may not support require() — tests check that governance
+// does NOT block known modules (runtime errors are acceptable/expected).
+
+fn test_known_requires_accepted() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: fs is a known Node builtin — governance should NOT block
+    total = total + 1
+    try {
+        let r = <<javascript
+const fs = require('fs');
+typeof fs
+>>
+        passed = passed + 1
+        print("PASS: require('fs') accepted by governance")
+    } catch (e) {
+        // If error is semantic/governance, that's a FAIL
+        // If error is runtime (require not defined), governance accepted it — PASS
+        if string(e).contains("Unknown Node.js module") {
+            print("FAIL: require('fs') blocked by governance")
+        } else {
+            passed = passed + 1
+            print("PASS: require('fs') accepted by governance (runtime error expected)")
+        }
+    }
+
+    // Test 2: path is a known Node builtin
+    total = total + 1
+    try {
+        let r = <<javascript
+const path = require('path');
+path.join('a', 'b')
+>>
+        passed = passed + 1
+        print("PASS: require('path') accepted")
+    } catch (e) {
+        if string(e).contains("Unknown Node.js module") {
+            print("FAIL: require('path') blocked by governance")
+        } else {
+            passed = passed + 1
+            print("PASS: require('path') accepted (runtime error expected)")
+        }
+    }
+
+    // Test 3: crypto is a known Node builtin
+    total = total + 1
+    try {
+        let r = <<javascript
+const crypto = require('crypto');
+typeof crypto
+>>
+        passed = passed + 1
+        print("PASS: require('crypto') accepted")
+    } catch (e) {
+        if string(e).contains("Unknown Node.js module") {
+            print("FAIL: require('crypto') blocked by governance")
+        } else {
+            passed = passed + 1
+            print("PASS: require('crypto') accepted (runtime error expected)")
+        }
+    }
+
+    // Test 4: express is a known third-party module
+    total = total + 1
+    try {
+        let r = <<javascript
+const express = require('express');
+typeof express
+>>
+        passed = passed + 1
+        print("PASS: require('express') accepted")
+    } catch (e) {
+        if string(e).contains("Unknown Node.js module") {
+            print("FAIL: require('express') blocked by governance")
+        } else {
+            passed = passed + 1
+            print("PASS: require('express') accepted (runtime error expected)")
+        }
+    }
+
+    return [passed, total]
+}
+
+fn test_unknown_requires_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 5: fake_package should be caught by governance
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<javascript
+const fake = require('fake_package');
+fake.run()
+>>
+    } catch (e) {
+        if string(e).contains("Unknown Node.js module") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: require('fake_package') caught")
+    } else {
+        print("FAIL: require('fake_package') NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_api_misuse_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 6: JSON.parse() with no args
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<javascript
+JSON.parse()
+>>
+    } catch (e) {
+        if string(e).contains("JSON.parse()") && string(e).contains("argument") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: JSON.parse() no-arg caught")
+    } else {
+        print("FAIL: JSON.parse() no-arg NOT caught")
+    }
+
+    // Test 7: setTimeout with string
+    total = total + 1
+    let caught2 = false
+    try {
+        let r = <<javascript
+setTimeout("alert('hi')", 1000)
+>>
+    } catch (e) {
+        if string(e).contains("setTimeout") && string(e).contains("eval") {
+            caught2 = true
+        }
+    }
+    if caught2 {
+        passed = passed + 1
+        print("PASS: setTimeout('string') caught")
+    } else {
+        print("FAIL: setTimeout('string') NOT caught")
+    }
+
+    // Test 8: new Promise() with no args
+    total = total + 1
+    let caught3 = false
+    try {
+        let r = <<javascript
+new Promise()
+>>
+    } catch (e) {
+        if string(e).contains("new Promise()") && string(e).contains("executor") {
+            caught3 = true
+        }
+    }
+    if caught3 {
+        passed = passed + 1
+        print("PASS: new Promise() no-arg caught")
+    } else {
+        print("FAIL: new Promise() no-arg NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_correct_api_accepted() {
+    let passed = 0
+    let total = 0
+
+    // Test 9: JSON.parse(str) is correct — should NOT be caught
+    total = total + 1
+    try {
+        let r = <<javascript
+JSON.parse('{"a":1}')
+>>
+        passed = passed + 1
+        print("PASS: JSON.parse(str) accepted")
+    } catch (e) {
+        if string(e).contains("JSON.parse()") && string(e).contains("argument") {
+            print("FAIL: JSON.parse(str) false positive")
+        } else {
+            passed = passed + 1
+            print("PASS: JSON.parse(str) accepted (other error)")
+        }
+    }
+
+    // Test 10: Clean JS code
+    total = total + 1
+    try {
+        let r = <<javascript
+const x = 42;
+x
+>>
+        passed = passed + 1
+        print("PASS: clean JS code accepted")
+    } catch (e) {
+        print("FAIL: clean JS code rejected — " + string(e))
+    }
+
+    return [passed, total]
+}
+
+fn test_dangerous_patterns_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 11: eval with template literal
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<javascript
+const x = "1+1";
+eval(`${x}`)
+>>
+    } catch (e) {
+        if string(e).contains("eval()") && string(e).contains("dangerous") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: eval(`...`) caught")
+    } else {
+        print("FAIL: eval(`...`) NOT caught")
+    }
+
+    // Test 12: document.write
+    total = total + 1
+    let caught2 = false
+    try {
+        let r = <<javascript
+document.write("hello")
+>>
+    } catch (e) {
+        if string(e).contains("document.write") {
+            caught2 = true
+        }
+    }
+    if caught2 {
+        passed = passed + 1
+        print("PASS: document.write() caught")
+    } else {
+        print("FAIL: document.write() NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_safe_patterns_accepted() {
+    let passed = 0
+    let total = 0
+
+    // Test 13: Clean code without dangerous patterns
+    total = total + 1
+    try {
+        let r = <<javascript
+const x = 42;
+x
+>>
+        passed = passed + 1
+        print("PASS: safe JS patterns accepted")
+    } catch (e) {
+        print("FAIL: safe JS patterns rejected — " + string(e))
+    }
+
+    // Test 14: Code without imports
+    total = total + 1
+    try {
+        let r = <<javascript
+const x = 100;
+x
+>>
+        passed = passed + 1
+        print("PASS: clean code without imports accepted")
+    } catch (e) {
+        print("FAIL: clean code rejected — " + string(e))
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let tests = [
+        test_known_requires_accepted(),
+        test_unknown_requires_caught(),
+        test_api_misuse_caught(),
+        test_correct_api_accepted(),
+        test_dangerous_patterns_caught(),
+        test_safe_patterns_accepted()
+    ]
+
+    for r in tests {
+        total_passed = total_passed + r[0]
+        total_tests = total_tests + r[1]
+    }
+
+    print("")
+    print("JavaScript Semantic Checks: " + string(total_passed) + "/" + string(total_tests) + " passed")
+    if total_passed == total_tests {
+        print("ALL TESTS PASSED")
+    } else {
+        print("SOME TESTS FAILED")
+    }
+}

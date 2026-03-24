@@ -1,0 +1,21 @@
+{
+    "version": "4.0",
+    "description": "Semantic checks for Python, JS, Shell polyglot blocks",
+    "languages": {
+        "allowed": ["python", "javascript", "shell"]
+    },
+    "capabilities": {
+        "network": false,
+        "filesystem": "read"
+    },
+    "code_quality": {
+        "semantic_checks": {
+            "enabled": true,
+            "level": "hard",
+            "check_imports": true,
+            "check_api_signatures": true,
+            "check_shell_syntax": true,
+            "check_dangerous_eval": true
+        }
+    }
+}

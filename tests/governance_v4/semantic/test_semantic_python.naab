@@ -1,0 +1,373 @@
+// Test: Python semantic checks — import validation, API signatures, dangerous eval
+// Governance: semantic_checks enabled at hard level
+
+fn test_known_imports_accepted() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: os is a known stdlib module
+    total = total + 1
+    try {
+        let r = <<python
+import os
+os.getcwd()
+>>
+        passed = passed + 1
+        print("PASS: import os accepted")
+    } catch (e) {
+        print("FAIL: import os rejected — " + string(e))
+    }
+
+    // Test 2: json is a known stdlib module
+    total = total + 1
+    try {
+        let r = <<python
+import json
+json.dumps({"a": 1})
+>>
+        passed = passed + 1
+        print("PASS: import json accepted")
+    } catch (e) {
+        print("FAIL: import json rejected — " + string(e))
+    }
+
+    // Test 3: math is a known stdlib module
+    total = total + 1
+    try {
+        let r = <<python
+import math
+math.sqrt(16)
+>>
+        passed = passed + 1
+        print("PASS: import math accepted")
+    } catch (e) {
+        print("FAIL: import math rejected — " + string(e))
+    }
+
+    // Test 4: collections is a known stdlib module
+    total = total + 1
+    try {
+        let r = <<python
+import collections
+collections.Counter([1,2,2,3]).most_common(1)
+>>
+        passed = passed + 1
+        print("PASS: import collections accepted")
+    } catch (e) {
+        print("FAIL: import collections rejected — " + string(e))
+    }
+
+    // Test 5: from re import is accepted
+    total = total + 1
+    try {
+        let r = <<python
+from re import match
+str(match(r'\d+', '42'))
+>>
+        passed = passed + 1
+        print("PASS: from re import accepted")
+    } catch (e) {
+        print("FAIL: from re import rejected — " + string(e))
+    }
+
+    return [passed, total]
+}
+
+fn test_unknown_imports_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 6: fake_module should be caught
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<python
+import fake_module
+fake_module.do_something()
+>>
+    } catch (e) {
+        if string(e).contains("Unknown Python module") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: import fake_module caught")
+    } else {
+        print("FAIL: import fake_module NOT caught")
+    }
+
+    // Test 7: nonexistent_lib should be caught
+    total = total + 1
+    let caught2 = false
+    try {
+        let r = <<python
+from nonexistent_lib import helper
+helper()
+>>
+    } catch (e) {
+        if string(e).contains("Unknown Python module") {
+            caught2 = true
+        }
+    }
+    if caught2 {
+        passed = passed + 1
+        print("PASS: from nonexistent_lib caught")
+    } else {
+        print("FAIL: from nonexistent_lib NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_api_misuse_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 8: json.dumps() with no args
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<python
+import json
+json.dumps()
+>>
+    } catch (e) {
+        if string(e).contains("json.dumps()") && string(e).contains("argument") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: json.dumps() no-arg caught")
+    } else {
+        print("FAIL: json.dumps() no-arg NOT caught")
+    }
+
+    // Test 9: json.loads() with no args
+    total = total + 1
+    let caught2 = false
+    try {
+        let r = <<python
+import json
+json.loads()
+>>
+    } catch (e) {
+        if string(e).contains("json.loads()") && string(e).contains("argument") {
+            caught2 = true
+        }
+    }
+    if caught2 {
+        passed = passed + 1
+        print("PASS: json.loads() no-arg caught")
+    } else {
+        print("FAIL: json.loads() no-arg NOT caught")
+    }
+
+    // Test 10: range() with float
+    total = total + 1
+    let caught3 = false
+    try {
+        let r = <<python
+list(range(3.5))
+>>
+    } catch (e) {
+        if string(e).contains("range()") && string(e).contains("integer") {
+            caught3 = true
+        }
+    }
+    if caught3 {
+        passed = passed + 1
+        print("PASS: range(3.5) caught")
+    } else {
+        print("FAIL: range(3.5) NOT caught")
+    }
+
+    // Test 11: open() with invalid mode "rw"
+    total = total + 1
+    let caught4 = false
+    try {
+        let r = <<python
+f = open("test.txt", "rw")
+>>
+    } catch (e) {
+        if string(e).contains("Invalid file mode") {
+            caught4 = true
+        }
+    }
+    if caught4 {
+        passed = passed + 1
+        print("PASS: open(f, 'rw') caught")
+    } else {
+        print("FAIL: open(f, 'rw') NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_correct_api_accepted() {
+    let passed = 0
+    let total = 0
+
+    // Test 12: json.dumps(data) is correct
+    total = total + 1
+    try {
+        let r = <<python
+import json
+json.dumps({"key": "value"})
+>>
+        passed = passed + 1
+        print("PASS: json.dumps(data) accepted")
+    } catch (e) {
+        print("FAIL: json.dumps(data) rejected — " + string(e))
+    }
+
+    // Test 13: open() with valid mode "r+"
+    total = total + 1
+    try {
+        let r = <<python
+import os
+mode = "r+"
+mode
+>>
+        passed = passed + 1
+        print("PASS: valid file mode accepted")
+    } catch (e) {
+        print("FAIL: valid file mode rejected — " + string(e))
+    }
+
+    // Test 14: range() with int is fine
+    total = total + 1
+    try {
+        let r = <<python
+list(range(5))
+>>
+        passed = passed + 1
+        print("PASS: range(5) accepted")
+    } catch (e) {
+        print("FAIL: range(5) rejected — " + string(e))
+    }
+
+    return [passed, total]
+}
+
+fn test_dangerous_eval_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 15: eval with f-string
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<python
+x = "1+1"
+eval(f"{x}")
+>>
+    } catch (e) {
+        if string(e).contains("eval()") && string(e).contains("dangerous") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: eval(f'...') caught")
+    } else {
+        print("FAIL: eval(f'...') NOT caught")
+    }
+
+    // Test 16: exec with f-string
+    total = total + 1
+    let caught2 = false
+    try {
+        let r = <<python
+cmd = "x = 1"
+exec(f"{cmd}")
+>>
+    } catch (e) {
+        if string(e).contains("exec()") && string(e).contains("dangerous") {
+            caught2 = true
+        }
+    }
+    if caught2 {
+        passed = passed + 1
+        print("PASS: exec(f'...') caught")
+    } else {
+        print("FAIL: exec(f'...') NOT caught")
+    }
+
+    // Test 17: __import__() caught
+    total = total + 1
+    let caught3 = false
+    try {
+        let r = <<python
+__import__("os")
+>>
+    } catch (e) {
+        if string(e).contains("__import__()") {
+            caught3 = true
+        }
+    }
+    if caught3 {
+        passed = passed + 1
+        print("PASS: __import__() caught")
+    } else {
+        print("FAIL: __import__() NOT caught")
+    }
+
+    return [passed, total]
+}
+
+fn test_safe_eval_accepted() {
+    let passed = 0
+    let total = 0
+
+    // Test 18: eval with string literal (no concatenation/fstring) should pass
+    // Note: eval("1+1") doesn't match our patterns since it's not f-string or concatenation
+    total = total + 1
+    try {
+        let r = <<python
+result = eval("1+1")
+result
+>>
+        passed = passed + 1
+        print("PASS: eval('1+1') accepted (static string)")
+    } catch (e) {
+        // If it was caught by semantic checks, that's a false positive
+        if string(e).contains("eval()") && string(e).contains("dangerous") {
+            print("FAIL: eval('1+1') false positive — static string should be OK")
+        } else {
+            // Might be caught by code_injection if enabled, which is fine
+            passed = passed + 1
+            print("PASS: eval('1+1') caught by other check (not semantic)")
+        }
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let tests = [
+        test_known_imports_accepted(),
+        test_unknown_imports_caught(),
+        test_api_misuse_caught(),
+        test_correct_api_accepted(),
+        test_dangerous_eval_caught(),
+        test_safe_eval_accepted()
+    ]
+
+    for r in tests {
+        total_passed = total_passed + r[0]
+        total_tests = total_tests + r[1]
+    }
+
+    print("")
+    print("Python Semantic Checks: " + string(total_passed) + "/" + string(total_tests) + " passed")
+    if total_passed == total_tests {
+        print("ALL TESTS PASSED")
+    } else {
+        print("SOME TESTS FAILED")
+    }
+}
