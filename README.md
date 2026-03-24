@@ -39,6 +39,26 @@ Error: Hallucinated API in python block:
 
 ---
 
+## See It In Action
+
+<p align="center">
+  <img src="demo/demo.svg" alt="NAAb Governance Demo — 7 scenes catching AI mistakes" width="800">
+</p>
+
+| Scene | AI Mistake | Governance Response |
+|-------|-----------|-------------------|
+| 1 | `.push()` in Python | Blocked — use `.append()` |
+| 2 | `import fake_ai_toolkit` | Blocked — unknown module |
+| 3 | `fn validate() { return true }` | Blocked — stub function |
+| 4 | Hardcoded `sk-proj-...` API key | Blocked — secret detected |
+| 5 | Empty `catch (e) { }` | Blocked — incomplete logic |
+| 6 | `env.get()` → shell unsanitized | Blocked — taint violation |
+| 7 | All issues fixed | Passes clean |
+
+Run it yourself: `bash demo/governance_demo.sh` | Record: `bash demo/governance_demo.sh --record`
+
+---
+
 ## The Problem: AI Code Drift
 
 AI models generate code that looks right but isn't. Every session starts fresh — no memory of your security rules, naming conventions, or architecture decisions:
@@ -92,32 +112,6 @@ main {
     print("Hello, " + name + "!")
 }
 ```
-
----
-
-## See It In Action
-
-<p align="center">
-  <img src="demo/demo.svg" alt="NAAb Governance Demo — 7 scenes catching AI mistakes" width="800">
-</p>
-
-Run it yourself:
-
-```bash
-bash demo/governance_demo.sh
-```
-
-| Scene | AI Mistake | Governance Response |
-|-------|-----------|-------------------|
-| 1 | `.push()` in Python | Blocked — use `.append()` |
-| 2 | `import fake_ai_toolkit` | Blocked — unknown module |
-| 3 | `fn validate() { return true }` | Blocked — stub function |
-| 4 | Hardcoded `sk-proj-...` API key | Blocked — secret detected |
-| 5 | Empty `catch (e) { }` | Blocked — incomplete logic |
-| 6 | `env.get()` → shell unsanitized | Blocked — taint violation |
-| 7 | All issues fixed | Passes clean |
-
-See [`demo/`](demo/) for all files. Record your own: `bash demo/governance_demo.sh --record`
 
 ---
 
