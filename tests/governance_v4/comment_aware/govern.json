@@ -1,0 +1,18 @@
+{
+    "version": "4.0",
+    "description": "Comment-aware hallucination detection tests",
+    "languages": {
+        "allowed": ["python", "javascript", "shell"]
+    },
+    "capabilities": {
+        "network": false,
+        "filesystem": "read"
+    },
+    "code_quality": {
+        "no_hallucinated_apis": {
+            "enabled": true,
+            "level": "hard",
+            "check_cross_language": true
+        }
+    }
+}

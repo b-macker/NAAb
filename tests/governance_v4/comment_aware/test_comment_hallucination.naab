@@ -1,0 +1,168 @@
+// Test: Comment-aware hallucination detection
+// Comments in the correct language should NOT trigger false positives.
+// Wrong-language comments SHOULD still be detected.
+
+fn test_python_comments_no_false_positive() {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Python # comment mentioning JS-like things should NOT trigger
+    total = total + 1
+    let r1 = <<python
+# This uses console.log style but it's just a comment
+# TODO: use append later
+x = 42
+x
+>>
+    if r1 == 42 {
+        passed = passed + 1
+        print("PASS: Python # comment with JS-like words not flagged")
+    } else {
+        print("FAIL: Python # comment triggered false positive")
+    }
+
+    // Test 2: Python code with # comment mentioning .push() (JS method)
+    total = total + 1
+    let r2 = <<python
+# arr.push(item) — reminder: use .append() in Python
+result = [1, 2, 3]
+len(result)
+>>
+    if r2 == 3 {
+        passed = passed + 1
+        print("PASS: Python # comment mentioning .push() not flagged")
+    } else {
+        print("FAIL: Python # comment mentioning .push() triggered")
+    }
+
+    return [passed, total]
+}
+
+fn test_shell_comments_no_false_positive() {
+    let passed = 0
+    let total = 0
+
+    // Test 3: Shell # comment mentioning Python things should NOT trigger
+    total = total + 1
+    let r1 = <<shell
+# This is like print() in Python but we use echo
+# def something — just a note
+echo "hello"
+>>
+    if string(r1).contains("hello") {
+        passed = passed + 1
+        print("PASS: Shell # comment with Python-like words not flagged")
+    } else {
+        print("FAIL: Shell # comment triggered false positive")
+    }
+
+    return [passed, total]
+}
+
+fn test_js_comments_no_false_positive() {
+    let passed = 0
+    let total = 0
+
+    // Test 4: JS // comment mentioning Python things should NOT trigger
+    total = total + 1
+    let r1 = <<javascript
+// This is like len() in Python but we use .length
+// elif is not valid here, use else if
+const x = [1, 2, 3];
+x.length
+>>
+    if r1 == 3 {
+        passed = passed + 1
+        print("PASS: JS // comment with Python-like words not flagged")
+    } else {
+        print("FAIL: JS // comment triggered false positive")
+    }
+
+    // Test 5: JS /* block comment */ mentioning Python things
+    total = total + 1
+    let r2 = <<javascript
+/* This is like print() in Python
+   and def is used there too
+   also True and False */
+const y = true;
+y
+>>
+    if r2 == true {
+        passed = passed + 1
+        print("PASS: JS block comment with Python-like words not flagged")
+    } else {
+        print("FAIL: JS block comment triggered false positive")
+    }
+
+    return [passed, total]
+}
+
+fn test_actual_hallucinations_still_caught() {
+    let passed = 0
+    let total = 0
+
+    // Test 6: Actual Python hallucination (console.log in code, not comment) should still be caught
+    total = total + 1
+    let caught = false
+    try {
+        let r = <<python
+console.log("hello")
+>>
+    } catch (e) {
+        if string(e).contains("allucin") || string(e).contains("console.log") {
+            caught = true
+        }
+    }
+    if caught {
+        passed = passed + 1
+        print("PASS: console.log() in Python code still caught")
+    } else {
+        print("FAIL: console.log() in Python code NOT caught")
+    }
+
+    // Test 7: Actual JS hallucination (print() in code, not comment)
+    total = total + 1
+    let caught2 = false
+    try {
+        let r = <<javascript
+print("hello")
+>>
+    } catch (e) {
+        if string(e).contains("allucin") || string(e).contains("print()") {
+            caught2 = true
+        }
+    }
+    if caught2 {
+        passed = passed + 1
+        print("PASS: print() in JS code still caught")
+    } else {
+        print("FAIL: print() in JS code NOT caught")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let tests = [
+        test_python_comments_no_false_positive(),
+        test_shell_comments_no_false_positive(),
+        test_js_comments_no_false_positive(),
+        test_actual_hallucinations_still_caught()
+    ]
+
+    for r in tests {
+        total_passed = total_passed + r[0]
+        total_tests = total_tests + r[1]
+    }
+
+    print("")
+    print("Comment-Aware Hallucination: " + string(total_passed) + "/" + string(total_tests) + " passed")
+    if total_passed == total_tests {
+        print("ALL TESTS PASSED")
+    } else {
+        print("SOME TESTS FAILED")
+    }
+}

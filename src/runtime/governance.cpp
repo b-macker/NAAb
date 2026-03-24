@@ -3650,6 +3650,74 @@ static const std::vector<std::pair<std::string, std::string>> CROSS_LANG_PATTERN
     {"//\\s+\\w", "// comments are JS/C++ — in Python, use #"},
 };
 
+// Strip comments from code based on language syntax.
+// Replaces comment content with spaces (preserving line structure for regex).
+// Must be called AFTER string stripping to avoid matching # or // inside strings.
+static std::string stripComments(const std::string& code, const std::string& language) {
+    bool uses_hash = (language == "python" || language == "ruby" || language == "rb" ||
+                      language == "shell" || language == "bash" || language == "sh" ||
+                      language == "nim");
+    bool uses_slashslash = (language == "javascript" || language == "js" || language == "node" ||
+                            language == "go" || language == "golang" ||
+                            language == "cpp" || language == "c++" ||
+                            language == "rust" || language == "csharp" || language == "cs");
+    bool uses_block = (language == "javascript" || language == "js" || language == "node" ||
+                       language == "go" || language == "golang" ||
+                       language == "cpp" || language == "c++" ||
+                       language == "rust" || language == "csharp" || language == "cs");
+
+    std::string result;
+    result.reserve(code.size());
+
+    for (size_t i = 0; i < code.size(); ++i) {
+        // Check for block comments /* ... */
+        if (uses_block && i + 1 < code.size() && code[i] == '/' && code[i + 1] == '*') {
+            // Replace with spaces until closing */
+            result += ' ';
+            result += ' ';
+            i += 2;
+            while (i < code.size()) {
+                if (i + 1 < code.size() && code[i] == '*' && code[i + 1] == '/') {
+                    result += ' ';
+                    result += ' ';
+                    i += 1; // outer loop does +1
+                    break;
+                }
+                result += (code[i] == '\n') ? '\n' : ' ';
+                ++i;
+            }
+            continue;
+        }
+
+        // Check for // line comments
+        if (uses_slashslash && i + 1 < code.size() && code[i] == '/' && code[i + 1] == '/') {
+            // Replace rest of line with spaces
+            while (i < code.size() && code[i] != '\n') {
+                result += ' ';
+                ++i;
+            }
+            if (i < code.size()) result += '\n'; // preserve the newline
+            continue;
+        }
+
+        // Check for # line comments
+        if (uses_hash && code[i] == '#') {
+            // Shell special case: #! (shebang) at very start is still a comment — strip it
+            // Python: # at line start or after whitespace/code is always a comment
+            // (strings already stripped, so no risk of matching # inside strings)
+            while (i < code.size() && code[i] != '\n') {
+                result += ' ';
+                ++i;
+            }
+            if (i < code.size()) result += '\n';
+            continue;
+        }
+
+        result += code[i];
+    }
+    return result;
+}
+
 std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                                                      const std::string& code, int line) {
     auto& cfg = rules_.code_quality.no_hallucinated_apis;
@@ -3689,14 +3757,20 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
         }
     }
 
-    // Check language-specific patterns (on code with strings stripped)
+    // Strip comments for the target language (after string stripping).
+    // This prevents false positives like "# TODO: use append" in Shell
+    // triggering Python hallucination patterns, or "// use len()" in Python
+    // triggering JS hallucination patterns.
+    std::string code_clean = stripComments(code_no_strings, language);
+
+    // Check language-specific patterns (on code with strings AND comments stripped)
     if (lang_patterns) {
         for (const auto& [pattern, suggestion] : *lang_patterns) {
             try {
                 auto flags = cfg.case_sensitive ? std::regex::ECMAScript : (std::regex::ECMAScript | std::regex::icase);
                 std::regex re(pattern, flags);
                 std::smatch match;
-                if (std::regex_search(code_no_strings, match, re)) {
+                if (std::regex_search(code_clean, match, re)) {
                     // C1: Prepend language context + C2: Add NAAb equivalent hint
                     std::string full_suggestion =
                         fmt::format("Inside <<{}>> polyglot block:\n  {}\n\n"
@@ -3715,15 +3789,16 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
         }
     }
 
-    // Check cross-language confusion patterns
+    // Check cross-language confusion patterns (on string-stripped code,
+    // but NOT comment-stripped — we WANT to find wrong-language comments)
     if (cfg.check_cross_language) {
         // Only check relevant cross-language patterns
         if (language == "python") {
-            // Check for JS comment style in Python
+            // Check for JS comment style in Python (// not stripped by Python comment rules)
             try {
                 std::regex re("^\\s*//\\s+", std::regex::multiline);
                 std::smatch match;
-                if (std::regex_search(code, match, re)) {
+                if (std::regex_search(code_clean, match, re)) {
                     return enforce("code_quality.no_hallucinated_apis", cfg.level,
                         formatError(cfg.level,
                             fmt::format("Cross-language confusion in {} block: \"{}\"", language, match[0].str()),
@@ -3733,11 +3808,11 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
                 }
             } catch (const std::regex_error&) {}
         } else if (language == "javascript" || language == "js") {
-            // Check for Python comment style in JS
+            // Check for Python comment style in JS (# not stripped by JS comment rules)
             try {
                 std::regex re("^\\s*#\\s+", std::regex::multiline);
                 std::smatch match;
-                if (std::regex_search(code, match, re)) {
+                if (std::regex_search(code_clean, match, re)) {
                     return enforce("code_quality.no_hallucinated_apis", cfg.level,
                         formatError(cfg.level,
                             fmt::format("Cross-language confusion in {} block: \"{}\"", language, match[0].str()),
@@ -3749,9 +3824,9 @@ std::string GovernanceEngine::checkHallucinatedApis(const std::string& language,
         }
     }
 
-    // Check custom patterns
+    // Check custom patterns (on cleaned code)
     if (!cfg.custom_patterns.empty()) {
-        std::string found = searchPatterns(code, cfg.custom_patterns);
+        std::string found = searchPatterns(code_clean, cfg.custom_patterns);
         if (!found.empty()) {
             return enforce("code_quality.no_hallucinated_apis", cfg.level,
                 formatError(cfg.level,
