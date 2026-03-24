@@ -104,6 +104,7 @@ SKIP_FILES["chaos_module_taint.naab"]=1   # imported by chaos tests, not standal
 # Directories to skip entirely
 SKIP_DIRS=(
     "tests/chapter verification/ch0_full_projects"  # Gemini-generated projects (most have runtime issues)
+    "tests/property"  # Property-based tests run via dedicated runner, not standalone
 )
 
 echo "═══════════════════════════════════════════════════════════"
@@ -279,6 +280,27 @@ for f in tests/type_system/valid/*.naab; do
     fi
     rm -f "$output_file"
 done
+
+# --- Property-Based Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Property-Based Invariant Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PROPERTY_SCRIPT="tests/property/run_property_tests.sh"
+if [ -f "$PROPERTY_SCRIPT" ]; then
+    if bash "$PROPERTY_SCRIPT" 2>&1; then
+        echo ""
+        echo "  Property tests: ALL INVARIANTS HOLD"
+    else
+        echo ""
+        echo "  Property tests: INVARIANT(S) VIOLATED"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("property-based invariants")
+    fi
+else
+    echo "  Property test script not found, skipping"
+fi
 
 # Print summary
 echo ""

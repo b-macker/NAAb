@@ -1,0 +1,319 @@
+// Property-Based Test: Taint Monotonicity Invariant
+// PROPERTY: Taint NEVER decreases without an explicit sanitizer call.
+//
+// NAAb taint is NAME-BASED: taint_set_ tracks variable names.
+// - env.get() taints the BINDING variable
+// - String concat with tainted operand taints the RESULT variable
+// - Sanitizer-prefixed functions clear taint from the result
+// - Function returns propagate taint via lastReturnTainted flag
+//
+// We test by attempting to use variables directly at shell sinks.
+
+use env
+
+// Non-sanitizer functions
+fn identity(x) { return x }
+fn transform(x) { return x + "_transformed" }
+
+// Sanitizer functions (naming convention clears taint)
+fn sanitize_input(x) { return x }
+fn validate_data(x) { return x }
+
+// === PROPERTY 1: env.get() marks variable as tainted ===
+fn test_source_taints() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let tainted = env.get("HOME")
+    let blocked = false
+    try {
+        <<shell[tainted]
+echo $tainted
+>>
+    } catch (e) {
+        if string(e).contains("aint") {
+            blocked = true
+        }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: env.get() taints variable")
+    } else {
+        print("FAIL: env.get() did NOT taint variable")
+    }
+
+    return [passed, total]
+}
+
+// === PROPERTY 2: String concatenation with tainted var → tainted result ===
+fn test_concat_taints() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let tainted = env.get("HOME")
+    let combined = "prefix_" + tainted
+    let blocked = false
+    try {
+        <<shell[combined]
+echo $combined
+>>
+    } catch (e) {
+        if string(e).contains("aint") {
+            blocked = true
+        }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: Concat with tainted → tainted")
+    } else {
+        print("FAIL: Concat with tainted → NOT tainted")
+    }
+
+    return [passed, total]
+}
+
+// === PROPERTY 3: Re-assignment from tainted → tainted ===
+fn test_reassignment_taints() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let tainted = env.get("HOME")
+    let copy = tainted
+    let blocked = false
+    try {
+        <<shell[copy]
+echo $copy
+>>
+    } catch (e) {
+        if string(e).contains("aint") {
+            blocked = true
+        }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: Assignment from tainted → tainted")
+    } else {
+        print("FAIL: Assignment from tainted → NOT tainted")
+    }
+
+    return [passed, total]
+}
+
+// === PROPERTY 4: Function return propagates taint ===
+fn test_return_taint_propagation() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let tainted = env.get("HOME")
+    let result = identity(tainted)
+    let blocked = false
+    try {
+        <<shell[result]
+echo $result
+>>
+    } catch (e) {
+        if string(e).contains("aint") {
+            blocked = true
+        }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: Non-sanitizer return propagates taint")
+    } else {
+        print("FAIL: Non-sanitizer return lost taint (known name-based limitation)")
+    }
+
+    return [passed, total]
+}
+
+// === PROPERTY 5: Sanitizer function CLEARS taint ===
+fn test_sanitizer_clears() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let tainted = env.get("HOME")
+    let cleaned = sanitize_input(tainted)
+    let allowed = false
+    try {
+        <<shell[cleaned]
+echo $cleaned
+>>
+        allowed = true
+    } catch (e) {
+        if string(e).contains("aint") {
+            allowed = false
+        }
+    }
+    if allowed {
+        passed = passed + 1
+        print("PASS: sanitize_input() clears taint")
+    } else {
+        print("FAIL: sanitize_input() did NOT clear taint")
+    }
+
+    total = total + 1
+    let tainted2 = env.get("HOME")
+    let cleaned2 = validate_data(tainted2)
+    let allowed2 = false
+    try {
+        <<shell[cleaned2]
+echo $cleaned2
+>>
+        allowed2 = true
+    } catch (e) {
+        if string(e).contains("aint") {
+            allowed2 = false
+        }
+    }
+    if allowed2 {
+        passed = passed + 1
+        print("PASS: validate_data() clears taint")
+    } else {
+        print("FAIL: validate_data() did NOT clear taint")
+    }
+
+    return [passed, total]
+}
+
+// === PROPERTY 6: Multiple taint sources accumulate ===
+fn test_accumulation() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let a = env.get("HOME")
+    let b = env.get("PATH")
+    // Both a and b should be tainted
+    let a_blocked = false
+    let b_blocked = false
+    try {
+        <<shell[a]
+echo $a
+>>
+    } catch (e) {
+        if string(e).contains("aint") { a_blocked = true }
+    }
+    try {
+        <<shell[b]
+echo $b
+>>
+    } catch (e) {
+        if string(e).contains("aint") { b_blocked = true }
+    }
+    if a_blocked {
+        if b_blocked {
+            passed = passed + 1
+            print("PASS: Both taint sources independently tracked")
+        } else {
+            print("FAIL: Second source not tainted")
+        }
+    } else {
+        print("FAIL: First source not tainted")
+    }
+
+    return [passed, total]
+}
+
+// === PROPERTY 7: Clean literals stay clean ===
+fn test_clean_stays_clean() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let safe = "hello_world"
+    let clean_allowed = false
+    try {
+        <<shell[safe]
+echo $safe
+>>
+        clean_allowed = true
+    } catch (e) {
+        clean_allowed = false
+    }
+    if clean_allowed {
+        passed = passed + 1
+        print("PASS: Clean literal not tainted")
+    } else {
+        print("FAIL: Clean literal incorrectly tainted")
+    }
+
+    total = total + 1
+    let safe2 = "a" + "b" + "c"
+    let clean_allowed2 = false
+    try {
+        <<shell[safe2]
+echo $safe2
+>>
+        clean_allowed2 = true
+    } catch (e) {
+        clean_allowed2 = false
+    }
+    if clean_allowed2 {
+        passed = passed + 1
+        print("PASS: Clean concat not tainted")
+    } else {
+        print("FAIL: Clean concat incorrectly tainted")
+    }
+
+    return [passed, total]
+}
+
+// === PROPERTY 8: Taint through if-expression ===
+fn test_if_expr_taint() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let tainted = env.get("HOME")
+    let result = if true { tainted } else { "clean" }
+    let blocked = false
+    try {
+        <<shell[result]
+echo $result
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked = true }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: If-expression propagates taint")
+    } else {
+        print("FAIL: If-expression lost taint (expression taint limitation)")
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let tests = [
+        test_source_taints(),
+        test_concat_taints(),
+        test_reassignment_taints(),
+        test_return_taint_propagation(),
+        test_sanitizer_clears(),
+        test_accumulation(),
+        test_clean_stays_clean(),
+        test_if_expr_taint()
+    ]
+
+    for r in tests {
+        total_passed = total_passed + r[0]
+        total_tests = total_tests + r[1]
+    }
+
+    print("")
+    print("Taint Monotonicity: " + string(total_passed) + "/" + string(total_tests) + " passed")
+    if total_passed == total_tests {
+        print("PROPERTY HOLDS: Taint never decreases without sanitizer")
+    } else {
+        print("PROPERTY VIOLATED!")
+    }
+}

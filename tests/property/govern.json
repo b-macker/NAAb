@@ -1,0 +1,18 @@
+{
+    "version": "4.0",
+    "description": "Property-based testing — taint monotonicity invariant",
+    "languages": {
+        "allowed": ["python", "shell"]
+    },
+    "capabilities": {
+        "network": false,
+        "filesystem": "read"
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "sources": ["env.get", "polyglot_output"],
+        "sinks": ["shell_exec", "env.set_var"],
+        "sanitizers": ["sanitize_", "validate_", "escape_"]
+    }
+}
