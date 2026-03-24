@@ -209,10 +209,10 @@ DocumentSymbol SymbolProvider::extractVariable(const ast::VarDeclStmt* var_decl)
 }
 
 Range SymbolProvider::createRange(size_t line, size_t column) {
-    int l = static_cast<int>(line);
+    // AST lines are 1-based, LSP is 0-based
+    int l = static_cast<int>(line > 0 ? line - 1 : 0);
     int c = static_cast<int>(column);
 
-    // TODO: Calculate end position (for now, single character)
     return Range{
         {l, c},
         {l, c + 1}
@@ -221,10 +221,11 @@ Range SymbolProvider::createRange(size_t line, size_t column) {
 
 // Overload to accept int directly (to avoid warnings from SourceLocation)
 Range SymbolProvider::createRange(int line, int column) {
-    // TODO: Calculate end position (for now, single character)
+    // AST lines are 1-based, LSP is 0-based
+    int l = (line > 0) ? line - 1 : 0;
     return Range{
-        {line, column},
-        {line, column + 1}
+        {l, column},
+        {l, column + 1}
     };
 }
 

@@ -2,6 +2,7 @@
 #include <sstream>
 #include <algorithm>
 #include <iostream>
+#include <unistd.h>
 
 namespace naab {
 namespace lsp {
@@ -64,6 +65,7 @@ Document::Document(const std::string& uri, const std::string& text, int version)
     : uri_(uri), text_(text), version_(version) {
     parse();
     typeCheck();
+    runGovernanceChecks();
 }
 
 void Document::update(const std::string& new_text, int new_version) {
@@ -73,6 +75,7 @@ void Document::update(const std::string& new_text, int new_version) {
     // Re-analyze
     parse();
     typeCheck();
+    runGovernanceChecks();
 }
 
 void Document::parse() {
@@ -160,6 +163,185 @@ void Document::collectDiagnostics() {
     // For now, if we got here, parsing succeeded
 }
 
+// Helper: convert file:// URI to filesystem path
+static std::string uriToPath(const std::string& uri) {
+    if (uri.substr(0, 7) == "file://") {
+        return uri.substr(7);
+    }
+    return uri;
+}
+
+// Helper: parse a single governance error/warning block into a Diagnostic
+static Diagnostic parseGovernanceBlock(const std::string& block) {
+    Diagnostic diag;
+    diag.source = "naab-governance";
+
+    // Determine severity from tag
+    if (block.find("[HARD-MANDATORY]") != std::string::npos) {
+        diag.severity = DiagnosticSeverity::Error;
+    } else if (block.find("[SOFT-MANDATORY]") != std::string::npos) {
+        diag.severity = DiagnosticSeverity::Warning;
+    } else if (block.find("[ADVISORY]") != std::string::npos) {
+        diag.severity = DiagnosticSeverity::Hint;
+    } else {
+        diag.severity = DiagnosticSeverity::Warning;
+    }
+
+    // Extract the "what" message from first line
+    // Format: "Governance error: <what> [TAG]"  or  "Governance warning: <what> [TAG]"
+    std::string message;
+    auto bracket_pos = block.find(" [");
+    if (bracket_pos != std::string::npos) {
+        auto colon_pos = block.find(": ");
+        if (colon_pos != std::string::npos && colon_pos < bracket_pos) {
+            message = block.substr(colon_pos + 2, bracket_pos - colon_pos - 2);
+        }
+    }
+    if (message.empty()) {
+        auto nl = block.find('\n');
+        message = (nl != std::string::npos) ? block.substr(0, nl) : block;
+    }
+    diag.message = message;
+
+    // Extract line number from "At: line N" or "At: <file>:N"
+    int line = 0;
+    auto at_pos = block.find("  At: ");
+    if (at_pos != std::string::npos) {
+        std::string at_str = block.substr(at_pos + 6);
+        auto nl = at_str.find('\n');
+        if (nl != std::string::npos) at_str = at_str.substr(0, nl);
+
+        // Try "line N" format
+        if (at_str.substr(0, 5) == "line ") {
+            try { line = std::stoi(at_str.substr(5)); } catch (...) {}
+        }
+        // Try "<file>:N" format
+        if (line == 0) {
+            auto colon = at_str.rfind(':');
+            if (colon != std::string::npos) {
+                try { line = std::stoi(at_str.substr(colon + 1)); } catch (...) {}
+            }
+        }
+    }
+
+    // Extract rule for diagnostic code
+    auto rule_pos = block.find("  Rule (govern.json): ");
+    if (rule_pos != std::string::npos) {
+        std::string rule_str = block.substr(rule_pos + 22);
+        auto nl = rule_str.find('\n');
+        if (nl != std::string::npos) rule_str = rule_str.substr(0, nl);
+        diag.code = rule_str;
+    } else {
+        diag.code = "governance";
+    }
+
+    // Also check for taint tracking violation format:
+    // "Taint tracking violation: variable 'x' ... at <file>:<line>"
+    if (block.find("Taint tracking violation:") != std::string::npos) {
+        diag.severity = DiagnosticSeverity::Error;
+        diag.code = "taint-tracking";
+        // Extract line from "at <file>:<line>"
+        auto at_file_pos = block.rfind(" at ");
+        if (at_file_pos != std::string::npos) {
+            auto colon = block.rfind(':');
+            if (colon != std::string::npos && colon > at_file_pos) {
+                try { line = std::stoi(block.substr(colon + 1)); } catch (...) {}
+            }
+        }
+    }
+
+    // LSP uses 0-based lines; governance uses 1-based
+    int lsp_line = (line > 0) ? line - 1 : 0;
+    diag.range = Range{{lsp_line, 0}, {lsp_line, 1000}};
+
+    return diag;
+}
+
+// Run naab-lang as subprocess and capture combined output
+// Governance errors are thrown as exceptions and printed to stderr
+static std::string runNaabGovernance(const std::string& naab_path,
+                                      const std::string& file_path) {
+    // Run naab-lang on the file, capture stderr (governance errors)
+    // The process will exit non-zero on governance failures
+    std::string cmd = naab_path + " \"" + file_path + "\" 2>&1";
+
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) return "";
+
+    std::string result;
+    char buffer[4096];
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+        result += buffer;
+    }
+
+    pclose(pipe);
+    return result;
+}
+
+void Document::runGovernanceChecks() {
+    std::string file_path = uriToPath(uri_);
+
+    // Find naab-lang binary relative to naab-lsp
+    // naab-lsp is at build/naab-lsp, naab-lang is at build/naab-lang
+    if (naab_lang_path_.empty()) {
+        // Try to find naab-lang in same directory as naab-lsp, or in PATH
+        // Read /proc/self/exe to find our own path
+        char self_path[4096];
+        ssize_t len = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
+        if (len > 0) {
+            self_path[len] = '\0';
+            std::string self_dir(self_path);
+            auto slash = self_dir.rfind('/');
+            if (slash != std::string::npos) {
+                naab_lang_path_ = self_dir.substr(0, slash) + "/naab-lang";
+            }
+        }
+        // Fallback: try "naab-lang" in PATH
+        if (naab_lang_path_.empty()) {
+            naab_lang_path_ = "naab-lang";
+        }
+        std::cerr << "[Document] naab-lang path: " << naab_lang_path_ << "\n";
+    }
+
+    // Run governance checks via subprocess
+    std::string output = runNaabGovernance(naab_lang_path_, file_path);
+    if (output.empty()) return;
+
+    std::cerr << "[Document] Governance output (" << output.size() << " bytes)\n";
+
+    // Parse output: split on "Governance error:" or "Governance warning:" or "Taint tracking violation:"
+    // Each block starts with one of these prefixes
+    std::vector<std::string> blocks;
+    std::string current_block;
+    std::istringstream iss(output);
+    std::string line;
+
+    while (std::getline(iss, line)) {
+        if ((line.find("Governance error:") == 0 ||
+             line.find("Governance warning:") == 0 ||
+             line.find("Taint tracking violation:") == 0) &&
+            !current_block.empty()) {
+            blocks.push_back(current_block);
+            current_block.clear();
+        }
+        current_block += line + "\n";
+    }
+    if (!current_block.empty()) {
+        blocks.push_back(current_block);
+    }
+
+    // Convert each block to a diagnostic
+    for (const auto& block : blocks) {
+        if (block.find("Governance error:") != std::string::npos ||
+            block.find("Governance warning:") != std::string::npos ||
+            block.find("Taint tracking violation:") != std::string::npos) {
+            diagnostics_.push_back(parseGovernanceBlock(block));
+        }
+    }
+
+    std::cerr << "[Document] Governance produced " << diagnostics_.size() << " total diagnostics\n";
+}
+
 // Forward declaration
 static void extractVariablesFromStmt(ast::Stmt* stmt, semantic::SymbolTable& symbol_table, const std::string& uri);
 
@@ -223,11 +405,12 @@ void Document::buildSymbolTable() {
         }
         sig << ") -> " << astTypeToString(func->getReturnType());
 
+        // AST lines are 1-based, LSP is 0-based — subtract 1
         semantic::Symbol symbol(
             func->getName(),
             semantic::SymbolKind::Function,
             sig.str(),
-            semantic::SourceLocation(uri_, loc.line, loc.column)
+            semantic::SourceLocation(uri_, loc.line > 0 ? loc.line - 1 : 0, loc.column)
         );
         symbol_table_.define(func->getName(), std::move(symbol));
         std::cerr << "  Added function: " << func->getName() << " " << sig.str() << "\n";
@@ -242,7 +425,7 @@ void Document::buildSymbolTable() {
             struct_decl->getName(),
             semantic::SymbolKind::Class,
             "struct",
-            semantic::SourceLocation(uri_, loc.line, loc.column)
+            semantic::SourceLocation(uri_, loc.line > 0 ? loc.line - 1 : 0, loc.column)
         );
         symbol_table_.define(struct_decl->getName(), std::move(symbol));
         std::cerr << "  Added struct: " << struct_decl->getName() << "\n";
@@ -255,7 +438,7 @@ void Document::buildSymbolTable() {
             enum_decl->getName(),
             semantic::SymbolKind::Enum,
             "enum",
-            semantic::SourceLocation(uri_, loc.line, loc.column)
+            semantic::SourceLocation(uri_, loc.line > 0 ? loc.line - 1 : 0, loc.column)
         );
         symbol_table_.define(enum_decl->getName(), std::move(symbol));
         std::cerr << "  Added enum: " << enum_decl->getName() << "\n";
@@ -283,11 +466,12 @@ static void extractVariablesFromStmt(ast::Stmt* stmt, semantic::SymbolTable& sym
             type_str = astTypeToString(*var_decl->getType());
         }
 
+        // AST lines are 1-based, LSP is 0-based
         semantic::Symbol symbol(
             var_decl->getName(),
             semantic::SymbolKind::Variable,
             type_str,
-            semantic::SourceLocation(uri, loc.line, loc.column)
+            semantic::SourceLocation(uri, loc.line > 0 ? loc.line - 1 : 0, loc.column)
         );
         symbol_table.define(var_decl->getName(), std::move(symbol));
         std::cerr << "  Added variable: " << var_decl->getName() << ": " << type_str << "\n";

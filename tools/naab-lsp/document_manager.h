@@ -94,6 +94,10 @@ private:
 
     // Parse errors
     void collectDiagnostics();
+
+    // Governance checks (runs naab-lang subprocess)
+    void runGovernanceChecks();
+    std::string naab_lang_path_;  // Path to naab-lang binary
 };
 
 // Manages all open documents

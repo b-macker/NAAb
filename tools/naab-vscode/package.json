@@ -1,0 +1,54 @@
+{
+    "name": "naab-language",
+    "displayName": "NAAb Language",
+    "description": "NAAb language support — governance diagnostics, go-to-definition, hover, completions",
+    "version": "0.1.0",
+    "publisher": "b-macker",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/b-macker/NAAb"
+    },
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "activationEvents": [
+        "onLanguage:naab"
+    ],
+    "main": "./extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "naab",
+                "extensions": [".naab"],
+                "aliases": ["NAAb", "naab"],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "configuration": {
+            "title": "NAAb",
+            "properties": {
+                "naab.lspPath": {
+                    "type": "string",
+                    "default": "naab-lsp",
+                    "description": "Path to the naab-lsp binary"
+                },
+                "naab.logLevel": {
+                    "type": "string",
+                    "default": "INFO",
+                    "enum": ["DEBUG", "INFO", "WARN", "ERROR", "NONE"],
+                    "description": "LSP server log level"
+                }
+            }
+        }
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.75.0"
+    }
+}
