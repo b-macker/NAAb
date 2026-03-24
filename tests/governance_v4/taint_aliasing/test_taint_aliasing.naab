@@ -1,0 +1,644 @@
+// Taint Aliasing Test Suite
+// Systematically maps where taint propagates and where it breaks.
+// NAAb taint is NAME-BASED: taint_set_ tracks variable names.
+//
+// Each test creates a tainted value via env.get(), passes it through
+// an aliasing path, then probes if taint survived at a shell sink.
+//
+// Results: PASS = expected behavior, KNOWN LIMIT = documented breakage
+
+use env
+use json
+
+// Helper: check if a variable is blocked at a shell sink
+// Returns true if taint is detected (blocked), false if allowed through
+fn is_tainted_at_sink(name, val) {
+    let blocked = false
+    try {
+        <<shell[val]
+echo $val
+>>
+    } catch (e) {
+        if string(e).contains("aint") {
+            blocked = true
+        }
+    }
+    return blocked
+}
+
+// Non-sanitizer functions
+fn identity(x) { return x }
+fn transform(x) { return "prefix_" + x }
+fn inner(x) { return x }
+fn outer(x) { return inner(x) }
+fn process(x) { return x }
+
+// Sanitizer functions
+fn sanitize_input(x) { return x }
+fn validate_data(x) { return x }
+
+struct Container {
+    field: string
+}
+
+// ============================================================
+// Part A: Variable Assignment
+// ============================================================
+fn test_assignment() {
+    let passed = 0
+    let known = 0
+    let total = 0
+
+    // A1: Direct assignment
+    total = total + 1
+    let tainted = env.get("HOME")
+    let copy = tainted
+    let blocked = false
+    try {
+        <<shell[copy]
+echo $copy
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked = true }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: A1 — direct assignment preserves taint")
+    } else {
+        print("FAIL: A1 — direct assignment lost taint")
+    }
+
+    // A2: Reassignment from tainted
+    total = total + 1
+    let target = "clean"
+    target = env.get("HOME")
+    let blocked2 = false
+    try {
+        <<shell[target]
+echo $target
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked2 = true }
+    }
+    if blocked2 {
+        passed = passed + 1
+        print("PASS: A2 — reassignment from tainted source taints target")
+    } else {
+        print("FAIL: A2 — reassignment did not taint target")
+    }
+
+    // A3: Self-modification with tainted operand
+    total = total + 1
+    let selfmod = env.get("HOME")
+    selfmod = selfmod + "_suffix"
+    let blocked3 = false
+    try {
+        <<shell[selfmod]
+echo $selfmod
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked3 = true }
+    }
+    if blocked3 {
+        passed = passed + 1
+        print("PASS: A3 — self-modification preserves taint")
+    } else {
+        print("FAIL: A3 — self-modification lost taint")
+    }
+
+    return [passed, known, total]
+}
+
+// ============================================================
+// Part B: Function Return
+// ============================================================
+fn test_function_return() {
+    let passed = 0
+    let known = 0
+    let total = 0
+
+    // B1: Identity function
+    total = total + 1
+    let tainted = env.get("HOME")
+    let result = identity(tainted)
+    let blocked = false
+    try {
+        <<shell[result]
+echo $result
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked = true }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: B1 — identity function return preserves taint")
+    } else {
+        print("FAIL: B1 — identity function return lost taint")
+    }
+
+    // B2: Transform function (concat with tainted)
+    total = total + 1
+    let tainted2 = env.get("HOME")
+    let result2 = transform(tainted2)
+    let blocked2 = false
+    try {
+        <<shell[result2]
+echo $result2
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked2 = true }
+    }
+    if blocked2 {
+        passed = passed + 1
+        print("PASS: B2 — transform function return preserves taint")
+    } else {
+        print("FAIL: B2 — transform function return lost taint")
+    }
+
+    // B3: Double indirection (nested function calls)
+    total = total + 1
+    let tainted3 = env.get("HOME")
+    let result3 = outer(tainted3)
+    let blocked3 = false
+    try {
+        <<shell[result3]
+echo $result3
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked3 = true }
+    }
+    if blocked3 {
+        passed = passed + 1
+        print("PASS: B3 — double indirection preserves taint")
+    } else {
+        known = known + 1
+        print("KNOWN LIMIT: B3 — double indirection loses taint (lastReturnTainted is single-level)")
+    }
+
+    // B4: Non-sanitizer function (should preserve)
+    total = total + 1
+    let tainted4 = env.get("HOME")
+    let result4 = process(tainted4)
+    let blocked4 = false
+    try {
+        <<shell[result4]
+echo $result4
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked4 = true }
+    }
+    if blocked4 {
+        passed = passed + 1
+        print("PASS: B4 — non-sanitizer function preserves taint")
+    } else {
+        print("FAIL: B4 — non-sanitizer function lost taint")
+    }
+
+    return [passed, known, total]
+}
+
+// ============================================================
+// Part C: Data Structure Storage
+// ============================================================
+fn test_data_structures() {
+    let passed = 0
+    let known = 0
+    let total = 0
+
+    // C1: Dict store + retrieve
+    total = total + 1
+    let tainted = env.get("HOME")
+    let d = {}
+    d["key"] = tainted
+    // The dict d itself should be tainted (FIX-3: subscript assignment taint)
+    let blocked = false
+    try {
+        <<shell[d]
+echo $d
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked = true }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: C1 — dict with tainted value is tainted")
+    } else {
+        print("FAIL: C1 — dict with tainted value not tainted")
+    }
+
+    // C2: Dict retrieve — does retrieved value carry taint?
+    total = total + 1
+    let retrieved = d["key"]
+    let blocked2 = false
+    try {
+        <<shell[retrieved]
+echo $retrieved
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked2 = true }
+    }
+    if blocked2 {
+        passed = passed + 1
+        print("PASS: C2 — dict retrieval preserves taint")
+    } else {
+        known = known + 1
+        print("KNOWN LIMIT: C2 — dict retrieval creates new name, taint lost")
+    }
+
+    // C3: Array store + retrieve
+    total = total + 1
+    let tainted2 = env.get("HOME")
+    let arr = ["placeholder"]
+    arr[0] = tainted2
+    let blocked3 = false
+    try {
+        <<shell[arr]
+echo $arr
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked3 = true }
+    }
+    if blocked3 {
+        passed = passed + 1
+        print("PASS: C3 — array with tainted value is tainted")
+    } else {
+        print("FAIL: C3 — array with tainted value not tainted")
+    }
+
+    // C4: Array retrieve — does element carry taint?
+    total = total + 1
+    let elem = arr[0]
+    let blocked4 = false
+    try {
+        <<shell[elem]
+echo $elem
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked4 = true }
+    }
+    if blocked4 {
+        passed = passed + 1
+        print("PASS: C4 — array element retrieval preserves taint")
+    } else {
+        known = known + 1
+        print("KNOWN LIMIT: C4 — array element retrieval creates new name, taint lost")
+    }
+
+    // C5: Dict literal with tainted value
+    total = total + 1
+    let tainted3 = env.get("HOME")
+    let d2 = {"k": tainted3}
+    let blocked5 = false
+    try {
+        <<shell[d2]
+echo $d2
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked5 = true }
+    }
+    if blocked5 {
+        passed = passed + 1
+        print("PASS: C5 — dict literal with tainted value is tainted")
+    } else {
+        known = known + 1
+        print("KNOWN LIMIT: C5 — dict literal taint detection depends on DictExpr analysis")
+    }
+
+    // C6: List literal with tainted value
+    total = total + 1
+    let tainted4 = env.get("HOME")
+    let l = [tainted4]
+    let blocked6 = false
+    try {
+        <<shell[l]
+echo $l
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked6 = true }
+    }
+    if blocked6 {
+        passed = passed + 1
+        print("PASS: C6 — list literal with tainted value is tainted")
+    } else {
+        known = known + 1
+        print("KNOWN LIMIT: C6 — list literal taint detection depends on ListExpr analysis")
+    }
+
+    // C7: Struct field store + retrieve
+    total = total + 1
+    let tainted5 = env.get("HOME")
+    let obj = new Container { field: "clean" }
+    obj.field = tainted5
+    let blocked7 = false
+    try {
+        <<shell[obj]
+echo $obj
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked7 = true }
+    }
+    if blocked7 {
+        passed = passed + 1
+        print("PASS: C7 — struct with tainted field is tainted")
+    } else {
+        print("FAIL: C7 — struct with tainted field not tainted")
+    }
+
+    return [passed, known, total]
+}
+
+// ============================================================
+// Part D: String Operations
+// ============================================================
+fn test_string_ops() {
+    let passed = 0
+    let known = 0
+    let total = 0
+
+    // D1: Concatenation
+    total = total + 1
+    let tainted = env.get("HOME")
+    let concat = "safe_" + tainted
+    let blocked = false
+    try {
+        <<shell[concat]
+echo $concat
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked = true }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: D1 — concatenation with tainted preserves taint")
+    } else {
+        print("FAIL: D1 — concatenation lost taint")
+    }
+
+    // D2: String interpolation
+    total = total + 1
+    let tainted2 = env.get("HOME")
+    let interp = "path: ${tainted2}"
+    let blocked2 = false
+    try {
+        <<shell[interp]
+echo $interp
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked2 = true }
+    }
+    if blocked2 {
+        passed = passed + 1
+        print("PASS: D2 — string interpolation preserves taint")
+    } else {
+        known = known + 1
+        print("KNOWN LIMIT: D2 — string interpolation may not propagate taint")
+    }
+
+    return [passed, known, total]
+}
+
+// ============================================================
+// Part E: JSON Serialization Boundary
+// ============================================================
+fn test_json_boundary() {
+    let passed = 0
+    let known = 0
+    let total = 0
+
+    // E1: json.stringify of tainted value
+    total = total + 1
+    let tainted = env.get("HOME")
+    let json_str = json.stringify({"val": tainted})
+    let blocked = false
+    try {
+        <<shell[json_str]
+echo $json_str
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked = true }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: E1 — json.stringify of tainted value preserves taint")
+    } else {
+        known = known + 1
+        print("KNOWN LIMIT: E1 — json.stringify creates new string, taint lost")
+    }
+
+    // E2: json.parse of string built from tainted
+    total = total + 1
+    let tainted2 = env.get("HOME")
+    let built = "{\"v\": \"" + tainted2 + "\"}"
+    let parsed = json.parse(built)
+    let blocked2 = false
+    try {
+        <<shell[parsed]
+echo $parsed
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked2 = true }
+    }
+    if blocked2 {
+        passed = passed + 1
+        print("PASS: E2 — json.parse of tainted-derived string preserves taint")
+    } else {
+        known = known + 1
+        print("KNOWN LIMIT: E2 — json.parse creates new value, taint lost")
+    }
+
+    return [passed, known, total]
+}
+
+// ============================================================
+// Part F: Sanitizer Clearing
+// ============================================================
+fn test_sanitizers() {
+    let passed = 0
+    let known = 0
+    let total = 0
+
+    // F1: sanitize_ prefix clears taint
+    total = total + 1
+    let tainted = env.get("HOME")
+    let cleaned = sanitize_input(tainted)
+    let allowed = false
+    try {
+        <<shell[cleaned]
+echo $cleaned
+>>
+        allowed = true
+    } catch (e) {
+        if string(e).contains("aint") { allowed = false }
+    }
+    if allowed {
+        passed = passed + 1
+        print("PASS: F1 — sanitize_ prefix clears taint")
+    } else {
+        print("FAIL: F1 — sanitize_ prefix did NOT clear taint")
+    }
+
+    // F2: validate_ prefix clears taint
+    total = total + 1
+    let tainted2 = env.get("HOME")
+    let cleaned2 = validate_data(tainted2)
+    let allowed2 = false
+    try {
+        <<shell[cleaned2]
+echo $cleaned2
+>>
+        allowed2 = true
+    } catch (e) {
+        if string(e).contains("aint") { allowed2 = false }
+    }
+    if allowed2 {
+        passed = passed + 1
+        print("PASS: F2 — validate_ prefix clears taint")
+    } else {
+        print("FAIL: F2 — validate_ prefix did NOT clear taint")
+    }
+
+    // F3: Non-sanitizer does NOT clear
+    total = total + 1
+    let tainted3 = env.get("HOME")
+    let still_dirty = process(tainted3)
+    let blocked = false
+    try {
+        <<shell[still_dirty]
+echo $still_dirty
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked = true }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: F3 — non-sanitizer function does NOT clear taint")
+    } else {
+        print("FAIL: F3 — non-sanitizer function incorrectly cleared taint")
+    }
+
+    return [passed, known, total]
+}
+
+// ============================================================
+// Part G: Edge Cases
+// ============================================================
+fn test_edge_cases() {
+    let passed = 0
+    let known = 0
+    let total = 0
+
+    // G1: Tainted in closure, called later
+    total = total + 1
+    let tainted = env.get("HOME")
+    let make_getter = fn() { return tainted }
+    let retrieved = make_getter()
+    let blocked = false
+    try {
+        <<shell[retrieved]
+echo $retrieved
+>>
+    } catch (e) {
+        if string(e).contains("aint") { blocked = true }
+    }
+    if blocked {
+        passed = passed + 1
+        print("PASS: G1 — closure over tainted variable preserves taint")
+    } else {
+        known = known + 1
+        print("KNOWN LIMIT: G1 — closure return taint depends on lastReturnTainted")
+    }
+
+    // G2: Multiple taint sources accumulate
+    total = total + 1
+    let a = env.get("HOME")
+    let b = env.get("PATH")
+    let a_blocked = false
+    let b_blocked = false
+    try {
+        <<shell[a]
+echo $a
+>>
+    } catch (e) {
+        if string(e).contains("aint") { a_blocked = true }
+    }
+    try {
+        <<shell[b]
+echo $b
+>>
+    } catch (e) {
+        if string(e).contains("aint") { b_blocked = true }
+    }
+    if a_blocked {
+        if b_blocked {
+            passed = passed + 1
+            print("PASS: G2 — multiple taint sources accumulate independently")
+        } else {
+            print("FAIL: G2 — second taint source not tracked")
+        }
+    } else {
+        print("FAIL: G2 — first taint source not tracked")
+    }
+
+    // G3: Clean value stays clean after tainted value exists
+    total = total + 1
+    let dirty = env.get("HOME")
+    let clean = "totally_safe"
+    let clean_allowed = false
+    try {
+        <<shell[clean]
+echo $clean
+>>
+        clean_allowed = true
+    } catch (e) {
+        clean_allowed = false
+    }
+    if clean_allowed {
+        passed = passed + 1
+        print("PASS: G3 — clean variable unaffected by tainted variables")
+    } else {
+        print("FAIL: G3 — clean variable incorrectly tainted")
+    }
+
+    return [passed, known, total]
+}
+
+// ============================================================
+// Main: Run all tests, produce summary
+// ============================================================
+main {
+    let total_passed = 0
+    let total_known = 0
+    let total_tests = 0
+
+    let suites = [
+        test_assignment(),
+        test_function_return(),
+        test_data_structures(),
+        test_string_ops(),
+        test_json_boundary(),
+        test_sanitizers(),
+        test_edge_cases()
+    ]
+
+    for r in suites {
+        total_passed = total_passed + r[0]
+        total_known = total_known + r[1]
+        total_tests = total_tests + r[2]
+    }
+
+    print("")
+    print("═══════════════════════════════════════")
+    print("  Taint Aliasing Summary")
+    print("═══════════════════════════════════════")
+    print("  Passed:       " + string(total_passed) + "/" + string(total_tests))
+    print("  Known limits: " + string(total_known))
+    print("  Failures:     " + string(total_tests - total_passed - total_known))
+    print("")
+
+    let failures = total_tests - total_passed - total_known
+    if failures == 0 {
+        print("ALL TESTS ACCOUNTED FOR")
+    } else {
+        print("UNEXPECTED FAILURES: " + string(failures))
+    }
+}
