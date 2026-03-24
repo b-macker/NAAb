@@ -18,8 +18,14 @@
 namespace naab {
 namespace interpreter {
 
-// File-local helper (duplicated from interpreter.cpp — static linkage)
+// File-local helper — NaabVal version
+static std::string getTypeName(NaabVal val) {
+    return val.getTypeName();
+}
+
+// File-local helper — legacy shared_ptr version (for code that still uses shared_ptr)
 static std::string getTypeName(const std::shared_ptr<Value>& val) {
+    if (!val) return "null";
     return std::visit([](auto&& arg) -> std::string {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, int>) {
@@ -51,20 +57,20 @@ void Interpreter::visit(ast::BinaryExpr& node) {
     // Handle short-circuit operators BEFORE evaluating right side
     if (node.getOp() == ast::BinaryOp::And) {
         auto left = eval(*node.getLeft());
-        if (!left->toBool()) {
+        if (!left.toBool()) {
             // Short-circuit: left is false, so result is false without evaluating right
-            result_ = std::make_shared<Value>(false);
+            result_ = NaabVal::makeBool(false);
             return;
         }
         // Left is true, now evaluate right
         auto right = eval(*node.getRight());
-        result_ = std::make_shared<Value>(right->toBool());
+        result_ = NaabVal::makeBool(right.toBool());
         return;
     }
 
     if (node.getOp() == ast::BinaryOp::NullCoalesce) {
         auto left_val = eval(*node.getLeft());
-        if (!left_val || std::holds_alternative<std::monostate>(left_val->data)) {
+        if (left_val.isNull()) {
             result_ = eval(*node.getRight());
         } else {
             result_ = left_val;
@@ -74,19 +80,19 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
     if (node.getOp() == ast::BinaryOp::Or) {
         auto left = eval(*node.getLeft());
-        if (left->toBool()) {
+        if (left.toBool()) {
             // Short-circuit: left is true, so result is true without evaluating right
-            result_ = std::make_shared<Value>(true);
+            result_ = NaabVal::makeBool(true);
             return;
         }
         // Left is false, now evaluate right
         auto right = eval(*node.getRight());
-        result_ = std::make_shared<Value>(right->toBool());
+        result_ = NaabVal::makeBool(right.toBool());
 
         // Hint: detect likely null-coalesce intent (null || "value")
-        if (std::holds_alternative<std::monostate>(left->data) &&
-            !std::holds_alternative<bool>(right->data) &&
-            !std::holds_alternative<std::monostate>(right->data)) {
+        if (left.isNull() &&
+            !right.isBool() &&
+            !right.isNull()) {
             fprintf(stderr, "[hint] || always returns boolean in NAAb. "
                     "Did you mean ?? (null coalesce)?\n"
                     "  null || \"value\" -> true (boolean)\n"
@@ -103,11 +109,10 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // Simple variable assignment: x = value
             // Deep copy arrays and dicts to prevent silent mutations (same as VarDeclStmt)
             auto value_to_assign = right;
-            if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(right->data) ||
-                std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(right->data)) {
+            if (right.isList() || right.isDict()) {
                 value_to_assign = copyValue(right);
             }
-            current_env_->set(id->getName(), value_to_assign);
+            current_env_->set(id->getName(), value_to_assign.toLegacy());
             result_ = value_to_assign;
 
             // Governance v4: Taint tracking on assignment (REFACTOR-1)
@@ -123,11 +128,11 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             }
         } else if (auto* member = dynamic_cast<ast::MemberExpr*>(node.getLeft())) {
             // Struct field assignment: obj.field = value
-            auto obj = eval(*member->getObject());
+            auto obj = eval(*member->getObject()).toLegacy();
 
             if (auto* struct_ptr = std::get_if<std::shared_ptr<StructValue>>(&obj->data)) {
                 auto& struct_val = *struct_ptr;
-                struct_val->setField(member->getMember(), right);
+                struct_val->setField(member->getMember(), right.toLegacy());
                 result_ = right;
 
                 // FIX-4: Taint propagation for struct field assignment (REFACTOR-1)
@@ -154,14 +159,14 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // Array/dict element assignment: arr[index] = value, dict[key] = value
             if (subscript->getOp() == ast::BinaryOp::Subscript) {
                 // Evaluate the container (e.g., arr or dict)
-                auto container = eval(*subscript->getLeft());
+                auto container = eval(*subscript->getLeft()).toLegacy();
                 // Evaluate the index/key
                 auto index_or_key = eval(*subscript->getRight());
 
                 // Check if container is a list
                 if (auto* list_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&container->data)) {
                     auto& list = *list_ptr;
-                    int index = index_or_key->toInt();
+                    int index = index_or_key.toInt();
 
                     if (index < 0 || index >= static_cast<int>(list.size())) {
                         std::ostringstream oss;
@@ -181,7 +186,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     }
 
                     // Modify list in place (safe cast after bounds check)
-                    list[static_cast<size_t>(index)] = right;
+                    list[static_cast<size_t>(index)] = right.toLegacy();
                     result_ = right;
 
                     // FIX-3: Taint propagation for array subscript assignment (REFACTOR-1)
@@ -193,10 +198,10 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 // Check if container is a dictionary
                 else if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&container->data)) {
                     auto& dict = *dict_ptr;
-                    std::string key = index_or_key->toString();
+                    std::string key = index_or_key.toString();
 
                     // Insert or update the key
-                    dict[key] = right;
+                    dict[key] = right.toLegacy();
                     result_ = right;
 
                     // FIX-3: Taint propagation for dict subscript assignment (REFACTOR-1)
@@ -255,13 +260,13 @@ void Interpreter::visit(ast::BinaryExpr& node) {
     // Don't evaluate right side yet - it needs special handling
     std::shared_ptr<Value> left, right;
     if (node.getOp() == ast::BinaryOp::Pipeline) {
-        left = eval(*node.getLeft());
+        left = eval(*node.getLeft()).toLegacy();
         // Right side handling is in the switch case below - don't eval here!
         // This prevents the CallExpr from being evaluated with wrong arg count
     } else {
         // For all other operators, evaluate both sides
-        left = eval(*node.getLeft());
-        right = eval(*node.getRight());
+        left = eval(*node.getLeft()).toLegacy();
+        right = eval(*node.getRight()).toLegacy();
     }
 
     switch (node.getOp()) {
@@ -755,7 +760,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
                 // Add existing arguments
                 for (const auto& arg_expr : call->getArgs()) {
-                    auto arg_val = eval(*arg_expr);
+                    auto arg_val = eval(*arg_expr).toLegacy();
                     LOG_DEBUG("[Pipeline] Adding arg: {}\n", arg_val->toString());
                     args.push_back(arg_val);
                 }
@@ -763,7 +768,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 LOG_DEBUG("[Pipeline] Total args after prepending: {}\n", args.size());
 
                 // Evaluate the callee
-                auto callee = eval(*call->getCallee());
+                auto callee = eval(*call->getCallee()).toLegacy();
                 LOG_DEBUG("[Pipeline] Callee evaluated\n");
 
                 // Call the function with the modified arguments
@@ -811,7 +816,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
             } else if (auto* id = dynamic_cast<ast::IdentifierExpr*>(node.getRight())) {
                 // If right is identifier: funcName, create call with left as argument
-                auto callee = eval(*id);
+                auto callee = eval(*id).toLegacy();
                 std::vector<std::shared_ptr<Value>> args = {left};
 
                 if (auto* block = std::get_if<std::shared_ptr<BlockValue>>(&callee->data)) {
@@ -856,7 +861,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 }
             } else {
                 // Try evaluating the right side as an expression (handles lambdas, etc.)
-                auto callee = eval(*node.getRight());
+                auto callee = eval(*node.getRight()).toLegacy();
                 if (auto* func = std::get_if<std::shared_ptr<FunctionValue>>(&callee->data)) {
                     (void)func;
                     std::vector<std::shared_ptr<Value>> args = {left};
@@ -1042,10 +1047,10 @@ void Interpreter::visit(ast::UnaryExpr& node) {
 
     switch (node.getOp()) {
         case ast::UnaryOp::Neg:
-            if (std::holds_alternative<double>(operand->data)) {
-                result_ = std::make_shared<Value>(-operand->toFloat());
+            if (operand.isDouble()) {
+                result_ = NaabVal::makeDouble(-operand.toFloat());
             } else {
-                int val = operand->toInt();
+                int val = operand.toInt();
                 if (val == INT_MIN) {
                     std::ostringstream oss;
                     oss << "Math error: Integer overflow in negation\n\n";
@@ -1055,12 +1060,12 @@ void Interpreter::visit(ast::UnaryExpr& node) {
                     oss << "  - Use float for this value: -(" << val << ".0)\n";
                     throw std::runtime_error(oss.str());
                 }
-                result_ = std::make_shared<Value>(-val);
+                result_ = NaabVal::makeInt(-val);
             }
             break;
 
         case ast::UnaryOp::Not:
-            result_ = std::make_shared<Value>(!operand->toBool());
+            result_ = NaabVal::makeBool(!operand.toBool());
             break;
 
         default:
@@ -1153,8 +1158,8 @@ void Interpreter::visit(ast::LiteralExpr& node) {
                             naab::parser::Parser expr_parser(expr_tokens);
                             auto expr_ast = expr_parser.parseExpression();
                             expr_ast->accept(*this);
-                            if (result_) {
-                                result += result_->toString();
+                            if (!result_.isNull()) {
+                                result += result_.toString();
                             }
                         } catch (const std::exception& e) {
                             // Rethrow with context about the interpolation
@@ -1193,7 +1198,7 @@ void Interpreter::visit(ast::DictExpr& node) {
     for (const auto& [key_expr, val_expr] : node.getEntries()) {
         auto key = eval(*key_expr);
         auto val = eval(*val_expr);
-        dict[key->toString()] = val;
+        dict[key.toString()] = val.toLegacy();
     }
     result_ = std::make_shared<Value>(dict);
 
@@ -1204,7 +1209,7 @@ void Interpreter::visit(ast::DictExpr& node) {
 void Interpreter::visit(ast::ListExpr& node) {
     std::vector<std::shared_ptr<Value>> list;
     for (auto& elem : node.getElements()) {
-        list.push_back(eval(*elem));
+        list.push_back(eval(*elem).toLegacy());
     }
     result_ = std::make_shared<Value>(list);
 
@@ -1218,8 +1223,8 @@ void Interpreter::visit(ast::RangeExpr& node) {
     auto end_val = eval(*node.getEnd());
 
     // Both must be integers
-    int start = start_val->toInt();
-    int end = end_val->toInt();
+    int start = start_val.toInt();
+    int end = end_val.toInt();
 
     // Create a special dict to represent the range
     // This is a lightweight representation - actual values generated during iteration
@@ -1341,7 +1346,7 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
             }
         }
 
-        struct_val->field_values[idx] = field_value;
+        struct_val->field_values[idx] = field_value.toLegacy();
     }
 
     // Check required fields (all fields are currently required - no default values yet)

@@ -96,11 +96,15 @@ MISSING_EXECUTOR_TESTS["polyglot_showcase.naab"]=1           # needs Nim, Zig, J
 MISSING_EXECUTOR_TESTS["anti_patterns.naab"]=1               # needs Nim, Zig, Julia, Go, Rust
 MISSING_EXECUTOR_TESTS["before_after_optimization.naab"]=1   # needs C++, Zig, Julia, Go
 MISSING_EXECUTOR_TESTS["TUTORIAL_POLYGLOT_BLOCKS.naab"]=1    # needs C++, C#, Go, Ruby, Rust
+MISSING_EXECUTOR_TESTS["feature_showcase.naab"]=1           # needs C++ executor (uses /tmp)
+MISSING_EXECUTOR_TESTS["quick_reference.naab"]=1            # needs C++ executor (uses /tmp)
 
 # Category 3: Files that are NOT standalone tests (should not be run directly)
 declare -A SKIP_FILES
 SKIP_FILES["edge_helper_module.naab"]=1   # imported by edge tests, not standalone
 SKIP_FILES["chaos_module_taint.naab"]=1   # imported by chaos tests, not standalone
+SKIP_FILES["test_lexer_polyglot.naab"]=1  # file does not exist (stale reference)
+SKIP_FILES["test_polyglot_types.naab"]=1  # file does not exist (stale reference)
 
 # Directories to skip entirely
 SKIP_DIRS=(

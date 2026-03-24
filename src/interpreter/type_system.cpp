@@ -16,7 +16,8 @@ namespace interpreter {
 // ============================================================================
 
 // Infer the type of a runtime value
-ast::Type Interpreter::inferValueType(const std::shared_ptr<Value>& value) {
+ast::Type Interpreter::inferValueType(NaabVal nval) {
+    auto value = nval.toLegacy();
     if (std::holds_alternative<int>(value->data)) {
         return ast::Type::makeInt();
     } else if (std::holds_alternative<double>(value->data)) {
@@ -177,9 +178,10 @@ std::shared_ptr<StructDef> Interpreter::monomorphizeStruct(
 
 // Check if a value's runtime type matches a declared type
 bool Interpreter::valueMatchesType(
-    const std::shared_ptr<Value>& value,
+    NaabVal nval,
     const ast::Type& type
 ) {
+    auto value = nval.toLegacy();
     // Phase 2.4.5: If type is nullable and value is null, that's valid
     if (type.is_nullable && isNull(value)) {
         return true;
@@ -252,11 +254,11 @@ bool Interpreter::valueMatchesType(
 
 // Check if a value matches any type in a union
 bool Interpreter::valueMatchesUnion(
-    const std::shared_ptr<Value>& value,
+    NaabVal nval,
     const std::vector<ast::Type>& union_types
 ) {
     for (const auto& type : union_types) {
-        if (valueMatchesType(value, type)) {
+        if (valueMatchesType(nval, type)) {
             return true;
         }
     }
@@ -264,29 +266,8 @@ bool Interpreter::valueMatchesUnion(
 }
 
 // Get runtime type name of a value
-std::string Interpreter::getValueTypeName(const std::shared_ptr<Value>& value) {
-    if (std::holds_alternative<int>(value->data)) {
-        return "int";
-    } else if (std::holds_alternative<double>(value->data)) {
-        return "float";
-    } else if (std::holds_alternative<std::string>(value->data)) {
-        return "string";
-    } else if (std::holds_alternative<bool>(value->data)) {
-        return "bool";
-    } else if (std::holds_alternative<std::monostate>(value->data)) {
-        return "null";
-    } else if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data)) {
-        return "array";
-    } else if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
-        return "dict";
-    } else if (auto* struct_val = std::get_if<std::shared_ptr<StructValue>>(&value->data)) {
-        return (*struct_val)->type_name;
-    } else if (std::holds_alternative<std::shared_ptr<FunctionValue>>(value->data)) {
-        return "function";
-    } else if (std::holds_alternative<std::shared_ptr<BlockValue>>(value->data)) {
-        return "block";
-    }
-    return "unknown";
+std::string Interpreter::getValueTypeName(NaabVal nval) {
+    return nval.getTypeName();
 }
 
 // Format a type name for error messages
@@ -325,18 +306,13 @@ std::string Interpreter::formatTypeName(const ast::Type& type) {
 }
 
 // Phase 2.4.5: Null safety helper - check if value is null
-bool Interpreter::isNull(const std::shared_ptr<Value>& value) {
-    // Null shared_ptr
-    if (!value) {
-        return true;
-    }
-
-    // Value holds std::monostate (null/void)
-    return std::holds_alternative<std::monostate>(value->data);
+bool Interpreter::isNull(NaabVal value) {
+    return value.isNull();
 }
 
 // Phase 2.4.4: Type inference - infer ast::Type from runtime Value
-ast::Type Interpreter::inferTypeFromValue(const std::shared_ptr<Value>& value) {
+ast::Type Interpreter::inferTypeFromValue(NaabVal nval) {
+    auto value = nval.toLegacy();
     // Handle null/void
     if (!value || std::holds_alternative<std::monostate>(value->data)) {
         // Null is ambiguous - could be any nullable type
@@ -591,7 +567,7 @@ ast::Type Interpreter::substituteTypeParams(
 // Phase 2.4.4 Phase 3: Infer generic type arguments from call site
 std::vector<ast::Type> Interpreter::inferGenericArgs(
     const std::shared_ptr<FunctionValue>& func,
-    const std::vector<std::shared_ptr<Value>>& args
+    const std::vector<NaabVal>& args
 ) {
     // Build type constraint system
     std::map<std::string, ast::Type> constraints;

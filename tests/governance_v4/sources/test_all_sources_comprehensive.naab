@@ -168,7 +168,8 @@ fn test_polyglot_output_json_pipe() {
     // Test 7: Python -> JSON polyglot output should be tainted
     total = total + 1
     let output = <<python -> JSON
-{"key": "value"}
+import json
+print(json.dumps({"key": "value"}))
 >>
 
     try {

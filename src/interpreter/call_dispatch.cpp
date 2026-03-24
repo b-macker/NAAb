@@ -41,8 +41,8 @@ static std::string getTypeName(const std::shared_ptr<Value>& val) {
 
 
 // Call a function value with arguments (for higher-order functions like map/filter/reduce)
-std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
-                                                  const std::vector<std::shared_ptr<Value>>& args) {
+NaabVal Interpreter::callFunction(std::shared_ptr<Value> fn,
+                                   const std::vector<std::shared_ptr<Value>>& args) {
     // Week 1, Task 1.3: Check call depth to prevent stack overflow
     // Governance: Use governance call depth limit if configured
     size_t max_depth = limits::MAX_CALL_STACK_DEPTH;
@@ -149,7 +149,7 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
                 auto saved_env = current_env_;
                 current_env_ = func_env;
                 func->defaults[i]->accept(*this);
-                auto default_val = result_;
+                auto default_val = result_.toLegacy();
                 current_env_ = saved_env;
                 func_env->define(func->params[i], default_val);
             }
@@ -193,7 +193,7 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
             }
 
             try {
-                auto result = async_interp.executeBodyInEnv(*body, func_env);
+                auto result = async_interp.executeBodyInEnv(*body, func_env).toLegacy();
                 // BUG-AwaitExpr fix: Capture taint state BEFORE async_interp is destroyed
                 if (async_interp.wasLastReturnTainted()) {
                     taint_flag->store(true);
@@ -272,7 +272,7 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
             auto saved_env = current_env_;
             current_env_ = func_env;
             func->defaults[i]->accept(*this);
-            auto default_val = result_;
+            auto default_val = result_.toLegacy();
             current_env_ = saved_env;
             func_env->define(func->params[i], default_val);
         }
@@ -366,8 +366,8 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
 
     // Phase 3 Governance: Check function contracts
     if (governance_ && governance_->isActive() && !func->name.empty()) {
-        std::string result_str = return_value ? return_value->toString() : "null";
-        std::string result_type = return_value ? getTypeName(return_value) : "null";
+        std::string result_str = return_value.isNull() ? "null" : return_value.toString();
+        std::string result_type = return_value.getTypeName();
         std::string contract_err = governance_->checkFunctionContract(
             func->name, result_str, result_type, func->source_line);
         if (!contract_err.empty()) {
@@ -383,13 +383,22 @@ std::shared_ptr<Value> Interpreter::callFunction(std::shared_ptr<Value> fn,
     return return_value;
 }
 
-
+// NaabVal overload: converts to legacy and delegates
+NaabVal Interpreter::callFunction(NaabVal fn, const std::vector<NaabVal>& args) {
+    auto legacy_fn = fn.toLegacy();
+    std::vector<std::shared_ptr<Value>> legacy_args;
+    legacy_args.reserve(args.size());
+    for (const auto& a : args) {
+        legacy_args.push_back(a.toLegacy());
+    }
+    return callFunction(legacy_fn, legacy_args);
+}
 
 void Interpreter::visit(ast::CallExpr& node) {
     // Evaluate arguments first
     std::vector<std::shared_ptr<Value>> args;
     for (auto& arg : node.getArgs()) {
-        args.push_back(eval(*arg));
+        args.push_back(eval(*arg).toLegacy());
     }
 
     // Check if this is a member expression call (for method chaining)
@@ -412,7 +421,7 @@ void Interpreter::visit(ast::CallExpr& node) {
         // We need to evaluate the object BEFORE evaluating the full member access,
         // because built-in methods like .get(), .has() are not stored as dict keys
         {
-            auto obj_val = eval(*member_expr->getObject());
+            auto obj_val = eval(*member_expr->getObject()).toLegacy();
             std::string method_name = member_expr->getMember();
 
             // Optional chaining: if object is null and ?. was used, return null
@@ -820,12 +829,12 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (args.empty()) throw std::runtime_error("array.find() requires 1 argument (predicate function)");
                     for (const auto& item : arr) {
                         auto res = callFunction(args[0], {item});
-                        if (res && res->toBool()) {
+                        if (res.toBool()) {
                             result_ = item;
                             return;
                         }
                     }
-                    result_ = std::make_shared<Value>(); // null if not found
+                    result_ = NaabVal::makeNull(); // null if not found
                     return;
                 }
                 if (method_name == "for_each" || method_name == "forEach") {
@@ -833,7 +842,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     for (const auto& item : arr) {
                         callFunction(args[0], {item});
                     }
-                    result_ = std::make_shared<Value>(); // void
+                    result_ = NaabVal::makeNull(); // void
                     return;
                 }
                 if (method_name == "slice") {
@@ -1042,7 +1051,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
         // Evaluate the member expression (returns PythonObjectValue for methods)
         normal_member_access:
-        auto callable = eval(*member_expr);
+        auto callable = eval(*member_expr).toLegacy();
 
         // If it's a Python object, call it
         if (auto* py_obj_ptr = std::get_if<std::shared_ptr<PythonObjectValue>>(&callable->data)) {
@@ -1146,7 +1155,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-JS calls");
                 if (isVerboseMode()) {
-                    fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
+                    fmt::print("[VERBOSE] Block returned: {}\n", result_.toString());
                 }
                 LOG_DEBUG("[SUCCESS] JavaScript function returned\n");
 
@@ -1175,7 +1184,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-CPP calls");
                 if (isVerboseMode()) {
-                    fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
+                    fmt::print("[VERBOSE] Block returned: {}\n", result_.toString());
                 }
                 LOG_DEBUG("[SUCCESS] C++ function returned\n");
 
@@ -1204,7 +1213,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-PY calls");
                 if (isVerboseMode()) {
-                    fmt::print("[VERBOSE] Block returned: {}\n", result_->toString());
+                    fmt::print("[VERBOSE] Block returned: {}\n", result_.toString());
                 }
                 LOG_DEBUG("[SUCCESS] Python function returned\n");
 
@@ -1315,7 +1324,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                                     current_env_->set(var_name, args[0]);
                                 } else {
                                     // For push/unshift/reverse/sort, use the result
-                                    current_env_->set(var_name, result_);
+                                    current_env_->set(var_name, result_.toLegacy());
                                 }
                                 LOG_TRACE("[MUTATION] Auto-updated {} after {}.{}()\n",
                                          var_name, module_alias, func_name);
@@ -1337,7 +1346,7 @@ void Interpreter::visit(ast::CallExpr& node) {
         std::string method_name = member_call->getMember();
 
         // Evaluate the object part to check for built-in methods on dicts/arrays/strings
-        auto obj = eval(*member_call->getObject());
+        auto obj = eval(*member_call->getObject()).toLegacy();
 
         // ===== Built-in DICT methods =====
         if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&obj->data)) {
@@ -1651,12 +1660,12 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (args.empty()) throw std::runtime_error("array.find() requires 1 argument (predicate function)");
                 for (const auto& item : arr) {
                     auto res = callFunction(args[0], {item});
-                    if (res && res->toBool()) {
+                    if (res.toBool()) {
                         result_ = item;
                         return;
                     }
                 }
-                result_ = std::make_shared<Value>(); // null if not found
+                result_ = NaabVal::makeNull(); // null if not found
                 return;
             }
             if (method_name == "for_each" || method_name == "forEach") {
@@ -1664,7 +1673,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 for (const auto& item : arr) {
                     callFunction(args[0], {item});
                 }
-                result_ = std::make_shared<Value>(); // void
+                result_ = NaabVal::makeNull(); // void
                 return;
             }
             if (method_name == "slice") {
@@ -1872,7 +1881,7 @@ void Interpreter::visit(ast::CallExpr& node) {
         // ===== Normal member access call (functions stored in dicts, struct methods, etc.) =====
         // Evaluate the full member access
         member_call->accept(*this);
-        auto func_value = result_;
+        auto func_value = result_.toLegacy();
 
         // Check if it's a function
         if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&func_value->data)) {
@@ -1914,7 +1923,7 @@ void Interpreter::visit(ast::CallExpr& node) {
     // evaluate it and check if it's a callable function
     if (!id_expr) {
         node.getCallee()->accept(*this);
-        auto callee_value = result_;
+        auto callee_value = result_.toLegacy();
 
         // Check if the result is a function
         if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&callee_value->data)) {
@@ -2029,7 +2038,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                     }
                 } else {
                     // Infer type arguments from actual arguments
-                    auto inferred_types = inferGenericArgs(func, args);
+                    std::vector<NaabVal> nargs(args.begin(), args.end());
+                    auto inferred_types = inferGenericArgs(func, nargs);
 
                     // Build substitution map
                     for (size_t i = 0; i < func->type_parameters.size() && i < inferred_types.size(); i++) {
@@ -2093,7 +2103,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     func_env->define(func->params[i], args[i]);
                 } else {
                     // Value parameter: copy the value (default behavior)
-                    func_env->define(func->params[i], copyValue(args[i]));
+                    func_env->define(func->params[i], copyValue(args[i]).toLegacy());
                 }
             }
 
@@ -2109,9 +2119,9 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                     // Phase 2.1: Apply ref vs value semantics to default parameters
                     if (func->param_types[i].is_reference) {
-                        func_env->define(func->params[i], default_val);
+                        func_env->define(func->params[i], default_val.toLegacy());
                     } else {
-                        func_env->define(func->params[i], copyValue(default_val));
+                        func_env->define(func->params[i], copyValue(default_val).toLegacy());
                     }
                 } else {
                     throw std::runtime_error(fmt::format(
@@ -2225,8 +2235,8 @@ void Interpreter::visit(ast::CallExpr& node) {
             // Phase 3 Governance: Check function contracts (inline call path)
             if (governance_ && governance_->isActive() && !func->name.empty()) {
                 auto return_value = result_;
-                std::string result_str = return_value ? return_value->toString() : "null";
-                std::string result_type = return_value ? getTypeName(return_value) : "null";
+                std::string result_str = return_value.isNull() ? "null" : return_value.toString();
+                std::string result_type = return_value.getTypeName();
                 std::string contract_err = governance_->checkFunctionContract(
                     func->name, result_str, result_type, func->source_line);
                 if (!contract_err.empty()) {
@@ -2267,7 +2277,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 result_ = executor->callFunction(function_to_call, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
 
-                if (result_) {
+                if (!result_.isNull()) {
                     LOG_DEBUG("[SUCCESS] Block call completed\n");
 
                     // Phase 4.4: Record block usage for analytics
@@ -2286,7 +2296,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     }
                 } else {
                     fmt::print("[WARN] Block call returned null\n");
-                    result_ = std::make_shared<Value>();
+                    result_ = NaabVal::makeNull();
                 }
                 return;
             }
@@ -2723,7 +2733,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
         }
     }
 
-    auto obj = eval(*node.getObject());
+    auto obj = eval(*node.getObject()).toLegacy();
 
     // Optional chaining: if object is null and ?. was used, return null
     if (node.isOptional()) {

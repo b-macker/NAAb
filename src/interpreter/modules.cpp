@@ -614,8 +614,8 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 auto value = eval(*expr);
 
                 // Store as "default" export
-                module_exports_["default"] = value;
-                current_env_->define("default", value);
+                module_exports_["default"] = value.toLegacy();
+                current_env_->define("default", value.toLegacy());
 
                 LOG_DEBUG("[INFO] Exported default expression\n");
             }

@@ -192,7 +192,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         auto value = current_env_->get(var_name);
 
         // For all languages: use string serialization
-        std::string serialized = serializeValueForLanguage(value, language);
+        std::string serialized = serializeValueForLanguage(NaabVal(value), language);
 
         // FIX-DX-10: Warn when complex types bound to languages needing manual parsing
         if (value) {
@@ -534,7 +534,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             fprintf(stderr, "[polyglot] Bound variables:\n");
             for (const auto& var_name : bound_vars) {
                 auto val = getVariable(var_name);
-                if (val) fprintf(stderr, "  %s = %s\n", var_name.c_str(), val->toString().c_str());
+                if (!val.isNull()) fprintf(stderr, "  %s = %s\n", var_name.c_str(), val.toString().c_str());
             }
         }
         // Show first 5 lines of code
@@ -582,8 +582,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         result_ = executor->executeWithReturn(final_code);
 
         // Polyglot Consensus Verification: cross-language result checking
-        if (governance_ && governance_->isVerificationEnabled() && result_) {
-            std::string result_str = result_->toString();
+        if (governance_ && governance_->isVerificationEnabled() && !result_.isNull()) {
+            std::string result_str = result_.toString();
             std::string verify_err = governance_->verifyPolyglotResult(
                 language, raw_code, result_str, node.getLocation().line);
             if (!verify_err.empty()) {
@@ -593,10 +593,10 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         // Output Baselines: check/record baseline for polyglot result
-        if (governance_ && governance_->isActive() && result_ &&
+        if (governance_ && governance_->isActive() && !result_.isNull() &&
             governance_->getRules().baselines.enabled) {
-            std::string result_str_bl = result_->toString();
-            std::string result_type_bl = getTypeName(result_);
+            std::string result_str_bl = result_.toString();
+            std::string result_type_bl = result_.getTypeName();
             std::size_t code_hash = std::hash<std::string>{}(raw_code);
             char hash_buf_bl[16];
             snprintf(hash_buf_bl, sizeof(hash_buf_bl), "%06zx", code_hash & 0xFFFFFF);
@@ -630,23 +630,26 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         // ShellResult transparent handling: extract stdout or throw on failure
-        if (result_ && std::holds_alternative<std::shared_ptr<StructValue>>(result_->data)) {
-            auto& struct_val = std::get<std::shared_ptr<StructValue>>(result_->data);
-            if (struct_val->type_name == "ShellResult" && struct_val->field_values.size() >= 3) {
-                auto exit_code_val = struct_val->field_values[0];
-                auto stdout_val = struct_val->field_values[1];
-                auto stderr_val = struct_val->field_values[2];
-                int exit_code = std::holds_alternative<int>(exit_code_val->data) ?
-                    std::get<int>(exit_code_val->data) : -1;
-                if (exit_code != 0) {
-                    throw std::runtime_error(
-                        "Shell command failed with exit code " + std::to_string(exit_code) + "\n"
-                        "  stderr: " + stderr_val->toString() + "\n"
-                        "  stdout: " + stdout_val->toString()
-                    );
+        {
+            auto result_legacy = result_.toLegacy();
+            if (result_legacy && std::holds_alternative<std::shared_ptr<StructValue>>(result_legacy->data)) {
+                auto& struct_val = std::get<std::shared_ptr<StructValue>>(result_legacy->data);
+                if (struct_val->type_name == "ShellResult" && struct_val->field_values.size() >= 3) {
+                    auto exit_code_val = struct_val->field_values[0];
+                    auto stdout_val = struct_val->field_values[1];
+                    auto stderr_val = struct_val->field_values[2];
+                    int exit_code = std::holds_alternative<int>(exit_code_val->data) ?
+                        std::get<int>(exit_code_val->data) : -1;
+                    if (exit_code != 0) {
+                        throw std::runtime_error(
+                            "Shell command failed with exit code " + std::to_string(exit_code) + "\n"
+                            "  stderr: " + stderr_val->toString() + "\n"
+                            "  stdout: " + stdout_val->toString()
+                        );
+                    }
+                    // Success: unwrap to just stdout value
+                    result_ = NaabVal(stdout_val);
                 }
-                // Success: unwrap to just stdout value
-                result_ = stdout_val;
             }
         }
 
@@ -654,11 +657,13 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         // Strategy 1: Check executor's captured output buffer (works for Python)
         std::string captured = executor->getCapturedOutput();
         bool sentinel_found = false;
+        bool json_parsed = false;
         if (!captured.empty()) {
             auto polyglot_result = runtime::parsePolyglotOutput(captured, return_type);
             if (polyglot_result.return_value) {
                 result_ = polyglot_result.return_value;
                 sentinel_found = true;
+                json_parsed = true;
             }
             // Print remaining log output
             if (!polyglot_result.log_output.empty()) {
@@ -671,12 +676,14 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 
         // Strategy 2: Check if result_ is a string containing the sentinel
         // (works for shell executor which returns stdout as string value)
-        if (!sentinel_found && result_) {
-            if (auto* str_val = std::get_if<std::string>(&result_->data)) {
+        if (!sentinel_found && !result_.isNull()) {
+            auto result_legacy = result_.toLegacy();
+            if (auto* str_val = std::get_if<std::string>(&result_legacy->data)) {
                 if (str_val->find("__NAAB_RETURN__:") != std::string::npos) {
                     auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
                     if (polyglot_result.return_value) {
                         result_ = polyglot_result.return_value;
+                        json_parsed = true;
                     }
                     // Print log output that was mixed with the sentinel
                     if (!polyglot_result.log_output.empty()) {
@@ -687,14 +694,23 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                     auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
                     if (polyglot_result.return_value) {
                         result_ = polyglot_result.return_value;
+                        json_parsed = true;
                     }
                 }
+            } else if (!return_type.empty()) {
+                // result_ is a non-string structured value (dict, array, int, etc.)
+                // This means the executor's internal -> JSON parsing already produced
+                // a structured result — counts as valid JSON.
+                json_parsed = true;
             }
         }
 
         // Phase 12: BLOCK_CONTRACT_VIOLATION — -> JSON declared but no JSON produced
         if (!return_type.empty() && return_type == "JSON") {
-            bool has_valid_result = result_ && !std::holds_alternative<std::monostate>(result_->data);
+            // json_parsed: explicit JSON parsing succeeded (string → structured value)
+            // Also accept non-null non-string results (executor's internal -> JSON parsing
+            // already produced a structured value like dict/array/int)
+            bool has_valid_result = json_parsed || (!result_.isNull() && !result_.isString());
             if (!has_valid_result) {
                 std::ostringstream oss;
                 oss << "Block contract violation: <<" << language << " -> JSON>> expected a JSON return value, "
@@ -764,13 +780,16 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             }
 
             // AMBIGUOUS_OUTPUT warning: result looks like an error, not structured data
-            if (auto* str_val = std::get_if<std::string>(&result_->data)) {
-                if (str_val->find("Traceback") != std::string::npos ||
-                    str_val->find("Error") != std::string::npos ||
-                    str_val->find("error:") != std::string::npos) {
-                    std::cerr << "Warning: <<" << language << " -> JSON>> returned a string that looks "
-                              << "like an error message, not JSON data. Consider using try/catch "
-                              << "inside the polyglot block.\n";
+            {
+                auto result_legacy_json = result_.toLegacy();
+                if (auto* str_val = std::get_if<std::string>(&result_legacy_json->data)) {
+                    if (str_val->find("Traceback") != std::string::npos ||
+                        str_val->find("Error") != std::string::npos ||
+                        str_val->find("error:") != std::string::npos) {
+                        std::cerr << "Warning: <<" << language << " -> JSON>> returned a string that looks "
+                                  << "like an error message, not JSON data. Consider using try/catch "
+                                  << "inside the polyglot block.\n";
+                    }
                 }
             }
         }
@@ -782,7 +801,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             auto polyglot_trace_end = std::chrono::steady_clock::now();
             double trace_ms = std::chrono::duration<double, std::milli>(
                 polyglot_trace_end - polyglot_trace_start).count();
-            std::string result_str = result_ ? result_->toString() : "null";
+            std::string result_str = result_.isNull() ? "null" : result_.toString();
             if (result_str.size() > 200) result_str = result_str.substr(0, 200) + "...";
             fprintf(stderr, "[polyglot] %s returned: %s (%.1fms)\n",
                     language.c_str(), result_str.c_str(), trace_ms);
@@ -1232,7 +1251,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 oss << "\n  [debug] Bound variables at time of error:\n";
                 for (const auto& bv : bound_vars) {
                     auto val = getVariable(bv);
-                    if (val) oss << "    " << bv << " = " << val->toString() << "\n";
+                    if (!val.isNull()) oss << "    " << bv << " = " << val.toString() << "\n";
                 }
             } else {
                 oss << "\n  [debug] No variables were bound to this block.\n";
@@ -1255,8 +1274,8 @@ void Interpreter::VariableSnapshot::capture(
         if (env->has(name)) {
             // Deep copy the value to avoid shared mutable state
             auto original_value = env->get(name);
-            auto copied_value = interp->copyValue(original_value);
-            variables[name] = copied_value;
+            auto copied_value = interp->copyValue(NaabVal(original_value));
+            variables[name] = copied_value.toLegacy();
         }
     }
 }
@@ -1363,7 +1382,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         // Prepare variable declarations by serializing snapshot values
         std::string var_declarations;
         for (const auto& [var_name, value] : snapshot.variables) {
-            std::string serialized = serializeValueForLanguage(value, lang_str);
+            std::string serialized = serializeValueForLanguage(NaabVal(value), lang_str);
 
             // Language-specific variable declaration syntax
             if (lang_str == "python") {
@@ -1576,11 +1595,13 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
             auto value = std::make_shared<Value>(result.value);
 
             // Phase 12: Check for sentinel/JSON return values in parallel path
+            bool par_json_parsed = false;
             if (auto* str_val = std::get_if<std::string>(&value->data)) {
                 if (str_val->find("__NAAB_RETURN__:") != std::string::npos) {
                     auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
                     if (polyglot_result.return_value) {
                         value = polyglot_result.return_value;
+                        par_json_parsed = true;
                     }
                     if (!polyglot_result.log_output.empty()) {
                         std::cout << polyglot_result.log_output << std::flush;
@@ -1590,13 +1611,14 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                     auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
                     if (polyglot_result.return_value) {
                         value = polyglot_result.return_value;
+                        par_json_parsed = true;
                     }
                 }
             }
 
             // Phase 12: BLOCK_CONTRACT_VIOLATION — -> JSON declared but no JSON produced
             if (!return_type.empty() && return_type == "JSON") {
-                bool has_valid_result = value && !std::holds_alternative<std::monostate>(value->data);
+                bool has_valid_result = par_json_parsed;
                 if (!has_valid_result) {
                     std::ostringstream oss;
                     oss << "Block contract violation: <<" << lang_str << " -> JSON>> expected a JSON return value, "
@@ -1805,10 +1827,11 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 }
 
 // Phase 2.2: Serialize a value for injection into target language
-std::string Interpreter::serializeValueForLanguage(const std::shared_ptr<Value>& value, const std::string& language) {
-    if (!value) {
+std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::string& language) {
+    if (nval.isNull()) {
         return "null";
     }
+    auto value = nval.toLegacy();
 
     // Int
     if (std::holds_alternative<int>(value->data)) {

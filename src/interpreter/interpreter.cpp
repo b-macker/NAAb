@@ -527,7 +527,7 @@ std::vector<std::string> Environment::getOwnNames() const {
 Interpreter::Interpreter()
     : global_env_(std::make_shared<Environment>()),
       current_env_(global_env_),
-      result_(std::make_shared<Value>()),
+      result_(NaabVal::makeNull()),
       returning_(false),
       breaking_(false),
       continuing_(false),
@@ -593,8 +593,8 @@ Interpreter::Interpreter()
         if (array_mod) {
             // Create callback that uses this interpreter's callFunction method
             array_mod->setFunctionEvaluator(
-                [this](std::shared_ptr<Value> fn, const std::vector<std::shared_ptr<Value>>& args) {
-                    return this->callFunction(fn, args);
+                [this](std::shared_ptr<Value> fn, const std::vector<std::shared_ptr<Value>>& args) -> std::shared_ptr<Value> {
+                    return this->callFunction(fn, args).toLegacy();
                 }
             );
             LOG_DEBUG("[INFO] Array module configured with function evaluator\n");
@@ -704,13 +704,13 @@ void Interpreter::execute(ast::Program& program) {
     program.accept(*this);
 }
 
-std::shared_ptr<Value> Interpreter::eval(ast::Expr& expr) {
+NaabVal Interpreter::eval(ast::Expr& expr) {
     expr.accept(*this);
     return result_;
 }
 
 // Phase 6: Execute a function body in a given environment (for async)
-std::shared_ptr<Value> Interpreter::executeBodyInEnv(ast::CompoundStmt& body, std::shared_ptr<Environment> env) {
+NaabVal Interpreter::executeBodyInEnv(ast::CompoundStmt& body, std::shared_ptr<Environment> env) {
     auto saved_env = current_env_;
     auto saved_returning = returning_;
     env_stack_.push_back(current_env_);  // BUG-10 fix
@@ -734,15 +734,15 @@ std::shared_ptr<Value> Interpreter::executeBodyInEnv(ast::CompoundStmt& body, st
 }
 
 // Get variable from environment (for testing)
-std::shared_ptr<Value> Interpreter::getVariable(const std::string& name) const {
+NaabVal Interpreter::getVariable(const std::string& name) const {
     // Try current environment first, then global
     if (current_env_ && current_env_->has(name)) {
-        return current_env_->get(name);
+        return NaabVal::fromLegacy(current_env_->get(name));
     }
     if (global_env_ && global_env_->has(name)) {
-        return global_env_->get(name);
+        return NaabVal::fromLegacy(global_env_->get(name));
     }
-    return nullptr;
+    return NaabVal::makeNull();
 }
 
 // Phase 11.1: Helper to flush captured output from polyglot executors
@@ -1584,7 +1584,7 @@ void Interpreter::visit(ast::IfStmt& node) {
     }
 
     auto condition = eval(*node.getCondition());
-    if (condition->toBool()) {
+    if (condition.toBool()) {
         node.getThenBranch()->accept(*this);
     } else if (node.getElseBranch()) {
         node.getElseBranch()->accept(*this);
@@ -1593,7 +1593,7 @@ void Interpreter::visit(ast::IfStmt& node) {
 
 void Interpreter::visit(ast::IfExpr& node) {
     auto condition = eval(*node.getCondition());
-    if (condition->toBool()) {
+    if (condition.toBool()) {
         node.getThenExpr()->accept(*this);
     } else {
         node.getElseExpr()->accept(*this);
@@ -1602,7 +1602,7 @@ void Interpreter::visit(ast::IfExpr& node) {
 }
 
 void Interpreter::visit(ast::MatchExpr& node) {
-    auto subject = eval(*node.getSubject());
+    auto subject = eval(*node.getSubject()).toLegacy();
 
     for (auto& arm : node.getArms()) {
         // Create a new scope for each arm (for binding patterns)
@@ -1616,7 +1616,7 @@ void Interpreter::visit(ast::MatchExpr& node) {
                 current_env_ = arm_env;
                 auto guard_val = eval(*arm.guard);
                 current_env_ = saved_env;
-                if (!guard_val->toBool()) continue;
+                if (!guard_val.toBool()) continue;
             }
             current_env_ = arm_env;
             arm.body->accept(*this);
@@ -1650,16 +1650,16 @@ void Interpreter::visit(ast::MatchExpr& node) {
                     } else {
                         // Literal element: must match exactly
                         auto pat_elem = eval(*list_pat->getElements()[i]);
-                        auto& subj_elem = (*subj_arr)[i];
+                        NaabVal subj_elem_nv((*subj_arr)[i]);
                         bool elem_match = false;
-                        bool s_null = isNull(subj_elem), p_null = isNull(pat_elem);
+                        bool s_null = subj_elem_nv.isNull(), p_null = pat_elem.isNull();
                         if (s_null && p_null) {
                             elem_match = true;
                         } else if (!s_null && !p_null) {
-                            bool s_num = std::holds_alternative<int>(subj_elem->data) || std::holds_alternative<double>(subj_elem->data);
-                            bool p_num = std::holds_alternative<int>(pat_elem->data) || std::holds_alternative<double>(pat_elem->data);
-                            if (s_num && p_num) elem_match = subj_elem->toFloat() == pat_elem->toFloat();
-                            else elem_match = subj_elem->toString() == pat_elem->toString();
+                            bool s_num = subj_elem_nv.isInt() || subj_elem_nv.isDouble();
+                            bool p_num = pat_elem.isInt() || pat_elem.isDouble();
+                            if (s_num && p_num) elem_match = subj_elem_nv.toFloat() == pat_elem.toFloat();
+                            else elem_match = subj_elem_nv.toString() == pat_elem.toString();
                         }
                         if (!elem_match) { matches = false; break; }
                     }
@@ -1668,25 +1668,22 @@ void Interpreter::visit(ast::MatchExpr& node) {
         } else {
             // Value pattern: evaluate and compare
             auto pattern_val = eval(*arm.pattern);
-            bool subj_null = isNull(subject);
-            bool pat_null = isNull(pattern_val);
+            NaabVal subj_nv(subject);
+            bool subj_null = subj_nv.isNull();
+            bool pat_null = pattern_val.isNull();
 
             if (subj_null && pat_null) {
                 matches = true;
             } else if (!subj_null && !pat_null) {
-                bool subj_numeric = std::holds_alternative<int>(subject->data) ||
-                                    std::holds_alternative<double>(subject->data);
-                bool pat_numeric = std::holds_alternative<int>(pattern_val->data) ||
-                                   std::holds_alternative<double>(pattern_val->data);
+                bool subj_numeric = subj_nv.isInt() || subj_nv.isDouble();
+                bool pat_numeric = pattern_val.isInt() || pattern_val.isDouble();
 
                 if (subj_numeric && pat_numeric) {
-                    matches = subject->toFloat() == pattern_val->toFloat();
-                } else if (std::holds_alternative<std::string>(subject->data) &&
-                           std::holds_alternative<std::string>(pattern_val->data)) {
-                    matches = subject->toString() == pattern_val->toString();
-                } else if (std::holds_alternative<bool>(subject->data) &&
-                           std::holds_alternative<bool>(pattern_val->data)) {
-                    matches = subject->toBool() == pattern_val->toBool();
+                    matches = subj_nv.toFloat() == pattern_val.toFloat();
+                } else if (subj_nv.isString() && pattern_val.isString()) {
+                    matches = subj_nv.toString() == pattern_val.toString();
+                } else if (subj_nv.isBool() && pattern_val.isBool()) {
+                    matches = subj_nv.toBool() == pattern_val.toBool();
                 }
             }
         }
@@ -1697,7 +1694,7 @@ void Interpreter::visit(ast::MatchExpr& node) {
                 current_env_ = arm_env;
                 auto guard_val = eval(*arm.guard);
                 current_env_ = saved_env;
-                if (!guard_val->toBool()) continue;  // Guard failed, try next arm
+                if (!guard_val.toBool()) continue;  // Guard failed, try next arm
             }
             current_env_ = arm_env;
             arm.body->accept(*this);
@@ -1719,7 +1716,7 @@ void Interpreter::visit(ast::MatchExpr& node) {
 }
 
 void Interpreter::visit(ast::AwaitExpr& node) {
-    auto value = eval(*node.getExpr());
+    auto value = eval(*node.getExpr()).toLegacy();
 
     // If it's a FutureValue, block until resolved
     auto* future_ptr = std::get_if<std::shared_ptr<FutureValue>>(&value->data);
@@ -1736,9 +1733,8 @@ void Interpreter::visit(ast::AwaitExpr& node) {
 
         // BUG-K: Check return contract at await resolution point
         if (governance_ && governance_->isActive() && !awaited_func_name.empty()) {
-            auto return_value = result_;
-            std::string result_str = return_value ? return_value->toString() : "null";
-            std::string result_type = return_value ? getTypeName(return_value) : "null";
+            std::string result_str = result_.isNull() ? "null" : result_.toString();
+            std::string result_type = result_.getTypeName();
             std::string contract_err = governance_->checkFunctionContract(
                 awaited_func_name, result_str, result_type, node.getLocation().line, current_file_);
             if (!contract_err.empty()) {
@@ -1778,7 +1774,7 @@ void Interpreter::visit(ast::YieldExpr& node) {
     }
 
     // Evaluate the yielded value and collect it
-    auto value = eval(*node.getExpr());
+    auto value = eval(*node.getExpr()).toLegacy();
     active_generator_->collected_values.push_back(value);
     result_ = std::make_shared<Value>();  // yield itself returns void
 }
@@ -1831,7 +1827,7 @@ void Interpreter::visit(ast::ForStmt& node) {
     // Increment loop depth for break/continue validation
     ++loop_depth_;
 
-    auto iterable = eval(*node.getIter());
+    auto iterable = eval(*node.getIter()).toLegacy();
 
     // BUG-E + BUG-2: If iterable is tainted, mark loop variable as tainted
     if (governance_ && governance_->isActive()) {
@@ -2017,7 +2013,7 @@ void Interpreter::visit(ast::ForStmt& node) {
         }
         for (size_t i = gen->args.size(); i < func->params.size(); i++) {
             if (func->defaults[i]) {
-                auto def_val = eval(*func->defaults[i]);
+                auto def_val = eval(*func->defaults[i]).toLegacy();
                 func_env->define(func->params[i], def_val);
             }
         }
@@ -2119,7 +2115,7 @@ void Interpreter::visit(ast::WhileStmt& node) {
     size_t iter_count = 0;
     while (true) {
         auto condition = eval(*node.getCondition());
-        if (!condition->toBool()) break;
+        if (!condition.toBool()) break;
 
         if (governance_ && governance_->isActive()) {
             std::string err = governance_->checkLoopIterations(++iter_count);
@@ -2211,7 +2207,7 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
 
     std::shared_ptr<Value> value;
     if (node.getInit()) {
-        value = eval(*node.getInit());
+        value = eval(*node.getInit()).toLegacy();
     } else {
         value = std::make_shared<Value>();
     }
@@ -2293,7 +2289,7 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
     // When you do "let arr2 = arr1", both should be independent copies
     if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data) ||
         std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
-        value = copyValue(value);
+        value = copyValue(NaabVal(value)).toLegacy();
     }
 
     current_env_->define(node.getName(), value);
@@ -2301,7 +2297,7 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
 
 // Destructuring: let [a, b] = expr  OR  let {x, y} = expr
 void Interpreter::visit(ast::DestructureStmt& node) {
-    auto value = eval(*node.getInit());
+    auto value = eval(*node.getInit()).toLegacy();
     const auto& names = node.getNames();
 
     if (node.getDestructureKind() == ast::DestructureStmt::Kind::Array) {
@@ -2335,11 +2331,11 @@ void Interpreter::visit(ast::DestructureStmt& node) {
                 // This is the ...rest element — collect remaining into array
                 std::vector<std::shared_ptr<Value>> rest_arr;
                 for (size_t j = static_cast<size_t>(rest_idx); j < arr->size(); ++j) {
-                    rest_arr.push_back(copyValue((*arr)[j]));
+                    rest_arr.push_back(copyValue((*arr)[j]).toLegacy());
                 }
                 current_env_->define(names[i], std::make_shared<Value>(rest_arr));
             } else {
-                auto elem = copyValue((*arr)[i]);
+                auto elem = copyValue((*arr)[i]).toLegacy();
                 current_env_->define(names[i], elem);
             }
 
@@ -2370,7 +2366,7 @@ void Interpreter::visit(ast::DestructureStmt& node) {
         for (const auto& name : names) {
             auto it = dict->find(name);
             if (it != dict->end()) {
-                auto elem = copyValue(it->second);
+                auto elem = copyValue(it->second).toLegacy();
                 current_env_->define(name, elem);
             } else {
                 current_env_->define(name, std::make_shared<Value>());  // null for missing keys
@@ -2511,7 +2507,7 @@ void Interpreter::visit(ast::TryStmt& node) {
     if (node.hasFinally()) {
         // Reset return flags so finally can't override try/catch return
         returning_ = false;
-        result_ = nullptr;
+        result_ = NaabVal::makeNull();
 
         try {
             node.getFinallyBody()->accept(*this);
@@ -2533,7 +2529,7 @@ void Interpreter::visit(ast::TryStmt& node) {
 }
 
 void Interpreter::visit(ast::ThrowStmt& node) {
-    auto value = eval(*node.getExpr());
+    auto value = eval(*node.getExpr()).toLegacy();
     throw NaabException(value);
 }
 // ============================================================================
@@ -2586,28 +2582,25 @@ void Interpreter::explain(const std::string& message) const {
 }
 
 // Phase 2.1: Deep copy a value (for value parameters)
-std::shared_ptr<Value> Interpreter::copyValue(const std::shared_ptr<Value>& value) {
-    if (!value) {
-        return std::make_shared<Value>();
-    }
+NaabVal Interpreter::copyValue(NaabVal nval) {
+    // Inline types are trivially copied (no heap allocation)
+    if (nval.isNull()) return NaabVal::makeNull();
+    if (nval.isInt()) return NaabVal::makeInt(nval.asInt());
+    if (nval.isDouble()) return NaabVal::makeDouble(nval.asDouble());
+    if (nval.isBool()) return NaabVal::makeBool(nval.asBool());
 
-    // Check variant type and copy accordingly
-    if (std::holds_alternative<int>(value->data)) {
-        return std::make_shared<Value>(std::get<int>(value->data));
-    } else if (std::holds_alternative<double>(value->data)) {
-        return std::make_shared<Value>(std::get<double>(value->data));
-    } else if (std::holds_alternative<bool>(value->data)) {
-        return std::make_shared<Value>(std::get<bool>(value->data));
-    } else if (std::holds_alternative<std::string>(value->data)) {
-        return std::make_shared<Value>(std::get<std::string>(value->data));
-    } else if (std::holds_alternative<std::monostate>(value->data)) {
-        return std::make_shared<Value>();
+    // Heap types: convert to legacy for deep copy logic
+    auto value = nval.toLegacy();
+    if (!value) return NaabVal::makeNull();
+
+    if (std::holds_alternative<std::string>(value->data)) {
+        return NaabVal::makeString(std::get<std::string>(value->data));
     } else if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data)) {
         // Deep copy list
         const auto& list = std::get<std::vector<std::shared_ptr<Value>>>(value->data);
         std::vector<std::shared_ptr<Value>> new_list;
         for (const auto& item : list) {
-            new_list.push_back(copyValue(item));  // Recursive copy
+            new_list.push_back(copyValue(item).toLegacy());  // Recursive copy
         }
         return std::make_shared<Value>(new_list);
     } else if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
@@ -2615,7 +2608,7 @@ std::shared_ptr<Value> Interpreter::copyValue(const std::shared_ptr<Value>& valu
         const auto& dict = std::get<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data);
         std::unordered_map<std::string, std::shared_ptr<Value>> new_dict;
         for (const auto& [key, val] : dict) {
-            new_dict[key] = copyValue(val);  // Recursive copy
+            new_dict[key] = copyValue(val).toLegacy();  // Recursive copy
         }
         return std::make_shared<Value>(new_dict);
     } else if (std::holds_alternative<std::shared_ptr<StructValue>>(value->data)) {
@@ -2623,22 +2616,13 @@ std::shared_ptr<Value> Interpreter::copyValue(const std::shared_ptr<Value>& valu
         const auto& struct_val = std::get<std::shared_ptr<StructValue>>(value->data);
         auto new_struct = std::make_shared<StructValue>(struct_val->type_name, struct_val->definition);
         for (size_t i = 0; i < struct_val->field_values.size(); i++) {
-            new_struct->field_values[i] = copyValue(struct_val->field_values[i]);  // Recursive copy
+            new_struct->field_values[i] = copyValue(struct_val->field_values[i]).toLegacy();  // Recursive copy
         }
         return std::make_shared<Value>(new_struct);
-    } else if (std::holds_alternative<std::shared_ptr<FunctionValue>>(value->data)) {
-        // Functions are not copied - they're immutable, share the reference
-        return value;
-    } else if (std::holds_alternative<std::shared_ptr<BlockValue>>(value->data)) {
-        // Blocks are not copied - they're immutable, share the reference
-        return value;
-    } else if (std::holds_alternative<std::shared_ptr<PythonObjectValue>>(value->data)) {
-        // Python objects are not copied - they're managed by Python, share the reference
-        return value;
     }
 
-    // Default: return original (shouldn't reach here)
-    return value;
+    // Functions, blocks, python objects: not deep copied, share reference
+    return nval;
 }
 
 // Parallel polyglot execution: Capture variables for thread-safe parallel execution
@@ -2667,8 +2651,8 @@ void Interpreter::runGarbageCollection(std::shared_ptr<Environment> env) {
 
     // Build extra roots: result_ and any in-flight values
     std::vector<std::shared_ptr<Value>> extra_roots;
-    if (result_) {
-        extra_roots.push_back(result_);
+    if (!result_.isNull()) {
+        extra_roots.push_back(result_.toLegacy());
     }
 
     // Build extra environments: always include global_env_ if root is not global
@@ -2716,8 +2700,9 @@ void Interpreter::trackAllocation() {
     allocation_count_++;
 
     // Register the newly created value for global tracking (complete GC)
-    if (result_) {
-        registerValue(result_);
+    // Only track heap-allocated values (NaabVal inline types don't need GC)
+    if (result_.isHeap()) {
+        registerValue(result_.toLegacy());
     }
 
     // Trigger GC when threshold reached

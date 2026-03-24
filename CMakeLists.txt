@@ -378,6 +378,7 @@ add_library(naab_interpreter
     src/interpreter/error_context.cpp   # Phase 4.2: Enhanced error reporting
     src/interpreter/debugger.cpp        # Phase 4.2: Interactive debugger
     src/interpreter/polyglot_dependency_analyzer.cpp  # Parallel polyglot execution
+    src/interpreter/naab_val.cpp  # Task 19: NaN-boxed value representation
 )
 target_link_libraries(naab_interpreter
     naab_parser

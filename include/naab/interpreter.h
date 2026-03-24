@@ -5,6 +5,7 @@
 
 #include "naab/ast.h"
 #include "naab/block_loader.h"
+#include "naab/naab_val.h"
 #include <stdexcept>
 #include "naab/stdlib.h"
 #include "naab/cpp_executor.h"
@@ -466,17 +467,20 @@ public:
     void visit(ast::InlineCodeExpr& node) override;
 
     // Get last evaluated value
-    std::shared_ptr<Value> getResult() const { return result_; }
+    NaabVal getResult() const { return result_; }
+    // Legacy getter for code that still needs shared_ptr<Value>
+    std::shared_ptr<Value> getResultLegacy() const { return result_.toLegacy(); }
 
     // Phase 6: Async execution support
     void setGlobalEnv(std::shared_ptr<Environment> env) { global_env_ = env; }
     void setCurrentEnv(std::shared_ptr<Environment> env) { current_env_ = env; }
     std::shared_ptr<Environment> getGlobalEnv() const { return global_env_; }
-    std::shared_ptr<Value> executeBodyInEnv(ast::CompoundStmt& body, std::shared_ptr<Environment> env);
+    NaabVal executeBodyInEnv(ast::CompoundStmt& body, std::shared_ptr<Environment> env);
 
     // Call a function value with arguments (for higher-order functions)
-    std::shared_ptr<Value> callFunction(std::shared_ptr<Value> fn,
-                                        const std::vector<std::shared_ptr<Value>>& args);
+    NaabVal callFunction(NaabVal fn, const std::vector<NaabVal>& args);
+    // Legacy overload for code that still passes shared_ptr<Value>
+    NaabVal callFunction(std::shared_ptr<Value> fn, const std::vector<std::shared_ptr<Value>>& args);
 
     // Phase 11.1: Flush captured output from polyglot executors
     void flushExecutorOutput(runtime::Executor* executor);
@@ -543,7 +547,7 @@ public:
 private:
     std::shared_ptr<Environment> global_env_;
     std::shared_ptr<Environment> current_env_;
-    std::shared_ptr<Value> result_;
+    NaabVal result_;
     bool returning_;
     bool breaking_;
     bool continuing_;
@@ -672,12 +676,12 @@ private:
     };
 
     // Helpers
-    std::shared_ptr<Value> eval(ast::Expr& expr);
+    NaabVal eval(ast::Expr& expr);
     void executeStmt(ast::Stmt& stmt);
     void defineBuiltins();
     std::shared_ptr<Environment> loadAndExecuteModule(const std::string& module_path);  // Phase 3.1
-    std::shared_ptr<Value> copyValue(const std::shared_ptr<Value>& value);  // Phase 2.1: Deep copy for value parameters
-    std::string serializeValueForLanguage(const std::shared_ptr<Value>& value, const std::string& language);  // Phase 2.2: Serialize value for target language
+    NaabVal copyValue(NaabVal value);  // Phase 2.1: Deep copy for value parameters
+    std::string serializeValueForLanguage(NaabVal value, const std::string& language);  // Phase 2.2: Serialize value for target language
 
     // File context management for relative imports
     void pushFileContext(const std::filesystem::path& file_path);
@@ -701,7 +705,7 @@ private:
                                             const std::string& file, int line);
 
     // Variable access helper
-    std::shared_ptr<Value> getVariable(const std::string& name) const;
+    NaabVal getVariable(const std::string& name) const;
 
     // Path resolution helper
     std::filesystem::path resolveRelativePath(const std::string& path) const;
@@ -716,7 +720,7 @@ private:
     std::vector<std::weak_ptr<Value>>& getTrackedValues() { return tracked_values_; }
 
     // Phase 2.4.1: Generics/Monomorphization helpers
-    ast::Type inferValueType(const std::shared_ptr<Value>& value);
+    ast::Type inferValueType(NaabVal value);
     std::map<std::string, ast::Type> inferTypeBindings(
         const std::vector<std::string>& type_params,
         const std::vector<ast::StructField>& fields,
@@ -729,16 +733,16 @@ private:
     );
 
     // Phase 2.4.2: Union type validation helpers
-    bool valueMatchesType(const std::shared_ptr<Value>& value, const ast::Type& type);
-    bool valueMatchesUnion(const std::shared_ptr<Value>& value, const std::vector<ast::Type>& union_types);
-    std::string getValueTypeName(const std::shared_ptr<Value>& value);
+    bool valueMatchesType(NaabVal value, const ast::Type& type);
+    bool valueMatchesUnion(NaabVal value, const std::vector<ast::Type>& union_types);
+    std::string getValueTypeName(NaabVal value);
     std::string formatTypeName(const ast::Type& type);
 
     // Phase 2.4.5: Null safety helpers
-    bool isNull(const std::shared_ptr<Value>& value);
+    bool isNull(NaabVal value);
 
     // Phase 2.4.4: Type inference helpers
-    ast::Type inferTypeFromValue(const std::shared_ptr<Value>& value);
+    ast::Type inferTypeFromValue(NaabVal value);
 
     // Phase 2.4.4 Phase 2: Function return type inference
     ast::Type inferReturnType(ast::Stmt* body);
@@ -747,7 +751,7 @@ private:
     // Phase 2.4.4 Phase 3: Generic argument inference
     std::vector<ast::Type> inferGenericArgs(
         const std::shared_ptr<FunctionValue>& func,
-        const std::vector<std::shared_ptr<Value>>& args
+        const std::vector<NaabVal>& args
     );
     void collectTypeConstraints(
         const ast::Type& param_type,

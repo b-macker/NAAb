@@ -22,7 +22,8 @@ fn test_rust_polyglot_taint() { print("Test 7: Rust taint (if available) - PASS"
 fn test_polyglot_json_pipe_taint() {
     let passed = 0; let total = 1
     let j = <<python -> JSON
-{"data": "test"}
+import json
+print(json.dumps({"data": "test"}))
 >>
     try { <<shell[j]
 echo test
