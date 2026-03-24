@@ -37,6 +37,7 @@
 #include "naab/stdlib.h"  // For setPipeMode()
 #include "naab/governance.h"  // For governance report CLI flags
 #include "naab/scanner.h"    // For --scan command
+#include "governance_init.h"  // For naab-lang init --governance
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -1678,14 +1679,74 @@ int main(int argc, char** argv) {
         fmt::print("\n");
 
     } else if (command == "init") {
-        // Create default naab.toml
-        if (naab::manifest::createDefaultManifest("naab.toml")) {
-            fmt::print("✓ Created naab.toml\n");
-            return 0;
-        } else {
-            fmt::print("✗ Failed to create naab.toml\n");
-            return 1;
+        // Parse init subflags
+        bool no_governance = false;
+        bool governance_only = false;
+        bool force = false;
+        bool taint_flag = false;
+        std::string preset;
+        std::string languages_override;
+
+        for (int i = 2; i < argc; i++) {
+            std::string arg = argv[i];
+            if (arg == "--no-governance") no_governance = true;
+            else if (arg == "--governance") governance_only = true;
+            else if (arg == "--force") force = true;
+            else if (arg == "--taint") taint_flag = true;
+            else if (arg == "--governance-preset" && i + 1 < argc) preset = argv[++i];
+            else if (arg == "--languages" && i + 1 < argc) languages_override = argv[++i];
         }
+
+        fmt::print("\n");
+        fmt::print("───────────────────────────────────────\n");
+        fmt::print("  NAAb Project Initializer\n");
+        fmt::print("───────────────────────────────────────\n\n");
+
+        // Step 1: Create naab.toml (unless --governance only)
+        if (!governance_only) {
+            if (naab::manifest::createDefaultManifest("naab.toml")) {
+                fmt::print("✓ Created naab.toml\n");
+            } else {
+                fmt::print("  naab.toml already exists (skipped)\n");
+            }
+        }
+
+        // Step 2: Governance setup
+        if (!no_governance) {
+            if (!preset.empty()) {
+                // Non-interactive preset mode
+                auto config = naab::cli::presetToConfig(preset, languages_override, taint_flag);
+                fmt::print("\n");
+                if (!naab::cli::writeGovernJson("govern.json", config, force)) {
+                    return 1;
+                }
+            } else {
+                // Interactive mode
+                bool is_tty = isatty(fileno(stdin));
+                if (is_tty && !governance_only) {
+                    fmt::print("\nSet up governance? (govern.json catches AI code mistakes at runtime)\n");
+                    fmt::print("[Y/n]: ");
+                    std::string line;
+                    std::getline(std::cin, line);
+                    if (!line.empty() && (line[0] == 'n' || line[0] == 'N')) {
+                        fmt::print("\n  Skipping governance setup.\n");
+                        fmt::print("  Run 'naab-lang init --governance' later to add it.\n\n");
+                        return 0;
+                    }
+                }
+                auto config = naab::cli::runInteractiveSetup(is_tty);
+                if (!naab::cli::writeGovernJson("govern.json", config, force)) {
+                    return 1;
+                }
+            }
+
+            fmt::print("\n  Next steps:\n");
+            fmt::print("    naab-lang your_file.naab          Run with governance\n");
+            fmt::print("    naab-lang --governance-verbose    See all check results\n");
+            fmt::print("    Edit govern.json to customize     Full reference: govern-template.json\n\n");
+        }
+
+        return 0;
 
     } else if (command == "manifest") {
         // Handle manifest subcommands

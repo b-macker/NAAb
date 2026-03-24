@@ -629,6 +629,10 @@ message(STATUS "  ✓ Scanner engine (naab_scanner)")
 add_executable(naab-lang
     src/cli/main.cpp
     src/cli/repl.cpp
+    src/cli/governance_init.cpp
+)
+target_include_directories(naab-lang PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
 )
 target_link_libraries(naab-lang
     naab_lexer
@@ -754,7 +758,6 @@ target_include_directories(naab-lsp PRIVATE
 target_link_libraries(naab-lsp PRIVATE
     naab_parser
     naab_semantic
-    naab_interpreter
     fmt::fmt
 )
 

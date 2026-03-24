@@ -302,6 +302,48 @@ else
     echo "  Property test script not found, skipping"
 fi
 
+# --- LSP Integration Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  LSP Integration Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+LSP_SCRIPT="tests/lsp/test_lsp_basic.sh"
+if [ -f "$LSP_SCRIPT" ] && [ -x "build/naab-lsp" ]; then
+    if bash "$LSP_SCRIPT" 2>&1; then
+        echo ""
+        echo "  LSP tests: ALL PASSED"
+    else
+        echo ""
+        echo "  LSP tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("lsp-integration")
+    fi
+else
+    echo "  LSP test script or naab-lsp binary not found, skipping"
+fi
+
+# --- CLI Init Governance Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  CLI Init Governance Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+INIT_SCRIPT="tests/cli/test_init_governance.sh"
+if [ -f "$INIT_SCRIPT" ]; then
+    if bash "$INIT_SCRIPT" 2>&1; then
+        echo ""
+        echo "  Init governance tests: ALL PASSED"
+    else
+        echo ""
+        echo "  Init governance tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("init-governance")
+    fi
+else
+    echo "  Init governance test script not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"
