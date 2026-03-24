@@ -1,10 +1,11 @@
 #!/bin/bash
 # Property-Based Test Runner
-# Runs all four invariant suites:
+# Runs all five invariant suites:
 #   1. Governance transparency (A/B test)
 #   2. Taint monotonicity
 #   3. Type error completeness
 #   4. Polyglot differential (NAAb executor vs raw Python)
+#   5. Serialization boundary audit
 
 set -e
 
@@ -57,6 +58,14 @@ fi
 # --- Invariant 4: Polyglot Differential ---
 echo ""
 if bash "$SCRIPT_DIR/test_polyglot_differential.sh"; then
+    SUITES_PASSED=$((SUITES_PASSED + 1))
+else
+    SUITES_FAILED=$((SUITES_FAILED + 1))
+fi
+
+# --- Invariant 5: Serialization Boundary Audit ---
+echo ""
+if bash "$SCRIPT_DIR/test_serialization_audit.sh"; then
     SUITES_PASSED=$((SUITES_PASSED + 1))
 else
     SUITES_FAILED=$((SUITES_FAILED + 1))
