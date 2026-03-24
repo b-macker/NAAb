@@ -1202,9 +1202,10 @@ struct CheckResult {
     EnforcementLevel level;
     bool passed;
     std::string message;
-    std::string category;     // for grouping in reports
+    std::string category;     // for grouping in reports (e.g., "code_quality", "restrictions")
     std::string severity;     // "critical", "high", "medium", "low"
     int line = 0;
+    std::string file;         // source file path
 };
 
 // ============================================================================
@@ -1298,6 +1299,9 @@ public:
     bool requiresMainBlock() const { return rules_.require_main_block; }
     std::string getAuditLevel() const { return rules_.audit_level; }
     bool isTamperEvidenceEnabled() const { return rules_.tamper_evidence; }
+
+    // --- Check context (for report file/line tracking) ---
+    void setCheckContext(const std::string& file, int line = 0);
 
     // --- Per-language getters ---
     int getTimeoutForLanguage(const std::string& lang) const;
@@ -1411,7 +1415,8 @@ public:
     std::string checkFunctionContract(const std::string& func_name,
                                        const std::string& result_str,
                                        const std::string& result_type,
-                                       int line = 0);
+                                       int line = 0,
+                                       const std::string& source_file = "");
 
     std::string checkFunctionInputContract(const std::string& func_name,
                                             const std::vector<std::string>& arg_types,
@@ -1427,7 +1432,8 @@ public:
     // Scans ALL NAAb function bodies for stubs/oversimplification
     std::string checkNaabFunctionBody(const std::string& function_name,
                                        const std::string& source_code,
-                                       int line = 0);
+                                       int line = 0,
+                                       const std::string& source_file = "");
 
     // --- Polyglot Optimization Checks ---
     std::string checkPolyglotOptimization(const std::string& language,
@@ -1550,6 +1556,8 @@ private:
     std::string loaded_path_;
     GovernanceRules rules_;
     std::vector<CheckResult> check_results_;
+    std::string current_check_file_;    // Set by setCheckContext() for report tracking
+    int current_check_line_ = 0;        // Set by setCheckContext() for report tracking
     std::unordered_set<std::string> taint_set_;
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
     bool last_return_tainted_ = false;  // BUG-D: Track function return taint

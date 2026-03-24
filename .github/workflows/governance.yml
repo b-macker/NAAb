@@ -1,0 +1,243 @@
+name: Governance Check
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  governance:
+    name: NAAb Governance Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build libsqlite3-dev python3-dev \
+            libssl-dev libffi-dev libcurl4-openssl-dev pkg-config
+
+      - name: Cache build
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: naab-build-${{ hashFiles('CMakeLists.txt', 'src/**/*.cpp', 'src/**/*.h', 'include/**/*.h') }}
+          restore-keys: naab-build-
+
+      - name: Build naab-lang
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
+          ninja -C build naab-lang -j$(nproc)
+
+      - name: Find .naab source files
+        id: find-sources
+        run: |
+          files=$(find . -name '*.naab' \
+            -not -path './build/*' \
+            -not -path './tests/*' \
+            -not -path './examples/*' \
+            -type f | sort)
+
+          if [ -z "$files" ]; then
+            echo "No .naab source files found"
+            echo "has_files=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_files=true" >> $GITHUB_OUTPUT
+            echo "Found $(echo "$files" | wc -l) .naab files"
+          fi
+
+      - name: Run governance checks
+        if: steps.find-sources.outputs.has_files == 'true'
+        id: governance
+        run: |
+          mkdir -p .governance-reports
+          EXIT=0
+          CHECKED=0
+          FAILED=0
+
+          for f in $(find . -name '*.naab' \
+            -not -path './build/*' \
+            -not -path './tests/*' \
+            -not -path './examples/*' \
+            -type f | sort); do
+
+            echo "=== Checking: $f ==="
+            CHECKED=$((CHECKED + 1))
+
+            if ! ./build/naab-lang \
+              --governance-sarif ".governance-reports/sarif-${CHECKED}.json" \
+              --governance-junit ".governance-reports/junit-${CHECKED}.xml" \
+              --governance-report ".governance-reports/report-${CHECKED}.json" \
+              "$f" 2>&1; then
+              FAILED=$((FAILED + 1))
+              EXIT=1
+            fi
+          done
+
+          echo "checked=$CHECKED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+
+          # Merge all SARIF files into one for GitHub code scanning
+          python3 - <<'MERGE_PY'
+          import json, glob, sys
+          sarif_files = sorted(glob.glob('.governance-reports/sarif-*.json'))
+          if not sarif_files:
+              sys.exit(0)
+
+          merged = json.load(open(sarif_files[0]))
+          for f in sarif_files[1:]:
+              try:
+                  data = json.load(open(f))
+                  if data.get('runs'):
+                      for run in data['runs']:
+                          merged['runs'][0].setdefault('results', []).extend(run.get('results', []))
+                          existing_ids = {r['id'] for r in merged['runs'][0].get('tool', {}).get('driver', {}).get('rules', [])}
+                          for rule in run.get('tool', {}).get('driver', {}).get('rules', []):
+                              if rule['id'] not in existing_ids:
+                                  merged['runs'][0]['tool']['driver']['rules'].append(rule)
+                                  existing_ids.add(rule['id'])
+              except Exception as e:
+                  print(f"Warning: Failed to merge {f}: {e}", file=sys.stderr)
+
+          with open('.governance-reports/governance.sarif', 'w') as out:
+              json.dump(merged, out, indent=2)
+          print(f"Merged {len(sarif_files)} SARIF files into governance.sarif")
+          MERGE_PY
+
+          # Merge JUnit files
+          python3 - <<'MERGE_JUNIT'
+          import glob, sys, re
+          junit_files = sorted(glob.glob('.governance-reports/junit-*.xml'))
+          if not junit_files:
+              sys.exit(0)
+
+          total_tests = 0
+          total_failures = 0
+          testcases = []
+
+          for f in junit_files:
+              content = open(f).read()
+              m = re.search(r'tests="(\d+)"', content)
+              if m: total_tests += int(m.group(1))
+              m = re.search(r'failures="(\d+)"', content)
+              if m: total_failures += int(m.group(1))
+              for tc in re.findall(r'(<testcase\b.*?(?:/>|</testcase>))', content, re.DOTALL):
+                  testcases.append(tc)
+
+          with open('.governance-reports/governance-junit.xml', 'w') as out:
+              out.write('<?xml version="1.0" encoding="UTF-8"?>\n')
+              out.write(f'<testsuite name="NAAb Governance" tests="{total_tests}" failures="{total_failures}">\n')
+              for tc in testcases:
+                  out.write(f'  {tc}\n')
+              out.write('</testsuite>\n')
+          print(f"Merged {len(junit_files)} JUnit files")
+          MERGE_JUNIT
+
+          exit $EXIT
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always() && steps.find-sources.outputs.has_files == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: .governance-reports/governance.sarif
+          category: naab-governance
+        continue-on-error: true
+
+      - name: Upload JUnit report
+        if: always() && steps.find-sources.outputs.has_files == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-junit-report
+          path: .governance-reports/governance-junit.xml
+          if-no-files-found: ignore
+
+      - name: Upload JSON reports
+        if: always() && steps.find-sources.outputs.has_files == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-json-reports
+          path: .governance-reports/report-*.json
+          if-no-files-found: ignore
+
+      - name: Post governance summary
+        if: always() && steps.find-sources.outputs.has_files == 'true'
+        run: |
+          CHECKED="${{ steps.governance.outputs.checked }}"
+          FAILED="${{ steps.governance.outputs.failed }}"
+          PASSED=$((CHECKED - FAILED))
+
+          echo "## NAAb Governance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "$FAILED" = "0" ]; then
+            echo "All $CHECKED files passed governance checks" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "$FAILED/$CHECKED files have governance violations" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Files checked | $CHECKED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "SARIF results uploaded to **Security > Code Scanning** for inline annotations." >> $GITHUB_STEP_SUMMARY
+
+      - name: Post PR comment with results
+        if: always() && steps.find-sources.outputs.has_files == 'true' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const checked = parseInt('${{ steps.governance.outputs.checked }}') || 0;
+            const failed = parseInt('${{ steps.governance.outputs.failed }}') || 0;
+            const passed = checked - failed;
+
+            const status = failed === 0 ? 'PASS' : 'FAIL';
+            const body = [
+              `## NAAb Governance Report`,
+              ``,
+              `| Metric | Count |`,
+              `|--------|-------|`,
+              `| Files checked | ${checked} |`,
+              `| Passed | ${passed} |`,
+              `| Failed | ${failed} |`,
+              ``,
+              failed > 0
+                ? 'See **Security > Code scanning alerts** tab for inline annotations on affected lines.'
+                : 'All governance checks passed!',
+              ``,
+              `<sub>Generated by NAAb Governance Engine v4.0</sub>`
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes('NAAb Governance Report'));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

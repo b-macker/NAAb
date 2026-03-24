@@ -784,7 +784,17 @@ int main(int argc, char** argv) {
                 }
             }
 
-            interpreter.execute(*program);
+            // Inner try-catch: write governance reports before re-throwing.
+            // The interpreter is alive here, so we can safely access it.
+            // On success, writeReports() is already called inside execute().
+            try {
+                interpreter.execute(*program);
+            } catch (...) {
+                // Write reports before the interpreter is destroyed
+                auto* gov = interpreter.getGovernance();
+                if (gov) gov->writeReports();
+                throw;  // Re-throw to outer catch
+            }
 
             if (profile) {
                 interpreter.printProfile();

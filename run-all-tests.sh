@@ -323,6 +323,27 @@ else
     echo "  LSP test script or naab-lsp binary not found, skipping"
 fi
 
+# --- Report Format Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Report Format Tests (SARIF/JUnit/JSON)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+REPORT_SCRIPT="tests/cli/test_report_formats.sh"
+if [ -f "$REPORT_SCRIPT" ]; then
+    if bash "$REPORT_SCRIPT" 2>&1; then
+        echo ""
+        echo "  Report format tests: ALL PASSED"
+    else
+        echo ""
+        echo "  Report format tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("report-format-tests")
+    fi
+else
+    echo "  Report format test script not found, skipping"
+fi
+
 # --- CLI Init Governance Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

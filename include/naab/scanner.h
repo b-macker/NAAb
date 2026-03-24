@@ -87,6 +87,7 @@ public:
     // Report generation
     std::string formatTextReport(const ScanResult& result) const;
     std::string formatJsonReport(const ScanResult& result) const;
+    std::string formatSarifReport(const ScanResult& result) const;
     void saveReports(const ScanResult& result) const;
 
     // Get config (for external access)

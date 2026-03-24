@@ -1032,7 +1032,7 @@ void Interpreter::visit(ast::FunctionDecl& node) {
                         if (found_start && brace_depth <= 0) break;
                     }
                     std::string err = governance_->checkNaabFunctionBody(
-                        node.getName(), body_text, loc.line);
+                        node.getName(), body_text, loc.line, current_file_);
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }
@@ -1327,7 +1327,7 @@ void Interpreter::visit(ast::MainBlock& node) {
                         if (found_start && brace_depth <= 0) break;
                     }
                     std::string err = governance_->checkNaabFunctionBody(
-                        "main", body_text, loc.line);
+                        "main", body_text, loc.line, current_file_);
                     if (!err.empty()) {
                         throw std::runtime_error(err);
                     }
@@ -1740,7 +1740,7 @@ void Interpreter::visit(ast::AwaitExpr& node) {
             std::string result_str = return_value ? return_value->toString() : "null";
             std::string result_type = return_value ? getTypeName(return_value) : "null";
             std::string contract_err = governance_->checkFunctionContract(
-                awaited_func_name, result_str, result_type, node.getLocation().line);
+                awaited_func_name, result_str, result_type, node.getLocation().line, current_file_);
             if (!contract_err.empty()) {
                 governance_->logContractCheck(awaited_func_name, "FAIL", contract_err,
                                               current_file_, node.getLocation().line);

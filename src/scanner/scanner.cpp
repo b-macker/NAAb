@@ -720,6 +720,95 @@ std::string ScannerEngine::formatJsonReport(const ScanResult& result) const {
 // Save reports to disk
 // ============================================================================
 
+std::string ScannerEngine::formatSarifReport(const ScanResult& result) const {
+    json sarif;
+    sarif["version"] = "2.1.0";
+    sarif["$schema"] = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json";
+
+    json run;
+    run["tool"]["driver"]["name"] = "NAAb Scanner";
+    run["tool"]["driver"]["version"] = "1.0";
+    run["tool"]["driver"]["semanticVersion"] = "1.0.0";
+    run["tool"]["driver"]["informationUri"] = "https://github.com/nickvdyck/naab-lang";
+    run["tool"]["driver"]["organization"] = "NAAb";
+
+    // Build unique rules array
+    std::map<std::string, size_t> rule_index_map;
+    auto& rules_arr = run["tool"]["driver"]["rules"] = json::array();
+
+    for (const auto& issue : result.issues) {
+        std::string rule_id = issue.category + "." + issue.rule;
+        if (rule_index_map.count(rule_id)) continue;
+        size_t idx = rules_arr.size();
+        rule_index_map[rule_id] = idx;
+
+        json rule;
+        rule["id"] = rule_id;
+        rule["name"] = issue.rule;
+        rule["shortDescription"]["text"] = issue.message.substr(0, issue.message.find('\n'));
+        rule["defaultConfiguration"]["level"] = (issue.level == "hard") ? "error" :
+                                                 (issue.level == "soft") ? "error" : "warning";
+        rule["properties"]["category"] = issue.category;
+
+        rules_arr.push_back(rule);
+    }
+
+    // Results
+    auto& results_arr = run["results"] = json::array();
+
+    for (const auto& issue : result.issues) {
+        json r;
+        std::string rule_id = issue.category + "." + issue.rule;
+        r["ruleId"] = rule_id;
+
+        auto it = rule_index_map.find(rule_id);
+        if (it != rule_index_map.end()) {
+            r["ruleIndex"] = static_cast<int>(it->second);
+        }
+
+        r["level"] = (issue.level == "hard") ? "error" :
+                     (issue.level == "soft") ? "error" : "warning";
+        r["message"]["text"] = issue.message;
+
+        // Location
+        json location;
+        json physical;
+        if (!issue.file.empty()) {
+            std::string uri = issue.file;
+            if (uri.size() >= 2 && uri[0] == '.' && uri[1] == '/') uri = uri.substr(2);
+            physical["artifactLocation"]["uri"] = uri;
+            physical["artifactLocation"]["uriBaseId"] = "%SRCROOT%";
+        }
+        if (issue.line > 0) {
+            physical["region"]["startLine"] = issue.line;
+            physical["region"]["startColumn"] = 1;
+        }
+        location["physicalLocation"] = physical;
+        r["locations"] = json::array({location});
+
+        // Properties
+        json props;
+        props["category"] = issue.category;
+        props["severity"] = issue.severity;
+        if (!issue.fix.empty()) props["fix"] = issue.fix;
+        r["properties"] = props;
+
+        results_arr.push_back(r);
+    }
+
+    // Invocations
+    bool has_hard_issues = false;
+    for (const auto& issue : result.issues) {
+        if (issue.level == "hard") { has_hard_issues = true; break; }
+    }
+    run["invocations"] = json::array({
+        {{"executionSuccessful", !has_hard_issues}}
+    });
+
+    sarif["runs"] = json::array({run});
+    return sarif.dump(2);
+}
+
 void ScannerEngine::saveReports(const ScanResult& result) const {
     if (config_.save_text) {
         std::ofstream file(config_.text_path);
@@ -738,6 +827,16 @@ void ScannerEngine::saveReports(const ScanResult& result) const {
             fmt::print("Saved JSON report: {}\n", config_.json_path);
         } else {
             fmt::print("Warning: Could not save JSON report: {}\n", config_.json_path);
+        }
+    }
+
+    if (config_.save_sarif) {
+        std::ofstream file(config_.sarif_path);
+        if (file.is_open()) {
+            file << formatSarifReport(result);
+            fmt::print("Saved SARIF report: {}\n", config_.sarif_path);
+        } else {
+            fmt::print("Warning: Could not save SARIF report: {}\n", config_.sarif_path);
         }
     }
 }

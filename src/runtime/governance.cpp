@@ -1619,9 +1619,15 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
 // Core Enforcement Logic
 // ============================================================================
 
+void GovernanceEngine::setCheckContext(const std::string& file, int line) {
+    current_check_file_ = file;
+    current_check_line_ = line;
+}
+
 void GovernanceEngine::recordPass(const std::string& rule_name,
                                    EnforcementLevel level) {
-    check_results_.push_back({rule_name, level, true, "", "", "", 0});
+    std::string cat = rule_name.substr(0, rule_name.find('.'));
+    check_results_.push_back({rule_name, level, true, "", cat, "", current_check_line_, current_check_file_});
 }
 
 std::string GovernanceEngine::enforce(
@@ -1629,8 +1635,11 @@ std::string GovernanceEngine::enforce(
     EnforcementLevel level,
     const std::string& violation_message) {
 
-    // Record the failing check
-    check_results_.push_back({rule_name, level, false, violation_message, "", "", 0});
+    // Record the failing check with full context
+    std::string cat = rule_name.substr(0, rule_name.find('.'));
+    std::string sev = (level == EnforcementLevel::HARD) ? "critical" :
+                      (level == EnforcementLevel::SOFT) ? "high" : "medium";
+    check_results_.push_back({rule_name, level, false, violation_message, cat, sev, current_check_line_, current_check_file_});
 
     // Audit mode: never block, just log
     if (rules_.mode == GovernanceMode::AUDIT) {
@@ -3028,7 +3037,10 @@ std::string GovernanceEngine::checkFunctionContract(
     const std::string& func_name,
     const std::string& result_str,
     const std::string& result_type,
-    int line) {
+    int line,
+    const std::string& source_file) {
+
+    setCheckContext(source_file, line);
 
     auto it = rules_.contracts.functions.find(func_name);
     if (it == rules_.contracts.functions.end()) return "";
@@ -3419,7 +3431,10 @@ std::string GovernanceEngine::checkComplexityFloor(
 std::string GovernanceEngine::checkNaabFunctionBody(
     const std::string& function_name,
     const std::string& source_code,
-    int line) {
+    int line,
+    const std::string& source_file) {
+
+    setCheckContext(source_file, line);
 
     auto& os_cfg = rules_.code_quality.no_oversimplification;
     auto& il_cfg = rules_.code_quality.no_incomplete_logic;
@@ -4720,7 +4735,10 @@ std::string GovernanceEngine::checkPolyglotBlock(
 
 std::string GovernanceEngine::checkPolyglotBlock(
     const std::string& language, const std::string& code,
-    const std::string& /*source_file*/, int line) {
+    const std::string& source_file, int line) {
+
+    // Set check context for report tracking (file + line propagate to enforce/recordPass)
+    setCheckContext(source_file, line);
 
     // FIX 18: Normalize language aliases (bash→shell, js→javascript, etc.)
     std::string lang = normalizeLanguage(language);
@@ -5198,11 +5216,71 @@ void GovernanceEngine::fireHook(const HookConfig& hook,
     (void)system(cmd.c_str());
 }
 
-// --- Report Generation Stubs ---
+// --- Report Helpers ---
+
+static std::string xmlEscape(const std::string& s) {
+    std::string out;
+    out.reserve(s.size() + 16);
+    for (char c : s) {
+        switch (c) {
+            case '&':  out += "&amp;";  break;
+            case '<':  out += "&lt;";   break;
+            case '>':  out += "&gt;";   break;
+            case '"':  out += "&quot;"; break;
+            case '\'': out += "&apos;"; break;
+            default:   out += c;
+        }
+    }
+    return out;
+}
+
+static std::string csvEscape(const std::string& s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s) {
+        if (c == '"') out += "\"\"";
+        else if (c == '\n') out += "\\n";
+        else out += c;
+    }
+    return out;
+}
+
+static std::string htmlEscape(const std::string& s) {
+    std::string out;
+    out.reserve(s.size() + 16);
+    for (char c : s) {
+        switch (c) {
+            case '&':  out += "&amp;";  break;
+            case '<':  out += "&lt;";   break;
+            case '>':  out += "&gt;";   break;
+            case '"':  out += "&quot;"; break;
+            default:   out += c;
+        }
+    }
+    return out;
+}
+
+// --- Report Generation ---
+
 std::string GovernanceEngine::generateJsonReport() const {
     nlohmann::json report;
-    report["version"] = "3.0";
+    report["version"] = "4.0";
     report["mode"] = rules_.mode == GovernanceMode::ENFORCE ? "enforce" : (rules_.mode == GovernanceMode::AUDIT ? "audit" : "off");
+
+    int total = 0, passed = 0, failed_hard = 0, failed_soft = 0, advisories = 0;
+    for (const auto& r : check_results_) {
+        total++;
+        if (r.passed) { passed++; }
+        else if (r.level == EnforcementLevel::HARD) { failed_hard++; }
+        else if (r.level == EnforcementLevel::SOFT) { failed_soft++; }
+        else { advisories++; }
+    }
+    report["summary"]["total"] = total;
+    report["summary"]["passed"] = passed;
+    report["summary"]["failed_hard"] = failed_hard;
+    report["summary"]["failed_soft"] = failed_soft;
+    report["summary"]["advisories"] = advisories;
+
     report["results"] = nlohmann::json::array();
     for (const auto& r : check_results_) {
         nlohmann::json entry;
@@ -5210,75 +5288,269 @@ std::string GovernanceEngine::generateJsonReport() const {
         entry["level"] = levelToString(r.level);
         entry["passed"] = r.passed;
         if (!r.message.empty()) entry["message"] = r.message;
+        entry["category"] = r.category;
+        entry["severity"] = r.severity;
+        entry["file"] = r.file;
+        entry["line"] = r.line;
         report["results"].push_back(entry);
     }
     return report.dump(2);
 }
 
 std::string GovernanceEngine::generateSarifReport() const {
-    // SARIF 2.1.0 format
     nlohmann::json sarif;
     sarif["version"] = "2.1.0";
     sarif["$schema"] = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json";
-    auto& runs = sarif["runs"] = nlohmann::json::array();
+
     nlohmann::json run;
+
+    // Tool metadata
     run["tool"]["driver"]["name"] = "NAAb Governance Engine";
-    run["tool"]["driver"]["version"] = "3.0";
-    run["results"] = nlohmann::json::array();
+    run["tool"]["driver"]["version"] = "4.0";
+    run["tool"]["driver"]["semanticVersion"] = "4.0.0";
+    run["tool"]["driver"]["informationUri"] = "https://github.com/nickvdyck/naab-lang";
+    run["tool"]["driver"]["organization"] = "NAAb";
+
+    // Build unique rules array from all check results
+    std::map<std::string, size_t> rule_index_map;
+    auto& rules_arr = run["tool"]["driver"]["rules"] = nlohmann::json::array();
+
+    for (const auto& r : check_results_) {
+        if (rule_index_map.count(r.rule_name)) continue;
+        size_t idx = rules_arr.size();
+        rule_index_map[r.rule_name] = idx;
+
+        nlohmann::json rule;
+        rule["id"] = r.rule_name;
+        rule["name"] = r.rule_name;
+
+        // Human-readable description from rule name
+        std::string short_desc = r.rule_name;
+        for (auto& ch : short_desc) {
+            if (ch == '_') ch = ' ';
+            else if (ch == '.') ch = ' ';
+        }
+        rule["shortDescription"]["text"] = short_desc;
+
+        // Default configuration level
+        if (r.level == EnforcementLevel::ADVISORY)
+            rule["defaultConfiguration"]["level"] = "warning";
+        else
+            rule["defaultConfiguration"]["level"] = "error";
+
+        if (!r.category.empty()) {
+            rule["properties"]["category"] = r.category;
+        }
+
+        rules_arr.push_back(rule);
+    }
+
+    // Results (failures only)
+    auto& results_arr = run["results"] = nlohmann::json::array();
+
     for (const auto& r : check_results_) {
         if (r.passed) continue;
+
         nlohmann::json result;
         result["ruleId"] = r.rule_name;
-        result["level"] = r.level == EnforcementLevel::ADVISORY ? "warning" : "error";
-        result["message"]["text"] = r.message.empty() ? r.rule_name : r.message.substr(0, r.message.find('\n'));
-        run["results"].push_back(result);
+
+        auto it = rule_index_map.find(r.rule_name);
+        if (it != rule_index_map.end()) {
+            result["ruleIndex"] = static_cast<int>(it->second);
+        }
+
+        // SARIF level mapping
+        if (r.level == EnforcementLevel::ADVISORY)
+            result["level"] = "warning";
+        else
+            result["level"] = "error";
+
+        // Full message (not truncated)
+        result["message"]["text"] = r.message.empty() ? r.rule_name : r.message;
+
+        // Physical location with file and line
+        if (!r.file.empty() || r.line > 0) {
+            nlohmann::json location;
+            nlohmann::json physical;
+
+            if (!r.file.empty()) {
+                std::string uri = r.file;
+                if (uri.size() >= 2 && uri[0] == '.' && uri[1] == '/') uri = uri.substr(2);
+                physical["artifactLocation"]["uri"] = uri;
+                physical["artifactLocation"]["uriBaseId"] = "%SRCROOT%";
+            }
+
+            if (r.line > 0) {
+                physical["region"]["startLine"] = r.line;
+                physical["region"]["startColumn"] = 1;
+            }
+
+            location["physicalLocation"] = physical;
+            result["locations"] = nlohmann::json::array({location});
+        }
+
+        // Properties
+        nlohmann::json props;
+        if (!r.category.empty()) props["category"] = r.category;
+        if (!r.severity.empty()) props["severity"] = r.severity;
+        props["enforcement"] = levelToString(r.level);
+        result["properties"] = props;
+
+        results_arr.push_back(result);
     }
-    runs.push_back(run);
+
+    // Invocations (required by GitHub code scanning)
+    bool any_hard_failures = false;
+    for (const auto& r : check_results_) {
+        if (!r.passed && r.level != EnforcementLevel::ADVISORY) {
+            any_hard_failures = true;
+            break;
+        }
+    }
+    run["invocations"] = nlohmann::json::array({
+        {{"executionSuccessful", !any_hard_failures}}
+    });
+
+    sarif["runs"] = nlohmann::json::array({run});
     return sarif.dump(2);
 }
 
 std::string GovernanceEngine::generateJunitReport() const {
     std::ostringstream oss;
-    int total = static_cast<int>(check_results_.size()), failures = 0;
-    for (const auto& r : check_results_) if (!r.passed && r.level != EnforcementLevel::ADVISORY) failures++;
-    oss << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    oss << fmt::format("<testsuite name=\"NAAb Governance\" tests=\"{}\" failures=\"{}\">\n", total, failures);
+    int total = static_cast<int>(check_results_.size());
+    int failures = 0, warnings = 0;
     for (const auto& r : check_results_) {
-        oss << fmt::format("  <testcase name=\"{}\"", r.rule_name);
-        if (r.passed) { oss << "/>\n"; }
-        else {
+        if (!r.passed) {
+            if (r.level == EnforcementLevel::ADVISORY) warnings++;
+            else failures++;
+        }
+    }
+
+    // Get current timestamp
+    auto now = std::time(nullptr);
+    char ts_buf[64];
+    std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", std::localtime(&now));
+
+    oss << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    oss << "<testsuite name=\"NAAb Governance\" tests=\"" << total
+        << "\" failures=\"" << failures
+        << "\" errors=\"0\" skipped=\"0\""
+        << " warnings=\"" << warnings << "\""
+        << " timestamp=\"" << ts_buf << "\""
+        << " time=\"0\">\n";
+
+    for (const auto& r : check_results_) {
+        std::string classname = r.category.empty()
+            ? "governance" : "governance." + r.category;
+
+        oss << "  <testcase name=\"" << xmlEscape(r.rule_name)
+            << "\" classname=\"" << xmlEscape(classname) << "\" time=\"0\"";
+
+        // Add file/line as attributes (widely supported by CI tools)
+        if (!r.file.empty()) oss << " file=\"" << xmlEscape(r.file) << "\"";
+        if (r.line > 0) oss << " line=\"" << r.line << "\"";
+
+        if (r.passed) {
+            oss << "/>\n";
+        } else {
             oss << ">\n";
-            oss << fmt::format("    <failure type=\"{}\">{}</failure>\n",
-                levelToString(r.level), r.rule_name);
+            std::string first_line = r.message.empty() ? r.rule_name
+                : r.message.substr(0, r.message.find('\n'));
+            oss << "    <failure message=\"" << xmlEscape(first_line)
+                << "\" type=\"" << xmlEscape(levelToString(r.level)) << "\">"
+                << xmlEscape(r.message.empty() ? r.rule_name : r.message)
+                << "</failure>\n";
             oss << "  </testcase>\n";
         }
     }
+
     oss << "</testsuite>\n";
     return oss.str();
 }
 
 std::string GovernanceEngine::generateCsvReport() const {
     std::ostringstream oss;
-    oss << "rule,level,passed,message\n";
+    oss << "rule,level,passed,message,category,severity,file,line\n";
     for (const auto& r : check_results_) {
-        oss << r.rule_name << "," << levelToString(r.level) << ","
+        oss << "\"" << csvEscape(r.rule_name) << "\","
+            << levelToString(r.level) << ","
             << (r.passed ? "true" : "false") << ","
-            << "\"" << r.rule_name << "\"\n";
+            << "\"" << csvEscape(r.message) << "\","
+            << "\"" << csvEscape(r.category) << "\","
+            << "\"" << csvEscape(r.severity) << "\","
+            << "\"" << csvEscape(r.file) << "\","
+            << r.line << "\n";
     }
     return oss.str();
 }
 
 std::string GovernanceEngine::generateHtmlReport() const {
     std::ostringstream oss;
-    oss << "<html><head><title>NAAb Governance Report</title></head><body>\n";
-    oss << "<h1>NAAb Governance Report</h1>\n<table border='1'>\n";
-    oss << "<tr><th>Rule</th><th>Level</th><th>Status</th></tr>\n";
+    int total = 0, passed = 0, failed = 0, warnings = 0;
     for (const auto& r : check_results_) {
-        std::string color = r.passed ? "green" : (r.level == EnforcementLevel::ADVISORY ? "orange" : "red");
-        oss << fmt::format("<tr><td>{}</td><td>{}</td><td style='color:{}'>{}</td></tr>\n",
-            r.rule_name, levelToString(r.level), color, r.passed ? "PASS" : "FAIL");
+        total++;
+        if (r.passed) passed++;
+        else if (r.level == EnforcementLevel::ADVISORY) warnings++;
+        else failed++;
     }
-    oss << "</table></body></html>\n";
+
+    oss << "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">\n";
+    oss << "<title>NAAb Governance Report</title>\n";
+    oss << "<style>\n"
+        << "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 2em; }\n"
+        << "table { border-collapse: collapse; width: 100%; }\n"
+        << "th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }\n"
+        << "th { background: #f5f5f5; }\n"
+        << "tr:nth-child(even) { background: #fafafa; }\n"
+        << ".pass { color: #2e7d32; } .fail-hard { color: #c62828; }\n"
+        << ".fail-soft { color: #e65100; } .warning { color: #f9a825; }\n"
+        << ".summary { display: flex; gap: 2em; margin: 1em 0; }\n"
+        << ".stat { padding: 1em; border-radius: 8px; background: #f5f5f5; }\n"
+        << ".msg { max-width: 500px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n"
+        << ".msg:hover { white-space: normal; }\n"
+        << "</style></head><body>\n";
+
+    oss << "<h1>NAAb Governance Report</h1>\n";
+    oss << "<div class=\"summary\">\n"
+        << "  <div class=\"stat\"><strong>" << total << "</strong> checks</div>\n"
+        << "  <div class=\"stat pass\"><strong>" << passed << "</strong> passed</div>\n"
+        << "  <div class=\"stat fail-hard\"><strong>" << failed << "</strong> failed</div>\n"
+        << "  <div class=\"stat warning\"><strong>" << warnings << "</strong> warnings</div>\n"
+        << "</div>\n";
+
+    if (failed > 0 || warnings > 0) {
+        oss << "<h2>Issues</h2>\n<table>\n";
+        oss << "<tr><th>Rule</th><th>Level</th><th>Category</th><th>File</th><th>Line</th><th>Message</th></tr>\n";
+        for (const auto& r : check_results_) {
+            if (r.passed) continue;
+            std::string css_class = (r.level == EnforcementLevel::HARD) ? "fail-hard" :
+                                    (r.level == EnforcementLevel::SOFT) ? "fail-soft" : "warning";
+            std::string first_line = r.message.empty() ? r.rule_name
+                : r.message.substr(0, r.message.find('\n'));
+            oss << "<tr class=\"" << css_class << "\">"
+                << "<td>" << htmlEscape(r.rule_name) << "</td>"
+                << "<td>" << htmlEscape(levelToString(r.level)) << "</td>"
+                << "<td>" << htmlEscape(r.category) << "</td>"
+                << "<td>" << htmlEscape(r.file) << "</td>"
+                << "<td>" << r.line << "</td>"
+                << "<td class=\"msg\" title=\"" << htmlEscape(r.message) << "\">"
+                << htmlEscape(first_line) << "</td>"
+                << "</tr>\n";
+        }
+        oss << "</table>\n";
+    }
+
+    oss << "<h2>All Checks (" << total << ")</h2>\n<table>\n";
+    oss << "<tr><th>Rule</th><th>Level</th><th>Status</th><th>Category</th></tr>\n";
+    for (const auto& r : check_results_) {
+        std::string status_class = r.passed ? "pass" :
+            (r.level == EnforcementLevel::ADVISORY ? "warning" : "fail-hard");
+        oss << "<tr><td>" << htmlEscape(r.rule_name) << "</td>"
+            << "<td>" << htmlEscape(levelToString(r.level)) << "</td>"
+            << "<td class=\"" << status_class << "\">" << (r.passed ? "PASS" : "FAIL") << "</td>"
+            << "<td>" << htmlEscape(r.category) << "</td></tr>\n";
+    }
+    oss << "</table>\n</body></html>\n";
     return oss.str();
 }
 
@@ -5453,6 +5725,7 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         check.severity = result.improvement_percent > 50 ? "high" :
                         result.improvement_percent > 30 ? "medium" : "low";
         check.line = line;
+        check.file = current_check_file_;
         check_results_.push_back(check);
 
         // Only HARD blocks execution
