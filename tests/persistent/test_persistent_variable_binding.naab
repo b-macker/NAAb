@@ -1,0 +1,40 @@
+// Test: Variable binding with persistent executors
+// Verifies: NAAb variables are correctly injected into persistent processes
+
+main {
+    let passed = 0
+    let total = 0
+    let x = 42
+    let y = "hello"
+    let a = 100
+
+    // Test 1: Shell variable binding
+    total = total + 1
+    let result = <<shell[x, y]
+    echo "${x} ${y}"
+    >>
+    if (result == "42 hello") {
+        passed = passed + 1
+        print("  PASS: Shell variable binding works")
+    } else {
+        print("  FAIL: Shell var binding — got: " + ("" + result))
+    }
+
+    // Test 2: Another binding with persistent state still available
+    total = total + 1
+    <<shell
+    export PVAL="persistent"
+    >>
+    let val2 = <<shell[a]
+    echo "${a}_${PVAL}"
+    >>
+    if (val2 == "100_persistent") {
+        passed = passed + 1
+        print("  PASS: Bound var + persistent state work together")
+    } else {
+        print("  FAIL: Bound + persistent — got: " + ("" + val2))
+    }
+
+    print("")
+    print("Variable binding + persistent: " + ("" + passed) + "/" + ("" + total) + " passed")
+}

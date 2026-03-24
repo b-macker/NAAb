@@ -1,0 +1,53 @@
+// Test: Persistent Ruby Executor — state persists between blocks
+// Verifies: global variables persist between blocks
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Define global variable
+    total = total + 1
+    let a = <<ruby
+    $count = 1
+    puts $count
+    >>
+    if (a == 1) {
+        passed = passed + 1
+        print("  PASS: Ruby global var defined and returned")
+    } else {
+        print("  FAIL: Ruby global var — got: " + ("" + a))
+    }
+
+    // Test 2: Global variable persists
+    total = total + 1
+    let b = <<ruby
+    $count += 10
+    puts $count
+    >>
+    if (b == 11) {
+        passed = passed + 1
+        print("  PASS: Ruby global var persists between blocks")
+    } else {
+        print("  FAIL: Ruby global var persistence — got: " + ("" + b))
+    }
+
+    // Test 3: Method persists
+    total = total + 1
+    <<ruby
+    def triple(x)
+      x * 3
+    end
+    >>
+    let c = <<ruby
+    puts triple($count)
+    >>
+    if (c == 33) {
+        passed = passed + 1
+        print("  PASS: Ruby method persists between blocks")
+    } else {
+        print("  FAIL: Ruby method persistence — got: " + ("" + c))
+    }
+
+    print("")
+    print("Ruby persistent state: " + ("" + passed) + "/" + ("" + total) + " passed")
+}

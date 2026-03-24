@@ -1,0 +1,69 @@
+// Test: Persistent executor crash recovery
+// Verifies: after an error, subsequent blocks still work (process stays alive)
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Normal execution works
+    total = total + 1
+    let a = <<shell
+    echo 42
+    >>
+    if (a == 42) {
+        passed = passed + 1
+        print("  PASS: Normal shell execution works")
+    } else {
+        print("  FAIL: Normal execution — got: " + ("" + a))
+    }
+
+    // Test 2: Error in shell block (non-zero exit code) — caught by try/catch
+    total = total + 1
+    try {
+        let err_result = <<shell
+        false
+        >>
+    } catch (e) {
+        // Expected — shell error throws in polyglot path
+        passed = passed + 1
+        print("  PASS: Shell error caught without process crash")
+    }
+
+    // Test 3: Subsequent execution still works after error
+    // The persistent process should still be alive
+    total = total + 1
+    let b = <<shell
+    echo 100
+    >>
+    if (b == 100) {
+        passed = passed + 1
+        print("  PASS: Shell works after error in previous block")
+    } else {
+        print("  FAIL: Post-error recovery — got: " + ("" + b))
+    }
+
+    // Test 4: State set before error persists after error
+    total = total + 1
+    <<shell
+    export RECOVERY_VAR="survived"
+    >>
+    try {
+        <<shell
+        false
+        >>
+    } catch (e) {
+        // Expected
+    }
+    let c = <<shell
+    echo $RECOVERY_VAR
+    >>
+    if (c == "survived") {
+        passed = passed + 1
+        print("  PASS: State persists after error block")
+    } else {
+        print("  FAIL: State after error — got: " + ("" + c))
+    }
+
+    print("")
+    print("Crash recovery: " + ("" + passed) + "/" + ("" + total) + " passed")
+}

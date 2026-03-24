@@ -1,0 +1,74 @@
+// Test: Persistent Shell Executor — state persists between blocks
+// Verifies: env vars, functions, working directory carry across blocks
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Set env var in one block, read in another
+    total = total + 1
+    <<shell
+    export NAAB_TEST_VAR="hello_persistent"
+    >>
+
+    let val = <<shell
+    echo $NAAB_TEST_VAR
+    >>
+    if (val == "hello_persistent") {
+        passed = passed + 1
+        print("  PASS: Env var persists between blocks")
+    } else {
+        print("  FAIL: Env var persistence — got: " + ("" + val))
+    }
+
+    // Test 2: Shell function persists
+    total = total + 1
+    <<shell
+    greet() { echo "Hi $1"; }
+    >>
+    let greeting = <<shell
+    greet World
+    >>
+    if (greeting == "Hi World") {
+        passed = passed + 1
+        print("  PASS: Shell function persists between blocks")
+    } else {
+        print("  FAIL: Shell function persistence — got: " + ("" + greeting))
+    }
+
+    // Test 3: Shell variable (not exported) persists
+    total = total + 1
+    <<shell
+    MY_COUNTER=42
+    >>
+    let counter = <<shell
+    echo $MY_COUNTER
+    >>
+    if (counter == 42) {
+        passed = passed + 1
+        print("  PASS: Shell variable persists between blocks")
+    } else {
+        print("  FAIL: Shell variable persistence — got: " + ("" + counter))
+    }
+
+    // Test 4: Accumulation across blocks
+    total = total + 1
+    <<shell
+    ACCUM=1
+    >>
+    <<shell
+    ACCUM=$((ACCUM + 10))
+    >>
+    let accum = <<shell
+    echo $ACCUM
+    >>
+    if (accum == 11) {
+        passed = passed + 1
+        print("  PASS: Shell variable accumulation works")
+    } else {
+        print("  FAIL: Shell variable accumulation — got: " + ("" + accum))
+    }
+
+    print("")
+    print("Shell persistent state: " + ("" + passed) + "/" + ("" + total) + " passed")
+}

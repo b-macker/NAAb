@@ -1,0 +1,64 @@
+// Test: Persistent Node.js Executor — state persists between blocks
+// Verifies: variables, functions carry across blocks
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Define variable in one block, read in another
+    total = total + 1
+    let a = <<node
+    var counter = 1;
+    counter
+    >>
+    if (a == 1) {
+        passed = passed + 1
+        print("  PASS: Node var defined and returned")
+    } else {
+        print("  FAIL: Node var — got: " + ("" + a))
+    }
+
+    // Test 2: Variable persists across blocks
+    total = total + 1
+    let b = <<node
+    counter += 10;
+    counter
+    >>
+    if (b == 11) {
+        passed = passed + 1
+        print("  PASS: Node var persists between blocks")
+    } else {
+        print("  FAIL: Node var persistence — got: " + ("" + b))
+    }
+
+    // Test 3: Function persists
+    total = total + 1
+    <<node
+    function double(x) { return x * 2; }
+    >>
+    let c = <<node
+    double(counter)
+    >>
+    if (c == 22) {
+        passed = passed + 1
+        print("  PASS: Node function persists between blocks")
+    } else {
+        print("  FAIL: Node function persistence — got: " + ("" + c))
+    }
+
+    // Test 4: Console.log output works
+    total = total + 1
+    let d = <<node
+    console.log("hello from node");
+    42
+    >>
+    if (d == 42) {
+        passed = passed + 1
+        print("  PASS: Console.log + return value works")
+    } else {
+        print("  FAIL: Console.log + return — got: " + ("" + d))
+    }
+
+    print("")
+    print("Node persistent state: " + ("" + passed) + "/" + ("" + total) + " passed")
+}

@@ -458,6 +458,10 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/thread_pool.cpp  # Thread pool for async execution
     src/runtime/source_mapper.cpp  # Phase 12: Polyglot error mapping
     src/runtime/json_result_parser.cpp  # Phase 12: JSON sovereign pipe
+    src/runtime/persistent_process_executor.cpp  # Task 18: Persistent polyglot runtimes
+    src/runtime/persistent_shell_executor.cpp    # Task 18: Persistent shell executor
+    src/runtime/node_persistent_executor.cpp     # Task 18: Persistent Node.js executor
+    src/runtime/persistent_ruby_executor.cpp     # Task 18: Persistent Ruby executor
     src/utils/paths.cpp  # Portable path resolution
 )
 

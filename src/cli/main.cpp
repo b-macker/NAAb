@@ -29,6 +29,9 @@
 #include "naab/julia_executor.h"
 #include "naab/shell_executor.h"
 #include "naab/generic_subprocess_executor.h"
+#include "naab/persistent_shell_executor.h"
+#include "naab/node_persistent_executor.h"
+#include "naab/persistent_ruby_executor.h"
 #include "naab/rest_api.h"
 #include "naab/manifest.h"
 #include "naab/logger.h"
@@ -110,17 +113,21 @@ void initialize_executors() {
         std::make_unique<naab::runtime::RustExecutor>());
     #endif
 
-    // Polyglot Phase 7: Register shell executor
+    // Task 18: Register persistent shell executor (state persists between blocks)
     registry.registerExecutor("shell",
-        std::make_unique<naab::runtime::ShellExecutor>());
+        std::make_unique<naab::runtime::PersistentShellExecutor>());
     registry.registerExecutor("sh",
-        std::make_unique<naab::runtime::ShellExecutor>());
+        std::make_unique<naab::runtime::PersistentShellExecutor>());
     registry.registerExecutor("bash",
-        std::make_unique<naab::runtime::ShellExecutor>());
+        std::make_unique<naab::runtime::PersistentShellExecutor>());
 
-    // Polyglot Phase 7: Register Ruby executor (via GenericSubprocessExecutor)
+    // Task 18: Register persistent Ruby executor (state persists between blocks)
     registry.registerExecutor("ruby",
-        std::make_unique<naab::runtime::GenericSubprocessExecutor>("ruby", "ruby {}", ".rb"));
+        std::make_unique<naab::runtime::PersistentRubyExecutor>());
+
+    // Task 18: Register persistent Node.js executor (separate from QuickJS "javascript")
+    registry.registerExecutor("node",
+        std::make_unique<naab::runtime::NodePersistentExecutor>());
 
     // Issue #3: Register dedicated Go executor
     registry.registerExecutor("go", std::make_unique<naab::runtime::GoExecutor>());

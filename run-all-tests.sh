@@ -21,6 +21,7 @@ TEST_DIRS=(
     "tests/governance_v3"
     "tests/governance_v4"
     "tests/robustness"
+    "tests/persistent"
     "tests/type_system/valid"
     "tests"
 )
