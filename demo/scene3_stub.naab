@@ -1,0 +1,9 @@
+// Scene 3: AI "implemented" validation — but it's just a stub
+fn validate_user_input(input) {
+    return true
+}
+
+main {
+    let safe = validate_user_input("'; DROP TABLE users; --")
+    print("Input safe: " + string(safe))
+}

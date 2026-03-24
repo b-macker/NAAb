@@ -1,0 +1,32 @@
+{
+    "version": "4.0",
+    "mode": "enforce",
+    "description": "NAAb governance demo — catches 6 categories of AI mistakes",
+    "languages": {
+        "allowed": ["python", "shell"]
+    },
+    "capabilities": {
+        "network": false,
+        "filesystem": "read"
+    },
+    "code_quality": {
+        "no_hallucinated_apis": { "enabled": true, "level": "hard" },
+        "no_oversimplification": { "enabled": true, "level": "hard" },
+        "no_incomplete_logic": { "enabled": true, "level": "hard" },
+        "no_secrets": { "enabled": true, "level": "hard" },
+        "semantic_checks": {
+            "enabled": true,
+            "level": "hard",
+            "check_imports": true,
+            "check_api_signatures": true,
+            "check_dangerous_eval": true
+        }
+    },
+    "taint_tracking": {
+        "enabled": true,
+        "level": "hard",
+        "sources": ["env.get"],
+        "sinks": ["shell_exec"],
+        "sanitizers": ["sanitize_", "validate_", "escape_"]
+    }
+}

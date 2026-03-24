@@ -95,6 +95,32 @@ main {
 
 ---
 
+## See It In Action
+
+<p align="center">
+  <img src="demo/demo.svg" alt="NAAb Governance Demo — 7 scenes catching AI mistakes" width="800">
+</p>
+
+Run it yourself:
+
+```bash
+bash demo/governance_demo.sh
+```
+
+| Scene | AI Mistake | Governance Response |
+|-------|-----------|-------------------|
+| 1 | `.push()` in Python | Blocked — use `.append()` |
+| 2 | `import fake_ai_toolkit` | Blocked — unknown module |
+| 3 | `fn validate() { return true }` | Blocked — stub function |
+| 4 | Hardcoded `sk-proj-...` API key | Blocked — secret detected |
+| 5 | Empty `catch (e) { }` | Blocked — incomplete logic |
+| 6 | `env.get()` → shell unsanitized | Blocked — taint violation |
+| 7 | All issues fixed | Passes clean |
+
+See [`demo/`](demo/) for all files. Record your own: `bash demo/governance_demo.sh --record`
+
+---
+
 ## Governance Engine
 
 NAAb's governance engine is what sets it apart. Drop a `govern.json` in your project root and every polyglot block is checked before execution.

@@ -1,0 +1,10 @@
+// Scene 1: AI mixed up JavaScript and Python APIs
+main {
+    let result = <<python
+data = [1, 2, 3]
+data.push(4)
+data.push(5)
+len(data)
+>>
+    print("Result: " + string(result))
+}

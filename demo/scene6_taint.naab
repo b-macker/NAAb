@@ -1,0 +1,10 @@
+// Scene 6: AI passed user input directly to a shell command
+use env
+
+main {
+    let user_input = env.get("USER_QUERY")
+    let result = <<shell[user_input]
+echo "Searching for: $user_input"
+>>
+    print(string(result))
+}

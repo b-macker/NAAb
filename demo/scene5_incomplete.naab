@@ -1,0 +1,17 @@
+// Scene 5: AI swallowed errors with empty catch blocks
+fn fetch_user_data(user_id) {
+    try {
+        let data = <<python
+import json
+json.loads('{"name": "Alice", "id": 42}')
+>>
+        return data
+    } catch (e) {
+    }
+    return null
+}
+
+main {
+    let user = fetch_user_data(42)
+    print("User: " + string(user))
+}

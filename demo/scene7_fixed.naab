@@ -1,0 +1,79 @@
+// Scene 7: All issues fixed — governance passes clean
+use env
+
+fn validate_user_input(input) {
+    let cleaned = string(input)
+    if cleaned.contains("DROP") || cleaned.contains("--") || cleaned.contains(";") {
+        return "invalid"
+    }
+    if cleaned.length() > 100 {
+        return "too_long"
+    }
+    return cleaned
+}
+
+fn sanitize_for_shell(input) {
+    let safe = string(input)
+    safe = safe.replace("\"", "")
+    safe = safe.replace("'", "")
+    safe = safe.replace(";", "")
+    safe = safe.replace("|", "")
+    safe = safe.replace("&", "")
+    safe = safe.replace("$", "")
+    safe = safe.replace("`", "")
+    return safe
+}
+
+fn fetch_user_data(user_id) {
+    try {
+        let data = <<python
+import json
+json.loads('{"name": "Alice", "id": 42}')
+>>
+        return data
+    } catch (e) {
+        print("Failed to fetch user " + string(user_id) + ": " + string(e))
+        return {"error": string(e)}
+    }
+}
+
+main {
+    // Fix 1: Use .append() not .push()
+    let result = <<python
+data = [1, 2, 3]
+data.append(4)
+data.append(5)
+len(data)
+>>
+    print("Python result: " + string(result))
+
+    // Fix 2: Use real package (json is in known modules)
+    let parsed = <<python
+import json
+json.dumps({"status": "ok", "count": 5})
+>>
+    print("JSON: " + string(parsed))
+
+    // Fix 3: Real validation logic (not a stub)
+    let safe = validate_user_input("hello world")
+    print("Validated: " + string(safe))
+
+    // Fix 4: Use environment variable, not hardcoded
+    let api_key = env.get("API_KEY")
+    print("API key from env: " + string(api_key != null))
+
+    // Fix 5: Proper error handling
+    let user = fetch_user_data(42)
+    print("User: " + string(user))
+
+    // Fix 6: Sanitize before shell
+    let user_input = env.get("USER_QUERY")
+    let clean_input = sanitize_for_shell(user_input)
+    let search = <<shell[clean_input]
+echo "Searching for: $clean_input"
+>>
+    print("Search: " + string(search))
+
+    print("")
+    print("All 6 governance checks passed!")
+}

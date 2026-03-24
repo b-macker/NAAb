@@ -1,0 +1,9 @@
+// Scene 2: AI hallucinated a Python package that doesn't exist
+main {
+    let result = <<python
+import fake_ai_toolkit
+model = fake_ai_toolkit.load("gpt-5")
+model.predict("hello")
+>>
+    print("Prediction: " + string(result))
+}
