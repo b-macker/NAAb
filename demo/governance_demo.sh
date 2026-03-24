@@ -48,7 +48,7 @@ if $SVG; then
     echo "Recording animated SVG to ${SVG_FILE} ..."
     exec termtosvg "$SVG_FILE" \
         --screen-geometry 90x35 \
-        -c "bash $0 --fast"
+        -c "bash $0"
     # exec replaces this process — never reaches here
 fi
 
