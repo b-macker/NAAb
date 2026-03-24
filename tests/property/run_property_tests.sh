@@ -1,9 +1,10 @@
 #!/bin/bash
 # Property-Based Test Runner
-# Runs all three invariant suites:
+# Runs all four invariant suites:
 #   1. Governance transparency (A/B test)
 #   2. Taint monotonicity
 #   3. Type error completeness
+#   4. Polyglot differential (NAAb executor vs raw Python)
 
 set -e
 
@@ -48,6 +49,14 @@ fi
 # --- Invariant 3: Type Error Completeness ---
 echo ""
 if bash "$SCRIPT_DIR/test_type_completeness.sh"; then
+    SUITES_PASSED=$((SUITES_PASSED + 1))
+else
+    SUITES_FAILED=$((SUITES_FAILED + 1))
+fi
+
+# --- Invariant 4: Polyglot Differential ---
+echo ""
+if bash "$SCRIPT_DIR/test_polyglot_differential.sh"; then
     SUITES_PASSED=$((SUITES_PASSED + 1))
 else
     SUITES_FAILED=$((SUITES_FAILED + 1))
