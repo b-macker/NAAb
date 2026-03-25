@@ -27,8 +27,8 @@ namespace naab {
 namespace runtime {
 
 // Forward declarations of static helper functions
-static JSValue toJSValue(JSContext* ctx, const std::shared_ptr<interpreter::Value>& val);
-static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue val);
+static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val);
+static interpreter::NaabVal fromJSValue(JSContext* ctx, JSValue val);
 
 JsExecutor::JsExecutor() : rt_(nullptr), ctx_(nullptr), timeout_triggered_(false) {
     // Create JavaScript runtime
@@ -139,9 +139,9 @@ bool JsExecutor::execute(const std::string& code, JsExecutionMode mode) {
     return true;
 }
 
-std::shared_ptr<interpreter::Value> JsExecutor::callFunction(
+interpreter::NaabVal JsExecutor::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     if (!isInitialized()) {
         throw std::runtime_error("JavaScript runtime not initialized");
@@ -220,7 +220,7 @@ std::shared_ptr<interpreter::Value> JsExecutor::callFunction(
     return naab_result;
 }
 
-std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
+interpreter::NaabVal JsExecutor::evaluate(
     const std::string& expression) {
 
     if (!isInitialized()) {
@@ -406,13 +406,13 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
         JS_FreeValue(ctx_, result);
 
         // If result is null/undefined, check for captured console.log output
-        if (std::holds_alternative<std::monostate>(naab_result->data)) {
+        if (naab_result.isNull()) {
             const char* get_captured = "__naab_captured.join('\\n')";
             JSValue cap = JS_Eval(ctx_, get_captured, strlen(get_captured), "<capture>", JS_EVAL_TYPE_GLOBAL);
             if (JS_IsString(cap)) {
                 const char* s = JS_ToCString(ctx_, cap);
                 if (s && strlen(s) > 0) {
-                    auto captured_result = std::make_shared<interpreter::Value>(std::string(s));
+                    auto captured_result = interpreter::NaabVal::makeString(std::string(s));
                     JS_FreeCString(ctx_, s);
                     JS_FreeValue(ctx_, cap);
                     return captured_result;
@@ -467,13 +467,13 @@ std::shared_ptr<interpreter::Value> JsExecutor::evaluate(
         JS_FreeValue(ctx_, result);
 
         // If result is null/undefined, check for captured console.log output
-        if (std::holds_alternative<std::monostate>(naab_result->data)) {
+        if (naab_result.isNull()) {
             const char* get_captured = "__naab_captured.join('\\n')";
             JSValue cap = JS_Eval(ctx_, get_captured, strlen(get_captured), "<capture>", JS_EVAL_TYPE_GLOBAL);
             if (JS_IsString(cap)) {
                 const char* s = JS_ToCString(ctx_, cap);
                 if (s && strlen(s) > 0) {
-                    auto captured_result = std::make_shared<interpreter::Value>(std::string(s));
+                    auto captured_result = interpreter::NaabVal::makeString(std::string(s));
                     JS_FreeCString(ctx_, s);
                     JS_FreeValue(ctx_, cap);
                     return captured_result;
@@ -496,72 +496,63 @@ int JsExecutor::interruptHandler(JSRuntime* rt, void* opaque) {
     return executor->timeout_triggered_ ? 1 : 0;
 }
 
-// Static helper: Convert NAAb Value to JSValue
-static JSValue toJSValue(JSContext* ctx, const std::shared_ptr<interpreter::Value>& val) {
-    if (!val) {
-        return JS_UNDEFINED;
+// Static helper: Convert NaabVal to JSValue
+static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val) {
+    if (val.isNull()) {
+        return JS_NULL;
     }
 
-    // Check type using std::holds_alternative
-    if (std::holds_alternative<int>(val->data)) {
-        return JS_NewInt32(ctx, std::get<int>(val->data));
-    } else if (std::holds_alternative<double>(val->data)) {
-        return JS_NewFloat64(ctx, std::get<double>(val->data));
-    } else if (std::holds_alternative<bool>(val->data)) {
-        return JS_NewBool(ctx, std::get<bool>(val->data));
-    } else if (std::holds_alternative<std::string>(val->data)) {
-        const auto& str = std::get<std::string>(val->data);
-        return JS_NewString(ctx, str.c_str());
-    } else if (std::holds_alternative<std::monostate>(val->data)) {
-        return JS_NULL;
-    } else if (std::holds_alternative<std::vector<interpreter::NaabVal>>(val->data)) {
-        // Array
-        const auto& vec = std::get<std::vector<interpreter::NaabVal>>(val->data);
+    if (val.isInt()) {
+        return JS_NewInt32(ctx, val.asInt());
+    } else if (val.isDouble()) {
+        return JS_NewFloat64(ctx, val.asDouble());
+    } else if (val.isBool()) {
+        return JS_NewBool(ctx, val.asBool());
+    } else if (val.isString()) {
+        return JS_NewString(ctx, val.asString().c_str());
+    } else if (val.isList()) {
+        const auto& vec = val.asListConst();
         JSValue arr = JS_NewArray(ctx);
         for (size_t i = 0; i < vec.size(); i++) {
-            JSValue elem = toJSValue(ctx, vec[i].toLegacy());
+            JSValue elem = toJSValue(ctx, vec[i]);
             JS_SetPropertyUint32(ctx, arr, static_cast<uint32_t>(i), elem);
         }
         return arr;
-    } else if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(val->data)) {
-        // Dictionary/Object
-        const auto& map = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(val->data);
+    } else if (val.isDict()) {
+        const auto& map = val.asDictConst();
         JSValue obj = JS_NewObject(ctx);
         for (const auto& [key, value] : map) {
-            JSValue prop_val = toJSValue(ctx, value.toLegacy());
+            JSValue prop_val = toJSValue(ctx, value);
             JS_SetPropertyStr(ctx, obj, key.c_str(), prop_val);
         }
         return obj;
     } else {
-        // Unsupported type - return undefined
         fmt::print("[WARN] Unsupported type for JavaScript conversion\n");
         return JS_UNDEFINED;
     }
 }
 
-// Static helper: Convert JSValue to NAAb Value
-static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue val) {
+// Static helper: Convert JSValue to NaabVal
+static interpreter::NaabVal fromJSValue(JSContext* ctx, JSValue val) {
     // Null or undefined
     if (JS_IsNull(val) || JS_IsUndefined(val)) {
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     // Boolean
     if (JS_IsBool(val)) {
         int32_t b = JS_ToBool(ctx, val);
-        return std::make_shared<interpreter::Value>(b != 0);
+        return interpreter::NaabVal::makeBool(b != 0);
     }
 
     // Number (always get as double first, then check if it fits in int)
     if (JS_IsNumber(val)) {
         double d;
         if (JS_ToFloat64(ctx, &d, val) == 0) {
-            // Check if it fits in int32 range and is actually an integer
             if (d >= INT32_MIN && d <= INT32_MAX && d == static_cast<int32_t>(d)) {
-                return std::make_shared<interpreter::Value>(static_cast<int>(d));
+                return interpreter::NaabVal::makeInt(static_cast<int>(d));
             } else {
-                // Too large or has decimal part, return as double
-                return std::make_shared<interpreter::Value>(d);
+                return interpreter::NaabVal::makeDouble(d);
             }
         }
     }
@@ -570,7 +561,7 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
     if (JS_IsString(val)) {
         const char* str = JS_ToCString(ctx, val);
         if (str) {
-            auto result = std::make_shared<interpreter::Value>(std::string(str));
+            auto result = interpreter::NaabVal::makeString(std::string(str));
             JS_FreeCString(ctx, str);
             return result;
         }
@@ -578,12 +569,11 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
 
     // Array
     if (JS_IsArray(ctx, val)) {
-        // Get array length
         JSValue length_val = JS_GetPropertyStr(ctx, val, "length");
 
         if (JS_IsException(length_val)) {
             JS_FreeValue(ctx, length_val);
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         uint32_t length = 0;
@@ -592,7 +582,6 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
         }
         JS_FreeValue(ctx, length_val);
 
-        // Convert array elements
         std::vector<interpreter::NaabVal> naab_array;
         for (uint32_t i = 0; i < length; i++) {
             JSValue elem = JS_GetPropertyUint32(ctx, val, i);
@@ -603,26 +592,24 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
                 continue;
             }
 
-            naab_array.push_back(interpreter::NaabVal::fromLegacy(fromJSValue(ctx, elem)));
+            naab_array.push_back(fromJSValue(ctx, elem));
             JS_FreeValue(ctx, elem);
         }
 
-        return std::make_shared<interpreter::Value>(std::move(naab_array));
+        return interpreter::NaabVal::makeList(std::move(naab_array));
     }
 
     // Object (but not array)
     if (JS_IsObject(val)) {
         std::unordered_map<std::string, interpreter::NaabVal> naab_dict;
 
-        // Get property names
         JSPropertyEnum* props = nullptr;
         uint32_t prop_count = 0;
         if (JS_GetOwnPropertyNames(ctx, &props, &prop_count, val,
                                    JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) < 0) {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
-        // Iterate through properties
         for (uint32_t i = 0; i < prop_count; i++) {
             JSAtom atom = props[i].atom;
             const char* key = JS_AtomToCString(ctx, atom);
@@ -637,22 +624,21 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
                 continue;
             }
 
-            naab_dict[std::string(key)] = interpreter::NaabVal::fromLegacy(fromJSValue(ctx, prop_val));
+            naab_dict[std::string(key)] = fromJSValue(ctx, prop_val);
             JS_FreeValue(ctx, prop_val);
             JS_FreeCString(ctx, key);
         }
 
-        // Free property array
         for (uint32_t i = 0; i < prop_count; i++) {
             JS_FreeAtom(ctx, props[i].atom);
         }
         js_free(ctx, props);
 
-        return std::make_shared<interpreter::Value>(std::move(naab_dict));
+        return interpreter::NaabVal::makeDict(std::move(naab_dict));
     }
 
     // Unsupported type - return null
-    return std::make_shared<interpreter::Value>();
+    return interpreter::NaabVal::makeNull();
 }
 
 std::string JsExecutor::getLastError() {

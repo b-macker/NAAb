@@ -10,49 +10,49 @@
 namespace naab {
 namespace runtime {
 
-// File-local helper for JSON -> Value conversion (must be before parse() which calls it)
-static std::shared_ptr<interpreter::Value> parseValue(const nlohmann::json& j) {
+// File-local helper for JSON -> NaabVal conversion
+static interpreter::NaabVal parseValue(const nlohmann::json& j) {
     if (j.is_null()) {
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     if (j.is_boolean()) {
-        return std::make_shared<interpreter::Value>(j.get<bool>());
+        return interpreter::NaabVal::makeBool(j.get<bool>());
     }
 
     if (j.is_number_integer()) {
-        return std::make_shared<interpreter::Value>(static_cast<int>(j.get<int64_t>()));
+        return interpreter::NaabVal::makeInt(static_cast<int>(j.get<int64_t>()));
     }
 
     if (j.is_number_float()) {
-        return std::make_shared<interpreter::Value>(j.get<double>());
+        return interpreter::NaabVal::makeDouble(j.get<double>());
     }
 
     if (j.is_string()) {
-        return std::make_shared<interpreter::Value>(j.get<std::string>());
+        return interpreter::NaabVal::makeString(j.get<std::string>());
     }
 
     if (j.is_array()) {
         std::vector<interpreter::NaabVal> arr;
         for (const auto& item : j) {
-            arr.push_back(interpreter::NaabVal::fromLegacy(parseValue(item)));
+            arr.push_back(parseValue(item));
         }
-        return std::make_shared<interpreter::Value>(std::move(arr));
+        return interpreter::NaabVal::makeList(std::move(arr));
     }
 
     if (j.is_object()) {
         std::unordered_map<std::string, interpreter::NaabVal> obj;
         for (auto it = j.begin(); it != j.end(); ++it) {
-            obj[it.key()] = interpreter::NaabVal::fromLegacy(parseValue(it.value()));
+            obj[it.key()] = parseValue(it.value());
         }
-        return std::make_shared<interpreter::Value>(std::move(obj));
+        return interpreter::NaabVal::makeDict(std::move(obj));
     }
 
     // Unknown type - return as string
-    return std::make_shared<interpreter::Value>(j.dump());
+    return interpreter::NaabVal::makeString(j.dump());
 }
 
-std::shared_ptr<interpreter::Value> JsonResultParser::parse(const std::string& json_output) {
+interpreter::NaabVal JsonResultParser::parse(const std::string& json_output) {
     try {
         // Trim whitespace and newlines
         std::string trimmed = json_output;
@@ -60,7 +60,7 @@ std::shared_ptr<interpreter::Value> JsonResultParser::parse(const std::string& j
         trimmed.erase(trimmed.find_last_not_of(" \t\n\r") + 1);
 
         if (trimmed.empty()) {
-            return std::make_shared<interpreter::Value>();  // null
+            return interpreter::NaabVal::makeNull();
         }
 
         // Try to parse as JSON
@@ -73,20 +73,20 @@ std::shared_ptr<interpreter::Value> JsonResultParser::parse(const std::string& j
     }
 }
 
-std::shared_ptr<interpreter::Value> JsonResultParser::parseSimple(const std::string& output) {
+interpreter::NaabVal JsonResultParser::parseSimple(const std::string& output) {
     std::string trimmed = output;
     trimmed.erase(0, trimmed.find_first_not_of(" \t\n\r"));
     trimmed.erase(trimmed.find_last_not_of(" \t\n\r") + 1);
 
     if (trimmed.empty()) {
-        return std::make_shared<interpreter::Value>();  // null
+        return interpreter::NaabVal::makeNull();
     }
 
     // Try to parse as integer
     try {
         if (std::regex_match(trimmed, std::regex("^-?\\d+$"))) {
             int64_t val = std::stoll(trimmed);
-            return std::make_shared<interpreter::Value>(static_cast<int>(val));
+            return interpreter::NaabVal::makeInt(static_cast<int>(val));
         }
     } catch (...) {}
 
@@ -94,25 +94,25 @@ std::shared_ptr<interpreter::Value> JsonResultParser::parseSimple(const std::str
     try {
         if (std::regex_match(trimmed, std::regex("^-?\\d+\\.\\d+$"))) {
             double val = std::stod(trimmed);
-            return std::make_shared<interpreter::Value>(val);
+            return interpreter::NaabVal::makeDouble(val);
         }
     } catch (...) {}
 
     // Try to parse as boolean
     if (trimmed == "true" || trimmed == "True" || trimmed == "TRUE") {
-        return std::make_shared<interpreter::Value>(true);
+        return interpreter::NaabVal::makeBool(true);
     }
     if (trimmed == "false" || trimmed == "False" || trimmed == "FALSE") {
-        return std::make_shared<interpreter::Value>(false);
+        return interpreter::NaabVal::makeBool(false);
     }
 
     // Try to parse as null
     if (trimmed == "null" || trimmed == "nil" || trimmed == "None") {
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     // Otherwise, return as string
-    return std::make_shared<interpreter::Value>(trimmed);
+    return interpreter::NaabVal::makeString(trimmed);
 }
 
 // Phase 12: Parse polyglot stdout with sentinel detection and JSON scanning
@@ -143,7 +143,7 @@ PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::
     }
 
     // Pass 2: If no sentinel and return_type specified (e.g., "JSON"), find last valid JSON line
-    if (!result.return_value && !return_type.empty()) {
+    if (result.return_value.isNull() && !return_type.empty()) {
         for (int i = static_cast<int>(lines.size()) - 1; i >= 0; --i) {
             if (i == sentinel_idx) continue;
             std::string trimmed = lines[i];

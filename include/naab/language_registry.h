@@ -7,12 +7,9 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "naab/naab_val.h"
 
 namespace naab {
-namespace interpreter {
-    class Value;  // Forward declaration
-}
-
 namespace runtime {
 
 // Abstract base class for language executors
@@ -23,14 +20,14 @@ public:
     // Execute code and store in runtime context
     virtual bool execute(const std::string& code) = 0;
 
-    // Phase 2.3: Execute code and return the result value
-    virtual std::shared_ptr<interpreter::Value> executeWithReturn(
+    // Execute code and return the result value
+    virtual interpreter::NaabVal executeWithReturn(
         const std::string& code) = 0;
 
     // Call a function in the executor
-    virtual std::shared_ptr<interpreter::Value> callFunction(
+    virtual interpreter::NaabVal callFunction(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args
+        const std::vector<interpreter::NaabVal>& args
     ) = 0;
 
     // Check if executor is initialized

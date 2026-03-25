@@ -358,22 +358,22 @@ bool CppExecutor::isCompiled(const std::string& block_id) const {
     return fs::exists(so_path);
 }
 
-std::shared_ptr<interpreter::Value> CppExecutor::executeBlock(
+interpreter::NaabVal CppExecutor::executeBlock(
     const std::string& block_id,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     // Ensure block is compiled and loaded
     auto it = compiled_blocks_.find(block_id);
     if (it == compiled_blocks_.end()) {
         fmt::print("[ERROR] Block not compiled or loaded: {}\n", block_id);
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     auto& block = it->second;
 
     if (!block->is_loaded || !block->handle) {
         fmt::print("[ERROR] Block loaded but handle is null: {}\n", block_id);
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     // Get function pointer
@@ -383,7 +383,7 @@ std::shared_ptr<interpreter::Value> CppExecutor::executeBlock(
     if (!execute) {
         fmt::print("[ERROR] Failed to find entry point '{}': {}\n",
                    block->entry_point, dlerror());
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     fmt::print("[EXEC] Executing C++ block: {}\n", block_id);
@@ -394,14 +394,13 @@ std::shared_ptr<interpreter::Value> CppExecutor::executeBlock(
     // C++ block executed (silent)
 
     // For now, return success indicator
-    // In production, would need proper return value handling
-    return std::make_shared<interpreter::Value>(true);
+    return interpreter::NaabVal::makeBool(true);
 }
 
-std::shared_ptr<interpreter::Value> CppExecutor::callFunction(
+interpreter::NaabVal CppExecutor::callFunction(
     const std::string& block_id,
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     // Ensure block is compiled and loaded
     auto it = compiled_blocks_.find(block_id);
@@ -709,10 +708,10 @@ ffi_type* CppExecutor::mapTypeToFFI(const std::string& type_name) {
     return &ffi_type_pointer;
 }
 
-std::shared_ptr<interpreter::Value> CppExecutor::callWithFFI(
+interpreter::NaabVal CppExecutor::callWithFFI(
     void* func_ptr,
     const FunctionSignature& signature,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     // Validate argument count
     if (args.size() != signature.param_types.size()) {
@@ -788,7 +787,7 @@ std::shared_ptr<interpreter::Value> CppExecutor::callWithFFI(
 
     // Convert result back to NAAb Value
     if (signature.return_type == "void") {
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     } else if (signature.return_type == "int" || signature.return_type == "long" ||
                signature.return_type == "short" || signature.return_type == "char") {
         return marshaller_.fromInt(result.i);

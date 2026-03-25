@@ -312,7 +312,7 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
 }
 
 // Phase 2.3: Execute code and return the result value
-std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
+interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
     const std::string& code) {
 
     // For C++ with main(), compile and execute
@@ -345,7 +345,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
             std::ofstream ofs(temp_cpp);
             if (!ofs.is_open()) {
                 fmt::print("[ERROR] Failed to create temp C++ file\n");
-                return std::make_shared<interpreter::Value>();
+                return interpreter::NaabVal::makeNull();
             }
             ofs << code;
             ofs.close();
@@ -361,7 +361,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
             if (compile_exit != 0) {
                 fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
                 std::filesystem::remove(temp_cpp);
-                return std::make_shared<interpreter::Value>();
+                return interpreter::NaabVal::makeNull();
             }
 
             // Store in cache
@@ -402,18 +402,18 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
             try {
                 size_t pos;
                 int i = std::stoi(result, &pos);
-                if (pos == result.size()) return std::make_shared<interpreter::Value>(i);
+                if (pos == result.size()) return interpreter::NaabVal::makeInt(i);
             } catch (...) {}
 
             try {
                 size_t pos;
                 double d = std::stod(result, &pos);
-                if (pos == result.size()) return std::make_shared<interpreter::Value>(d);
+                if (pos == result.size()) return interpreter::NaabVal::makeDouble(d);
             } catch (...) {}
         }
 
         // Return as string
-        return std::make_shared<interpreter::Value>(result);
+        return interpreter::NaabVal::makeString(result);
     }
 
     // For expression blocks (no main), check if it's a statement or expression
@@ -459,7 +459,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
     if (is_statement && check_for_statement.find("return") != 0) {
         // Detected statement (not expression), executing without return (silent)
         execute(code);
-        return std::make_shared<interpreter::Value>();  // Return null/void
+        return interpreter::NaabVal::makeNull();  // Return null/void
     }
 
     // Wrapping C++ expression for return value (silent)
@@ -634,7 +634,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
         std::ofstream ofs(temp_cpp);
         if (!ofs.is_open()) {
             fmt::print("[ERROR] Failed to create temp C++ file\n");
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
         ofs << wrapped_code;
         ofs.close();
@@ -650,7 +650,7 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
         if (compile_exit != 0) {
             fmt::print("[ERROR] C++ compilation failed:\n{}{}\n", truncateCppErrors(compile_stderr), addCppCompileHints(compile_stderr));
             std::filesystem::remove(temp_cpp);
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         // Store in cache
@@ -684,23 +684,23 @@ std::shared_ptr<interpreter::Value> CppExecutorAdapter::executeWithReturn(
         try {
             size_t pos;
             int i = std::stoi(result, &pos);
-            if (pos == result.size()) return std::make_shared<interpreter::Value>(i);
+            if (pos == result.size()) return interpreter::NaabVal::makeInt(i);
         } catch (...) {}
 
         try {
             size_t pos;
             double d = std::stod(result, &pos);
-            if (pos == result.size()) return std::make_shared<interpreter::Value>(d);
+            if (pos == result.size()) return interpreter::NaabVal::makeDouble(d);
         } catch (...) {}
     }
 
     // Return as string
-    return std::make_shared<interpreter::Value>(result);
+    return interpreter::NaabVal::makeString(result);
 }
 
-std::shared_ptr<interpreter::Value> CppExecutorAdapter::callFunction(
+interpreter::NaabVal CppExecutorAdapter::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     if (current_block_id_.empty()) {
         throw std::runtime_error("No C++ block loaded. Call execute() first.");

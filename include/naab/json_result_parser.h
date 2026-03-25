@@ -1,29 +1,28 @@
 #pragma once
 
-#include "naab/value.h"
-#include <memory>
+#include "naab/naab_val.h"
 #include <string>
 
 namespace naab {
 namespace runtime {
 
 /**
- * Parses JSON output from language executors and converts to NAAb Values.
+ * Parses JSON output from language executors and converts to NAAb NaabVal.
  * Preserves types (int, string, array, object) instead of returning everything as strings.
  */
 class JsonResultParser {
 public:
     // Parse JSON output from language executor
-    // Returns appropriate Value type based on JSON content
-    static std::shared_ptr<interpreter::Value> parse(const std::string& json_output);
+    // Returns appropriate NaabVal type based on JSON content
+    static interpreter::NaabVal parse(const std::string& json_output);
 
     // Parse simple output (non-JSON) - attempts to infer type
-    static std::shared_ptr<interpreter::Value> parseSimple(const std::string& output);
+    static interpreter::NaabVal parseSimple(const std::string& output);
 };
 
 // Phase 12: Polyglot output parsing result
 struct PolyglotOutput {
-    std::shared_ptr<interpreter::Value> return_value;  // Parsed return value (may be null)
+    interpreter::NaabVal return_value;  // Parsed return value (null if none)
     std::string log_output;  // Non-return stdout lines (logs/debug output)
 };
 
@@ -32,4 +31,3 @@ PolyglotOutput parsePolyglotOutput(const std::string& stdout_output, const std::
 
 } // namespace runtime
 } // namespace naab
-

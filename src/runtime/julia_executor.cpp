@@ -150,7 +150,7 @@ bool JuliaExecutor::execute(const std::string& code) {
     }
 }
 
-std::shared_ptr<interpreter::Value> JuliaExecutor::executeWithReturn(
+interpreter::NaabVal JuliaExecutor::executeWithReturn(
     const std::string& code) {
 
     // Check sandbox permissions
@@ -174,7 +174,7 @@ std::shared_ptr<interpreter::Value> JuliaExecutor::executeWithReturn(
 
         std::ofstream ofs(temp_jl);
         if (!ofs.is_open()) {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
         ofs << julia_code;
         ofs.close();
@@ -250,38 +250,38 @@ std::shared_ptr<interpreter::Value> JuliaExecutor::executeWithReturn(
 
         // Empty result → null
         if (result.empty()) {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         // Null representations
         if (result == "null" || result == "NULL" || result == "None" ||
             result == "nil" || result == "Nil" || result == "<nil>" ||
             result == "nothing" || result == "undefined" || result == "()") {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         // Boolean representations
         if (result == "true" || result == "True" || result == "TRUE") {
-            return std::make_shared<interpreter::Value>(true);
+            return interpreter::NaabVal::makeBool(true);
         }
         if (result == "false" || result == "False" || result == "FALSE") {
-            return std::make_shared<interpreter::Value>(false);
+            return interpreter::NaabVal::makeBool(false);
         }
 
         // Try to parse as number
         try {
             size_t pos;
             int i = std::stoi(result, &pos);
-            if (pos == result.size()) return std::make_shared<interpreter::Value>(i);
+            if (pos == result.size()) return interpreter::NaabVal::makeInt(i);
         } catch (...) {}
 
         try {
             size_t pos;
             double d = std::stod(result, &pos);
-            if (pos == result.size()) return std::make_shared<interpreter::Value>(d);
+            if (pos == result.size()) return interpreter::NaabVal::makeDouble(d);
         } catch (...) {}
 
-        return std::make_shared<interpreter::Value>(result);
+        return interpreter::NaabVal::makeString(result);
 
     } catch (const std::exception& e) {
         std::filesystem::remove(temp_jl);
@@ -289,14 +289,14 @@ std::shared_ptr<interpreter::Value> JuliaExecutor::executeWithReturn(
     }
 }
 
-std::shared_ptr<interpreter::Value> JuliaExecutor::callFunction(
+interpreter::NaabVal JuliaExecutor::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     if (function_name == "exec" && !args.empty()) {
-        if (auto* str_val = std::get_if<std::string>(&args[0]->data)) {
-            bool success = execute(*str_val);
-            return std::make_shared<interpreter::Value>(success);
+        if (args[0].isString()) {
+            bool success = execute(args[0].asString());
+            return interpreter::NaabVal::makeBool(success);
         }
     }
 

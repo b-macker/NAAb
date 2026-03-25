@@ -7,16 +7,13 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include "naab/naab_val.h"
 
 // Forward declare QuickJS types (opaque pointers only)
 struct JSRuntime;
 struct JSContext;
 
 namespace naab {
-namespace interpreter {
-    class Value;  // Forward declaration
-}
-
 namespace runtime {
 
 // Execution mode for JavaScript code
@@ -38,13 +35,13 @@ public:
     bool execute(const std::string& code, JsExecutionMode mode);
 
     // Call a JavaScript function
-    std::shared_ptr<interpreter::Value> callFunction(
+    interpreter::NaabVal callFunction(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 
     // Evaluate JavaScript expression and return result
-    std::shared_ptr<interpreter::Value> evaluate(const std::string& expression);
+    interpreter::NaabVal evaluate(const std::string& expression);
 
     // Check if runtime is initialized
     bool isInitialized() const { return rt_ != nullptr && ctx_ != nullptr; }

@@ -91,7 +91,7 @@ static bool splitStatementsAndLastExpr(const std::string& code,
  * On worker threads: uses pre-created PyThreadState + PyEval_RestoreThread
  * On main thread: falls back to PyGILState_Ensure
  */
-std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std::string& code) {
+interpreter::NaabVal PythonCExecutor::executeWithReturn(const std::string& code) {
     // Acquire GIL safely (pre-created state on workers, PyGILState on main)
     int gil_handle = python_c_gil_acquire();
 
@@ -317,26 +317,26 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
                 std::string captured = captureAndRestoreStdout();
                 python_c_gil_release(gil_handle);
                 if (!captured.empty()) {
-                    return std::make_shared<interpreter::Value>(captured);
+                    return interpreter::NaabVal::makeString(captured);
                 }
-                return std::make_shared<interpreter::Value>();
+                return interpreter::NaabVal::makeNull();
             }
         }
     }
 
     // Convert PyObject to NAAb Value (still holding GIL)
-    std::shared_ptr<interpreter::Value> value = pyObjectToValue(py_result);
+    interpreter::NaabVal value = pyObjectToValue(py_result);
 
     // Release the Python object
     Py_DECREF(py_result);
 
     // Check: if result is None/null, check for captured stdout
-    bool is_null = std::holds_alternative<std::monostate>(value->data);
+    bool is_null = value.isNull();
     std::string captured = captureAndRestoreStdout();
     python_c_gil_release(gil_handle);
 
     if (is_null && !captured.empty()) {
-        return std::make_shared<interpreter::Value>(captured);
+        return interpreter::NaabVal::makeString(captured);
     }
 
     return value;
@@ -345,44 +345,40 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::executeWithReturn(const std
 /**
  * Convert PyObject* to NAAb Value
  */
-std::shared_ptr<interpreter::Value> PythonCExecutor::pyObjectToValue(PyObject* obj) {
+interpreter::NaabVal PythonCExecutor::pyObjectToValue(PyObject* obj) {
     if (!obj || obj == Py_None) {
-        return std::make_shared<interpreter::Value>();  // monostate (null)
+        return interpreter::NaabVal::makeNull();
     }
 
     // Bool (check before int, since bool is a subclass of int in Python)
     if (PyBool_Check(obj)) {
-        return std::make_shared<interpreter::Value>(obj == Py_True);
+        return interpreter::NaabVal::makeBool(obj == Py_True);
     }
 
     // Int
     if (PyLong_Check(obj)) {
-        // Try int first, fall back to double if overflow
         long long val = PyLong_AsLongLong(obj);
         if (val == -1 && PyErr_Occurred()) {
             PyErr_Clear();
-            // Overflow - convert to double
             double dval = PyLong_AsDouble(obj);
-            return std::make_shared<interpreter::Value>(dval);
+            return interpreter::NaabVal::makeDouble(dval);
         }
-        // Check if it fits in int32
         if (val >= INT32_MIN && val <= INT32_MAX) {
-            return std::make_shared<interpreter::Value>(static_cast<int>(val));
+            return interpreter::NaabVal::makeInt(static_cast<int>(val));
         } else {
-            // Too large for int32, use double
-            return std::make_shared<interpreter::Value>(static_cast<double>(val));
+            return interpreter::NaabVal::makeDouble(static_cast<double>(val));
         }
     }
 
     // Float
     if (PyFloat_Check(obj)) {
-        return std::make_shared<interpreter::Value>(PyFloat_AsDouble(obj));
+        return interpreter::NaabVal::makeDouble(PyFloat_AsDouble(obj));
     }
 
     // String
     if (PyUnicode_Check(obj)) {
         const char* str = PyUnicode_AsUTF8(obj);
-        return std::make_shared<interpreter::Value>(std::string(str ? str : ""));
+        return interpreter::NaabVal::makeString(std::string(str ? str : ""));
     }
 
     // List
@@ -392,11 +388,11 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::pyObjectToValue(PyObject* o
         vec.reserve(size);
 
         for (Py_ssize_t i = 0; i < size; i++) {
-            PyObject* item = PyList_GetItem(obj, i);  // Borrowed reference
-            vec.push_back(interpreter::NaabVal::fromLegacy(pyObjectToValue(item)));
+            PyObject* item = PyList_GetItem(obj, i);
+            vec.push_back(pyObjectToValue(item));
         }
 
-        return std::make_shared<interpreter::Value>(std::move(vec));
+        return interpreter::NaabVal::makeList(std::move(vec));
     }
 
     // Tuple (convert to list)
@@ -406,11 +402,11 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::pyObjectToValue(PyObject* o
         vec.reserve(size);
 
         for (Py_ssize_t i = 0; i < size; i++) {
-            PyObject* item = PyTuple_GetItem(obj, i);  // Borrowed reference
-            vec.push_back(interpreter::NaabVal::fromLegacy(pyObjectToValue(item)));
+            PyObject* item = PyTuple_GetItem(obj, i);
+            vec.push_back(pyObjectToValue(item));
         }
 
-        return std::make_shared<interpreter::Value>(std::move(vec));
+        return interpreter::NaabVal::makeList(std::move(vec));
     }
 
     // Dict
@@ -420,8 +416,7 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::pyObjectToValue(PyObject* o
         PyObject *key, *value;
         Py_ssize_t pos = 0;
 
-        while (PyDict_Next(obj, &pos, &key, &value)) {  // Borrowed references
-            // Convert key to string
+        while (PyDict_Next(obj, &pos, &key, &value)) {
             if (!PyUnicode_Check(key)) {
                 throw std::runtime_error("Dictionary keys must be strings");
             }
@@ -431,73 +426,60 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::pyObjectToValue(PyObject* o
                 throw std::runtime_error("Failed to convert dictionary key to string");
             }
 
-            map[key_str] = interpreter::NaabVal::fromLegacy(pyObjectToValue(value));
+            map[key_str] = pyObjectToValue(value);
         }
 
-        return std::make_shared<interpreter::Value>(std::move(map));
+        return interpreter::NaabVal::makeDict(std::move(map));
     }
 
     // Unsupported type - wrap in PythonObjectValue
-    Py_INCREF(obj);  // PythonObjectValue will own this reference
-    return std::make_shared<interpreter::Value>(std::make_shared<naab::interpreter::PythonObjectValue>(obj));
+    Py_INCREF(obj);
+    return interpreter::NaabVal::fromLegacy(
+        std::make_shared<interpreter::Value>(std::make_shared<naab::interpreter::PythonObjectValue>(obj)));
 }
 
 /**
  * Convert NAAb Value to PyObject*
  */
-PyObject* PythonCExecutor::valueToPyObject(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([this](auto&& arg) -> PyObject* {
-        using T = std::decay_t<decltype(arg)>;
-
-        if constexpr (std::is_same_v<T, std::monostate>) {
-            // Null
-            Py_RETURN_NONE;
+PyObject* PythonCExecutor::valueToPyObject(const interpreter::NaabVal& val) {
+    if (val.isNull()) { Py_RETURN_NONE; }
+    if (val.isBool()) {
+        if (val.asBool()) { Py_RETURN_TRUE; }
+        else { Py_RETURN_FALSE; }
+    }
+    if (val.isInt()) { return PyLong_FromLong(val.asInt()); }
+    if (val.isDouble()) { return PyFloat_FromDouble(val.asDouble()); }
+    if (val.isString()) { return PyUnicode_FromString(val.asString().c_str()); }
+    if (val.isList()) {
+        const auto& arr = val.asListConst();
+        PyObject* list = PyList_New(static_cast<Py_ssize_t>(arr.size()));
+        for (size_t i = 0; i < arr.size(); i++) {
+            PyObject* item = valueToPyObject(arr[i]);
+            PyList_SET_ITEM(list, static_cast<Py_ssize_t>(i), item);
         }
-        else if constexpr (std::is_same_v<T, int>) {
-            return PyLong_FromLong(arg);
+        return list;
+    }
+    if (val.isDict()) {
+        const auto& dict = val.asDictConst();
+        PyObject* py_dict = PyDict_New();
+        for (const auto& [key, value] : dict) {
+            PyObject* py_key = PyUnicode_FromString(key.c_str());
+            PyObject* py_val = valueToPyObject(value);
+            PyDict_SetItem(py_dict, py_key, py_val);
+            Py_DECREF(py_key);
+            Py_DECREF(py_val);
         }
-        else if constexpr (std::is_same_v<T, double>) {
-            return PyFloat_FromDouble(arg);
-        }
-        else if constexpr (std::is_same_v<T, bool>) {
-            if (arg) { Py_RETURN_TRUE; }
-            else { Py_RETURN_FALSE; }
-        }
-        else if constexpr (std::is_same_v<T, std::string>) {
-            return PyUnicode_FromString(arg.c_str());
-        }
-        else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
-            PyObject* list = PyList_New(static_cast<Py_ssize_t>(arg.size()));
-            for (size_t i = 0; i < arg.size(); i++) {
-                PyObject* item = valueToPyObject(arg[i]);
-                PyList_SET_ITEM(list, static_cast<Py_ssize_t>(i), item);  // Steals reference
-            }
-            return list;
-        }
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>) {
-            PyObject* dict = PyDict_New();
-            for (const auto& [key, value] : arg) {
-                PyObject* py_key = PyUnicode_FromString(key.c_str());
-                PyObject* py_val = valueToPyObject(value);
-                PyDict_SetItem(dict, py_key, py_val);
-                Py_DECREF(py_key);
-                Py_DECREF(py_val);
-            }
-            return dict;
-        }
-        else {
-            // Unsupported type
-            Py_RETURN_NONE;
-        }
-    }, val->data);
+        return py_dict;
+    }
+    Py_RETURN_NONE;
 }
 
 /**
  * Call a Python function by name (STUB)
  */
-std::shared_ptr<interpreter::Value> PythonCExecutor::callFunction(
+interpreter::NaabVal PythonCExecutor::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args
+    const std::vector<interpreter::NaabVal>& args
 ) {
     throw std::runtime_error("PythonCExecutor::callFunction() not yet implemented for C API");
 }

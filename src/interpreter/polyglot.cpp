@@ -637,7 +637,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         bool json_parsed = false;
         if (!captured.empty()) {
             auto polyglot_result = runtime::parsePolyglotOutput(captured, return_type);
-            if (polyglot_result.return_value) {
+            if (!polyglot_result.return_value.isNull()) {
                 result_ = polyglot_result.return_value;
                 sentinel_found = true;
                 json_parsed = true;
@@ -658,7 +658,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 const auto& str_val = result_.asString();
                 if (str_val.find("__NAAB_RETURN__:") != std::string::npos) {
                     auto polyglot_result = runtime::parsePolyglotOutput(str_val, return_type);
-                    if (polyglot_result.return_value) {
+                    if (!polyglot_result.return_value.isNull()) {
                         result_ = polyglot_result.return_value;
                         json_parsed = true;
                     }
@@ -669,7 +669,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 } else if (!return_type.empty()) {
                     // Strategy 3: If -> JSON header specified, try parsing result as JSON
                     auto polyglot_result = runtime::parsePolyglotOutput(str_val, return_type);
-                    if (polyglot_result.return_value) {
+                    if (!polyglot_result.return_value.isNull()) {
                         result_ = polyglot_result.return_value;
                         json_parsed = true;
                     }
@@ -1576,8 +1576,8 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 const auto& str_val = value.asString();
                 if (str_val.find("__NAAB_RETURN__:") != std::string::npos) {
                     auto polyglot_result = runtime::parsePolyglotOutput(str_val, return_type);
-                    if (polyglot_result.return_value) {
-                        value = NaabVal::fromLegacy(polyglot_result.return_value);
+                    if (!polyglot_result.return_value.isNull()) {
+                        value = polyglot_result.return_value;
                         par_json_parsed = true;
                     }
                     if (!polyglot_result.log_output.empty()) {
@@ -1586,8 +1586,8 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                 } else if (!return_type.empty()) {
                     // -> JSON header: try parsing result as JSON
                     auto polyglot_result = runtime::parsePolyglotOutput(str_val, return_type);
-                    if (polyglot_result.return_value) {
-                        value = NaabVal::fromLegacy(polyglot_result.return_value);
+                    if (!polyglot_result.return_value.isNull()) {
+                        value = polyglot_result.return_value;
                         par_json_parsed = true;
                     }
                 }

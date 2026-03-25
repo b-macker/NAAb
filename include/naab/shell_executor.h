@@ -19,11 +19,11 @@ public:
 
     // Executor interface implementations
     bool execute(const std::string& code) override;
-    std::shared_ptr<interpreter::Value> executeWithReturn(
+    interpreter::NaabVal executeWithReturn(
         const std::string& code) override;
-    std::shared_ptr<interpreter::Value> callFunction(
+    interpreter::NaabVal callFunction(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+        const std::vector<interpreter::NaabVal>& args) override;
     std::string getCapturedOutput() override;
     bool isInitialized() const override { return true; } // Shell is always "initialized" if executable exists
     std::string getLanguage() const override { return "sh"; } // Default language ID for shell

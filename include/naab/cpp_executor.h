@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 #include "naab/type_marshaller.h"
+#include "naab/naab_val.h"
 
 // Include libffi if available
 #ifdef HAVE_LIBFFI
@@ -15,9 +16,6 @@
 #endif
 
 namespace naab {
-namespace interpreter {
-    class Value;  // Forward declaration
-}
 
 namespace runtime {
 
@@ -59,16 +57,16 @@ public:
     );
 
     // Execute a compiled C++ block (legacy - calls default entry point)
-    std::shared_ptr<interpreter::Value> executeBlock(
+    interpreter::NaabVal executeBlock(
         const std::string& block_id,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 
     // Call a specific function in a compiled block with type marshalling
-    std::shared_ptr<interpreter::Value> callFunction(
+    interpreter::NaabVal callFunction(
         const std::string& block_id,
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 
     // Check if block is already compiled
@@ -106,10 +104,10 @@ private:
 
 #ifdef HAVE_LIBFFI
     // libffi-based dynamic function calling
-    std::shared_ptr<interpreter::Value> callWithFFI(
+    interpreter::NaabVal callWithFFI(
         void* func_ptr,
         const FunctionSignature& signature,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 
     ffi_type* mapTypeToFFI(const std::string& type_name);

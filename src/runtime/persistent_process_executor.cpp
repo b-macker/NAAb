@@ -213,7 +213,7 @@ bool PersistentProcessExecutor::execute(const std::string& code) {
     }
 }
 
-std::shared_ptr<interpreter::Value> PersistentProcessExecutor::executeWithReturn(
+interpreter::NaabVal PersistentProcessExecutor::executeWithReturn(
     const std::string& code) {
 
     std::lock_guard<std::mutex> lock(process_mutex_);
@@ -304,18 +304,18 @@ std::shared_ptr<interpreter::Value> PersistentProcessExecutor::executeWithReturn
     return parseOutput(stdout_text, stderr_text, 0);
 }
 
-std::shared_ptr<interpreter::Value> PersistentProcessExecutor::callFunction(
+interpreter::NaabVal PersistentProcessExecutor::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     if (function_name == "exec" && !args.empty()) {
-        if (auto* str_val = std::get_if<std::string>(&args[0]->data)) {
-            bool success = execute(*str_val);
-            return std::make_shared<interpreter::Value>(success);
+        if (args[0].isString()) {
+            bool success = execute(args[0].asString());
+            return interpreter::NaabVal::makeBool(success);
         }
-        if (auto* int_val = std::get_if<int>(&args[0]->data)) {
-            bool success = execute(std::to_string(*int_val));
-            return std::make_shared<interpreter::Value>(success);
+        if (args[0].isInt()) {
+            bool success = execute(std::to_string(args[0].asInt()));
+            return interpreter::NaabVal::makeBool(success);
         }
     }
 
@@ -342,7 +342,7 @@ std::string PersistentProcessExecutor::getLanguage() const {
 }
 
 // Default output parsing — same logic as GenericSubprocessExecutor/ShellExecutor
-std::shared_ptr<interpreter::Value> PersistentProcessExecutor::parseOutput(
+interpreter::NaabVal PersistentProcessExecutor::parseOutput(
     const std::string& stdout_text, const std::string& /* stderr_text */,
     int /* implicit_exit_code */) const {
 
@@ -355,22 +355,22 @@ std::shared_ptr<interpreter::Value> PersistentProcessExecutor::parseOutput(
 
     // Empty result -> null
     if (result.empty()) {
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     // Null representations
     if (result == "null" || result == "NULL" || result == "None" ||
         result == "nil" || result == "Nil" || result == "<nil>" ||
         result == "nothing" || result == "undefined" || result == "()") {
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     // Boolean representations
     if (result == "true" || result == "True" || result == "TRUE") {
-        return std::make_shared<interpreter::Value>(true);
+        return interpreter::NaabVal::makeBool(true);
     }
     if (result == "false" || result == "False" || result == "FALSE") {
-        return std::make_shared<interpreter::Value>(false);
+        return interpreter::NaabVal::makeBool(false);
     }
 
     // Try to parse as number (double first for large numbers)
@@ -380,14 +380,14 @@ std::shared_ptr<interpreter::Value> PersistentProcessExecutor::parseOutput(
         if (pos == result.size()) {
             // Check if it's actually an integer that fits in int range
             if (d == static_cast<int>(d) && d >= INT_MIN && d <= INT_MAX) {
-                return std::make_shared<interpreter::Value>(static_cast<int>(d));
+                return interpreter::NaabVal::makeInt(static_cast<int>(d));
             }
-            return std::make_shared<interpreter::Value>(d);
+            return interpreter::NaabVal::makeDouble(d);
         }
     } catch (...) {}
 
     // Return as string
-    return std::make_shared<interpreter::Value>(result);
+    return interpreter::NaabVal::makeString(result);
 }
 
 // === Private methods ===

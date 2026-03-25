@@ -93,7 +93,7 @@ bool CSharpExecutor::execute(const std::string& code) {
 }
 
 // Phase 2.3: Execute and return stdout as value
-std::shared_ptr<interpreter::Value> CSharpExecutor::executeWithReturn(
+interpreter::NaabVal CSharpExecutor::executeWithReturn(
     const std::string& code) {
 
     // Create unique temp files for thread-safe parallel execution
@@ -171,7 +171,7 @@ std::shared_ptr<interpreter::Value> CSharpExecutor::executeWithReturn(
 
         std::ofstream ofs(temp_cs);
         if (!ofs.is_open()) {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
         ofs << csharp_code;
         ofs.close();
@@ -214,56 +214,54 @@ std::shared_ptr<interpreter::Value> CSharpExecutor::executeWithReturn(
 
         // Empty result → null
         if (result.empty()) {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         // Null representations
         if (result == "null" || result == "NULL" || result == "None" ||
             result == "nil" || result == "Nil" || result == "<nil>" ||
             result == "nothing" || result == "undefined" || result == "()") {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         // Boolean representations
         if (result == "true" || result == "True" || result == "TRUE") {
-            return std::make_shared<interpreter::Value>(true);
+            return interpreter::NaabVal::makeBool(true);
         }
         if (result == "false" || result == "False" || result == "FALSE") {
-            return std::make_shared<interpreter::Value>(false);
+            return interpreter::NaabVal::makeBool(false);
         }
 
         // Try to parse as number
         try {
             size_t pos;
             int i = std::stoi(result, &pos);
-            if (pos == result.size()) return std::make_shared<interpreter::Value>(i);
+            if (pos == result.size()) return interpreter::NaabVal::makeInt(i);
         } catch (...) {}
 
         try {
             size_t pos;
             double d = std::stod(result, &pos);
-            if (pos == result.size()) return std::make_shared<interpreter::Value>(d);
+            if (pos == result.size()) return interpreter::NaabVal::makeDouble(d);
         } catch (...) {}
 
         // Return as string
-        return std::make_shared<interpreter::Value>(result);
+        return interpreter::NaabVal::makeString(result);
 
     } catch (const std::exception& e) {
         std::filesystem::remove(temp_cs);
         std::filesystem::remove(temp_exe);
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 }
 
-std::shared_ptr<interpreter::Value> CSharpExecutor::callFunction(
+interpreter::NaabVal CSharpExecutor::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
-    if (function_name == "exec" && !args.empty()) {
-        if (auto* str_val = std::get_if<std::string>(&args[0]->data)) {
-            bool success = execute(*str_val);
-            return std::make_shared<interpreter::Value>(success);
-        }
+    if (function_name == "exec" && !args.empty() && args[0].isString()) {
+        bool success = execute(args[0].asString());
+        return interpreter::NaabVal::makeBool(success);
     }
 
     throw std::runtime_error("CSharpExecutor only supports 'exec(code_string)'");

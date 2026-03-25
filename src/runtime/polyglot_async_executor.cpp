@@ -141,17 +141,17 @@ ffi::AsyncCallbackWrapper::CallbackFunc PythonAsyncExecutor::makePythonCallback(
                 runtime::PythonCExecutor executor;
 
                 // Execute Python code (executor handles GIL acquisition internally)
-                auto result_ptr = executor.executeWithReturn(code);
+                auto result_nval = executor.executeWithReturn(code);
 
-                if (!result_ptr) {
+                if (result_nval.isNull()) {
                     throw std::runtime_error("Python execution returned null result");
                 }
 
                 // Dereference shared_ptr to get Value
-                result_value = *result_ptr;
+                result_value = *result_nval.toLegacy();
 
                 // Explicitly release the shared_ptr
-                result_ptr.reset();
+                
             }
 
             return result_value;
@@ -232,14 +232,14 @@ ffi::AsyncCallbackWrapper::CallbackFunc JavaScriptAsyncExecutor::makeJavaScriptC
             }
 
             // Execute JavaScript code
-            auto result_ptr = executor->evaluate(code);
+            auto result_nval = executor->evaluate(code);
 
-            if (!result_ptr) {
+            if (result_nval.isNull()) {
                 throw std::runtime_error("JavaScript execution returned null result");
             }
 
             // Dereference shared_ptr to get Value
-            return *result_ptr;
+            return *result_nval.toLegacy();
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -309,14 +309,14 @@ ffi::AsyncCallbackWrapper::CallbackFunc CppAsyncExecutor::makeCppCallback(
             runtime::CppExecutorAdapter executor;
 
             // Execute C++ code with return value
-            auto result_ptr = executor.executeWithReturn(code);
+            auto result_nval = executor.executeWithReturn(code);
 
-            if (!result_ptr) {
+            if (result_nval.isNull()) {
                 throw std::runtime_error("C++ execution returned null result");
             }
 
             // Dereference shared_ptr to get Value
-            return *result_ptr;
+            return *result_nval.toLegacy();
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -388,13 +388,13 @@ ffi::AsyncCallbackWrapper::CallbackFunc RustAsyncExecutor::makeRustCallback(
             auto executor = std::make_unique<runtime::RustExecutor>();
 
             // CRITICAL FIX: Use executeWithReturn for inline code (not executeBlock for FFI)
-            auto result_ptr = executor->executeWithReturn(code);
+            auto result_nval = executor->executeWithReturn(code);
 
-            if (!result_ptr) {
+            if (result_nval.isNull()) {
                 throw std::runtime_error("Rust execution returned null result");
             }
 
-            return *result_ptr;
+            return *result_nval.toLegacy();
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -463,13 +463,13 @@ ffi::AsyncCallbackWrapper::CallbackFunc CSharpAsyncExecutor::makeCSharpCallback(
             auto executor = std::make_unique<runtime::CSharpExecutor>();
 
             // Execute C# code
-            auto result_ptr = executor->executeWithReturn(code);
+            auto result_nval = executor->executeWithReturn(code);
 
-            if (!result_ptr) {
+            if (result_nval.isNull()) {
                 throw std::runtime_error("C# execution returned null result");
             }
 
-            return *result_ptr;
+            return *result_nval.toLegacy();
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -539,13 +539,13 @@ ffi::AsyncCallbackWrapper::CallbackFunc ShellAsyncExecutor::makeShellCallback(
             auto executor = std::make_unique<runtime::ShellExecutor>();
 
             // Execute shell command
-            auto result_ptr = executor->executeWithReturn(command);
+            auto result_nval = executor->executeWithReturn(command);
 
-            if (!result_ptr) {
+            if (result_nval.isNull()) {
                 throw std::runtime_error("Shell execution returned null result");
             }
 
-            return *result_ptr;
+            return *result_nval.toLegacy();
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -635,15 +635,15 @@ ffi::AsyncCallbackWrapper::CallbackFunc GenericSubprocessAsyncExecutor::makeSubp
             );
 
             // Execute via subprocess
-            auto result_ptr = executor->executeWithReturn(code);
+            auto result_nval = executor->executeWithReturn(code);
 
-            if (!result_ptr) {
+            if (result_nval.isNull()) {
                 throw std::runtime_error(
                     fmt::format("{} execution returned null result", lang_id)
                 );
             }
 
-            return *result_ptr;
+            return *result_nval.toLegacy();
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(

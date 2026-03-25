@@ -22,8 +22,8 @@ namespace runtime {
 std::atomic<int> RustExecutor::temp_file_counter_(0);
 
 // Forward declarations for FFI conversion helpers
-std::shared_ptr<interpreter::Value> ffiToValue(NaabRustValue* ffi_val);
-NaabRustValue* valueToFfi(const std::shared_ptr<interpreter::Value>& val);
+interpreter::NaabVal ffiToValue(NaabRustValue* ffi_val);
+NaabRustValue* valueToFfi(const interpreter::NaabVal& val);
 
 RustExecutor::RustExecutor() {
     // RustExecutor initialized (silent)
@@ -111,7 +111,7 @@ bool RustExecutor::execute(const std::string& code) {
 }
 
 // Phase 2.3: Execute and return stdout as value
-std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
+interpreter::NaabVal RustExecutor::executeWithReturn(
     const std::string& code) {
 
     // Create unique temp files for thread-safe parallel execution
@@ -242,7 +242,7 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
 
     std::ofstream ofs(temp_rs);
     if (!ofs.is_open()) {
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
     ofs << rust_code;
     ofs.close();
@@ -290,45 +290,45 @@ std::shared_ptr<interpreter::Value> RustExecutor::executeWithReturn(
 
     // Empty result → null
     if (result.empty()) {
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     // Null representations
     if (result == "null" || result == "NULL" || result == "None" ||
         result == "nil" || result == "Nil" || result == "<nil>" ||
         result == "nothing" || result == "undefined" || result == "()") {
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     // Boolean representations
     if (result == "true" || result == "True" || result == "TRUE") {
-        return std::make_shared<interpreter::Value>(true);
+        return interpreter::NaabVal::makeBool(true);
     }
     if (result == "false" || result == "False" || result == "FALSE") {
-        return std::make_shared<interpreter::Value>(false);
+        return interpreter::NaabVal::makeBool(false);
     }
 
     // Try to parse as number
     try {
         size_t pos;
         int i = std::stoi(result, &pos);
-        if (pos == result.size()) return std::make_shared<interpreter::Value>(i);
+        if (pos == result.size()) return interpreter::NaabVal::makeInt(i);
     } catch (...) {}
 
     try {
         size_t pos;
         double d = std::stod(result, &pos);
-        if (pos == result.size()) return std::make_shared<interpreter::Value>(d);
+        if (pos == result.size()) return interpreter::NaabVal::makeDouble(d);
     } catch (...) {}
 
     // Return as string
-    return std::make_shared<interpreter::Value>(result);
+    return interpreter::NaabVal::makeString(result);
 }
 
 // Executor interface: call a function
-std::shared_ptr<interpreter::Value> RustExecutor::callFunction(
+interpreter::NaabVal RustExecutor::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     // For Rust, function_name should be the full URI
     // rust://path/to/lib.so::function_name
@@ -346,9 +346,9 @@ std::string RustExecutor::getLanguage() const {
 }
 
 // Direct execution method
-std::shared_ptr<interpreter::Value> RustExecutor::executeBlock(
+interpreter::NaabVal RustExecutor::executeBlock(
     const std::string& code,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     // Parse URI: rust://path/to/lib.so::function_name
     std::string lib_path, func_name;

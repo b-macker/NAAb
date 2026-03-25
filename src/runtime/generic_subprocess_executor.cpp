@@ -117,7 +117,7 @@ bool naab::runtime::GenericSubprocessExecutor::execute(const std::string& code) 
 }
 
 // Phase 2.3: Execute and return stdout as value
-std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn(
+interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
     const std::string& code) {
 
     // Enterprise Security: Install signal handlers for resource limits (once)
@@ -345,22 +345,22 @@ std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn
 
     // Empty result → null
     if (result.empty()) {
-        return std::make_shared<naab::interpreter::Value>();
+        return naab::interpreter::NaabVal::makeNull();
     }
 
     // Null representations
     if (result == "null" || result == "NULL" || result == "None" ||
         result == "nil" || result == "Nil" || result == "<nil>" ||
         result == "nothing" || result == "undefined" || result == "()") {
-        return std::make_shared<naab::interpreter::Value>();
+        return naab::interpreter::NaabVal::makeNull();
     }
 
     // Boolean representations
     if (result == "true" || result == "True" || result == "TRUE") {
-        return std::make_shared<naab::interpreter::Value>(true);
+        return naab::interpreter::NaabVal::makeBool(true);
     }
     if (result == "false" || result == "False" || result == "FALSE") {
-        return std::make_shared<naab::interpreter::Value>(false);
+        return naab::interpreter::NaabVal::makeBool(false);
     }
 
     // Try to parse as number
@@ -371,33 +371,31 @@ std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::executeWithReturn
         if (pos == result.size()) {
             // Check if it's actually an integer that fits in int range
             if (d == static_cast<int>(d) && d >= INT_MIN && d <= INT_MAX) {
-                return std::make_shared<naab::interpreter::Value>(static_cast<int>(d));
+                return naab::interpreter::NaabVal::makeInt(static_cast<int>(d));
             }
             // Return as double if too large or has decimal part
-            return std::make_shared<naab::interpreter::Value>(d);
+            return naab::interpreter::NaabVal::makeDouble(d);
         }
     } catch (...) {}
 
     // Return as string
-    return std::make_shared<naab::interpreter::Value>(result);
+    return naab::interpreter::NaabVal::makeString(result);
 }
 
-std::shared_ptr<interpreter::Value> GenericSubprocessExecutor::callFunction(
+interpreter::NaabVal GenericSubprocessExecutor::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     // This executor primarily supports the "exec" function for running code strings.
     // If other function names are needed, they would map to specific CLI calls.
     if (function_name == "exec" && !args.empty()) {
-        if (auto* str_val = std::get_if<std::string>(&args[0]->data)) {
-            bool success = execute(*str_val);
-            // Return boolean result of execution success
-            return std::make_shared<naab::interpreter::Value>(success);
+        if (args[0].isString()) {
+            bool success = execute(args[0].asString());
+            return interpreter::NaabVal::makeBool(success);
         }
-        // If argument is not a string, try converting to string (e.g. integer)
-        if (auto* int_val = std::get_if<int>(&args[0]->data)) {
-            bool success = execute(std::to_string(*int_val));
-            return std::make_shared<naab::interpreter::Value>(success);
+        if (args[0].isInt()) {
+            bool success = execute(std::to_string(args[0].asInt()));
+            return interpreter::NaabVal::makeBool(success);
         }
         // Fallback for unsupported argument types
         throw std::runtime_error(fmt::format(

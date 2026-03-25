@@ -75,7 +75,7 @@ std::string NodePersistentExecutor::wrapCodeForExecution(const std::string& code
     return code + "\n__NAAB_CODE_END__\n";
 }
 
-std::shared_ptr<interpreter::Value> NodePersistentExecutor::parseOutput(
+interpreter::NaabVal NodePersistentExecutor::parseOutput(
     const std::string& stdout_text, const std::string& stderr_text,
     int implicit_exit_code) const {
 
@@ -114,7 +114,7 @@ std::shared_ptr<interpreter::Value> NodePersistentExecutor::parseOutput(
     // Check if last line has JSON prefix
     if (last_line.find(json_prefix) == 0) {
         std::string json_str = last_line.substr(json_prefix.size());
-        return std::make_shared<interpreter::Value>(json_str);
+        return interpreter::NaabVal::makeString(json_str);
     }
 
     // For multi-line output: the last line is the eval result, preceding lines are

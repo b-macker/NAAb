@@ -26,7 +26,7 @@ bool PyExecutorAdapter::execute(const std::string& code) {
 }
 
 // Phase 2.3: Execute code and return result value
-std::shared_ptr<interpreter::Value> PyExecutorAdapter::executeWithReturn(
+interpreter::NaabVal PyExecutorAdapter::executeWithReturn(
     const std::string& code) {
     // PythonCExecutor handles GIL acquisition internally
     try {
@@ -82,9 +82,9 @@ std::shared_ptr<interpreter::Value> PyExecutorAdapter::executeWithReturn(
     }
 }
 
-std::shared_ptr<interpreter::Value> PyExecutorAdapter::callFunction(
+interpreter::NaabVal PyExecutorAdapter::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     // PythonCExecutor handles GIL acquisition internally
     auto result = executor_->callFunction(function_name, args);

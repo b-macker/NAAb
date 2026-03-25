@@ -9,16 +9,12 @@
  */
 
 #include "naab/python_c_wrapper.h"
+#include "naab/naab_val.h"
 #include <memory>
 #include <string>
 #include <vector>
 
-// Forward declaration - Value is in naab::interpreter namespace
 namespace naab {
-namespace interpreter {
-    class Value;
-}
-
 namespace runtime {
 
 /**
@@ -54,7 +50,7 @@ public:
      * @return NAAb Value containing the result
      * @throws std::runtime_error if execution fails
      */
-    std::shared_ptr<interpreter::Value> executeWithReturn(const std::string& code);
+    interpreter::NaabVal executeWithReturn(const std::string& code);
 
     /**
      * Call a Python function by name (STUB - not yet implemented for C API)
@@ -64,9 +60,9 @@ public:
      * @return Result of function call
      * @throws std::runtime_error always (not implemented)
      */
-    std::shared_ptr<interpreter::Value> callFunction(
+    interpreter::NaabVal callFunction(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 
     /**
@@ -92,7 +88,7 @@ private:
      * @param obj PyObject to convert (borrowed reference)
      * @return NAAb Value
      */
-    std::shared_ptr<interpreter::Value> pyObjectToValue(PyObject* obj);
+    interpreter::NaabVal pyObjectToValue(PyObject* obj);
 
     /**
      * Convert NAAb Value to PyObject*
@@ -100,7 +96,7 @@ private:
      * @param val NAAb Value to convert
      * @return PyObject* (new reference, caller owns)
      */
-    PyObject* valueToPyObject(const std::shared_ptr<interpreter::Value>& val);
+    PyObject* valueToPyObject(const interpreter::NaabVal& val);
 };
 
 } // namespace runtime

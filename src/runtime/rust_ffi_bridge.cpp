@@ -2,9 +2,8 @@
 // C-compatible interface for Rust block interoperability
 
 #include "naab/rust_ffi.h"
-#include "naab/interpreter.h"
+#include "naab/naab_val.h"
 #include <cstring>
-#include <memory>
 #include <string>
 
 using namespace naab::interpreter;
@@ -119,44 +118,44 @@ void naab_rust_value_free(NaabRustValue* value) {
 namespace naab {
 namespace runtime {
 
-// Convert C FFI value to C++ Value
-std::shared_ptr<Value> ffiToValue(NaabRustValue* ffi_val) {
+// Convert C FFI value to NaabVal
+interpreter::NaabVal ffiToValue(NaabRustValue* ffi_val) {
     if (!ffi_val) {
-        return std::make_shared<Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     auto type = naab_rust_value_get_type(ffi_val);
     switch (type) {
         case NAAB_RUST_TYPE_INT:
-            return std::make_shared<Value>(naab_rust_value_get_int(ffi_val));
+            return interpreter::NaabVal::makeInt(naab_rust_value_get_int(ffi_val));
         case NAAB_RUST_TYPE_DOUBLE:
-            return std::make_shared<Value>(naab_rust_value_get_double(ffi_val));
+            return interpreter::NaabVal::makeDouble(naab_rust_value_get_double(ffi_val));
         case NAAB_RUST_TYPE_BOOL:
-            return std::make_shared<Value>(naab_rust_value_get_bool(ffi_val));
+            return interpreter::NaabVal::makeBool(naab_rust_value_get_bool(ffi_val));
         case NAAB_RUST_TYPE_STRING:
-            return std::make_shared<Value>(std::string(naab_rust_value_get_string(ffi_val)));
+            return interpreter::NaabVal::makeString(std::string(naab_rust_value_get_string(ffi_val)));
         default:
-            return std::make_shared<Value>();
+            return interpreter::NaabVal::makeNull();
     }
 }
 
-// Convert C++ Value to C FFI value
-NaabRustValue* valueToFfi(const std::shared_ptr<Value>& val) {
-    if (!val) {
+// Convert NaabVal to C FFI value
+NaabRustValue* valueToFfi(const interpreter::NaabVal& val) {
+    if (val.isNull()) {
         return naab_rust_value_create_void();
     }
 
-    if (std::holds_alternative<int>(val->data)) {
-        return naab_rust_value_create_int(std::get<int>(val->data));
+    if (val.isInt()) {
+        return naab_rust_value_create_int(val.asInt());
     }
-    if (std::holds_alternative<double>(val->data)) {
-        return naab_rust_value_create_double(std::get<double>(val->data));
+    if (val.isDouble()) {
+        return naab_rust_value_create_double(val.asDouble());
     }
-    if (std::holds_alternative<bool>(val->data)) {
-        return naab_rust_value_create_bool(std::get<bool>(val->data));
+    if (val.isBool()) {
+        return naab_rust_value_create_bool(val.asBool());
     }
-    if (std::holds_alternative<std::string>(val->data)) {
-        return naab_rust_value_create_string(std::get<std::string>(val->data).c_str());
+    if (val.isString()) {
+        return naab_rust_value_create_string(val.asString().c_str());
     }
     return naab_rust_value_create_void();
 }

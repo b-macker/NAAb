@@ -719,11 +719,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     if (!executor) {
                         throw std::runtime_error("No executor for block in pipeline");
                     }
-                    // Executor API still takes shared_ptr<Value> (Phase I migration)
-                    std::vector<std::shared_ptr<Value>> exec_args;
-                    exec_args.reserve(nval_args.size());
-                    for (auto& a : nval_args) exec_args.push_back(a.toLegacy());
-                    result_ = executor->callFunction(block->metadata.block_id, exec_args);
+                    result_ = executor->callFunction(block->metadata.block_id, nval_args);
                     flushExecutorOutput(executor);
 
                     if (block_loader_) {

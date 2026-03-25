@@ -1,18 +1,15 @@
 #pragma once
 
-// Type Marshaller - Convert between NAAb Value and C++ types
+// Type Marshaller - Convert between NAAb NaabVal and C++ types
 // Handles marshalling for dynamic C++ function calls
 
 #include <memory>
 #include <string>
 #include <vector>
 #include <cstdint>
+#include "naab/naab_val.h"
 
 namespace naab {
-namespace interpreter {
-    class Value;  // Forward declaration
-}
-
 namespace runtime {
 
 // Supported C++ types for marshalling
@@ -38,23 +35,23 @@ struct CppValue {
     CppValue() : type(CppType::VOID), i(0) {}
 };
 
-// Type Marshaller - converts between NAAb Value and C++ types
+// Type Marshaller - converts between NAAb NaabVal and C++ types
 class TypeMarshaller {
 public:
     TypeMarshaller() = default;
 
     // NAAb → C++
-    CppValue toCpp(const std::shared_ptr<interpreter::Value>& val);
-    int toInt(const std::shared_ptr<interpreter::Value>& val);
-    double toDouble(const std::shared_ptr<interpreter::Value>& val);
-    std::string toString(const std::shared_ptr<interpreter::Value>& val);
-    bool toBool(const std::shared_ptr<interpreter::Value>& val);
+    CppValue toCpp(const interpreter::NaabVal& val);
+    int toInt(const interpreter::NaabVal& val);
+    double toDouble(const interpreter::NaabVal& val);
+    std::string toString(const interpreter::NaabVal& val);
+    bool toBool(const interpreter::NaabVal& val);
 
     // C++ → NAAb
-    std::shared_ptr<interpreter::Value> fromInt(int i);
-    std::shared_ptr<interpreter::Value> fromDouble(double d);
-    std::shared_ptr<interpreter::Value> fromString(const std::string& s);
-    std::shared_ptr<interpreter::Value> fromBool(bool b);
+    interpreter::NaabVal fromInt(int i);
+    interpreter::NaabVal fromDouble(double d);
+    interpreter::NaabVal fromString(const std::string& s);
+    interpreter::NaabVal fromBool(bool b);
 
     // Detect C++ type from string signature
     CppType detectType(const std::string& type_str);
@@ -65,4 +62,3 @@ public:
 
 } // namespace runtime
 } // namespace naab
-

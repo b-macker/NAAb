@@ -30,7 +30,7 @@ bool ShellExecutor::execute(const std::string& code) {
 }
 
 // Phase 2.3: Execute command and return struct with {exit_code, stdout, stderr}
-std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
+naab::interpreter::NaabVal ShellExecutor::executeWithReturn(
     const std::string& code) {
 
     // Enterprise Security: Install signal handlers for resource limits (once)
@@ -247,22 +247,22 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
     if (exit_code == 0 && stderr_output.empty()) {
         // Empty result → null
         if (stdout_output.empty()) {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         // Null representations
         if (stdout_output == "null" || stdout_output == "NULL" || stdout_output == "None" ||
             stdout_output == "nil" || stdout_output == "Nil" || stdout_output == "<nil>" ||
             stdout_output == "nothing" || stdout_output == "undefined" || stdout_output == "()") {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         // Boolean representations
         if (stdout_output == "true" || stdout_output == "True" || stdout_output == "TRUE") {
-            return std::make_shared<interpreter::Value>(true);
+            return interpreter::NaabVal::makeBool(true);
         }
         if (stdout_output == "false" || stdout_output == "False" || stdout_output == "FALSE") {
-            return std::make_shared<interpreter::Value>(false);
+            return interpreter::NaabVal::makeBool(false);
         }
 
         // Try to parse as integer
@@ -270,7 +270,7 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
             size_t pos;
             int int_val = std::stoi(stdout_output, &pos);
             if (pos == stdout_output.length()) {
-                return std::make_shared<interpreter::Value>(int_val);
+                return interpreter::NaabVal::makeInt(int_val);
             }
         } catch (...) {}
 
@@ -279,12 +279,12 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
             size_t pos;
             double d = std::stod(stdout_output, &pos);
             if (pos == stdout_output.length()) {
-                return std::make_shared<interpreter::Value>(d);
+                return interpreter::NaabVal::makeDouble(d);
             }
         } catch (...) {}
 
         // Return stdout as string
-        return std::make_shared<interpreter::Value>(stdout_output);
+        return interpreter::NaabVal::makeString(stdout_output);
     }
 
     // For error cases or when stderr is present, return full ShellResult struct
@@ -300,31 +300,29 @@ std::shared_ptr<naab::interpreter::Value> ShellExecutor::executeWithReturn(
     auto struct_value = std::make_shared<interpreter::StructValue>("ShellResult", struct_def);
 
     // Set field values
-    struct_value->field_values[0] = std::make_shared<interpreter::Value>(exit_code);
-    struct_value->field_values[1] = std::make_shared<interpreter::Value>(stdout_output);
-    struct_value->field_values[2] = std::make_shared<interpreter::Value>(stderr_output);
+    struct_value->field_values[0] = interpreter::NaabVal::makeInt(exit_code);
+    struct_value->field_values[1] = interpreter::NaabVal::makeString(stdout_output);
+    struct_value->field_values[2] = interpreter::NaabVal::makeString(stderr_output);
 
     // Return struct wrapped in Value
-    return std::make_shared<interpreter::Value>(struct_value);
+    return interpreter::NaabVal::makeStruct(struct_value);
 }
 
-std::shared_ptr<naab::interpreter::Value> ShellExecutor::callFunction(
+naab::interpreter::NaabVal ShellExecutor::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<naab::interpreter::Value>>& args) {
+    const std::vector<naab::interpreter::NaabVal>& args) {
     
     if (function_name == "exec" && !args.empty()) {
-        // Handle string argument
-        if (auto* str_val = std::get_if<std::string>(&args[0]->data)) {
-            bool success = runCommand(*str_val);
-            return std::make_shared<naab::interpreter::Value>(success);
+        if (args[0].isString()) {
+            bool success = runCommand(args[0].asString());
+            return naab::interpreter::NaabVal::makeBool(success);
         }
-        // Handle integer argument (convert to string)
-        if (auto* int_val = std::get_if<int>(&args[0]->data)) {
-             bool success = runCommand(std::to_string(*int_val));
-             return std::make_shared<naab::interpreter::Value>(success);
+        if (args[0].isInt()) {
+            bool success = runCommand(std::to_string(args[0].asInt()));
+            return naab::interpreter::NaabVal::makeBool(success);
         }
     }
-    
+
     throw std::runtime_error("Shell executor only supports 'exec(command_string)'");
 }
 

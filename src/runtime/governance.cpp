@@ -6550,7 +6550,7 @@ std::string GovernanceEngine::verifyPolyglotResult(
             }
 
             auto verif_value = verif_executor->executeWithReturn(verif_code);
-            vr.result = verif_value ? verif_value->toString() : "";
+            vr.result = verif_value.isNull() ? "" : verif_value.toString();
             vr.success = true;
             // Drain captured output to prevent leaking into subsequent real executions
             verif_executor->getCapturedOutput();

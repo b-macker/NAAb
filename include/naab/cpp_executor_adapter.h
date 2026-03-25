@@ -30,13 +30,13 @@ public:
     bool execute(const std::string& code, CppExecutionMode mode);
 
     // Phase 2.3: Execute code and return the result value
-    std::shared_ptr<interpreter::Value> executeWithReturn(
+    interpreter::NaabVal executeWithReturn(
         const std::string& code) override;
 
     // Call a function in the executor
-    std::shared_ptr<interpreter::Value> callFunction(
+    interpreter::NaabVal callFunction(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args
+        const std::vector<interpreter::NaabVal>& args
     ) override;
 
     // Check if executor is initialized

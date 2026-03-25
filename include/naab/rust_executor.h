@@ -35,11 +35,11 @@ public:
 
     // Executor interface implementation
     bool execute(const std::string& code) override;
-    std::shared_ptr<interpreter::Value> executeWithReturn(
+    interpreter::NaabVal executeWithReturn(
         const std::string& code) override;
-    std::shared_ptr<interpreter::Value> callFunction(
+    interpreter::NaabVal callFunction(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args
+        const std::vector<interpreter::NaabVal>& args
     ) override;
     bool isInitialized() const override;
     std::string getLanguage() const override;
@@ -53,9 +53,9 @@ public:
      * @return Result from Rust function as C++ Value
      * @throws std::runtime_error on dlopen/dlsym failures or missing functions
      */
-    std::shared_ptr<interpreter::Value> executeBlock(
+    interpreter::NaabVal executeBlock(
         const std::string& code,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 
 private:

@@ -21,14 +21,6 @@
 namespace naab {
 namespace interpreter {
 
-// Convert NaabVal args to shared_ptr<Value> for Executor API boundary (Phase I will eliminate)
-static std::vector<std::shared_ptr<Value>> toLegacyArgs(const std::vector<NaabVal>& args) {
-    std::vector<std::shared_ptr<Value>> legacy;
-    legacy.reserve(args.size());
-    for (const auto& a : args) legacy.push_back(a.toLegacy());
-    return legacy;
-}
-
 // Primary callFunction — works with NaabVal directly (no heap alloc for primitive args)
 NaabVal Interpreter::callFunction(NaabVal fn,
                                    const std::vector<NaabVal>& args) {
@@ -1129,7 +1121,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
                 profileStart("BLOCK-JS calls");
-                result_ = executor->callFunction(block->member_path, toLegacyArgs(args));
+                result_ = executor->callFunction(block->member_path, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-JS calls");
                 if (isVerboseMode()) {
@@ -1158,7 +1150,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
                 profileStart("BLOCK-CPP calls");
-                result_ = executor->callFunction(block->member_path, toLegacyArgs(args));
+                result_ = executor->callFunction(block->member_path, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-CPP calls");
                 if (isVerboseMode()) {
@@ -1187,7 +1179,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
                 profileStart("BLOCK-PY calls");
-                result_ = executor->callFunction(block->member_path, toLegacyArgs(args));
+                result_ = executor->callFunction(block->member_path, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-PY calls");
                 if (isVerboseMode()) {
@@ -2250,7 +2242,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     : block->member_path;
 
                 LOG_DEBUG("[INFO] Calling function: {}\n", function_to_call);
-                result_ = executor->callFunction(function_to_call, toLegacyArgs(args));
+                result_ = executor->callFunction(function_to_call, args);
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
 
                 if (!result_.isNull()) {

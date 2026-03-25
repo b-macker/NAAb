@@ -36,7 +36,7 @@ std::string PersistentShellExecutor::wrapCodeForExecution(const std::string& cod
            "echo '__NAAB_BLOCK_DONE__'\n";
 }
 
-std::shared_ptr<interpreter::Value> PersistentShellExecutor::parseOutput(
+interpreter::NaabVal PersistentShellExecutor::parseOutput(
     const std::string& stdout_text, const std::string& stderr_text,
     int /* implicit_exit_code */) const {
 
@@ -86,22 +86,22 @@ std::shared_ptr<interpreter::Value> PersistentShellExecutor::parseOutput(
     if (exit_code == 0 && stderr_text.empty()) {
         // Empty result -> null
         if (clean_stdout.empty()) {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         // Null representations
         if (clean_stdout == "null" || clean_stdout == "NULL" || clean_stdout == "None" ||
             clean_stdout == "nil" || clean_stdout == "Nil" || clean_stdout == "<nil>" ||
             clean_stdout == "nothing" || clean_stdout == "undefined" || clean_stdout == "()") {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         // Boolean representations
         if (clean_stdout == "true" || clean_stdout == "True" || clean_stdout == "TRUE") {
-            return std::make_shared<interpreter::Value>(true);
+            return interpreter::NaabVal::makeBool(true);
         }
         if (clean_stdout == "false" || clean_stdout == "False" || clean_stdout == "FALSE") {
-            return std::make_shared<interpreter::Value>(false);
+            return interpreter::NaabVal::makeBool(false);
         }
 
         // Try to parse as integer
@@ -109,7 +109,7 @@ std::shared_ptr<interpreter::Value> PersistentShellExecutor::parseOutput(
             size_t p;
             int int_val = std::stoi(clean_stdout, &p);
             if (p == clean_stdout.length()) {
-                return std::make_shared<interpreter::Value>(int_val);
+                return interpreter::NaabVal::makeInt(int_val);
             }
         } catch (...) {}
 
@@ -118,12 +118,12 @@ std::shared_ptr<interpreter::Value> PersistentShellExecutor::parseOutput(
             size_t p;
             double d = std::stod(clean_stdout, &p);
             if (p == clean_stdout.length()) {
-                return std::make_shared<interpreter::Value>(d);
+                return interpreter::NaabVal::makeDouble(d);
             }
         } catch (...) {}
 
         // Return as string
-        return std::make_shared<interpreter::Value>(clean_stdout);
+        return interpreter::NaabVal::makeString(clean_stdout);
     }
 
     // For error cases or stderr present: return ShellResult struct
@@ -141,11 +141,11 @@ std::shared_ptr<interpreter::Value> PersistentShellExecutor::parseOutput(
     auto struct_def = std::make_shared<interpreter::StructDef>("ShellResult", std::move(fields));
     auto struct_value = std::make_shared<interpreter::StructValue>("ShellResult", struct_def);
 
-    struct_value->field_values[0] = std::make_shared<interpreter::Value>(exit_code);
-    struct_value->field_values[1] = std::make_shared<interpreter::Value>(clean_stdout);
-    struct_value->field_values[2] = std::make_shared<interpreter::Value>(trimmed_stderr);
+    struct_value->field_values[0] = interpreter::NaabVal::makeInt(exit_code);
+    struct_value->field_values[1] = interpreter::NaabVal::makeString(clean_stdout);
+    struct_value->field_values[2] = interpreter::NaabVal::makeString(trimmed_stderr);
 
-    return std::make_shared<interpreter::Value>(struct_value);
+    return interpreter::NaabVal::makeStruct(struct_value);
 }
 
 } // namespace runtime

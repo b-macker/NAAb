@@ -17,7 +17,7 @@ protected:
     std::string getSentinel() const override;
     std::string getStartupCode() const override;
     std::string getExitCommand() const override;
-    std::shared_ptr<interpreter::Value> parseOutput(
+    interpreter::NaabVal parseOutput(
         const std::string& stdout_text, const std::string& stderr_text,
         int implicit_exit_code) const override;
 };

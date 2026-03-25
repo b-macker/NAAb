@@ -24,7 +24,7 @@ bool JsExecutorAdapter::execute(const std::string& code, JsExecutionMode mode) {
 }
 
 // Phase 2.3: Execute code and return result value
-std::shared_ptr<interpreter::Value> JsExecutorAdapter::executeWithReturn(
+interpreter::NaabVal JsExecutorAdapter::executeWithReturn(
     const std::string& code) {
     // Executing JavaScript code with return (silent)
     try {
@@ -52,13 +52,13 @@ std::shared_ptr<interpreter::Value> JsExecutorAdapter::executeWithReturn(
                        "  - NAAb strings are passed as JS strings\n\n");
         }
 
-        return std::make_shared<interpreter::Value>();  // Return null on error
+        return interpreter::NaabVal::makeNull();  // Return null on error
     }
 }
 
-std::shared_ptr<interpreter::Value> JsExecutorAdapter::callFunction(
+interpreter::NaabVal JsExecutorAdapter::callFunction(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    const std::vector<interpreter::NaabVal>& args) {
 
     // Calling function (silent)
     return executor_.callFunction(function_name, args);

@@ -24,10 +24,10 @@ public:
 
     // Executor interface
     bool execute(const std::string& code) override;
-    std::shared_ptr<interpreter::Value> executeWithReturn(const std::string& code) override;
-    std::shared_ptr<interpreter::Value> callFunction(
+    interpreter::NaabVal executeWithReturn(const std::string& code) override;
+    interpreter::NaabVal callFunction(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+        const std::vector<interpreter::NaabVal>& args) override;
     std::string getCapturedOutput() override;
     bool isInitialized() const override;
     std::string getLanguage() const override;
@@ -56,7 +56,7 @@ protected:
 
     // Parse raw stdout captured between two sentinels into a NAAb Value.
     // Default: Same value parsing as GenericSubprocessExecutor (null/bool/int/float/string)
-    virtual std::shared_ptr<interpreter::Value> parseOutput(
+    virtual interpreter::NaabVal parseOutput(
         const std::string& stdout_text, const std::string& stderr_text,
         int implicit_exit_code) const;
 
