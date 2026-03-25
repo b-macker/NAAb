@@ -36,9 +36,9 @@ static std::string getTypeName(const std::shared_ptr<Value>& val) {
             return "bool";
         } else if constexpr (std::is_same_v<T, std::string>) {
             return "string";
-        } else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) {
+        } else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
             return "array";
-        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) {
+        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
             return "dict";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) {
             return "function";
@@ -825,16 +825,16 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         case ast::BinaryOp::In: {
             // Containment check: item in collection
             // dict: check if key exists
-            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&right->data)) {
+            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&right->data)) {
                 std::string key = left->toString();
                 result_ = std::make_shared<Value>(dict_ptr->find(key) != dict_ptr->end());
             }
             // array: check if item is in array
-            else if (auto* arr_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&right->data)) {
+            else if (auto* arr_ptr = std::get_if<std::vector<NaabVal>>(&right->data)) {
                 bool found = false;
                 std::string needle = left->toString();
                 for (const auto& item : *arr_ptr) {
-                    if (item->toString() == needle) { found = true; break; }
+                    if (item.toLegacy()->toString() == needle) { found = true; break; }
                 }
                 result_ = std::make_shared<Value>(found);
             }
@@ -859,7 +859,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // Dictionary or list subscript: obj[key] or arr[index]
 
             // Check if left is a dictionary
-            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&left->data)) {
+            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&left->data)) {
                 auto& dict = *dict_ptr;
                 std::string key = right->toString();
 
@@ -902,7 +902,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             }
 
             // Check if left is a list
-            if (auto* list_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&left->data)) {
+            if (auto* list_ptr = std::get_if<std::vector<NaabVal>>(&left->data)) {
                 auto& list = *list_ptr;
 
                 // Type check: Array indices must be integers, not strings
@@ -1165,13 +1165,13 @@ void Interpreter::visit(ast::RangeExpr& node) {
 
     // Create a special dict to represent the range
     // This is a lightweight representation - actual values generated during iteration
-    std::unordered_map<std::string, std::shared_ptr<Value>> range_dict;
-    range_dict["__is_range"] = std::make_shared<Value>(true);
-    range_dict["__range_start"] = std::make_shared<Value>(start);
-    range_dict["__range_end"] = std::make_shared<Value>(end);
-    range_dict["__range_inclusive"] = std::make_shared<Value>(node.isInclusive());
+    std::unordered_map<std::string, NaabVal> range_dict;
+    range_dict["__is_range"] = NaabVal::makeBool(true);
+    range_dict["__range_start"] = NaabVal::makeInt(start);
+    range_dict["__range_end"] = NaabVal::makeInt(end);
+    range_dict["__range_inclusive"] = NaabVal::makeBool(node.isInclusive());
 
-    result_ = std::make_shared<Value>(range_dict);
+    result_ = NaabVal::makeDict(std::move(range_dict));
 
     // Phase 3.2: Track allocation for automatic GC
     trackAllocation();

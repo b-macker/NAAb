@@ -34,8 +34,8 @@ static std::string getTypeName(const std::shared_ptr<Value>& val) {
         else if constexpr (std::is_same_v<T, double>) { return "float"; }
         else if constexpr (std::is_same_v<T, bool>) { return "bool"; }
         else if constexpr (std::is_same_v<T, std::string>) { return "string"; }
-        else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) { return "array"; }
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) { return "dict"; }
+        else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) { return "array"; }
+        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) { return "dict"; }
         else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) { return "function"; }
         else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) { return "struct"; }
         else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) { return "future"; }
@@ -634,13 +634,12 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                     auto exit_code_val = struct_val->field_values[0];
                     auto stdout_val = struct_val->field_values[1];
                     auto stderr_val = struct_val->field_values[2];
-                    int exit_code = std::holds_alternative<int>(exit_code_val->data) ?
-                        std::get<int>(exit_code_val->data) : -1;
+                    int exit_code = exit_code_val.isInt() ? exit_code_val.asInt() : -1;
                     if (exit_code != 0) {
                         throw std::runtime_error(
                             "Shell command failed with exit code " + std::to_string(exit_code) + "\n"
-                            "  stderr: " + stderr_val->toString() + "\n"
-                            "  stdout: " + stdout_val->toString()
+                            "  stderr: " + stderr_val.toString() + "\n"
+                            "  stdout: " + stdout_val.toString()
                         );
                     }
                     // Success: unwrap to just stdout value
@@ -1897,15 +1896,15 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
     }
 
     // List - language-specific array serialization
-    if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data)) {
-        const auto& list = std::get<std::vector<std::shared_ptr<Value>>>(value->data);
+    if (std::holds_alternative<std::vector<NaabVal>>(value->data)) {
+        const auto& list = std::get<std::vector<NaabVal>>(value->data);
 
         // PHP: array() syntax
         if (language == "php") {
             std::string result = "array(";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i].toLegacy(), language);
             }
             result += ")";
             return result;
@@ -1916,7 +1915,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "vec![";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i].toLegacy(), language);
             }
             result += "]";
             return result;
@@ -1927,7 +1926,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "[]interface{}{";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i].toLegacy(), language);
             }
             result += "}";
             return result;
@@ -1938,7 +1937,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "new System.Collections.Generic.List<object>{";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i].toLegacy(), language);
             }
             result += "}";
             return result;
@@ -1951,7 +1950,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
                 // Serialize all as strings for simplicity
-                auto elem_str = serializeValueForLanguage(list[i], language);
+                auto elem_str = serializeValueForLanguage(list[i].toLegacy(), language);
                 result += elem_str;
             }
             result += "}";
@@ -1963,7 +1962,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "@[";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i].toLegacy(), language);
             }
             result += "]";
             return result;
@@ -1973,15 +1972,15 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
         std::string result = "[";
         for (size_t i = 0; i < list.size(); i++) {
             if (i > 0) result += ", ";
-            result += serializeValueForLanguage(list[i], language);
+            result += serializeValueForLanguage(list[i].toLegacy(), language);
         }
         result += "]";
         return result;
     }
 
     // Dict - language-specific serialization
-    if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
-        const auto& dict = std::get<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data);
+    if (std::holds_alternative<std::unordered_map<std::string, NaabVal>>(value->data)) {
+        const auto& dict = std::get<std::unordered_map<std::string, NaabVal>>(value->data);
 
         // FIX-2: Helper to escape dict keys (prevents broken/injectable code in target languages)
         auto escapeKey = [](const std::string& k) -> std::string {
@@ -2004,7 +2003,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val.toLegacy(), language);
             }
             result += "}";
             return result;
@@ -2017,7 +2016,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val.toLegacy(), language);
             }
             result += ")";
             return result;
@@ -2030,7 +2029,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val.toLegacy(), language);
             }
             result += "}";
             return result;
@@ -2041,7 +2040,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             // Generate a block expression that creates a HashMap
             std::string result = "{ let mut __m = std::collections::HashMap::new(); ";
             for (const auto& [key, val] : dict) {
-                result += "__m.insert(\"" + escapeKey(key) + "\".to_string(), " + serializeValueForLanguage(val, language) + "); ";
+                result += "__m.insert(\"" + escapeKey(key) + "\".to_string(), " + serializeValueForLanguage(val.toLegacy(), language) + "); ";
             }
             result += "__m }";
             return result;
@@ -2054,7 +2053,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language) + "}";
+                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val.toLegacy(), language) + "}";
             }
             result += "}";
             return result;
@@ -2067,7 +2066,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language) + "}";
+                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val.toLegacy(), language) + "}";
             }
             result += "}";
             return result;
@@ -2079,7 +2078,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
         for (const auto& [key, val] : dict) {
             if (!first) result += ", ";
             first = false;
-            result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language);
+            result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val.toLegacy(), language);
         }
         result += "}";
         return result;

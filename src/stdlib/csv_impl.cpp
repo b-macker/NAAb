@@ -20,7 +20,7 @@ namespace stdlib {
 static std::string getString(const std::shared_ptr<interpreter::Value>& val);
 static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter::Value>& val);
 static std::vector<std::vector<std::string>> getArrayOfArrays(const std::shared_ptr<interpreter::Value>& val);
-static std::vector<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>> getArrayOfDicts(const std::shared_ptr<interpreter::Value>& val);
+static std::vector<std::unordered_map<std::string, interpreter::NaabVal>> getArrayOfDicts(const std::shared_ptr<interpreter::Value>& val);
 static std::shared_ptr<interpreter::Value> parseCSV(const std::string& content, const std::string& delimiter);
 static std::shared_ptr<interpreter::Value> parseCSVDict(const std::string& content, const std::string& delimiter);
 static std::vector<std::string> parseCSVLine(const std::string& line, const std::string& delimiter);
@@ -164,7 +164,7 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
             for (const auto& header : headers) {
                 auto it = row_dict.find(header);
                 if (it != row_dict.end()) {
-                    row_values.push_back(getString(it->second));
+                    row_values.push_back(it->second.toLegacy()->toString());
                 } else {
                     throw std::runtime_error("write_dict() row " + std::to_string(row_num) +
                                            " missing key '" + header + "'");
@@ -233,26 +233,25 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
 
 // CSV parsing helper functions
 static std::shared_ptr<interpreter::Value> parseCSV(const std::string& content, const std::string& delimiter) {
-        std::vector<std::shared_ptr<interpreter::Value>> rows;
+        std::vector<interpreter::NaabVal> rows;
         std::istringstream iss(content);
         std::string line;
 
         while (std::getline(iss, line)) {
             if (line.empty()) continue;
-            // Convert vector<string> to vector<shared_ptr<Value>>
             std::vector<std::string> fields = parseCSVLine(line, delimiter);
-            std::vector<std::shared_ptr<interpreter::Value>> row;
+            std::vector<interpreter::NaabVal> row;
             for (const auto& field : fields) {
-                row.push_back(std::make_shared<interpreter::Value>(field));
+                row.push_back(interpreter::NaabVal::makeString(field));
             }
-            rows.push_back(std::make_shared<interpreter::Value>(row));
+            rows.push_back(interpreter::NaabVal::makeList(std::move(row)));
         }
 
-        return std::make_shared<interpreter::Value>(rows);
+        return std::make_shared<interpreter::Value>(std::move(rows));
     }
 
 static std::shared_ptr<interpreter::Value> parseCSVDict(const std::string& content, const std::string& delimiter) {
-        std::vector<std::shared_ptr<interpreter::Value>> rows;
+        std::vector<interpreter::NaabVal> rows;
         std::istringstream iss(content);
         std::string line;
 
@@ -276,15 +275,15 @@ static std::shared_ptr<interpreter::Value> parseCSVDict(const std::string& conte
                                        " columns, expected " + std::to_string(expected_cols));
             }
 
-            std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> row_dict;
+            std::unordered_map<std::string, interpreter::NaabVal> row_dict;
             for (size_t i = 0; i < headers.size(); ++i) {
-                row_dict[headers[i]] = std::make_shared<interpreter::Value>(values[i]);
+                row_dict[headers[i]] = interpreter::NaabVal::makeString(values[i]);
             }
-            rows.push_back(std::make_shared<interpreter::Value>(row_dict));
+            rows.push_back(interpreter::NaabVal::makeDict(std::move(row_dict)));
             row_num++;
         }
 
-        return std::make_shared<interpreter::Value>(rows);
+        return std::make_shared<interpreter::Value>(std::move(rows));
     }
 
 static std::vector<std::string> parseCSVLine(const std::string& line, const std::string& delimiter) {
@@ -340,10 +339,10 @@ static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
 static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter::Value>& val) {
         return std::visit([](auto&& arg) -> std::vector<std::string> {
             using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
+            if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
                 std::vector<std::string> result;
                 for (const auto& item : arg) {
-                    result.push_back(getString(item));
+                    result.push_back(item.toLegacy()->toString());
                 }
                 return result;
             } else {
@@ -355,10 +354,10 @@ static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter
 static std::vector<std::vector<std::string>> getArrayOfArrays(const std::shared_ptr<interpreter::Value>& val) {
         return std::visit([](auto&& arg) -> std::vector<std::vector<std::string>> {
             using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
+            if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
                 std::vector<std::vector<std::string>> result;
                 for (const auto& item : arg) {
-                    result.push_back(getStringArray(item));
+                    result.push_back(getStringArray(item.toLegacy()));
                 }
                 return result;
             } else {
@@ -367,21 +366,22 @@ static std::vector<std::vector<std::string>> getArrayOfArrays(const std::shared_
         }, val->data);
     }
 
-static std::vector<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>> getArrayOfDicts(
+static std::vector<std::unordered_map<std::string, interpreter::NaabVal>> getArrayOfDicts(
         const std::shared_ptr<interpreter::Value>& val) {
-        return std::visit([](auto&& arg) -> std::vector<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>> {
+        return std::visit([](auto&& arg) -> std::vector<std::unordered_map<std::string, interpreter::NaabVal>> {
             using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
-                std::vector<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>> result;
+            if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
+                std::vector<std::unordered_map<std::string, interpreter::NaabVal>> result;
                 for (const auto& item : arg) {
-                    auto dict = std::visit([](auto&& dict_arg) -> std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> {
+                    auto legacy = item.toLegacy();
+                    auto dict = std::visit([](auto&& dict_arg) -> std::unordered_map<std::string, interpreter::NaabVal> {
                         using DT = std::decay_t<decltype(dict_arg)>;
-                        if constexpr (std::is_same_v<DT, std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>) {
+                        if constexpr (std::is_same_v<DT, std::unordered_map<std::string, interpreter::NaabVal>>) {
                             return dict_arg;
                         } else {
                             throw std::runtime_error("Expected dictionary");
                         }
-                    }, item->data);
+                    }, legacy->data);
                     result.push_back(dict);
                 }
                 return result;

@@ -496,24 +496,24 @@ void Interpreter::visit(ast::ImportStmt& node) {
         std::string alias = node.getWildcardAlias();
 
         // Create a dictionary containing all exports from the module
-        std::unordered_map<std::string, std::shared_ptr<Value>> module_dict;
+        std::unordered_map<std::string, NaabVal> module_dict;
 
         // Get only module's own names (not inherited from global_env_)
         for (const auto& name : module_env->getOwnNames()) {
-            module_dict[name] = module_env->get(name).toLegacy();
+            module_dict[name] = module_env->get(name);
         }
 
         // Add exported enum variants (defined in global_env_ by visit(EnumDecl))
         for (const auto& [name, enum_def] : module_env->exported_enums_) {
             for (const auto& [variant_name, value] : enum_def->variants) {
                 std::string dotted = enum_def->name + "." + variant_name;
-                auto val = std::make_shared<Value>(value);
+                auto val = NaabVal::fromLegacy(std::make_shared<Value>(value));
                 module_dict[dotted] = val;
                 global_env_->define(alias + "." + dotted, val);
             }
         }
 
-        auto dict_value = std::make_shared<Value>(module_dict);
+        auto dict_value = NaabVal::makeDict(module_dict);
         current_env_->define(alias, dict_value);
 
         // Define aliased names for 3-level dot access from own dotted keys

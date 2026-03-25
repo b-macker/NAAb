@@ -63,9 +63,9 @@ static std::string getTypeName(const std::shared_ptr<Value>& val) {
             return "bool";
         } else if constexpr (std::is_same_v<T, std::string>) {
             return "string";
-        } else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) {
+        } else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
             return "array";
-        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) {
+        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
             return "dict";
         } else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) {
             return "function";
@@ -100,21 +100,21 @@ static std::shared_ptr<Value> copyValue(const std::shared_ptr<Value>& val) {
             return std::make_shared<Value>(arg);
         }
         // Arrays: deep copy each element recursively
-        else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) {
-            std::vector<std::shared_ptr<Value>> new_vec;
+        else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
+            std::vector<NaabVal> new_vec;
             new_vec.reserve(arg.size());
             for (const auto& elem : arg) {
-                new_vec.push_back(copyValue(elem));  // Recursive deep copy
+                new_vec.push_back(NaabVal::fromLegacy(copyValue(elem.toLegacy())));
             }
-            return std::make_shared<Value>(new_vec);
+            return std::make_shared<Value>(std::move(new_vec));
         }
         // Dicts: deep copy each value recursively
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) {
-            std::unordered_map<std::string, std::shared_ptr<Value>> new_dict;
+        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
+            std::unordered_map<std::string, NaabVal> new_dict;
             for (const auto& [key, val] : arg) {
-                new_dict[key] = copyValue(val);  // Recursive deep copy
+                new_dict[key] = NaabVal::fromLegacy(copyValue(val.toLegacy()));
             }
-            return std::make_shared<Value>(new_dict);
+            return std::make_shared<Value>(std::move(new_dict));
         }
         // Functions, blocks, structs, python objects: share (immutable or intentionally shared)
         else {
@@ -208,20 +208,20 @@ std::string Value::toString() const {
             return arg ? "true" : "false";
         } else if constexpr (std::is_same_v<T, std::string>) {
             return arg;
-        } else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) {
+        } else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
             std::string result = "[";
             for (size_t i = 0; i < arg.size(); i++) {
                 if (i > 0) result += ", ";
-                result += arg[i]->toString();
+                result += arg[i].toString();
             }
             result += "]";
             return result;
-        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) {
+        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
             std::string result = "{";
             size_t i = 0;
             for (const auto& [k, v] : arg) {
                 if (i++ > 0) result += ", ";
-                result += "\"" + k + "\": " + v->toString();
+                result += "\"" + k + "\": " + v.toString();
             }
             result += "}";
             return result;
@@ -234,24 +234,23 @@ std::string Value::toString() const {
         } else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
             // FIX 30: ShellResult toString — return stdout for success, error context for failure
             if (arg->type_name == "ShellResult" && arg->field_values.size() >= 3) {
-                auto exit_code_val = arg->field_values[0];
-                auto stdout_val = arg->field_values[1];
-                auto stderr_val = arg->field_values[2];
-                int exit_code = std::holds_alternative<int>(exit_code_val->data) ?
-                    std::get<int>(exit_code_val->data) : -1;
+                auto exit_code_nv = arg->field_values[0];
+                auto stdout_nv = arg->field_values[1];
+                auto stderr_nv = arg->field_values[2];
+                int exit_code = exit_code_nv.isInt() ? exit_code_nv.asInt() : -1;
                 if (exit_code == 0) {
-                    return stdout_val ? stdout_val->toString() : "";
+                    return stdout_nv.isNull() ? "" : stdout_nv.toString();
                 }
                 // Non-zero exit: return stdout if available, otherwise stderr
-                std::string out = stdout_val ? stdout_val->toString() : "";
+                std::string out = stdout_nv.isNull() ? "" : stdout_nv.toString();
                 if (!out.empty()) return out;
-                return stderr_val ? stderr_val->toString() : "";
+                return stderr_nv.isNull() ? "" : stderr_nv.toString();
             }
             std::string result = arg->type_name + " { ";
             for (size_t i = 0; i < arg->definition->fields.size(); ++i) {
                 if (i > 0) result += ", ";
                 result += arg->definition->fields[i].name + ": ";
-                result += arg->field_values[i]->toString();
+                result += arg->field_values[i].toString();
             }
             result += " }";
             return result;
@@ -1642,18 +1641,18 @@ void Interpreter::visit(ast::MatchExpr& node) {
             arm_env->define(ident->getName(), subject);
         } else if (list_pat) {
             // Array destructuring pattern
-            auto* subj_arr = std::get_if<std::vector<std::shared_ptr<Value>>>(&subject->data);
+            auto* subj_arr = std::get_if<std::vector<NaabVal>>(&subject->data);
             if (subj_arr && subj_arr->size() == list_pat->getElements().size()) {
                 matches = true;
                 for (size_t i = 0; i < list_pat->getElements().size(); i++) {
                     auto* elem_ident = dynamic_cast<ast::IdentifierExpr*>(list_pat->getElements()[i].get());
                     if (elem_ident) {
                         // Identifier element: bind the value
-                        arm_env->define(elem_ident->getName(), (*subj_arr)[i]);
+                        arm_env->define(elem_ident->getName(), (*subj_arr)[i].toLegacy());
                     } else {
                         // Literal element: must match exactly
                         auto pat_elem = eval(*list_pat->getElements()[i]);
-                        NaabVal subj_elem_nv((*subj_arr)[i]);
+                        NaabVal subj_elem_nv = (*subj_arr)[i];
                         bool elem_match = false;
                         bool s_null = subj_elem_nv.isNull(), p_null = pat_elem.isNull();
                         if (s_null && p_null) {
@@ -1854,7 +1853,7 @@ void Interpreter::visit(ast::ForStmt& node) {
         const auto& names = node.getDestructureNames();
         int rest_idx = node.getRestIndex();
         // Array element destructuring
-        if (auto* arr = std::get_if<std::vector<std::shared_ptr<Value>>>(&item->data)) {
+        if (auto* arr = std::get_if<std::vector<NaabVal>>(&item->data)) {
             size_t required = (rest_idx >= 0) ? static_cast<size_t>(rest_idx) : names.size();
             if (arr->size() < required) {
                 throw std::runtime_error(
@@ -1863,22 +1862,22 @@ void Interpreter::visit(ast::ForStmt& node) {
             }
             for (size_t i = 0; i < names.size(); ++i) {
                 if (rest_idx >= 0 && i == static_cast<size_t>(rest_idx)) {
-                    std::vector<std::shared_ptr<Value>> rest_arr;
+                    std::vector<NaabVal> rest_arr;
                     for (size_t j = static_cast<size_t>(rest_idx); j < arr->size(); ++j) {
                         rest_arr.push_back((*arr)[j]);
                     }
-                    current_env_->define(names[i], std::make_shared<Value>(rest_arr));
+                    current_env_->define(names[i], std::make_shared<Value>(std::move(rest_arr)));
                 } else {
-                    current_env_->define(names[i], (*arr)[i]);
+                    current_env_->define(names[i], (*arr)[i].toLegacy());
                 }
             }
         }
         // Dict element destructuring (for [key, val] in dict)
-        else if (auto* dict_item = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&item->data)) {
+        else if (auto* dict_item = std::get_if<std::unordered_map<std::string, NaabVal>>(&item->data)) {
             for (const auto& name : names) {
                 auto it = dict_item->find(name);
                 if (it != dict_item->end()) {
-                    current_env_->define(name, it->second);
+                    current_env_->define(name, it->second.toLegacy());
                 } else {
                     current_env_->define(name, std::make_shared<Value>());
                 }
@@ -1892,18 +1891,18 @@ void Interpreter::visit(ast::ForStmt& node) {
     };
 
     // Check if it's a range (dict with __is_range marker)
-    if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&iterable->data)) {
+    if (auto* dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&iterable->data)) {
         auto it = dict->find("__is_range");
-        if (it != dict->end() && it->second->toBool()) {
+        if (it != dict->end() && it->second.toLegacy()->toBool()) {
             // This is a range - iterate from start to end
-            int start = (*dict)["__range_start"]->toInt();
-            int end = (*dict)["__range_end"]->toInt();
+            int start = (*dict)["__range_start"].toLegacy()->toInt();
+            int end = (*dict)["__range_end"].toLegacy()->toInt();
             bool inclusive = false;
 
             // Check for inclusive flag (..= operator)
             auto inc_it = dict->find("__range_inclusive");
             if (inc_it != dict->end()) {
-                inclusive = inc_it->second->toBool();
+                inclusive = inc_it->second.toLegacy()->toBool();
             }
 
             // Use <= for inclusive ranges, < for exclusive
@@ -1952,7 +1951,7 @@ void Interpreter::visit(ast::ForStmt& node) {
     }
 
     // Check if it's a dict (iterate over keys, or destructure [key, val])
-    if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&iterable->data)) {
+    if (auto* dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&iterable->data)) {
         size_t iter_count = 0;
         for (const auto& [key, val] : *dict) {
             if (governance_ && governance_->isActive()) {
@@ -1961,10 +1960,10 @@ void Interpreter::visit(ast::ForStmt& node) {
             }
             if (node.isDestructuring()) {
                 // for [k, v] in dict — bind key and value
-                std::vector<std::shared_ptr<Value>> pair;
-                pair.push_back(std::make_shared<Value>(key));
+                std::vector<NaabVal> pair;
+                pair.push_back(NaabVal::makeString(key));
                 pair.push_back(val);
-                defineLoopVar(std::make_shared<Value>(pair));
+                defineLoopVar(std::make_shared<Value>(std::move(pair)));
             } else {
                 current_env_->define(node.getVar(), std::make_shared<Value>(key));
             }
@@ -1978,14 +1977,14 @@ void Interpreter::visit(ast::ForStmt& node) {
     }
 
     // Otherwise, handle as list
-    if (auto* list = std::get_if<std::vector<std::shared_ptr<Value>>>(&iterable->data)) {
+    if (auto* list = std::get_if<std::vector<NaabVal>>(&iterable->data)) {
         size_t iter_count = 0;
         for (auto& item : *list) {
             if (governance_ && governance_->isActive()) {
                 std::string err = governance_->checkLoopIterations(++iter_count);
                 if (!err.empty()) throw std::runtime_error(err);
             }
-            defineLoopVar(item);
+            defineLoopVar(item.toLegacy());
             node.getBody()->accept(*this);
             if (returning_) break;
             if (breaking_) {
@@ -2303,7 +2302,7 @@ void Interpreter::visit(ast::DestructureStmt& node) {
 
     if (node.getDestructureKind() == ast::DestructureStmt::Kind::Array) {
         // Array destructuring: value must be an array
-        auto* arr = std::get_if<std::vector<std::shared_ptr<Value>>>(&value->data);
+        auto* arr = std::get_if<std::vector<NaabVal>>(&value->data);
         if (!arr) {
             throw std::runtime_error(
                 "Destructuring error: Cannot destructure non-array value\n\n"
@@ -2330,11 +2329,11 @@ void Interpreter::visit(ast::DestructureStmt& node) {
         for (size_t i = 0; i < names.size(); ++i) {
             if (rest_idx >= 0 && i == static_cast<size_t>(rest_idx)) {
                 // This is the ...rest element — collect remaining into array
-                std::vector<std::shared_ptr<Value>> rest_arr;
+                std::vector<NaabVal> rest_arr;
                 for (size_t j = static_cast<size_t>(rest_idx); j < arr->size(); ++j) {
-                    rest_arr.push_back(copyValue((*arr)[j]).toLegacy());
+                    rest_arr.push_back(copyValue((*arr)[j]));
                 }
-                current_env_->define(names[i], std::make_shared<Value>(rest_arr));
+                current_env_->define(names[i], std::make_shared<Value>(std::move(rest_arr)));
             } else {
                 auto elem = copyValue((*arr)[i]).toLegacy();
                 current_env_->define(names[i], elem);
@@ -2346,7 +2345,7 @@ void Interpreter::visit(ast::DestructureStmt& node) {
         }
     } else {
         // Dict destructuring: value must be a dict
-        auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&value->data);
+        auto* dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&value->data);
         if (!dict) {
             throw std::runtime_error(
                 "Destructuring error: Cannot destructure non-dict value\n\n"
@@ -2403,10 +2402,10 @@ void Interpreter::visit(ast::TryStmt& node) {
         auto error_val = e.getValue();
         if (!error_val) {
             // Create structured error object if getValue() returned null
-            std::unordered_map<std::string, std::shared_ptr<Value>> error_dict;
-            error_dict["message"] = std::make_shared<Value>(e.getMessage());
-            error_dict["type"] = std::make_shared<Value>(NaabError::errorTypeToString(e.getType()));
-            error_val = std::make_shared<Value>(error_dict);
+            std::unordered_map<std::string, NaabVal> error_dict;
+            error_dict["message"] = NaabVal::makeString(e.getMessage());
+            error_dict["type"] = NaabVal::makeString(NaabError::errorTypeToString(e.getType()));
+            error_val = std::make_shared<Value>(std::move(error_dict));
         }
         current_env_->define(catch_clause->error_name, error_val);
 
@@ -2453,10 +2452,10 @@ void Interpreter::visit(ast::TryStmt& node) {
 
         // Create structured error object from std::exception
         // Issue #6 Fix: Create dict with "message" property for polyglot exceptions
-        std::unordered_map<std::string, std::shared_ptr<Value>> error_dict;
-        error_dict["message"] = std::make_shared<Value>(std::string(std_error.what()));
-        error_dict["type"] = std::make_shared<Value>(std::string("PolyglotError"));
-        auto error_value = std::make_shared<Value>(error_dict);
+        std::unordered_map<std::string, NaabVal> error_dict;
+        error_dict["message"] = NaabVal::makeString(std::string(std_error.what()));
+        error_dict["type"] = NaabVal::makeString(std::string("PolyglotError"));
+        auto error_value = std::make_shared<Value>(std::move(error_dict));
 
         // Bind the error value to the catch variable
         auto* catch_clause = node.getCatchClause();
@@ -2595,28 +2594,28 @@ NaabVal Interpreter::copyValue(NaabVal nval) {
 
     if (std::holds_alternative<std::string>(value->data)) {
         return NaabVal::makeString(std::get<std::string>(value->data));
-    } else if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data)) {
+    } else if (std::holds_alternative<std::vector<NaabVal>>(value->data)) {
         // Deep copy list
-        const auto& list = std::get<std::vector<std::shared_ptr<Value>>>(value->data);
-        std::vector<std::shared_ptr<Value>> new_list;
+        const auto& list = std::get<std::vector<NaabVal>>(value->data);
+        std::vector<NaabVal> new_list;
         for (const auto& item : list) {
-            new_list.push_back(copyValue(item).toLegacy());  // Recursive copy
+            new_list.push_back(copyValue(item));  // Recursive copy
         }
-        return std::make_shared<Value>(new_list);
-    } else if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
+        return NaabVal::makeList(std::move(new_list));
+    } else if (std::holds_alternative<std::unordered_map<std::string, NaabVal>>(value->data)) {
         // Deep copy dict
-        const auto& dict = std::get<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data);
-        std::unordered_map<std::string, std::shared_ptr<Value>> new_dict;
+        const auto& dict = std::get<std::unordered_map<std::string, NaabVal>>(value->data);
+        std::unordered_map<std::string, NaabVal> new_dict;
         for (const auto& [key, val] : dict) {
-            new_dict[key] = copyValue(val).toLegacy();  // Recursive copy
+            new_dict[key] = copyValue(val);  // Recursive copy
         }
-        return std::make_shared<Value>(new_dict);
+        return NaabVal::makeDict(std::move(new_dict));
     } else if (std::holds_alternative<std::shared_ptr<StructValue>>(value->data)) {
         // Deep copy struct
         const auto& struct_val = std::get<std::shared_ptr<StructValue>>(value->data);
         auto new_struct = std::make_shared<StructValue>(struct_val->type_name, struct_val->definition);
         for (size_t i = 0; i < struct_val->field_values.size(); i++) {
-            new_struct->field_values[i] = copyValue(struct_val->field_values[i]).toLegacy();  // Recursive copy
+            new_struct->field_values[i] = copyValue(struct_val->field_values[i]);  // Recursive copy
         }
         return std::make_shared<Value>(new_struct);
     }

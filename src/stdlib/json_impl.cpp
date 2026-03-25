@@ -286,7 +286,7 @@ std::shared_ptr<interpreter::Value> JSONModule::parse_object(
     // Validate that the result is a dictionary (object)
     return std::visit([](auto&& arg) -> std::shared_ptr<interpreter::Value> {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>) {
+        if constexpr (std::is_same_v<T, std::unordered_map<std::string, interpreter::NaabVal>>) {
             // Return the parsed dict
             return std::make_shared<interpreter::Value>(arg);
         } else {
@@ -304,7 +304,7 @@ std::shared_ptr<interpreter::Value> JSONModule::parse_array(
     // Validate that the result is an array
     return std::visit([](auto&& arg) -> std::shared_ptr<interpreter::Value> {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
+        if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
             // Return the parsed array
             return std::make_shared<interpreter::Value>(arg);
         } else {

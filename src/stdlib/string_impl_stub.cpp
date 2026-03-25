@@ -121,19 +121,19 @@ std::shared_ptr<interpreter::Value> StringModule::split(
     auto str = args[0]->asString();
     auto delim = args[1]->asString();
 
-    std::vector<std::shared_ptr<interpreter::Value>> result;
+    std::vector<interpreter::NaabVal> result;
     size_t start = 0;
     size_t end = str.find(delim);
 
     while (end != std::string::npos) {
-        result.push_back(std::make_shared<interpreter::Value>(str.substr(start, end - start)));
+        result.push_back(interpreter::NaabVal::makeString(str.substr(start, end - start)));
         start = end + delim.length();
         end = str.find(delim, start);
     }
 
-    result.push_back(std::make_shared<interpreter::Value>(str.substr(start)));
+    result.push_back(interpreter::NaabVal::makeString(str.substr(start)));
 
-    return std::make_shared<interpreter::Value>(result);
+    return std::make_shared<interpreter::Value>(std::move(result));
 }
 
 std::shared_ptr<interpreter::Value> StringModule::join(
@@ -149,7 +149,7 @@ std::shared_ptr<interpreter::Value> StringModule::join(
     std::ostringstream oss;
     for (size_t i = 0; i < arr.size(); ++i) {
         if (i > 0) oss << delim;
-        oss << arr[i]->asString();
+        oss << arr[i].toLegacy()->asString();
     }
 
     return std::make_shared<interpreter::Value>(oss.str());

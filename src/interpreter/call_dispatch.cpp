@@ -29,8 +29,8 @@ static std::string getTypeName(const std::shared_ptr<Value>& val) {
         else if constexpr (std::is_same_v<T, double>) { return "float"; }
         else if constexpr (std::is_same_v<T, bool>) { return "bool"; }
         else if constexpr (std::is_same_v<T, std::string>) { return "string"; }
-        else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) { return "array"; }
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) { return "dict"; }
+        else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) { return "array"; }
+        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) { return "dict"; }
         else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) { return "function"; }
         else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) { return "struct"; }
         else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) { return "future"; }
@@ -581,7 +581,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             // Built-in DICT methods
-            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&obj_val->data)) {
+            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&obj_val->data)) {
                 auto& dict = *dict_ptr;
 
                 if (method_name == "get" || method_name == "getString" || method_name == "getInt" ||
@@ -638,36 +638,36 @@ void Interpreter::visit(ast::CallExpr& node) {
                     return;
                 }
                 if (method_name == "keys") {
-                    std::vector<std::shared_ptr<Value>> keys;
-                    for (const auto& pair : dict) keys.push_back(std::make_shared<Value>(pair.first));
-                    result_ = std::make_shared<Value>(keys);
+                    std::vector<NaabVal> keys;
+                    for (const auto& pair : dict) keys.push_back(NaabVal::makeString(pair.first));
+                    result_ = NaabVal::makeList(std::move(keys));
                     return;
                 }
                 if (method_name == "values") {
-                    std::vector<std::shared_ptr<Value>> vals;
+                    std::vector<NaabVal> vals;
                     for (const auto& pair : dict) vals.push_back(pair.second);
-                    result_ = std::make_shared<Value>(vals);
+                    result_ = NaabVal::makeList(std::move(vals));
                     return;
                 }
                 if (method_name == "clone" || method_name == "copy") {
-                    result_ = std::make_shared<Value>(dict);
+                    result_ = NaabVal::makeDict(dict);
                     return;
                 }
                 if (method_name == "entries") {
-                    std::vector<std::shared_ptr<Value>> entries;
+                    std::vector<NaabVal> entries;
                     for (const auto& pair : dict) {
-                        std::vector<std::shared_ptr<Value>> entry;
-                        entry.push_back(std::make_shared<Value>(pair.first));
+                        std::vector<NaabVal> entry;
+                        entry.push_back(NaabVal::makeString(pair.first));
                         entry.push_back(pair.second);
-                        entries.push_back(std::make_shared<Value>(entry));
+                        entries.push_back(NaabVal::makeList(std::move(entry)));
                     }
-                    result_ = std::make_shared<Value>(entries);
+                    result_ = NaabVal::makeList(std::move(entries));
                     return;
                 }
                 if (method_name == "merge") {
                     if (args.empty()) throw std::runtime_error("dict.merge() requires 1 argument (another dict)");
                     auto other = args[0];
-                    if (auto* other_dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&other->data)) {
+                    if (auto* other_dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&other->data)) {
                         for (const auto& pair : *other_dict) {
                             dict[pair.first] = pair.second;
                         }
@@ -683,7 +683,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             // Built-in ARRAY methods
-            if (auto* arr_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&obj_val->data)) {
+            if (auto* arr_ptr = std::get_if<std::vector<NaabVal>>(&obj_val->data)) {
                 auto& arr = *arr_ptr;
 
                 if (method_name == "size" || method_name == "length") {
@@ -722,23 +722,23 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (args.empty()) throw std::runtime_error("array.contains() requires 1 argument");
                     bool found = false;
                     for (const auto& item : arr) {
-                        if (item->toString() == args[0]->toString()) { found = true; break; }
+                        if (item.toString() == args[0]->toString()) { found = true; break; }
                     }
-                    result_ = std::make_shared<Value>(found);
+                    result_ = NaabVal::makeBool(found);
                     return;
                 }
                 if (method_name == "take") {
                     if (args.empty()) throw std::runtime_error("array.take() requires 1 argument (count)");
-                    int count = std::get<int>(args[0]->data);
-                    std::vector<std::shared_ptr<Value>> taken;
+                    int count = args[0]->toInt();
+                    std::vector<NaabVal> taken;
                     for (int i = 0; i < count && i < static_cast<int>(arr.size()); i++) {
                         taken.push_back(arr[static_cast<size_t>(i)]);
                     }
-                    result_ = std::make_shared<Value>(taken);
+                    result_ = NaabVal::makeList(std::move(taken));
                     return;
                 }
                 if (method_name == "clone" || method_name == "copy") {
-                    result_ = std::make_shared<Value>(arr);
+                    result_ = NaabVal::makeList(arr);
                     return;
                 }
                 if (method_name == "remove" || method_name == "removeAt") {
@@ -766,27 +766,27 @@ void Interpreter::visit(ast::CallExpr& node) {
                     std::string joined;
                     for (size_t i = 0; i < arr.size(); i++) {
                         if (i > 0) joined += sep;
-                        joined += arr[i]->toString();
+                        joined += arr[i].toString();
                     }
-                    result_ = std::make_shared<Value>(joined);
+                    result_ = NaabVal::makeString(joined);
                     return;
                 }
                 // reverse() - return reversed copy
                 if (method_name == "reverse" || method_name == "reversed") {
-                    std::vector<std::shared_ptr<Value>> rev(arr.rbegin(), arr.rend());
-                    result_ = std::make_shared<Value>(rev);
+                    std::vector<NaabVal> rev(arr.rbegin(), arr.rend());
+                    result_ = NaabVal::makeList(std::move(rev));
                     return;
                 }
                 // indexOf(item) - find index of item, -1 if not found
                 if (method_name == "indexOf" || method_name == "findIndex" || method_name == "index_of") {
                     if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
                     for (int i = 0; i < static_cast<int>(arr.size()); i++) {
-                        if (arr[i]->toString() == args[0]->toString()) {
-                            result_ = std::make_shared<Value>(i);
+                        if (arr[i].toString() == args[0]->toString()) {
+                            result_ = NaabVal::makeInt(i);
                             return;
                         }
                     }
-                    result_ = std::make_shared<Value>(-1);
+                    result_ = NaabVal::makeInt(-1);
                     return;
                 }
                 // DOT-2: first, last, sort, shift, unshift, find, slice, for_each
@@ -801,11 +801,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                     return;
                 }
                 if (method_name == "sort") {
-                    std::vector<std::shared_ptr<Value>> sorted = arr;
+                    std::vector<NaabVal> sorted = arr;
                     std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
-                        return a->toFloat() < b->toFloat();
+                        return a.toFloat() < b.toFloat();
                     });
-                    result_ = std::make_shared<Value>(sorted);
+                    result_ = NaabVal::makeList(std::move(sorted));
                     return;
                 }
                 if (method_name == "shift") {
@@ -856,8 +856,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (args.size() >= 2) end = args[1]->toInt();
                     if (start < 0) start = 0;
                     if (end > static_cast<int>(arr.size())) end = static_cast<int>(arr.size());
-                    std::vector<std::shared_ptr<Value>> sliced(arr.begin() + start, arr.begin() + end);
-                    result_ = std::make_shared<Value>(sliced);
+                    std::vector<NaabVal> sliced(arr.begin() + start, arr.begin() + end);
+                    result_ = NaabVal::makeList(std::move(sliced));
                     return;
                 }
                 // HELPER-5: .len() -> .length()
@@ -956,18 +956,18 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (method_name == "split") {
                     if (args.empty()) throw std::runtime_error("string.split() requires 1 argument (separator)");
                     std::string sep = args[0]->toString();
-                    std::vector<std::shared_ptr<Value>> parts;
+                    std::vector<NaabVal> parts;
                     if (sep.empty()) {
-                        for (char c : str) parts.push_back(std::make_shared<Value>(std::string(1, c)));
+                        for (char c : str) parts.push_back(NaabVal::makeString(std::string(1, c)));
                     } else {
                         size_t s = 0, p;
                         while ((p = str.find(sep, s)) != std::string::npos) {
-                            parts.push_back(std::make_shared<Value>(str.substr(s, p - s)));
+                            parts.push_back(NaabVal::makeString(str.substr(s, p - s)));
                             s = p + sep.size();
                         }
-                        parts.push_back(std::make_shared<Value>(str.substr(s)));
+                        parts.push_back(NaabVal::makeString(str.substr(s)));
                     }
-                    result_ = std::make_shared<Value>(parts);
+                    result_ = NaabVal::makeList(std::move(parts));
                     return;
                 }
                 if (method_name == "startsWith" || method_name == "starts_with") {
@@ -1353,7 +1353,7 @@ void Interpreter::visit(ast::CallExpr& node) {
         auto obj = eval(*member_call->getObject()).toLegacy();
 
         // ===== Built-in DICT methods =====
-        if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&obj->data)) {
+        if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&obj->data)) {
             auto& dict = *dict_ptr;
 
             if (method_name == "get" || method_name == "getString" || method_name == "getInt" ||
@@ -1414,41 +1414,40 @@ void Interpreter::visit(ast::CallExpr& node) {
                 return;
             }
             if (method_name == "keys") {
-                std::vector<std::shared_ptr<Value>> keys;
+                std::vector<NaabVal> keys;
                 for (const auto& pair : dict) {
-                    keys.push_back(std::make_shared<Value>(pair.first));
+                    keys.push_back(NaabVal::makeString(pair.first));
                 }
-                result_ = std::make_shared<Value>(keys);
+                result_ = NaabVal::makeList(std::move(keys));
                 return;
             }
             if (method_name == "values") {
-                std::vector<std::shared_ptr<Value>> vals;
+                std::vector<NaabVal> vals;
                 for (const auto& pair : dict) {
                     vals.push_back(pair.second);
                 }
-                result_ = std::make_shared<Value>(vals);
+                result_ = NaabVal::makeList(std::move(vals));
                 return;
             }
             if (method_name == "clone" || method_name == "copy") {
-                auto new_dict = dict;  // shallow copy
-                result_ = std::make_shared<Value>(new_dict);
+                result_ = NaabVal::makeDict(dict);
                 return;
             }
             if (method_name == "entries") {
-                std::vector<std::shared_ptr<Value>> entries;
+                std::vector<NaabVal> entries;
                 for (const auto& pair : dict) {
-                    std::vector<std::shared_ptr<Value>> entry;
-                    entry.push_back(std::make_shared<Value>(pair.first));
+                    std::vector<NaabVal> entry;
+                    entry.push_back(NaabVal::makeString(pair.first));
                     entry.push_back(pair.second);
-                    entries.push_back(std::make_shared<Value>(entry));
+                    entries.push_back(NaabVal::makeList(std::move(entry)));
                 }
-                result_ = std::make_shared<Value>(entries);
+                result_ = NaabVal::makeList(std::move(entries));
                 return;
             }
             if (method_name == "merge") {
                 if (args.empty()) throw std::runtime_error("dict.merge() requires 1 argument (another dict)");
                 auto other = args[0];
-                if (auto* other_dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&other->data)) {
+                if (auto* other_dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&other->data)) {
                     for (const auto& pair : *other_dict) {
                         dict[pair.first] = pair.second;
                     }
@@ -1477,8 +1476,10 @@ void Interpreter::visit(ast::CallExpr& node) {
             auto it = dict.find(method_name);
             if (it != dict.end()) {
                 auto func_value = it->second;
-                if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&func_value->data)) {
-                    result_ = callFunction(func_value, args);
+                if (func_value.toLegacy() && std::holds_alternative<std::shared_ptr<FunctionValue>>(func_value.toLegacy()->data)) {
+                    std::vector<NaabVal> nargs;
+                    for (const auto& a : args) nargs.push_back(NaabVal::fromLegacy(a));
+                    result_ = callFunction(func_value, nargs);
                     return;
                 }
                 // Not a function - fall through to error
@@ -1513,7 +1514,7 @@ void Interpreter::visit(ast::CallExpr& node) {
         }
 
         // ===== Built-in ARRAY methods =====
-        if (auto* arr_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&obj->data)) {
+        if (auto* arr_ptr = std::get_if<std::vector<NaabVal>>(&obj->data)) {
             auto& arr = *arr_ptr;
 
             if (method_name == "size" || method_name == "length") {
@@ -1552,29 +1553,28 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (args.empty()) throw std::runtime_error("array.contains() requires 1 argument");
                 bool found = false;
                 for (const auto& item : arr) {
-                    if (item->toString() == args[0]->toString()) { found = true; break; }
+                    if (item.toString() == args[0]->toString()) { found = true; break; }
                 }
-                result_ = std::make_shared<Value>(found);
+                result_ = NaabVal::makeBool(found);
                 return;
             }
             if (method_name == "take") {
                 if (args.empty()) throw std::runtime_error("array.take() requires 1 argument (count)");
-                int count = std::get<int>(args[0]->data);
-                std::vector<std::shared_ptr<Value>> taken;
+                int count = args[0]->toInt();
+                std::vector<NaabVal> taken;
                 for (int i = 0; i < count && i < static_cast<int>(arr.size()); i++) {
                     taken.push_back(arr[i]);
                 }
-                result_ = std::make_shared<Value>(taken);
+                result_ = NaabVal::makeList(std::move(taken));
                 return;
             }
             if (method_name == "clone" || method_name == "copy") {
-                auto new_arr = arr;
-                result_ = std::make_shared<Value>(new_arr);
+                result_ = NaabVal::makeList(arr);
                 return;
             }
             if (method_name == "remove" || method_name == "removeAt") {
                 if (args.empty()) throw std::runtime_error("array.remove() requires 1 argument (index)");
-                int idx = std::get<int>(args[0]->data);
+                int idx = args[0]->toInt();
                 if (idx >= 0 && idx < static_cast<int>(arr.size())) {
                     arr.erase(arr.begin() + idx);
                 }
@@ -1597,27 +1597,27 @@ void Interpreter::visit(ast::CallExpr& node) {
                 std::string joined;
                 for (size_t i = 0; i < arr.size(); i++) {
                     if (i > 0) joined += sep;
-                    joined += arr[i]->toString();
+                    joined += arr[i].toString();
                 }
-                result_ = std::make_shared<Value>(joined);
+                result_ = NaabVal::makeString(joined);
                 return;
             }
             // reverse()
             if (method_name == "reverse" || method_name == "reversed") {
-                std::vector<std::shared_ptr<Value>> rev(arr.rbegin(), arr.rend());
-                result_ = std::make_shared<Value>(rev);
+                std::vector<NaabVal> rev(arr.rbegin(), arr.rend());
+                result_ = NaabVal::makeList(std::move(rev));
                 return;
             }
             // indexOf(item)
             if (method_name == "indexOf" || method_name == "findIndex" || method_name == "index_of") {
                 if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
                 for (int i = 0; i < static_cast<int>(arr.size()); i++) {
-                    if (arr[i]->toString() == args[0]->toString()) {
-                        result_ = std::make_shared<Value>(i);
+                    if (arr[i].toString() == args[0]->toString()) {
+                        result_ = NaabVal::makeInt(i);
                         return;
                     }
                 }
-                result_ = std::make_shared<Value>(-1);
+                result_ = NaabVal::makeInt(-1);
                 return;
             }
             // DOT-2: first, last, sort, shift, unshift, find, slice, for_each
@@ -1632,11 +1632,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                 return;
             }
             if (method_name == "sort") {
-                std::vector<std::shared_ptr<Value>> sorted = arr;
+                std::vector<NaabVal> sorted = arr;
                 std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
-                    return a->toFloat() < b->toFloat();
+                    return a.toFloat() < b.toFloat();
                 });
-                result_ = std::make_shared<Value>(sorted);
+                result_ = NaabVal::makeList(std::move(sorted));
                 return;
             }
             if (method_name == "shift") {
@@ -1687,8 +1687,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (args.size() >= 2) end = args[1]->toInt();
                 if (start < 0) start = 0;
                 if (end > static_cast<int>(arr.size())) end = static_cast<int>(arr.size());
-                std::vector<std::shared_ptr<Value>> sliced(arr.begin() + start, arr.begin() + end);
-                result_ = std::make_shared<Value>(sliced);
+                std::vector<NaabVal> sliced(arr.begin() + start, arr.begin() + end);
+                result_ = NaabVal::makeList(std::move(sliced));
                 return;
             }
             // HELPER-5: .len() -> .length()
@@ -1786,18 +1786,18 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (method_name == "split") {
                 if (args.empty()) throw std::runtime_error("string.split() requires 1 argument (separator)");
                 std::string sep = args[0]->toString();
-                std::vector<std::shared_ptr<Value>> parts;
+                std::vector<NaabVal> parts;
                 if (sep.empty()) {
-                    for (char c : str) parts.push_back(std::make_shared<Value>(std::string(1, c)));
+                    for (char c : str) parts.push_back(NaabVal::makeString(std::string(1, c)));
                 } else {
                     size_t start = 0, pos;
                     while ((pos = str.find(sep, start)) != std::string::npos) {
-                        parts.push_back(std::make_shared<Value>(str.substr(start, pos - start)));
+                        parts.push_back(NaabVal::makeString(str.substr(start, pos - start)));
                         start = pos + sep.size();
                     }
-                    parts.push_back(std::make_shared<Value>(str.substr(start)));
+                    parts.push_back(NaabVal::makeString(str.substr(start)));
                 }
-                result_ = std::make_shared<Value>(parts);
+                result_ = NaabVal::makeList(std::move(parts));
                 return;
             }
             if (method_name == "startsWith" || method_name == "starts_with") {
@@ -2464,9 +2464,9 @@ void Interpreter::visit(ast::CallExpr& node) {
         }
         if (auto* str = std::get_if<std::string>(&args[0]->data)) {
             result_ = std::make_shared<Value>(static_cast<int>(str->length()));
-        } else if (auto* list = std::get_if<std::vector<std::shared_ptr<Value>>>(&args[0]->data)) {
+        } else if (auto* list = std::get_if<std::vector<NaabVal>>(&args[0]->data)) {
             result_ = std::make_shared<Value>(static_cast<int>(list->size()));
-        } else if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&args[0]->data)) {
+        } else if (auto* dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&args[0]->data)) {
             result_ = std::make_shared<Value>(static_cast<int>(dict->size()));
         } else {
             result_ = std::make_shared<Value>(0);
@@ -2483,8 +2483,8 @@ void Interpreter::visit(ast::CallExpr& node) {
                 else if constexpr (std::is_same_v<T, double>) return "float";
                 else if constexpr (std::is_same_v<T, bool>) return "bool";
                 else if constexpr (std::is_same_v<T, std::string>) return "string";
-                else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) return "array";
-                else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) return "dict";
+                else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) return "array";
+                else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) return "dict";
                 else if constexpr (std::is_same_v<T, std::shared_ptr<BlockValue>>) return "block";
                 else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) return "function";
                 else if constexpr (std::is_same_v<T, std::shared_ptr<PythonObjectValue>>) return "python_object";
@@ -2540,18 +2540,18 @@ void Interpreter::visit(ast::CallExpr& node) {
             throw std::runtime_error("range() step cannot be zero");
         }
 
-        std::vector<std::shared_ptr<Value>> result;
+        std::vector<NaabVal> result;
         if (step > 0) {
             for (int i = start; i < end; i += step) {
-                result.push_back(std::make_shared<Value>(i));
+                result.push_back(NaabVal::makeInt(i));
             }
         } else {
             for (int i = start; i > end; i += step) {
-                result.push_back(std::make_shared<Value>(i));
+                result.push_back(NaabVal::makeInt(i));
             }
         }
 
-        result_ = std::make_shared<Value>(result);
+        result_ = NaabVal::makeList(std::move(result));
     }
     // Type cast builtins
     else if (func_name == "int") {
@@ -2605,17 +2605,17 @@ void Interpreter::visit(ast::CallExpr& node) {
         else if (auto* ed = std::get_if<double>(&args[2]->data)) end = static_cast<int>(*ed);
         else throw std::runtime_error("Slice end index must be a number");
 
-        if (auto* arr = std::get_if<std::vector<std::shared_ptr<Value>>>(&collection->data)) {
+        if (auto* arr = std::get_if<std::vector<NaabVal>>(&collection->data)) {
             int len = static_cast<int>(arr->size());
             if (start < 0) start = std::max(0, len + start);
             if (end < 0) end = std::max(0, len + end);
             if (start > len) start = len;
             if (end > len) end = len;
             if (start >= end) {
-                result_ = std::make_shared<Value>(std::vector<std::shared_ptr<Value>>{});
+                result_ = NaabVal::makeList(std::vector<NaabVal>{});
             } else {
-                std::vector<std::shared_ptr<Value>> sliced(arr->begin() + start, arr->begin() + end);
-                result_ = std::make_shared<Value>(sliced);
+                std::vector<NaabVal> sliced(arr->begin() + start, arr->begin() + end);
+                result_ = NaabVal::makeList(std::move(sliced));
             }
         } else if (auto* str = std::get_if<std::string>(&collection->data)) {
             int len = static_cast<int>(str->size());
@@ -2853,7 +2853,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
     }
 
     // Check if object is a dictionary (for module imports)
-    if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&obj->data)) {
+    if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&obj->data)) {
         auto it = dict_ptr->find(member_name);
         if (it != dict_ptr->end()) {
             result_ = it->second;

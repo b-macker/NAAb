@@ -13,8 +13,8 @@ namespace stdlib {
 
 using namespace governance;
 
-using DictType = std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>;
-using ArrayType = std::vector<std::shared_ptr<interpreter::Value>>;
+using DictType = std::unordered_map<std::string, interpreter::NaabVal>;
+using ArrayType = std::vector<interpreter::NaabVal>;
 
 // Helper functions (same pattern as env_impl.cpp)
 static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
@@ -131,13 +131,13 @@ static void applyProfile(const std::string& profile) {
 
 static std::shared_ptr<interpreter::Value> resultToDict(const CheckResult& r) {
     DictType d;
-    d["rule"] = makeString(r.rule_name);
-    d["message"] = makeString(r.message);
-    d["passed"] = makeBool(r.passed);
-    d["category"] = makeString(r.category);
-    d["severity"] = makeString(r.severity);
-    d["level"] = makeString(levelStr(r.level));
-    d["line"] = makeDouble(static_cast<double>(r.line));
+    d["rule"] = interpreter::NaabVal::makeString(r.rule_name);
+    d["message"] = interpreter::NaabVal::makeString(r.message);
+    d["passed"] = interpreter::NaabVal::makeBool(r.passed);
+    d["category"] = interpreter::NaabVal::makeString(r.category);
+    d["severity"] = interpreter::NaabVal::makeString(r.severity);
+    d["level"] = interpreter::NaabVal::makeString(levelStr(r.level));
+    d["line"] = interpreter::NaabVal::makeDouble(static_cast<double>(r.line));
     return makeDict(std::move(d));
 }
 
@@ -170,7 +170,7 @@ std::shared_ptr<interpreter::Value> BoloModule::call(
         ArrayType results;
         for (const auto& r : g_engine->getCheckResults()) {
             if (!r.passed) {
-                results.push_back(resultToDict(r));
+                results.push_back(interpreter::NaabVal::fromLegacy(resultToDict(r)));
             }
         }
         return makeArray(std::move(results));
@@ -242,7 +242,7 @@ std::shared_ptr<interpreter::Value> BoloModule::call(
     if (function_name == "profiles") {
         ArrayType result;
         for (const auto& [name, _] : BUILT_IN_PROFILES) {
-            result.push_back(makeString(name));
+            result.push_back(interpreter::NaabVal::makeString(name));
         }
         return makeArray(std::move(result));
     }

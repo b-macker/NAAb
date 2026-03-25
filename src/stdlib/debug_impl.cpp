@@ -55,16 +55,16 @@ static std::string valueToDebugString(const std::shared_ptr<interpreter::Value>&
         oss << "\"" << std::get<std::string>(val->data) << "\"";
     } else if (std::holds_alternative<std::monostate>(val->data)) {
         oss << "null";
-    } else if (std::holds_alternative<std::vector<std::shared_ptr<interpreter::Value>>>(val->data)) {
-        const auto& arr = std::get<std::vector<std::shared_ptr<interpreter::Value>>>(val->data);
+    } else if (std::holds_alternative<std::vector<interpreter::NaabVal>>(val->data)) {
+        const auto& arr = std::get<std::vector<interpreter::NaabVal>>(val->data);
         oss << "[";
         for (size_t i = 0; i < arr.size(); ++i) {
             if (i > 0) oss << ", ";
-            oss << valueToDebugString(arr[i], indent + 1);
+            oss << valueToDebugString(arr[i].toLegacy(), indent + 1);
         }
         oss << "]";
-    } else if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(val->data)) {
-        const auto& dict = std::get<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(val->data);
+    } else if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(val->data)) {
+        const auto& dict = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(val->data);
         // Bug 10: Sort keys for deterministic output (prevents false diffs in watch/compare)
         std::vector<std::string> sorted_keys;
         for (const auto& [key, value] : dict) sorted_keys.push_back(key);
@@ -73,7 +73,7 @@ static std::string valueToDebugString(const std::shared_ptr<interpreter::Value>&
         for (size_t i = 0; i < sorted_keys.size(); ++i) {
             if (i > 0) oss << ",\n";
             oss << indent_str << "  \"" << sorted_keys[i] << "\": "
-                << valueToDebugString(dict.at(sorted_keys[i]), indent + 1);
+                << valueToDebugString(dict.at(sorted_keys[i]).toLegacy(), indent + 1);
         }
         oss << "\n" << indent_str << "}";
     } else if (std::holds_alternative<std::shared_ptr<interpreter::StructValue>>(val->data)) {
@@ -83,7 +83,7 @@ static std::string valueToDebugString(const std::shared_ptr<interpreter::Value>&
             if (i < struct_val->definition->fields.size()) {
                 const auto& field = struct_val->definition->fields[i];
                 oss << indent_str << "  " << field.name << ": "
-                    << valueToDebugString(struct_val->field_values[i], indent + 1);
+                    << valueToDebugString(struct_val->field_values[i].toLegacy(), indent + 1);
                 if (i < struct_val->field_values.size() - 1) oss << ",";
                 oss << "\n";
             }
@@ -121,8 +121,8 @@ static std::string getTypeName(const std::shared_ptr<interpreter::Value>& val) {
     if (std::holds_alternative<bool>(val->data)) return "bool";
     if (std::holds_alternative<std::string>(val->data)) return "string";
     if (std::holds_alternative<std::monostate>(val->data)) return "null";
-    if (std::holds_alternative<std::vector<std::shared_ptr<interpreter::Value>>>(val->data)) return "array";
-    if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(val->data)) return "dict";
+    if (std::holds_alternative<std::vector<interpreter::NaabVal>>(val->data)) return "array";
+    if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(val->data)) return "dict";
     if (std::holds_alternative<std::shared_ptr<interpreter::StructValue>>(val->data)) {
         return "struct:" + std::get<std::shared_ptr<interpreter::StructValue>>(val->data)->type_name;
     }
@@ -182,9 +182,9 @@ static std::string diffValues(const std::shared_ptr<interpreter::Value>& a,
     if (std::holds_alternative<std::monostate>(a->data)) return "";
 
     // Arrays
-    if (std::holds_alternative<std::vector<std::shared_ptr<interpreter::Value>>>(a->data)) {
-        const auto& arr_a = std::get<std::vector<std::shared_ptr<interpreter::Value>>>(a->data);
-        const auto& arr_b = std::get<std::vector<std::shared_ptr<interpreter::Value>>>(b->data);
+    if (std::holds_alternative<std::vector<interpreter::NaabVal>>(a->data)) {
+        const auto& arr_a = std::get<std::vector<interpreter::NaabVal>>(a->data);
+        const auto& arr_b = std::get<std::vector<interpreter::NaabVal>>(b->data);
         std::vector<std::string> diffs;
         size_t max_len = std::max(arr_a.size(), arr_b.size());
         if (arr_a.size() != arr_b.size()) {
@@ -192,15 +192,15 @@ static std::string diffValues(const std::shared_ptr<interpreter::Value>& a,
                           std::to_string(arr_a.size()) + " vs " + std::to_string(arr_b.size()));
         }
         for (size_t i = 0; i < std::min(arr_a.size(), arr_b.size()); ++i) {
-            std::string d = diffValues(arr_a[i], arr_b[i], prefix + "[" + std::to_string(i) + "]", depth + 1);
+            std::string d = diffValues(arr_a[i].toLegacy(), arr_b[i].toLegacy(), prefix + "[" + std::to_string(i) + "]", depth + 1);
             if (!d.empty()) diffs.push_back(d);
         }
         // Extra elements
         for (size_t i = std::min(arr_a.size(), arr_b.size()); i < max_len; ++i) {
             if (i < arr_a.size()) {
-                diffs.push_back(prefix + "[" + std::to_string(i) + "] only in first: " + valueToDebugString(arr_a[i]));
+                diffs.push_back(prefix + "[" + std::to_string(i) + "] only in first: " + valueToDebugString(arr_a[i].toLegacy()));
             } else {
-                diffs.push_back(prefix + "[" + std::to_string(i) + "] only in second: " + valueToDebugString(arr_b[i]));
+                diffs.push_back(prefix + "[" + std::to_string(i) + "] only in second: " + valueToDebugString(arr_b[i].toLegacy()));
             }
         }
         std::string result;
@@ -212,16 +212,16 @@ static std::string diffValues(const std::shared_ptr<interpreter::Value>& a,
     }
 
     // Dicts
-    if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(a->data)) {
-        const auto& da = std::get<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(a->data);
-        const auto& db = std::get<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(b->data);
+    if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(a->data)) {
+        const auto& da = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(a->data);
+        const auto& db = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(b->data);
         std::vector<std::string> diffs;
         for (const auto& [k, v] : da) {
             auto it = db.find(k);
             if (it == db.end()) {
                 diffs.push_back("Key '" + k + "' only in first");
             } else {
-                std::string d = diffValues(v, it->second, prefix + "." + k, depth + 1);
+                std::string d = diffValues(v.toLegacy(), it->second.toLegacy(), prefix + "." + k, depth + 1);
                 if (!d.empty()) diffs.push_back(d);
             }
         }
@@ -340,17 +340,17 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.keys", {"value"}, 1, static_cast<int>(args.size()))
             );
         }
-        std::vector<std::shared_ptr<interpreter::Value>> keys;
-        if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(args[0]->data)) {
-            const auto& dict = std::get<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(args[0]->data);
+        std::vector<interpreter::NaabVal> keys;
+        if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(args[0]->data)) {
+            const auto& dict = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(args[0]->data);
             for (const auto& [k, v] : dict) {
-                keys.push_back(std::make_shared<interpreter::Value>(k));
+                keys.push_back(interpreter::NaabVal::makeString(k));
             }
         } else if (std::holds_alternative<std::shared_ptr<interpreter::StructValue>>(args[0]->data)) {
             const auto& sv = std::get<std::shared_ptr<interpreter::StructValue>>(args[0]->data);
             if (sv->definition) {
                 for (const auto& field : sv->definition->fields) {
-                    keys.push_back(std::make_shared<interpreter::Value>(field.name));
+                    keys.push_back(interpreter::NaabVal::makeString(field.name));
                 }
             }
         } else {
@@ -370,9 +370,9 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.values", {"value"}, 1, static_cast<int>(args.size()))
             );
         }
-        std::vector<std::shared_ptr<interpreter::Value>> vals;
-        if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(args[0]->data)) {
-            const auto& dict = std::get<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(args[0]->data);
+        std::vector<interpreter::NaabVal> vals;
+        if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(args[0]->data)) {
+            const auto& dict = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(args[0]->data);
             for (const auto& [k, v] : dict) {
                 vals.push_back(v);
             }
@@ -434,7 +434,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.env", {}, 0, static_cast<int>(args.size()))
             );
         }
-        std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> result;
+        std::unordered_map<std::string, interpreter::NaabVal> result;
         if (g_debug_interpreter) {
             // Bug 1: Filter out internal markers and functions (same as snapshot)
             auto all_vars = g_debug_interpreter->getCurrentScopeVariables();
@@ -445,10 +445,10 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     if (s.size() >= 10 && s.substr(0, 10) == "__module__:") continue;
                 }
                 if (val && std::holds_alternative<std::shared_ptr<interpreter::FunctionValue>>(val->data)) continue;
-                result[name] = val;
+                result[name] = interpreter::NaabVal::fromLegacy(val);
             }
         }
-        return std::make_shared<interpreter::Value>(result);
+        return std::make_shared<interpreter::Value>(std::move(result));
 
     } else if (function_name == "stack") {
         // debug.stack() — Call stack as array of strings
@@ -458,14 +458,14 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.stack", {}, 0, static_cast<int>(args.size()))
             );
         }
-        std::vector<std::shared_ptr<interpreter::Value>> frames;
+        std::vector<interpreter::NaabVal> frames;
         if (g_debug_interpreter) {
             auto stack_info = g_debug_interpreter->getCallStackInfo();
             for (const auto& frame : stack_info) {
-                frames.push_back(std::make_shared<interpreter::Value>(frame));
+                frames.push_back(interpreter::NaabVal::makeString(frame));
             }
         }
-        return std::make_shared<interpreter::Value>(frames);
+        return std::make_shared<interpreter::Value>(std::move(frames));
 
     } else if (function_name == "watch") {
         // debug.watch(label, value) — Track value changes across calls

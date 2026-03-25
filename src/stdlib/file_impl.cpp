@@ -151,15 +151,15 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             throw std::runtime_error("list_dir() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
-        std::vector<std::shared_ptr<interpreter::Value>> entries;
+        std::vector<interpreter::NaabVal> entries;
         if (fs::exists(path) && fs::is_directory(path)) {
             for (const auto& entry : fs::directory_iterator(path)) {
-                entries.push_back(std::make_shared<interpreter::Value>(
+                entries.push_back(interpreter::NaabVal::makeString(
                     entry.path().filename().string()
                 ));
             }
         }
-        return std::make_shared<interpreter::Value>(entries);
+        return std::make_shared<interpreter::Value>(std::move(entries));
     }
 
     if (function_name == "create_dir") {
@@ -206,15 +206,15 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         if (!file.is_open()) {
             throw std::runtime_error("Failed to open file: " + path);
         }
-        std::vector<std::shared_ptr<interpreter::Value>> lines;
+        std::vector<interpreter::NaabVal> lines;
         std::string line;
         while (std::getline(file, line)) {
             if (!line.empty() && line.back() == '\r') {
                 line.pop_back();
             }
-            lines.push_back(std::make_shared<interpreter::Value>(line));
+            lines.push_back(interpreter::NaabVal::makeString(line));
         }
-        return std::make_shared<interpreter::Value>(lines);
+        return std::make_shared<interpreter::Value>(std::move(lines));
     }
 
     if (function_name == "write_lines") {
@@ -388,11 +388,11 @@ static std::vector<std::string> getStringArray(
     const std::shared_ptr<interpreter::Value>& val) {
     return std::visit([](auto&& arg) -> std::vector<std::string> {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
+        if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
             std::vector<std::string> result;
             result.reserve(arg.size());
             for (const auto& item : arg) {
-                result.push_back(getString(item));
+                result.push_back(item.toLegacy()->toString());
             }
             return result;
         } else {

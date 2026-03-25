@@ -516,10 +516,10 @@ static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
 static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter::Value>& val) {
     return std::visit([](auto&& arg) -> std::vector<std::string> {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
+        if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
             std::vector<std::string> result;
             for (const auto& item : arg) {
-                result.push_back(getString(item));
+                result.push_back(item.toLegacy()->toString());
             }
             return result;
         } else {

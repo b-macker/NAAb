@@ -97,11 +97,11 @@ void CycleDetector::breakCycles(const std::vector<std::shared_ptr<Value>>& cycle
             using T = std::decay_t<decltype(arg)>;
 
             // Clear list elements
-            if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) {
+            if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
                 arg.clear();
             }
             // Clear dict entries
-            else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) {
+            else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
                 arg.clear();
             }
             // Clear struct fields

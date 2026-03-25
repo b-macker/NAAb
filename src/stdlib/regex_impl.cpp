@@ -21,7 +21,7 @@ namespace stdlib {
 static std::string getString(const std::shared_ptr<interpreter::Value>& val);
 static std::shared_ptr<interpreter::Value> makeString(const std::string& s);
 static std::shared_ptr<interpreter::Value> makeBool(bool b);
-static std::shared_ptr<interpreter::Value> makeArray(const std::vector<std::shared_ptr<interpreter::Value>>& arr);
+static std::shared_ptr<interpreter::Value> makeArray(const std::vector<interpreter::NaabVal>& arr);
 static std::shared_ptr<interpreter::Value> makeStringArray(const std::vector<std::string>& arr);
 static std::shared_ptr<interpreter::Value> makeNull();
 
@@ -188,7 +188,7 @@ std::shared_ptr<interpreter::Value> RegexModule::call(
 
         try {
             std::regex re(pattern);
-            std::vector<std::shared_ptr<interpreter::Value>> all_groups;
+            std::vector<interpreter::NaabVal> all_groups;
             auto begin = std::sregex_iterator(text.begin(), text.end(), re);
             auto end = std::sregex_iterator();
 
@@ -197,7 +197,7 @@ std::shared_ptr<interpreter::Value> RegexModule::call(
                 for (size_t j = 0; j < i->size(); ++j) {
                     groups.push_back((*i)[j].str());
                 }
-                all_groups.push_back(makeStringArray(groups));
+                all_groups.push_back(interpreter::NaabVal::fromLegacy(makeStringArray(groups)));
             }
 
             return makeArray(all_groups);
@@ -323,16 +323,16 @@ static std::shared_ptr<interpreter::Value> makeBool(bool b) {
     return std::make_shared<interpreter::Value>(b);
 }
 
-static std::shared_ptr<interpreter::Value> makeArray(const std::vector<std::shared_ptr<interpreter::Value>>& arr) {
+static std::shared_ptr<interpreter::Value> makeArray(const std::vector<interpreter::NaabVal>& arr) {
     return std::make_shared<interpreter::Value>(arr);
 }
 
 static std::shared_ptr<interpreter::Value> makeStringArray(const std::vector<std::string>& arr) {
-    std::vector<std::shared_ptr<interpreter::Value>> elements;
+    std::vector<interpreter::NaabVal> elements;
     for (const auto& s : arr) {
-        elements.push_back(makeString(s));
+        elements.push_back(interpreter::NaabVal::makeString(s));
     }
-    return std::make_shared<interpreter::Value>(elements);
+    return std::make_shared<interpreter::Value>(std::move(elements));
 }
 
 static std::shared_ptr<interpreter::Value> makeNull() {

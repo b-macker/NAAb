@@ -26,9 +26,9 @@ ast::Type Interpreter::inferValueType(NaabVal nval) {
 
     // Complex types: fall through to legacy for variant access
     auto value = nval.toLegacy();
-    if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data)) {
+    if (std::holds_alternative<std::vector<NaabVal>>(value->data)) {
         // For lists, try to infer element type from first element
-        const auto& list = std::get<std::vector<std::shared_ptr<Value>>>(value->data);
+        const auto& list = std::get<std::vector<NaabVal>>(value->data);
         if (!list.empty()) {
             ast::Type list_type(ast::TypeKind::List);
             list_type.element_type = std::make_shared<ast::Type>(inferValueType(list[0]));
@@ -205,9 +205,9 @@ bool Interpreter::valueMatchesType(
     // Complex types: fall through to legacy for variant access
     auto value = nval.toLegacy();
     if (type.kind == ast::TypeKind::List) {
-        return std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data);
+        return std::holds_alternative<std::vector<NaabVal>>(value->data);
     } else if (type.kind == ast::TypeKind::Dict) {
-        return std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data);
+        return std::holds_alternative<std::unordered_map<std::string, NaabVal>>(value->data);
     } else if (type.kind == ast::TypeKind::Struct) {
         if (auto* struct_val = std::get_if<std::shared_ptr<StructValue>>(&value->data)) {
             // Check if struct name matches (or is a specialization of a generic struct)
@@ -327,7 +327,7 @@ ast::Type Interpreter::inferTypeFromValue(NaabVal nval) {
 
     // Complex types: fall through to legacy for variant access
     auto value = nval.toLegacy();
-    if (auto* list_val = std::get_if<std::vector<std::shared_ptr<Value>>>(&value->data)) {
+    if (auto* list_val = std::get_if<std::vector<NaabVal>>(&value->data)) {
         // Infer list element type from first element
         ast::Type list_type(ast::TypeKind::List);
         if (!list_val->empty()) {
@@ -339,7 +339,7 @@ ast::Type Interpreter::inferTypeFromValue(NaabVal nval) {
         }
         return list_type;
     }
-    else if (auto* dict_val = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&value->data)) {
+    else if (auto* dict_val = std::get_if<std::unordered_map<std::string, NaabVal>>(&value->data)) {
         // Infer dict key/value types from first entry
         ast::Type dict_type(ast::TypeKind::Dict);
         if (!dict_val->empty()) {

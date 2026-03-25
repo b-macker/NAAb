@@ -633,7 +633,7 @@ static int getInt(const std::shared_ptr<interpreter::Value>& val) {
                 if constexpr (std::is_same_v<VT, std::monostate>) return "null";
                 else if constexpr (std::is_same_v<VT, bool>) return "bool";
                 else if constexpr (std::is_same_v<VT, std::string>) return "string";
-                else if constexpr (std::is_same_v<VT, std::vector<std::shared_ptr<interpreter::Value>>>) return "array";
+                else if constexpr (std::is_same_v<VT, std::vector<interpreter::NaabVal>>) return "array";
                 else return "unknown";
             }, val->data);
 
