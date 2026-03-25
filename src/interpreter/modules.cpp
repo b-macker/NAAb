@@ -507,7 +507,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
         for (const auto& [name, enum_def] : module_env->exported_enums_) {
             for (const auto& [variant_name, value] : enum_def->variants) {
                 std::string dotted = enum_def->name + "." + variant_name;
-                auto val = NaabVal::fromLegacy(std::make_shared<Value>(value));
+                auto val = NaabVal::makeInt(value);
                 module_dict[dotted] = val;
                 global_env_->define(alias + "." + dotted, val);
             }
@@ -583,7 +583,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 auto func_value = current_env_->get(func_decl->getName());
 
                 // Store in module exports
-                module_exports_[func_decl->getName()] = func_value.toLegacy();
+                module_exports_[func_decl->getName()] = func_value;
 
                 LOG_DEBUG("[INFO] Exported function: {}\n", func_decl->getName());
             }
@@ -600,7 +600,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 auto var_value = current_env_->get(var_decl->getName());
 
                 // Store in module exports
-                module_exports_[var_decl->getName()] = var_value.toLegacy();
+                module_exports_[var_decl->getName()] = var_value;
 
                 LOG_DEBUG("[INFO] Exported variable: {}\n", var_decl->getName());
             }
@@ -614,7 +614,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 auto value = eval(*expr);
 
                 // Store as "default" export
-                module_exports_["default"] = value.toLegacy();
+                module_exports_["default"] = value;
                 current_env_->define("default", value);
 
                 LOG_DEBUG("[INFO] Exported default expression\n");

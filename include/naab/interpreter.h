@@ -578,7 +578,7 @@ private:
     // Phase 3.1: Module system (ES6-style imports)
     std::unique_ptr<modules::ModuleResolver> module_resolver_;
     std::unordered_map<std::string, std::shared_ptr<Environment>> loaded_modules_;  // Module path -> exports
-    std::unordered_map<std::string, std::shared_ptr<Value>> module_exports_;  // Exported symbols from current module
+    std::unordered_map<std::string, NaabVal> module_exports_;  // Exported symbols from current module
 
     // Phase 4.0: Module system (Rust-style use statements)
     std::unique_ptr<modules::ModuleRegistry> module_registry_;
@@ -667,7 +667,7 @@ private:
 
     // Nested types for parallel execution
     struct VariableSnapshot {
-        std::unordered_map<std::string, std::shared_ptr<Value>> variables;
+        std::unordered_map<std::string, NaabVal> variables;
 
         void capture(
             Environment* env,
