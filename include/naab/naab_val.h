@@ -127,8 +127,8 @@ public:
     static NaabVal makeHeap(ValueBox* box);
     static NaabVal makeString(std::string s);
     static NaabVal makeString(const char* s);
-    static NaabVal makeList(std::vector<std::shared_ptr<Value>> v);
-    static NaabVal makeDict(std::unordered_map<std::string, std::shared_ptr<Value>> v);
+    static NaabVal makeList(std::vector<NaabVal> v);
+    static NaabVal makeDict(std::unordered_map<std::string, NaabVal> v);
     static NaabVal makeFunction(std::shared_ptr<FunctionValue> f);
     static NaabVal makeStruct(std::shared_ptr<StructValue> s);
     static NaabVal makeBlock(std::shared_ptr<BlockValue> b);
@@ -189,10 +189,10 @@ public:
     // Heap type extraction (out-of-line, defined in naab_val.cpp)
     const std::string& asString() const;
     std::string& asStringMut();
-    std::vector<std::shared_ptr<Value>>& asList();
-    const std::vector<std::shared_ptr<Value>>& asListConst() const;
-    std::unordered_map<std::string, std::shared_ptr<Value>>& asDict();
-    const std::unordered_map<std::string, std::shared_ptr<Value>>& asDictConst() const;
+    std::vector<NaabVal>& asList();
+    const std::vector<NaabVal>& asListConst() const;
+    std::unordered_map<std::string, NaabVal>& asDict();
+    const std::unordered_map<std::string, NaabVal>& asDictConst() const;
     std::shared_ptr<FunctionValue>& asFunction();
     const std::shared_ptr<FunctionValue>& asFunctionConst() const;
     std::shared_ptr<StructValue>& asStruct();

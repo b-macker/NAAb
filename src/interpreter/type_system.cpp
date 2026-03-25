@@ -17,18 +17,16 @@ namespace interpreter {
 
 // Infer the type of a runtime value
 ast::Type Interpreter::inferValueType(NaabVal nval) {
+    // NaabVal fast path for primitives (no heap allocation)
+    if (nval.isInt()) return ast::Type::makeInt();
+    if (nval.isDouble()) return ast::Type::makeFloat();
+    if (nval.isBool()) return ast::Type::makeBool();
+    if (nval.isNull()) return ast::Type::makeVoid();
+    if (nval.isString()) return ast::Type::makeString();
+
+    // Complex types: fall through to legacy for variant access
     auto value = nval.toLegacy();
-    if (std::holds_alternative<int>(value->data)) {
-        return ast::Type::makeInt();
-    } else if (std::holds_alternative<double>(value->data)) {
-        return ast::Type::makeFloat();
-    } else if (std::holds_alternative<std::string>(value->data)) {
-        return ast::Type::makeString();
-    } else if (std::holds_alternative<bool>(value->data)) {
-        return ast::Type::makeBool();
-    } else if (std::holds_alternative<std::monostate>(value->data)) {
-        return ast::Type::makeVoid();
-    } else if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data)) {
+    if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data)) {
         // For lists, try to infer element type from first element
         const auto& list = std::get<std::vector<std::shared_ptr<Value>>>(value->data);
         if (!list.empty()) {
@@ -181,29 +179,32 @@ bool Interpreter::valueMatchesType(
     NaabVal nval,
     const ast::Type& type
 ) {
-    auto value = nval.toLegacy();
     // Phase 2.4.5: If type is nullable and value is null, that's valid
-    if (type.is_nullable && isNull(value)) {
+    if (type.is_nullable && nval.isNull()) {
         return true;
     }
 
     // Handle union types specially
     if (type.kind == ast::TypeKind::Union) {
-        return valueMatchesUnion(value, type.union_types);
+        return valueMatchesUnion(nval, type.union_types);
     }
 
-    // Check specific types
+    // NaabVal fast path for primitive types (no toLegacy needed)
     if (type.kind == ast::TypeKind::Int) {
-        return std::holds_alternative<int>(value->data);
+        return nval.isInt();
     } else if (type.kind == ast::TypeKind::Float) {
-        return std::holds_alternative<double>(value->data);
+        return nval.isDouble();
     } else if (type.kind == ast::TypeKind::String) {
-        return std::holds_alternative<std::string>(value->data);
+        return nval.isString();
     } else if (type.kind == ast::TypeKind::Bool) {
-        return std::holds_alternative<bool>(value->data);
+        return nval.isBool();
     } else if (type.kind == ast::TypeKind::Void) {
-        return std::holds_alternative<std::monostate>(value->data);
-    } else if (type.kind == ast::TypeKind::List) {
+        return nval.isNull();
+    }
+
+    // Complex types: fall through to legacy for variant access
+    auto value = nval.toLegacy();
+    if (type.kind == ast::TypeKind::List) {
         return std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data);
     } else if (type.kind == ast::TypeKind::Dict) {
         return std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data);
@@ -312,30 +313,21 @@ bool Interpreter::isNull(NaabVal value) {
 
 // Phase 2.4.4: Type inference - infer ast::Type from runtime Value
 ast::Type Interpreter::inferTypeFromValue(NaabVal nval) {
-    auto value = nval.toLegacy();
-    // Handle null/void
-    if (!value || std::holds_alternative<std::monostate>(value->data)) {
+    // NaabVal fast path for primitives (no toLegacy needed)
+    if (nval.isNull()) {
         // Null is ambiguous - could be any nullable type
-        // For inference, we'll return nullable any
         ast::Type t = ast::Type::makeAny();
         t.is_nullable = true;
         return t;
     }
+    if (nval.isInt()) return ast::Type::makeInt();
+    if (nval.isDouble()) return ast::Type::makeFloat();
+    if (nval.isBool()) return ast::Type::makeBool();
+    if (nval.isString()) return ast::Type::makeString();
 
-    // Check actual type held in variant
-    if (std::holds_alternative<int>(value->data)) {
-        return ast::Type::makeInt();
-    }
-    else if (std::holds_alternative<double>(value->data)) {
-        return ast::Type::makeFloat();
-    }
-    else if (std::holds_alternative<std::string>(value->data)) {
-        return ast::Type::makeString();
-    }
-    else if (std::holds_alternative<bool>(value->data)) {
-        return ast::Type::makeBool();
-    }
-    else if (auto* list_val = std::get_if<std::vector<std::shared_ptr<Value>>>(&value->data)) {
+    // Complex types: fall through to legacy for variant access
+    auto value = nval.toLegacy();
+    if (auto* list_val = std::get_if<std::vector<std::shared_ptr<Value>>>(&value->data)) {
         // Infer list element type from first element
         ast::Type list_type(ast::TypeKind::List);
         if (!list_val->empty()) {

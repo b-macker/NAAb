@@ -113,17 +113,17 @@ std::shared_ptr<interpreter::Value> jsonToValue(const json& j) {
     } else if (j.is_string()) {
         return std::make_shared<interpreter::Value>(j.get<std::string>());
     } else if (j.is_array()) {
-        std::vector<std::shared_ptr<interpreter::Value>> vec;
+        std::vector<interpreter::NaabVal> vec;
         for (const auto& item : j) {
-            vec.push_back(jsonToValue(item));
+            vec.push_back(interpreter::NaabVal::fromLegacy(jsonToValue(item)));
         }
-        return std::make_shared<interpreter::Value>(vec);
+        return std::make_shared<interpreter::Value>(std::move(vec));
     } else if (j.is_object()) {
-        std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> map;
+        std::unordered_map<std::string, interpreter::NaabVal> map;
         for (auto it = j.begin(); it != j.end(); ++it) {
-            map[it.key()] = jsonToValue(it.value());
+            map[it.key()] = interpreter::NaabVal::fromLegacy(jsonToValue(it.value()));
         }
-        return std::make_shared<interpreter::Value>(map);
+        return std::make_shared<interpreter::Value>(std::move(map));
     }
 
     // Unknown type - return null
@@ -145,16 +145,16 @@ json valueToJson(const interpreter::Value& val) {
             return arg;
         } else if constexpr (std::is_same_v<T, std::string>) {
             return arg;
-        } else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
+        } else if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
             json arr = json::array();
             for (const auto& item : arg) {
-                arr.push_back(valueToJson(*item));
+                arr.push_back(valueToJson(*item.toLegacy()));
             }
             return arr;
-        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>) {
+        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, interpreter::NaabVal>>) {
             json obj = json::object();
             for (const auto& [key, value] : arg) {
-                obj[key] = valueToJson(*value);
+                obj[key] = valueToJson(*value.toLegacy());
             }
             return obj;
         } else if constexpr (std::is_same_v<T, std::shared_ptr<interpreter::StructValue>>) {
@@ -166,8 +166,8 @@ json valueToJson(const interpreter::Value& val) {
 
                 for (size_t i = 0; i < fields.size() && i < values.size(); ++i) {
                     const std::string& field_name = fields[i].name;
-                    if (values[i]) {
-                        obj[field_name] = valueToJson(*values[i]);
+                    if (!values[i].isNull()) {
+                        obj[field_name] = valueToJson(*values[i].toLegacy());
                     } else {
                         obj[field_name] = nullptr;  // null field
                     }

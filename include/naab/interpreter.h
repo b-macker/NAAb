@@ -192,6 +192,7 @@ public:
 
     // Constructor from thrown value (implementation in .cpp to avoid forward declaration issues)
     explicit NaabError(std::shared_ptr<Value> value);
+    explicit NaabError(NaabVal value);
 
     // Getters
     const std::string& getMessage() const { return message_; }
@@ -243,7 +244,7 @@ struct StructDef {
 struct StructValue {
     std::string type_name;
     std::shared_ptr<StructDef> definition;
-    std::vector<std::shared_ptr<Value>> field_values;
+    std::vector<NaabVal> field_values;
 
     StructValue() = default;
     StructValue(std::string name, std::shared_ptr<StructDef> def)
@@ -254,7 +255,7 @@ struct StructValue {
     }
 
     // Optimized: inline for zero call overhead
-    inline std::shared_ptr<Value> getField(const std::string& name) const {
+    inline NaabVal getField(const std::string& name) const {
         if (!definition) [[unlikely]] {
             throw std::runtime_error("Struct has no definition");
         }
@@ -266,7 +267,7 @@ struct StructValue {
         return field_values[it->second];
     }
     // Optimized: inline for zero call overhead
-    inline void setField(const std::string& name, std::shared_ptr<Value> value) {
+    inline void setField(const std::string& name, NaabVal value) {
         if (!definition) [[unlikely]] {
             throw std::runtime_error("Struct has no definition");
         }
@@ -279,14 +280,14 @@ struct StructValue {
     }
 
     // Fast path: direct indexed access (bypasses hash lookup)
-    inline std::shared_ptr<Value> getFieldByIndex(size_t index) const {
+    inline NaabVal getFieldByIndex(size_t index) const {
         if (index >= field_values.size()) [[unlikely]] {
             throw std::runtime_error("Field index out of bounds");
         }
         return field_values[index];
     }
 
-    inline void setFieldByIndex(size_t index, std::shared_ptr<Value> value) {
+    inline void setFieldByIndex(size_t index, NaabVal value) {
         if (index >= field_values.size()) [[unlikely]] {
             throw std::runtime_error("Field index out of bounds");
         }
@@ -335,8 +336,8 @@ struct FutureValue {
 // Generator value for yield-based iteration (eager collection)
 struct GeneratorValue {
     std::shared_ptr<FunctionValue> func;  // The generator function
-    std::vector<std::shared_ptr<Value>> args;  // Arguments passed at creation
-    std::vector<std::shared_ptr<Value>> collected_values;  // Yielded values
+    std::vector<NaabVal> args;  // Arguments passed at creation
+    std::vector<NaabVal> collected_values;  // Yielded values
 };
 
 // Runtime value types
@@ -346,8 +347,8 @@ using ValueData = std::variant<
     double,          // index 2
     bool,            // index 3
     std::string,     // index 4
-    std::vector<std::shared_ptr<Value>>,  // list (index 5)
-    std::unordered_map<std::string, std::shared_ptr<Value>>,  // dict (index 6)
+    std::vector<NaabVal>,  // list (index 5)
+    std::unordered_map<std::string, NaabVal>,  // dict (index 6)
     std::shared_ptr<BlockValue>,  // block (index 7)
     std::shared_ptr<FunctionValue>,  // function (index 8)
     std::shared_ptr<PythonObjectValue>,  // python object (index 9)
@@ -365,8 +366,8 @@ public:
     explicit Value(double v) : data(v) {}
     explicit Value(bool v) : data(v) {}
     explicit Value(std::string v) : data(std::move(v)) {}
-    explicit Value(std::vector<std::shared_ptr<Value>> v) : data(std::move(v)) {}
-    explicit Value(std::unordered_map<std::string, std::shared_ptr<Value>> v) : data(std::move(v)) {}
+    explicit Value(std::vector<NaabVal> v) : data(std::move(v)) {}
+    explicit Value(std::unordered_map<std::string, NaabVal> v) : data(std::move(v)) {}
     explicit Value(std::shared_ptr<BlockValue> v) : data(std::move(v)) {}
     explicit Value(std::shared_ptr<FunctionValue> v) : data(std::move(v)) {}
     explicit Value(std::shared_ptr<PythonObjectValue> v) : data(std::move(v)) {}
@@ -389,15 +390,15 @@ public:
     Environment() : parent_(nullptr) {}
     explicit Environment(std::shared_ptr<Environment> parent) : parent_(parent) {}
 
-    void define(const std::string& name, std::shared_ptr<Value> value);
-    std::shared_ptr<Value> get(const std::string& name);
-    void set(const std::string& name, std::shared_ptr<Value> value);
+    void define(const std::string& name, NaabVal value);
+    NaabVal get(const std::string& name);
+    void set(const std::string& name, NaabVal value);
     bool has(const std::string& name) const;
     std::vector<std::string> getAllNames() const;
     std::vector<std::string> getOwnNames() const;
 
     // Phase 3.2: GC support - access to values for cycle detection
-    const std::unordered_map<std::string, std::shared_ptr<Value>>& getValues() const { return values_; }
+    const std::unordered_map<std::string, NaabVal>& getValues() const { return values_; }
     std::shared_ptr<Environment> getParent() const { return parent_; }
 
     // Exported structs from this module (Week 7)
@@ -407,7 +408,7 @@ public:
     std::unordered_map<std::string, std::shared_ptr<EnumDef>> exported_enums_;
 
 private:
-    std::unordered_map<std::string, std::shared_ptr<Value>> values_;
+    std::unordered_map<std::string, NaabVal> values_;
     std::shared_ptr<Environment> parent_;
 };
 

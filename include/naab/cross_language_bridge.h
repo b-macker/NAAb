@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include "naab/naab_val.h"
 
 // Forward declarations
 struct JSRuntime;
@@ -104,14 +105,14 @@ private:
 #ifdef HAVE_PYBIND11
     // Convert arrays/vectors
     py::list arrayToPython(
-        const std::vector<std::shared_ptr<interpreter::Value>>& arr);
-    std::vector<std::shared_ptr<interpreter::Value>> pythonToArray(
+        const std::vector<interpreter::NaabVal>& arr);
+    std::vector<interpreter::NaabVal> pythonToArray(
         const py::object& obj);
 
     // Convert dictionaries/maps
     py::dict dictToPython(
-        const std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>& dict);
-    std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> pythonToDict(
+        const std::unordered_map<std::string, interpreter::NaabVal>& dict);
+    std::unordered_map<std::string, interpreter::NaabVal> pythonToDict(
         const py::dict& obj);
 #endif
 

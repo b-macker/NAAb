@@ -63,10 +63,10 @@ py::object CrossLanguageBridge::valueToPython(
     return std::visit([this](auto&& arg) -> py::object {
         using T = std::decay_t<decltype(arg)>;
 
-        if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
+        if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
             return arrayToPython(arg);
         }
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>) {
+        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, interpreter::NaabVal>>) {
             return dictToPython(arg);
         }
         else if constexpr (std::is_same_v<T, std::shared_ptr<interpreter::StructValue>>) {
@@ -136,46 +136,46 @@ std::shared_ptr<interpreter::Value> CrossLanguageBridge::pythonToValue(
 }
 
 py::list CrossLanguageBridge::arrayToPython(
-    const std::vector<std::shared_ptr<interpreter::Value>>& arr) {
+    const std::vector<interpreter::NaabVal>& arr) {
 
     py::list result;
     for (const auto& item : arr) {
-        result.append(valueToPython(item));
+        result.append(valueToPython(item.toLegacy()));
     }
     return result;
 }
 
-std::vector<std::shared_ptr<interpreter::Value>> CrossLanguageBridge::pythonToArray(
+std::vector<interpreter::NaabVal> CrossLanguageBridge::pythonToArray(
     const py::object& obj) {
 
-    std::vector<std::shared_ptr<interpreter::Value>> result;
+    std::vector<interpreter::NaabVal> result;
 
     // Handle both list and tuple
     for (const auto& item : obj) {
-        result.push_back(pythonToValue(py::cast<py::object>(item)));
+        result.push_back(interpreter::NaabVal::fromLegacy(pythonToValue(py::cast<py::object>(item))));
     }
 
     return result;
 }
 
 py::dict CrossLanguageBridge::dictToPython(
-    const std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>& dict) {
+    const std::unordered_map<std::string, interpreter::NaabVal>& dict) {
 
     py::dict result;
     for (const auto& [key, value] : dict) {
-        result[py::str(key)] = valueToPython(value);
+        result[py::str(key)] = valueToPython(value.toLegacy());
     }
     return result;
 }
 
-std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>
+std::unordered_map<std::string, interpreter::NaabVal>
 CrossLanguageBridge::pythonToDict(const py::dict& obj) {
 
-    std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> result;
+    std::unordered_map<std::string, interpreter::NaabVal> result;
 
     for (const auto& item : obj) {
         std::string key = py::str(item.first).cast<std::string>();
-        result[key] = pythonToValue(py::cast<py::object>(item.second));
+        result[key] = interpreter::NaabVal::fromLegacy(pythonToValue(py::cast<py::object>(item.second)));
     }
 
     return result;
@@ -196,7 +196,7 @@ py::object CrossLanguageBridge::structToPython(
 
     for (size_t i = 0; i < s->definition->fields.size(); ++i) {
         const auto& field = s->definition->fields[i];
-        py::object field_val = valueToPython(s->field_values[i]);
+        py::object field_val = valueToPython(s->field_values[i].toLegacy());
         namespace_dict[py::str(field.name)] = field_val;
     }
 
@@ -239,7 +239,7 @@ std::shared_ptr<interpreter::Value> CrossLanguageBridge::pythonToStruct(
         }
 
         py::object py_field = obj.attr(field.name.c_str());
-        struct_val->field_values[i] = pythonToValue(py_field);
+        struct_val->field_values[i] = interpreter::NaabVal::fromLegacy(pythonToValue(py_field));
     }
 
     return std::make_shared<interpreter::Value>(struct_val);
@@ -280,23 +280,23 @@ JSValue CrossLanguageBridge::valueToJS(
     else if (std::holds_alternative<std::monostate>(val->data)) {
         result = JS_NULL;
     }
-    else if (std::holds_alternative<std::vector<std::shared_ptr<interpreter::Value>>>(val->data)) {
+    else if (std::holds_alternative<std::vector<interpreter::NaabVal>>(val->data)) {
         // Convert array to JavaScript array
-        const auto& arr = std::get<std::vector<std::shared_ptr<interpreter::Value>>>(val->data);
+        const auto& arr = std::get<std::vector<interpreter::NaabVal>>(val->data);
         result = JS_NewArray(ctx);
 
         for (size_t i = 0; i < arr.size(); ++i) {
-            JSValue elem = valueToJS(ctx, arr[i]);
-            JS_SetPropertyUint32(ctx, result, i, elem);
+            JSValue elem = valueToJS(ctx, arr[i].toLegacy());
+            JS_SetPropertyUint32(ctx, result, static_cast<uint32_t>(i), elem);
         }
     }
-    else if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(val->data)) {
+    else if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(val->data)) {
         // Convert dict to JavaScript object
-        const auto& dict = std::get<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(val->data);
+        const auto& dict = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(val->data);
         result = JS_NewObject(ctx);
 
         for (const auto& [key, value] : dict) {
-            JSValue val_js = valueToJS(ctx, value);
+            JSValue val_js = valueToJS(ctx, value.toLegacy());
             JS_SetPropertyStr(ctx, result, key.c_str(), val_js);
         }
     }
@@ -357,7 +357,7 @@ std::shared_ptr<interpreter::Value> CrossLanguageBridge::jsToValue(
 
     // Array
     if (JS_IsArray(ctx, val)) {
-        std::vector<std::shared_ptr<interpreter::Value>> arr;
+        std::vector<interpreter::NaabVal> arr;
 
         JSValue length_val = JS_GetPropertyStr(ctx, val, "length");
         int32_t length = 0;
@@ -365,17 +365,17 @@ std::shared_ptr<interpreter::Value> CrossLanguageBridge::jsToValue(
         JS_FreeValue(ctx, length_val);
 
         for (int32_t i = 0; i < length; ++i) {
-            JSValue elem = JS_GetPropertyUint32(ctx, val, i);
-            arr.push_back(jsToValue(ctx, elem));
+            JSValue elem = JS_GetPropertyUint32(ctx, val, static_cast<uint32_t>(i));
+            arr.push_back(interpreter::NaabVal::fromLegacy(jsToValue(ctx, elem)));
             JS_FreeValue(ctx, elem);
         }
 
-        return std::make_shared<interpreter::Value>(arr);
+        return std::make_shared<interpreter::Value>(std::move(arr));
     }
 
     // Object (dictionary)
     if (JS_IsObject(val) && !JS_IsFunction(ctx, val)) {
-        std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> dict;
+        std::unordered_map<std::string, interpreter::NaabVal> dict;
 
         // Get property names
         JSPropertyEnum* tab;
@@ -387,7 +387,7 @@ std::shared_ptr<interpreter::Value> CrossLanguageBridge::jsToValue(
 
                 if (key_str) {
                     JSValue prop_val = JS_GetProperty(ctx, val, tab[i].atom);
-                    dict[key_str] = jsToValue(ctx, prop_val);
+                    dict[key_str] = interpreter::NaabVal::fromLegacy(jsToValue(ctx, prop_val));
                     JS_FreeValue(ctx, prop_val);
                     JS_FreeCString(ctx, key_str);
                 }
@@ -398,7 +398,7 @@ std::shared_ptr<interpreter::Value> CrossLanguageBridge::jsToValue(
             js_free(ctx, tab);
         }
 
-        return std::make_shared<interpreter::Value>(dict);
+        return std::make_shared<interpreter::Value>(std::move(dict));
     }
 
     // Unsupported type
@@ -433,7 +433,7 @@ JSValue CrossLanguageBridge::structToJS(
     // Set fields (recursively convert values)
     for (size_t i = 0; i < s->definition->fields.size(); ++i) {
         const auto& field = s->definition->fields[i];
-        JSValue val = valueToJS(ctx, s->field_values[i]);
+        JSValue val = valueToJS(ctx, s->field_values[i].toLegacy());
         JS_DefinePropertyValueStr(ctx, obj, field.name.c_str(), val,
             JS_PROP_C_W_E);  // Configurable, writable, enumerable
     }
@@ -464,7 +464,7 @@ std::shared_ptr<interpreter::Value> CrossLanguageBridge::jsToStruct(
             throw std::runtime_error("JS object missing field: " + field.name);
         }
 
-        struct_val->field_values[i] = jsToValue(ctx, js_field);
+        struct_val->field_values[i] = interpreter::NaabVal::fromLegacy(jsToValue(ctx, js_field));
         JS_FreeValue(ctx, js_field);
     }
 
@@ -520,10 +520,10 @@ std::string CrossLanguageBridge::getTypeName(
         else if constexpr (std::is_same_v<T, std::string>) {
             return "string";
         }
-        else if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
+        else if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
             return "array";
         }
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>) {
+        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, interpreter::NaabVal>>) {
             return "object";
         }
         else {

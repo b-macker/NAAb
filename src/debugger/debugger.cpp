@@ -386,8 +386,8 @@ bool Debugger::evaluateCondition(const std::string& condition) {
         // Simple implementation: check if it's a variable name and evaluate truthiness
         if (auto* ident = dynamic_cast<ast::IdentifierExpr*>(expr.get())) {
             auto value = current_environment_->get(ident->getName());
-            if (value) {
-                return value->toBool();
+            if (!value.isNull()) {
+                return value.toBool();
             }
         }
 

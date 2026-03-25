@@ -131,11 +131,11 @@ NaabVal NaabVal::makeString(const char* s) {
     return makeHeap(new ValueBox(std::make_shared<Value>(std::string(s))));
 }
 
-NaabVal NaabVal::makeList(std::vector<std::shared_ptr<Value>> v) {
+NaabVal NaabVal::makeList(std::vector<NaabVal> v) {
     return makeHeap(new ValueBox(std::make_shared<Value>(std::move(v))));
 }
 
-NaabVal NaabVal::makeDict(std::unordered_map<std::string, std::shared_ptr<Value>> v) {
+NaabVal NaabVal::makeDict(std::unordered_map<std::string, NaabVal> v) {
     return makeHeap(new ValueBox(std::make_shared<Value>(std::move(v))));
 }
 
@@ -194,20 +194,20 @@ std::string& NaabVal::asStringMut() {
     return std::get<std::string>(asHeap()->shared_value->data);
 }
 
-std::vector<std::shared_ptr<Value>>& NaabVal::asList() {
-    return std::get<std::vector<std::shared_ptr<Value>>>(asHeap()->shared_value->data);
+std::vector<NaabVal>& NaabVal::asList() {
+    return std::get<std::vector<NaabVal>>(asHeap()->shared_value->data);
 }
 
-const std::vector<std::shared_ptr<Value>>& NaabVal::asListConst() const {
-    return std::get<std::vector<std::shared_ptr<Value>>>(asHeap()->shared_value->data);
+const std::vector<NaabVal>& NaabVal::asListConst() const {
+    return std::get<std::vector<NaabVal>>(asHeap()->shared_value->data);
 }
 
-std::unordered_map<std::string, std::shared_ptr<Value>>& NaabVal::asDict() {
-    return std::get<std::unordered_map<std::string, std::shared_ptr<Value>>>(asHeap()->shared_value->data);
+std::unordered_map<std::string, NaabVal>& NaabVal::asDict() {
+    return std::get<std::unordered_map<std::string, NaabVal>>(asHeap()->shared_value->data);
 }
 
-const std::unordered_map<std::string, std::shared_ptr<Value>>& NaabVal::asDictConst() const {
-    return std::get<std::unordered_map<std::string, std::shared_ptr<Value>>>(asHeap()->shared_value->data);
+const std::unordered_map<std::string, NaabVal>& NaabVal::asDictConst() const {
+    return std::get<std::unordered_map<std::string, NaabVal>>(asHeap()->shared_value->data);
 }
 
 std::shared_ptr<FunctionValue>& NaabVal::asFunction() {
@@ -348,6 +348,8 @@ NaabVal NaabVal::fromLegacy(const std::shared_ptr<Value>& v) {
             // Complex types: store the ORIGINAL shared_ptr (preserves identity).
             // This ensures toLegacy() returns the same pointer, so mutations
             // to arrays/dicts/structs affect the original object.
+            // Note: list/dict containers already store NaabVal elements (Phase E),
+            // so no recursive conversion needed — just wrap the Value.
             return makeHeap(new ValueBox(v));
         }
     }

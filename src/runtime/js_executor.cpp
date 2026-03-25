@@ -514,21 +514,21 @@ static JSValue toJSValue(JSContext* ctx, const std::shared_ptr<interpreter::Valu
         return JS_NewString(ctx, str.c_str());
     } else if (std::holds_alternative<std::monostate>(val->data)) {
         return JS_NULL;
-    } else if (std::holds_alternative<std::vector<std::shared_ptr<interpreter::Value>>>(val->data)) {
+    } else if (std::holds_alternative<std::vector<interpreter::NaabVal>>(val->data)) {
         // Array
-        const auto& vec = std::get<std::vector<std::shared_ptr<interpreter::Value>>>(val->data);
+        const auto& vec = std::get<std::vector<interpreter::NaabVal>>(val->data);
         JSValue arr = JS_NewArray(ctx);
         for (size_t i = 0; i < vec.size(); i++) {
-            JSValue elem = toJSValue(ctx, vec[i]);
+            JSValue elem = toJSValue(ctx, vec[i].toLegacy());
             JS_SetPropertyUint32(ctx, arr, static_cast<uint32_t>(i), elem);
         }
         return arr;
-    } else if (std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(val->data)) {
+    } else if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(val->data)) {
         // Dictionary/Object
-        const auto& map = std::get<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(val->data);
+        const auto& map = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(val->data);
         JSValue obj = JS_NewObject(ctx);
         for (const auto& [key, value] : map) {
-            JSValue prop_val = toJSValue(ctx, value);
+            JSValue prop_val = toJSValue(ctx, value.toLegacy());
             JS_SetPropertyStr(ctx, obj, key.c_str(), prop_val);
         }
         return obj;
@@ -593,26 +593,26 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
         JS_FreeValue(ctx, length_val);
 
         // Convert array elements
-        std::vector<std::shared_ptr<interpreter::Value>> naab_array;
+        std::vector<interpreter::NaabVal> naab_array;
         for (uint32_t i = 0; i < length; i++) {
             JSValue elem = JS_GetPropertyUint32(ctx, val, i);
 
             if (JS_IsException(elem)) {
                 JS_FreeValue(ctx, elem);
-                naab_array.push_back(std::make_shared<interpreter::Value>());
+                naab_array.push_back(interpreter::NaabVal::makeNull());
                 continue;
             }
 
-            naab_array.push_back(fromJSValue(ctx, elem));
+            naab_array.push_back(interpreter::NaabVal::fromLegacy(fromJSValue(ctx, elem)));
             JS_FreeValue(ctx, elem);
         }
 
-        return std::make_shared<interpreter::Value>(naab_array);
+        return std::make_shared<interpreter::Value>(std::move(naab_array));
     }
 
     // Object (but not array)
     if (JS_IsObject(val)) {
-        std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> naab_dict;
+        std::unordered_map<std::string, interpreter::NaabVal> naab_dict;
 
         // Get property names
         JSPropertyEnum* props = nullptr;
@@ -637,7 +637,7 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
                 continue;
             }
 
-            naab_dict[std::string(key)] = fromJSValue(ctx, prop_val);
+            naab_dict[std::string(key)] = interpreter::NaabVal::fromLegacy(fromJSValue(ctx, prop_val));
             JS_FreeValue(ctx, prop_val);
             JS_FreeCString(ctx, key);
         }
@@ -648,7 +648,7 @@ static std::shared_ptr<interpreter::Value> fromJSValue(JSContext* ctx, JSValue v
         }
         js_free(ctx, props);
 
-        return std::make_shared<interpreter::Value>(naab_dict);
+        return std::make_shared<interpreter::Value>(std::move(naab_dict));
     }
 
     // Unsupported type - return null

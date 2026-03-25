@@ -500,7 +500,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
 
         // Get only module's own names (not inherited from global_env_)
         for (const auto& name : module_env->getOwnNames()) {
-            module_dict[name] = module_env->get(name);
+            module_dict[name] = module_env->get(name).toLegacy();
         }
 
         // Add exported enum variants (defined in global_env_ by visit(EnumDecl))
@@ -583,7 +583,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 auto func_value = current_env_->get(func_decl->getName());
 
                 // Store in module exports
-                module_exports_[func_decl->getName()] = func_value;
+                module_exports_[func_decl->getName()] = func_value.toLegacy();
 
                 LOG_DEBUG("[INFO] Exported function: {}\n", func_decl->getName());
             }
@@ -600,7 +600,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
                 auto var_value = current_env_->get(var_decl->getName());
 
                 // Store in module exports
-                module_exports_[var_decl->getName()] = var_value;
+                module_exports_[var_decl->getName()] = var_value.toLegacy();
 
                 LOG_DEBUG("[INFO] Exported variable: {}\n", var_decl->getName());
             }
@@ -615,7 +615,7 @@ void Interpreter::visit(ast::ExportStmt& node) {
 
                 // Store as "default" export
                 module_exports_["default"] = value.toLegacy();
-                current_env_->define("default", value.toLegacy());
+                current_env_->define("default", value);
 
                 LOG_DEBUG("[INFO] Exported default expression\n");
             }

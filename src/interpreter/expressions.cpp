@@ -112,7 +112,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             if (right.isList() || right.isDict()) {
                 value_to_assign = copyValue(right);
             }
-            current_env_->set(id->getName(), value_to_assign.toLegacy());
+            current_env_->set(id->getName(), value_to_assign);
             result_ = value_to_assign;
 
             // Governance v4: Taint tracking on assignment (REFACTOR-1)
@@ -128,11 +128,11 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             }
         } else if (auto* member = dynamic_cast<ast::MemberExpr*>(node.getLeft())) {
             // Struct field assignment: obj.field = value
-            auto obj = eval(*member->getObject()).toLegacy();
+            auto obj = eval(*member->getObject());
 
-            if (auto* struct_ptr = std::get_if<std::shared_ptr<StructValue>>(&obj->data)) {
-                auto& struct_val = *struct_ptr;
-                struct_val->setField(member->getMember(), right.toLegacy());
+            if (obj.isStructVal()) {
+                auto& struct_val = obj.asStruct();
+                struct_val->setField(member->getMember(), right);
                 result_ = right;
 
                 // FIX-4: Taint propagation for struct field assignment (REFACTOR-1)
@@ -143,7 +143,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             } else {
                 std::ostringstream oss;
                 oss << "Type error: Cannot assign to property of non-struct value\n\n";
-                oss << "  Tried to assign to: " << getTypeName(obj) << "." << member->getMember() << "\n";
+                oss << "  Tried to assign to: " << obj.getTypeName() << "." << member->getMember() << "\n";
                 oss << "  Expected: struct\n\n";
                 oss << "  Help:\n";
                 oss << "  - Only structs support property assignment with dot notation\n";
@@ -159,13 +159,13 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // Array/dict element assignment: arr[index] = value, dict[key] = value
             if (subscript->getOp() == ast::BinaryOp::Subscript) {
                 // Evaluate the container (e.g., arr or dict)
-                auto container = eval(*subscript->getLeft()).toLegacy();
+                auto container = eval(*subscript->getLeft());
                 // Evaluate the index/key
                 auto index_or_key = eval(*subscript->getRight());
 
                 // Check if container is a list
-                if (auto* list_ptr = std::get_if<std::vector<std::shared_ptr<Value>>>(&container->data)) {
-                    auto& list = *list_ptr;
+                if (container.isList()) {
+                    auto& list = container.asList();
                     int index = index_or_key.toInt();
 
                     if (index < 0 || index >= static_cast<int>(list.size())) {
@@ -186,7 +186,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     }
 
                     // Modify list in place (safe cast after bounds check)
-                    list[static_cast<size_t>(index)] = right.toLegacy();
+                    list[static_cast<size_t>(index)] = right;
                     result_ = right;
 
                     // FIX-3: Taint propagation for array subscript assignment (REFACTOR-1)
@@ -196,12 +196,12 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     }
                 }
                 // Check if container is a dictionary
-                else if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, std::shared_ptr<Value>>>(&container->data)) {
-                    auto& dict = *dict_ptr;
+                else if (container.isDict()) {
+                    auto& dict = container.asDict();
                     std::string key = index_or_key.toString();
 
                     // Insert or update the key
-                    dict[key] = right.toLegacy();
+                    dict[key] = right;
                     result_ = right;
 
                     // FIX-3: Taint propagation for dict subscript assignment (REFACTOR-1)
@@ -260,9 +260,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
     // Don't evaluate right side yet - it needs special handling
     std::shared_ptr<Value> left, right;
     if (node.getOp() == ast::BinaryOp::Pipeline) {
-        left = eval(*node.getLeft()).toLegacy();
-        // Right side handling is in the switch case below - don't eval here!
-        // This prevents the CallExpr from being evaluated with wrong arg count
+        // Pipeline uses NaabVal path — left set inside case block
     } else {
         // For all other operators, evaluate both sides
         left = eval(*node.getLeft()).toLegacy();
@@ -272,17 +270,17 @@ void Interpreter::visit(ast::BinaryExpr& node) {
     switch (node.getOp()) {
         case ast::BinaryOp::Add:
             // List concatenation
-            if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(left->data) &&
-                std::holds_alternative<std::vector<std::shared_ptr<Value>>>(right->data)) {
-                auto& left_vec = std::get<std::vector<std::shared_ptr<Value>>>(left->data);
-                auto& right_vec = std::get<std::vector<std::shared_ptr<Value>>>(right->data);
+            if (std::holds_alternative<std::vector<NaabVal>>(left->data) &&
+                std::holds_alternative<std::vector<NaabVal>>(right->data)) {
+                auto& left_vec = std::get<std::vector<NaabVal>>(left->data);
+                auto& right_vec = std::get<std::vector<NaabVal>>(right->data);
 
-                std::vector<std::shared_ptr<Value>> combined;
+                std::vector<NaabVal> combined;
                 combined.reserve(left_vec.size() + right_vec.size());
                 combined.insert(combined.end(), left_vec.begin(), left_vec.end());
                 combined.insert(combined.end(), right_vec.begin(), right_vec.end());
 
-                result_ = std::make_shared<Value>(combined);
+                result_ = NaabVal::makeList(std::move(combined));
             }
             // String concatenation or numeric addition
             else if (std::holds_alternative<std::string>(left->data) ||
@@ -746,63 +744,41 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // Example: data |> func means func(data)
             //         data |> func(x) means func(data, x)
 
+            auto pipe_left = eval(*node.getLeft());
             LOG_DEBUG("[Pipeline] Starting pipeline operation\n");
-            LOG_DEBUG("[Pipeline] Left value: {}\n", left->toString());
+            LOG_DEBUG("[Pipeline] Left value: {}\n", pipe_left.toString());
 
-            // Right side must be a function call or identifier
-            if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
-                LOG_DEBUG("[Pipeline] Right side is CallExpr with {} args\n", call->getArgs().size());
-
-                // If right is a call: func(args...), insert left as first arg
-                // Create a new argument list with left prepended
-                std::vector<std::shared_ptr<Value>> args;
-                args.push_back(left);  // Piped value goes first
-
-                // Add existing arguments
-                for (const auto& arg_expr : call->getArgs()) {
-                    auto arg_val = eval(*arg_expr).toLegacy();
-                    LOG_DEBUG("[Pipeline] Adding arg: {}\n", arg_val->toString());
-                    args.push_back(arg_val);
-                }
-
-                LOG_DEBUG("[Pipeline] Total args after prepending: {}\n", args.size());
-
-                // Evaluate the callee
-                auto callee = eval(*call->getCallee()).toLegacy();
-                LOG_DEBUG("[Pipeline] Callee evaluated\n");
-
-                // Call the function with the modified arguments
-                if (auto* block = std::get_if<std::shared_ptr<BlockValue>>(&callee->data)) {
-                    // Block execution - call the block's main function
-                    auto* executor = (*block)->getExecutor();
+            // Helper lambda: dispatch NaabVal callee + args, handling blocks vs functions
+            auto dispatchPipeline = [&](NaabVal callee, std::vector<NaabVal>& nval_args) {
+                if (callee.isBlock()) {
+                    auto& block = callee.asBlock();
+                    auto* executor = block->getExecutor();
                     if (!executor) {
                         throw std::runtime_error("No executor for block in pipeline");
                     }
-                    result_ = executor->callFunction((*block)->metadata.block_id, args);
-                    flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
+                    // Block executor still needs vector<shared_ptr<Value>>
+                    std::vector<std::shared_ptr<Value>> legacy_args;
+                    legacy_args.reserve(nval_args.size());
+                    for (auto& a : nval_args) legacy_args.push_back(a.toLegacy());
+                    result_ = executor->callFunction(block->metadata.block_id, legacy_args);
+                    flushExecutorOutput(executor);
 
-                    // Phase 4.4: Record block usage for analytics
                     if (block_loader_) {
-                        int tokens_saved = ((*block)->metadata.token_count > 0)
-                            ? (*block)->metadata.token_count
-                            : 50;
-                        block_loader_->recordBlockUsage((*block)->metadata.block_id, tokens_saved);
-
-                        // Record block pair if there was a previous block
+                        int tokens_saved = (block->metadata.token_count > 0)
+                            ? block->metadata.token_count : 50;
+                        block_loader_->recordBlockUsage(block->metadata.block_id, tokens_saved);
                         if (!last_executed_block_id_.empty()) {
-                            block_loader_->recordBlockPair(last_executed_block_id_, (*block)->metadata.block_id);
+                            block_loader_->recordBlockPair(last_executed_block_id_, block->metadata.block_id);
                         }
-                        last_executed_block_id_ = (*block)->metadata.block_id;
+                        last_executed_block_id_ = block->metadata.block_id;
                     }
-                } else if (auto* func = std::get_if<std::shared_ptr<FunctionValue>>(&callee->data)) {
-                    // User-defined function execution - use callFunction for proper validation
-                    // This ensures argument count validation and default parameter handling
-                    LOG_DEBUG("[Pipeline] Calling function {} with {} args\n", (*func)->name, args.size());
-                    result_ = callFunction(callee, args);
+                } else if (callee.isFunction()) {
+                    LOG_DEBUG("[Pipeline] Calling function with {} args\n", nval_args.size());
+                    result_ = callFunction(callee, nval_args);
                 } else {
                     std::ostringstream oss;
                     oss << "Type error: Pipeline requires callable function\n\n";
-                    oss << "  Right side type: " << getTypeName(callee) << "\n";
+                    oss << "  Got type: " << getTypeName(callee) << "\n";
                     oss << "  Expected: function or block\n\n";
                     oss << "  Help:\n";
                     oss << "  - Pipeline operator |> passes left value to a function\n";
@@ -813,74 +789,35 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     oss << "    ✓ Right: value |> transform\n";
                     throw std::runtime_error(oss.str());
                 }
+            };
+
+            // Right side must be a function call or identifier
+            if (auto* call = dynamic_cast<ast::CallExpr*>(node.getRight())) {
+                LOG_DEBUG("[Pipeline] Right side is CallExpr with {} args\n", call->getArgs().size());
+
+                std::vector<NaabVal> nval_args;
+                nval_args.push_back(pipe_left);  // Piped value goes first
+
+                for (const auto& arg_expr : call->getArgs()) {
+                    auto arg_val = eval(*arg_expr);
+                    LOG_DEBUG("[Pipeline] Adding arg: {}\n", arg_val.toString());
+                    nval_args.push_back(arg_val);
+                }
+                LOG_DEBUG("[Pipeline] Total args after prepending: {}\n", nval_args.size());
+
+                auto callee = eval(*call->getCallee());
+                LOG_DEBUG("[Pipeline] Callee evaluated\n");
+                dispatchPipeline(callee, nval_args);
 
             } else if (auto* id = dynamic_cast<ast::IdentifierExpr*>(node.getRight())) {
-                // If right is identifier: funcName, create call with left as argument
-                auto callee = eval(*id).toLegacy();
-                std::vector<std::shared_ptr<Value>> args = {left};
+                auto callee = eval(*id);
+                std::vector<NaabVal> nval_args = {pipe_left};
+                dispatchPipeline(callee, nval_args);
 
-                if (auto* block = std::get_if<std::shared_ptr<BlockValue>>(&callee->data)) {
-                    auto* executor = (*block)->getExecutor();
-                    if (!executor) {
-                        throw std::runtime_error("No executor for block in pipeline");
-                    }
-                    result_ = executor->callFunction((*block)->metadata.block_id, args);
-                    flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
-
-                    // Phase 4.4: Record block usage for analytics
-                    if (block_loader_) {
-                        int tokens_saved = ((*block)->metadata.token_count > 0)
-                            ? (*block)->metadata.token_count
-                            : 50;
-                        block_loader_->recordBlockUsage((*block)->metadata.block_id, tokens_saved);
-
-                        // Record block pair if there was a previous block
-                        if (!last_executed_block_id_.empty()) {
-                            block_loader_->recordBlockPair(last_executed_block_id_, (*block)->metadata.block_id);
-                        }
-                        last_executed_block_id_ = (*block)->metadata.block_id;
-                    }
-                } else if (auto* func = std::get_if<std::shared_ptr<FunctionValue>>(&callee->data)) {
-                    (void)func;  // Type check only, value not needed
-                    // Use callFunction for proper validation
-                    std::vector<std::shared_ptr<Value>> args = {left};
-                    result_ = callFunction(callee, args);
-                } else {
-                    std::ostringstream oss;
-                    oss << "Type error: Pipeline requires callable function\n\n";
-                    oss << "  Identifier type: " << getTypeName(callee) << "\n";
-                    oss << "  Expected: function or block\n\n";
-                    oss << "  Help:\n";
-                    oss << "  - Pipeline operator |> passes left value to a function\n";
-                    oss << "  - The identifier must refer to a function\n\n";
-                    oss << "  Example:\n";
-                    oss << "    let transform = function(x) { return x * 2 }\n";
-                    oss << "    ✗ Wrong: let x = 42; value |> x  // x is not a function\n";
-                    oss << "    ✓ Right: value |> transform\n";
-                    throw std::runtime_error(oss.str());
-                }
             } else {
-                // Try evaluating the right side as an expression (handles lambdas, etc.)
-                auto callee = eval(*node.getRight()).toLegacy();
-                if (auto* func = std::get_if<std::shared_ptr<FunctionValue>>(&callee->data)) {
-                    (void)func;
-                    std::vector<std::shared_ptr<Value>> args = {left};
-                    result_ = callFunction(callee, args);
-                } else {
-                    std::ostringstream oss;
-                    oss << "Type error: Pipeline requires callable function\n\n";
-                    oss << "  Right side type: " << getTypeName(callee) << "\n";
-                    oss << "  Expected: function, lambda, or block\n\n";
-                    oss << "  Help:\n";
-                    oss << "  - Use function call: value |> func(arg1, arg2)\n";
-                    oss << "  - Use identifier: value |> transform\n";
-                    oss << "  - Use lambda: value |> (x) => x * 2\n\n";
-                    oss << "  Example:\n";
-                    oss << "    ✓ Right: 100 |> subtract(50)\n";
-                    oss << "    ✓ Right: 100 |> double\n";
-                    oss << "    ✓ Right: 100 |> (x) => x * 2\n";
-                    throw std::runtime_error(oss.str());
-                }
+                auto callee = eval(*node.getRight());
+                std::vector<NaabVal> nval_args = {pipe_left};
+                dispatchPipeline(callee, nval_args);
             }
             break;
         }
@@ -1194,24 +1131,24 @@ void Interpreter::visit(ast::LiteralExpr& node) {
 }
 
 void Interpreter::visit(ast::DictExpr& node) {
-    std::unordered_map<std::string, std::shared_ptr<Value>> dict;
+    std::unordered_map<std::string, NaabVal> dict;
     for (const auto& [key_expr, val_expr] : node.getEntries()) {
         auto key = eval(*key_expr);
         auto val = eval(*val_expr);
-        dict[key.toString()] = val.toLegacy();
+        dict[key.toString()] = val;
     }
-    result_ = std::make_shared<Value>(dict);
+    result_ = NaabVal::makeDict(std::move(dict));
 
     // Phase 3.2: Track allocation for automatic GC
     trackAllocation();
 }
 
 void Interpreter::visit(ast::ListExpr& node) {
-    std::vector<std::shared_ptr<Value>> list;
+    std::vector<NaabVal> list;
     for (auto& elem : node.getElements()) {
-        list.push_back(eval(*elem).toLegacy());
+        list.push_back(eval(*elem));
     }
-    result_ = std::make_shared<Value>(list);
+    result_ = NaabVal::makeList(std::move(list));
 
     // Phase 3.2: Track allocation for automatic GC
     trackAllocation();
@@ -1346,7 +1283,7 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
             }
         }
 
-        struct_val->field_values[idx] = field_value.toLegacy();
+        struct_val->field_values[idx] = field_value;
     }
 
     // Check required fields (all fields are currently required - no default values yet)

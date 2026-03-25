@@ -37,13 +37,14 @@ void CycleDetector::markFromEnvironment(
         return;
     }
 
-    // Get all values in this environment
+    // Get all values in this environment (now NaabVal)
     const auto& values = env->getValues();
 
-    for (const auto& [name, value] : values) {
-        if (value) {
-            markReachable(value, visited, reachable);
-        }
+    for (const auto& [name, nval] : values) {
+        // Traverse NaabVal to reach contained shared_ptr<Value> for marking
+        nval.traverse([&](std::shared_ptr<Value> child) {
+            markReachable(child, visited, reachable);
+        });
     }
 
     // Recursively process parent environment

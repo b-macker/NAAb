@@ -192,13 +192,11 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         auto value = current_env_->get(var_name);
 
         // For all languages: use string serialization
-        std::string serialized = serializeValueForLanguage(NaabVal(value), language);
+        std::string serialized = serializeValueForLanguage(value, language);
 
         // FIX-DX-10: Warn when complex types bound to languages needing manual parsing
-        if (value) {
-            bool is_complex_type = (
-                std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data) ||
-                std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data));
+        if (!value.isNull()) {
+            bool is_complex_type = value.isList() || value.isDict();
             if (is_complex_type) {
                 if (language == "go") {
                     fmt::print(stderr, "[HINT] Binding NAAb dict/array to Go var '{}' — "
@@ -213,8 +211,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         }
 
         // FIX-DX-13: Hint when bound string looks like JSON (roundtrip waste)
-        if (value && std::holds_alternative<std::string>(value->data)) {
-            const auto& sv = std::get<std::string>(value->data);
+        if (!value.isNull() && value.isString()) {
+            const auto& sv = value.asString();
             if (sv.size() >= 2 && (sv[0] == '{' || sv[0] == '[') &&
                 (sv.back() == '}' || sv.back() == ']')) {
                 fmt::print(stderr, "[HINT] Variable '{}' looks like a JSON string. "
@@ -235,9 +233,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 var_declarations += "const " + var_name + " = " + serialized + ";\n";
             } else if (language == "go") {
                 // Go: const only works for primitives; use var for complex types
-                bool is_complex = value && (
-                    std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data) ||
-                    std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data));
+                bool is_complex = !value.isNull() && (value.isList() || value.isDict());
                 if (is_complex) {
                     var_declarations += "var " + var_name + " = " + serialized + "\n";
                 } else {
@@ -475,15 +471,15 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
 
             // Skip modules and functions (not bindable variables)
             auto val = current_env_->get(env_name);
-            if (val) {
+            if (!val.isNull()) {
                 // Skip if it holds a stdlib module marker string
-                if (std::holds_alternative<std::string>(val->data)) {
-                    const auto& s = std::get<std::string>(val->data);
+                if (val.isString()) {
+                    const auto& s = val.asString();
                     if (s.size() >= 18 && s.substr(0, 18) == "__stdlib_module__:") continue;
                     if (s.size() >= 10 && s.substr(0, 10) == "__module__:") continue;
                 }
                 // Skip if it holds a function
-                if (std::holds_alternative<std::shared_ptr<FunctionValue>>(val->data)) continue;
+                if (val.isFunction()) continue;
             }
 
             // Check if the variable name appears as a whole word in STRIPPED code

@@ -33,19 +33,19 @@ static std::shared_ptr<interpreter::Value> parseValue(const nlohmann::json& j) {
     }
 
     if (j.is_array()) {
-        std::vector<std::shared_ptr<interpreter::Value>> arr;
+        std::vector<interpreter::NaabVal> arr;
         for (const auto& item : j) {
-            arr.push_back(parseValue(item));
+            arr.push_back(interpreter::NaabVal::fromLegacy(parseValue(item)));
         }
-        return std::make_shared<interpreter::Value>(arr);
+        return std::make_shared<interpreter::Value>(std::move(arr));
     }
 
     if (j.is_object()) {
-        std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> obj;
+        std::unordered_map<std::string, interpreter::NaabVal> obj;
         for (auto it = j.begin(); it != j.end(); ++it) {
-            obj[it.key()] = parseValue(it.value());
+            obj[it.key()] = interpreter::NaabVal::fromLegacy(parseValue(it.value()));
         }
-        return std::make_shared<interpreter::Value>(obj);
+        return std::make_shared<interpreter::Value>(std::move(obj));
     }
 
     // Unknown type - return as string

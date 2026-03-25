@@ -168,6 +168,9 @@ NaabError::NaabError(std::shared_ptr<Value> value)
     }
 }
 
+NaabError::NaabError(NaabVal value)
+    : NaabError(value.toLegacy()) {}
+
 std::string NaabError::errorTypeToString(ErrorType type) {
     switch (type) {
         case ErrorType::GENERIC:         return "Error";
@@ -313,28 +316,28 @@ void Value::traverse(std::function<void(std::shared_ptr<Value>)> visitor) const 
     std::visit([&visitor](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
 
-        // Visit list elements
-        if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<Value>>>) {
+        // Visit list elements (now NaabVal)
+        if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
             for (const auto& elem : arg) {
-                if (elem) {
-                    visitor(elem);
+                if (!elem.isNull()) {
+                    visitor(elem.toLegacy());
                 }
             }
         }
-        // Visit dict values
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, std::shared_ptr<Value>>>) {
+        // Visit dict values (now NaabVal)
+        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
             for (const auto& [key, val] : arg) {
-                if (val) {
-                    visitor(val);
+                if (!val.isNull()) {
+                    visitor(val.toLegacy());
                 }
             }
         }
-        // Visit struct fields
+        // Visit struct fields (now NaabVal)
         else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
             if (arg) {
                 for (const auto& field_val : arg->field_values) {
-                    if (field_val) {
-                        visitor(field_val);
+                    if (!field_val.isNull()) {
+                        visitor(field_val.toLegacy());
                     }
                 }
             }
@@ -347,11 +350,11 @@ void Value::traverse(std::function<void(std::shared_ptr<Value>)> visitor) const 
 // Environment Implementation
 // ============================================================================
 
-void Environment::define(const std::string& name, std::shared_ptr<Value> value) {
-    values_[name] = value;
+void Environment::define(const std::string& name, NaabVal value) {
+    values_[name] = std::move(value);
 }
 
-std::shared_ptr<Value> Environment::get(const std::string& name) {
+NaabVal Environment::get(const std::string& name) {
     auto it = values_.find(name);
     if (it != values_.end()) {
         return it->second;
@@ -463,14 +466,14 @@ std::shared_ptr<Value> Environment::get(const std::string& name) {
     throw std::runtime_error(error_msg);
 }
 
-void Environment::set(const std::string& name, std::shared_ptr<Value> value) {
+void Environment::set(const std::string& name, NaabVal value) {
     auto it = values_.find(name);
     if (it != values_.end()) {
-        it->second = value;
+        it->second = std::move(value);
         return;
     }
     if (parent_) {
-        parent_->set(name, value);
+        parent_->set(name, std::move(value));
         return;
     }
 
@@ -737,10 +740,10 @@ NaabVal Interpreter::executeBodyInEnv(ast::CompoundStmt& body, std::shared_ptr<E
 NaabVal Interpreter::getVariable(const std::string& name) const {
     // Try current environment first, then global
     if (current_env_ && current_env_->has(name)) {
-        return NaabVal::fromLegacy(current_env_->get(name));
+        return current_env_->get(name);
     }
     if (global_env_ && global_env_->has(name)) {
-        return NaabVal::fromLegacy(global_env_->get(name));
+        return global_env_->get(name);
     }
     return NaabVal::makeNull();
 }
@@ -879,7 +882,7 @@ void Interpreter::visit(ast::Program& node) {
         std::vector<std::string> func_names;
         for (const auto& fname : all_names) {
             auto val = current_env_->get(fname);
-            if (val && std::holds_alternative<std::shared_ptr<FunctionValue>>(val->data)) {
+            if (!val.isNull() && val.isFunction()) {
                 func_names.push_back(fname);
             }
         }
@@ -1774,7 +1777,7 @@ void Interpreter::visit(ast::YieldExpr& node) {
     }
 
     // Evaluate the yielded value and collect it
-    auto value = eval(*node.getExpr()).toLegacy();
+    auto value = eval(*node.getExpr());
     active_generator_->collected_values.push_back(value);
     result_ = std::make_shared<Value>();  // yield itself returns void
 }
@@ -2013,8 +2016,7 @@ void Interpreter::visit(ast::ForStmt& node) {
         }
         for (size_t i = gen->args.size(); i < func->params.size(); i++) {
             if (func->defaults[i]) {
-                auto def_val = eval(*func->defaults[i]).toLegacy();
-                func_env->define(func->params[i], def_val);
+                func_env->define(func->params[i], eval(*func->defaults[i]));
             }
         }
 
@@ -2053,7 +2055,7 @@ void Interpreter::visit(ast::ForStmt& node) {
                 std::string err = governance_->checkLoopIterations(++iter_count);
                 if (!err.empty()) throw std::runtime_error(err);
             }
-            defineLoopVar(item);
+            defineLoopVar(item.toLegacy());
             node.getBody()->accept(*this);
             if (returning_) break;
             if (breaking_) { breaking_ = false; break; }
@@ -2205,11 +2207,11 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
         }
     }
 
-    std::shared_ptr<Value> value;
+    NaabVal value;
     if (node.getInit()) {
-        value = eval(*node.getInit()).toLegacy();
+        value = eval(*node.getInit());
     } else {
-        value = std::make_shared<Value>();
+        value = NaabVal::makeNull();
     }
 
     // Governance v4: Taint tracking — mark variables from taint sources (REFACTOR-1)
@@ -2287,9 +2289,8 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
 
     // Deep copy arrays and dicts to prevent silent mutations
     // When you do "let arr2 = arr1", both should be independent copies
-    if (std::holds_alternative<std::vector<std::shared_ptr<Value>>>(value->data) ||
-        std::holds_alternative<std::unordered_map<std::string, std::shared_ptr<Value>>>(value->data)) {
-        value = copyValue(NaabVal(value)).toLegacy();
+    if (value.isList() || value.isDict()) {
+        value = copyValue(value);
     }
 
     current_env_->define(node.getName(), value);
@@ -2529,8 +2530,7 @@ void Interpreter::visit(ast::TryStmt& node) {
 }
 
 void Interpreter::visit(ast::ThrowStmt& node) {
-    auto value = eval(*node.getExpr()).toLegacy();
-    throw NaabException(value);
+    throw NaabException(eval(*node.getExpr()));
 }
 // ============================================================================
 
@@ -2801,7 +2801,7 @@ std::unordered_map<std::string, std::shared_ptr<Value>> Interpreter::getCurrentS
         auto names = current_env_->getAllNames();
         for (const auto& name : names) {
             auto val = current_env_->get(name);
-            if (val) result[name] = val;
+            if (!val.isNull()) result[name] = val.toLegacy();
         }
     }
     return result;

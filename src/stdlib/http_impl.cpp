@@ -148,19 +148,19 @@ std::shared_ptr<interpreter::Value> performRequest(
     curl_easy_cleanup(curl);
 
     // Build response object
-    std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> response;
-    response["status"] = std::make_shared<interpreter::Value>(static_cast<int>(response_code));
-    response["body"] = std::make_shared<interpreter::Value>(response_body);
-    response["ok"] = std::make_shared<interpreter::Value>(response_code >= 200 && response_code < 300);
+    std::unordered_map<std::string, interpreter::NaabVal> response;
+    response["status"] = interpreter::NaabVal::makeInt(static_cast<int>(response_code));
+    response["body"] = interpreter::NaabVal::makeString(response_body);
+    response["ok"] = interpreter::NaabVal::makeBool(response_code >= 200 && response_code < 300);
 
     // Convert headers map to Value map
-    std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> headers_value_map;
+    std::unordered_map<std::string, interpreter::NaabVal> headers_value_map;
     for (const auto& [key, value] : response_headers) {
-        headers_value_map[key] = std::make_shared<interpreter::Value>(value);
+        headers_value_map[key] = interpreter::NaabVal::makeString(value);
     }
-    response["headers"] = std::make_shared<interpreter::Value>(headers_value_map);
+    response["headers"] = interpreter::NaabVal::makeDict(std::move(headers_value_map));
 
-    return std::make_shared<interpreter::Value>(response);
+    return std::make_shared<interpreter::Value>(std::move(response));
 }
 
 bool HTTPModule::hasFunction(const std::string& name) const {
@@ -227,9 +227,9 @@ std::shared_ptr<interpreter::Value> HTTPModule::get(
     // Optional: headers dict
     std::unordered_map<std::string, std::string> headers;
     if (args.size() >= 2) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[1]->data)) {
+        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[1]->data)) {
             for (const auto& [k, v] : *dict) {
-                headers[k] = v->toString();
+                headers[k] = v.toString();
             }
         }
     }
@@ -257,9 +257,9 @@ std::shared_ptr<interpreter::Value> HTTPModule::post(
     std::unordered_map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";  // Default to JSON
     if (args.size() >= 3) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[2]->data)) {
+        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[2]->data)) {
             for (const auto& [k, v] : *dict) {
-                headers[k] = v->toString();
+                headers[k] = v.toString();
             }
         }
     }
@@ -287,9 +287,9 @@ std::shared_ptr<interpreter::Value> HTTPModule::put(
     std::unordered_map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";
     if (args.size() >= 3) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[2]->data)) {
+        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[2]->data)) {
             for (const auto& [k, v] : *dict) {
-                headers[k] = v->toString();
+                headers[k] = v.toString();
             }
         }
     }
@@ -315,9 +315,9 @@ std::shared_ptr<interpreter::Value> HTTPModule::del(
     // Optional: headers
     std::unordered_map<std::string, std::string> headers;
     if (args.size() >= 2) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[1]->data)) {
+        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[1]->data)) {
             for (const auto& [k, v] : *dict) {
-                headers[k] = v->toString();
+                headers[k] = v.toString();
             }
         }
     }
@@ -342,9 +342,9 @@ std::shared_ptr<interpreter::Value> HTTPModule::head(
 
     std::unordered_map<std::string, std::string> headers;
     if (args.size() >= 2) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[1]->data)) {
+        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[1]->data)) {
             for (const auto& [k, v] : *dict) {
-                headers[k] = v->toString();
+                headers[k] = v.toString();
             }
         }
     }
@@ -370,9 +370,9 @@ std::shared_ptr<interpreter::Value> HTTPModule::patch(
     std::unordered_map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";
     if (args.size() >= 3) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, std::shared_ptr<interpreter::Value>>>(&args[2]->data)) {
+        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[2]->data)) {
             for (const auto& [k, v] : *dict) {
-                headers[k] = v->toString();
+                headers[k] = v.toString();
             }
         }
     }

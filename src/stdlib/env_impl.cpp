@@ -239,18 +239,18 @@ std::shared_ptr<interpreter::Value> EnvModule::call(
         // Use args provider callback if available
         if (args_provider_) {
             std::vector<std::string> script_args = args_provider_();
-            std::vector<std::shared_ptr<interpreter::Value>> args_list;
+            std::vector<interpreter::NaabVal> args_list;
             args_list.reserve(script_args.size());
 
             for (const auto& arg : script_args) {
-                args_list.push_back(makeString(arg));
+                args_list.push_back(interpreter::NaabVal::fromLegacy(makeString(arg)));
             }
 
             return std::make_shared<interpreter::Value>(std::move(args_list));
         } else {
             // Return empty list if no provider set
             return std::make_shared<interpreter::Value>(
-                std::vector<std::shared_ptr<interpreter::Value>>{}
+                std::vector<interpreter::NaabVal>{}
             );
         }
     }
@@ -333,11 +333,11 @@ static std::shared_ptr<interpreter::Value> makeBool(bool b) {
 }
 
 static std::shared_ptr<interpreter::Value> makeMap(const std::unordered_map<std::string, std::string>& m) {
-    std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> result;
+    std::unordered_map<std::string, interpreter::NaabVal> result;
     for (const auto& pair : m) {
-        result[pair.first] = makeString(pair.second);
+        result[pair.first] = interpreter::NaabVal::fromLegacy(makeString(pair.second));
     }
-    return std::make_shared<interpreter::Value>(result);
+    return std::make_shared<interpreter::Value>(std::move(result));
 }
 
 static std::shared_ptr<interpreter::Value> makeNull() {

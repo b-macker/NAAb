@@ -387,13 +387,13 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::pyObjectToValue(PyObject* o
 
     // List
     if (PyList_Check(obj)) {
-        std::vector<std::shared_ptr<interpreter::Value>> vec;
+        std::vector<interpreter::NaabVal> vec;
         Py_ssize_t size = PyList_Size(obj);
         vec.reserve(size);
 
         for (Py_ssize_t i = 0; i < size; i++) {
             PyObject* item = PyList_GetItem(obj, i);  // Borrowed reference
-            vec.push_back(pyObjectToValue(item));
+            vec.push_back(interpreter::NaabVal::fromLegacy(pyObjectToValue(item)));
         }
 
         return std::make_shared<interpreter::Value>(std::move(vec));
@@ -401,13 +401,13 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::pyObjectToValue(PyObject* o
 
     // Tuple (convert to list)
     if (PyTuple_Check(obj)) {
-        std::vector<std::shared_ptr<interpreter::Value>> vec;
+        std::vector<interpreter::NaabVal> vec;
         Py_ssize_t size = PyTuple_Size(obj);
         vec.reserve(size);
 
         for (Py_ssize_t i = 0; i < size; i++) {
             PyObject* item = PyTuple_GetItem(obj, i);  // Borrowed reference
-            vec.push_back(pyObjectToValue(item));
+            vec.push_back(interpreter::NaabVal::fromLegacy(pyObjectToValue(item)));
         }
 
         return std::make_shared<interpreter::Value>(std::move(vec));
@@ -415,7 +415,7 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::pyObjectToValue(PyObject* o
 
     // Dict
     if (PyDict_Check(obj)) {
-        std::unordered_map<std::string, std::shared_ptr<interpreter::Value>> map;
+        std::unordered_map<std::string, interpreter::NaabVal> map;
 
         PyObject *key, *value;
         Py_ssize_t pos = 0;
@@ -431,7 +431,7 @@ std::shared_ptr<interpreter::Value> PythonCExecutor::pyObjectToValue(PyObject* o
                 throw std::runtime_error("Failed to convert dictionary key to string");
             }
 
-            map[key_str] = pyObjectToValue(value);
+            map[key_str] = interpreter::NaabVal::fromLegacy(pyObjectToValue(value));
         }
 
         return std::make_shared<interpreter::Value>(std::move(map));

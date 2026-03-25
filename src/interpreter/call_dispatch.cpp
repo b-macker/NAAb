@@ -40,9 +40,21 @@ static std::string getTypeName(const std::shared_ptr<Value>& val) {
 }
 
 
-// Call a function value with arguments (for higher-order functions like map/filter/reduce)
+// Legacy bridge: converts shared_ptr args to NaabVal and delegates
 NaabVal Interpreter::callFunction(std::shared_ptr<Value> fn,
                                    const std::vector<std::shared_ptr<Value>>& args) {
+    NaabVal fn_val(fn);
+    std::vector<NaabVal> nval_args;
+    nval_args.reserve(args.size());
+    for (const auto& a : args) {
+        nval_args.emplace_back(a);
+    }
+    return callFunction(std::move(fn_val), nval_args);
+}
+
+// Primary callFunction — works with NaabVal directly (no heap alloc for primitive args)
+NaabVal Interpreter::callFunction(NaabVal fn,
+                                   const std::vector<NaabVal>& args) {
     // Week 1, Task 1.3: Check call depth to prevent stack overflow
     // Governance: Use governance call depth limit if configured
     size_t max_depth = limits::MAX_CALL_STACK_DEPTH;
@@ -74,11 +86,10 @@ NaabVal Interpreter::callFunction(std::shared_ptr<Value> fn,
     } guard(call_depth_);
 
     // Check if it's a function value
-    auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&fn->data);
-    if (!func_ptr) {
+    if (!fn.isFunction()) {
         std::ostringstream oss;
         oss << "Type error: Cannot call non-function value\n\n";
-        oss << "  Attempted to call: " << getTypeName(fn) << "\n";
+        oss << "  Attempted to call: " << fn.getTypeName() << "\n";
         oss << "  Expected: function\n\n";
         oss << "  Help:\n";
         oss << "  - Only functions can be called with ()\n";
@@ -89,7 +100,7 @@ NaabVal Interpreter::callFunction(std::shared_ptr<Value> fn,
         oss << "    ✓ Right: let f = function() { ... }; f()\n";
         throw std::runtime_error(oss.str());
     }
-    auto& func = *func_ptr;
+    auto& func = fn.asFunction();
 
     // Phase 5: Generator function — return GeneratorValue instead of executing
     if (func->is_generator) {
@@ -149,9 +160,8 @@ NaabVal Interpreter::callFunction(std::shared_ptr<Value> fn,
                 auto saved_env = current_env_;
                 current_env_ = func_env;
                 func->defaults[i]->accept(*this);
-                auto default_val = result_.toLegacy();
                 current_env_ = saved_env;
-                func_env->define(func->params[i], default_val);
+                func_env->define(func->params[i], result_);
             }
         }
 
@@ -246,7 +256,7 @@ NaabVal Interpreter::callFunction(std::shared_ptr<Value> fn,
     if (governance_ && governance_->isActive() && !func->name.empty()) {
         std::vector<std::string> arg_types;
         for (const auto& arg : args) {
-            arg_types.push_back(arg ? getTypeName(arg) : "null");
+            arg_types.push_back(arg.isNull() ? "null" : arg.getTypeName());
         }
         std::string input_err = governance_->checkFunctionInputContract(
             func->name, arg_types, func->source_line);
@@ -272,9 +282,8 @@ NaabVal Interpreter::callFunction(std::shared_ptr<Value> fn,
             auto saved_env = current_env_;
             current_env_ = func_env;
             func->defaults[i]->accept(*this);
-            auto default_val = result_.toLegacy();
             current_env_ = saved_env;
-            func_env->define(func->params[i], default_val);
+            func_env->define(func->params[i], result_);
         }
     }
 
@@ -383,22 +392,17 @@ NaabVal Interpreter::callFunction(std::shared_ptr<Value> fn,
     return return_value;
 }
 
-// NaabVal overload: converts to legacy and delegates
-NaabVal Interpreter::callFunction(NaabVal fn, const std::vector<NaabVal>& args) {
-    auto legacy_fn = fn.toLegacy();
-    std::vector<std::shared_ptr<Value>> legacy_args;
-    legacy_args.reserve(args.size());
-    for (const auto& a : args) {
-        legacy_args.push_back(a.toLegacy());
-    }
-    return callFunction(legacy_fn, legacy_args);
-}
 
 void Interpreter::visit(ast::CallExpr& node) {
-    // Evaluate arguments first
+    // Evaluate arguments — shared_ptr for method dispatch, NaabVal for callFunction
+    std::vector<NaabVal> nval_args;
     std::vector<std::shared_ptr<Value>> args;
+    nval_args.reserve(node.getArgs().size());
+    args.reserve(node.getArgs().size());
     for (auto& arg : node.getArgs()) {
-        args.push_back(eval(*arg).toLegacy());
+        auto val = eval(*arg);
+        nval_args.push_back(val);
+        args.push_back(val.toLegacy());
     }
 
     // Check if this is a member expression call (for method chaining)
@@ -410,8 +414,8 @@ void Interpreter::visit(ast::CallExpr& node) {
             std::string qualified_fn = callee_id->getName() + "." + member_expr->getMember();
             if (current_env_->has(qualified_fn)) {
                 auto fn_val = current_env_->get(qualified_fn);
-                if (fn_val && std::holds_alternative<std::shared_ptr<FunctionValue>>(fn_val->data)) {
-                    callFunction(fn_val, args);
+                if (!fn_val.isNull() && fn_val.isFunction()) {
+                    callFunction(fn_val, nval_args);
                     return;
                 }
             }
@@ -1324,7 +1328,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                                     current_env_->set(var_name, args[0]);
                                 } else {
                                     // For push/unshift/reverse/sort, use the result
-                                    current_env_->set(var_name, result_.toLegacy());
+                                    current_env_->set(var_name, result_);
                                 }
                                 LOG_TRACE("[MUTATION] Auto-updated {} after {}.{}()\n",
                                          var_name, module_alias, func_name);
@@ -1881,17 +1885,17 @@ void Interpreter::visit(ast::CallExpr& node) {
         // ===== Normal member access call (functions stored in dicts, struct methods, etc.) =====
         // Evaluate the full member access
         member_call->accept(*this);
-        auto func_value = result_.toLegacy();
+        auto func_value = result_;
 
         // Check if it's a function
-        if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&func_value->data)) {
-            result_ = callFunction(func_value, args);
+        if (func_value.isFunction()) {
+            result_ = callFunction(func_value, nval_args);
             return;
         }
 
         std::ostringstream oss;
         oss << "Type error: Member is not callable\n\n";
-        oss << "  Member type: " << getTypeName(func_value) << "\n";
+        oss << "  Member type: " << func_value.getTypeName() << "\n";
         oss << "  Expected: function\n\n";
 
         // Detect stdlib constant access with () - e.g., math.PI()
@@ -1923,19 +1927,17 @@ void Interpreter::visit(ast::CallExpr& node) {
     // evaluate it and check if it's a callable function
     if (!id_expr) {
         node.getCallee()->accept(*this);
-        auto callee_value = result_.toLegacy();
+        auto callee_value = result_;
 
         // Check if the result is a function
-        if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&callee_value->data)) {
-            (void)func_ptr;  // Type check only, value not needed
-            // Call the function using the general callFunction helper
-            result_ = callFunction(callee_value, args);
+        if (callee_value.isFunction()) {
+            result_ = callFunction(callee_value, nval_args);
             return;
         }
 
         std::ostringstream oss;
         oss << "Type error: Expression is not callable\n\n";
-        oss << "  Tried to call: " << getTypeName(callee_value) << "\n";
+        oss << "  Tried to call: " << callee_value.getTypeName() << "\n";
         oss << "  Expected: function\n\n";
         oss << "  Help:\n";
         oss << "  - Only functions can be called with ()\n";
@@ -1954,14 +1956,14 @@ void Interpreter::visit(ast::CallExpr& node) {
         auto value = current_env_->get(func_name);
 
         // Check for user-defined function
-        if (auto* func_ptr = std::get_if<std::shared_ptr<FunctionValue>>(&value->data)) {
-            auto& func = *func_ptr;
+        if (value.isFunction()) {
+            auto& func = value.asFunction();
 
             // Phase 5: If this is a generator function, return GeneratorValue
             if (func->is_generator) {
                 auto gen = std::make_shared<GeneratorValue>();
                 gen->func = func;
-                gen->args = args;
+                gen->args = nval_args;
                 result_ = std::make_shared<Value>(gen);
                 return;
             }
@@ -2103,7 +2105,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     func_env->define(func->params[i], args[i]);
                 } else {
                     // Value parameter: copy the value (default behavior)
-                    func_env->define(func->params[i], copyValue(args[i]).toLegacy());
+                    func_env->define(func->params[i], copyValue(args[i]));
                 }
             }
 
@@ -2119,9 +2121,9 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                     // Phase 2.1: Apply ref vs value semantics to default parameters
                     if (func->param_types[i].is_reference) {
-                        func_env->define(func->params[i], default_val.toLegacy());
+                        func_env->define(func->params[i], default_val);
                     } else {
-                        func_env->define(func->params[i], copyValue(default_val).toLegacy());
+                        func_env->define(func->params[i], copyValue(default_val));
                     }
                 } else {
                     throw std::runtime_error(fmt::format(
@@ -2255,8 +2257,8 @@ void Interpreter::visit(ast::CallExpr& node) {
         }
 
         // Check for loaded block
-        if (auto* block_ptr = std::get_if<std::shared_ptr<BlockValue>>(&value->data)) {
-            auto& block = *block_ptr;
+        if (value.isBlock()) {
+            auto& block = value.asBlock();
 
             LOG_TRACE("[CALL] Invoking block {} ({}) with {} args\n",
                       block->metadata.name, block->metadata.language, args.size());

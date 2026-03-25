@@ -89,7 +89,7 @@ void* naab_value_get_struct_field(void* value, const char* field_name) {
         return nullptr;
     }
 
-    return fromValue(struct_val->field_values[idx].get());
+    return fromValue(struct_val->field_values[idx].toLegacy().get());
 }
 
 int naab_value_set_struct_field(void* struct_value, const char* field_name, void* field_value) {
@@ -116,7 +116,7 @@ int naab_value_set_struct_field(void* struct_value, const char* field_name, void
 
     // Set field value (make a copy)
     auto* fval = toValue(field_value);
-    struct_val->field_values[idx] = std::make_shared<naab::interpreter::Value>(*fval);
+    struct_val->field_values[idx] = naab::interpreter::NaabVal::fromLegacy(std::make_shared<naab::interpreter::Value>(*fval));
 
     return 0;  // Success
 }
@@ -136,7 +136,7 @@ void* naab_value_create_struct(const char* type_name) {
 
     // Initialize all fields to null
     for (size_t i = 0; i < struct_def->fields.size(); ++i) {
-        struct_val->field_values[i] = std::make_shared<naab::interpreter::Value>();
+        struct_val->field_values[i] = naab::interpreter::NaabVal::makeNull();
     }
 
     // Wrap in Value and return

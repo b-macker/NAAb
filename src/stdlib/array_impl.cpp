@@ -107,8 +107,12 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         arr.pop_back();  // Remove the last element
 
         // Store the modified array back in args[0] so auto-mutation can use it
-        // Create a special marker by modifying the first argument
-        args[0]->data = arr;
+        {
+            std::vector<interpreter::NaabVal> nval_arr;
+            nval_arr.reserve(arr.size());
+            for (const auto& e : arr) nval_arr.push_back(interpreter::NaabVal::fromLegacy(e));
+            args[0]->data = std::move(nval_arr);
+        }
 
         return last;  // Return the popped element
     }
@@ -139,7 +143,12 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         arr.erase(arr.begin());  // Remove the first element
 
         // Store the modified array back in args[0] so auto-mutation can use it
-        args[0]->data = arr;
+        {
+            std::vector<interpreter::NaabVal> nval_arr;
+            nval_arr.reserve(arr.size());
+            for (const auto& e : arr) nval_arr.push_back(interpreter::NaabVal::fromLegacy(e));
+            args[0]->data = std::move(nval_arr);
+        }
 
         return first;  // Return the shifted element
     }
@@ -272,7 +281,7 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
             result.push_back(mapped_value);
         }
 
-        return std::make_shared<interpreter::Value>(result);
+        return makeArray(result);
     }
 
     // Function 5: filter_fn (higher-order function)
@@ -309,7 +318,7 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
             }
         }
 
-        return std::make_shared<interpreter::Value>(result);
+        return makeArray(result);
     }
 
     // Function 6: reduce_fn (higher-order function)
@@ -576,8 +585,14 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
 static std::vector<std::shared_ptr<interpreter::Value>> getArray(const std::shared_ptr<interpreter::Value>& val) {
     return std::visit([&val](auto&& arg) -> std::vector<std::shared_ptr<interpreter::Value>> {
         using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::vector<std::shared_ptr<interpreter::Value>>>) {
-            return arg;
+        if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
+            // Convert NaabVal elements to shared_ptr<Value> for stdlib API
+            std::vector<std::shared_ptr<interpreter::Value>> result;
+            result.reserve(arg.size());
+            for (const auto& elem : arg) {
+                result.push_back(elem.toLegacy());
+            }
+            return result;
         } else {
             // Get type name for error message
             std::string actual_type = std::visit([](auto&& v) -> std::string {
@@ -647,7 +662,13 @@ static std::shared_ptr<interpreter::Value> makeBool(bool b) {
 }
 
 static std::shared_ptr<interpreter::Value> makeArray(const std::vector<std::shared_ptr<interpreter::Value>>& arr) {
-    return std::make_shared<interpreter::Value>(arr);
+    // Convert shared_ptr elements to NaabVal for the new container storage
+    std::vector<interpreter::NaabVal> nval_arr;
+    nval_arr.reserve(arr.size());
+    for (const auto& elem : arr) {
+        nval_arr.push_back(interpreter::NaabVal::fromLegacy(elem));
+    }
+    return std::make_shared<interpreter::Value>(std::move(nval_arr));
 }
 
 static std::shared_ptr<interpreter::Value> makeNull() {

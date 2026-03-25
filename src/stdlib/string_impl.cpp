@@ -552,11 +552,11 @@ static std::shared_ptr<interpreter::Value> makeBool(bool b) {
 }
 
 static std::shared_ptr<interpreter::Value> makeStringArray(const std::vector<std::string>& arr) {
-    std::vector<std::shared_ptr<interpreter::Value>> elements;
+    std::vector<interpreter::NaabVal> elements;
     for (const auto& s : arr) {
-        elements.push_back(makeString(s));
+        elements.push_back(interpreter::NaabVal::fromLegacy(makeString(s)));
     }
-    return std::make_shared<interpreter::Value>(elements);
+    return std::make_shared<interpreter::Value>(std::move(elements));
 }
 
 } // namespace stdlib

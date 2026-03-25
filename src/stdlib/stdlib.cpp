@@ -207,15 +207,15 @@ std::shared_ptr<interpreter::Value> IOModule::list_dir(
         throw std::runtime_error("Not a directory: " + dir_path);
     }
 
-    std::vector<std::shared_ptr<interpreter::Value>> entries;
+    std::vector<interpreter::NaabVal> entries;
 
     for (const auto& entry : fs::directory_iterator(dir_path)) {
-        entries.push_back(std::make_shared<interpreter::Value>(
+        entries.push_back(interpreter::NaabVal::makeString(
             entry.path().filename().string()
         ));
     }
 
-    return std::make_shared<interpreter::Value>(entries);
+    return std::make_shared<interpreter::Value>(std::move(entries));
 }
 
 // ============================================================================
@@ -251,9 +251,9 @@ std::shared_ptr<interpreter::Value> CollectionsModule::set_create(
     (void)args; // Intentionally unused - creates empty set
 
     // Create empty set (represented as list for now)
-    std::vector<std::shared_ptr<interpreter::Value>> set_data;
+    std::vector<interpreter::NaabVal> set_data;
 
-    return std::make_shared<interpreter::Value>(set_data);
+    return std::make_shared<interpreter::Value>(std::move(set_data));
 }
 
 std::shared_ptr<interpreter::Value> CollectionsModule::set_add(
@@ -268,24 +268,24 @@ std::shared_ptr<interpreter::Value> CollectionsModule::set_add(
     auto& new_value = args[1];
 
     // Extract vector from set
-    auto vec_ptr = std::get_if<std::vector<std::shared_ptr<interpreter::Value>>>(&set_value->data);
+    auto vec_ptr = std::get_if<std::vector<interpreter::NaabVal>>(&set_value->data);
     if (!vec_ptr) {
         throw std::runtime_error("set_add: first argument must be a set");
     }
 
     // Check if value already exists (ensure uniqueness)
     for (const auto& item : *vec_ptr) {
-        if (item->toString() == new_value->toString()) {
+        if (item.toString() == new_value->toString()) {
             // Value already exists, return the same set
             return set_value;
         }
     }
 
     // Create new set with the additional value
-    std::vector<std::shared_ptr<interpreter::Value>> new_set = *vec_ptr;
-    new_set.push_back(new_value);
+    std::vector<interpreter::NaabVal> new_set = *vec_ptr;
+    new_set.push_back(interpreter::NaabVal::fromLegacy(new_value));
 
-    return std::make_shared<interpreter::Value>(new_set);
+    return std::make_shared<interpreter::Value>(std::move(new_set));
 }
 
 std::shared_ptr<interpreter::Value> CollectionsModule::set_contains(
@@ -299,7 +299,7 @@ std::shared_ptr<interpreter::Value> CollectionsModule::set_contains(
     auto& search_value = args[1];
 
     // Extract vector from set
-    auto vec_ptr = std::get_if<std::vector<std::shared_ptr<interpreter::Value>>>(&set_value->data);
+    auto vec_ptr = std::get_if<std::vector<interpreter::NaabVal>>(&set_value->data);
     if (!vec_ptr) {
         throw std::runtime_error("set_contains: first argument must be a set");
     }
@@ -307,7 +307,7 @@ std::shared_ptr<interpreter::Value> CollectionsModule::set_contains(
     // Search for value in set
     std::string search_str = search_value->toString();
     for (const auto& item : *vec_ptr) {
-        if (item->toString() == search_str) {
+        if (item.toString() == search_str) {
             return std::make_shared<interpreter::Value>(true);
         }
     }
@@ -326,22 +326,22 @@ std::shared_ptr<interpreter::Value> CollectionsModule::set_remove(
     auto& remove_value = args[1];
 
     // Extract vector from set
-    auto vec_ptr = std::get_if<std::vector<std::shared_ptr<interpreter::Value>>>(&set_value->data);
+    auto vec_ptr = std::get_if<std::vector<interpreter::NaabVal>>(&set_value->data);
     if (!vec_ptr) {
         throw std::runtime_error("set_remove: first argument must be a set");
     }
 
     // Create new set without the specified value
-    std::vector<std::shared_ptr<interpreter::Value>> new_set;
+    std::vector<interpreter::NaabVal> new_set;
     std::string remove_str = remove_value->toString();
 
     for (const auto& item : *vec_ptr) {
-        if (item->toString() != remove_str) {
+        if (item.toString() != remove_str) {
             new_set.push_back(item);
         }
     }
 
-    return std::make_shared<interpreter::Value>(new_set);
+    return std::make_shared<interpreter::Value>(std::move(new_set));
 }
 
 std::shared_ptr<interpreter::Value> CollectionsModule::set_size(
@@ -354,7 +354,7 @@ std::shared_ptr<interpreter::Value> CollectionsModule::set_size(
     auto& set_value = args[0];
 
     // Extract vector from set
-    auto vec_ptr = std::get_if<std::vector<std::shared_ptr<interpreter::Value>>>(&set_value->data);
+    auto vec_ptr = std::get_if<std::vector<interpreter::NaabVal>>(&set_value->data);
     if (!vec_ptr) {
         throw std::runtime_error("set_size: argument must be a set");
     }
