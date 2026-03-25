@@ -325,7 +325,7 @@ struct EnumDef {
 
 // Future value for async function results
 struct FutureValue {
-    std::shared_future<std::shared_ptr<Value>> future;
+    std::shared_future<NaabVal> future;
     std::string description;  // for error messages (e.g., "async fn fetch_data")
     std::string func_name;    // BUG-K: for return contract check at await
     std::shared_ptr<std::atomic<bool>> return_tainted;  // BUG-AwaitExpr: shared ownership with async lambda

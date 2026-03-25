@@ -185,7 +185,7 @@ NaabVal Interpreter::callFunction(NaabVal fn,
         future_val->func_name = func->name;  // BUG-K: for return contract check at await
         auto taint_flag = future_val->return_tainted;  // shared_ptr copy for lifetime safety
 
-        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path, parent_taint, taint_flag]() -> std::shared_ptr<Value> {
+        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path, parent_taint, taint_flag]() -> NaabVal {
             Interpreter async_interp;
             async_interp.setGlobalEnv(global);
 
@@ -203,7 +203,7 @@ NaabVal Interpreter::callFunction(NaabVal fn,
             }
 
             try {
-                auto result = async_interp.executeBodyInEnv(*body, func_env).toLegacy();
+                auto result = async_interp.executeBodyInEnv(*body, func_env);
                 // BUG-AwaitExpr fix: Capture taint state BEFORE async_interp is destroyed
                 if (async_interp.wasLastReturnTainted()) {
                     taint_flag->store(true);
@@ -425,21 +425,22 @@ void Interpreter::visit(ast::CallExpr& node) {
         // We need to evaluate the object BEFORE evaluating the full member access,
         // because built-in methods like .get(), .has() are not stored as dict keys
         {
-            auto obj_val = eval(*member_expr->getObject()).toLegacy();
+            auto obj_val = eval(*member_expr->getObject());
             std::string method_name = member_expr->getMember();
 
             // Optional chaining: if object is null and ?. was used, return null
             if (member_expr->isOptional()) {
-                if (!obj_val || std::holds_alternative<std::monostate>(obj_val->data)) {
-                    result_ = std::make_shared<Value>();  // null
+                if (obj_val.isNull()) {
+                    result_ = NaabVal::makeNull();
                     return;
                 }
             }
 
             // Phase 12: Check if this is a persistent runtime .exec() call
-            if (auto* str_val = std::get_if<std::string>(&obj_val->data)) {
-                if (str_val->find("__NAAB_RUNTIME__:") == 0 && method_name == "exec") {
-                    std::string runtime_name = str_val->substr(17);  // len("__NAAB_RUNTIME__:")
+            if (obj_val.isString()) {
+                const auto& str_val = obj_val.asString();
+                if (str_val.find("__NAAB_RUNTIME__:") == 0 && method_name == "exec") {
+                    std::string runtime_name = str_val.substr(17);  // len("__NAAB_RUNTIME__:")
                     auto it = named_runtimes_.find(runtime_name);
                     if (it == named_runtimes_.end()) {
                         throw std::runtime_error("Runtime error: Runtime '" + runtime_name + "' not found");
@@ -459,11 +460,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                     // by the InlineCodeExpr visitor. We need a different approach.
                     // For now: accept a string argument and execute it on the persistent runtime
                     std::string code;
-                    if (auto* code_str = std::get_if<std::string>(&args[0]->data)) {
-                        code = *code_str;
+                    if (nval_args[0].isString()) {
+                        code = nval_args[0].asString();
                     } else {
                         // If the argument is the result of an InlineCodeExpr, use result directly
-                        result_ = args[0];
+                        result_ = nval_args[0];
                         return;
                     }
 
@@ -581,8 +582,8 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             // Built-in DICT methods
-            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&obj_val->data)) {
-                auto& dict = *dict_ptr;
+            if (obj_val.isDict()) {
+                auto& dict = obj_val.asDict();
 
                 if (method_name == "get" || method_name == "getString" || method_name == "getInt" ||
                     method_name == "getFloat" || method_name == "getBool" || method_name == "getMap" ||
@@ -683,8 +684,8 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             // Built-in ARRAY methods
-            if (auto* arr_ptr = std::get_if<std::vector<NaabVal>>(&obj_val->data)) {
-                auto& arr = *arr_ptr;
+            if (obj_val.isList()) {
+                auto& arr = obj_val.asList();
 
                 if (method_name == "size" || method_name == "length") {
                     result_ = std::make_shared<Value>(static_cast<int>(arr.size()));
@@ -870,8 +871,8 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
 
             // Built-in STRING methods (skip module markers)
-            if (auto* str_ptr = std::get_if<std::string>(&obj_val->data)) {
-                auto& str = *str_ptr;
+            if (obj_val.isString()) {
+                auto str = obj_val.asString();  // copy needed — may mutate
 
                 // Skip stdlib/module markers - these are handled by the module system
                 if (str.substr(0, 18) == "__stdlib_module__:" ||
@@ -1055,11 +1056,11 @@ void Interpreter::visit(ast::CallExpr& node) {
 
         // Evaluate the member expression (returns PythonObjectValue for methods)
         normal_member_access:
-        auto callable = eval(*member_expr).toLegacy();
+        auto callable = eval(*member_expr);
 
         // If it's a Python object, call it
-        if (auto* py_obj_ptr = std::get_if<std::shared_ptr<PythonObjectValue>>(&callable->data)) {
-            auto& py_callable = *py_obj_ptr;
+        if (callable.isPythonObject()) {
+            auto& py_callable = callable.asPythonObject();
 
 #ifdef NAAB_HAS_PYTHON
             LOG_TRACE("[CALL] Invoking Python method with {} args\n", args.size());
@@ -1136,8 +1137,8 @@ void Interpreter::visit(ast::CallExpr& node) {
         }
 
         // Check if it's a BlockValue (for JavaScript/C++ block method calls)
-        if (auto* block_ptr = std::get_if<std::shared_ptr<BlockValue>>(&callable->data)) {
-            auto& block = *block_ptr;
+        if (callable.isBlock()) {
+            auto& block = callable.asBlock();
 
             LOG_TRACE("[CALL] Invoking block method {}.{} with {} args\n",
                       block->metadata.block_id, block->member_path, args.size());
@@ -1241,8 +1242,8 @@ void Interpreter::visit(ast::CallExpr& node) {
         }
 
         // Check if it's a stdlib function call marker
-        if (auto* str_ptr = std::get_if<std::string>(&callable->data)) {
-            std::string marker = *str_ptr;
+        if (callable.isString()) {
+            std::string marker = callable.asString();
 
             // Check if it's a stdlib call marker
             if (marker.substr(0, 16) == "__stdlib_call__:") {
@@ -1350,11 +1351,11 @@ void Interpreter::visit(ast::CallExpr& node) {
         std::string method_name = member_call->getMember();
 
         // Evaluate the object part to check for built-in methods on dicts/arrays/strings
-        auto obj = eval(*member_call->getObject()).toLegacy();
+        auto obj = eval(*member_call->getObject());
 
         // ===== Built-in DICT methods =====
-        if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&obj->data)) {
-            auto& dict = *dict_ptr;
+        if (obj.isDict()) {
+            auto& dict = obj.asDict();
 
             if (method_name == "get" || method_name == "getString" || method_name == "getInt" ||
                 method_name == "getFloat" || method_name == "getBool" || method_name == "getMap" ||
@@ -1476,9 +1477,9 @@ void Interpreter::visit(ast::CallExpr& node) {
             auto it = dict.find(method_name);
             if (it != dict.end()) {
                 auto func_value = it->second;
-                if (func_value.toLegacy() && std::holds_alternative<std::shared_ptr<FunctionValue>>(func_value.toLegacy()->data)) {
+                if (func_value.isFunction()) {
                     std::vector<NaabVal> nargs;
-                    for (const auto& a : args) nargs.push_back(NaabVal::fromLegacy(a));
+                    for (size_t i = 0; i < nval_args.size(); ++i) nargs.push_back(nval_args[i]);
                     result_ = callFunction(func_value, nargs);
                     return;
                 }
@@ -1514,8 +1515,8 @@ void Interpreter::visit(ast::CallExpr& node) {
         }
 
         // ===== Built-in ARRAY methods =====
-        if (auto* arr_ptr = std::get_if<std::vector<NaabVal>>(&obj->data)) {
-            auto& arr = *arr_ptr;
+        if (obj.isList()) {
+            auto& arr = obj.asList();
 
             if (method_name == "size" || method_name == "length") {
                 result_ = std::make_shared<Value>(static_cast<int>(arr.size()));
@@ -1701,8 +1702,8 @@ void Interpreter::visit(ast::CallExpr& node) {
         }
 
         // ===== Built-in STRING methods (skip module markers) =====
-        if (auto* str_ptr = std::get_if<std::string>(&obj->data)) {
-            auto& str = *str_ptr;
+        if (obj.isString()) {
+            auto str = obj.asString();  // copy needed
 
             if (str.substr(0, 18) == "__stdlib_module__:" ||
                 str.substr(0, 10) == "__module__:") {
@@ -2735,26 +2736,26 @@ void Interpreter::visit(ast::MemberExpr& node) {
         }
     }
 
-    auto obj = eval(*node.getObject()).toLegacy();
+    auto obj = eval(*node.getObject());
 
     // Optional chaining: if object is null and ?. was used, return null
     if (node.isOptional()) {
-        if (!obj || std::holds_alternative<std::monostate>(obj->data)) {
-            result_ = std::make_shared<Value>();  // null
+        if (obj.isNull()) {
+            result_ = NaabVal::makeNull();
             return;
         }
     }
 
     // Handle struct member access
-    if (std::holds_alternative<std::shared_ptr<StructValue>>(obj->data)) {
-        auto struct_val = std::get<std::shared_ptr<StructValue>>(obj->data);
+    if (obj.isStructVal()) {
+        auto& struct_val = obj.asStruct();
         result_ = struct_val->getField(member_name);
         return;
     }
 
     // Check if object is a block
-    if (auto* block_ptr = std::get_if<std::shared_ptr<BlockValue>>(&obj->data)) {
-        auto& block = *block_ptr;
+    if (obj.isBlock()) {
+        auto& block = obj.asBlock();
 
         // Phase 7: Executor-based member access
         auto* executor = block->getExecutor();
@@ -2827,8 +2828,8 @@ void Interpreter::visit(ast::MemberExpr& node) {
     }
 
     // Check if object is a Python object (for method chaining)
-    if (auto* py_obj_ptr = std::get_if<std::shared_ptr<PythonObjectValue>>(&obj->data)) {
-        auto& py_obj = *py_obj_ptr;
+    if (obj.isPythonObject()) {
+        auto& py_obj = obj.asPythonObject();
 
 #ifdef NAAB_HAS_PYTHON
         fmt::print("[MEMBER] Accessing .{} on Python object\n", member_name);
@@ -2853,9 +2854,10 @@ void Interpreter::visit(ast::MemberExpr& node) {
     }
 
     // Check if object is a dictionary (for module imports)
-    if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&obj->data)) {
-        auto it = dict_ptr->find(member_name);
-        if (it != dict_ptr->end()) {
+    if (obj.isDict()) {
+        const auto& dict = obj.asDictConst();
+        auto it = dict.find(member_name);
+        if (it != dict.end()) {
             result_ = it->second;
             return;
         }
@@ -2864,12 +2866,12 @@ void Interpreter::visit(ast::MemberExpr& node) {
         oss << "Name error: Member not found in module\n\n";
         oss << "  Member: " << member_name << "\n";
 
-        if (dict_ptr->empty()) {
+        if (dict.empty()) {
             oss << "  Module has no exported members\n";
         } else {
             oss << "  Available members: ";
             size_t count = 0;
-            for (const auto& pair : *dict_ptr) {
+            for (const auto& pair : dict) {
                 if (count > 0) oss << ", ";
                 oss << pair.first;
                 if (++count >= 10) {
@@ -2892,8 +2894,8 @@ void Interpreter::visit(ast::MemberExpr& node) {
     }
 
     // Check if object is a stdlib module marker
-    if (auto* str_ptr = std::get_if<std::string>(&obj->data)) {
-        std::string marker = *str_ptr;
+    if (obj.isString()) {
+        std::string marker = obj.asString();
 
         // Check if it's a stdlib module marker
         if (marker.substr(0, 18) == "__stdlib_module__:") {
@@ -2970,7 +2972,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
 
     // Member access on other types — type-specific helpful errors
     std::ostringstream oss;
-    std::string type_name = getTypeName(obj);
+    std::string type_name = obj.getTypeName();
 
     if (type_name == "array") {
         oss << "Type error: Arrays don't support dot notation\n\n";
