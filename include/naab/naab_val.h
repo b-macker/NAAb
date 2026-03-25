@@ -226,7 +226,7 @@ public:
     std::shared_ptr<Value> toLegacy() const;
 
     // GC support: traverse reachable values (only for heap types)
-    void traverse(std::function<void(std::shared_ptr<Value>)> visitor) const;
+    void traverse(std::function<void(const NaabVal&)> visitor) const;
 
     // ========================================================================
     // Operators

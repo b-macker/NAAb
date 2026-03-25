@@ -17,12 +17,12 @@ namespace naab {
 namespace stdlib {
 
 // Forward declarations of helper functions
-static std::string getString(const std::shared_ptr<interpreter::Value>& val);
-static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter::Value>& val);
-static std::vector<std::vector<std::string>> getArrayOfArrays(const std::shared_ptr<interpreter::Value>& val);
-static std::vector<std::unordered_map<std::string, interpreter::NaabVal>> getArrayOfDicts(const std::shared_ptr<interpreter::Value>& val);
-static std::shared_ptr<interpreter::Value> parseCSV(const std::string& content, const std::string& delimiter);
-static std::shared_ptr<interpreter::Value> parseCSVDict(const std::string& content, const std::string& delimiter);
+static std::string getString(const interpreter::NaabVal& val);
+static std::vector<std::string> getStringArray(const interpreter::NaabVal& val);
+static std::vector<std::vector<std::string>> getArrayOfArrays(const interpreter::NaabVal& val);
+static std::vector<std::unordered_map<std::string, interpreter::NaabVal>> getArrayOfDicts(const interpreter::NaabVal& val);
+static interpreter::NaabVal parseCSV(const std::string& content, const std::string& delimiter);
+static interpreter::NaabVal parseCSVDict(const std::string& content, const std::string& delimiter);
 static std::vector<std::string> parseCSVLine(const std::string& line, const std::string& delimiter);
 static std::string formatCSVRow(const std::vector<std::string>& row, const std::string& delimiter);
 
@@ -37,9 +37,9 @@ bool CsvModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> CsvModule::call(
+interpreter::NaabVal CsvModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // Function 1: read
     if (function_name == "read") {
@@ -119,7 +119,7 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
             file << formatCSVRow(row, delimiter) << "\n";
         }
 
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     // Function 6: write_dict
@@ -132,7 +132,7 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
         std::string delimiter = args.size() == 3 ? getString(args[2]) : ",";
 
         if (rows.empty()) {
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
 
         std::ofstream file(path);
@@ -174,7 +174,7 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
             row_num++;
         }
 
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     // Function 7: format_row
@@ -185,7 +185,7 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
         auto row = getStringArray(args[0]);
         std::string delimiter = args.size() == 2 ? getString(args[1]) : ",";
 
-        return std::make_shared<interpreter::Value>(formatCSVRow(row, delimiter));
+        return interpreter::NaabVal::makeString(formatCSVRow(row, delimiter));
     }
 
     // Function 8: format_rows / stringify
@@ -200,7 +200,7 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
         for (const auto& row : rows) {
             result += formatCSVRow(row, delimiter) + "\n";
         }
-        return std::make_shared<interpreter::Value>(result);
+        return interpreter::NaabVal::makeString(result);
     }
 
     // Common LLM mistakes
@@ -232,7 +232,7 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
 }
 
 // CSV parsing helper functions
-static std::shared_ptr<interpreter::Value> parseCSV(const std::string& content, const std::string& delimiter) {
+static interpreter::NaabVal parseCSV(const std::string& content, const std::string& delimiter) {
         std::vector<interpreter::NaabVal> rows;
         std::istringstream iss(content);
         std::string line;
@@ -247,10 +247,10 @@ static std::shared_ptr<interpreter::Value> parseCSV(const std::string& content, 
             rows.push_back(interpreter::NaabVal::makeList(std::move(row)));
         }
 
-        return std::make_shared<interpreter::Value>(std::move(rows));
+        return interpreter::NaabVal::makeList(std::move(rows));
     }
 
-static std::shared_ptr<interpreter::Value> parseCSVDict(const std::string& content, const std::string& delimiter) {
+static interpreter::NaabVal parseCSVDict(const std::string& content, const std::string& delimiter) {
         std::vector<interpreter::NaabVal> rows;
         std::istringstream iss(content);
         std::string line;
@@ -283,7 +283,7 @@ static std::shared_ptr<interpreter::Value> parseCSVDict(const std::string& conte
             row_num++;
         }
 
-        return std::make_shared<interpreter::Value>(std::move(rows));
+        return interpreter::NaabVal::makeList(std::move(rows));
     }
 
 static std::vector<std::string> parseCSVLine(const std::string& line, const std::string& delimiter) {
@@ -325,64 +325,39 @@ static std::string formatCSVRow(const std::vector<std::string>& row, const std::
     }
 
 // Helper functions
-static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
-        return std::visit([](auto&& arg) -> std::string {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::string>) {
-                return arg;
-            } else {
-                throw std::runtime_error("Expected string value");
-            }
-        }, val->data);
-    }
+static std::string getString(const interpreter::NaabVal& val) {
+    if (!val.isString()) throw std::runtime_error("Expected string value");
+    return val.asString();
+}
 
-static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter::Value>& val) {
-        return std::visit([](auto&& arg) -> std::vector<std::string> {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
-                std::vector<std::string> result;
-                for (const auto& item : arg) {
-                    result.push_back(item.toString());
-                }
-                return result;
-            } else {
-                throw std::runtime_error("Expected array value");
-            }
-        }, val->data);
+static std::vector<std::string> getStringArray(const interpreter::NaabVal& val) {
+    if (!val.isList()) throw std::runtime_error("Expected array value");
+    std::vector<std::string> result;
+    for (const auto& item : val.asListConst()) {
+        result.push_back(item.toString());
     }
+    return result;
+}
 
-static std::vector<std::vector<std::string>> getArrayOfArrays(const std::shared_ptr<interpreter::Value>& val) {
-        return std::visit([](auto&& arg) -> std::vector<std::vector<std::string>> {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
-                std::vector<std::vector<std::string>> result;
-                for (const auto& item : arg) {
-                    result.push_back(getStringArray(item.toLegacy()));
-                }
-                return result;
-            } else {
-                throw std::runtime_error("Expected array of arrays");
-            }
-        }, val->data);
+static std::vector<std::vector<std::string>> getArrayOfArrays(const interpreter::NaabVal& val) {
+    if (!val.isList()) throw std::runtime_error("Expected array of arrays");
+    std::vector<std::vector<std::string>> result;
+    for (const auto& item : val.asListConst()) {
+        result.push_back(getStringArray(item));
     }
+    return result;
+}
 
 static std::vector<std::unordered_map<std::string, interpreter::NaabVal>> getArrayOfDicts(
-        const std::shared_ptr<interpreter::Value>& val) {
-        return std::visit([](auto&& arg) -> std::vector<std::unordered_map<std::string, interpreter::NaabVal>> {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
-                std::vector<std::unordered_map<std::string, interpreter::NaabVal>> result;
-                for (const auto& item : arg) {
-                    if (!item.isDict()) throw std::runtime_error("Expected dictionary");
-                    auto dict = item.asDictConst();
-                    result.push_back(dict);
-                }
-                return result;
-            } else {
-                throw std::runtime_error("Expected array of dictionaries");
-            }
-        }, val->data);
+        const interpreter::NaabVal& val) {
+    if (!val.isList()) throw std::runtime_error("Expected array of dictionaries");
+    std::vector<std::unordered_map<std::string, interpreter::NaabVal>> result;
+    for (const auto& item : val.asListConst()) {
+        if (!item.isDict()) throw std::runtime_error("Expected dictionary");
+        result.push_back(item.asDictConst());
     }
+    return result;
+}
 
 } // namespace stdlib
 } // namespace naab

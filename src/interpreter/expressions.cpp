@@ -23,35 +23,6 @@ static std::string getTypeName(NaabVal val) {
     return val.getTypeName();
 }
 
-// File-local helper — legacy shared_ptr version (for code that still uses shared_ptr)
-static std::string getTypeName(const std::shared_ptr<Value>& val) {
-    if (!val) return "null";
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>) {
-            return "int";
-        } else if constexpr (std::is_same_v<T, double>) {
-            return "float";
-        } else if constexpr (std::is_same_v<T, bool>) {
-            return "bool";
-        } else if constexpr (std::is_same_v<T, std::string>) {
-            return "string";
-        } else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
-            return "array";
-        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
-            return "dict";
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) {
-            return "function";
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
-            return "struct";
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) {
-            return "future";
-        } else if constexpr (std::is_same_v<T, std::monostate>) {
-            return "null";
-        }
-        return "unknown";
-    }, val->data);
-}
 
 void Interpreter::visit(ast::BinaryExpr& node) {
     // Handle short-circuit operators BEFORE evaluating right side
@@ -748,11 +719,11 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     if (!executor) {
                         throw std::runtime_error("No executor for block in pipeline");
                     }
-                    // Block executor still needs vector<shared_ptr<Value>>
-                    std::vector<std::shared_ptr<Value>> legacy_args;
-                    legacy_args.reserve(nval_args.size());
-                    for (auto& a : nval_args) legacy_args.push_back(a.toLegacy());
-                    result_ = executor->callFunction(block->metadata.block_id, legacy_args);
+                    // Executor API still takes shared_ptr<Value> (Phase I migration)
+                    std::vector<std::shared_ptr<Value>> exec_args;
+                    exec_args.reserve(nval_args.size());
+                    for (auto& a : nval_args) exec_args.push_back(a.toLegacy());
+                    result_ = executor->callFunction(block->metadata.block_id, exec_args);
                     flushExecutorOutput(executor);
 
                     if (block_loader_) {

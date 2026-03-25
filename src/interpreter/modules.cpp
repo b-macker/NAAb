@@ -31,10 +31,7 @@ void Interpreter::visit(ast::UseStatement& node) {
 
         // Store module reference in environment (we'll handle calls specially)
         // For now, create a special marker value
-        auto module_marker = std::make_shared<Value>(
-            std::string("__stdlib_module__:" + alias)
-        );
-        current_env_->define(alias, module_marker);
+        current_env_->define(alias, NaabVal::makeString("__stdlib_module__:" + alias));
         return;
     }
 
@@ -161,8 +158,7 @@ void Interpreter::visit(ast::UseStatement& node) {
         }
 
         // Store BlockValue in environment
-        auto value = std::make_shared<Value>(block_value);
-        current_env_->define(alias, value);
+        current_env_->define(alias, NaabVal::makeBlock(block_value));
 
         LOG_DEBUG("[SUCCESS] Block {} loaded and ready as '{}'\n",
                    node.getBlockId(), alias);
@@ -198,10 +194,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
         LOG_DEBUG("[MODULE] Loaded stdlib module: {} as {}\n", module_path, alias);
 
         // Store module marker in environment for member access
-        auto module_marker = std::make_shared<Value>(
-            std::string("__stdlib_module__:" + alias)
-        );
-        current_env_->define(alias, module_marker);
+        current_env_->define(alias, NaabVal::makeString("__stdlib_module__:" + alias));
 
         return;
     }
@@ -284,10 +277,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
         }
 
         // Store module environment for member access (module.function)
-        auto module_marker = std::make_shared<Value>(
-            std::string("__module__:" + module_path)
-        );
-        current_env_->define(module_name, module_marker);
+        current_env_->define(module_name, NaabVal::makeString("__module__:" + module_path));
 
         return;
     }
@@ -396,10 +386,7 @@ void Interpreter::visit(ast::ModuleUseStmt& node) {
     }
 
     // Store module environment reference for member access
-    auto module_marker = std::make_shared<Value>(
-        std::string("__module__:" + module_path)
-    );
-    current_env_->define(module_name, module_marker);
+    current_env_->define(module_name, NaabVal::makeString("__module__:" + module_path));
 
     // ISS-024 Fix: Store alias mapping for module-qualified types
     // loaded_modules_ uses module_path as key, so if an alias is used,
@@ -454,10 +441,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
             }
 
             imported_modules_[alias] = module;
-            auto module_marker = std::make_shared<Value>(
-                std::string("__stdlib_module__:" + alias)
-            );
-            current_env_->define(alias, module_marker);
+            current_env_->define(alias, NaabVal::makeString("__stdlib_module__:" + alias));
             return;
         }
 
@@ -563,7 +547,7 @@ void Interpreter::visit(ast::ImportStmt& node) {
         // Define all enum variants in global environment
         for (const auto& [variant_name, value] : enum_def->variants) {
             std::string full_name = enum_def->name + "." + variant_name;
-            global_env_->define(full_name, std::make_shared<Value>(value));
+            global_env_->define(full_name, NaabVal::makeInt(value));
         }
         LOG_DEBUG("[SUCCESS] Imported enum: {}\n", name);
     }

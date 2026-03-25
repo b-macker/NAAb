@@ -17,13 +17,13 @@ namespace naab {
 namespace stdlib {
 
 // Forward declarations
-static std::string getString(const std::shared_ptr<interpreter::Value>& val);
-static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter::Value>& val);
-static int getInt(const std::shared_ptr<interpreter::Value>& val);
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s);
-static std::shared_ptr<interpreter::Value> makeInt(int i);
-static std::shared_ptr<interpreter::Value> makeBool(bool b);
-static std::shared_ptr<interpreter::Value> makeStringArray(const std::vector<std::string>& arr);
+static std::string getString(const interpreter::NaabVal& val);
+static std::vector<std::string> getStringArray(const interpreter::NaabVal& val);
+static int getInt(const interpreter::NaabVal& val);
+static interpreter::NaabVal makeString(const std::string& s);
+static interpreter::NaabVal makeInt(int i);
+static interpreter::NaabVal makeBool(bool b);
+static interpreter::NaabVal makeStringArray(const std::vector<std::string>& arr);
 
 bool StringModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
@@ -36,9 +36,9 @@ bool StringModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> StringModule::call(
+interpreter::NaabVal StringModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // Function 1: length
     if (function_name == "length") {
@@ -448,25 +448,26 @@ std::shared_ptr<interpreter::Value> StringModule::call(
             );
         }
 
-        auto* tmpl_str = std::get_if<std::string>(&args[0]->data);
-        if (!tmpl_str) {
+        if (!args[0].isString()) {
             throw std::runtime_error(
                 "Type error: string.format() first argument must be a string template\n\n"
-                "  Got: " + args[0]->toString() + "\n"
+                "  Got: " + args[0].toString() + "\n"
                 "  Expected: string with {} placeholders\n"
             );
         }
 
         // Replace {} placeholders with arguments
-        std::string result = *tmpl_str;
+        std::string result = args[0].asString();
         size_t arg_idx = 1;
         size_t pos = 0;
         while ((pos = result.find("{}", pos)) != std::string::npos) {
             if (arg_idx < args.size()) {
-                std::string replacement = args[arg_idx]->toString();
-                // Remove quotes from string values
-                if (auto* s = std::get_if<std::string>(&args[arg_idx]->data)) {
-                    replacement = *s;
+                std::string replacement;
+                // Use raw string value without quotes
+                if (args[arg_idx].isString()) {
+                    replacement = args[arg_idx].asString();
+                } else {
+                    replacement = args[arg_idx].toString();
                 }
                 result.replace(pos, 2, replacement);
                 pos += replacement.length();
@@ -476,7 +477,7 @@ std::shared_ptr<interpreter::Value> StringModule::call(
             }
         }
 
-        return std::make_shared<interpreter::Value>(result);
+        return interpreter::NaabVal::makeString(result);
     }
 
     // Generic unknown function with suggestions
@@ -502,61 +503,43 @@ std::shared_ptr<interpreter::Value> StringModule::call(
 }
 
 // Helper functions
-static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::string>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected string value");
-        }
-    }, val->data);
+static std::string getString(const interpreter::NaabVal& val) {
+    if (!val.isString()) throw std::runtime_error("Expected string value");
+    return val.asString();
 }
 
-static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::vector<std::string> {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
-            std::vector<std::string> result;
-            for (const auto& item : arg) {
-                result.push_back(item.toString());
-            }
-            return result;
-        } else {
-            throw std::runtime_error("Expected array value");
-        }
-    }, val->data);
+static std::vector<std::string> getStringArray(const interpreter::NaabVal& val) {
+    if (!val.isList()) throw std::runtime_error("Expected array value");
+    std::vector<std::string> result;
+    for (const auto& item : val.asListConst()) {
+        result.push_back(item.toString());
+    }
+    return result;
 }
 
-static int getInt(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> int {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected integer value");
-        }
-    }, val->data);
+static int getInt(const interpreter::NaabVal& val) {
+    if (!val.isInt()) throw std::runtime_error("Expected integer value");
+    return val.asInt();
 }
 
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s) {
-    return std::make_shared<interpreter::Value>(s);
+static interpreter::NaabVal makeString(const std::string& s) {
+    return interpreter::NaabVal::makeString(s);
 }
 
-static std::shared_ptr<interpreter::Value> makeInt(int i) {
-    return std::make_shared<interpreter::Value>(i);
+static interpreter::NaabVal makeInt(int i) {
+    return interpreter::NaabVal::makeInt(i);
 }
 
-static std::shared_ptr<interpreter::Value> makeBool(bool b) {
-    return std::make_shared<interpreter::Value>(b);
+static interpreter::NaabVal makeBool(bool b) {
+    return interpreter::NaabVal::makeBool(b);
 }
 
-static std::shared_ptr<interpreter::Value> makeStringArray(const std::vector<std::string>& arr) {
+static interpreter::NaabVal makeStringArray(const std::vector<std::string>& arr) {
     std::vector<interpreter::NaabVal> elements;
     for (const auto& s : arr) {
-        elements.push_back(interpreter::NaabVal::fromLegacy(makeString(s)));
+        elements.push_back(interpreter::NaabVal::makeString(s));
     }
-    return std::make_shared<interpreter::Value>(std::move(elements));
+    return interpreter::NaabVal::makeList(std::move(elements));
 }
 
 } // namespace stdlib

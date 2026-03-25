@@ -14,15 +14,11 @@ namespace fs = std::filesystem;
 namespace naab {
 namespace stdlib {
 
-static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::string>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected string value");
-        }
-    }, val->data);
+static std::string getString(const interpreter::NaabVal& val) {
+    if (!val.isString()) {
+        throw std::runtime_error("Expected string value");
+    }
+    return val.asString();
 }
 
 bool PathModule::hasFunction(const std::string& name) const {
@@ -33,9 +29,9 @@ bool PathModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> PathModule::call(
+interpreter::NaabVal PathModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     if (function_name == "join") {
         if (args.empty()) {
@@ -45,14 +41,14 @@ std::shared_ptr<interpreter::Value> PathModule::call(
         for (size_t i = 1; i < args.size(); ++i) {
             result /= getString(args[i]);
         }
-        return std::make_shared<interpreter::Value>(result.string());
+        return interpreter::NaabVal::makeString(result.string());
     }
 
     if (function_name == "dirname") {
         if (args.size() != 1) {
             throw std::runtime_error("path.dirname() takes exactly 1 argument");
         }
-        return std::make_shared<interpreter::Value>(
+        return interpreter::NaabVal::makeString(
             fs::path(getString(args[0])).parent_path().string());
     }
 
@@ -60,7 +56,7 @@ std::shared_ptr<interpreter::Value> PathModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("path.basename() takes exactly 1 argument");
         }
-        return std::make_shared<interpreter::Value>(
+        return interpreter::NaabVal::makeString(
             fs::path(getString(args[0])).filename().string());
     }
 
@@ -68,7 +64,7 @@ std::shared_ptr<interpreter::Value> PathModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("path.extension() takes exactly 1 argument");
         }
-        return std::make_shared<interpreter::Value>(
+        return interpreter::NaabVal::makeString(
             fs::path(getString(args[0])).extension().string());
     }
 
@@ -80,17 +76,17 @@ std::shared_ptr<interpreter::Value> PathModule::call(
         auto resolved = fs::canonical(getString(args[0]), ec);
         if (ec) {
             // Fall back to absolute if canonical fails (file doesn't exist)
-            return std::make_shared<interpreter::Value>(
+            return interpreter::NaabVal::makeString(
                 fs::absolute(getString(args[0])).string());
         }
-        return std::make_shared<interpreter::Value>(resolved.string());
+        return interpreter::NaabVal::makeString(resolved.string());
     }
 
     if (function_name == "is_absolute") {
         if (args.size() != 1) {
             throw std::runtime_error("path.is_absolute() takes exactly 1 argument");
         }
-        return std::make_shared<interpreter::Value>(
+        return interpreter::NaabVal::makeBool(
             fs::path(getString(args[0])).is_absolute());
     }
 
@@ -98,7 +94,7 @@ std::shared_ptr<interpreter::Value> PathModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("path.normalize() takes exactly 1 argument");
         }
-        return std::make_shared<interpreter::Value>(
+        return interpreter::NaabVal::makeString(
             fs::path(getString(args[0])).lexically_normal().string());
     }
 
@@ -106,7 +102,7 @@ std::shared_ptr<interpreter::Value> PathModule::call(
         if (args.size() != 1) {
             throw std::runtime_error("path.exists() takes exactly 1 argument");
         }
-        return std::make_shared<interpreter::Value>(
+        return interpreter::NaabVal::makeBool(
             fs::exists(getString(args[0])));
     }
 

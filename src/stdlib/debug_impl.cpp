@@ -245,9 +245,9 @@ bool DebugModule::hasFunction(const std::string& name) const {
            name == "snapshot" || name == "compare";
 }
 
-std::shared_ptr<interpreter::Value> DebugModule::call(
+interpreter::NaabVal DebugModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // ===== EXISTING FUNCTIONS =====
 
@@ -258,7 +258,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.inspect", {"value"}, 1, static_cast<int>(args.size()))
             );
         }
-        return std::make_shared<interpreter::Value>(valueToDebugString(args[0]));
+        return interpreter::NaabVal::makeString(valueToDebugString(args[0]));
 
     } else if (function_name == "type") {
         if (args.size() != 1) {
@@ -267,7 +267,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.type", {"value"}, 1, static_cast<int>(args.size()))
             );
         }
-        return std::make_shared<interpreter::Value>(getTypeName(args[0]));
+        return interpreter::NaabVal::makeString(getTypeName(args[0]));
 
     // ===== NEW FUNCTIONS =====
 
@@ -279,7 +279,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.log", {"label", "value"}, 2, static_cast<int>(args.size()))
             );
         }
-        std::string label = args[0]->toString();
+        std::string label = args[0].toString();
         fprintf(stderr, "[DEBUG] %s: %s\n", label.c_str(), valueToDebugString(args[1]).c_str());
         fflush(stderr);
         return args[1]; // Return value for chaining
@@ -293,12 +293,12 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                 "  Example: debug.assert(x > 0, \"x must be positive\")\n"
             );
         }
-        bool cond = args[0]->toBool();
+        bool cond = args[0].toBool();
         if (!cond) {
-            std::string msg = (args.size() > 1) ? args[1]->toString() : "Assertion failed";
+            std::string msg = (args.size() > 1) ? args[1].toString() : "Assertion failed";
             throw std::runtime_error("Assertion error: " + msg);
         }
-        return std::make_shared<interpreter::Value>(true);
+        return interpreter::NaabVal::makeBool(true);
 
     } else if (function_name == "trace") {
         // debug.trace(value) — Print with file:line to stderr, return value
@@ -332,13 +332,12 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
             );
         }
         std::vector<interpreter::NaabVal> keys;
-        if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(args[0]->data)) {
-            const auto& dict = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(args[0]->data);
-            for (const auto& [k, v] : dict) {
+        if (args[0].isDict()) {
+            for (const auto& [k, v] : args[0].asDictConst()) {
                 keys.push_back(interpreter::NaabVal::makeString(k));
             }
-        } else if (std::holds_alternative<std::shared_ptr<interpreter::StructValue>>(args[0]->data)) {
-            const auto& sv = std::get<std::shared_ptr<interpreter::StructValue>>(args[0]->data);
+        } else if (args[0].isStructVal()) {
+            const auto& sv = args[0].asStructConst();
             if (sv->definition) {
                 for (const auto& field : sv->definition->fields) {
                     keys.push_back(interpreter::NaabVal::makeString(field.name));
@@ -351,7 +350,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                 "  Expected: dict or struct\n"
             );
         }
-        return std::make_shared<interpreter::Value>(keys);
+        return interpreter::NaabVal::makeList(keys);
 
     } else if (function_name == "values") {
         // debug.values(dict|struct) — Return values as array
@@ -362,13 +361,12 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
             );
         }
         std::vector<interpreter::NaabVal> vals;
-        if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(args[0]->data)) {
-            const auto& dict = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(args[0]->data);
-            for (const auto& [k, v] : dict) {
+        if (args[0].isDict()) {
+            for (const auto& [k, v] : args[0].asDictConst()) {
                 vals.push_back(v);
             }
-        } else if (std::holds_alternative<std::shared_ptr<interpreter::StructValue>>(args[0]->data)) {
-            const auto& sv = std::get<std::shared_ptr<interpreter::StructValue>>(args[0]->data);
+        } else if (args[0].isStructVal()) {
+            const auto& sv = args[0].asStructConst();
             vals = sv->field_values;
         } else {
             throw std::runtime_error(
@@ -377,7 +375,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                 "  Expected: dict or struct\n"
             );
         }
-        return std::make_shared<interpreter::Value>(vals);
+        return interpreter::NaabVal::makeList(vals);
 
     } else if (function_name == "diff") {
         // debug.diff(a, b) — Deep comparison, human-readable diff
@@ -389,7 +387,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
         }
         std::string result = diffValues(args[0], args[1]);
         if (result.empty()) result = "(no differences)";
-        return std::make_shared<interpreter::Value>(result);
+        return interpreter::NaabVal::makeString(result);
 
     } else if (function_name == "timer") {
         // debug.timer(label) — Toggle start/stop named timer, return ms elapsed
@@ -399,14 +397,14 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.timer", {"label"}, 1, static_cast<int>(args.size()))
             );
         }
-        std::string label = args[0]->toString();
+        std::string label = args[0].toString();
         auto it = g_timers.find(label);
         if (it == g_timers.end()) {
             // Start timer
             g_timers[label] = std::chrono::steady_clock::now();
             fprintf(stderr, "[TIMER] %s: started\n", label.c_str());
             fflush(stderr);
-            return std::make_shared<interpreter::Value>(0.0);
+            return interpreter::NaabVal::makeDouble(0.0);
         } else {
             // Stop timer
             auto end = std::chrono::steady_clock::now();
@@ -414,7 +412,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
             g_timers.erase(it);
             fprintf(stderr, "[TIMER] %s: %.2fms\n", label.c_str(), ms);
             fflush(stderr);
-            return std::make_shared<interpreter::Value>(ms);
+            return interpreter::NaabVal::makeDouble(ms);
         }
 
     } else if (function_name == "env") {
@@ -430,16 +428,16 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
             // Bug 1: Filter out internal markers and functions (same as snapshot)
             auto all_vars = g_debug_interpreter->getCurrentScopeVariables();
             for (const auto& [name, val] : all_vars) {
-                if (val && std::holds_alternative<std::string>(val->data)) {
-                    const auto& s = std::get<std::string>(val->data);
+                if (val.isString()) {
+                    const auto& s = val.asString();
                     if (s.size() >= 18 && s.substr(0, 18) == "__stdlib_module__:") continue;
                     if (s.size() >= 10 && s.substr(0, 10) == "__module__:") continue;
                 }
-                if (val && std::holds_alternative<std::shared_ptr<interpreter::FunctionValue>>(val->data)) continue;
-                result[name] = interpreter::NaabVal::fromLegacy(val);
+                if (val.isFunction()) continue;
+                result[name] = val;
             }
         }
-        return std::make_shared<interpreter::Value>(std::move(result));
+        return interpreter::NaabVal::makeDict(std::move(result));
 
     } else if (function_name == "stack") {
         // debug.stack() — Call stack as array of strings
@@ -456,7 +454,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                 frames.push_back(interpreter::NaabVal::makeString(frame));
             }
         }
-        return std::make_shared<interpreter::Value>(std::move(frames));
+        return interpreter::NaabVal::makeList(std::move(frames));
 
     } else if (function_name == "watch") {
         // debug.watch(label, value) — Track value changes across calls
@@ -466,7 +464,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.watch", {"label", "value"}, 2, static_cast<int>(args.size()))
             );
         }
-        std::string label = args[0]->toString();
+        std::string label = args[0].toString();
         std::string current = valueToDebugString(args[1]);
         auto it = g_watch_values.find(label);
         if (it == g_watch_values.end()) {
@@ -493,26 +491,26 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.snapshot", {"label"}, 1, static_cast<int>(args.size()))
             );
         }
-        std::string label = args[0]->toString();
+        std::string label = args[0].toString();
         std::unordered_map<std::string, std::string> snap;
         if (g_debug_interpreter) {
             auto vars = g_debug_interpreter->getCurrentScopeVariables();
             for (const auto& [name, val] : vars) {
                 // Skip stdlib module markers
-                if (val && std::holds_alternative<std::string>(val->data)) {
-                    const auto& s = std::get<std::string>(val->data);
+                if (val.isString()) {
+                    const auto& s = val.asString();
                     if (s.size() >= 18 && s.substr(0, 18) == "__stdlib_module__:") continue;
                     if (s.size() >= 10 && s.substr(0, 10) == "__module__:") continue;
                 }
                 // Skip functions
-                if (val && std::holds_alternative<std::shared_ptr<interpreter::FunctionValue>>(val->data)) continue;
+                if (val.isFunction()) continue;
                 snap[name] = valueToDebugString(val);
             }
         }
         g_snapshots[label] = snap;
         fprintf(stderr, "[SNAPSHOT] '%s' captured (%zu variables)\n", label.c_str(), snap.size());
         fflush(stderr);
-        return std::make_shared<interpreter::Value>(true);
+        return interpreter::NaabVal::makeBool(true);
 
     } else if (function_name == "compare") {
         // debug.compare(label1, label2) — Diff two snapshots
@@ -522,7 +520,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
                     "debug.compare", {"label1", "label2"}, 2, static_cast<int>(args.size()))
             );
         }
-        std::string l1 = args[0]->toString(), l2 = args[1]->toString();
+        std::string l1 = args[0].toString(), l2 = args[1].toString();
         auto it1 = g_snapshots.find(l1);
         auto it2 = g_snapshots.find(l2);
         if (it1 == g_snapshots.end()) {
@@ -555,7 +553,7 @@ std::shared_ptr<interpreter::Value> DebugModule::call(
 
         std::string result = oss.str();
         if (result.empty()) result = "(no changes between snapshots)";
-        return std::make_shared<interpreter::Value>(result);
+        return interpreter::NaabVal::makeString(result);
     }
 
     // ===== HELPER ERRORS FOR COMMON MISTAKES =====

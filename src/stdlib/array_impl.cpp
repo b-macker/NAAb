@@ -19,14 +19,14 @@ namespace naab {
 namespace stdlib {
 
 // Forward declarations
-static std::vector<std::shared_ptr<interpreter::Value>> getArray(const std::shared_ptr<interpreter::Value>& val);
-static int getInt(const std::shared_ptr<interpreter::Value>& val);
+static std::vector<interpreter::NaabVal> getArray(const interpreter::NaabVal& val);
+static int getInt(const interpreter::NaabVal& val);
 // Note: getDouble and getBool removed - unused
-static std::shared_ptr<interpreter::Value> makeInt(int i);
-static std::shared_ptr<interpreter::Value> makeBool(bool b);
-static std::shared_ptr<interpreter::Value> makeArray(const std::vector<std::shared_ptr<interpreter::Value>>& arr);
-static std::shared_ptr<interpreter::Value> makeNull();
-static int compareValues(const std::shared_ptr<interpreter::Value>& a, const std::shared_ptr<interpreter::Value>& b);
+static interpreter::NaabVal makeInt(int i);
+static interpreter::NaabVal makeBool(bool b);
+static interpreter::NaabVal makeArray(const std::vector<interpreter::NaabVal>& arr);
+static interpreter::NaabVal makeNull();
+static int compareValues(const interpreter::NaabVal& a, const interpreter::NaabVal& b);
 
 bool ArrayModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
@@ -44,9 +44,9 @@ bool ArrayModule::isMutatingFunction(const std::string& name) const {
     return mutating_funcs.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> ArrayModule::call(
+interpreter::NaabVal ArrayModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // Function 1: length
     if (function_name == "length") {
@@ -106,13 +106,8 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         auto last = arr.back();
         arr.pop_back();  // Remove the last element
 
-        // Store the modified array back in args[0] so auto-mutation can use it
-        {
-            std::vector<interpreter::NaabVal> nval_arr;
-            nval_arr.reserve(arr.size());
-            for (const auto& e : arr) nval_arr.push_back(interpreter::NaabVal::fromLegacy(e));
-            args[0]->data = std::move(nval_arr);
-        }
+        // Mutate args[0] directly for auto-mutation
+        args[0] = interpreter::NaabVal::makeList(std::move(arr));
 
         return last;  // Return the popped element
     }
@@ -142,13 +137,8 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         auto first = arr.front();
         arr.erase(arr.begin());  // Remove the first element
 
-        // Store the modified array back in args[0] so auto-mutation can use it
-        {
-            std::vector<interpreter::NaabVal> nval_arr;
-            nval_arr.reserve(arr.size());
-            for (const auto& e : arr) nval_arr.push_back(interpreter::NaabVal::fromLegacy(e));
-            args[0]->data = std::move(nval_arr);
-        }
+        // Mutate args[0] directly for auto-mutation
+        args[0] = interpreter::NaabVal::makeList(std::move(arr));
 
         return first;  // Return the shifted element
     }
@@ -221,32 +211,28 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
             );
         }
         auto arr = getArray(args[0]);
-        std::string delimiter = std::visit([](auto&& arg) -> std::string {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, std::string>) {
-                return arg;
-            } else {
-                throw std::runtime_error(
-                    "Type error: array.join delimiter must be a string\n\n"
-                    "  Help:\n"
-                    "  - Second argument should be a string delimiter\n"
-                    "  - Common delimiters: \", \", \" \", \"-\", etc.\n\n"
-                    "  Example:\n"
-                    "    ✗ Wrong: array.join([1, 2, 3], 123)\n"
-                    "    ✓ Right: array.join([1, 2, 3], \", \")\n"
-                );
-            }
-        }, args[1]->data);
+        if (!args[1].isString()) {
+            throw std::runtime_error(
+                "Type error: array.join delimiter must be a string\n\n"
+                "  Help:\n"
+                "  - Second argument should be a string delimiter\n"
+                "  - Common delimiters: \", \", \" \", \"-\", etc.\n\n"
+                "  Example:\n"
+                "    ✗ Wrong: array.join([1, 2, 3], 123)\n"
+                "    ✓ Right: array.join([1, 2, 3], \", \")\n"
+            );
+        }
+        std::string delimiter = args[1].asString();
 
         if (arr.empty()) {
-            return std::make_shared<interpreter::Value>(std::string(""));
+            return interpreter::NaabVal::makeString("");
         }
 
-        std::string result = arr[0]->toString();
+        std::string result = arr[0].toString();
         for (size_t i = 1; i < arr.size(); ++i) {
-            result += delimiter + arr[i]->toString();
+            result += delimiter + arr[i].toString();
         }
-        return std::make_shared<interpreter::Value>(result);
+        return interpreter::NaabVal::makeString(result);
     }
 
     // Function 9: map_fn (higher-order function)
@@ -272,7 +258,7 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         auto arr = getArray(args[0]);
         auto fn = args[1];  // Function value
 
-        std::vector<std::shared_ptr<interpreter::Value>> result;
+        std::vector<interpreter::NaabVal> result;
         result.reserve(arr.size());
 
         for (const auto& elem : arr) {
@@ -307,13 +293,13 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         auto arr = getArray(args[0]);
         auto predicate = args[1];  // Function value
 
-        std::vector<std::shared_ptr<interpreter::Value>> result;
+        std::vector<interpreter::NaabVal> result;
 
         for (const auto& elem : arr) {
             // Call the predicate with each element
             auto filter_result = evaluator_(predicate, {elem});
             // Include element if predicate returns true
-            if (filter_result->toBool()) {
+            if (filter_result.toBool()) {
                 result.push_back(elem);
             }
         }
@@ -380,13 +366,13 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
             // Call the predicate with each element
             auto find_result = evaluator_(predicate, {elem});
             // Return first element where predicate returns true
-            if (find_result->toBool()) {
+            if (find_result.toBool()) {
                 return elem;
             }
         }
 
         // Return null/void if not found
-        return std::make_shared<interpreter::Value>();
+        return makeNull();
     }
 
     // Function 8: slice_arr (also accessible as "slice" for convenience)
@@ -410,7 +396,7 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
         if (end > static_cast<int>(arr.size())) end = static_cast<int>(arr.size());
         if (start >= end) return makeArray({});
 
-        std::vector<std::shared_ptr<interpreter::Value>> result(
+        std::vector<interpreter::NaabVal> result(
             arr.begin() + start, arr.begin() + end);
         return makeArray(result);
     }
@@ -582,148 +568,85 @@ std::shared_ptr<interpreter::Value> ArrayModule::call(
 }
 
 // Helper functions
-static std::vector<std::shared_ptr<interpreter::Value>> getArray(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([&val](auto&& arg) -> std::vector<std::shared_ptr<interpreter::Value>> {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
-            // Convert NaabVal elements to shared_ptr<Value> for stdlib API
-            std::vector<std::shared_ptr<interpreter::Value>> result;
-            result.reserve(arg.size());
-            for (const auto& elem : arg) {
-                result.push_back(elem.toLegacy());
-            }
-            return result;
-        } else {
-            // Get type name for error message
-            std::string actual_type = std::visit([](auto&& v) -> std::string {
-                using VT = std::decay_t<decltype(v)>;
-                if constexpr (std::is_same_v<VT, std::monostate>) return "null";
-                else if constexpr (std::is_same_v<VT, int>) return "int";
-                else if constexpr (std::is_same_v<VT, double>) return "float";
-                else if constexpr (std::is_same_v<VT, bool>) return "bool";
-                else if constexpr (std::is_same_v<VT, std::string>) return "string";
-                else return "unknown";
-            }, val->data);
-
-            throw std::runtime_error(
-                "Type error: Expected array, got " + actual_type + "\n\n"
-                "  Help:\n"
-                "  - Array module functions require array arguments\n"
-                "  - Create an array with: [1, 2, 3]\n"
-                "  - Check the type with: typeof(value)\n\n"
-                "  Example:\n"
-                "    ✗ Wrong: array.length(\"hello\")  // string\n"
-                "    ✓ Right: array.length([1, 2, 3])  // array\n"
-            );
-        }
-    }, val->data);
-}
-
-static int getInt(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([&val](auto&& arg) -> int {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>) {
-            return arg;
-        } else if constexpr (std::is_same_v<T, double>) {
-            return static_cast<int>(arg);
-        } else {
-            // Get type name for error message
-            std::string actual_type = std::visit([](auto&& v) -> std::string {
-                using VT = std::decay_t<decltype(v)>;
-                if constexpr (std::is_same_v<VT, std::monostate>) return "null";
-                else if constexpr (std::is_same_v<VT, bool>) return "bool";
-                else if constexpr (std::is_same_v<VT, std::string>) return "string";
-                else if constexpr (std::is_same_v<VT, std::vector<interpreter::NaabVal>>) return "array";
-                else return "unknown";
-            }, val->data);
-
-            throw std::runtime_error(
-                "Type error: Expected integer, got " + actual_type + "\n\n"
-                "  Help:\n"
-                "  - Array indices must be integers\n"
-                "  - Numeric parameters require int or float\n"
-                "  - Convert with: int(value)\n\n"
-                "  Example:\n"
-                "    ✗ Wrong: array.slice_arr(arr, \"0\", \"5\")  // string\n"
-                "    ✓ Right: array.slice_arr(arr, 0, 5)  // int\n"
-            );
-        }
-    }, val->data);
-}
-
-// Note: getDouble() and getBool() helper functions removed (unused)
-
-static std::shared_ptr<interpreter::Value> makeInt(int i) {
-    return std::make_shared<interpreter::Value>(i);
-}
-
-static std::shared_ptr<interpreter::Value> makeBool(bool b) {
-    return std::make_shared<interpreter::Value>(b);
-}
-
-static std::shared_ptr<interpreter::Value> makeArray(const std::vector<std::shared_ptr<interpreter::Value>>& arr) {
-    // Convert shared_ptr elements to NaabVal for the new container storage
-    std::vector<interpreter::NaabVal> nval_arr;
-    nval_arr.reserve(arr.size());
-    for (const auto& elem : arr) {
-        nval_arr.push_back(interpreter::NaabVal::fromLegacy(elem));
+static std::vector<interpreter::NaabVal> getArray(const interpreter::NaabVal& val) {
+    if (val.isList()) {
+        // Return a copy of the list
+        return std::vector<interpreter::NaabVal>(val.asListConst().begin(), val.asListConst().end());
     }
-    return std::make_shared<interpreter::Value>(std::move(nval_arr));
+    throw std::runtime_error(
+        "Type error: Expected array, got " + val.getTypeName() + "\n\n"
+        "  Help:\n"
+        "  - Array module functions require array arguments\n"
+        "  - Create an array with: [1, 2, 3]\n"
+        "  - Check the type with: typeof(value)\n\n"
+        "  Example:\n"
+        "    ✗ Wrong: array.length(\"hello\")  // string\n"
+        "    ✓ Right: array.length([1, 2, 3])  // array\n"
+    );
 }
 
-static std::shared_ptr<interpreter::Value> makeNull() {
-    return std::make_shared<interpreter::Value>();
+static int getInt(const interpreter::NaabVal& val) {
+    if (val.isInt()) return val.asInt();
+    if (val.isDouble()) return static_cast<int>(val.asDouble());
+    throw std::runtime_error(
+        "Type error: Expected integer, got " + val.getTypeName() + "\n\n"
+        "  Help:\n"
+        "  - Array indices must be integers\n"
+        "  - Numeric parameters require int or float\n"
+        "  - Convert with: int(value)\n\n"
+        "  Example:\n"
+        "    ✗ Wrong: array.slice_arr(arr, \"0\", \"5\")  // string\n"
+        "    ✓ Right: array.slice_arr(arr, 0, 5)  // int\n"
+    );
+}
+
+static interpreter::NaabVal makeInt(int i) {
+    return interpreter::NaabVal::makeInt(i);
+}
+
+static interpreter::NaabVal makeBool(bool b) {
+    return interpreter::NaabVal::makeBool(b);
+}
+
+static interpreter::NaabVal makeArray(const std::vector<interpreter::NaabVal>& arr) {
+    return interpreter::NaabVal::makeList(arr);
+}
+
+static interpreter::NaabVal makeNull() {
+    return interpreter::NaabVal::makeNull();
 }
 
 // Compare two values (for sorting and equality)
-static int compareValues(const std::shared_ptr<interpreter::Value>& a, const std::shared_ptr<interpreter::Value>& b) {
-    // Get type indices for comparison
-    size_t a_index = a->data.index();
-    size_t b_index = b->data.index();
+static int compareValues(const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+    // Null comparison
+    if (a.isNull() && b.isNull()) return 0;
+    if (a.isNull()) return -1;
+    if (b.isNull()) return 1;
 
-    // If different types, compare by type index
-    if (a_index != b_index) {
-        // Special case: int (1) and double (2) can be compared
-        if ((a_index == 1 && b_index == 2) || (a_index == 2 && b_index == 1)) {
-            double a_val = (a_index == 1) ? std::get<int>(a->data) : std::get<double>(a->data);
-            double b_val = (b_index == 1) ? std::get<int>(b->data) : std::get<double>(b->data);
-            if (a_val < b_val) return -1;
-            if (a_val > b_val) return 1;
-            return 0;
-        }
-        return (a_index < b_index) ? -1 : 1;
+    // Numeric comparison (int/double interop)
+    bool a_num = a.isInt() || a.isDouble();
+    bool b_num = b.isInt() || b.isDouble();
+    if (a_num && b_num) {
+        double a_val = a.isInt() ? static_cast<double>(a.asInt()) : a.asDouble();
+        double b_val = b.isInt() ? static_cast<double>(b.asInt()) : b.asDouble();
+        if (a_val < b_val) return -1;
+        if (a_val > b_val) return 1;
+        return 0;
     }
 
-    // Same types - compare values
-    return std::visit([](auto&& a_val, auto&& b_val) -> int {
-        using A = std::decay_t<decltype(a_val)>;
-        using B = std::decay_t<decltype(b_val)>;
+    // Bool comparison
+    if (a.isBool() && b.isBool()) {
+        if (a.asBool() == b.asBool()) return 0;
+        return a.asBool() ? 1 : -1;
+    }
 
-        if constexpr (std::is_same_v<A, std::monostate> && std::is_same_v<B, std::monostate>) {
-            return 0;
-        }
-        else if constexpr (std::is_same_v<A, int> && std::is_same_v<B, int>) {
-            if (a_val < b_val) return -1;
-            if (a_val > b_val) return 1;
-            return 0;
-        }
-        else if constexpr (std::is_same_v<A, double> && std::is_same_v<B, double>) {
-            if (a_val < b_val) return -1;
-            if (a_val > b_val) return 1;
-            return 0;
-        }
-        else if constexpr (std::is_same_v<A, bool> && std::is_same_v<B, bool>) {
-            if (a_val == b_val) return 0;
-            return a_val ? 1 : -1;
-        }
-        else if constexpr (std::is_same_v<A, std::string> && std::is_same_v<B, std::string>) {
-            return a_val.compare(b_val);
-        }
-        else {
-            // Complex types: vectors, maps, etc. - treat as equal
-            return 0;
-        }
-    }, a->data, b->data);
+    // String comparison
+    if (a.isString() && b.isString()) {
+        return a.asString().compare(b.asString());
+    }
+
+    // Different types - compare by type name
+    return a.getTypeName().compare(b.getTypeName());
 }
 
 } // namespace stdlib

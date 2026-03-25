@@ -12,6 +12,7 @@
 namespace naab {
 namespace interpreter {
     class Value;  // Forward declaration
+    class NaabVal;  // Forward declaration
 }
 
 namespace stdlib {
@@ -26,9 +27,9 @@ class Module {
 public:
     virtual ~Module() = default;
     virtual std::string getName() const = 0;
-    virtual std::shared_ptr<interpreter::Value> call(
+    virtual interpreter::NaabVal call(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args) = 0;
+        std::vector<interpreter::NaabVal>& args) = 0;
     virtual bool hasFunction(const std::string& name) const = 0;
 
     // Returns true if the function mutates its first argument
@@ -43,19 +44,19 @@ class IOModule : public Module {
 public:
     std::string getName() const override { return "io"; }
     bool hasFunction(const std::string& name) const override;
-    std::shared_ptr<interpreter::Value> call(
+    interpreter::NaabVal call(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+        std::vector<interpreter::NaabVal>& args) override;
 
 private:
-    std::shared_ptr<interpreter::Value> read_file(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> write_file(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> exists(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> list_dir(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    interpreter::NaabVal read_file(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal write_file(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal exists(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal list_dir(
+        std::vector<interpreter::NaabVal>& args);
 };
 
 // JSON Module - JSON parsing and serialization
@@ -63,23 +64,23 @@ class JSONModule : public Module {
 public:
     std::string getName() const override { return "json"; }
     bool hasFunction(const std::string& name) const override;
-    std::shared_ptr<interpreter::Value> call(
+    interpreter::NaabVal call(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+        std::vector<interpreter::NaabVal>& args) override;
 
 private:
-    std::shared_ptr<interpreter::Value> parse(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> stringify(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> parse_object(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> parse_array(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> is_valid(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> pretty(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    interpreter::NaabVal parse(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal stringify(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal parse_object(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal parse_array(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal is_valid(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal pretty(
+        std::vector<interpreter::NaabVal>& args);
 };
 
 // HTTP Module - HTTP client operations
@@ -87,23 +88,23 @@ class HTTPModule : public Module {
 public:
     std::string getName() const override { return "http"; }
     bool hasFunction(const std::string& name) const override;
-    std::shared_ptr<interpreter::Value> call(
+    interpreter::NaabVal call(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+        std::vector<interpreter::NaabVal>& args) override;
 
 private:
-    std::shared_ptr<interpreter::Value> get(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> post(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> put(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> del(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> head(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> patch(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    interpreter::NaabVal get(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal post(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal put(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal del(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal head(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal patch(
+        std::vector<interpreter::NaabVal>& args);
 };
 
 // Collections Module - Advanced data structures
@@ -111,21 +112,21 @@ class CollectionsModule : public Module {
 public:
     std::string getName() const override { return "collections"; }
     bool hasFunction(const std::string& name) const override;
-    std::shared_ptr<interpreter::Value> call(
+    interpreter::NaabVal call(
         const std::string& function_name,
-        const std::vector<std::shared_ptr<interpreter::Value>>& args) override;
+        std::vector<interpreter::NaabVal>& args) override;
 
 private:
-    std::shared_ptr<interpreter::Value> set_create(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> set_add(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> set_contains(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> set_remove(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
-    std::shared_ptr<interpreter::Value> set_size(
-        const std::vector<std::shared_ptr<interpreter::Value>>& args);
+    interpreter::NaabVal set_create(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal set_add(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal set_contains(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal set_remove(
+        std::vector<interpreter::NaabVal>& args);
+    interpreter::NaabVal set_size(
+        std::vector<interpreter::NaabVal>& args);
 };
 
 // Forward declarations for new stdlib modules (implemented in separate files)

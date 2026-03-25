@@ -22,8 +22,11 @@ void CycleDetector::markReachable(
     reachable.insert(value);
 
     // Recursively mark all child values
-    value->traverse([&](std::shared_ptr<Value> child) {
-        markReachable(child, visited, reachable);
+    // Value::traverse now passes NaabVal — convert to shared_ptr for marking
+    value->traverse([&](const NaabVal& child) {
+        if (child.isHeap()) {
+            markReachable(child.toLegacy(), visited, reachable);
+        }
     });
 }
 
@@ -37,13 +40,15 @@ void CycleDetector::markFromEnvironment(
         return;
     }
 
-    // Get all values in this environment (now NaabVal)
+    // Get all values in this environment (NaabVal)
     const auto& values = env->getValues();
 
     for (const auto& [name, nval] : values) {
-        // Traverse NaabVal to reach contained shared_ptr<Value> for marking
-        nval.traverse([&](std::shared_ptr<Value> child) {
-            markReachable(child, visited, reachable);
+        // Traverse NaabVal to reach contained values for marking
+        nval.traverse([&](const NaabVal& child) {
+            if (child.isHeap()) {
+                markReachable(child.toLegacy(), visited, reachable);
+            }
         });
     }
 
@@ -61,12 +66,7 @@ std::vector<std::shared_ptr<Value>> CycleDetector::findCycles(
 {
     std::vector<std::shared_ptr<Value>> cycles;
 
-    // In a real implementation, we would track all allocated values
-    // For now, this is a simplified version that finds values
-    // that have multiple references but aren't reachable from roots
-
     for (const auto& value : all_values) {
-        // Skip null values
         if (!value) {
             continue;
         }
@@ -91,20 +91,15 @@ void CycleDetector::breakCycles(const std::vector<std::shared_ptr<Value>>& cycle
             continue;
         }
 
-        // Clear internal references to break the cycle
-        // This will be done by setting fields to null/empty
         std::visit([](auto&& arg) {
             using T = std::decay_t<decltype(arg)>;
 
-            // Clear list elements
             if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
                 arg.clear();
             }
-            // Clear dict entries
             else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
                 arg.clear();
             }
-            // Clear struct fields
             else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
                 if (arg) {
                     arg->field_values.clear();
@@ -120,7 +115,7 @@ void CycleDetector::breakCycles(const std::vector<std::shared_ptr<Value>>& cycle
 // Main entry point: detect and collect cycles (COMPLETE TRACING GC)
 size_t CycleDetector::detectAndCollect(std::shared_ptr<Environment> root_env,
                                       std::vector<std::weak_ptr<Value>>& tracked_values,
-                                      const std::vector<std::shared_ptr<Value>>& extra_roots,
+                                      const std::vector<NaabVal>& extra_roots,
                                       const std::vector<std::shared_ptr<Environment>>& extra_envs)
 {
     if (!root_env) {
@@ -131,40 +126,36 @@ size_t CycleDetector::detectAndCollect(std::shared_ptr<Environment> root_env,
     std::set<std::shared_ptr<Value>> visited;
     std::set<std::shared_ptr<Value>> reachable;
 
-    // Mark all reachable values from the environment (includes parent chain)
     markFromEnvironment(root_env, visited, reachable);
 
-    // Mark additional environments (e.g., global_env_ when root is current_env_)
+    // Mark additional environments
     for (const auto& env : extra_envs) {
         if (env) {
             markFromEnvironment(env, visited, reachable);
         }
     }
 
-    // Mark additional root values (e.g., result_, in-flight return values)
-    for (const auto& val : extra_roots) {
-        if (val) {
-            markReachable(val, visited, reachable);
+    // Mark additional root values (NaabVal — convert to shared_ptr internally)
+    for (const auto& nval : extra_roots) {
+        if (nval.isHeap()) {
+            markReachable(nval.toLegacy(), visited, reachable);
         }
     }
 
-    // Phase 2: Build set of ALL tracked values (including out-of-scope)
+    // Phase 2: Build set of ALL tracked values
     std::set<std::shared_ptr<Value>> all_values;
 
-    // Convert tracked weak_ptrs to shared_ptrs, removing expired ones
     auto it = tracked_values.begin();
     while (it != tracked_values.end()) {
         if (auto value = it->lock()) {
             all_values.insert(value);
             ++it;
         } else {
-            // Remove expired weak_ptr
             it = tracked_values.erase(it);
         }
     }
 
     // Phase 3: Sweep - find unreachable cycles
-    // These are values in all_values but NOT in reachable
     auto cycles = findCycles(reachable, all_values);
 
     // Phase 4: Collect - break the cycles

@@ -13,6 +13,7 @@ namespace interpreter {
 
 // Forward declarations
 class Value;
+class NaabVal;
 class Environment;
 
 class CycleDetector {
@@ -21,12 +22,11 @@ public:
 
     // Run cycle detection and collection
     // Returns number of values collected
-    // Now supports global value tracking for complete GC
-    // extra_roots: additional values to mark as reachable (e.g., result_, return values)
+    // extra_roots: additional NaabVal values to mark as reachable (e.g., result_)
     // extra_envs: additional environments to mark from (e.g., global_env_)
     size_t detectAndCollect(std::shared_ptr<Environment> root_env,
                            std::vector<std::weak_ptr<Value>>& tracked_values,
-                           const std::vector<std::shared_ptr<Value>>& extra_roots = {},
+                           const std::vector<NaabVal>& extra_roots = {},
                            const std::vector<std::shared_ptr<Environment>>& extra_envs = {});
 
     // Get statistics
@@ -46,7 +46,6 @@ private:
                             std::set<std::shared_ptr<Value>>& reachable);
 
     // Sweep phase: identify unreachable values that are in cycles
-    // (refcount > 0 but not reachable from roots)
     std::vector<std::shared_ptr<Value>> findCycles(
         const std::set<std::shared_ptr<Value>>& reachable,
         const std::set<std::shared_ptr<Value>>& all_values);
@@ -62,4 +61,3 @@ private:
 
 } // namespace interpreter
 } // namespace naab
-

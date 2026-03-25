@@ -51,35 +51,6 @@ namespace interpreter {
 // Issue #3: Global access to current interpreter (for stdlib path resolution)
 thread_local Interpreter* g_current_interpreter = nullptr;
 
-// Helper function to get type name as string for error messages
-static std::string getTypeName(const std::shared_ptr<Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>) {
-            return "int";
-        } else if constexpr (std::is_same_v<T, double>) {
-            return "float";
-        } else if constexpr (std::is_same_v<T, bool>) {
-            return "bool";
-        } else if constexpr (std::is_same_v<T, std::string>) {
-            return "string";
-        } else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
-            return "array";
-        } else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
-            return "dict";
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) {
-            return "function";
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
-            return "struct";
-        } else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) {
-            return "future";
-        } else if constexpr (std::is_same_v<T, std::monostate>) {
-            return "null";
-        }
-        return "unknown";
-    }, val->data);
-}
-
 
 // ============================================================================
 // Phase 4.1: Exception Handling
@@ -118,16 +89,11 @@ std::string NaabError::formatError() const {
     return ss.str();
 }
 
-NaabError::NaabError(std::shared_ptr<Value> value)
-    : std::runtime_error("NaabError"), error_type_(ErrorType::GENERIC) {
-    value_ = value;
-    if (value) {
-        message_ = value->toString();
-    }
-}
-
 NaabError::NaabError(NaabVal value)
-    : NaabError(value.toLegacy()) {}
+    : std::runtime_error(value.toString()), error_type_(ErrorType::GENERIC),
+      value_(std::move(value)) {
+    message_ = value_.toString();
+}
 
 std::string NaabError::errorTypeToString(ErrorType type) {
     switch (type) {
@@ -269,32 +235,32 @@ double Value::toFloat() const {
 }
 
 // Phase 3.2: Traverse all referenced values (for cycle detection)
-void Value::traverse(std::function<void(std::shared_ptr<Value>)> visitor) const {
+void Value::traverse(std::function<void(const NaabVal&)> visitor) const {
     std::visit([&visitor](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;
 
-        // Visit list elements (now NaabVal)
+        // Visit list elements (NaabVal)
         if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
             for (const auto& elem : arg) {
                 if (!elem.isNull()) {
-                    visitor(elem.toLegacy());
+                    visitor(elem);
                 }
             }
         }
-        // Visit dict values (now NaabVal)
+        // Visit dict values (NaabVal)
         else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
             for (const auto& [key, val] : arg) {
                 if (!val.isNull()) {
-                    visitor(val.toLegacy());
+                    visitor(val);
                 }
             }
         }
-        // Visit struct fields (now NaabVal)
+        // Visit struct fields (NaabVal)
         else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) {
             if (arg) {
                 for (const auto& field_val : arg->field_values) {
                     if (!field_val.isNull()) {
-                        visitor(field_val.toLegacy());
+                        visitor(field_val);
                     }
                 }
             }
@@ -529,10 +495,7 @@ Interpreter::Interpreter()
             imported_modules_[mod_name] = module;
 
             // Store module marker in global environment
-            auto module_marker = std::make_shared<Value>(
-                std::string("__stdlib_module__:" + mod_name)
-            );
-            global_env_->define(mod_name, module_marker);
+            global_env_->define(mod_name, NaabVal::makeString("__stdlib_module__:" + mod_name));
         }
     }
     LOG_DEBUG("[INFO] Stdlib prelude auto-imported: array, string, io, file, debug\n");
@@ -553,8 +516,8 @@ Interpreter::Interpreter()
         if (array_mod) {
             // Create callback that uses this interpreter's callFunction method
             array_mod->setFunctionEvaluator(
-                [this](std::shared_ptr<Value> fn, const std::vector<std::shared_ptr<Value>>& args) -> std::shared_ptr<Value> {
-                    return this->callFunction(fn, args).toLegacy();
+                [this](NaabVal fn, const std::vector<NaabVal>& args) -> NaabVal {
+                    return this->callFunction(fn, args);
                 }
             );
             LOG_DEBUG("[INFO] Array module configured with function evaluator\n");
@@ -1077,8 +1040,7 @@ void Interpreter::visit(ast::FunctionDecl& node) {
     // Store in environment
     // ISS-022 Fix: Use current_env_ instead of global_env_ so module functions
     // can access module imports (like stdlib modules)
-    auto value = std::make_shared<Value>(func_value);
-    current_env_->define(node.getName(), value);
+    current_env_->define(node.getName(), NaabVal::makeFunction(func_value));
 
     LOG_DEBUG("[INFO] Defined function: {}({} params)",
                node.getName(), param_names.size());
@@ -1151,7 +1113,7 @@ void Interpreter::visit(ast::StructDecl& node) {
     }
 
     // Struct declarations don't produce values
-    result_ = std::make_shared<Value>();
+    result_ = NaabVal::makeNull();
 }
 
 // Nested function declaration statement
@@ -1203,8 +1165,7 @@ void Interpreter::visit(ast::RuntimeDeclStmt& node) {
 
     // Define the runtime handle as a special value in the environment
     // Store it as a string marker that the .exec() handler recognizes
-    auto value = std::make_shared<Value>("__NAAB_RUNTIME__:" + name);
-    current_env_->define(name, value);
+    current_env_->define(name, NaabVal::makeString("__NAAB_RUNTIME__:" + name));
 }
 
 // Phase 2.4.3: Enum declaration visitor
@@ -1219,7 +1180,7 @@ void Interpreter::visit(ast::EnumDecl& node) {
 
         // Store enum variant as: EnumName.VariantName = value
         std::string full_name = node.getName() + "." + variant.name;
-        auto value = std::make_shared<Value>(variant_value);
+        auto value = NaabVal::makeInt(variant_value);
         current_env_->define(full_name, value);
         // Also define in global_env_ for cross-scope access
         if (current_env_ != global_env_) {
@@ -1233,7 +1194,7 @@ void Interpreter::visit(ast::EnumDecl& node) {
                node.getName(), node.getVariants().size());
 
     // Enum declarations don't produce values
-    result_ = std::make_shared<Value>();
+    result_ = NaabVal::makeNull();
 }
 
 // Phase 6: Interface declaration visitor
@@ -1257,7 +1218,7 @@ void Interpreter::visit(ast::InterfaceDecl& node) {
     LOG_DEBUG("[INFO] Defined interface: {} with {} methods\n",
                node.getName(), node.getMethods().size());
 
-    result_ = std::make_shared<Value>();
+    result_ = NaabVal::makeNull();
 }
 
 void Interpreter::visit(ast::MainBlock& node) {
@@ -1459,7 +1420,7 @@ void Interpreter::visit(ast::ReturnStmt& node) {
     if (node.getExpr()) {
         result_ = eval(*node.getExpr());
     } else {
-        result_ = std::make_shared<Value>();
+        result_ = NaabVal::makeNull();
     }
 
     // Phase 2.4.2 & 2.4.5: Validate return type (union types and null safety)
@@ -1735,7 +1696,7 @@ void Interpreter::visit(ast::YieldExpr& node) {
     // Evaluate the yielded value and collect it
     auto value = eval(*node.getExpr());
     active_generator_->collected_values.push_back(value);
-    result_ = std::make_shared<Value>();  // yield itself returns void
+    result_ = NaabVal::makeNull();  // yield itself returns void
 }
 
 void Interpreter::visit(ast::LambdaExpr& node) {
@@ -1772,7 +1733,7 @@ void Interpreter::visit(ast::LambdaExpr& node) {
         current_env_  // capture current environment as closure
     );
 
-    result_ = std::make_shared<Value>(func_val);
+    result_ = NaabVal::makeFunction(func_val);
 }
 
 void Interpreter::visit(ast::ForStmt& node) {
@@ -2356,13 +2317,13 @@ void Interpreter::visit(ast::TryStmt& node) {
         auto* catch_clause = node.getCatchClause();
 
         // Issue #6 Fix: Ensure error object has structured properties
-        auto error_val = e.getValue();
-        if (!error_val) {
+        NaabVal error_val = e.getValue();
+        if (error_val.isNull()) {
             // Create structured error object if getValue() returned null
             std::unordered_map<std::string, NaabVal> error_dict;
             error_dict["message"] = NaabVal::makeString(e.getMessage());
             error_dict["type"] = NaabVal::makeString(NaabError::errorTypeToString(e.getType()));
-            error_val = std::make_shared<Value>(std::move(error_dict));
+            error_val = NaabVal::makeDict(std::move(error_dict));
         }
         current_env_->define(catch_clause->error_name, error_val);
 
@@ -2412,7 +2373,7 @@ void Interpreter::visit(ast::TryStmt& node) {
         std::unordered_map<std::string, NaabVal> error_dict;
         error_dict["message"] = NaabVal::makeString(std::string(std_error.what()));
         error_dict["type"] = NaabVal::makeString(std::string("PolyglotError"));
-        auto error_value = std::make_shared<Value>(std::move(error_dict));
+        auto error_value = NaabVal::makeDict(std::move(error_dict));
 
         // Bind the error value to the catch variable
         auto* catch_clause = node.getCatchClause();
@@ -2600,9 +2561,9 @@ void Interpreter::runGarbageCollection(std::shared_ptr<Environment> env) {
     auto root_env = env ? env : global_env_;
 
     // Build extra roots: result_ and any in-flight values
-    std::vector<std::shared_ptr<Value>> extra_roots;
+    std::vector<NaabVal> extra_roots;
     if (!result_.isNull()) {
-        extra_roots.push_back(result_.toLegacy());
+        extra_roots.push_back(result_);
     }
 
     // Build extra environments: always include global_env_ if root is not global
@@ -2635,11 +2596,12 @@ void Interpreter::runGarbageCollection(std::shared_ptr<Environment> env) {
     allocation_count_ = 0;
 }
 
-void Interpreter::registerValue(std::shared_ptr<Value> value) {
-    if (!value || !gc_enabled_) {
+void Interpreter::registerValue(NaabVal value) {
+    if (value.isNull() || !gc_enabled_) {
         return;
     }
-    tracked_values_.push_back(value);
+    // Convert to shared_ptr<Value> for the tracked_values_ weak_ptr vector
+    tracked_values_.push_back(value.toLegacy());
 }
 
 void Interpreter::trackAllocation() {
@@ -2652,7 +2614,7 @@ void Interpreter::trackAllocation() {
     // Register the newly created value for global tracking (complete GC)
     // Only track heap-allocated values (NaabVal inline types don't need GC)
     if (result_.isHeap()) {
-        registerValue(result_.toLegacy());
+        registerValue(result_);
     }
 
     // Trigger GC when threshold reached
@@ -2745,13 +2707,13 @@ std::filesystem::path Interpreter::resolveRelativePath(const std::string& path) 
 }
 
 // Debug module support: return all variables in current scope
-std::unordered_map<std::string, std::shared_ptr<Value>> Interpreter::getCurrentScopeVariables() const {
-    std::unordered_map<std::string, std::shared_ptr<Value>> result;
+std::unordered_map<std::string, NaabVal> Interpreter::getCurrentScopeVariables() const {
+    std::unordered_map<std::string, NaabVal> result;
     if (current_env_) {
         auto names = current_env_->getAllNames();
         for (const auto& name : names) {
             auto val = current_env_->get(name);
-            if (!val.isNull()) result[name] = val.toLegacy();
+            if (!val.isNull()) result[name] = val;
         }
     }
     return result;

@@ -29,11 +29,11 @@ namespace naab {
 namespace stdlib {
 
 // Forward declarations
-static std::string getString(const std::shared_ptr<interpreter::Value>& val);
-static int getInt(const std::shared_ptr<interpreter::Value>& val);
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s);
-static std::shared_ptr<interpreter::Value> makeInt(int i);
-static std::shared_ptr<interpreter::Value> makeBool(bool b);
+static std::string getString(const interpreter::NaabVal& val);
+static int getInt(const interpreter::NaabVal& val);
+static interpreter::NaabVal makeString(const std::string& s);
+static interpreter::NaabVal makeInt(int i);
+static interpreter::NaabVal makeBool(bool b);
 static std::string base64_encode(const std::string& input);
 static std::string base64_decode(const std::string& input);
 static std::string hex_encode(const std::string& input);
@@ -55,9 +55,9 @@ bool CryptoModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> CryptoModule::call(
+interpreter::NaabVal CryptoModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // Function 1: md5
     if (function_name == "md5") {
@@ -309,40 +309,27 @@ std::shared_ptr<interpreter::Value> CryptoModule::call(
 }
 
 // Helper functions
-static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::string>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected string value");
-        }
-    }, val->data);
+static std::string getString(const interpreter::NaabVal& val) {
+    if (!val.isString()) throw std::runtime_error("Expected string value");
+    return val.asString();
 }
 
-static int getInt(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> int {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>) {
-            return arg;
-        } else if constexpr (std::is_same_v<T, double>) {
-            return static_cast<int>(arg);
-        } else {
-            throw std::runtime_error("Expected integer value");
-        }
-    }, val->data);
+static int getInt(const interpreter::NaabVal& val) {
+    if (val.isInt()) return val.asInt();
+    if (val.isDouble()) return static_cast<int>(val.asDouble());
+    throw std::runtime_error("Expected integer value");
 }
 
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s) {
-    return std::make_shared<interpreter::Value>(s);
+static interpreter::NaabVal makeString(const std::string& s) {
+    return interpreter::NaabVal::makeString(s);
 }
 
-static std::shared_ptr<interpreter::Value> makeInt(int i) {
-    return std::make_shared<interpreter::Value>(i);
+static interpreter::NaabVal makeInt(int i) {
+    return interpreter::NaabVal::makeInt(i);
 }
 
-static std::shared_ptr<interpreter::Value> makeBool(bool b) {
-    return std::make_shared<interpreter::Value>(b);
+static interpreter::NaabVal makeBool(bool b) {
+    return interpreter::NaabVal::makeBool(b);
 }
 
 static std::string base64_encode(const std::string& input) {

@@ -41,9 +41,9 @@ bool IOModule::hasFunction(const std::string& name) const {
            name == "input";
 }
 
-std::shared_ptr<interpreter::Value> IOModule::call(
+interpreter::NaabVal IOModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // File I/O functions
     if (function_name == "read_file") {
@@ -64,10 +64,10 @@ std::shared_ptr<interpreter::Value> IOModule::call(
         }
         auto& out = g_pipe_mode ? std::cerr : std::cout;
         for (const auto& arg : args) {
-            out << arg->toString();
+            out << arg.toString();
         }
         out.flush();
-        return std::make_shared<interpreter::Value>();  // Return null/void
+        return interpreter::NaabVal::makeNull();
     }
     else if (function_name == "output") {
         // Write to stdout ALWAYS (even in --pipe mode)
@@ -76,10 +76,10 @@ std::shared_ptr<interpreter::Value> IOModule::call(
             throw std::runtime_error("output() requires at least one argument");
         }
         for (const auto& arg : args) {
-            std::cout << arg->toString();
+            std::cout << arg.toString();
         }
         std::cout.flush();
-        return std::make_shared<interpreter::Value>();  // Return null/void
+        return interpreter::NaabVal::makeNull();
     }
     else if (function_name == "write_error") {
         // Write to stderr
@@ -87,32 +87,32 @@ std::shared_ptr<interpreter::Value> IOModule::call(
             throw std::runtime_error("write_error() requires at least one argument");
         }
         for (const auto& arg : args) {
-            std::cerr << arg->toString();
+            std::cerr << arg.toString();
         }
         std::cerr.flush();
-        return std::make_shared<interpreter::Value>();  // Return null/void
+        return interpreter::NaabVal::makeNull();
     }
     else if (function_name == "read_line") {
         // Read line from stdin
         std::string line;
         if (std::getline(std::cin, line)) {
-            return std::make_shared<interpreter::Value>(line);
+            return interpreter::NaabVal::makeString(line);
         }
-        return std::make_shared<interpreter::Value>("");  // Return empty string on EOF
+        return interpreter::NaabVal::makeString("");  // Return empty string on EOF
     }
 
     else if (function_name == "input") {
         // Read line from stdin with optional prompt
         if (!args.empty()) {
             auto& out = g_pipe_mode ? std::cerr : std::cout;
-            out << args[0]->toString();
+            out << args[0].toString();
             out.flush();
         }
         std::string line;
         if (std::getline(std::cin, line)) {
-            return std::make_shared<interpreter::Value>(line);
+            return interpreter::NaabVal::makeString(line);
         }
-        return std::make_shared<interpreter::Value>("");
+        return interpreter::NaabVal::makeString("");
     }
 
     // Aliases: io.print(), io.println(), io.log() → same as io.write()
@@ -123,16 +123,16 @@ std::shared_ptr<interpreter::Value> IOModule::call(
                 out << "\n";
                 out.flush();
             }
-            return std::make_shared<interpreter::Value>();
+            return interpreter::NaabVal::makeNull();
         }
         for (const auto& arg : args) {
-            out << arg->toString();
+            out << arg.toString();
         }
         if (function_name == "println") {
             out << "\n";
         }
         out.flush();
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
     throw std::runtime_error(
         "Unknown io function: " + function_name + "\n\n"
@@ -140,14 +140,14 @@ std::shared_ptr<interpreter::Value> IOModule::call(
     );
 }
 
-std::shared_ptr<interpreter::Value> IOModule::read_file(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal IOModule::read_file(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.empty()) {
         throw std::runtime_error("read_file requires filename argument");
     }
 
-    std::string filename = args[0]->toString();
+    std::string filename = args[0].toString();
 
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -157,18 +157,18 @@ std::shared_ptr<interpreter::Value> IOModule::read_file(
     std::stringstream buffer;
     buffer << file.rdbuf();
 
-    return std::make_shared<interpreter::Value>(buffer.str());
+    return interpreter::NaabVal::makeString(buffer.str());
 }
 
-std::shared_ptr<interpreter::Value> IOModule::write_file(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal IOModule::write_file(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() < 2) {
         throw std::runtime_error("write_file requires filename and content arguments");
     }
 
-    std::string filename = args[0]->toString();
-    std::string content = args[1]->toString();
+    std::string filename = args[0].toString();
+    std::string content = args[1].toString();
 
     std::ofstream file(filename);
     if (!file.is_open()) {
@@ -178,30 +178,30 @@ std::shared_ptr<interpreter::Value> IOModule::write_file(
     file << content;
     file.close();
 
-    return std::make_shared<interpreter::Value>(true);
+    return interpreter::NaabVal::makeBool(true);
 }
 
-std::shared_ptr<interpreter::Value> IOModule::exists(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal IOModule::exists(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.empty()) {
         throw std::runtime_error("exists requires filename argument");
     }
 
-    std::string filename = args[0]->toString();
+    std::string filename = args[0].toString();
     bool file_exists = fs::exists(filename);
 
-    return std::make_shared<interpreter::Value>(file_exists);
+    return interpreter::NaabVal::makeBool(file_exists);
 }
 
-std::shared_ptr<interpreter::Value> IOModule::list_dir(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal IOModule::list_dir(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.empty()) {
         throw std::runtime_error("list_dir requires directory path argument");
     }
 
-    std::string dir_path = args[0]->toString();
+    std::string dir_path = args[0].toString();
 
     if (!fs::exists(dir_path) || !fs::is_directory(dir_path)) {
         throw std::runtime_error("Not a directory: " + dir_path);
@@ -215,7 +215,7 @@ std::shared_ptr<interpreter::Value> IOModule::list_dir(
         ));
     }
 
-    return std::make_shared<interpreter::Value>(std::move(entries));
+    return interpreter::NaabVal::makeList(std::move(entries));
 }
 
 // ============================================================================
@@ -227,9 +227,9 @@ bool CollectionsModule::hasFunction(const std::string& name) const {
            name == "set_remove" || name == "set_size";
 }
 
-std::shared_ptr<interpreter::Value> CollectionsModule::call(
+interpreter::NaabVal CollectionsModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     if (function_name == "Set") {
         return set_create(args);
@@ -246,120 +246,110 @@ std::shared_ptr<interpreter::Value> CollectionsModule::call(
     throw std::runtime_error("Unknown collections function: " + function_name);
 }
 
-std::shared_ptr<interpreter::Value> CollectionsModule::set_create(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal CollectionsModule::set_create(
+    std::vector<interpreter::NaabVal>& args) {
     (void)args; // Intentionally unused - creates empty set
 
     // Create empty set (represented as list for now)
     std::vector<interpreter::NaabVal> set_data;
 
-    return std::make_shared<interpreter::Value>(std::move(set_data));
+    return interpreter::NaabVal::makeList(std::move(set_data));
 }
 
-std::shared_ptr<interpreter::Value> CollectionsModule::set_add(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal CollectionsModule::set_add(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() < 2) {
         throw std::runtime_error("set_add requires set and value arguments");
     }
 
     // Get the set (represented as vector)
-    auto& set_value = args[0];
-    auto& new_value = args[1];
+    const auto& set_value = args[0];
+    const auto& new_value = args[1];
 
-    // Extract vector from set
-    auto vec_ptr = std::get_if<std::vector<interpreter::NaabVal>>(&set_value->data);
-    if (!vec_ptr) {
+    if (!set_value.isList()) {
         throw std::runtime_error("set_add: first argument must be a set");
     }
+    const auto& vec = set_value.asListConst();
 
     // Check if value already exists (ensure uniqueness)
-    for (const auto& item : *vec_ptr) {
-        if (item.toString() == new_value->toString()) {
-            // Value already exists, return the same set
+    for (const auto& item : vec) {
+        if (item.toString() == new_value.toString()) {
             return set_value;
         }
     }
 
     // Create new set with the additional value
-    std::vector<interpreter::NaabVal> new_set = *vec_ptr;
-    new_set.push_back(interpreter::NaabVal::fromLegacy(new_value));
+    std::vector<interpreter::NaabVal> new_set = vec;
+    new_set.push_back(new_value);
 
-    return std::make_shared<interpreter::Value>(std::move(new_set));
+    return interpreter::NaabVal::makeList(std::move(new_set));
 }
 
-std::shared_ptr<interpreter::Value> CollectionsModule::set_contains(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal CollectionsModule::set_contains(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() < 2) {
         throw std::runtime_error("set_contains requires set and value arguments");
     }
 
-    auto& set_value = args[0];
-    auto& search_value = args[1];
+    const auto& set_value = args[0];
+    const auto& search_value = args[1];
 
-    // Extract vector from set
-    auto vec_ptr = std::get_if<std::vector<interpreter::NaabVal>>(&set_value->data);
-    if (!vec_ptr) {
+    if (!set_value.isList()) {
         throw std::runtime_error("set_contains: first argument must be a set");
     }
 
-    // Search for value in set
-    std::string search_str = search_value->toString();
-    for (const auto& item : *vec_ptr) {
+    std::string search_str = search_value.toString();
+    for (const auto& item : set_value.asListConst()) {
         if (item.toString() == search_str) {
-            return std::make_shared<interpreter::Value>(true);
+            return interpreter::NaabVal::makeBool(true);
         }
     }
 
-    return std::make_shared<interpreter::Value>(false);
+    return interpreter::NaabVal::makeBool(false);
 }
 
-std::shared_ptr<interpreter::Value> CollectionsModule::set_remove(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal CollectionsModule::set_remove(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() < 2) {
         throw std::runtime_error("set_remove requires set and value arguments");
     }
 
-    auto& set_value = args[0];
-    auto& remove_value = args[1];
+    const auto& set_value = args[0];
+    const auto& remove_value = args[1];
 
-    // Extract vector from set
-    auto vec_ptr = std::get_if<std::vector<interpreter::NaabVal>>(&set_value->data);
-    if (!vec_ptr) {
+    if (!set_value.isList()) {
         throw std::runtime_error("set_remove: first argument must be a set");
     }
 
-    // Create new set without the specified value
     std::vector<interpreter::NaabVal> new_set;
-    std::string remove_str = remove_value->toString();
+    std::string remove_str = remove_value.toString();
 
-    for (const auto& item : *vec_ptr) {
+    for (const auto& item : set_value.asListConst()) {
         if (item.toString() != remove_str) {
             new_set.push_back(item);
         }
     }
 
-    return std::make_shared<interpreter::Value>(std::move(new_set));
+    return interpreter::NaabVal::makeList(std::move(new_set));
 }
 
-std::shared_ptr<interpreter::Value> CollectionsModule::set_size(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal CollectionsModule::set_size(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() < 1) {
         throw std::runtime_error("set_size requires set argument");
     }
 
-    auto& set_value = args[0];
+    const auto& set_value = args[0];
 
-    // Extract vector from set
-    auto vec_ptr = std::get_if<std::vector<interpreter::NaabVal>>(&set_value->data);
-    if (!vec_ptr) {
+    if (!set_value.isList()) {
         throw std::runtime_error("set_size: argument must be a set");
     }
 
-    return std::make_shared<interpreter::Value>(static_cast<int>(vec_ptr->size()));
+    return interpreter::NaabVal::makeInt(static_cast<int>(set_value.asListConst().size()));
 }
 
 // ============================================================================

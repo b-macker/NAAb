@@ -371,7 +371,7 @@ std::shared_ptr<Value> NaabVal::toLegacy() const {
 // GC support
 // ============================================================================
 
-void NaabVal::traverse(std::function<void(std::shared_ptr<Value>)> visitor) const {
+void NaabVal::traverse(std::function<void(const NaabVal&)> visitor) const {
     if (isHeap()) {
         asHeap()->shared_value->traverse(visitor);
     }

@@ -653,15 +653,16 @@ int main(int argc, char** argv) {
                                 fprintf(stderr, "  (no variables in scope)\n");
                             } else {
                                 for (const auto& [name, val] : vars) {
-                                    if (!val) continue;
-                                    // Bug 11: Skip module markers (both types)
-                                    if (auto* s = std::get_if<std::string>(&val->data)) {
-                                        if (s->size() >= 18 && s->substr(0, 18) == "__stdlib_module__:") continue;
-                                        if (s->size() >= 10 && s->substr(0, 10) == "__module__:") continue;
+                                    if (val.isNull()) continue;
+                                    // Skip module markers (both types)
+                                    if (val.isString()) {
+                                        const auto& s = val.asString();
+                                        if (s.size() >= 18 && s.substr(0, 18) == "__stdlib_module__:") continue;
+                                        if (s.size() >= 10 && s.substr(0, 10) == "__module__:") continue;
                                     }
                                     // Skip functions
-                                    if (std::holds_alternative<std::shared_ptr<naab::interpreter::FunctionValue>>(val->data)) continue;
-                                    fprintf(stderr, "  %s = %s\n", name.c_str(), val->toString().c_str());
+                                    if (val.isFunction()) continue;
+                                    fprintf(stderr, "  %s = %s\n", name.c_str(), val.toString().c_str());
                                 }
                             }
                         } else if (cmd == "bt" || cmd == "backtrace") {
@@ -683,8 +684,8 @@ int main(int argc, char** argv) {
                             if (vs != std::string::npos) var_name = var_name.substr(vs);
                             auto vars = interpreter.getCurrentScopeVariables();
                             auto it = vars.find(var_name);
-                            if (it != vars.end() && it->second) {
-                                fprintf(stderr, "  %s = %s\n", var_name.c_str(), it->second->toString().c_str());
+                            if (it != vars.end() && !it->second.isNull()) {
+                                fprintf(stderr, "  %s = %s\n", var_name.c_str(), it->second.toString().c_str());
                             } else {
                                 fprintf(stderr, "  Variable '%s' not found in scope\n", var_name.c_str());
                             }

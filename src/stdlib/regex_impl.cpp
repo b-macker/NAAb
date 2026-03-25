@@ -18,12 +18,12 @@ namespace naab {
 namespace stdlib {
 
 // Forward declarations
-static std::string getString(const std::shared_ptr<interpreter::Value>& val);
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s);
-static std::shared_ptr<interpreter::Value> makeBool(bool b);
-static std::shared_ptr<interpreter::Value> makeArray(const std::vector<interpreter::NaabVal>& arr);
-static std::shared_ptr<interpreter::Value> makeStringArray(const std::vector<std::string>& arr);
-static std::shared_ptr<interpreter::Value> makeNull();
+static std::string getString(const interpreter::NaabVal& val);
+static interpreter::NaabVal makeString(const std::string& s);
+static interpreter::NaabVal makeBool(bool b);
+static interpreter::NaabVal makeArray(const std::vector<interpreter::NaabVal>& arr);
+static interpreter::NaabVal makeStringArray(const std::vector<std::string>& arr);
+static interpreter::NaabVal makeNull();
 
 bool RegexModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
@@ -33,9 +33,9 @@ bool RegexModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> RegexModule::call(
+interpreter::NaabVal RegexModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // Function 1: matches - Full string match
     // Renamed from "match" to avoid keyword conflict
@@ -197,7 +197,7 @@ std::shared_ptr<interpreter::Value> RegexModule::call(
                 for (size_t j = 0; j < i->size(); ++j) {
                     groups.push_back((*i)[j].str());
                 }
-                all_groups.push_back(interpreter::NaabVal::fromLegacy(makeStringArray(groups)));
+                all_groups.push_back(makeStringArray(groups));
             }
 
             return makeArray(all_groups);
@@ -304,39 +304,33 @@ std::shared_ptr<interpreter::Value> RegexModule::call(
 }
 
 // Helper functions
-static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::string>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected string value");
-        }
-    }, val->data);
+static std::string getString(const interpreter::NaabVal& val) {
+    if (!val.isString()) throw std::runtime_error("Expected string value");
+    return val.asString();
 }
 
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s) {
-    return std::make_shared<interpreter::Value>(s);
+static interpreter::NaabVal makeString(const std::string& s) {
+    return interpreter::NaabVal::makeString(s);
 }
 
-static std::shared_ptr<interpreter::Value> makeBool(bool b) {
-    return std::make_shared<interpreter::Value>(b);
+static interpreter::NaabVal makeBool(bool b) {
+    return interpreter::NaabVal::makeBool(b);
 }
 
-static std::shared_ptr<interpreter::Value> makeArray(const std::vector<interpreter::NaabVal>& arr) {
-    return std::make_shared<interpreter::Value>(arr);
+static interpreter::NaabVal makeArray(const std::vector<interpreter::NaabVal>& arr) {
+    return interpreter::NaabVal::makeList(arr);
 }
 
-static std::shared_ptr<interpreter::Value> makeStringArray(const std::vector<std::string>& arr) {
+static interpreter::NaabVal makeStringArray(const std::vector<std::string>& arr) {
     std::vector<interpreter::NaabVal> elements;
     for (const auto& s : arr) {
         elements.push_back(interpreter::NaabVal::makeString(s));
     }
-    return std::make_shared<interpreter::Value>(std::move(elements));
+    return interpreter::NaabVal::makeList(std::move(elements));
 }
 
-static std::shared_ptr<interpreter::Value> makeNull() {
-    return std::make_shared<interpreter::Value>();
+static interpreter::NaabVal makeNull() {
+    return interpreter::NaabVal::makeNull();
 }
 
 } // namespace stdlib

@@ -19,9 +19,9 @@ namespace naab {
 namespace stdlib {
 
 // Forward declarations of helper functions
-static std::string getString(const std::shared_ptr<interpreter::Value>& val);
-static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter::Value>& val);
-static bool getBool(const std::shared_ptr<interpreter::Value>& val);
+static std::string getString(const interpreter::NaabVal& val);
+static std::vector<std::string> getStringArray(const interpreter::NaabVal& val);
+static bool getBool(const interpreter::NaabVal& val);
 
 bool FileModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
@@ -33,9 +33,9 @@ bool FileModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> FileModule::call(
+interpreter::NaabVal FileModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     if (function_name == "read") {
         // Inline implementation
@@ -49,7 +49,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         }
         std::stringstream buffer;
         buffer << file.rdbuf();
-        return std::make_shared<interpreter::Value>(buffer.str());
+        return interpreter::NaabVal::makeString(buffer.str());
     }
 
     if (function_name == "write") {
@@ -84,7 +84,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             );
         }
         file << content;
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     if (function_name == "append") {
@@ -119,7 +119,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             );
         }
         file << content;
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     if (function_name == "exists") {
@@ -127,7 +127,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             throw std::runtime_error("exists() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
-        return std::make_shared<interpreter::Value>(fs::exists(path));
+        return interpreter::NaabVal::makeBool(fs::exists(path));
     }
 
     if (function_name == "delete") {
@@ -143,7 +143,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             }
             fs::remove(path);
         }
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     if (function_name == "list_dir") {
@@ -159,7 +159,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
                 ));
             }
         }
-        return std::make_shared<interpreter::Value>(std::move(entries));
+        return interpreter::NaabVal::makeList(std::move(entries));
     }
 
     if (function_name == "create_dir") {
@@ -178,7 +178,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         } else {
             fs::create_directory(path);    // Fails if parent missing
         }
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     if (function_name == "is_file") {
@@ -186,7 +186,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             throw std::runtime_error("is_file() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
-        return std::make_shared<interpreter::Value>(fs::is_regular_file(path));
+        return interpreter::NaabVal::makeBool(fs::is_regular_file(path));
     }
 
     if (function_name == "is_dir") {
@@ -194,7 +194,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             throw std::runtime_error("is_dir() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
-        return std::make_shared<interpreter::Value>(fs::is_directory(path));
+        return interpreter::NaabVal::makeBool(fs::is_directory(path));
     }
 
     if (function_name == "read_lines") {
@@ -214,7 +214,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             }
             lines.push_back(interpreter::NaabVal::makeString(line));
         }
-        return std::make_shared<interpreter::Value>(std::move(lines));
+        return interpreter::NaabVal::makeList(std::move(lines));
     }
 
     if (function_name == "write_lines") {
@@ -230,7 +230,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         for (const auto& line : lines) {
             file << line << '\n';
         }
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     if (function_name == "copy") {
@@ -244,7 +244,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         if (ec) {
             throw std::runtime_error("Failed to copy file: " + src + " -> " + dst + "\n  Error: " + ec.message());
         }
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     if (function_name == "move") {
@@ -258,7 +258,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         if (ec) {
             throw std::runtime_error("Failed to move file: " + src + " -> " + dst + "\n  Error: " + ec.message());
         }
-        return std::make_shared<interpreter::Value>();
+        return interpreter::NaabVal::makeNull();
     }
 
     if (function_name == "size") {
@@ -271,7 +271,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
         if (ec) {
             throw std::runtime_error("Failed to get file size: " + path + "\n  Error: " + ec.message());
         }
-        return std::make_shared<interpreter::Value>(static_cast<int>(sz));
+        return interpreter::NaabVal::makeInt(static_cast<int>(sz));
     }
 
     if (function_name == "basename") {
@@ -279,7 +279,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             throw std::runtime_error("basename() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
-        return std::make_shared<interpreter::Value>(fs::path(path).filename().string());
+        return interpreter::NaabVal::makeString(fs::path(path).filename().string());
     }
 
     if (function_name == "dirname") {
@@ -287,7 +287,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             throw std::runtime_error("dirname() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
-        return std::make_shared<interpreter::Value>(fs::path(path).parent_path().string());
+        return interpreter::NaabVal::makeString(fs::path(path).parent_path().string());
     }
 
     if (function_name == "extension") {
@@ -295,7 +295,7 @@ std::shared_ptr<interpreter::Value> FileModule::call(
             throw std::runtime_error("extension() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
-        return std::make_shared<interpreter::Value>(fs::path(path).extension().string());
+        return interpreter::NaabVal::makeString(fs::path(path).extension().string());
     }
 
     // Common LLM mistakes - Node.js/Python naming conventions
@@ -373,43 +373,25 @@ std::shared_ptr<interpreter::Value> FileModule::call(
 }
 
 // Helper functions
-static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::string>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected string value");
-        }
-    }, val->data);
+static std::string getString(const interpreter::NaabVal& val) {
+    if (!val.isString()) throw std::runtime_error("Expected string value");
+    return val.asString();
 }
 
-static std::vector<std::string> getStringArray(
-    const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::vector<std::string> {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
-            std::vector<std::string> result;
-            result.reserve(arg.size());
-            for (const auto& item : arg) {
-                result.push_back(item.toString());
-            }
-            return result;
-        } else {
-            throw std::runtime_error("Expected array value");
-        }
-    }, val->data);
+static std::vector<std::string> getStringArray(const interpreter::NaabVal& val) {
+    if (!val.isList()) throw std::runtime_error("Expected array value");
+    std::vector<std::string> result;
+    const auto& arr = val.asListConst();
+    result.reserve(arr.size());
+    for (const auto& item : arr) {
+        result.push_back(item.toString());
+    }
+    return result;
 }
 
-static bool getBool(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> bool {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, bool>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected boolean value");
-        }
-    }, val->data);
+static bool getBool(const interpreter::NaabVal& val) {
+    if (!val.isBool()) throw std::runtime_error("Expected boolean value");
+    return val.asBool();
 }
 
 } // namespace stdlib

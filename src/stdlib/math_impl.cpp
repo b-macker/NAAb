@@ -16,7 +16,7 @@ namespace naab {
 namespace stdlib {
 
 // Forward declaration of helper function
-static double getDouble(const std::shared_ptr<interpreter::Value>& val);
+static double getDouble(const interpreter::NaabVal& val);
 
 bool MathModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
@@ -27,19 +27,19 @@ bool MathModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> MathModule::call(
+interpreter::NaabVal MathModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // Constants
     if (function_name == "PI") {
-        return std::make_shared<interpreter::Value>(3.14159265358979323846);
+        return interpreter::NaabVal::makeDouble(3.14159265358979323846);
     }
     if (function_name == "E" || function_name == "e") {
-        return std::make_shared<interpreter::Value>(2.71828182845904523536);
+        return interpreter::NaabVal::makeDouble(2.71828182845904523536);
     }
     if (function_name == "pi") {
-        return std::make_shared<interpreter::Value>(3.14159265358979323846);
+        return interpreter::NaabVal::makeDouble(3.14159265358979323846);
     }
 
     // Function 1: abs
@@ -48,7 +48,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
             throw std::runtime_error("abs() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
-        return std::make_shared<interpreter::Value>(std::abs(x));
+        return interpreter::NaabVal::makeDouble(std::abs(x));
     }
 
     // Function 2: sqrt
@@ -60,7 +60,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         if (x < 0) {
             throw std::runtime_error("sqrt() requires non-negative argument");
         }
-        return std::make_shared<interpreter::Value>(std::sqrt(x));
+        return interpreter::NaabVal::makeDouble(std::sqrt(x));
     }
 
     // Function 3: pow
@@ -70,7 +70,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         }
         double base = getDouble(args[0]);
         double exp = getDouble(args[1]);
-        return std::make_shared<interpreter::Value>(std::pow(base, exp));
+        return interpreter::NaabVal::makeDouble(std::pow(base, exp));
     }
 
     // Function 4: floor
@@ -79,7 +79,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
             throw std::runtime_error("floor() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
-        return std::make_shared<interpreter::Value>(static_cast<int>(std::floor(x)));
+        return interpreter::NaabVal::makeInt(static_cast<int>(std::floor(x)));
     }
 
     // Function 5: ceil
@@ -88,7 +88,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
             throw std::runtime_error("ceil() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
-        return std::make_shared<interpreter::Value>(static_cast<int>(std::ceil(x)));
+        return interpreter::NaabVal::makeInt(static_cast<int>(std::ceil(x)));
     }
 
     // Function 6: round
@@ -97,7 +97,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
             throw std::runtime_error("round() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
-        return std::make_shared<interpreter::Value>(static_cast<int>(std::round(x)));
+        return interpreter::NaabVal::makeInt(static_cast<int>(std::round(x)));
     }
 
     // Function 6b: round_to - round to N decimal places
@@ -114,7 +114,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         int places = static_cast<int>(getDouble(args[1]));
         double factor = std::pow(10.0, places);
         double rounded = std::round(x * factor) / factor;
-        return std::make_shared<interpreter::Value>(rounded);
+        return interpreter::NaabVal::makeDouble(rounded);
     }
 
     // Function 7: min
@@ -124,7 +124,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         }
         double a = getDouble(args[0]);
         double b = getDouble(args[1]);
-        return std::make_shared<interpreter::Value>(std::min(a, b));
+        return interpreter::NaabVal::makeDouble(std::min(a, b));
     }
 
     // Function 8: max
@@ -134,7 +134,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
         }
         double a = getDouble(args[0]);
         double b = getDouble(args[1]);
-        return std::make_shared<interpreter::Value>(std::max(a, b));
+        return interpreter::NaabVal::makeDouble(std::max(a, b));
     }
 
     // Function 9: sin
@@ -143,7 +143,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
             throw std::runtime_error("sin() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
-        return std::make_shared<interpreter::Value>(std::sin(x));
+        return interpreter::NaabVal::makeDouble(std::sin(x));
     }
 
     // Function 10: cos
@@ -152,7 +152,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
             throw std::runtime_error("cos() takes exactly 1 argument");
         }
         double x = getDouble(args[0]);
-        return std::make_shared<interpreter::Value>(std::cos(x));
+        return interpreter::NaabVal::makeDouble(std::cos(x));
     }
 
     // Function 11: tan
@@ -168,7 +168,7 @@ std::shared_ptr<interpreter::Value> MathModule::call(
             throw std::runtime_error("tan() undefined at π/2 + nπ (asymptote)");
         }
 
-        return std::make_shared<interpreter::Value>(std::tan(x));
+        return interpreter::NaabVal::makeDouble(std::tan(x));
     }
 
     // Common LLM mistakes
@@ -233,17 +233,10 @@ std::shared_ptr<interpreter::Value> MathModule::call(
 }
 
 // Helper function
-static double getDouble(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> double {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, double>) {
-            return arg;
-        } else if constexpr (std::is_same_v<T, int>) {
-            return static_cast<double>(arg);  // Allow implicit conversion
-        } else {
-            throw std::runtime_error("Expected numeric value");
-        }
-    }, val->data);
+static double getDouble(const interpreter::NaabVal& val) {
+    if (val.isDouble()) return val.asDouble();
+    if (val.isInt()) return static_cast<double>(val.asInt());
+    throw std::runtime_error("Expected numeric value");
 }
 
 } // namespace stdlib

@@ -20,16 +20,16 @@ namespace naab {
 namespace stdlib {
 
 // Forward declarations
-static std::string getString(const std::shared_ptr<interpreter::Value>& val);
-static int getInt(const std::shared_ptr<interpreter::Value>& val);
-static double getDouble(const std::shared_ptr<interpreter::Value>& val);
-static bool getBool(const std::shared_ptr<interpreter::Value>& val);
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s);
-static std::shared_ptr<interpreter::Value> makeInt(int i);
-static std::shared_ptr<interpreter::Value> makeDouble(double d);
-static std::shared_ptr<interpreter::Value> makeBool(bool b);
-static std::shared_ptr<interpreter::Value> makeMap(const std::unordered_map<std::string, std::string>& m);
-static std::shared_ptr<interpreter::Value> makeNull();
+static std::string getString(const interpreter::NaabVal& val);
+static int getInt(const interpreter::NaabVal& val);
+static double getDouble(const interpreter::NaabVal& val);
+static bool getBool(const interpreter::NaabVal& val);
+static interpreter::NaabVal makeString(const std::string& s);
+static interpreter::NaabVal makeInt(int i);
+static interpreter::NaabVal makeDouble(double d);
+static interpreter::NaabVal makeBool(bool b);
+static interpreter::NaabVal makeMap(const std::unordered_map<std::string, std::string>& m);
+static interpreter::NaabVal makeNull();
 static std::unordered_map<std::string, std::string> parseEnvFile(const std::string& content);
 
 bool EnvModule::hasFunction(const std::string& name) const {
@@ -42,9 +42,9 @@ bool EnvModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> EnvModule::call(
+interpreter::NaabVal EnvModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // Function 1: get - Get environment variable
     if (function_name == "get") {
@@ -243,15 +243,13 @@ std::shared_ptr<interpreter::Value> EnvModule::call(
             args_list.reserve(script_args.size());
 
             for (const auto& arg : script_args) {
-                args_list.push_back(interpreter::NaabVal::fromLegacy(makeString(arg)));
+                args_list.push_back(makeString(arg));
             }
 
-            return std::make_shared<interpreter::Value>(std::move(args_list));
+            return interpreter::NaabVal::makeList(std::move(args_list));
         } else {
             // Return empty list if no provider set
-            return std::make_shared<interpreter::Value>(
-                std::vector<interpreter::NaabVal>{}
-            );
+            return interpreter::NaabVal::makeList(std::vector<interpreter::NaabVal>{});
         }
     }
 
@@ -292,56 +290,42 @@ std::shared_ptr<interpreter::Value> EnvModule::call(
 }
 
 // Helper functions
-static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::string>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected string value");
-        }
-    }, val->data);
+static std::string getString(const interpreter::NaabVal& val) {
+    if (!val.isString()) throw std::runtime_error("Expected string value");
+    return val.asString();
 }
 
-// Note: getInt() and getDouble() helper functions removed (unused)
-
-static bool getBool(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> bool {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, bool>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected boolean value");
-        }
-    }, val->data);
+static bool getBool(const interpreter::NaabVal& val) {
+    if (!val.isBool()) throw std::runtime_error("Expected boolean value");
+    return val.asBool();
 }
 
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s) {
-    return std::make_shared<interpreter::Value>(s);
+static interpreter::NaabVal makeString(const std::string& s) {
+    return interpreter::NaabVal::makeString(s);
 }
 
-static std::shared_ptr<interpreter::Value> makeInt(int i) {
-    return std::make_shared<interpreter::Value>(i);
+static interpreter::NaabVal makeInt(int i) {
+    return interpreter::NaabVal::makeInt(i);
 }
 
-static std::shared_ptr<interpreter::Value> makeDouble(double d) {
-    return std::make_shared<interpreter::Value>(d);
+static interpreter::NaabVal makeDouble(double d) {
+    return interpreter::NaabVal::makeDouble(d);
 }
 
-static std::shared_ptr<interpreter::Value> makeBool(bool b) {
-    return std::make_shared<interpreter::Value>(b);
+static interpreter::NaabVal makeBool(bool b) {
+    return interpreter::NaabVal::makeBool(b);
 }
 
-static std::shared_ptr<interpreter::Value> makeMap(const std::unordered_map<std::string, std::string>& m) {
+static interpreter::NaabVal makeMap(const std::unordered_map<std::string, std::string>& m) {
     std::unordered_map<std::string, interpreter::NaabVal> result;
     for (const auto& pair : m) {
-        result[pair.first] = interpreter::NaabVal::fromLegacy(makeString(pair.second));
+        result[pair.first] = makeString(pair.second);
     }
-    return std::make_shared<interpreter::Value>(std::move(result));
+    return interpreter::NaabVal::makeDict(std::move(result));
 }
 
-static std::shared_ptr<interpreter::Value> makeNull() {
-    return std::make_shared<interpreter::Value>();
+static interpreter::NaabVal makeNull() {
+    return interpreter::NaabVal::makeNull();
 }
 
 static std::unordered_map<std::string, std::string> parseEnvFile(const std::string& content) {

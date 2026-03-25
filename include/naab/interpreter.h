@@ -191,14 +191,13 @@ public:
           error_type_(type), stack_trace_(std::move(stack)) {}
 
     // Constructor from thrown value (implementation in .cpp to avoid forward declaration issues)
-    explicit NaabError(std::shared_ptr<Value> value);
     explicit NaabError(NaabVal value);
 
     // Getters
     const std::string& getMessage() const { return message_; }
     ErrorType getType() const { return error_type_; }
     const std::vector<StackFrame>& getStackTrace() const { return stack_trace_; }
-    std::shared_ptr<Value> getValue() const { return value_; }
+    NaabVal getValue() const { return value_; }
 
     // Add frame to stack trace
     void pushFrame(const StackFrame& frame) {
@@ -215,7 +214,7 @@ private:
     std::string message_;
     ErrorType error_type_;
     std::vector<StackFrame> stack_trace_;
-    std::shared_ptr<Value> value_;  // For throw <value> support
+    NaabVal value_;  // For throw <value> support
 };
 
 // Forward declarations for struct and enum types
@@ -381,7 +380,7 @@ public:
     double toFloat() const;
 
     // Phase 3.2: Cycle detection support - traverse all referenced values
-    void traverse(std::function<void(std::shared_ptr<Value>)> visitor) const;
+    void traverse(std::function<void(const NaabVal&)> visitor) const;
 };
 
 // Variable environment (scoping)
@@ -469,8 +468,6 @@ public:
 
     // Get last evaluated value
     NaabVal getResult() const { return result_; }
-    // Legacy getter for code that still needs shared_ptr<Value>
-    std::shared_ptr<Value> getResultLegacy() const { return result_.toLegacy(); }
 
     // Phase 6: Async execution support
     void setGlobalEnv(std::shared_ptr<Environment> env) { global_env_ = env; }
@@ -480,8 +477,6 @@ public:
 
     // Call a function value with arguments (for higher-order functions)
     NaabVal callFunction(NaabVal fn, const std::vector<NaabVal>& args);
-    // Legacy overload for code that still passes shared_ptr<Value>
-    NaabVal callFunction(std::shared_ptr<Value> fn, const std::vector<std::shared_ptr<Value>>& args);
 
     // Phase 11.1: Flush captured output from polyglot executors
     void flushExecutorOutput(runtime::Executor* executor);
@@ -520,7 +515,7 @@ public:
     void setGCThreshold(size_t threshold) { gc_threshold_ = threshold; }
     size_t getAllocationCount() const { return allocation_count_; }
     size_t getGCCollectionCount() const;
-    void registerValue(std::shared_ptr<Value> value);  // Track value for complete GC
+    void registerValue(NaabVal value);  // Track value for complete GC
 
     // Command-line arguments support (ISS-028)
     void setScriptArgs(const std::vector<std::string>& args) { script_args_ = args; }
@@ -528,7 +523,7 @@ public:
 
     // Debug module support: scope inspection
     std::string getCurrentFilename() const { return current_file_; }
-    std::unordered_map<std::string, std::shared_ptr<Value>> getCurrentScopeVariables() const;
+    std::unordered_map<std::string, NaabVal> getCurrentScopeVariables() const;
     std::vector<std::string> getCallStackInfo() const;
 
     // Governance engine support

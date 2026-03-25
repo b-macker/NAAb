@@ -17,12 +17,12 @@ namespace naab {
 namespace stdlib {
 
 // Forward declarations
-static int getInt(const std::shared_ptr<interpreter::Value>& val);
-static double getDouble(const std::shared_ptr<interpreter::Value>& val);
-static std::string getString(const std::shared_ptr<interpreter::Value>& val);
-static std::shared_ptr<interpreter::Value> makeInt(int i);
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s);
-static std::shared_ptr<interpreter::Value> makeNull();
+static int getInt(const interpreter::NaabVal& val);
+static double getDouble(const interpreter::NaabVal& val);
+static std::string getString(const interpreter::NaabVal& val);
+static interpreter::NaabVal makeInt(int i);
+static interpreter::NaabVal makeString(const std::string& s);
+static interpreter::NaabVal makeNull();
 
 bool TimeModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
@@ -32,9 +32,9 @@ bool TimeModule::hasFunction(const std::string& name) const {
     return functions.count(name) > 0;
 }
 
-std::shared_ptr<interpreter::Value> TimeModule::call(
+interpreter::NaabVal TimeModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // Function 1: now - Unix timestamp in seconds
     if (function_name == "now") {
@@ -45,7 +45,7 @@ std::shared_ptr<interpreter::Value> TimeModule::call(
         auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()).count();
         // Return fractional seconds (millisecond precision) as double
-        return std::make_shared<interpreter::Value>(static_cast<double>(millis) / 1000.0);
+        return interpreter::NaabVal::makeDouble(static_cast<double>(millis) / 1000.0);
     }
 
     // Function 2: now_millis - Unix timestamp in milliseconds
@@ -57,7 +57,7 @@ std::shared_ptr<interpreter::Value> TimeModule::call(
         auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(
             now.time_since_epoch()).count();
         // Return double to avoid overflow (int maxes out at ~24.8 days worth of milliseconds)
-        return std::make_shared<interpreter::Value>(static_cast<double>(millis));
+        return interpreter::NaabVal::makeDouble(static_cast<double>(millis));
     }
 
     // Function 3: sleep - Sleep for specified seconds
@@ -290,53 +290,33 @@ std::shared_ptr<interpreter::Value> TimeModule::call(
 }
 
 // Helper functions
-static int getInt(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> int {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>) {
-            return arg;
-        } else if constexpr (std::is_same_v<T, double>) {
-            return static_cast<int>(arg);
-        } else {
-            throw std::runtime_error("Expected integer value");
-        }
-    }, val->data);
+static int getInt(const interpreter::NaabVal& val) {
+    if (val.isInt()) return val.asInt();
+    if (val.isDouble()) return static_cast<int>(val.asDouble());
+    throw std::runtime_error("Expected integer value");
 }
 
-static double getDouble(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> double {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, double>) {
-            return arg;
-        } else if constexpr (std::is_same_v<T, int>) {
-            return static_cast<double>(arg);
-        } else {
-            throw std::runtime_error("Expected numeric value");
-        }
-    }, val->data);
+static double getDouble(const interpreter::NaabVal& val) {
+    if (val.isDouble()) return val.asDouble();
+    if (val.isInt()) return static_cast<double>(val.asInt());
+    throw std::runtime_error("Expected numeric value");
 }
 
-static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::string>) {
-            return arg;
-        } else {
-            throw std::runtime_error("Expected string value");
-        }
-    }, val->data);
+static std::string getString(const interpreter::NaabVal& val) {
+    if (!val.isString()) throw std::runtime_error("Expected string value");
+    return val.asString();
 }
 
-static std::shared_ptr<interpreter::Value> makeInt(int i) {
-    return std::make_shared<interpreter::Value>(i);
+static interpreter::NaabVal makeInt(int i) {
+    return interpreter::NaabVal::makeInt(i);
 }
 
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s) {
-    return std::make_shared<interpreter::Value>(s);
+static interpreter::NaabVal makeString(const std::string& s) {
+    return interpreter::NaabVal::makeString(s);
 }
 
-static std::shared_ptr<interpreter::Value> makeNull() {
-    return std::make_shared<interpreter::Value>();
+static interpreter::NaabVal makeNull() {
+    return interpreter::NaabVal::makeNull();
 }
 
 } // namespace stdlib

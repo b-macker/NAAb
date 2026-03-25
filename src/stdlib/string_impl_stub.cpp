@@ -22,9 +22,9 @@ bool StringModule::hasFunction(const std::string& name) const {
     return std::find(functions.begin(), functions.end(), name) != functions.end();
 }
 
-std::shared_ptr<interpreter::Value> StringModule::call(
+interpreter::NaabVal StringModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     if (function_name == "length") return length(args);
     if (function_name == "upper") return upper(args);
@@ -48,53 +48,53 @@ std::shared_ptr<interpreter::Value> StringModule::call(
 // String Operations
 // ============================================================================
 
-std::shared_ptr<interpreter::Value> StringModule::length(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::length(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 1) {
         throw std::runtime_error("string.length() expects 1 argument");
     }
 
-    auto str = args[0]->asString();
-    return std::make_shared<interpreter::Value>(static_cast<int64_t>(str.size()));
+    auto str = args[0].asString();
+    return interpreter::NaabVal::makeInt(static_cast<int>(str.size()));
 }
 
-std::shared_ptr<interpreter::Value> StringModule::upper(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::upper(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 1) {
         throw std::runtime_error("string.upper() expects 1 argument");
     }
 
-    auto str = args[0]->asString();
+    auto str = args[0].asString();
     std::transform(str.begin(), str.end(), str.begin(),
                   [](unsigned char c) { return std::toupper(c); });
 
-    return std::make_shared<interpreter::Value>(str);
+    return interpreter::NaabVal::makeString(str);
 }
 
-std::shared_ptr<interpreter::Value> StringModule::lower(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::lower(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 1) {
         throw std::runtime_error("string.lower() expects 1 argument");
     }
 
-    auto str = args[0]->asString();
+    auto str = args[0].asString();
     std::transform(str.begin(), str.end(), str.begin(),
                   [](unsigned char c) { return std::tolower(c); });
 
-    return std::make_shared<interpreter::Value>(str);
+    return interpreter::NaabVal::makeString(str);
 }
 
-std::shared_ptr<interpreter::Value> StringModule::trim(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::trim(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 1) {
         throw std::runtime_error("string.trim() expects 1 argument");
     }
 
-    auto str = args[0]->asString();
+    auto str = args[0].asString();
 
     // Trim leading whitespace
     auto start = std::find_if_not(str.begin(), str.end(),
@@ -105,21 +105,21 @@ std::shared_ptr<interpreter::Value> StringModule::trim(
                                [](unsigned char c) { return std::isspace(c); }).base();
 
     if (start >= end) {
-        return std::make_shared<interpreter::Value>("");
+        return interpreter::NaabVal::makeString("");
     }
 
-    return std::make_shared<interpreter::Value>(std::string(start, end));
+    return interpreter::NaabVal::makeString(std::string(start, end));
 }
 
-std::shared_ptr<interpreter::Value> StringModule::split(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::split(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 2) {
         throw std::runtime_error("string.split() expects 2 arguments");
     }
 
-    auto str = args[0]->asString();
-    auto delim = args[1]->asString();
+    auto str = args[0].asString();
+    auto delim = args[1].asString();
 
     std::vector<interpreter::NaabVal> result;
     size_t start = 0;
@@ -133,18 +133,18 @@ std::shared_ptr<interpreter::Value> StringModule::split(
 
     result.push_back(interpreter::NaabVal::makeString(str.substr(start)));
 
-    return std::make_shared<interpreter::Value>(std::move(result));
+    return interpreter::NaabVal::makeList(std::move(result));
 }
 
-std::shared_ptr<interpreter::Value> StringModule::join(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::join(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 2) {
         throw std::runtime_error("string.join() expects 2 arguments");
     }
 
-    auto arr = args[0]->asList();
-    auto delim = args[1]->asString();
+    auto arr = args[0].asList();
+    auto delim = args[1].asString();
 
     std::ostringstream oss;
     for (size_t i = 0; i < arr.size(); ++i) {
@@ -152,19 +152,19 @@ std::shared_ptr<interpreter::Value> StringModule::join(
         oss << arr[i].toString();
     }
 
-    return std::make_shared<interpreter::Value>(oss.str());
+    return interpreter::NaabVal::makeString(oss.str());
 }
 
-std::shared_ptr<interpreter::Value> StringModule::replace(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::replace(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 3) {
         throw std::runtime_error("string.replace() expects 3 arguments");
     }
 
-    auto str = args[0]->asString();
-    auto old_substr = args[1]->asString();
-    auto new_substr = args[2]->asString();
+    auto str = args[0].asString();
+    auto old_substr = args[1].asString();
+    auto new_substr = args[2].asString();
 
     std::string result = str;
     size_t pos = 0;
@@ -174,119 +174,119 @@ std::shared_ptr<interpreter::Value> StringModule::replace(
         pos += new_substr.length();
     }
 
-    return std::make_shared<interpreter::Value>(result);
+    return interpreter::NaabVal::makeString(result);
 }
 
-std::shared_ptr<interpreter::Value> StringModule::substring(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::substring(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() < 2 || args.size() > 3) {
         throw std::runtime_error("string.substring() expects 2 or 3 arguments");
     }
 
-    auto str = args[0]->asString();
-    auto start = static_cast<size_t>(args[1]->asInt());
+    auto str = args[0].asString();
+    auto start = static_cast<size_t>(args[1].asInt());
 
     if (args.size() == 3) {
-        auto end = static_cast<size_t>(args[2]->asInt());
-        return std::make_shared<interpreter::Value>(str.substr(start, end - start));
+        auto end = static_cast<size_t>(args[2].asInt());
+        return interpreter::NaabVal::makeString(str.substr(start, end - start));
     }
 
-    return std::make_shared<interpreter::Value>(str.substr(start));
+    return interpreter::NaabVal::makeString(str.substr(start));
 }
 
-std::shared_ptr<interpreter::Value> StringModule::startswith(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::startswith(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 2) {
         throw std::runtime_error("string.startswith() expects 2 arguments");
     }
 
-    auto str = args[0]->asString();
-    auto prefix = args[1]->asString();
+    auto str = args[0].asString();
+    auto prefix = args[1].asString();
 
     bool result = (str.size() >= prefix.size()) &&
                   (str.compare(0, prefix.size(), prefix) == 0);
 
-    return std::make_shared<interpreter::Value>(result);
+    return interpreter::NaabVal::makeString(result);
 }
 
-std::shared_ptr<interpreter::Value> StringModule::endswith(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::endswith(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 2) {
         throw std::runtime_error("string.endswith() expects 2 arguments");
     }
 
-    auto str = args[0]->asString();
-    auto suffix = args[1]->asString();
+    auto str = args[0].asString();
+    auto suffix = args[1].asString();
 
     bool result = (str.size() >= suffix.size()) &&
                   (str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0);
 
-    return std::make_shared<interpreter::Value>(result);
+    return interpreter::NaabVal::makeString(result);
 }
 
-std::shared_ptr<interpreter::Value> StringModule::contains(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::contains(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 2) {
         throw std::runtime_error("string.contains() expects 2 arguments");
     }
 
-    auto str = args[0]->asString();
-    auto substr = args[1]->asString();
+    auto str = args[0].asString();
+    auto substr = args[1].asString();
 
-    return std::make_shared<interpreter::Value>(str.find(substr) != std::string::npos);
+    return interpreter::NaabVal::makeBool(str.find(substr) != std::string::npos);
 }
 
-std::shared_ptr<interpreter::Value> StringModule::find(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::find(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 2) {
         throw std::runtime_error("string.find() expects 2 arguments");
     }
 
-    auto str = args[0]->asString();
-    auto substr = args[1]->asString();
+    auto str = args[0].asString();
+    auto substr = args[1].asString();
 
     auto pos = str.find(substr);
     if (pos == std::string::npos) {
-        return std::make_shared<interpreter::Value>(-1);
+        return interpreter::NaabVal::makeInt(-1);
     }
 
-    return std::make_shared<interpreter::Value>(static_cast<int64_t>(pos));
+    return interpreter::NaabVal::makeInt(static_cast<int>(pos));
 }
 
-std::shared_ptr<interpreter::Value> StringModule::repeat(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::repeat(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 2) {
         throw std::runtime_error("string.repeat() expects 2 arguments");
     }
 
-    auto str = args[0]->asString();
-    auto n = static_cast<size_t>(args[1]->asInt());
+    auto str = args[0].asString();
+    auto n = static_cast<size_t>(args[1].asInt());
 
     std::ostringstream oss;
     for (size_t i = 0; i < n; ++i) {
         oss << str;
     }
 
-    return std::make_shared<interpreter::Value>(oss.str());
+    return interpreter::NaabVal::makeString(oss.str());
 }
 
-std::shared_ptr<interpreter::Value> StringModule::reverse(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal StringModule::reverse(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() != 1) {
         throw std::runtime_error("string.reverse() expects 1 argument");
     }
 
-    auto str = args[0]->asString();
+    auto str = args[0].asString();
     std::reverse(str.begin(), str.end());
 
-    return std::make_shared<interpreter::Value>(str);
+    return interpreter::NaabVal::makeString(str);
 }
 
 } // namespace stdlib

@@ -17,32 +17,32 @@ using DictType = std::unordered_map<std::string, interpreter::NaabVal>;
 using ArrayType = std::vector<interpreter::NaabVal>;
 
 // Helper functions (same pattern as env_impl.cpp)
-static std::string getString(const std::shared_ptr<interpreter::Value>& val) {
-    return std::get<std::string>(val->data);
+static std::string getString(const interpreter::NaabVal& val) {
+    return val.asString();
 }
 
-static std::shared_ptr<interpreter::Value> makeString(const std::string& s) {
-    return std::make_shared<interpreter::Value>(s);
+static interpreter::NaabVal makeString(const std::string& s) {
+    return interpreter::NaabVal::makeString(s);
 }
 
-static std::shared_ptr<interpreter::Value> makeDouble(double d) {
-    return std::make_shared<interpreter::Value>(d);
+static interpreter::NaabVal makeDouble(double d) {
+    return interpreter::NaabVal::makeDouble(d);
 }
 
-static std::shared_ptr<interpreter::Value> makeBool(bool b) {
-    return std::make_shared<interpreter::Value>(b);
+static interpreter::NaabVal makeBool(bool b) {
+    return interpreter::NaabVal::makeBool(b);
 }
 
-static std::shared_ptr<interpreter::Value> makeNull() {
-    return std::make_shared<interpreter::Value>();
+static interpreter::NaabVal makeNull() {
+    return interpreter::NaabVal::makeNull();
 }
 
-static std::shared_ptr<interpreter::Value> makeArray(ArrayType arr) {
-    return std::make_shared<interpreter::Value>(std::move(arr));
+static interpreter::NaabVal makeArray(ArrayType arr) {
+    return interpreter::NaabVal::makeList(std::move(arr));
 }
 
-static std::shared_ptr<interpreter::Value> makeDict(DictType d) {
-    return std::make_shared<interpreter::Value>(std::move(d));
+static interpreter::NaabVal makeDict(DictType d) {
+    return interpreter::NaabVal::makeDict(std::move(d));
 }
 
 // Singleton governance engine
@@ -129,7 +129,7 @@ static void applyProfile(const std::string& profile) {
     g_current_profile = profile;
 }
 
-static std::shared_ptr<interpreter::Value> resultToDict(const CheckResult& r) {
+static interpreter::NaabVal resultToDict(const CheckResult& r) {
     DictType d;
     d["rule"] = interpreter::NaabVal::makeString(r.rule_name);
     d["message"] = interpreter::NaabVal::makeString(r.message);
@@ -147,9 +147,9 @@ bool BoloModule::hasFunction(const std::string& name) const {
            name == "violations" || name == "summary";
 }
 
-std::shared_ptr<interpreter::Value> BoloModule::call(
+interpreter::NaabVal BoloModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     // bolo.scan(language, code) -> array of violation dicts
     if (function_name == "scan") {
@@ -170,7 +170,7 @@ std::shared_ptr<interpreter::Value> BoloModule::call(
         ArrayType results;
         for (const auto& r : g_engine->getCheckResults()) {
             if (!r.passed) {
-                results.push_back(interpreter::NaabVal::fromLegacy(resultToDict(r)));
+                results.push_back(resultToDict(r));
             }
         }
         return makeArray(std::move(results));

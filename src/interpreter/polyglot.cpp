@@ -26,23 +26,6 @@
 namespace naab {
 namespace interpreter {
 
-// File-local helper (duplicated from interpreter.cpp — static linkage)
-static std::string getTypeName(const std::shared_ptr<Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>) { return "int"; }
-        else if constexpr (std::is_same_v<T, double>) { return "float"; }
-        else if constexpr (std::is_same_v<T, bool>) { return "bool"; }
-        else if constexpr (std::is_same_v<T, std::string>) { return "string"; }
-        else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) { return "array"; }
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) { return "dict"; }
-        else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) { return "function"; }
-        else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) { return "struct"; }
-        else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) { return "future"; }
-        else if constexpr (std::is_same_v<T, std::monostate>) { return "null"; }
-        return "unknown";
-    }, val->data);
-}
 
 
 // Phase 12: Header-aware injection for languages that require specific first lines
@@ -1585,15 +1568,16 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         std::string lang_str = block.node ? block.node->getLanguage() : "unknown";
 
         if (result.success) {
-            auto value = std::make_shared<Value>(result.value);
+            NaabVal value = NaabVal::fromLegacy(std::make_shared<Value>(result.value));
 
             // Phase 12: Check for sentinel/JSON return values in parallel path
             bool par_json_parsed = false;
-            if (auto* str_val = std::get_if<std::string>(&value->data)) {
-                if (str_val->find("__NAAB_RETURN__:") != std::string::npos) {
-                    auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
+            if (value.isString()) {
+                const auto& str_val = value.asString();
+                if (str_val.find("__NAAB_RETURN__:") != std::string::npos) {
+                    auto polyglot_result = runtime::parsePolyglotOutput(str_val, return_type);
                     if (polyglot_result.return_value) {
-                        value = polyglot_result.return_value;
+                        value = NaabVal::fromLegacy(polyglot_result.return_value);
                         par_json_parsed = true;
                     }
                     if (!polyglot_result.log_output.empty()) {
@@ -1601,9 +1585,9 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
                     }
                 } else if (!return_type.empty()) {
                     // -> JSON header: try parsing result as JSON
-                    auto polyglot_result = runtime::parsePolyglotOutput(*str_val, return_type);
+                    auto polyglot_result = runtime::parsePolyglotOutput(str_val, return_type);
                     if (polyglot_result.return_value) {
-                        value = polyglot_result.return_value;
+                        value = NaabVal::fromLegacy(polyglot_result.return_value);
                         par_json_parsed = true;
                     }
                 }
@@ -1642,8 +1626,8 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 
             // Governance: Validate polyglot output format if configured
             if (governance_ && governance_->isActive()) {
-                if (auto* str_val = std::get_if<std::string>(&value->data)) {
-                    std::string output_err = governance_->checkPolyglotOutput(*str_val);
+                if (value.isString()) {
+                    std::string output_err = governance_->checkPolyglotOutput(value.asString());
                     if (!output_err.empty()) {
                         gc_suspended_ = false;
                         throw std::runtime_error(output_err);

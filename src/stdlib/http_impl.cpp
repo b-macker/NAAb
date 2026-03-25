@@ -52,7 +52,7 @@ static size_t HeaderCallback(char* buffer, size_t size, size_t nitems, void* use
 }
 
 // Helper: Perform HTTP request with libcurl
-std::shared_ptr<interpreter::Value> performRequest(
+interpreter::NaabVal performRequest(
     const std::string& method,
     const std::string& url,
     const std::string& body = "",
@@ -160,7 +160,7 @@ std::shared_ptr<interpreter::Value> performRequest(
     }
     response["headers"] = interpreter::NaabVal::makeDict(std::move(headers_value_map));
 
-    return std::make_shared<interpreter::Value>(std::move(response));
+    return interpreter::NaabVal::makeDict(std::move(response));
 }
 
 bool HTTPModule::hasFunction(const std::string& name) const {
@@ -168,9 +168,9 @@ bool HTTPModule::hasFunction(const std::string& name) const {
         || name == "head" || name == "patch";
 }
 
-std::shared_ptr<interpreter::Value> HTTPModule::call(
+interpreter::NaabVal HTTPModule::call(
     const std::string& function_name,
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+    std::vector<interpreter::NaabVal>& args) {
 
     if (function_name == "get") {
         return get(args);
@@ -215,20 +215,20 @@ std::shared_ptr<interpreter::Value> HTTPModule::call(
     throw std::runtime_error(oss.str());
 }
 
-std::shared_ptr<interpreter::Value> HTTPModule::get(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal HTTPModule::get(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.empty()) {
         throw std::runtime_error("http.get() requires URL argument");
     }
 
-    std::string url = args[0]->toString();
+    std::string url = args[0].toString();
 
     // Optional: headers dict
     std::unordered_map<std::string, std::string> headers;
     if (args.size() >= 2) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[1]->data)) {
-            for (const auto& [k, v] : *dict) {
+        if (args[1].isDict()) {
+            for (const auto& [k, v] : args[1].asDictConst()) {
                 headers[k] = v.toString();
             }
         }
@@ -237,28 +237,28 @@ std::shared_ptr<interpreter::Value> HTTPModule::get(
     // Optional: timeout
     int timeout_ms = 30000;  // 30 seconds default
     if (args.size() >= 3) {
-        timeout_ms = args[2]->toInt();
+        timeout_ms = args[2].toInt();
     }
 
     return performRequest("GET", url, "", headers, timeout_ms);
 }
 
-std::shared_ptr<interpreter::Value> HTTPModule::post(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal HTTPModule::post(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() < 2) {
         throw std::runtime_error("http.post() requires URL and data arguments");
     }
 
-    std::string url = args[0]->toString();
-    std::string data = args[1]->toString();
+    std::string url = args[0].toString();
+    std::string data = args[1].toString();
 
     // Optional: headers
     std::unordered_map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";  // Default to JSON
     if (args.size() >= 3) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[2]->data)) {
-            for (const auto& [k, v] : *dict) {
+        if (args[2].isDict()) {
+            for (const auto& [k, v] : args[2].asDictConst()) {
                 headers[k] = v.toString();
             }
         }
@@ -267,28 +267,28 @@ std::shared_ptr<interpreter::Value> HTTPModule::post(
     // Optional: timeout
     int timeout_ms = 30000;
     if (args.size() >= 4) {
-        timeout_ms = args[3]->toInt();
+        timeout_ms = args[3].toInt();
     }
 
     return performRequest("POST", url, data, headers, timeout_ms);
 }
 
-std::shared_ptr<interpreter::Value> HTTPModule::put(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal HTTPModule::put(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() < 2) {
         throw std::runtime_error("http.put() requires URL and data arguments");
     }
 
-    std::string url = args[0]->toString();
-    std::string data = args[1]->toString();
+    std::string url = args[0].toString();
+    std::string data = args[1].toString();
 
     // Optional: headers
     std::unordered_map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";
     if (args.size() >= 3) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[2]->data)) {
-            for (const auto& [k, v] : *dict) {
+        if (args[2].isDict()) {
+            for (const auto& [k, v] : args[2].asDictConst()) {
                 headers[k] = v.toString();
             }
         }
@@ -297,26 +297,26 @@ std::shared_ptr<interpreter::Value> HTTPModule::put(
     // Optional: timeout
     int timeout_ms = 30000;
     if (args.size() >= 4) {
-        timeout_ms = args[3]->toInt();
+        timeout_ms = args[3].toInt();
     }
 
     return performRequest("PUT", url, data, headers, timeout_ms);
 }
 
-std::shared_ptr<interpreter::Value> HTTPModule::del(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal HTTPModule::del(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.empty()) {
         throw std::runtime_error("http.delete() requires URL argument");
     }
 
-    std::string url = args[0]->toString();
+    std::string url = args[0].toString();
 
     // Optional: headers
     std::unordered_map<std::string, std::string> headers;
     if (args.size() >= 2) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[1]->data)) {
-            for (const auto& [k, v] : *dict) {
+        if (args[1].isDict()) {
+            for (const auto& [k, v] : args[1].asDictConst()) {
                 headers[k] = v.toString();
             }
         }
@@ -325,25 +325,25 @@ std::shared_ptr<interpreter::Value> HTTPModule::del(
     // Optional: timeout
     int timeout_ms = 30000;
     if (args.size() >= 3) {
-        timeout_ms = args[2]->toInt();
+        timeout_ms = args[2].toInt();
     }
 
     return performRequest("DELETE", url, "", headers, timeout_ms);
 }
 
-std::shared_ptr<interpreter::Value> HTTPModule::head(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal HTTPModule::head(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.empty()) {
         throw std::runtime_error("http.head() requires URL argument");
     }
 
-    std::string url = args[0]->toString();
+    std::string url = args[0].toString();
 
     std::unordered_map<std::string, std::string> headers;
     if (args.size() >= 2) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[1]->data)) {
-            for (const auto& [k, v] : *dict) {
+        if (args[1].isDict()) {
+            for (const auto& [k, v] : args[1].asDictConst()) {
                 headers[k] = v.toString();
             }
         }
@@ -351,27 +351,27 @@ std::shared_ptr<interpreter::Value> HTTPModule::head(
 
     int timeout_ms = 30000;
     if (args.size() >= 3) {
-        timeout_ms = args[2]->toInt();
+        timeout_ms = args[2].toInt();
     }
 
     return performRequest("HEAD", url, "", headers, timeout_ms);
 }
 
-std::shared_ptr<interpreter::Value> HTTPModule::patch(
-    const std::vector<std::shared_ptr<interpreter::Value>>& args) {
+interpreter::NaabVal HTTPModule::patch(
+    std::vector<interpreter::NaabVal>& args) {
 
     if (args.size() < 2) {
         throw std::runtime_error("http.patch() requires URL and data arguments");
     }
 
-    std::string url = args[0]->toString();
-    std::string data = args[1]->toString();
+    std::string url = args[0].toString();
+    std::string data = args[1].toString();
 
     std::unordered_map<std::string, std::string> headers;
     headers["Content-Type"] = "application/json";
     if (args.size() >= 3) {
-        if (auto* dict = std::get_if<std::unordered_map<std::string, interpreter::NaabVal>>(&args[2]->data)) {
-            for (const auto& [k, v] : *dict) {
+        if (args[2].isDict()) {
+            for (const auto& [k, v] : args[2].asDictConst()) {
                 headers[k] = v.toString();
             }
         }
@@ -379,7 +379,7 @@ std::shared_ptr<interpreter::Value> HTTPModule::patch(
 
     int timeout_ms = 30000;
     if (args.size() >= 4) {
-        timeout_ms = args[3]->toInt();
+        timeout_ms = args[3].toInt();
     }
 
     return performRequest("PATCH", url, data, headers, timeout_ms);

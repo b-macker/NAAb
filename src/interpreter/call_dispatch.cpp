@@ -21,35 +21,12 @@
 namespace naab {
 namespace interpreter {
 
-// File-local helper (duplicated from interpreter.cpp — static linkage)
-static std::string getTypeName(const std::shared_ptr<Value>& val) {
-    return std::visit([](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, int>) { return "int"; }
-        else if constexpr (std::is_same_v<T, double>) { return "float"; }
-        else if constexpr (std::is_same_v<T, bool>) { return "bool"; }
-        else if constexpr (std::is_same_v<T, std::string>) { return "string"; }
-        else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) { return "array"; }
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) { return "dict"; }
-        else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) { return "function"; }
-        else if constexpr (std::is_same_v<T, std::shared_ptr<StructValue>>) { return "struct"; }
-        else if constexpr (std::is_same_v<T, std::shared_ptr<FutureValue>>) { return "future"; }
-        else if constexpr (std::is_same_v<T, std::monostate>) { return "null"; }
-        return "unknown";
-    }, val->data);
-}
-
-
-// Legacy bridge: converts shared_ptr args to NaabVal and delegates
-NaabVal Interpreter::callFunction(std::shared_ptr<Value> fn,
-                                   const std::vector<std::shared_ptr<Value>>& args) {
-    NaabVal fn_val(fn);
-    std::vector<NaabVal> nval_args;
-    nval_args.reserve(args.size());
-    for (const auto& a : args) {
-        nval_args.emplace_back(a);
-    }
-    return callFunction(std::move(fn_val), nval_args);
+// Convert NaabVal args to shared_ptr<Value> for Executor API boundary (Phase I will eliminate)
+static std::vector<std::shared_ptr<Value>> toLegacyArgs(const std::vector<NaabVal>& args) {
+    std::vector<std::shared_ptr<Value>> legacy;
+    legacy.reserve(args.size());
+    for (const auto& a : args) legacy.push_back(a.toLegacy());
+    return legacy;
 }
 
 // Primary callFunction — works with NaabVal directly (no heap alloc for primitive args)
@@ -130,7 +107,7 @@ NaabVal Interpreter::callFunction(NaabVal fn,
         auto gen = std::make_shared<GeneratorValue>();
         gen->func = func;
         gen->args = args;
-        result_ = std::make_shared<Value>(gen);
+        result_ = NaabVal::makeGenerator(gen);
         return result_;
     }
 
@@ -215,7 +192,7 @@ NaabVal Interpreter::callFunction(NaabVal fn,
         }).share();
 
         future_val->future = shared_future;
-        return std::make_shared<Value>(future_val);
+        return NaabVal::makeFuture(future_val);
     }
 
     // Check parameter count
@@ -394,15 +371,11 @@ NaabVal Interpreter::callFunction(NaabVal fn,
 
 
 void Interpreter::visit(ast::CallExpr& node) {
-    // Evaluate arguments — shared_ptr for method dispatch, NaabVal for callFunction
-    std::vector<NaabVal> nval_args;
-    std::vector<std::shared_ptr<Value>> args;
-    nval_args.reserve(node.getArgs().size());
+    // Evaluate arguments as NaabVal (no heap alloc for primitives)
+    std::vector<NaabVal> args;
     args.reserve(node.getArgs().size());
     for (auto& arg : node.getArgs()) {
-        auto val = eval(*arg);
-        nval_args.push_back(val);
-        args.push_back(val.toLegacy());
+        args.push_back(eval(*arg));
     }
 
     // Check if this is a member expression call (for method chaining)
@@ -415,7 +388,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (current_env_->has(qualified_fn)) {
                 auto fn_val = current_env_->get(qualified_fn);
                 if (!fn_val.isNull() && fn_val.isFunction()) {
-                    callFunction(fn_val, nval_args);
+                    callFunction(fn_val, args);
                     return;
                 }
             }
@@ -460,11 +433,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                     // by the InlineCodeExpr visitor. We need a different approach.
                     // For now: accept a string argument and execute it on the persistent runtime
                     std::string code;
-                    if (nval_args[0].isString()) {
-                        code = nval_args[0].asString();
+                    if (args[0].isString()) {
+                        code = args[0].asString();
                     } else {
                         // If the argument is the result of an InlineCodeExpr, use result directly
-                        result_ = nval_args[0];
+                        result_ = args[0];
                         return;
                     }
 
@@ -519,7 +492,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                             if (js_adapter) {
                                 if (is_statement) {
                                     js_adapter->execute(code, runtime::JsExecutionMode::BLOCK_LIBRARY);
-                                    result_ = std::make_shared<Value>();
+                                    result_ = NaabVal::makeNull();
                                 } else {
                                     // For expressions: evaluate directly in global scope
                                     // executeWithReturn wraps in parens for single expr, which
@@ -532,7 +505,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                         } else if (is_statement) {
                             // Statement mode: no return value
                             rt.executor->execute(code);
-                            result_ = std::make_shared<Value>();
+                            result_ = NaabVal::makeNull();
                         } else {
                             // Expression mode: capture return value
                             result_ = rt.executor->executeWithReturn(code);
@@ -589,33 +562,33 @@ void Interpreter::visit(ast::CallExpr& node) {
                     method_name == "getFloat" || method_name == "getBool" || method_name == "getMap" ||
                     method_name == "getList") {
                     if (args.empty()) throw std::runtime_error("dict." + method_name + "() requires at least 1 argument (key)");
-                    auto key = args[0]->toString();
+                    auto key = args[0].toString();
                     auto it = dict.find(key);
                     if (it != dict.end()) {
                         result_ = it->second;
                     } else if (args.size() >= 2) {
                         result_ = args[1];
                     } else {
-                        result_ = std::make_shared<Value>();
+                        result_ = NaabVal::makeNull();
                     }
                     return;
                 }
                 if (method_name == "has" || method_name == "contains" || method_name == "containsKey") {
                     if (args.empty()) throw std::runtime_error("dict.has() requires 1 argument (key)");
-                    result_ = std::make_shared<Value>(dict.find(args[0]->toString()) != dict.end());
+                    result_ = NaabVal::makeBool(dict.find(args[0].toString()) != dict.end());
                     return;
                 }
                 if (method_name == "size" || method_name == "length") {
-                    result_ = std::make_shared<Value>(static_cast<int>(dict.size()));
+                    result_ = NaabVal::makeInt(static_cast<int>(dict.size()));
                     return;
                 }
                 if (method_name == "isEmpty") {
-                    result_ = std::make_shared<Value>(dict.empty());
+                    result_ = NaabVal::makeBool(dict.empty());
                     return;
                 }
                 if (method_name == "put" || method_name == "set") {
                     if (args.size() < 2) throw std::runtime_error("dict.put() requires 2 arguments (key, value)");
-                    dict[args[0]->toString()] = args[1];
+                    dict[args[0].toString()] = args[1];
                     auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
                     if (obj_id && current_env_->has(obj_id->getName())) {
                         current_env_->set(obj_id->getName(), obj_val);
@@ -625,17 +598,17 @@ void Interpreter::visit(ast::CallExpr& node) {
                         && checkRhsTainted(node.getArgs()[1].get())) {
                         governance_->markTainted(obj_id->getName());
                     }
-                    result_ = std::make_shared<Value>();
+                    result_ = NaabVal::makeNull();
                     return;
                 }
                 if (method_name == "remove" || method_name == "delete") {
                     if (args.empty()) throw std::runtime_error("dict.remove() requires 1 argument (key)");
-                    dict.erase(args[0]->toString());
+                    dict.erase(args[0].toString());
                     auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
                     if (obj_id && current_env_->has(obj_id->getName())) {
                         current_env_->set(obj_id->getName(), obj_val);
                     }
-                    result_ = std::make_shared<Value>();
+                    result_ = NaabVal::makeNull();
                     return;
                 }
                 if (method_name == "keys") {
@@ -667,9 +640,9 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 if (method_name == "merge") {
                     if (args.empty()) throw std::runtime_error("dict.merge() requires 1 argument (another dict)");
-                    auto other = args[0];
-                    if (auto* other_dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&other->data)) {
-                        for (const auto& pair : *other_dict) {
+                    if (args[0].isDict()) {
+                        auto& other_dict = args[0].asDict();
+                        for (const auto& pair : other_dict) {
                             dict[pair.first] = pair.second;
                         }
                         auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
@@ -688,11 +661,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                 auto& arr = obj_val.asList();
 
                 if (method_name == "size" || method_name == "length") {
-                    result_ = std::make_shared<Value>(static_cast<int>(arr.size()));
+                    result_ = NaabVal::makeInt(static_cast<int>(arr.size()));
                     return;
                 }
                 if (method_name == "isEmpty") {
-                    result_ = std::make_shared<Value>(arr.empty());
+                    result_ = NaabVal::makeBool(arr.empty());
                     return;
                 }
                 if (method_name == "add" || method_name == "push" || method_name == "append") {
@@ -712,7 +685,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 if (method_name == "get") {
                     if (args.empty()) throw std::runtime_error("array.get() requires 1 argument (index)");
-                    int idx = std::get<int>(args[0]->data);
+                    int idx = args[0].asInt();
                     if (idx < 0 || idx >= static_cast<int>(arr.size())) {
                         throw std::runtime_error(fmt::format("Array index out of bounds: {} (size: {})", idx, arr.size()));
                     }
@@ -723,14 +696,14 @@ void Interpreter::visit(ast::CallExpr& node) {
                     if (args.empty()) throw std::runtime_error("array.contains() requires 1 argument");
                     bool found = false;
                     for (const auto& item : arr) {
-                        if (item.toString() == args[0]->toString()) { found = true; break; }
+                        if (item.toString() == args[0].toString()) { found = true; break; }
                     }
                     result_ = NaabVal::makeBool(found);
                     return;
                 }
                 if (method_name == "take") {
                     if (args.empty()) throw std::runtime_error("array.take() requires 1 argument (count)");
-                    int count = args[0]->toInt();
+                    int count = args[0].toInt();
                     std::vector<NaabVal> taken;
                     for (int i = 0; i < count && i < static_cast<int>(arr.size()); i++) {
                         taken.push_back(arr[static_cast<size_t>(i)]);
@@ -744,7 +717,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 if (method_name == "remove" || method_name == "removeAt") {
                     if (args.empty()) throw std::runtime_error("array.remove() requires 1 argument (index)");
-                    int idx = std::get<int>(args[0]->data);
+                    int idx = args[0].asInt();
                     if (idx >= 0 && idx < static_cast<int>(arr.size())) {
                         arr.erase(arr.begin() + idx);
                     }
@@ -763,7 +736,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 // join(separator) - join array elements into a string
                 if (method_name == "join") {
-                    std::string sep = args.empty() ? "," : args[0]->toString();
+                    std::string sep = args.empty() ? "," : args[0].toString();
                     std::string joined;
                     for (size_t i = 0; i < arr.size(); i++) {
                         if (i > 0) joined += sep;
@@ -782,7 +755,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (method_name == "indexOf" || method_name == "findIndex" || method_name == "index_of") {
                     if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
                     for (int i = 0; i < static_cast<int>(arr.size()); i++) {
-                        if (arr[i].toString() == args[0]->toString()) {
+                        if (arr[i].toString() == args[0].toString()) {
                             result_ = NaabVal::makeInt(i);
                             return;
                         }
@@ -852,9 +825,9 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 if (method_name == "slice") {
                     if (args.empty()) throw std::runtime_error("array.slice() requires at least 1 argument (start)");
-                    int start = args[0]->toInt();
+                    int start = args[0].toInt();
                     int end = static_cast<int>(arr.size());
-                    if (args.size() >= 2) end = args[1]->toInt();
+                    if (args.size() >= 2) end = args[1].toInt();
                     if (start < 0) start = 0;
                     if (end > static_cast<int>(arr.size())) end = static_cast<int>(arr.size());
                     std::vector<NaabVal> sliced(arr.begin() + start, arr.begin() + end);
@@ -882,81 +855,81 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
 
                 if (method_name == "size" || method_name == "length") {
-                    result_ = std::make_shared<Value>(static_cast<int>(str.size()));
+                    result_ = NaabVal::makeInt(static_cast<int>(str.size()));
                     return;
                 }
                 if (method_name == "isEmpty") {
-                    result_ = std::make_shared<Value>(str.empty());
+                    result_ = NaabVal::makeBool(str.empty());
                     return;
                 }
                 if (method_name == "contains" || method_name == "includes") {
                     if (args.empty()) throw std::runtime_error("string.contains() requires 1 argument");
-                    result_ = std::make_shared<Value>(str.find(args[0]->toString()) != std::string::npos);
+                    result_ = NaabVal::makeBool(str.find(args[0].toString()) != std::string::npos);
                     return;
                 }
                 if (method_name == "indexOf") {
                     if (args.empty()) throw std::runtime_error("string.indexOf() requires 1 argument");
-                    auto pos = str.find(args[0]->toString());
-                    result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                    auto pos = str.find(args[0].toString());
+                    result_ = NaabVal::makeInt(pos != std::string::npos ? static_cast<int>(pos) : -1);
                     return;
                 }
                 if (method_name == "lastIndexOf") {
                     if (args.empty()) throw std::runtime_error("string.lastIndexOf() requires 1 argument");
-                    auto pos = str.rfind(args[0]->toString());
-                    result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                    auto pos = str.rfind(args[0].toString());
+                    result_ = NaabVal::makeInt(pos != std::string::npos ? static_cast<int>(pos) : -1);
                     return;
                 }
                 if (method_name == "substring" || method_name == "substr" || method_name == "slice") {
                     if (args.empty()) throw std::runtime_error("string.substring() requires at least 1 argument");
-                    int start = std::get<int>(args[0]->data);
+                    int start = args[0].asInt();
                     if (start < 0) start = 0;
                     if (start >= static_cast<int>(str.size())) {
-                        result_ = std::make_shared<Value>(std::string(""));
+                        result_ = NaabVal::makeString("");
                         return;
                     }
                     if (args.size() >= 2) {
-                        int end = std::get<int>(args[1]->data);
+                        int end = args[1].asInt();
                         if (end > static_cast<int>(str.size())) end = static_cast<int>(str.size());
-                        result_ = std::make_shared<Value>(str.substr(static_cast<size_t>(start), static_cast<size_t>(end - start)));
+                        result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start), static_cast<size_t>(end - start)));
                     } else {
-                        result_ = std::make_shared<Value>(str.substr(static_cast<size_t>(start)));
+                        result_ = NaabVal::makeString(str.substr(static_cast<size_t>(start)));
                     }
                     return;
                 }
                 if (method_name == "replace") {
                     if (args.size() < 2) throw std::runtime_error("string.replace() requires 2 arguments (old, new)");
-                    std::string old_s = args[0]->toString(), new_s = args[1]->toString();
+                    std::string old_s = args[0].toString(), new_s = args[1].toString();
                     std::string result = str;
                     size_t pos = 0;
                     while ((pos = result.find(old_s, pos)) != std::string::npos) {
                         result.replace(pos, old_s.length(), new_s);
                         pos += new_s.length();
                     }
-                    result_ = std::make_shared<Value>(result);
+                    result_ = NaabVal::makeString(result);
                     return;
                 }
                 if (method_name == "toUpperCase" || method_name == "upper") {
                     std::string result = str;
                     std::transform(result.begin(), result.end(), result.begin(), ::toupper);
-                    result_ = std::make_shared<Value>(result);
+                    result_ = NaabVal::makeString(result);
                     return;
                 }
                 if (method_name == "toLowerCase" || method_name == "lower") {
                     std::string result = str;
                     std::transform(result.begin(), result.end(), result.begin(), ::tolower);
-                    result_ = std::make_shared<Value>(result);
+                    result_ = NaabVal::makeString(result);
                     return;
                 }
                 if (method_name == "trim") {
                     std::string result = str;
                     result.erase(0, result.find_first_not_of(" \t\n\r"));
                     if (!result.empty()) result.erase(result.find_last_not_of(" \t\n\r") + 1);
-                    result_ = std::make_shared<Value>(result);
+                    result_ = NaabVal::makeString(result);
                     return;
                 }
                 if (method_name == "split") {
                     if (args.empty()) throw std::runtime_error("string.split() requires 1 argument (separator)");
-                    std::string sep = args[0]->toString();
+                    std::string sep = args[0].toString();
                     std::vector<NaabVal> parts;
                     if (sep.empty()) {
                         for (char c : str) parts.push_back(NaabVal::makeString(std::string(1, c)));
@@ -973,13 +946,13 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 if (method_name == "startsWith" || method_name == "starts_with") {
                     if (args.empty()) throw std::runtime_error("string.startsWith() requires 1 argument");
-                    result_ = std::make_shared<Value>(str.find(args[0]->toString()) == 0);
+                    result_ = NaabVal::makeBool(str.find(args[0].toString()) == 0);
                     return;
                 }
                 if (method_name == "endsWith" || method_name == "ends_with") {
                     if (args.empty()) throw std::runtime_error("string.endsWith() requires 1 argument");
-                    std::string suffix = args[0]->toString();
-                    result_ = std::make_shared<Value>(
+                    std::string suffix = args[0].toString();
+                    result_ = NaabVal::makeBool(
                         str.size() >= suffix.size() &&
                         str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0
                     );
@@ -987,60 +960,60 @@ void Interpreter::visit(ast::CallExpr& node) {
                 }
                 if (method_name == "index_of") {
                     if (args.empty()) throw std::runtime_error("string.index_of() requires 1 argument");
-                    auto pos = str.find(args[0]->toString());
-                    result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                    auto pos = str.find(args[0].toString());
+                    result_ = NaabVal::makeInt(pos != std::string::npos ? static_cast<int>(pos) : -1);
                     return;
                 }
                 // DOT-1: char_at, reverse, repeat
                 if (method_name == "char_at") {
                     if (args.empty()) throw std::runtime_error("string.char_at() requires 1 argument (index)");
-                    int idx = args[0]->toInt();
+                    int idx = args[0].toInt();
                     if (idx < 0 || idx >= static_cast<int>(str.size())) {
                         throw std::runtime_error("String index out of bounds: " + std::to_string(idx) + " (length: " + std::to_string(str.size()) + ")");
                     }
-                    result_ = std::make_shared<Value>(std::string(1, str[static_cast<size_t>(idx)]));
+                    result_ = NaabVal::makeString(std::string(1, str[static_cast<size_t>(idx)]));
                     return;
                 }
                 if (method_name == "reverse") {
                     std::string rev(str.rbegin(), str.rend());
-                    result_ = std::make_shared<Value>(rev);
+                    result_ = NaabVal::makeString(rev);
                     return;
                 }
                 if (method_name == "repeat") {
                     if (args.empty()) throw std::runtime_error("string.repeat() requires 1 argument (count)");
-                    int count = args[0]->toInt();
+                    int count = args[0].toInt();
                     std::string repeated;
                     for (int i = 0; i < count; i++) repeated += str;
-                    result_ = std::make_shared<Value>(repeated);
+                    result_ = NaabVal::makeString(repeated);
                     return;
                 }
                 if (method_name == "pad_right") {
                     if (args.empty() || args.size() > 2) throw std::runtime_error("pad_right() takes 1-2 arguments (width[, fill_char])");
-                    int width = args[0]->toInt();
+                    int width = args[0].toInt();
                     char fill = ' ';
                     if (args.size() == 2) {
-                        auto fs = std::get<std::string>(args[1]->data);
+                        auto fs = args[1].asString();
                         if (fs.length() != 1) throw std::runtime_error("pad_right() fill_char must be exactly 1 character");
                         fill = fs[0];
                     }
                     std::string s = str;
                     if (static_cast<int>(s.length()) < width) s.append(width - s.length(), fill);
-                    result_ = std::make_shared<Value>(s);
+                    result_ = NaabVal::makeString(s);
                     return;
                 }
                 if (method_name == "pad_left") {
                     if (args.empty() || args.size() > 2) throw std::runtime_error("pad_left() takes 1-2 arguments (width[, fill_char])");
-                    int width = args[0]->toInt();
+                    int width = args[0].toInt();
                     char fill = ' ';
                     if (args.size() == 2) {
-                        auto fs = std::get<std::string>(args[1]->data);
+                        auto fs = args[1].asString();
                         if (fs.length() != 1) throw std::runtime_error("pad_left() fill_char must be exactly 1 character");
                         fill = fs[0];
                     }
                     if (static_cast<int>(str.length()) < width) {
-                        result_ = std::make_shared<Value>(std::string(width - str.length(), fill) + str);
+                        result_ = NaabVal::makeString(std::string(width - str.length(), fill) + str);
                     } else {
-                        result_ = std::make_shared<Value>(str);
+                        result_ = NaabVal::makeString(str);
                     }
                     return;
                 }
@@ -1071,14 +1044,14 @@ void Interpreter::visit(ast::CallExpr& node) {
                 PyObject* py_arg = nullptr;
 
                 // Convert Value to Python object
-                if (auto* intval = std::get_if<int>(&args[i]->data)) {
-                    py_arg = PyLong_FromLong(*intval);
-                } else if (auto* floatval = std::get_if<double>(&args[i]->data)) {
-                    py_arg = PyFloat_FromDouble(*floatval);
-                } else if (auto* strval = std::get_if<std::string>(&args[i]->data)) {
-                    py_arg = PyUnicode_FromString(strval->c_str());
-                } else if (auto* boolval = std::get_if<bool>(&args[i]->data)) {
-                    py_arg = *boolval ? Py_True : Py_False;
+                if (args[i].isInt()) {
+                    py_arg = PyLong_FromLong(args[i].asInt());
+                } else if (args[i].isDouble()) {
+                    py_arg = PyFloat_FromDouble(args[i].asDouble());
+                } else if (args[i].isString()) {
+                    py_arg = PyUnicode_FromString(args[i].asString().c_str());
+                } else if (args[i].isBool()) {
+                    py_arg = args[i].asBool() ? Py_True : Py_False;
                     Py_INCREF(py_arg);
                 } else {
                     py_arg = Py_None;
@@ -1096,39 +1069,39 @@ void Interpreter::visit(ast::CallExpr& node) {
                 // Convert result to NAAb Value
                 if (PyLong_Check(py_result)) {
                     long val = PyLong_AsLong(py_result);
-                    result_ = std::make_shared<Value>(static_cast<int>(val));
+                    result_ = NaabVal::makeInt(val);
                     LOG_DEBUG("[SUCCESS] Method returned int: {}\n", val);
                     Py_DECREF(py_result);
                 } else if (PyFloat_Check(py_result)) {
                     double val = PyFloat_AsDouble(py_result);
-                    result_ = std::make_shared<Value>(val);
+                    result_ = NaabVal::makeDouble(val);
                     LOG_DEBUG("[SUCCESS] Method returned float: {}\n", val);
                     Py_DECREF(py_result);
                 } else if (PyUnicode_Check(py_result)) {
                     const char* val = PyUnicode_AsUTF8(py_result);
-                    result_ = std::make_shared<Value>(std::string(val));
+                    result_ = NaabVal::makeString(std::string(val));
                     LOG_DEBUG("[SUCCESS] Method returned string: {}\n", val);
                     Py_DECREF(py_result);
                 } else if (PyBool_Check(py_result)) {
                     bool val = py_result == Py_True;
-                    result_ = std::make_shared<Value>(val);
+                    result_ = NaabVal::makeBool(val);
                     LOG_DEBUG("[SUCCESS] Method returned bool: {}\n", val);
                     Py_DECREF(py_result);
                 } else if (py_result == Py_None) {
-                    result_ = std::make_shared<Value>();
+                    result_ = NaabVal::makeNull();
                     LOG_DEBUG("[SUCCESS] Method returned None\n");
                     Py_DECREF(py_result);
                 } else {
                     // Complex object - wrap for further chaining
                     auto py_obj = std::make_shared<PythonObjectValue>(py_result);
-                    result_ = std::make_shared<Value>(py_obj);
+                    result_ = NaabVal::makePythonObject(py_obj);
                     LOG_DEBUG("[SUCCESS] Method returned Python object: {}\n", py_obj->repr);
                     Py_DECREF(py_result);
                 }
             } else {
                 PyErr_Print();
                 fmt::print("[ERROR] Python method call failed\n");
-                result_ = std::make_shared<Value>();
+                result_ = NaabVal::makeNull();
             }
 #else
             throw std::runtime_error("Python support required for method calls");
@@ -1156,7 +1129,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
                 profileStart("BLOCK-JS calls");
-                result_ = executor->callFunction(block->member_path, args);
+                result_ = executor->callFunction(block->member_path, toLegacyArgs(args));
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-JS calls");
                 if (isVerboseMode()) {
@@ -1185,7 +1158,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
                 profileStart("BLOCK-CPP calls");
-                result_ = executor->callFunction(block->member_path, args);
+                result_ = executor->callFunction(block->member_path, toLegacyArgs(args));
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-CPP calls");
                 if (isVerboseMode()) {
@@ -1214,7 +1187,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     fmt::print("[VERBOSE] Calling {}::{}\n", block->metadata.block_id, block->member_path);
                 }
                 profileStart("BLOCK-PY calls");
-                result_ = executor->callFunction(block->member_path, args);
+                result_ = executor->callFunction(block->member_path, toLegacyArgs(args));
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
                 profileEnd("BLOCK-PY calls");
                 if (isVerboseMode()) {
@@ -1361,34 +1334,34 @@ void Interpreter::visit(ast::CallExpr& node) {
                 method_name == "getFloat" || method_name == "getBool" || method_name == "getMap" ||
                 method_name == "getList") {
                 if (args.empty()) throw std::runtime_error("dict." + method_name + "() requires at least 1 argument (key)");
-                auto key = args[0]->toString();
+                auto key = args[0].toString();
                 auto it = dict.find(key);
                 if (it != dict.end()) {
                     result_ = it->second;
                 } else if (args.size() >= 2) {
                     result_ = args[1];  // default value
                 } else {
-                    result_ = std::make_shared<Value>();  // null
+                    result_ = NaabVal::makeNull();  // null
                 }
                 return;
             }
             if (method_name == "has" || method_name == "contains" || method_name == "containsKey") {
                 if (args.empty()) throw std::runtime_error("dict.has() requires 1 argument (key)");
-                auto key = args[0]->toString();
-                result_ = std::make_shared<Value>(dict.find(key) != dict.end());
+                auto key = args[0].toString();
+                result_ = NaabVal::makeBool(dict.find(key) != dict.end());
                 return;
             }
             if (method_name == "size" || method_name == "length") {
-                result_ = std::make_shared<Value>(static_cast<int>(dict.size()));
+                result_ = NaabVal::makeInt(static_cast<int>(dict.size()));
                 return;
             }
             if (method_name == "isEmpty") {
-                result_ = std::make_shared<Value>(dict.empty());
+                result_ = NaabVal::makeBool(dict.empty());
                 return;
             }
             if (method_name == "put" || method_name == "set") {
                 if (args.size() < 2) throw std::runtime_error("dict.put() requires 2 arguments (key, value)");
-                auto key = args[0]->toString();
+                auto key = args[0].toString();
                 dict[key] = args[1];
                 // Update the original variable
                 auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
@@ -1400,18 +1373,18 @@ void Interpreter::visit(ast::CallExpr& node) {
                     && checkRhsTainted(node.getArgs()[1].get())) {
                     governance_->markTainted(obj_id->getName());
                 }
-                result_ = std::make_shared<Value>();
+                result_ = NaabVal::makeNull();
                 return;
             }
             if (method_name == "remove" || method_name == "delete") {
                 if (args.empty()) throw std::runtime_error("dict.remove() requires 1 argument (key)");
-                auto key = args[0]->toString();
+                auto key = args[0].toString();
                 dict.erase(key);
                 auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
                 if (obj_id && current_env_->has(obj_id->getName())) {
                     current_env_->set(obj_id->getName(), obj);
                 }
-                result_ = std::make_shared<Value>();
+                result_ = NaabVal::makeNull();
                 return;
             }
             if (method_name == "keys") {
@@ -1447,9 +1420,9 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
             if (method_name == "merge") {
                 if (args.empty()) throw std::runtime_error("dict.merge() requires 1 argument (another dict)");
-                auto other = args[0];
-                if (auto* other_dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&other->data)) {
-                    for (const auto& pair : *other_dict) {
+                if (args[0].isDict()) {
+                    auto& other_dict = args[0].asDict();
+                    for (const auto& pair : other_dict) {
                         dict[pair.first] = pair.second;
                     }
                     auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
@@ -1459,7 +1432,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 } else {
                     throw std::runtime_error("dict.merge() argument must be a dict");
                 }
-                result_ = std::make_shared<Value>();
+                result_ = NaabVal::makeNull();
                 return;
             }
             // Helper: dict.update() does not exist
@@ -1479,7 +1452,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                 auto func_value = it->second;
                 if (func_value.isFunction()) {
                     std::vector<NaabVal> nargs;
-                    for (size_t i = 0; i < nval_args.size(); ++i) nargs.push_back(nval_args[i]);
+                    for (size_t i = 0; i < args.size(); ++i) nargs.push_back(args[i]);
                     result_ = callFunction(func_value, nargs);
                     return;
                 }
@@ -1519,11 +1492,11 @@ void Interpreter::visit(ast::CallExpr& node) {
             auto& arr = obj.asList();
 
             if (method_name == "size" || method_name == "length") {
-                result_ = std::make_shared<Value>(static_cast<int>(arr.size()));
+                result_ = NaabVal::makeInt(static_cast<int>(arr.size()));
                 return;
             }
             if (method_name == "isEmpty") {
-                result_ = std::make_shared<Value>(arr.empty());
+                result_ = NaabVal::makeBool(arr.empty());
                 return;
             }
             if (method_name == "add" || method_name == "push" || method_name == "append") {
@@ -1543,7 +1516,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
             if (method_name == "get") {
                 if (args.empty()) throw std::runtime_error("array.get() requires 1 argument (index)");
-                int idx = std::get<int>(args[0]->data);
+                int idx = args[0].asInt();
                 if (idx < 0 || idx >= static_cast<int>(arr.size())) {
                     throw std::runtime_error(fmt::format("Array index out of bounds: {} (size: {})", idx, arr.size()));
                 }
@@ -1554,14 +1527,14 @@ void Interpreter::visit(ast::CallExpr& node) {
                 if (args.empty()) throw std::runtime_error("array.contains() requires 1 argument");
                 bool found = false;
                 for (const auto& item : arr) {
-                    if (item.toString() == args[0]->toString()) { found = true; break; }
+                    if (item.toString() == args[0].toString()) { found = true; break; }
                 }
                 result_ = NaabVal::makeBool(found);
                 return;
             }
             if (method_name == "take") {
                 if (args.empty()) throw std::runtime_error("array.take() requires 1 argument (count)");
-                int count = args[0]->toInt();
+                int count = args[0].toInt();
                 std::vector<NaabVal> taken;
                 for (int i = 0; i < count && i < static_cast<int>(arr.size()); i++) {
                     taken.push_back(arr[i]);
@@ -1575,7 +1548,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
             if (method_name == "remove" || method_name == "removeAt") {
                 if (args.empty()) throw std::runtime_error("array.remove() requires 1 argument (index)");
-                int idx = args[0]->toInt();
+                int idx = args[0].toInt();
                 if (idx >= 0 && idx < static_cast<int>(arr.size())) {
                     arr.erase(arr.begin() + idx);
                 }
@@ -1594,7 +1567,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
             // join(separator)
             if (method_name == "join") {
-                std::string sep = args.empty() ? "," : args[0]->toString();
+                std::string sep = args.empty() ? "," : args[0].toString();
                 std::string joined;
                 for (size_t i = 0; i < arr.size(); i++) {
                     if (i > 0) joined += sep;
@@ -1613,7 +1586,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (method_name == "indexOf" || method_name == "findIndex" || method_name == "index_of") {
                 if (args.empty()) throw std::runtime_error("array.indexOf() requires 1 argument");
                 for (int i = 0; i < static_cast<int>(arr.size()); i++) {
-                    if (arr[i].toString() == args[0]->toString()) {
+                    if (arr[i].toString() == args[0].toString()) {
                         result_ = NaabVal::makeInt(i);
                         return;
                     }
@@ -1683,9 +1656,9 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
             if (method_name == "slice") {
                 if (args.empty()) throw std::runtime_error("array.slice() requires at least 1 argument (start)");
-                int start = args[0]->toInt();
+                int start = args[0].toInt();
                 int end = static_cast<int>(arr.size());
-                if (args.size() >= 2) end = args[1]->toInt();
+                if (args.size() >= 2) end = args[1].toInt();
                 if (start < 0) start = 0;
                 if (end > static_cast<int>(arr.size())) end = static_cast<int>(arr.size());
                 std::vector<NaabVal> sliced(arr.begin() + start, arr.begin() + end);
@@ -1711,82 +1684,82 @@ void Interpreter::visit(ast::CallExpr& node) {
             } else
 
             if (method_name == "size" || method_name == "length") {
-                result_ = std::make_shared<Value>(static_cast<int>(str.size()));
+                result_ = NaabVal::makeInt(static_cast<int>(str.size()));
                 return;
             }
             if (method_name == "isEmpty") {
-                result_ = std::make_shared<Value>(str.empty());
+                result_ = NaabVal::makeBool(str.empty());
                 return;
             }
             if (method_name == "contains" || method_name == "includes") {
                 if (args.empty()) throw std::runtime_error("string.contains() requires 1 argument");
-                result_ = std::make_shared<Value>(str.find(args[0]->toString()) != std::string::npos);
+                result_ = NaabVal::makeBool(str.find(args[0].toString()) != std::string::npos);
                 return;
             }
             if (method_name == "indexOf") {
                 if (args.empty()) throw std::runtime_error("string.indexOf() requires 1 argument");
-                auto pos = str.find(args[0]->toString());
-                result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                auto pos = str.find(args[0].toString());
+                result_ = NaabVal::makeInt(pos != std::string::npos ? static_cast<int>(pos) : -1);
                 return;
             }
             if (method_name == "lastIndexOf") {
                 if (args.empty()) throw std::runtime_error("string.lastIndexOf() requires 1 argument");
-                auto pos = str.rfind(args[0]->toString());
-                result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                auto pos = str.rfind(args[0].toString());
+                result_ = NaabVal::makeInt(pos != std::string::npos ? static_cast<int>(pos) : -1);
                 return;
             }
             if (method_name == "substring" || method_name == "substr" || method_name == "slice") {
                 if (args.empty()) throw std::runtime_error("string.substring() requires at least 1 argument (start)");
-                int start = std::get<int>(args[0]->data);
+                int start = args[0].asInt();
                 if (start < 0) start = 0;
                 if (start >= static_cast<int>(str.size())) {
-                    result_ = std::make_shared<Value>(std::string(""));
+                    result_ = NaabVal::makeString("");
                     return;
                 }
                 if (args.size() >= 2) {
-                    int end = std::get<int>(args[1]->data);
+                    int end = args[1].asInt();
                     if (end > static_cast<int>(str.size())) end = static_cast<int>(str.size());
-                    result_ = std::make_shared<Value>(str.substr(start, end - start));
+                    result_ = NaabVal::makeString(str.substr(start, end - start));
                 } else {
-                    result_ = std::make_shared<Value>(str.substr(start));
+                    result_ = NaabVal::makeString(str.substr(start));
                 }
                 return;
             }
             if (method_name == "replace") {
                 if (args.size() < 2) throw std::runtime_error("string.replace() requires 2 arguments (old, new)");
-                std::string old_str = args[0]->toString();
-                std::string new_str = args[1]->toString();
+                std::string old_str = args[0].toString();
+                std::string new_str = args[1].toString();
                 std::string result = str;
                 size_t pos = 0;
                 while ((pos = result.find(old_str, pos)) != std::string::npos) {
                     result.replace(pos, old_str.length(), new_str);
                     pos += new_str.length();
                 }
-                result_ = std::make_shared<Value>(result);
+                result_ = NaabVal::makeString(result);
                 return;
             }
             if (method_name == "toUpperCase" || method_name == "upper") {
                 std::string result = str;
                 std::transform(result.begin(), result.end(), result.begin(), ::toupper);
-                result_ = std::make_shared<Value>(result);
+                result_ = NaabVal::makeString(result);
                 return;
             }
             if (method_name == "toLowerCase" || method_name == "lower") {
                 std::string result = str;
                 std::transform(result.begin(), result.end(), result.begin(), ::tolower);
-                result_ = std::make_shared<Value>(result);
+                result_ = NaabVal::makeString(result);
                 return;
             }
             if (method_name == "trim") {
                 std::string result = str;
                 result.erase(0, result.find_first_not_of(" \t\n\r"));
                 result.erase(result.find_last_not_of(" \t\n\r") + 1);
-                result_ = std::make_shared<Value>(result);
+                result_ = NaabVal::makeString(result);
                 return;
             }
             if (method_name == "split") {
                 if (args.empty()) throw std::runtime_error("string.split() requires 1 argument (separator)");
-                std::string sep = args[0]->toString();
+                std::string sep = args[0].toString();
                 std::vector<NaabVal> parts;
                 if (sep.empty()) {
                     for (char c : str) parts.push_back(NaabVal::makeString(std::string(1, c)));
@@ -1803,13 +1776,13 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
             if (method_name == "startsWith" || method_name == "starts_with") {
                 if (args.empty()) throw std::runtime_error("string.startsWith() requires 1 argument");
-                result_ = std::make_shared<Value>(str.find(args[0]->toString()) == 0);
+                result_ = NaabVal::makeBool(str.find(args[0].toString()) == 0);
                 return;
             }
             if (method_name == "endsWith" || method_name == "ends_with") {
                 if (args.empty()) throw std::runtime_error("string.endsWith() requires 1 argument");
-                std::string suffix = args[0]->toString();
-                result_ = std::make_shared<Value>(
+                std::string suffix = args[0].toString();
+                result_ = NaabVal::makeBool(
                     str.size() >= suffix.size() &&
                     str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0
                 );
@@ -1817,60 +1790,60 @@ void Interpreter::visit(ast::CallExpr& node) {
             }
             if (method_name == "index_of") {
                 if (args.empty()) throw std::runtime_error("string.index_of() requires 1 argument");
-                auto pos = str.find(args[0]->toString());
-                result_ = std::make_shared<Value>(pos != std::string::npos ? static_cast<int>(pos) : -1);
+                auto pos = str.find(args[0].toString());
+                result_ = NaabVal::makeInt(pos != std::string::npos ? static_cast<int>(pos) : -1);
                 return;
             }
             // DOT-1: char_at, reverse, repeat
             if (method_name == "char_at") {
                 if (args.empty()) throw std::runtime_error("string.char_at() requires 1 argument (index)");
-                int idx = args[0]->toInt();
+                int idx = args[0].toInt();
                 if (idx < 0 || idx >= static_cast<int>(str.size())) {
                     throw std::runtime_error("String index out of bounds: " + std::to_string(idx) + " (length: " + std::to_string(str.size()) + ")");
                 }
-                result_ = std::make_shared<Value>(std::string(1, str[static_cast<size_t>(idx)]));
+                result_ = NaabVal::makeString(std::string(1, str[static_cast<size_t>(idx)]));
                 return;
             }
             if (method_name == "reverse") {
                 std::string rev(str.rbegin(), str.rend());
-                result_ = std::make_shared<Value>(rev);
+                result_ = NaabVal::makeString(rev);
                 return;
             }
             if (method_name == "repeat") {
                 if (args.empty()) throw std::runtime_error("string.repeat() requires 1 argument (count)");
-                int count = args[0]->toInt();
+                int count = args[0].toInt();
                 std::string repeated;
                 for (int ri = 0; ri < count; ri++) repeated += str;
-                result_ = std::make_shared<Value>(repeated);
+                result_ = NaabVal::makeString(repeated);
                 return;
             }
             if (method_name == "pad_right") {
                 if (args.empty() || args.size() > 2) throw std::runtime_error("pad_right() takes 1-2 arguments (width[, fill_char])");
-                int width = args[0]->toInt();
+                int width = args[0].toInt();
                 char fill = ' ';
                 if (args.size() == 2) {
-                    auto fs = std::get<std::string>(args[1]->data);
+                    auto fs = args[1].asString();
                     if (fs.length() != 1) throw std::runtime_error("pad_right() fill_char must be exactly 1 character");
                     fill = fs[0];
                 }
                 std::string s = str;
                 if (static_cast<int>(s.length()) < width) s.append(width - s.length(), fill);
-                result_ = std::make_shared<Value>(s);
+                result_ = NaabVal::makeString(s);
                 return;
             }
             if (method_name == "pad_left") {
                 if (args.empty() || args.size() > 2) throw std::runtime_error("pad_left() takes 1-2 arguments (width[, fill_char])");
-                int width = args[0]->toInt();
+                int width = args[0].toInt();
                 char fill = ' ';
                 if (args.size() == 2) {
-                    auto fs = std::get<std::string>(args[1]->data);
+                    auto fs = args[1].asString();
                     if (fs.length() != 1) throw std::runtime_error("pad_left() fill_char must be exactly 1 character");
                     fill = fs[0];
                 }
                 if (static_cast<int>(str.length()) < width) {
-                    result_ = std::make_shared<Value>(std::string(width - str.length(), fill) + str);
+                    result_ = NaabVal::makeString(std::string(width - str.length(), fill) + str);
                 } else {
-                    result_ = std::make_shared<Value>(str);
+                    result_ = NaabVal::makeString(str);
                 }
                 return;
             }
@@ -1890,7 +1863,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
         // Check if it's a function
         if (func_value.isFunction()) {
-            result_ = callFunction(func_value, nval_args);
+            result_ = callFunction(func_value, args);
             return;
         }
 
@@ -1932,7 +1905,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
         // Check if the result is a function
         if (callee_value.isFunction()) {
-            result_ = callFunction(callee_value, nval_args);
+            result_ = callFunction(callee_value, args);
             return;
         }
 
@@ -1964,8 +1937,8 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (func->is_generator) {
                 auto gen = std::make_shared<GeneratorValue>();
                 gen->func = func;
-                gen->args = nval_args;
-                result_ = std::make_shared<Value>(gen);
+                gen->args = args;
+                result_ = NaabVal::makeGenerator(gen);
                 return;
             }
 
@@ -2001,7 +1974,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (governance_ && governance_->isActive()) {
                 std::vector<std::string> arg_types;
                 for (const auto& arg : args) {
-                    arg_types.push_back(arg ? getTypeName(arg) : "null");
+                    arg_types.push_back(arg.isNull() ? "null" : arg.getTypeName());
                 }
                 std::string input_err = governance_->checkFunctionInputContract(
                     func->name, arg_types, node.getLocation().line);
@@ -2164,7 +2137,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                 // Populate locals map
                 for (size_t i = 0; i < args.size(); i++) {
-                    frame.locals[func->params[i]] = args[i];
+                    frame.locals[func->params[i]] = args[i].toLegacy();
                 }
 
                 debugger_->pushFrame(frame);
@@ -2277,7 +2250,7 @@ void Interpreter::visit(ast::CallExpr& node) {
                     : block->member_path;
 
                 LOG_DEBUG("[INFO] Calling function: {}\n", function_to_call);
-                result_ = executor->callFunction(function_to_call, args);
+                result_ = executor->callFunction(function_to_call, toLegacyArgs(args));
                 flushExecutorOutput(executor);  // Phase 11.1: Flush captured output
 
                 if (!result_.isNull()) {
@@ -2329,14 +2302,14 @@ void Interpreter::visit(ast::CallExpr& node) {
                         if (i > 0) args_str += ", ";
 
                         // Convert Value to Python representation
-                        if (auto* intval = std::get_if<int>(&args[i]->data)) {
-                            args_str += std::to_string(*intval);
-                        } else if (auto* floatval = std::get_if<double>(&args[i]->data)) {
-                            args_str += std::to_string(*floatval);
-                        } else if (auto* strval = std::get_if<std::string>(&args[i]->data)) {
-                            args_str += "\"" + *strval + "\"";
-                        } else if (auto* boolval = std::get_if<bool>(&args[i]->data)) {
-                            args_str += *boolval ? "True" : "False";
+                        if (args[i].isInt()) {
+                            args_str += std::to_string(args[i].asInt());
+                        } else if (args[i].isDouble()) {
+                            args_str += std::to_string(args[i].asDouble());
+                        } else if (args[i].isString()) {
+                            args_str += "\"" + args[i].asString() + "\"";
+                        } else if (args[i].isBool()) {
+                            args_str += args[i].asBool() ? "True" : "False";
                         } else {
                             args_str += "None";
                         }
@@ -2360,35 +2333,35 @@ void Interpreter::visit(ast::CallExpr& node) {
                         // Convert Python result to NAAb Value
                         if (PyLong_Check(py_result)) {
                             long val = PyLong_AsLong(py_result);
-                            result_ = std::make_shared<Value>(static_cast<int>(val));
+                            result_ = NaabVal::makeInt(val);
                             LOG_DEBUG("[SUCCESS] Returned int: {}\n", val);
                         } else if (PyFloat_Check(py_result)) {
                             double val = PyFloat_AsDouble(py_result);
-                            result_ = std::make_shared<Value>(val);
+                            result_ = NaabVal::makeDouble(val);
                             LOG_DEBUG("[SUCCESS] Returned float: {}\n", val);
                         } else if (PyUnicode_Check(py_result)) {
                             const char* val = PyUnicode_AsUTF8(py_result);
-                            result_ = std::make_shared<Value>(std::string(val));
+                            result_ = NaabVal::makeString(std::string(val));
                             LOG_DEBUG("[SUCCESS] Returned string: {}\n", val);
                         } else if (PyBool_Check(py_result)) {
                             bool val = py_result == Py_True;
-                            result_ = std::make_shared<Value>(val);
+                            result_ = NaabVal::makeBool(val);
                             LOG_DEBUG("[SUCCESS] Returned bool: {}\n", val);
                         } else if (py_result == Py_None) {
-                            result_ = std::make_shared<Value>();
+                            result_ = NaabVal::makeNull();
                             LOG_DEBUG("[SUCCESS] Returned None\n");
                             Py_DECREF(py_result);
                         } else {
                             // Complex object - wrap in PythonObjectValue for method chaining
                             auto py_obj = std::make_shared<PythonObjectValue>(py_result);
-                            result_ = std::make_shared<Value>(py_obj);
+                            result_ = NaabVal::makePythonObject(py_obj);
                             LOG_DEBUG("[SUCCESS] Returned Python object: {}\n", py_obj->repr);
                             Py_DECREF(py_result);  // PythonObjectValue has its own reference
                         }
                     } else {
                         PyErr_Print();
                         fmt::print("[ERROR] Member call failed\n");
-                        result_ = std::make_shared<Value>();
+                        result_ = NaabVal::makeNull();
                     }
 
                     return;
@@ -2403,14 +2376,14 @@ void Interpreter::visit(ast::CallExpr& node) {
                         if (i > 0) args_setup += ", ";
 
                         // Convert Value to Python representation
-                        if (auto* intval = std::get_if<int>(&args[i]->data)) {
-                            args_setup += std::to_string(*intval);
-                        } else if (auto* floatval = std::get_if<double>(&args[i]->data)) {
-                            args_setup += std::to_string(*floatval);
-                        } else if (auto* strval = std::get_if<std::string>(&args[i]->data)) {
-                            args_setup += "\"" + *strval + "\"";
-                        } else if (auto* boolval = std::get_if<bool>(&args[i]->data)) {
-                            args_setup += *boolval ? "True" : "False";
+                        if (args[i].isInt()) {
+                            args_setup += std::to_string(args[i].asInt());
+                        } else if (args[i].isDouble()) {
+                            args_setup += std::to_string(args[i].asDouble());
+                        } else if (args[i].isString()) {
+                            args_setup += "\"" + args[i].asString() + "\"";
+                        } else if (args[i].isBool()) {
+                            args_setup += args[i].asBool() ? "True" : "False";
                         } else {
                             args_setup += "None";
                         }
@@ -2432,19 +2405,19 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                 if (result == 0) {
                     LOG_DEBUG("[SUCCESS] Python block executed successfully\n");
-                    result_ = std::make_shared<Value>();  // Return null for definition blocks
+                    result_ = NaabVal::makeNull();  // Return null for definition blocks
                 } else {
                     fmt::print("[ERROR] Python block execution failed\n");
-                    result_ = std::make_shared<Value>();
+                    result_ = NaabVal::makeNull();
                 }
 #else
                 fmt::print("[WARN] Python execution not available\n");
-                result_ = std::make_shared<Value>();
+                result_ = NaabVal::makeNull();
 #endif
                 return;
             } else {
                 fmt::print("[WARN] Unsupported block language: {}\n", block->metadata.language);
-                result_ = std::make_shared<Value>();
+                result_ = NaabVal::makeNull();
                 return;
             }
         }
@@ -2454,23 +2427,23 @@ void Interpreter::visit(ast::CallExpr& node) {
     if (func_name == "print") {
         for (size_t i = 0; i < args.size(); i++) {
             if (i > 0) std::cout << " ";
-            std::cout << args[i]->toString();
+            std::cout << args[i].toString();
         }
         std::cout << std::endl;
-        result_ = std::make_shared<Value>();
+        result_ = NaabVal::makeNull();
     }
     else if (func_name == "len") {
         if (args.empty()) {
             throw std::runtime_error("len() requires exactly 1 argument\n  Example: len([1, 2, 3])  // 3");
         }
-        if (auto* str = std::get_if<std::string>(&args[0]->data)) {
-            result_ = std::make_shared<Value>(static_cast<int>(str->length()));
-        } else if (auto* list = std::get_if<std::vector<NaabVal>>(&args[0]->data)) {
-            result_ = std::make_shared<Value>(static_cast<int>(list->size()));
-        } else if (auto* dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&args[0]->data)) {
-            result_ = std::make_shared<Value>(static_cast<int>(dict->size()));
+        if (args[0].isString()) {
+            result_ = NaabVal::makeInt(static_cast<int>(args[0].asString().length()));
+        } else if (args[0].isList()) {
+            result_ = NaabVal::makeInt(static_cast<int>(args[0].asList().size()));
+        } else if (args[0].isDict()) {
+            result_ = NaabVal::makeInt(static_cast<int>(args[0].asDict().size()));
         } else {
-            result_ = std::make_shared<Value>(0);
+            result_ = NaabVal::makeInt(0);
         }
     }
     else if (func_name == "type") {
@@ -2478,20 +2451,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             throw std::runtime_error("type() requires exactly 1 argument\n  Example: type(42)  // \"int\"");
         }
         if (!args.empty()) {
-            std::string type_name = std::visit([](auto&& arg) -> std::string {
-                using T = std::decay_t<decltype(arg)>;
-                if constexpr (std::is_same_v<T, int>) return "int";
-                else if constexpr (std::is_same_v<T, double>) return "float";
-                else if constexpr (std::is_same_v<T, bool>) return "bool";
-                else if constexpr (std::is_same_v<T, std::string>) return "string";
-                else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) return "array";
-                else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) return "dict";
-                else if constexpr (std::is_same_v<T, std::shared_ptr<BlockValue>>) return "block";
-                else if constexpr (std::is_same_v<T, std::shared_ptr<FunctionValue>>) return "function";
-                else if constexpr (std::is_same_v<T, std::shared_ptr<PythonObjectValue>>) return "python_object";
-                return "unknown";
-            }, args[0]->data);
-            result_ = std::make_shared<Value>(type_name);
+            result_ = NaabVal::makeString(args[0].getTypeName());
         }
     }
     // Phase 2.4.2: typeof operator for union type checking
@@ -2503,7 +2463,7 @@ void Interpreter::visit(ast::CallExpr& node) {
             throw std::runtime_error("typeof() requires exactly 1 argument, got " + std::to_string(args.size()));
         }
         std::string type_name = getValueTypeName(args[0]);
-        result_ = std::make_shared<Value>(type_name);
+        result_ = NaabVal::makeString(type_name);
     }
     // range() builtin — range(end), range(start, end), range(start, end, step)
     else if (func_name == "range") {
@@ -2519,21 +2479,21 @@ void Interpreter::visit(ast::CallExpr& node) {
         int start = 0, end = 0, step = 1;
 
         if (args.size() == 1) {
-            if (auto* v = std::get_if<int>(&args[0]->data)) { end = *v; }
-            else if (auto* d = std::get_if<double>(&args[0]->data)) { end = static_cast<int>(*d); }
+            if (args[0].isInt()) { end = args[0].asInt(); }
+            else if (args[0].isDouble()) { end = static_cast<int>(args[0].asDouble()); }
             else { throw std::runtime_error("range() arguments must be numbers"); }
         } else if (args.size() >= 2) {
-            if (auto* v = std::get_if<int>(&args[0]->data)) { start = *v; }
-            else if (auto* d = std::get_if<double>(&args[0]->data)) { start = static_cast<int>(*d); }
+            if (args[0].isInt()) { start = args[0].asInt(); }
+            else if (args[0].isDouble()) { start = static_cast<int>(args[0].asDouble()); }
             else { throw std::runtime_error("range() arguments must be numbers"); }
 
-            if (auto* v = std::get_if<int>(&args[1]->data)) { end = *v; }
-            else if (auto* d = std::get_if<double>(&args[1]->data)) { end = static_cast<int>(*d); }
+            if (args[1].isInt()) { end = args[1].asInt(); }
+            else if (args[1].isDouble()) { end = static_cast<int>(args[1].asDouble()); }
             else { throw std::runtime_error("range() arguments must be numbers"); }
         }
         if (args.size() == 3) {
-            if (auto* v = std::get_if<int>(&args[2]->data)) { step = *v; }
-            else if (auto* d = std::get_if<double>(&args[2]->data)) { step = static_cast<int>(*d); }
+            if (args[2].isInt()) { step = args[2].asInt(); }
+            else if (args[2].isDouble()) { step = static_cast<int>(args[2].asDouble()); }
             else { throw std::runtime_error("range() arguments must be numbers"); }
         }
 
@@ -2557,57 +2517,57 @@ void Interpreter::visit(ast::CallExpr& node) {
     // Type cast builtins
     else if (func_name == "int") {
         if (args.size() != 1) throw std::runtime_error("int() takes exactly 1 argument");
-        if (auto* str = std::get_if<std::string>(&args[0]->data)) {
+        if (args[0].isString()) {
             try {
                 // Try parsing as double first to handle "3.14" -> 3
-                double d = std::stod(*str);
-                result_ = std::make_shared<Value>(static_cast<int>(d));
+                double d = std::stod(args[0].asString());
+                result_ = NaabVal::makeInt(d);
             } catch (...) {
-                throw std::runtime_error("int() cannot convert \"" + *str + "\" to int");
+                throw std::runtime_error("int() cannot convert \"" + args[0].asString() + "\" to int");
             }
         } else {
-            result_ = std::make_shared<Value>(args[0]->toInt());
+            result_ = NaabVal::makeInt(args[0].toInt());
         }
     }
     else if (func_name == "float") {
         if (args.size() != 1) throw std::runtime_error("float() takes exactly 1 argument");
-        if (auto* str = std::get_if<std::string>(&args[0]->data)) {
+        if (args[0].isString()) {
             try {
-                result_ = std::make_shared<Value>(std::stod(*str));
+                result_ = NaabVal::makeDouble(std::stod(args[0].asString()));
             } catch (...) {
-                throw std::runtime_error("float() cannot convert \"" + *str + "\" to float");
+                throw std::runtime_error("float() cannot convert \"" + args[0].asString() + "\" to float");
             }
         } else {
-            result_ = std::make_shared<Value>(args[0]->toFloat());
+            result_ = NaabVal::makeDouble(args[0].toFloat());
         }
     }
     else if (func_name == "string") {
         if (args.size() != 1) throw std::runtime_error("string() takes exactly 1 argument");
-        result_ = std::make_shared<Value>(args[0]->toString());
+        result_ = NaabVal::makeString(args[0].toString());
     }
     else if (func_name == "bool") {
         if (args.size() != 1) throw std::runtime_error("bool() takes exactly 1 argument");
-        result_ = std::make_shared<Value>(args[0]->toBool());
+        result_ = NaabVal::makeBool(args[0].toBool());
     }
     // Phase 3.2: Manual garbage collection trigger
     else if (func_name == "gc_collect") {
         runGarbageCollection(current_env_);  // Pass current environment
-        result_ = std::make_shared<Value>();  // Return void
+        result_ = NaabVal::makeNull();  // Return void
     }
     // Array/string slicing: __slice(collection, start, end)
     else if (func_name == "__slice") {
         if (args.size() != 3) throw std::runtime_error("__slice() takes exactly 3 arguments");
-        auto& collection = args[0];
         int start = 0, end = 0;
-        if (auto* si = std::get_if<int>(&args[1]->data)) start = *si;
-        else if (auto* sd = std::get_if<double>(&args[1]->data)) start = static_cast<int>(*sd);
+        if (args[1].isInt()) start = args[1].asInt();
+        else if (args[1].isDouble()) start = static_cast<int>(args[1].asDouble());
         else throw std::runtime_error("Slice start index must be a number");
-        if (auto* ei = std::get_if<int>(&args[2]->data)) end = *ei;
-        else if (auto* ed = std::get_if<double>(&args[2]->data)) end = static_cast<int>(*ed);
+        if (args[2].isInt()) end = args[2].asInt();
+        else if (args[2].isDouble()) end = static_cast<int>(args[2].asDouble());
         else throw std::runtime_error("Slice end index must be a number");
 
-        if (auto* arr = std::get_if<std::vector<NaabVal>>(&collection->data)) {
-            int len = static_cast<int>(arr->size());
+        if (args[0].isList()) {
+            auto& arr = args[0].asList();
+            int len = static_cast<int>(arr.size());
             if (start < 0) start = std::max(0, len + start);
             if (end < 0) end = std::max(0, len + end);
             if (start > len) start = len;
@@ -2615,19 +2575,20 @@ void Interpreter::visit(ast::CallExpr& node) {
             if (start >= end) {
                 result_ = NaabVal::makeList(std::vector<NaabVal>{});
             } else {
-                std::vector<NaabVal> sliced(arr->begin() + start, arr->begin() + end);
+                std::vector<NaabVal> sliced(arr.begin() + start, arr.begin() + end);
                 result_ = NaabVal::makeList(std::move(sliced));
             }
-        } else if (auto* str = std::get_if<std::string>(&collection->data)) {
-            int len = static_cast<int>(str->size());
+        } else if (args[0].isString()) {
+            auto& str = args[0].asString();
+            int len = static_cast<int>(str.size());
             if (start < 0) start = std::max(0, len + start);
             if (end < 0) end = std::max(0, len + end);
             if (start > len) start = len;
             if (end > len) end = len;
             if (start >= end) {
-                result_ = std::make_shared<Value>(std::string(""));
+                result_ = NaabVal::makeString("");
             } else {
-                result_ = std::make_shared<Value>(str->substr(start, end - start));
+                result_ = NaabVal::makeString(str.substr(start, end - start));
             }
         } else {
             throw std::runtime_error("Slice operator requires an array or string");
@@ -2789,7 +2750,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
 
             member_block->member_path = full_member_path;
 
-            result_ = std::make_shared<Value>(member_block);
+            result_ = NaabVal::makeBlock(member_block);
             LOG_DEBUG("[INFO] Created member accessor: {} ({})\n",
                       full_member_path, block->metadata.language);
             return;
@@ -2815,7 +2776,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
                 full_member_path
             );
 
-            result_ = std::make_shared<Value>(member_block);
+            result_ = NaabVal::makeBlock(member_block);
             LOG_DEBUG("[INFO] Created member accessor (legacy Python): {}\n", full_member_path);
 #else
             throw std::runtime_error("Python support required for member access");
@@ -2840,7 +2801,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
         if (py_member != nullptr) {
             // Wrap the member in a new PythonObjectValue
             auto member_obj = std::make_shared<PythonObjectValue>(py_member);
-            result_ = std::make_shared<Value>(member_obj);
+            result_ = NaabVal::makeDict(member_obj);
             Py_DECREF(py_member);  // PythonObjectValue has its own reference
             LOG_DEBUG("[INFO] Accessed Python object member: {}\n", member_name);
         } else {
@@ -2926,7 +2887,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
             static const std::unordered_set<std::string> math_constants = {"PI", "E", "pi", "e"};
             if (module_alias == "math" && math_constants.count(member_name) > 0) {
                 // Invoke the constant immediately with no arguments
-                std::vector<std::shared_ptr<Value>> no_args;
+                std::vector<NaabVal> no_args;
                 result_ = module->call(member_name, no_args);
                 return;
             }
@@ -2934,7 +2895,7 @@ void Interpreter::visit(ast::MemberExpr& node) {
             // Create a marker for the function call
             // Format: __stdlib_call__:module_alias:function_name
             std::string func_marker = "__stdlib_call__:" + module_alias + ":" + member_name;
-            result_ = std::make_shared<Value>(func_marker);
+            result_ = NaabVal::makeString(func_marker);
             return;
         }
 
