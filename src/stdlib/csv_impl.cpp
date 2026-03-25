@@ -164,7 +164,7 @@ std::shared_ptr<interpreter::Value> CsvModule::call(
             for (const auto& header : headers) {
                 auto it = row_dict.find(header);
                 if (it != row_dict.end()) {
-                    row_values.push_back(it->second.toLegacy()->toString());
+                    row_values.push_back(it->second.toString());
                 } else {
                     throw std::runtime_error("write_dict() row " + std::to_string(row_num) +
                                            " missing key '" + header + "'");
@@ -342,7 +342,7 @@ static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter
             if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
                 std::vector<std::string> result;
                 for (const auto& item : arg) {
-                    result.push_back(item.toLegacy()->toString());
+                    result.push_back(item.toString());
                 }
                 return result;
             } else {
@@ -373,15 +373,8 @@ static std::vector<std::unordered_map<std::string, interpreter::NaabVal>> getArr
             if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
                 std::vector<std::unordered_map<std::string, interpreter::NaabVal>> result;
                 for (const auto& item : arg) {
-                    auto legacy = item.toLegacy();
-                    auto dict = std::visit([](auto&& dict_arg) -> std::unordered_map<std::string, interpreter::NaabVal> {
-                        using DT = std::decay_t<decltype(dict_arg)>;
-                        if constexpr (std::is_same_v<DT, std::unordered_map<std::string, interpreter::NaabVal>>) {
-                            return dict_arg;
-                        } else {
-                            throw std::runtime_error("Expected dictionary");
-                        }
-                    }, legacy->data);
+                    if (!item.isDict()) throw std::runtime_error("Expected dictionary");
+                    auto dict = item.asDictConst();
                     result.push_back(dict);
                 }
                 return result;

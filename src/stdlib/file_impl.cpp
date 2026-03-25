@@ -392,7 +392,7 @@ static std::vector<std::string> getStringArray(
             std::vector<std::string> result;
             result.reserve(arg.size());
             for (const auto& item : arg) {
-                result.push_back(item.toLegacy()->toString());
+                result.push_back(item.toString());
             }
             return result;
         } else {

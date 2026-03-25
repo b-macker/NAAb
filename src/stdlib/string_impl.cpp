@@ -519,7 +519,7 @@ static std::vector<std::string> getStringArray(const std::shared_ptr<interpreter
         if constexpr (std::is_same_v<T, std::vector<interpreter::NaabVal>>) {
             std::vector<std::string> result;
             for (const auto& item : arg) {
-                result.push_back(item.toLegacy()->toString());
+                result.push_back(item.toString());
             }
             return result;
         } else {

@@ -35,37 +35,34 @@ void DebugModule::setInterpreter(interpreter::Interpreter* interp) {
 }
 
 // Helper to serialize any value to a debug string
-static std::string valueToDebugString(const std::shared_ptr<interpreter::Value>& val, int indent = 0) {
+static std::string valueToDebugString(interpreter::NaabVal nval, int indent = 0) {
     std::ostringstream oss;
     std::string indent_str(static_cast<size_t>(indent * 2), ' ');
 
     if (indent > 20) return "(...)";
 
-    if (!val) {
+    if (nval.isNull()) {
         return "null";
     }
 
-    if (std::holds_alternative<int>(val->data)) {
-        oss << std::get<int>(val->data);
-    } else if (std::holds_alternative<double>(val->data)) {
-        oss << std::fixed << std::setprecision(2) << std::get<double>(val->data);
-    } else if (std::holds_alternative<bool>(val->data)) {
-        oss << (std::get<bool>(val->data) ? "true" : "false");
-    } else if (std::holds_alternative<std::string>(val->data)) {
-        oss << "\"" << std::get<std::string>(val->data) << "\"";
-    } else if (std::holds_alternative<std::monostate>(val->data)) {
-        oss << "null";
-    } else if (std::holds_alternative<std::vector<interpreter::NaabVal>>(val->data)) {
-        const auto& arr = std::get<std::vector<interpreter::NaabVal>>(val->data);
+    if (nval.isInt()) {
+        oss << nval.asInt();
+    } else if (nval.isDouble()) {
+        oss << std::fixed << std::setprecision(2) << nval.asDouble();
+    } else if (nval.isBool()) {
+        oss << (nval.asBool() ? "true" : "false");
+    } else if (nval.isString()) {
+        oss << "\"" << nval.asString() << "\"";
+    } else if (nval.isList()) {
+        const auto& arr = nval.asListConst();
         oss << "[";
         for (size_t i = 0; i < arr.size(); ++i) {
             if (i > 0) oss << ", ";
-            oss << valueToDebugString(arr[i].toLegacy(), indent + 1);
+            oss << valueToDebugString(arr[i], indent + 1);
         }
         oss << "]";
-    } else if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(val->data)) {
-        const auto& dict = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(val->data);
-        // Bug 10: Sort keys for deterministic output (prevents false diffs in watch/compare)
+    } else if (nval.isDict()) {
+        const auto& dict = nval.asDictConst();
         std::vector<std::string> sorted_keys;
         for (const auto& [key, value] : dict) sorted_keys.push_back(key);
         std::sort(sorted_keys.begin(), sorted_keys.end());
@@ -73,38 +70,38 @@ static std::string valueToDebugString(const std::shared_ptr<interpreter::Value>&
         for (size_t i = 0; i < sorted_keys.size(); ++i) {
             if (i > 0) oss << ",\n";
             oss << indent_str << "  \"" << sorted_keys[i] << "\": "
-                << valueToDebugString(dict.at(sorted_keys[i]).toLegacy(), indent + 1);
+                << valueToDebugString(dict.at(sorted_keys[i]), indent + 1);
         }
         oss << "\n" << indent_str << "}";
-    } else if (std::holds_alternative<std::shared_ptr<interpreter::StructValue>>(val->data)) {
-        const auto& struct_val = std::get<std::shared_ptr<interpreter::StructValue>>(val->data);
+    } else if (nval.isStructVal()) {
+        const auto& struct_val = nval.asStructConst();
         oss << struct_val->type_name << " {\n";
         for (size_t i = 0; i < struct_val->field_values.size(); ++i) {
             if (i < struct_val->definition->fields.size()) {
                 const auto& field = struct_val->definition->fields[i];
                 oss << indent_str << "  " << field.name << ": "
-                    << valueToDebugString(struct_val->field_values[i].toLegacy(), indent + 1);
+                    << valueToDebugString(struct_val->field_values[i], indent + 1);
                 if (i < struct_val->field_values.size() - 1) oss << ",";
                 oss << "\n";
             }
         }
         oss << indent_str << "}";
-    } else if (std::holds_alternative<std::shared_ptr<interpreter::FunctionValue>>(val->data)) {
-        const auto& func = std::get<std::shared_ptr<interpreter::FunctionValue>>(val->data);
+    } else if (nval.isFunction()) {
+        const auto& func = nval.asFunctionConst();
         oss << "[Function: " << func->name << "(";
         for (size_t i = 0; i < func->params.size(); ++i) {
             if (i > 0) oss << ", ";
             oss << func->params[i];
         }
         oss << ")]";
-    } else if (std::holds_alternative<std::shared_ptr<interpreter::BlockValue>>(val->data)) {
-        const auto& block = std::get<std::shared_ptr<interpreter::BlockValue>>(val->data);
+    } else if (nval.isBlock()) {
+        const auto& block = nval.asBlockConst();
         oss << "[Block: " << block->metadata.language << "]";
-    } else if (std::holds_alternative<std::shared_ptr<interpreter::PythonObjectValue>>(val->data)) {
-        const auto& pyobj = std::get<std::shared_ptr<interpreter::PythonObjectValue>>(val->data);
+    } else if (nval.isPythonObject()) {
+        const auto& pyobj = nval.asPythonObjectConst();
         oss << "[PythonObject: " << pyobj->repr << "]";
-    } else if (std::holds_alternative<std::shared_ptr<interpreter::FutureValue>>(val->data)) {
-        const auto& fut = std::get<std::shared_ptr<interpreter::FutureValue>>(val->data);
+    } else if (nval.isFuture()) {
+        const auto& fut = nval.asFutureConst();
         oss << "[Future: " << fut->description << "]";
     } else {
         oss << "[Complex Type]";
@@ -114,36 +111,32 @@ static std::string valueToDebugString(const std::shared_ptr<interpreter::Value>&
 }
 
 // Helper: get type name string from a value
-static std::string getTypeName(const std::shared_ptr<interpreter::Value>& val) {
-    if (!val) return "null";
-    if (std::holds_alternative<int>(val->data)) return "int";
-    if (std::holds_alternative<double>(val->data)) return "float";
-    if (std::holds_alternative<bool>(val->data)) return "bool";
-    if (std::holds_alternative<std::string>(val->data)) return "string";
-    if (std::holds_alternative<std::monostate>(val->data)) return "null";
-    if (std::holds_alternative<std::vector<interpreter::NaabVal>>(val->data)) return "array";
-    if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(val->data)) return "dict";
-    if (std::holds_alternative<std::shared_ptr<interpreter::StructValue>>(val->data)) {
-        return "struct:" + std::get<std::shared_ptr<interpreter::StructValue>>(val->data)->type_name;
-    }
-    if (std::holds_alternative<std::shared_ptr<interpreter::FunctionValue>>(val->data)) return "function";
-    if (std::holds_alternative<std::shared_ptr<interpreter::BlockValue>>(val->data)) return "block";
-    if (std::holds_alternative<std::shared_ptr<interpreter::PythonObjectValue>>(val->data)) return "python_object";
-    if (std::holds_alternative<std::shared_ptr<interpreter::FutureValue>>(val->data)) return "future";
+static std::string getTypeName(interpreter::NaabVal nval) {
+    if (nval.isNull()) return "null";
+    if (nval.isInt()) return "int";
+    if (nval.isDouble()) return "float";
+    if (nval.isBool()) return "bool";
+    if (nval.isString()) return "string";
+    if (nval.isList()) return "array";
+    if (nval.isDict()) return "dict";
+    if (nval.isStructVal()) return "struct:" + nval.asStructConst()->type_name;
+    if (nval.isFunction()) return "function";
+    if (nval.isBlock()) return "block";
+    if (nval.isPythonObject()) return "python_object";
+    if (nval.isFuture()) return "future";
     return "unknown";
 }
 
 // Helper: deep diff two values, returns human-readable diff string
-static std::string diffValues(const std::shared_ptr<interpreter::Value>& a,
-                               const std::shared_ptr<interpreter::Value>& b,
+static std::string diffValues(interpreter::NaabVal a, interpreter::NaabVal b,
                                const std::string& path = "",
                                int depth = 0) {
     if (depth > 20) return path + "(nested too deeply to compare)";
     std::string prefix = path.empty() ? "" : path + ": ";
 
-    if (!a && !b) return "";
-    if (!a) return prefix + "null vs " + valueToDebugString(b);
-    if (!b) return prefix + valueToDebugString(a) + " vs null";
+    if (a.isNull() && b.isNull()) return "";
+    if (a.isNull()) return prefix + "null vs " + valueToDebugString(b);
+    if (b.isNull()) return prefix + valueToDebugString(a) + " vs null";
 
     std::string type_a = getTypeName(a);
     std::string type_b = getTypeName(b);
@@ -154,13 +147,13 @@ static std::string diffValues(const std::shared_ptr<interpreter::Value>& a,
     }
 
     // Same type — compare by type
-    if (std::holds_alternative<int>(a->data)) {
-        int va = std::get<int>(a->data), vb = std::get<int>(b->data);
+    if (a.isInt()) {
+        int va = a.asInt(), vb = b.asInt();
         if (va != vb) return prefix + std::to_string(va) + " vs " + std::to_string(vb);
         return "";
     }
-    if (std::holds_alternative<double>(a->data)) {
-        double va = std::get<double>(a->data), vb = std::get<double>(b->data);
+    if (a.isDouble()) {
+        double va = a.asDouble(), vb = b.asDouble();
         if (va != vb) {
             std::ostringstream oss;
             oss << prefix << std::fixed << std::setprecision(2) << va << " vs " << vb;
@@ -168,23 +161,22 @@ static std::string diffValues(const std::shared_ptr<interpreter::Value>& a,
         }
         return "";
     }
-    if (std::holds_alternative<bool>(a->data)) {
-        bool va = std::get<bool>(a->data), vb = std::get<bool>(b->data);
+    if (a.isBool()) {
+        bool va = a.asBool(), vb = b.asBool();
         if (va != vb) return prefix + std::string(va ? "true" : "false") + " vs " + (vb ? "true" : "false");
         return "";
     }
-    if (std::holds_alternative<std::string>(a->data)) {
-        const auto& va = std::get<std::string>(a->data);
-        const auto& vb = std::get<std::string>(b->data);
+    if (a.isString()) {
+        const auto& va = a.asString();
+        const auto& vb = b.asString();
         if (va != vb) return prefix + "\"" + va + "\" vs \"" + vb + "\"";
         return "";
     }
-    if (std::holds_alternative<std::monostate>(a->data)) return "";
 
     // Arrays
-    if (std::holds_alternative<std::vector<interpreter::NaabVal>>(a->data)) {
-        const auto& arr_a = std::get<std::vector<interpreter::NaabVal>>(a->data);
-        const auto& arr_b = std::get<std::vector<interpreter::NaabVal>>(b->data);
+    if (a.isList()) {
+        const auto& arr_a = a.asListConst();
+        const auto& arr_b = b.asListConst();
         std::vector<std::string> diffs;
         size_t max_len = std::max(arr_a.size(), arr_b.size());
         if (arr_a.size() != arr_b.size()) {
@@ -192,15 +184,14 @@ static std::string diffValues(const std::shared_ptr<interpreter::Value>& a,
                           std::to_string(arr_a.size()) + " vs " + std::to_string(arr_b.size()));
         }
         for (size_t i = 0; i < std::min(arr_a.size(), arr_b.size()); ++i) {
-            std::string d = diffValues(arr_a[i].toLegacy(), arr_b[i].toLegacy(), prefix + "[" + std::to_string(i) + "]", depth + 1);
+            std::string d = diffValues(arr_a[i], arr_b[i], prefix + "[" + std::to_string(i) + "]", depth + 1);
             if (!d.empty()) diffs.push_back(d);
         }
-        // Extra elements
         for (size_t i = std::min(arr_a.size(), arr_b.size()); i < max_len; ++i) {
             if (i < arr_a.size()) {
-                diffs.push_back(prefix + "[" + std::to_string(i) + "] only in first: " + valueToDebugString(arr_a[i].toLegacy()));
+                diffs.push_back(prefix + "[" + std::to_string(i) + "] only in first: " + valueToDebugString(arr_a[i]));
             } else {
-                diffs.push_back(prefix + "[" + std::to_string(i) + "] only in second: " + valueToDebugString(arr_b[i].toLegacy()));
+                diffs.push_back(prefix + "[" + std::to_string(i) + "] only in second: " + valueToDebugString(arr_b[i]));
             }
         }
         std::string result;
@@ -212,16 +203,16 @@ static std::string diffValues(const std::shared_ptr<interpreter::Value>& a,
     }
 
     // Dicts
-    if (std::holds_alternative<std::unordered_map<std::string, interpreter::NaabVal>>(a->data)) {
-        const auto& da = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(a->data);
-        const auto& db = std::get<std::unordered_map<std::string, interpreter::NaabVal>>(b->data);
+    if (a.isDict()) {
+        const auto& da = a.asDictConst();
+        const auto& db = b.asDictConst();
         std::vector<std::string> diffs;
         for (const auto& [k, v] : da) {
             auto it = db.find(k);
             if (it == db.end()) {
                 diffs.push_back("Key '" + k + "' only in first");
             } else {
-                std::string d = diffValues(v.toLegacy(), it->second.toLegacy(), prefix + "." + k, depth + 1);
+                std::string d = diffValues(v, it->second, prefix + "." + k, depth + 1);
                 if (!d.empty()) diffs.push_back(d);
             }
         }

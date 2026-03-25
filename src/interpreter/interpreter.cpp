@@ -80,48 +80,6 @@ static std::string getTypeName(const std::shared_ptr<Value>& val) {
     }, val->data);
 }
 
-// Helper function to deep copy a Value (handles nested arrays/dicts)
-// This prevents silent mutations through variable aliasing
-static std::shared_ptr<Value> copyValue(const std::shared_ptr<Value>& val) {
-    if (!val) return nullptr;
-
-    return std::visit([](auto&& arg) -> std::shared_ptr<Value> {
-        using T = std::decay_t<decltype(arg)>;
-
-        // Monostate (null/undefined): use default constructor
-        if constexpr (std::is_same_v<T, std::monostate>) {
-            return std::make_shared<Value>();
-        }
-        // Primitives: copy directly (immutable in practice)
-        else if constexpr (std::is_same_v<T, int> ||
-                          std::is_same_v<T, double> ||
-                          std::is_same_v<T, bool> ||
-                          std::is_same_v<T, std::string>) {
-            return std::make_shared<Value>(arg);
-        }
-        // Arrays: deep copy each element recursively
-        else if constexpr (std::is_same_v<T, std::vector<NaabVal>>) {
-            std::vector<NaabVal> new_vec;
-            new_vec.reserve(arg.size());
-            for (const auto& elem : arg) {
-                new_vec.push_back(NaabVal::fromLegacy(copyValue(elem.toLegacy())));
-            }
-            return std::make_shared<Value>(std::move(new_vec));
-        }
-        // Dicts: deep copy each value recursively
-        else if constexpr (std::is_same_v<T, std::unordered_map<std::string, NaabVal>>) {
-            std::unordered_map<std::string, NaabVal> new_dict;
-            for (const auto& [key, val] : arg) {
-                new_dict[key] = NaabVal::fromLegacy(copyValue(val.toLegacy()));
-            }
-            return std::make_shared<Value>(std::move(new_dict));
-        }
-        // Functions, blocks, structs, python objects: share (immutable or intentionally shared)
-        else {
-            return std::make_shared<Value>(arg);
-        }
-    }, val->data);
-}
 
 // ============================================================================
 // Phase 4.1: Exception Handling
@@ -1604,7 +1562,7 @@ void Interpreter::visit(ast::IfExpr& node) {
 }
 
 void Interpreter::visit(ast::MatchExpr& node) {
-    auto subject = eval(*node.getSubject()).toLegacy();
+    auto subject = eval(*node.getSubject());
 
     for (auto& arm : node.getArms()) {
         // Create a new scope for each arm (for binding patterns)
@@ -1641,18 +1599,18 @@ void Interpreter::visit(ast::MatchExpr& node) {
             arm_env->define(ident->getName(), subject);
         } else if (list_pat) {
             // Array destructuring pattern
-            auto* subj_arr = std::get_if<std::vector<NaabVal>>(&subject->data);
-            if (subj_arr && subj_arr->size() == list_pat->getElements().size()) {
+            if (subject.isList() && subject.asListConst().size() == list_pat->getElements().size()) {
+                const auto& subj_arr = subject.asListConst();
                 matches = true;
                 for (size_t i = 0; i < list_pat->getElements().size(); i++) {
                     auto* elem_ident = dynamic_cast<ast::IdentifierExpr*>(list_pat->getElements()[i].get());
                     if (elem_ident) {
                         // Identifier element: bind the value
-                        arm_env->define(elem_ident->getName(), (*subj_arr)[i].toLegacy());
+                        arm_env->define(elem_ident->getName(), subj_arr[i]);
                     } else {
                         // Literal element: must match exactly
                         auto pat_elem = eval(*list_pat->getElements()[i]);
-                        NaabVal subj_elem_nv = (*subj_arr)[i];
+                        NaabVal subj_elem_nv = subj_arr[i];
                         bool elem_match = false;
                         bool s_null = subj_elem_nv.isNull(), p_null = pat_elem.isNull();
                         if (s_null && p_null) {
@@ -1670,22 +1628,21 @@ void Interpreter::visit(ast::MatchExpr& node) {
         } else {
             // Value pattern: evaluate and compare
             auto pattern_val = eval(*arm.pattern);
-            NaabVal subj_nv(subject);
-            bool subj_null = subj_nv.isNull();
+            bool subj_null = subject.isNull();
             bool pat_null = pattern_val.isNull();
 
             if (subj_null && pat_null) {
                 matches = true;
             } else if (!subj_null && !pat_null) {
-                bool subj_numeric = subj_nv.isInt() || subj_nv.isDouble();
+                bool subj_numeric = subject.isInt() || subject.isDouble();
                 bool pat_numeric = pattern_val.isInt() || pattern_val.isDouble();
 
                 if (subj_numeric && pat_numeric) {
-                    matches = subj_nv.toFloat() == pattern_val.toFloat();
-                } else if (subj_nv.isString() && pattern_val.isString()) {
-                    matches = subj_nv.toString() == pattern_val.toString();
-                } else if (subj_nv.isBool() && pattern_val.isBool()) {
-                    matches = subj_nv.toBool() == pattern_val.toBool();
+                    matches = subject.toFloat() == pattern_val.toFloat();
+                } else if (subject.isString() && pattern_val.isString()) {
+                    matches = subject.toString() == pattern_val.toString();
+                } else if (subject.isBool() && pattern_val.isBool()) {
+                    matches = subject.toBool() == pattern_val.toBool();
                 }
             }
         }
@@ -1706,7 +1663,7 @@ void Interpreter::visit(ast::MatchExpr& node) {
     }
 
     throw std::runtime_error(
-        "Match error: no matching arm for value: " + subject->toString() + "\n\n"
+        "Match error: no matching arm for value: " + subject.toString() + "\n\n"
         "  Help:\n"
         "  - Add a wildcard arm to handle all other cases:\n\n"
         "  Example:\n"
@@ -1718,17 +1675,17 @@ void Interpreter::visit(ast::MatchExpr& node) {
 }
 
 void Interpreter::visit(ast::AwaitExpr& node) {
-    auto value = eval(*node.getExpr()).toLegacy();
+    auto value = eval(*node.getExpr());
 
     // If it's a FutureValue, block until resolved
-    auto* future_ptr = std::get_if<std::shared_ptr<FutureValue>>(&value->data);
-    if (future_ptr && *future_ptr) {
-        std::string awaited_func_name = (*future_ptr)->func_name;
+    if (value.isFuture()) {
+        auto& future_val = value.asFutureConst();
+        std::string awaited_func_name = future_val->func_name;
         try {
-            result_ = (*future_ptr)->future.get();
+            result_ = future_val->future.get();
         } catch (const std::exception& e) {
             throw std::runtime_error(
-                "Await error: " + (*future_ptr)->description + " failed\n\n"
+                "Await error: " + future_val->description + " failed\n\n"
                 "  Cause: " + std::string(e.what()) + "\n"
             );
         }
@@ -1747,7 +1704,7 @@ void Interpreter::visit(ast::AwaitExpr& node) {
         }
 
         // BUG-AwaitExpr fix: Propagate async return taint to current context
-        if ((*future_ptr)->return_tainted->load() && governance_ && governance_->isActive()) {
+        if (future_val->return_tainted->load() && governance_ && governance_->isActive()) {
             governance_->setLastReturnTainted(true);
         }
 
@@ -1829,7 +1786,7 @@ void Interpreter::visit(ast::ForStmt& node) {
     // Increment loop depth for break/continue validation
     ++loop_depth_;
 
-    auto iterable = eval(*node.getIter()).toLegacy();
+    auto iterable = eval(*node.getIter());
 
     // BUG-E + BUG-2: If iterable is tainted, mark loop variable as tainted
     if (governance_ && governance_->isActive()) {
@@ -1845,7 +1802,7 @@ void Interpreter::visit(ast::ForStmt& node) {
     }
 
     // Helper lambda: bind loop element to destructured names or single var
-    auto defineLoopVar = [&](std::shared_ptr<Value> item) {
+    auto defineLoopVar = [&](NaabVal item) {
         if (!node.isDestructuring()) {
             current_env_->define(node.getVar(), item);
             return;
@@ -1853,67 +1810,70 @@ void Interpreter::visit(ast::ForStmt& node) {
         const auto& names = node.getDestructureNames();
         int rest_idx = node.getRestIndex();
         // Array element destructuring
-        if (auto* arr = std::get_if<std::vector<NaabVal>>(&item->data)) {
+        if (item.isList()) {
+            const auto& arr = item.asListConst();
             size_t required = (rest_idx >= 0) ? static_cast<size_t>(rest_idx) : names.size();
-            if (arr->size() < required) {
+            if (arr.size() < required) {
                 throw std::runtime_error(
-                    "For loop destructuring error: element has " + std::to_string(arr->size()) +
+                    "For loop destructuring error: element has " + std::to_string(arr.size()) +
                     " items, need at least " + std::to_string(required));
             }
             for (size_t i = 0; i < names.size(); ++i) {
                 if (rest_idx >= 0 && i == static_cast<size_t>(rest_idx)) {
                     std::vector<NaabVal> rest_arr;
-                    for (size_t j = static_cast<size_t>(rest_idx); j < arr->size(); ++j) {
-                        rest_arr.push_back((*arr)[j]);
+                    for (size_t j = static_cast<size_t>(rest_idx); j < arr.size(); ++j) {
+                        rest_arr.push_back(arr[j]);
                     }
-                    current_env_->define(names[i], std::make_shared<Value>(std::move(rest_arr)));
+                    current_env_->define(names[i], NaabVal::makeList(std::move(rest_arr)));
                 } else {
-                    current_env_->define(names[i], (*arr)[i].toLegacy());
+                    current_env_->define(names[i], arr[i]);
                 }
             }
         }
         // Dict element destructuring (for [key, val] in dict)
-        else if (auto* dict_item = std::get_if<std::unordered_map<std::string, NaabVal>>(&item->data)) {
+        else if (item.isDict()) {
+            const auto& dict_item = item.asDictConst();
             for (const auto& name : names) {
-                auto it = dict_item->find(name);
-                if (it != dict_item->end()) {
-                    current_env_->define(name, it->second.toLegacy());
+                auto it = dict_item.find(name);
+                if (it != dict_item.end()) {
+                    current_env_->define(name, it->second);
                 } else {
-                    current_env_->define(name, std::make_shared<Value>());
+                    current_env_->define(name, NaabVal::makeNull());
                 }
             }
         }
         else {
             throw std::runtime_error(
-                "For loop destructuring error: cannot destructure " + getValueTypeName(item) +
+                "For loop destructuring error: cannot destructure " + item.getTypeName() +
                 " — each element must be an array or dict");
         }
     };
 
     // Check if it's a range (dict with __is_range marker)
-    if (auto* dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&iterable->data)) {
-        auto it = dict->find("__is_range");
-        if (it != dict->end() && it->second.toLegacy()->toBool()) {
+    if (iterable.isDict()) {
+        const auto& dict = iterable.asDictConst();
+        auto it = dict.find("__is_range");
+        if (it != dict.end() && it->second.toBool()) {
             // This is a range - iterate from start to end
-            int start = (*dict)["__range_start"].toLegacy()->toInt();
-            int end = (*dict)["__range_end"].toLegacy()->toInt();
+            int start = dict.at("__range_start").toInt();
+            int end_val = dict.at("__range_end").toInt();
             bool inclusive = false;
 
             // Check for inclusive flag (..= operator)
-            auto inc_it = dict->find("__range_inclusive");
-            if (inc_it != dict->end()) {
-                inclusive = inc_it->second.toLegacy()->toBool();
+            auto inc_it = dict.find("__range_inclusive");
+            if (inc_it != dict.end()) {
+                inclusive = inc_it->second.toBool();
             }
 
             // Use <= for inclusive ranges, < for exclusive
             if (inclusive) {
                 size_t iter_count = 0;
-                for (int i = start; i <= end; i++) {
+                for (int i = start; i <= end_val; i++) {
                     if (governance_ && governance_->isActive()) {
                         std::string err = governance_->checkLoopIterations(++iter_count);
                         if (!err.empty()) throw std::runtime_error(err);
                     }
-                    current_env_->define(node.getVar(), std::make_shared<Value>(i));
+                    current_env_->define(node.getVar(), NaabVal::makeInt(i));
                     node.getBody()->accept(*this);
                     if (returning_) break;
                     if (breaking_) {
@@ -1927,12 +1887,12 @@ void Interpreter::visit(ast::ForStmt& node) {
                 }
             } else {
                 size_t iter_count = 0;
-                for (int i = start; i < end; i++) {
+                for (int i = start; i < end_val; i++) {
                     if (governance_ && governance_->isActive()) {
                         std::string err = governance_->checkLoopIterations(++iter_count);
                         if (!err.empty()) throw std::runtime_error(err);
                     }
-                    current_env_->define(node.getVar(), std::make_shared<Value>(i));
+                    current_env_->define(node.getVar(), NaabVal::makeInt(i));
                     node.getBody()->accept(*this);
                     if (returning_) break;
                     if (breaking_) {
@@ -1948,12 +1908,10 @@ void Interpreter::visit(ast::ForStmt& node) {
             --loop_depth_;
             return;
         }
-    }
 
-    // Check if it's a dict (iterate over keys, or destructure [key, val])
-    if (auto* dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&iterable->data)) {
+        // Not a range — iterate as dict (over keys, or destructure [key, val])
         size_t iter_count = 0;
-        for (const auto& [key, val] : *dict) {
+        for (const auto& [key, val] : dict) {
             if (governance_ && governance_->isActive()) {
                 std::string err = governance_->checkLoopIterations(++iter_count);
                 if (!err.empty()) throw std::runtime_error(err);
@@ -1963,9 +1921,9 @@ void Interpreter::visit(ast::ForStmt& node) {
                 std::vector<NaabVal> pair;
                 pair.push_back(NaabVal::makeString(key));
                 pair.push_back(val);
-                defineLoopVar(std::make_shared<Value>(std::move(pair)));
+                defineLoopVar(NaabVal::makeList(std::move(pair)));
             } else {
-                current_env_->define(node.getVar(), std::make_shared<Value>(key));
+                current_env_->define(node.getVar(), NaabVal::makeString(key));
             }
             node.getBody()->accept(*this);
             if (returning_) break;
@@ -1976,15 +1934,16 @@ void Interpreter::visit(ast::ForStmt& node) {
         return;
     }
 
-    // Otherwise, handle as list
-    if (auto* list = std::get_if<std::vector<NaabVal>>(&iterable->data)) {
+    // Handle as list
+    if (iterable.isList()) {
+        const auto& list = iterable.asListConst();
         size_t iter_count = 0;
-        for (auto& item : *list) {
+        for (size_t idx = 0; idx < list.size(); ++idx) {
             if (governance_ && governance_->isActive()) {
                 std::string err = governance_->checkLoopIterations(++iter_count);
                 if (!err.empty()) throw std::runtime_error(err);
             }
-            defineLoopVar(item.toLegacy());
+            defineLoopVar(list[idx]);
             node.getBody()->accept(*this);
             if (returning_) break;
             if (breaking_) {
@@ -2003,8 +1962,8 @@ void Interpreter::visit(ast::ForStmt& node) {
     // Phase 5: Generator iteration — eager collection approach
     // Run generator function body eagerly, collecting yielded values into a list.
     // Then iterate over the collected list.
-    if (auto* gen_ptr = std::get_if<std::shared_ptr<GeneratorValue>>(&iterable->data)) {
-        auto gen = *gen_ptr;
+    if (iterable.isGenerator()) {
+        auto gen = iterable.asGenerator();
         auto func = gen->func;
 
         // Set up function environment
@@ -2054,7 +2013,7 @@ void Interpreter::visit(ast::ForStmt& node) {
                 std::string err = governance_->checkLoopIterations(++iter_count);
                 if (!err.empty()) throw std::runtime_error(err);
             }
-            defineLoopVar(item.toLegacy());
+            defineLoopVar(item);
             node.getBody()->accept(*this);
             if (returning_) break;
             if (breaking_) { breaking_ = false; break; }
@@ -2068,7 +2027,7 @@ void Interpreter::visit(ast::ForStmt& node) {
     // Non-iterable type - error
     --loop_depth_;
     throw std::runtime_error(
-        "Type error: Cannot iterate over " + getTypeName(iterable) + "\n\n"
+        "Type error: Cannot iterate over " + iterable.getTypeName() + "\n\n"
         "  for loops work with:\n"
         "  - Arrays:  for item in [1, 2, 3] { ... }\n"
         "  - Ranges:  for i in 0..10 { ... }\n"
@@ -2297,29 +2256,29 @@ void Interpreter::visit(ast::VarDeclStmt& node) {
 
 // Destructuring: let [a, b] = expr  OR  let {x, y} = expr
 void Interpreter::visit(ast::DestructureStmt& node) {
-    auto value = eval(*node.getInit()).toLegacy();
+    auto value = eval(*node.getInit());
     const auto& names = node.getNames();
 
     if (node.getDestructureKind() == ast::DestructureStmt::Kind::Array) {
         // Array destructuring: value must be an array
-        auto* arr = std::get_if<std::vector<NaabVal>>(&value->data);
-        if (!arr) {
+        if (!value.isList()) {
             throw std::runtime_error(
                 "Destructuring error: Cannot destructure non-array value\n\n"
                 "  Expected: array with " + std::to_string(names.size()) + " elements\n"
-                "  Got: " + getValueTypeName(value) + "\n\n"
+                "  Got: " + value.getTypeName() + "\n\n"
                 "  Help:\n"
                 "  - Array destructuring requires an array on the right side\n\n"
                 "  Example:\n"
                 "    let [a, b, c] = [1, 2, 3]\n");
         }
+        const auto& arr = value.asListConst();
         int rest_idx = node.getRestIndex();
         size_t required = (rest_idx >= 0) ? static_cast<size_t>(rest_idx) : names.size();
-        if (arr->size() < required) {
+        if (arr.size() < required) {
             throw std::runtime_error(
                 "Destructuring error: Not enough elements to destructure\n\n"
                 "  Expected: at least " + std::to_string(required) + " elements\n"
-                "  Got: " + std::to_string(arr->size()) + " elements\n\n"
+                "  Got: " + std::to_string(arr.size()) + " elements\n\n"
                 "  Help:\n"
                 "  - The array must have at least as many elements as names\n");
         }
@@ -2330,13 +2289,12 @@ void Interpreter::visit(ast::DestructureStmt& node) {
             if (rest_idx >= 0 && i == static_cast<size_t>(rest_idx)) {
                 // This is the ...rest element — collect remaining into array
                 std::vector<NaabVal> rest_arr;
-                for (size_t j = static_cast<size_t>(rest_idx); j < arr->size(); ++j) {
-                    rest_arr.push_back(copyValue((*arr)[j]));
+                for (size_t j = static_cast<size_t>(rest_idx); j < arr.size(); ++j) {
+                    rest_arr.push_back(copyValue(arr[j]));
                 }
-                current_env_->define(names[i], std::make_shared<Value>(std::move(rest_arr)));
+                current_env_->define(names[i], NaabVal::makeList(std::move(rest_arr)));
             } else {
-                auto elem = copyValue((*arr)[i]).toLegacy();
-                current_env_->define(names[i], elem);
+                current_env_->define(names[i], copyValue(arr[i]));
             }
 
             if (is_tainted) {
@@ -2345,8 +2303,7 @@ void Interpreter::visit(ast::DestructureStmt& node) {
         }
     } else {
         // Dict destructuring: value must be a dict
-        auto* dict = std::get_if<std::unordered_map<std::string, NaabVal>>(&value->data);
-        if (!dict) {
+        if (!value.isDict()) {
             throw std::runtime_error(
                 "Destructuring error: Cannot destructure non-dict value\n\n"
                 "  Expected: dict with keys: " + [&]() {
@@ -2357,19 +2314,19 @@ void Interpreter::visit(ast::DestructureStmt& node) {
                     }
                     return keys;
                 }() + "\n"
-                "  Got: " + getValueTypeName(value) + "\n\n"
+                "  Got: " + value.getTypeName() + "\n\n"
                 "  Help:\n"
                 "  - Dict destructuring requires a dict on the right side\n\n"
                 "  Example:\n"
                 "    let {name, age} = {\"name\": \"Alice\", \"age\": 30}\n");
         }
+        const auto& dict = value.asDictConst();
         for (const auto& name : names) {
-            auto it = dict->find(name);
-            if (it != dict->end()) {
-                auto elem = copyValue(it->second).toLegacy();
-                current_env_->define(name, elem);
+            auto it = dict.find(name);
+            if (it != dict.end()) {
+                current_env_->define(name, copyValue(it->second));
             } else {
-                current_env_->define(name, std::make_shared<Value>());  // null for missing keys
+                current_env_->define(name, NaabVal::makeNull());  // null for missing keys
             }
 
             // Governance taint: propagate from dict source
@@ -2588,36 +2545,30 @@ NaabVal Interpreter::copyValue(NaabVal nval) {
     if (nval.isDouble()) return NaabVal::makeDouble(nval.asDouble());
     if (nval.isBool()) return NaabVal::makeBool(nval.asBool());
 
-    // Heap types: convert to legacy for deep copy logic
-    auto value = nval.toLegacy();
-    if (!value) return NaabVal::makeNull();
-
-    if (std::holds_alternative<std::string>(value->data)) {
-        return NaabVal::makeString(std::get<std::string>(value->data));
-    } else if (std::holds_alternative<std::vector<NaabVal>>(value->data)) {
-        // Deep copy list
-        const auto& list = std::get<std::vector<NaabVal>>(value->data);
+    // Heap types: use NaabVal type checks directly
+    if (nval.isString()) {
+        return NaabVal::makeString(nval.asString());
+    } else if (nval.isList()) {
+        const auto& list = nval.asListConst();
         std::vector<NaabVal> new_list;
         for (const auto& item : list) {
-            new_list.push_back(copyValue(item));  // Recursive copy
+            new_list.push_back(copyValue(item));
         }
         return NaabVal::makeList(std::move(new_list));
-    } else if (std::holds_alternative<std::unordered_map<std::string, NaabVal>>(value->data)) {
-        // Deep copy dict
-        const auto& dict = std::get<std::unordered_map<std::string, NaabVal>>(value->data);
+    } else if (nval.isDict()) {
+        const auto& dict = nval.asDictConst();
         std::unordered_map<std::string, NaabVal> new_dict;
         for (const auto& [key, val] : dict) {
-            new_dict[key] = copyValue(val);  // Recursive copy
+            new_dict[key] = copyValue(val);
         }
         return NaabVal::makeDict(std::move(new_dict));
-    } else if (std::holds_alternative<std::shared_ptr<StructValue>>(value->data)) {
-        // Deep copy struct
-        const auto& struct_val = std::get<std::shared_ptr<StructValue>>(value->data);
+    } else if (nval.isStructVal()) {
+        const auto& struct_val = nval.asStructConst();
         auto new_struct = std::make_shared<StructValue>(struct_val->type_name, struct_val->definition);
         for (size_t i = 0; i < struct_val->field_values.size(); i++) {
-            new_struct->field_values[i] = copyValue(struct_val->field_values[i]);  // Recursive copy
+            new_struct->field_values[i] = copyValue(struct_val->field_values[i]);
         }
-        return std::make_shared<Value>(new_struct);
+        return NaabVal::makeStruct(new_struct);
     }
 
     // Functions, blocks, python objects: not deep copied, share reference

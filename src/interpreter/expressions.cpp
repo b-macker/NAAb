@@ -258,22 +258,22 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
     // Handle Pipeline operator specially (like short-circuit operators)
     // Don't evaluate right side yet - it needs special handling
-    std::shared_ptr<Value> left, right;
+    NaabVal left, right;
     if (node.getOp() == ast::BinaryOp::Pipeline) {
         // Pipeline uses NaabVal path — left set inside case block
     } else {
         // For all other operators, evaluate both sides
-        left = eval(*node.getLeft()).toLegacy();
-        right = eval(*node.getRight()).toLegacy();
+        left = eval(*node.getLeft());
+        right = eval(*node.getRight());
     }
 
     switch (node.getOp()) {
         case ast::BinaryOp::Add:
             // List concatenation
-            if (std::holds_alternative<std::vector<NaabVal>>(left->data) &&
-                std::holds_alternative<std::vector<NaabVal>>(right->data)) {
-                auto& left_vec = std::get<std::vector<NaabVal>>(left->data);
-                auto& right_vec = std::get<std::vector<NaabVal>>(right->data);
+            if (left.isList() &&
+                right.isList()) {
+                const auto& left_vec = left.asListConst();
+                const auto& right_vec = right.asListConst();
 
                 std::vector<NaabVal> combined;
                 combined.reserve(left_vec.size() + right_vec.size());
@@ -283,16 +283,16 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 result_ = NaabVal::makeList(std::move(combined));
             }
             // String concatenation or numeric addition
-            else if (std::holds_alternative<std::string>(left->data) ||
-                std::holds_alternative<std::string>(right->data)) {
-                result_ = std::make_shared<Value>(left->toString() + right->toString());
-            } else if (std::holds_alternative<double>(left->data) ||
-                       std::holds_alternative<double>(right->data)) {
-                result_ = std::make_shared<Value>(left->toFloat() + right->toFloat());
+            else if (left.isString() ||
+                right.isString()) {
+                result_ = NaabVal::makeString(left.toString() + right.toString());
+            } else if (left.isDouble() ||
+                       right.isDouble()) {
+                result_ = NaabVal::makeDouble(left.toFloat() + right.toFloat());
             } else {
                 // Integer addition with overflow detection
-                int a = left->toInt();
-                int b = right->toInt();
+                int a = left.toInt();
+                int b = right.toInt();
 
                 // Check for overflow before addition
                 if ((b > 0 && a > INT_MAX - b) || (b < 0 && a < INT_MIN - b)) {
@@ -311,18 +311,18 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     throw std::runtime_error(oss.str());
                 }
 
-                result_ = std::make_shared<Value>(a + b);
+                result_ = NaabVal::makeInt(a + b);
             }
             break;
 
         case ast::BinaryOp::Sub: {
             // Type check: Subtraction requires numeric types
-            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
-                                  std::holds_alternative<double>(left->data) ||
-                                  std::holds_alternative<bool>(left->data);
-            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
-                                   std::holds_alternative<double>(right->data) ||
-                                   std::holds_alternative<bool>(right->data);
+            bool left_is_numeric = left.isInt() ||
+                                  left.isDouble() ||
+                                  left.isBool();
+            bool right_is_numeric = right.isInt() ||
+                                   right.isDouble() ||
+                                   right.isBool();
 
             if (!left_is_numeric || !right_is_numeric) {
                 std::ostringstream oss;
@@ -330,15 +330,15 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
                 if (!left_is_numeric && !right_is_numeric) {
                     oss << "  Both operands are non-numeric:\n";
-                    oss << "    Left: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
-                    oss << "    Right: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Left: " << left.getTypeName() << " = \"" << left.toString() << "\"\n";
+                    oss << "    Right: " << right.getTypeName() << " = \"" << right.toString() << "\"\n";
                 } else if (!left_is_numeric) {
                     oss << "  Left operand is non-numeric:\n";
-                    oss << "    Got: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Got: " << left.getTypeName() << " = \"" << left.toString() << "\"\n";
                     oss << "    Expected: int, float, or bool\n";
                 } else {
                     oss << "  Right operand is non-numeric:\n";
-                    oss << "    Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Got: " << right.getTypeName() << " = \"" << right.toString() << "\"\n";
                     oss << "    Expected: int, float, or bool\n";
                 }
 
@@ -353,13 +353,13 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 throw std::runtime_error(oss.str());
             }
 
-            if (std::holds_alternative<double>(left->data) ||
-                std::holds_alternative<double>(right->data)) {
-                result_ = std::make_shared<Value>(left->toFloat() - right->toFloat());
+            if (left.isDouble() ||
+                right.isDouble()) {
+                result_ = NaabVal::makeDouble(left.toFloat() - right.toFloat());
             } else {
                 // Integer subtraction with overflow detection
-                int a = left->toInt();
-                int b = right->toInt();
+                int a = left.toInt();
+                int b = right.toInt();
 
                 // Check for overflow before subtraction
                 if ((b < 0 && a > INT_MAX + b) || (b > 0 && a < INT_MIN + b)) {
@@ -378,7 +378,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     throw std::runtime_error(oss.str());
                 }
 
-                result_ = std::make_shared<Value>(a - b);
+                result_ = NaabVal::makeInt(a - b);
             }
             break;
         }
@@ -386,33 +386,29 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         case ast::BinaryOp::Mul: {
             // String repetition: "abc" * 3 → "abcabcabc", 3 * "abc" → "abcabcabc"
             {
-                std::string* str_val = nullptr;
+                std::string str_val;
                 int repeat = 0;
                 bool is_string_repeat = false;
-                if (auto* s = std::get_if<std::string>(&left->data)) {
-                    if (std::holds_alternative<int>(right->data)) {
-                        str_val = s; repeat = std::get<int>(right->data); is_string_repeat = true;
-                    }
-                } else if (auto* s2 = std::get_if<std::string>(&right->data)) {
-                    if (std::holds_alternative<int>(left->data)) {
-                        str_val = s2; repeat = std::get<int>(left->data); is_string_repeat = true;
-                    }
+                if (left.isString() && right.isInt()) {
+                    str_val = left.asString(); repeat = right.asInt(); is_string_repeat = true;
+                } else if (right.isString() && left.isInt()) {
+                    str_val = right.asString(); repeat = left.asInt(); is_string_repeat = true;
                 }
                 if (is_string_repeat) {
                     std::string result;
-                    for (int i = 0; i < repeat; i++) result += *str_val;
-                    result_ = std::make_shared<Value>(result);
+                    for (int i = 0; i < repeat; i++) result += str_val;
+                    result_ = NaabVal::makeString(result);
                     break;
                 }
             }
 
             // Type check: Multiplication requires numeric types
-            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
-                                  std::holds_alternative<double>(left->data) ||
-                                  std::holds_alternative<bool>(left->data);
-            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
-                                   std::holds_alternative<double>(right->data) ||
-                                   std::holds_alternative<bool>(right->data);
+            bool left_is_numeric = left.isInt() ||
+                                  left.isDouble() ||
+                                  left.isBool();
+            bool right_is_numeric = right.isInt() ||
+                                   right.isDouble() ||
+                                   right.isBool();
 
             if (!left_is_numeric || !right_is_numeric) {
                 std::ostringstream oss;
@@ -420,15 +416,15 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
                 if (!left_is_numeric && !right_is_numeric) {
                     oss << "  Both operands are non-numeric:\n";
-                    oss << "    Left: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
-                    oss << "    Right: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Left: " << left.getTypeName() << " = \"" << left.toString() << "\"\n";
+                    oss << "    Right: " << right.getTypeName() << " = \"" << right.toString() << "\"\n";
                 } else if (!left_is_numeric) {
                     oss << "  Left operand is non-numeric:\n";
-                    oss << "    Got: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Got: " << left.getTypeName() << " = \"" << left.toString() << "\"\n";
                     oss << "    Expected: int, float, bool, or string\n";
                 } else {
                     oss << "  Right operand is non-numeric:\n";
-                    oss << "    Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Got: " << right.getTypeName() << " = \"" << right.toString() << "\"\n";
                     oss << "    Expected: int, float, bool, or string\n";
                 }
 
@@ -443,18 +439,18 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 throw std::runtime_error(oss.str());
             }
 
-            if (std::holds_alternative<double>(left->data) ||
-                std::holds_alternative<double>(right->data)) {
-                result_ = std::make_shared<Value>(left->toFloat() * right->toFloat());
+            if (left.isDouble() ||
+                right.isDouble()) {
+                result_ = NaabVal::makeDouble(left.toFloat() * right.toFloat());
             } else {
                 // Integer multiplication with overflow detection
-                int a = left->toInt();
-                int b = right->toInt();
+                int a = left.toInt();
+                int b = right.toInt();
 
                 // Check for overflow before multiplication
                 // Handle special cases first
                 if (a == 0 || b == 0) {
-                    result_ = std::make_shared<Value>(0);
+                    result_ = NaabVal::makeInt(0);
                 } else if (a == INT_MIN || b == INT_MIN) {
                     // INT_MIN * anything (except 0, 1) will overflow
                     if ((a == INT_MIN && (b != 1 && b != 0)) || (b == INT_MIN && (a != 1 && a != 0))) {
@@ -471,7 +467,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                         oss << "    ✓ Right: let result = 1000000.0 * 10000.0  (use float)\n";
                         throw std::runtime_error(oss.str());
                     }
-                    result_ = std::make_shared<Value>(a * b);
+                    result_ = NaabVal::makeInt(a * b);
                 } else if ((a > 0 && b > 0 && a > INT_MAX / b) ||
                            (a < 0 && b < 0 && a < INT_MAX / b) ||
                            (a > 0 && b < 0 && b < INT_MIN / a) ||
@@ -489,7 +485,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     oss << "    ✓ Right: let result = 1000000.0 * 10000.0  (use float)\n";
                     throw std::runtime_error(oss.str());
                 } else {
-                    result_ = std::make_shared<Value>(a * b);
+                    result_ = NaabVal::makeInt(a * b);
                 }
             }
             break;
@@ -497,12 +493,12 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
         case ast::BinaryOp::Div: {
             // Type check: Division requires numeric types
-            bool left_is_numeric = std::holds_alternative<int>(left->data) ||
-                                  std::holds_alternative<double>(left->data) ||
-                                  std::holds_alternative<bool>(left->data);
-            bool right_is_numeric = std::holds_alternative<int>(right->data) ||
-                                   std::holds_alternative<double>(right->data) ||
-                                   std::holds_alternative<bool>(right->data);
+            bool left_is_numeric = left.isInt() ||
+                                  left.isDouble() ||
+                                  left.isBool();
+            bool right_is_numeric = right.isInt() ||
+                                   right.isDouble() ||
+                                   right.isBool();
 
             if (!left_is_numeric || !right_is_numeric) {
                 std::ostringstream oss;
@@ -510,15 +506,15 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
                 if (!left_is_numeric && !right_is_numeric) {
                     oss << "  Both operands are non-numeric:\n";
-                    oss << "    Left: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
-                    oss << "    Right: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Left: " << left.getTypeName() << " = \"" << left.toString() << "\"\n";
+                    oss << "    Right: " << right.getTypeName() << " = \"" << right.toString() << "\"\n";
                 } else if (!left_is_numeric) {
                     oss << "  Left operand is non-numeric:\n";
-                    oss << "    Got: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Got: " << left.getTypeName() << " = \"" << left.toString() << "\"\n";
                     oss << "    Expected: int, float, or bool\n";
                 } else {
                     oss << "  Right operand is non-numeric:\n";
-                    oss << "    Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Got: " << right.getTypeName() << " = \"" << right.toString() << "\"\n";
                     oss << "    Expected: int, float, or bool\n";
                 }
 
@@ -533,11 +529,11 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             }
 
             // Check for division by zero
-            double divisor = right->toFloat();
+            double divisor = right.toFloat();
             if (divisor == 0.0) {
                 std::ostringstream oss;
                 oss << "Math error: Division by zero\n\n";
-                oss << "  Expression: " << left->toString() << " / 0\n";
+                oss << "  Expression: " << left.toString() << " / 0\n";
                 oss << "\n  Help:\n";
                 oss << "  - Division by zero is undefined in mathematics\n";
                 oss << "  - Check if divisor is zero before dividing\n";
@@ -552,16 +548,16 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 throw std::runtime_error(oss.str());
             }
 
-            result_ = std::make_shared<Value>(left->toFloat() / divisor);
+            result_ = NaabVal::makeDouble(left.toFloat() / divisor);
             break;
         }
 
         case ast::BinaryOp::Mod: {
             // Type check: Modulo requires integer types
-            bool left_is_int = std::holds_alternative<int>(left->data) ||
-                              std::holds_alternative<bool>(left->data);
-            bool right_is_int = std::holds_alternative<int>(right->data) ||
-                               std::holds_alternative<bool>(right->data);
+            bool left_is_int = left.isInt() ||
+                              left.isBool();
+            bool right_is_int = right.isInt() ||
+                               right.isBool();
 
             if (!left_is_int || !right_is_int) {
                 std::ostringstream oss;
@@ -569,15 +565,15 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
                 if (!left_is_int && !right_is_int) {
                     oss << "  Both operands are non-integer:\n";
-                    oss << "    Left: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
-                    oss << "    Right: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Left: " << left.getTypeName() << " = \"" << left.toString() << "\"\n";
+                    oss << "    Right: " << right.getTypeName() << " = \"" << right.toString() << "\"\n";
                 } else if (!left_is_int) {
                     oss << "  Left operand is non-integer:\n";
-                    oss << "    Got: " << getTypeName(left) << " = \"" << left->toString() << "\"\n";
+                    oss << "    Got: " << left.getTypeName() << " = \"" << left.toString() << "\"\n";
                     oss << "    Expected: int or bool\n";
                 } else {
                     oss << "  Right operand is non-integer:\n";
-                    oss << "    Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "    Got: " << right.getTypeName() << " = \"" << right.toString() << "\"\n";
                     oss << "    Expected: int or bool\n";
                 }
 
@@ -594,11 +590,11 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             }
 
             // Check for modulo by zero
-            int divisor = right->toInt();
+            int divisor = right.toInt();
             if (divisor == 0) {
                 std::ostringstream oss;
                 oss << "Math error: Modulo by zero\n\n";
-                oss << "  Expression: " << left->toString() << " % 0\n";
+                oss << "  Expression: " << left.toString() << " % 0\n";
                 oss << "\n  Help:\n";
                 oss << "  - Modulo by zero is undefined in mathematics\n";
                 oss << "  - Check if divisor is zero before using modulo\n";
@@ -613,7 +609,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                 throw std::runtime_error(oss.str());
             }
 
-            result_ = std::make_shared<Value>(left->toInt() % divisor);
+            result_ = NaabVal::makeInt(left.toInt() % divisor);
             break;
         }
 
@@ -629,31 +625,31 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
             if (left_null && right_null) {
                 // Both null: equal
-                result_ = std::make_shared<Value>(true);
+                result_ = NaabVal::makeBool(true);
             } else if (left_null || right_null) {
                 // One null, one non-null: not equal
-                result_ = std::make_shared<Value>(false);
+                result_ = NaabVal::makeBool(false);
             } else {
                 // Neither is null - proceed with type-specific comparisons
-                bool left_is_numeric = std::holds_alternative<int>(left->data) ||
-                                      std::holds_alternative<double>(left->data);
-                bool right_is_numeric = std::holds_alternative<int>(right->data) ||
-                                       std::holds_alternative<double>(right->data);
+                bool left_is_numeric = left.isInt() ||
+                                      left.isDouble();
+                bool right_is_numeric = right.isInt() ||
+                                       right.isDouble();
 
-                if (std::holds_alternative<bool>(left->data) &&
-                    std::holds_alternative<bool>(right->data)) {
+                if (left.isBool() &&
+                    right.isBool()) {
                     // Both bools: compare as bools
-                    result_ = std::make_shared<Value>(left->toBool() == right->toBool());
+                    result_ = NaabVal::makeBool(left.toBool() == right.toBool());
                 } else if (left_is_numeric && right_is_numeric) {
                     // Both numeric: compare as numbers
-                    result_ = std::make_shared<Value>(left->toFloat() == right->toFloat());
-                } else if (std::holds_alternative<std::string>(left->data) &&
-                           std::holds_alternative<std::string>(right->data)) {
+                    result_ = NaabVal::makeBool(left.toFloat() == right.toFloat());
+                } else if (left.isString() &&
+                           right.isString()) {
                     // Both strings: compare as strings
-                    result_ = std::make_shared<Value>(left->toString() == right->toString());
+                    result_ = NaabVal::makeBool(left.toString() == right.toString());
                 } else {
                     // Different types: not equal
-                    result_ = std::make_shared<Value>(false);
+                    result_ = NaabVal::makeBool(false);
                 }
             }
             break;
@@ -668,73 +664,69 @@ void Interpreter::visit(ast::BinaryExpr& node) {
 
             if (left_null && right_null) {
                 // Both null: not different (false)
-                result_ = std::make_shared<Value>(false);
+                result_ = NaabVal::makeBool(false);
             } else if (left_null || right_null) {
                 // One null, one non-null: different (true)
-                result_ = std::make_shared<Value>(true);
+                result_ = NaabVal::makeBool(true);
             } else {
                 // Neither is null - proceed with type-specific comparisons
-                bool left_is_numeric = std::holds_alternative<int>(left->data) ||
-                                      std::holds_alternative<double>(left->data);
-                bool right_is_numeric = std::holds_alternative<int>(right->data) ||
-                                       std::holds_alternative<double>(right->data);
+                bool left_is_numeric = left.isInt() ||
+                                      left.isDouble();
+                bool right_is_numeric = right.isInt() ||
+                                       right.isDouble();
 
-                if (std::holds_alternative<bool>(left->data) &&
-                    std::holds_alternative<bool>(right->data)) {
+                if (left.isBool() &&
+                    right.isBool()) {
                     // Both bools: compare as bools
-                    result_ = std::make_shared<Value>(left->toBool() != right->toBool());
+                    result_ = NaabVal::makeBool(left.toBool() != right.toBool());
                 } else if (left_is_numeric && right_is_numeric) {
                     // Both numeric: compare as numbers
-                    result_ = std::make_shared<Value>(left->toFloat() != right->toFloat());
-                } else if (std::holds_alternative<std::string>(left->data) &&
-                           std::holds_alternative<std::string>(right->data)) {
+                    result_ = NaabVal::makeBool(left.toFloat() != right.toFloat());
+                } else if (left.isString() &&
+                           right.isString()) {
                     // Both strings: compare as strings
-                    result_ = std::make_shared<Value>(left->toString() != right->toString());
+                    result_ = NaabVal::makeBool(left.toString() != right.toString());
                 } else {
                     // Different types: not equal
-                    result_ = std::make_shared<Value>(true);
+                    result_ = NaabVal::makeBool(true);
                 }
             }
             break;
         }
 
         case ast::BinaryOp::Lt:
-            if (std::holds_alternative<std::string>(left->data) &&
-                std::holds_alternative<std::string>(right->data)) {
-                result_ = std::make_shared<Value>(
-                    std::get<std::string>(left->data) < std::get<std::string>(right->data));
+            if (left.isString() &&
+                right.isString()) {
+                result_ = NaabVal::makeBool(left.asString() < right.asString());
             } else {
-                result_ = std::make_shared<Value>(left->toFloat() < right->toFloat());
+                result_ = NaabVal::makeBool(left.toFloat() < right.toFloat());
             }
             break;
 
         case ast::BinaryOp::Le:
-            if (std::holds_alternative<std::string>(left->data) &&
-                std::holds_alternative<std::string>(right->data)) {
-                result_ = std::make_shared<Value>(
-                    std::get<std::string>(left->data) <= std::get<std::string>(right->data));
+            if (left.isString() &&
+                right.isString()) {
+                result_ = NaabVal::makeBool(left.asString() <= right.asString());
             } else {
-                result_ = std::make_shared<Value>(left->toFloat() <= right->toFloat());
+                result_ = NaabVal::makeBool(left.toFloat() <= right.toFloat());
             }
             break;
 
         case ast::BinaryOp::Gt:
-            if (std::holds_alternative<std::string>(left->data) &&
-                std::holds_alternative<std::string>(right->data)) {
-                result_ = std::make_shared<Value>(
-                    std::get<std::string>(left->data) > std::get<std::string>(right->data));
+            if (left.isString() &&
+                right.isString()) {
+                result_ = NaabVal::makeBool(left.asString() > right.asString());
             } else {
-                result_ = std::make_shared<Value>(left->toFloat() > right->toFloat());
+                result_ = NaabVal::makeBool(left.toFloat() > right.toFloat());
             }
             break;
 
         case ast::BinaryOp::Ge:
-            if (std::holds_alternative<std::string>(left->data) &&
-                std::holds_alternative<std::string>(right->data)) {
-                result_ = std::make_shared<Value>(
-                    std::get<std::string>(left->data) >= std::get<std::string>(right->data));
+            if (left.isString() &&
+                right.isString()) {
+                result_ = NaabVal::makeBool(left.asString() >= right.asString());
             } else {
-                result_ = std::make_shared<Value>(left->toFloat() >= right->toFloat());
+                result_ = NaabVal::makeBool(left.toFloat() >= right.toFloat());
             }
             break;
 
@@ -825,28 +817,30 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         case ast::BinaryOp::In: {
             // Containment check: item in collection
             // dict: check if key exists
-            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&right->data)) {
-                std::string key = left->toString();
-                result_ = std::make_shared<Value>(dict_ptr->find(key) != dict_ptr->end());
+            if (right.isDict()) {
+                const auto& dict = right.asDictConst();
+                std::string key = left.toString();
+                result_ = NaabVal::makeBool(dict.find(key) != dict.end());
             }
             // array: check if item is in array
-            else if (auto* arr_ptr = std::get_if<std::vector<NaabVal>>(&right->data)) {
+            else if (right.isList()) {
+                const auto& arr = right.asListConst();
                 bool found = false;
-                std::string needle = left->toString();
-                for (const auto& item : *arr_ptr) {
-                    if (item.toLegacy()->toString() == needle) { found = true; break; }
+                std::string needle = left.toString();
+                for (const auto& item : arr) {
+                    if (item.toString() == needle) { found = true; break; }
                 }
-                result_ = std::make_shared<Value>(found);
+                result_ = NaabVal::makeBool(found);
             }
             // string: check if substring exists
-            else if (auto* str_ptr = std::get_if<std::string>(&right->data)) {
-                std::string needle = left->toString();
-                result_ = std::make_shared<Value>(str_ptr->find(needle) != std::string::npos);
+            else if (right.isString()) {
+                std::string needle = left.toString();
+                result_ = NaabVal::makeBool(right.asString().find(needle) != std::string::npos);
             }
             else {
                 throw std::runtime_error(
                     "Type error: 'in' operator requires a dict, array, or string on the right side\n\n"
-                    "  Got: " + getTypeName(right) + "\n\n"
+                    "  Got: " + right.getTypeName() + "\n\n"
                     "  Example:\n"
                     "    if \"key\" in my_dict { }    // dict key check\n"
                     "    if item in my_array { }     // array membership\n"
@@ -859,9 +853,9 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             // Dictionary or list subscript: obj[key] or arr[index]
 
             // Check if left is a dictionary
-            if (auto* dict_ptr = std::get_if<std::unordered_map<std::string, NaabVal>>(&left->data)) {
-                auto& dict = *dict_ptr;
-                std::string key = right->toString();
+            if (left.isDict()) {
+                const auto& dict = left.asDictConst();
+                std::string key = right.toString();
 
                 auto it = dict.find(key);
                 if (it == dict.end()) {
@@ -902,15 +896,15 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             }
 
             // Check if left is a list
-            if (auto* list_ptr = std::get_if<std::vector<NaabVal>>(&left->data)) {
-                auto& list = *list_ptr;
+            if (left.isList()) {
+                const auto& list = left.asListConst();
 
                 // Type check: Array indices must be integers, not strings
-                if (!std::holds_alternative<int>(right->data) &&
-                    !std::holds_alternative<bool>(right->data)) {
+                if (!right.isInt() &&
+                    !right.isBool()) {
                     std::ostringstream oss;
                     oss << "Type error: Array index must be an integer\n\n";
-                    oss << "  Got: " << getTypeName(right) << " = \"" << right->toString() << "\"\n";
+                    oss << "  Got: " << right.getTypeName() << " = \"" << right.toString() << "\"\n";
                     oss << "  Expected: int\n";
                     oss << "\n  Help:\n";
                     oss << "  - Array indices must be integers (int or bool)\n";
@@ -923,7 +917,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
                     throw std::runtime_error(oss.str());
                 }
 
-                int index = right->toInt();
+                int index = right.toInt();
 
                 if (index < 0 || index >= static_cast<int>(list.size())) {
                     std::ostringstream oss;
@@ -947,7 +941,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
             }
 
             std::ostringstream oss;
-            std::string type_name = getTypeName(left);
+            std::string type_name = left.getTypeName();
             oss << "Type error: Subscript operation not supported\n\n";
             oss << "  Tried to subscript: " << type_name << "\n";
             oss << "  Supported types: array, dict\n\n";
@@ -972,7 +966,7 @@ void Interpreter::visit(ast::BinaryExpr& node) {
         }
 
         default:
-            result_ = std::make_shared<Value>();
+            result_ = NaabVal::makeNull();
     }
 
     // Phase 3.2: Track allocation for automatic GC
@@ -1051,10 +1045,10 @@ void Interpreter::visit(ast::LiteralExpr& node) {
             try {
                 double d = std::stod(node.getValue());
                 if (d >= INT_MIN && d <= INT_MAX && d == static_cast<int>(d)) {
-                    result_ = std::make_shared<Value>(static_cast<int>(d));
+                    result_ = NaabVal::makeInt(static_cast<int>(d));
                 } else {
                     // Too large for int, store as double
-                    result_ = std::make_shared<Value>(d);
+                    result_ = NaabVal::makeDouble(d);
                 }
             } catch (const std::exception& e) {
                 throw std::runtime_error("Invalid integer literal: " + node.getValue());
@@ -1062,7 +1056,7 @@ void Interpreter::visit(ast::LiteralExpr& node) {
             break;
         }
         case ast::LiteralKind::Float:
-            result_ = std::make_shared<Value>(std::stod(node.getValue()));
+            result_ = NaabVal::makeDouble(std::stod(node.getValue()));
             break;
 
         case ast::LiteralKind::String: {
@@ -1113,19 +1107,19 @@ void Interpreter::visit(ast::LiteralExpr& node) {
                         i++;
                     }
                 }
-                result_ = std::make_shared<Value>(result);
+                result_ = NaabVal::makeString(result);
             } else {
-                result_ = std::make_shared<Value>(raw);
+                result_ = NaabVal::makeString(raw);
             }
             break;
         }
 
         case ast::LiteralKind::Bool:
-            result_ = std::make_shared<Value>(node.getValue() == "true");
+            result_ = NaabVal::makeBool(node.getValue() == "true");
             break;
 
         case ast::LiteralKind::Null:
-            result_ = std::make_shared<Value>();  // monostate represents null
+            result_ = NaabVal::makeNull();
             break;
     }
 }
@@ -1295,7 +1289,7 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
         }
     }
 
-    result_ = std::make_shared<Value>(struct_val);
+    result_ = NaabVal::makeStruct(struct_val);
 
     profileEnd("Struct creation");
 

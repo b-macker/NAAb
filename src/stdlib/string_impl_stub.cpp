@@ -149,7 +149,7 @@ std::shared_ptr<interpreter::Value> StringModule::join(
     std::ostringstream oss;
     for (size_t i = 0; i < arr.size(); ++i) {
         if (i > 0) oss << delim;
-        oss << arr[i].toLegacy()->asString();
+        oss << arr[i].toString();
     }
 
     return std::make_shared<interpreter::Value>(oss.str());

@@ -24,19 +24,17 @@ ast::Type Interpreter::inferValueType(NaabVal nval) {
     if (nval.isNull()) return ast::Type::makeVoid();
     if (nval.isString()) return ast::Type::makeString();
 
-    // Complex types: fall through to legacy for variant access
-    auto value = nval.toLegacy();
-    if (std::holds_alternative<std::vector<NaabVal>>(value->data)) {
-        // For lists, try to infer element type from first element
-        const auto& list = std::get<std::vector<NaabVal>>(value->data);
+    // Complex types: use NaabVal type checks directly
+    if (nval.isList()) {
+        const auto& list = nval.asListConst();
         if (!list.empty()) {
             ast::Type list_type(ast::TypeKind::List);
             list_type.element_type = std::make_shared<ast::Type>(inferValueType(list[0]));
             return list_type;
         }
         return ast::Type(ast::TypeKind::List);
-    } else if (std::holds_alternative<std::shared_ptr<StructValue>>(value->data)) {
-        const auto& struct_val = std::get<std::shared_ptr<StructValue>>(value->data);
+    } else if (nval.isStructVal()) {
+        const auto& struct_val = nval.asStructConst();
         return ast::Type::makeStruct(struct_val->type_name);
     }
 
@@ -202,17 +200,15 @@ bool Interpreter::valueMatchesType(
         return nval.isNull();
     }
 
-    // Complex types: fall through to legacy for variant access
-    auto value = nval.toLegacy();
+    // Complex types: use NaabVal type checks directly
     if (type.kind == ast::TypeKind::List) {
-        return std::holds_alternative<std::vector<NaabVal>>(value->data);
+        return nval.isList();
     } else if (type.kind == ast::TypeKind::Dict) {
-        return std::holds_alternative<std::unordered_map<std::string, NaabVal>>(value->data);
+        return nval.isDict();
     } else if (type.kind == ast::TypeKind::Struct) {
-        if (auto* struct_val = std::get_if<std::shared_ptr<StructValue>>(&value->data)) {
-            // Check if struct name matches (or is a specialization of a generic struct)
-            // For now, exact match or prefix match for specialized generics
-            const std::string& actual_name = (*struct_val)->type_name;
+        if (nval.isStructVal()) {
+            const auto& sv = nval.asStructConst();
+            const std::string& actual_name = sv->type_name;
             std::string expected_name = type.struct_name;
 
             // ISS-024 Fix: If type has module prefix, compare without it
@@ -238,11 +234,9 @@ bool Interpreter::valueMatchesType(
         }
         return false;
     } else if (type.kind == ast::TypeKind::Function) {
-        // ISS-002: Check if value is a function
-        return std::holds_alternative<std::shared_ptr<FunctionValue>>(value->data);
+        return nval.isFunction();
     } else if (type.kind == ast::TypeKind::Enum) {
-        // Phase 4.1: Enum types - enum variants are integers at runtime
-        return std::holds_alternative<int>(value->data);
+        return nval.isInt();
     }
 
     // Any type matches anything
@@ -325,51 +319,42 @@ ast::Type Interpreter::inferTypeFromValue(NaabVal nval) {
     if (nval.isBool()) return ast::Type::makeBool();
     if (nval.isString()) return ast::Type::makeString();
 
-    // Complex types: fall through to legacy for variant access
-    auto value = nval.toLegacy();
-    if (auto* list_val = std::get_if<std::vector<NaabVal>>(&value->data)) {
-        // Infer list element type from first element
+    // Complex types: use NaabVal type checks directly
+    if (nval.isList()) {
+        const auto& list = nval.asListConst();
         ast::Type list_type(ast::TypeKind::List);
-        if (!list_val->empty()) {
-            // Infer from first element
-            list_type.element_type = std::make_shared<ast::Type>(inferTypeFromValue((*list_val)[0]));
+        if (!list.empty()) {
+            list_type.element_type = std::make_shared<ast::Type>(inferTypeFromValue(list[0]));
         } else {
-            // Empty list - use any as element type
             list_type.element_type = std::make_shared<ast::Type>(ast::Type::makeAny());
         }
         return list_type;
     }
-    else if (auto* dict_val = std::get_if<std::unordered_map<std::string, NaabVal>>(&value->data)) {
-        // Infer dict key/value types from first entry
+    else if (nval.isDict()) {
+        const auto& dict = nval.asDictConst();
         ast::Type dict_type(ast::TypeKind::Dict);
-        if (!dict_val->empty()) {
-            // Keys are always strings in NAAb
-            auto first_entry = dict_val->begin();
+        if (!dict.empty()) {
+            auto first_entry = dict.begin();
             auto key_type = ast::Type::makeString();
             auto value_type = inferTypeFromValue(first_entry->second);
             dict_type.key_value_types = std::make_shared<std::pair<ast::Type, ast::Type>>(key_type, value_type);
         } else {
-            // Empty dict - use any for value type
             auto key_type = ast::Type::makeString();
             auto value_type = ast::Type::makeAny();
             dict_type.key_value_types = std::make_shared<std::pair<ast::Type, ast::Type>>(key_type, value_type);
         }
         return dict_type;
     }
-    else if (auto* struct_val = std::get_if<std::shared_ptr<StructValue>>(&value->data)) {
-        // Struct type
-        return ast::Type(ast::TypeKind::Struct, (*struct_val)->type_name);
+    else if (nval.isStructVal()) {
+        return ast::Type(ast::TypeKind::Struct, nval.asStructConst()->type_name);
     }
-    else if (std::holds_alternative<std::shared_ptr<FunctionValue>>(value->data)) {
-        // ISS-002: Function type - now we have TypeKind::Function
+    else if (nval.isFunction()) {
         return ast::Type::makeFunction();
     }
-    else if (std::holds_alternative<std::shared_ptr<BlockValue>>(value->data)) {
-        // Block type
+    else if (nval.isBlock()) {
         return ast::Type(ast::TypeKind::Block);
     }
-    else if (std::holds_alternative<std::shared_ptr<PythonObjectValue>>(value->data)) {
-        // Python object - treat as any
+    else if (nval.isPythonObject()) {
         return ast::Type::makeAny();
     }
 
