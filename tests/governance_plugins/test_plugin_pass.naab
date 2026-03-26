@@ -1,0 +1,11 @@
+// Test: governance plugin allows clean code
+// Expected: PASS — no eval() in the Python block
+
+main {
+    let result = <<python
+print("hello from python")
+x = 2 + 2
+print(x)
+>>
+    print("Plugin check passed — clean code allowed")
+}

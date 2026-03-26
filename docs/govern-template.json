@@ -680,6 +680,47 @@
     }
   ],
 
+  "governance_plugins": [
+    {
+      "file": "governance/security_checks.naab",
+      "rules": [
+        {
+          "id": "SEC-001",
+          "function": "check_no_raw_sql",
+          "description": "Disallow raw SQL strings without parameterization",
+          "level": "hard",
+          "trigger": "polyglot_block",
+          "languages": ["python"],
+          "message": "Use parameterized queries, not raw SQL",
+          "help": "Replace cursor.execute(f'...') with cursor.execute('...?', (val,))",
+          "bad_example": "cursor.execute(f\"SELECT * FROM users WHERE id={user_id}\")",
+          "good_example": "cursor.execute(\"SELECT * FROM users WHERE id=?\", (user_id,))",
+          "enabled": true
+        },
+        {
+          "id": "SEC-002",
+          "function": "check_no_network_in_math",
+          "description": "Math modules should not import networking libraries",
+          "level": "soft",
+          "trigger": "polyglot_block",
+          "message": "Network imports detected in a computation module"
+        }
+      ]
+    },
+    {
+      "file": "governance/style_checks.naab",
+      "rules": [
+        {
+          "id": "STYLE-001",
+          "function": "check_function_docs",
+          "description": "All exported functions must have doc comments",
+          "level": "advisory",
+          "trigger": "naab_function"
+        }
+      ]
+    }
+  ],
+
   "scopes": [
     {
       "glob": "tests/**",

@@ -1,0 +1,30 @@
+// Governance Plugin: test check functions
+// These are loaded by the governance engine and called during checks.
+
+use string
+
+export function check_no_eval(ctx) {
+    let code = ctx["code"]
+    let language = ctx.get("language") ?? ""
+
+    // Only applies to Python and JavaScript
+    if language != "python" && language != "javascript" {
+        return { "pass": true }
+    }
+
+    if string.contains(code, "eval(") {
+        return {
+            "pass": false,
+            "message": "eval() is forbidden by project policy",
+            "help": "Use a safe alternative instead of eval()",
+            "bad_example": "eval(user_input)",
+            "good_example": "json.loads(user_input)"
+        }
+    }
+
+    return { "pass": true }
+}
+
+export function check_always_pass(ctx) {
+    return { "pass": true }
+}

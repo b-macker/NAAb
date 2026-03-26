@@ -1,0 +1,10 @@
+// Test: governance plugin blocks eval()
+// Expected: ERROR — plugin should block this polyglot block
+
+main {
+    let result = <<python
+x = eval("1 + 1")
+print(x)
+>>
+    print("This should not print")
+}

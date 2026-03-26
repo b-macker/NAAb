@@ -747,5 +747,91 @@ std::shared_ptr<Environment> Interpreter::loadAndExecuteModule(const std::string
     return module_env;
 }
 
+// Governance Plugin API (#23): Load a .naab plugin file
+// Exported functions go into global_env_ so governance engine can call them by name.
+// Uses module_loading_depth_ to skip main{} and governance checks during loading.
+void Interpreter::loadPluginFile(const std::string& path) {
+    // Prevent double-loading
+    auto canonical = std::filesystem::canonical(path).string();
+    if (loaded_plugin_files_.count(canonical)) {
+        fprintf(stderr, "[governance] Plugin file already loaded: %s\n", path.c_str());
+        return;
+    }
+
+    LOG_DEBUG("[INFO] Loading governance plugin: {}\n", path);
+
+    // Load and parse the .naab file
+    auto module = module_resolver_->loadModule(std::filesystem::path(path));
+    if (!module || !module->ast) {
+        fprintf(stderr, "[governance] Warning: Failed to parse plugin file: %s\n", path.c_str());
+        return;
+    }
+
+    // Push file context
+    pushFileContext(path);
+
+    // Save current state
+    auto saved_env = current_env_;
+    auto saved_exports = module_exports_;
+
+    // Save taint state — plugin loading should not pollute taint
+    std::unordered_set<std::string> saved_taint;
+    if (governance_ && governance_->isActive()) {
+        saved_taint = governance_->saveTaintState();
+    }
+
+    // Create a temporary environment for plugin execution
+    auto plugin_env = std::make_shared<Environment>(global_env_);
+    current_env_ = plugin_env;
+    module_exports_.clear();
+
+    try {
+        // Execute plugin AST (skip main blocks, skip governance on function bodies)
+        ++module_loading_depth_;
+        module->ast->accept(*this);
+        --module_loading_depth_;
+
+        // Copy exported functions to global_env_ (so governance engine can find them)
+        int exported_count = 0;
+        for (const auto& [name, value] : module_exports_) {
+            // Collision guard: don't overwrite existing user functions
+            try {
+                auto existing = global_env_->get(name);
+                if (existing) {
+                    fprintf(stderr, "[governance] Warning: Plugin function '%s' collides with existing name, skipping\n",
+                            name.c_str());
+                    continue;
+                }
+            } catch (...) {
+                // Name doesn't exist — safe to define
+            }
+            global_env_->define(name, value);
+            ++exported_count;
+        }
+
+        loaded_plugin_files_.insert(canonical);
+        LOG_DEBUG("[SUCCESS] Governance plugin loaded: {} ({} functions exported)\n", path, exported_count);
+
+    } catch (const std::exception& e) {
+        --module_loading_depth_;
+        popFileContext();
+        current_env_ = saved_env;
+        module_exports_ = saved_exports;
+        if (governance_ && governance_->isActive()) {
+            governance_->restoreTaintState(saved_taint);
+        }
+        fprintf(stderr, "[governance] Warning: Error loading plugin %s: %s\n", path.c_str(), e.what());
+        return;
+    }
+
+    // Restore state
+    popFileContext();
+    current_env_ = saved_env;
+    module_exports_ = saved_exports;
+    if (governance_ && governance_->isActive()) {
+        governance_->restoreTaintState(saved_taint);
+    }
+}
+
 } // namespace interpreter
 } // namespace naab

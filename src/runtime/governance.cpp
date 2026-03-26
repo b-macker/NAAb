@@ -22,6 +22,12 @@
 #include <fmt/core.h>
 
 namespace naab {
+
+// Extern: thread_local interpreter pointer set in interpreter.cpp
+namespace interpreter {
+    extern thread_local Interpreter* g_current_interpreter;
+}
+
 namespace governance {
 
 // ============================================================================
@@ -1075,6 +1081,47 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
         }
     }
 
+    // Governance plugins (NAAb-based custom checks)
+    if (j.contains("governance_plugins") && j["governance_plugins"].is_array()) {
+        for (auto& gp : j["governance_plugins"]) {
+            GovernancePlugin plugin;
+            if (gp.contains("file") && gp["file"].is_string()) {
+                plugin.file_path = gp["file"].get<std::string>();
+            } else {
+                fprintf(stderr, "[governance] Warning: governance_plugins entry missing 'file' field, skipping\n");
+                continue;
+            }
+            if (gp.contains("rules") && gp["rules"].is_array()) {
+                for (auto& pr : gp["rules"]) {
+                    GovernancePluginRule rule;
+                    if (pr.contains("id")) rule.id = pr["id"].get<std::string>();
+                    if (pr.contains("function")) rule.function_name = pr["function"].get<std::string>();
+                    if (pr.contains("description")) rule.description = pr["description"].get<std::string>();
+                    if (pr.contains("level")) { auto [en, lv] = parseEnforcementLevel(pr["level"]); rule.level = lv; }
+                    if (pr.contains("languages")) for (auto& l : pr["languages"]) rule.languages.push_back(l.get<std::string>());
+                    if (pr.contains("trigger")) rule.trigger = pr["trigger"].get<std::string>();
+                    if (pr.contains("message")) rule.message = pr["message"].get<std::string>();
+                    if (pr.contains("help")) rule.help = pr["help"].get<std::string>();
+                    if (pr.contains("good_example")) rule.good_example = pr["good_example"].get<std::string>();
+                    if (pr.contains("bad_example")) rule.bad_example = pr["bad_example"].get<std::string>();
+                    if (pr.contains("enabled")) rule.enabled = pr["enabled"].get<bool>();
+                    if (rule.function_name.empty()) {
+                        fprintf(stderr, "[governance] Warning: Plugin rule in '%s' missing 'function' field, skipping\n",
+                                plugin.file_path.c_str());
+                        continue;
+                    }
+                    if (rule.trigger.empty()) {
+                        fprintf(stderr, "[governance] Warning: Plugin rule '%s' missing 'trigger' field, skipping\n",
+                                rule.id.empty() ? rule.function_name.c_str() : rule.id.c_str());
+                        continue;
+                    }
+                    plugin.rules.push_back(std::move(rule));
+                }
+            }
+            rules_.governance_plugins.push_back(std::move(plugin));
+        }
+    }
+
     // V3 Output config
     if (j.contains("output") && j["output"].is_object()) {
         auto& out = j["output"];
@@ -1566,6 +1613,7 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
     while (true) {
         fs::path candidate = dir / "govern.json";
         if (fs::exists(candidate)) {
+            govern_json_dir_ = dir.string();
             bool loaded = loadFromFile(candidate.string());
             if (!loaded) return false;
 
@@ -3440,9 +3488,10 @@ std::string GovernanceEngine::checkNaabFunctionBody(
     auto& il_cfg = rules_.code_quality.no_incomplete_logic;
     auto& ph_cfg = rules_.code_quality.no_placeholders;
 
-    // Skip if all checks disabled (but still allow complexity_floor if enabled)
+    // Skip if all checks disabled (but still allow complexity_floor and plugins if enabled)
     auto& cf_cfg_early = rules_.code_quality.complexity_floor;
-    if (!os_cfg.enabled && !il_cfg.enabled && !ph_cfg.enabled && !cf_cfg_early.enabled) return "";
+    bool has_plugins = !rules_.governance_plugins.empty();
+    if (!os_cfg.enabled && !il_cfg.enabled && !ph_cfg.enabled && !cf_cfg_early.enabled && !has_plugins) return "";
 
     // EVA-10: Pre-strip strings to prevent false positives from string literals
     // e.g. a legitimate string "TODO" shouldn't trigger checkPlaceholders
@@ -3523,6 +3572,15 @@ std::string GovernanceEngine::checkNaabFunctionBody(
             }
         }
     }
+
+    // Plugin rules (NAAb-based governance checks)
+    err = checkPluginRules("naab_function", {
+        {"function_name", interpreter::NaabVal::makeString(function_name)},
+        {"source_code", interpreter::NaabVal::makeString(source_code)},
+        {"source_file", interpreter::NaabVal::makeString(source_file)},
+        {"line", interpreter::NaabVal::makeInt(line)},
+    }, line);
+    if (!err.empty()) return err;
 
     return "";
 }
@@ -4854,6 +4912,15 @@ std::string GovernanceEngine::checkPolyglotBlock(
     err = checkCustomRules(lang, code, line);
     if (!err.empty()) return err;
 
+    // Plugin rules (NAAb-based governance checks)
+    err = checkPluginRules("polyglot_block", {
+        {"code", interpreter::NaabVal::makeString(code)},
+        {"language", interpreter::NaabVal::makeString(lang)},
+        {"source_file", interpreter::NaabVal::makeString(current_check_file_)},
+        {"line", interpreter::NaabVal::makeInt(line)},
+    }, line);
+    if (!err.empty()) return err;
+
     // Polyglot optimization (language choice suggestions)
     err = checkPolyglotOptimization(lang, code, line);
     if (!err.empty()) return err;
@@ -4893,7 +4960,8 @@ std::vector<std::string> GovernanceEngine::validateSchema(const std::string& jso
         "languages", "capabilities", "limits", "requirements",
         "restrictions", "code_quality", "custom_rules", "scopes",
         "output", "audit", "meta", "hooks", "polyglot", "polyglot_optimization",
-        "contracts", "baselines", "project_context", "scanner"
+        "contracts", "baselines", "project_context", "scanner",
+        "governance_plugins"
     };
 
     try {
@@ -6660,6 +6728,201 @@ std::string GovernanceEngine::verifyPolyglotResult(
             "  Consensus: {}/{} (minimum: {})\n\n"
             "  Use --governance-override to bypass, or adjust verification.tolerance in govern.json",
             line, task_type, details, agree_count, total_count, cfg.min_consensus);
+    }
+
+    return "";
+}
+
+// ============================================================================
+// Governance Plugin API (#23): NAAb-based custom governance rules
+// ============================================================================
+
+void GovernanceEngine::loadPlugins() {
+    if (plugins_loaded_) return;
+    plugins_loaded_ = true;
+
+    auto* interp = interpreter::g_current_interpreter;
+    if (!interp) {
+        fprintf(stderr, "[governance] Warning: No interpreter available for plugin loading\n");
+        return;
+    }
+
+    namespace fs = std::filesystem;
+    for (auto& plugin : rules_.governance_plugins) {
+        if (plugin.rules.empty()) continue;
+
+        // Resolve file path relative to govern.json directory
+        fs::path plugin_path;
+        if (fs::path(plugin.file_path).is_absolute()) {
+            plugin_path = plugin.file_path;
+        } else {
+            plugin_path = fs::path(govern_json_dir_) / plugin.file_path;
+        }
+
+        if (!fs::exists(plugin_path)) {
+            fprintf(stderr, "[governance] Warning: Plugin file not found: %s\n",
+                    plugin_path.string().c_str());
+            continue;
+        }
+
+        try {
+            interp->loadPluginFile(plugin_path.string());
+            plugin.loaded = true;
+        } catch (const std::exception& e) {
+            fprintf(stderr, "[governance] Warning: Failed to load plugin %s: %s\n",
+                    plugin_path.string().c_str(), e.what());
+        }
+    }
+}
+
+std::string GovernanceEngine::checkPluginRules(
+    const std::string& trigger,
+    const std::unordered_map<std::string, interpreter::NaabVal>& context,
+    int line) {
+
+    // Re-entrancy guard: prevent infinite recursion if plugin code triggers governance
+    if (in_plugin_check_) return "";
+
+    // No plugins configured — fast path
+    if (rules_.governance_plugins.empty()) return "";
+
+    // Lazy-load plugins on first call
+    if (!plugins_loaded_) loadPlugins();
+
+    auto* interp = interpreter::g_current_interpreter;
+    if (!interp) return "";
+
+    // Scope guard for re-entrancy flag
+    struct PluginGuard {
+        bool& flag;
+        PluginGuard(bool& f) : flag(f) { flag = true; }
+        ~PluginGuard() { flag = false; }
+    } guard(in_plugin_check_);
+
+    for (const auto& plugin : rules_.governance_plugins) {
+        if (!plugin.loaded) continue;
+
+        for (const auto& rule : plugin.rules) {
+            if (!rule.enabled) continue;
+            if (rule.trigger != trigger) continue;
+
+            // Language filter
+            if (!rule.languages.empty()) {
+                auto lang_it = context.find("language");
+                if (lang_it != context.end()) {
+                    std::string lang;
+                    auto lang_val = lang_it->second;
+                    if (lang_val.isString()) lang = lang_val.asString();
+                    bool matches = false;
+                    for (const auto& l : rule.languages) {
+                        if (l == lang) { matches = true; break; }
+                    }
+                    if (!matches) continue;
+                }
+            }
+
+            // Look up function in global env
+            interpreter::NaabVal fn;
+            try {
+                fn = interp->getGlobalEnv()->get(rule.function_name);
+                if (fn.isNull()) {
+                    if (warned_plugin_rules_.find(rule.function_name) == warned_plugin_rules_.end()) {
+                        fprintf(stderr, "[governance] Warning: Plugin function '%s' not found (rule %s)\n",
+                                rule.function_name.c_str(), rule.id.c_str());
+                        warned_plugin_rules_.insert(rule.function_name);
+                    }
+                    continue;
+                }
+            } catch (...) {
+                if (warned_plugin_rules_.find(rule.function_name) == warned_plugin_rules_.end()) {
+                    fprintf(stderr, "[governance] Warning: Plugin function '%s' not found (rule %s)\n",
+                            rule.function_name.c_str(), rule.id.c_str());
+                    warned_plugin_rules_.insert(rule.function_name);
+                }
+                continue;
+            }
+
+            // Build context dict as NaabVal
+            std::unordered_map<std::string, interpreter::NaabVal> ctx_map;
+            for (const auto& [key, val] : context) {
+                ctx_map[key] = val;
+            }
+            auto ctx_val = interpreter::NaabVal::makeDict(std::move(ctx_map));
+
+            // Call the plugin function
+            interpreter::NaabVal result;
+            try {
+                result = interp->callFunction(fn, {ctx_val});
+            } catch (const std::exception& e) {
+                fprintf(stderr, "[governance] Plugin rule '%s' threw: %s\n",
+                        rule.id.c_str(), e.what());
+                continue;
+            }
+
+            // Parse result — must be a dict with "pass" key
+            if (!result.isDict()) {
+                if (warned_plugin_rules_.find(rule.id + ".result") == warned_plugin_rules_.end()) {
+                    fprintf(stderr, "[governance] Warning: Plugin rule '%s' returned %s (expected dict with 'pass' key)\n",
+                            rule.id.c_str(), result.getTypeName().c_str());
+                    warned_plugin_rules_.insert(rule.id + ".result");
+                }
+                continue;
+            }
+
+            // Extract "pass" field
+            auto& result_dict = result.asDict();
+            bool passed = true;
+            bool has_pass = false;
+            for (const auto& [k, v] : result_dict) {
+                if (k == "pass") {
+                    has_pass = true;
+                    if (v.isBool()) passed = v.asBool();
+                    else if (v.isNull()) passed = false;
+                    break;
+                }
+            }
+
+            if (!has_pass) {
+                if (warned_plugin_rules_.find(rule.id + ".pass") == warned_plugin_rules_.end()) {
+                    fprintf(stderr, "[governance] Warning: Plugin rule '%s' returned dict without 'pass' key\n",
+                            rule.id.c_str());
+                    warned_plugin_rules_.insert(rule.id + ".pass");
+                }
+                continue;
+            }
+
+            std::string rule_path = "governance_plugins." + rule.id;
+
+            if (passed) {
+                recordPass(rule_path, rule.level);
+                continue;
+            }
+
+            // Failed — build error message from plugin result + rule defaults
+            std::string msg = rule.message;
+            std::string help = rule.help;
+            std::string good_ex = rule.good_example;
+            std::string bad_ex = rule.bad_example;
+
+            // Plugin can override any of these
+            for (const auto& [k, v] : result_dict) {
+                if (k == "message" && v.isString()) msg = v.asString();
+                else if (k == "help" && v.isString()) help = v.asString();
+                else if (k == "good_example" && v.isString()) good_ex = v.asString();
+                else if (k == "bad_example" && v.isString()) bad_ex = v.asString();
+            }
+
+            if (msg.empty()) {
+                msg = fmt::format("Plugin rule '{}' violated", rule.id);
+            }
+
+            std::string err = enforce(rule_path, rule.level,
+                formatError(rule.level, msg,
+                    line > 0 ? fmt::format("line {}", line) : "",
+                    "governance_plugins[\"" + rule.id + "\"]",
+                    help, bad_ex, good_ex));
+            if (!err.empty()) return err;
+        }
     }
 
     return "";

@@ -991,6 +991,14 @@ std::string naab::cli::generateGovernJson(const GovernanceInitConfig& config) {
         root["custom_rules"] = json::array();
     }
 
+    // ── governance_plugins ─────────────────────────────────────────
+    {
+        root["_comment_governance_plugins"] = "NAAb-based governance checks. "
+            "Each plugin file exports check functions called during governance evaluation. "
+            "See docs/govern-template.json for examples.";
+        root["governance_plugins"] = json::array();
+    }
+
     // ── scopes ─────────────────────────────────────────────────────
     {
         json scopes = json::array();

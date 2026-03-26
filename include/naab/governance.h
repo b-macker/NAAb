@@ -21,6 +21,7 @@
 #include <mutex>
 
 #include "naab/project_context.h"
+#include "naab/naab_val.h"
 
 namespace naab {
 namespace governance {
@@ -751,6 +752,30 @@ struct CustomRule {
 };
 
 // ============================================================================
+// Section 7b: Governance Plugins (NAAb-based custom checks)
+// ============================================================================
+
+struct GovernancePluginRule {
+    std::string id;               // e.g. "SEC-001"
+    std::string function_name;    // NAAb function to call (must be exported)
+    std::string description;
+    EnforcementLevel level = EnforcementLevel::HARD;
+    std::vector<std::string> languages;  // empty = all languages
+    std::string trigger;          // "polyglot_block", "naab_function", "polyglot_output"
+    std::string message;          // default message if plugin doesn't provide one
+    std::string help;
+    std::string good_example;
+    std::string bad_example;
+    bool enabled = true;
+};
+
+struct GovernancePlugin {
+    std::string file_path;        // relative to govern.json directory
+    std::vector<GovernancePluginRule> rules;
+    bool loaded = false;
+};
+
+// ============================================================================
 // Section 8: Scope-Based Overrides
 // ============================================================================
 
@@ -1154,6 +1179,7 @@ struct GovernanceRules {
     RestrictionsConfig restrictions;
     CodeQualityConfig code_quality;
     std::vector<CustomRule> custom_rules;
+    std::vector<GovernancePlugin> governance_plugins;
     std::vector<ScopeOverride> scopes;
     OutputConfig output;
     AuditConfig audit;
@@ -1376,6 +1402,12 @@ public:
     std::string checkCustomRules(const std::string& language,
                                   const std::string& code, int line = 0);
 
+    // Governance plugins (NAAb-based custom checks)
+    std::string checkPluginRules(const std::string& trigger,
+                                  const std::unordered_map<std::string, interpreter::NaabVal>& context,
+                                  int line = 0);
+    void loadPlugins();
+
     // Resource limits
     std::string checkLoopIterations(size_t count);
     std::string checkPolyglotBlockCount(size_t count);
@@ -1561,6 +1593,12 @@ private:
     std::unordered_set<std::string> taint_set_;
     mutable std::mutex taint_mutex_;  // BUG-N: Thread-safe taint operations
     bool last_return_tainted_ = false;  // BUG-D: Track function return taint
+
+    // Governance plugins
+    std::string govern_json_dir_;           // Directory containing govern.json
+    bool plugins_loaded_ = false;           // Lazy loading flag
+    bool in_plugin_check_ = false;          // Re-entrancy guard
+    std::unordered_set<std::string> warned_plugin_rules_;  // Dedup warnings
 
     // Advisory dedup tracking
     struct DupCallEntry { std::string function_name; int count; int line; };

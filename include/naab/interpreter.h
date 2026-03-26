@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 
 // Forward declare CycleDetector
@@ -540,6 +541,9 @@ public:
         return governance_ ? governance_->lastReturnWasTainted() : false;
     }
 
+    // Governance Plugin API (#23): Load a .naab plugin file, exports go to global_env_
+    void loadPluginFile(const std::string& path);
+
 private:
     std::shared_ptr<Environment> global_env_;
     std::shared_ptr<Environment> current_env_;
@@ -574,6 +578,7 @@ private:
     std::unique_ptr<modules::ModuleResolver> module_resolver_;
     std::unordered_map<std::string, std::shared_ptr<Environment>> loaded_modules_;  // Module path -> exports
     std::unordered_map<std::string, NaabVal> module_exports_;  // Exported symbols from current module
+    std::unordered_set<std::string> loaded_plugin_files_;  // Governance plugin files already loaded
 
     // Phase 4.0: Module system (Rust-style use statements)
     std::unique_ptr<modules::ModuleRegistry> module_registry_;
