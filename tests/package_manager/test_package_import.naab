@@ -1,0 +1,14 @@
+// Test: importing from a package directory in naab_modules/
+// The module resolver should find naab_modules/test-pkg/src/lib.naab
+// via the naab.toml exports.main field
+
+import "test-pkg" as pkg
+
+main {
+    let result = pkg.greet("World")
+    if result == "Hello, World!" {
+        io.write("PASS: Package import works")
+    } else {
+        io.write("FAIL: Expected 'Hello, World!' but got '" + result + "'")
+    }
+}

@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <functional>
 #include <curl/curl.h>
+#include <toml++/toml.h>
 
 namespace naab {
 namespace modules {
@@ -289,6 +290,26 @@ std::optional<fs::path> ModuleResolver::resolveFromModules(
             fs::path with_ext = naab_modules / (spec + ".naab");
             if (fs::exists(with_ext) && fs::is_regular_file(with_ext)) {
                 return with_ext;
+            }
+
+            // Check for package directory with naab.toml
+            if (fs::exists(candidate) && fs::is_directory(candidate)) {
+                fs::path manifest = candidate / "naab.toml";
+                if (fs::exists(manifest)) {
+                    try {
+                        auto config = toml::parse_file(manifest.string());
+                        auto main_file = config["exports"]["main"].value_or(std::string("src/lib.naab"));
+                        fs::path entry = candidate / main_file;
+                        if (fs::exists(entry)) return entry;
+                    } catch (...) {
+                        // If TOML parse fails, fall through to defaults
+                    }
+                }
+                // Fallback: look for common entry point names
+                for (const char* name : {"src/lib.naab", "lib.naab", "index.naab", "main.naab"}) {
+                    fs::path entry = candidate / name;
+                    if (fs::exists(entry)) return entry;
+                }
             }
         }
 

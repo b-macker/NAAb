@@ -484,6 +484,7 @@ target_link_libraries(naab_runtime
     quickjs
     naab_block_enricher  # For library detection
     naab_security        # Phase 1: Security hardening
+    tomlplusplus::tomlplusplus  # For package directory resolution
     curl  # For URL imports in module resolver
     dl  # For dlopen/dlsym
     pthread  # Required by QuickJS
@@ -531,6 +532,26 @@ target_link_libraries(naab_manifest
     tomlplusplus::tomlplusplus
 )
 message(STATUS "  ✓ Manifest system")
+
+# Package manager
+add_library(naab_packages
+    src/packages/package_manager.cpp
+)
+target_include_directories(naab_packages PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/external
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
+    ${PYTHON_INCLUDE_DIRS}
+)
+target_link_libraries(naab_packages
+    fmt::fmt
+    tomlplusplus::tomlplusplus
+    curl
+)
+if(OpenSSL_FOUND)
+    target_link_libraries(naab_packages OpenSSL::SSL OpenSSL::Crypto)
+endif()
+message(STATUS "  ✓ Package manager")
 
 # Standard library
 add_library(naab_stdlib
@@ -650,6 +671,7 @@ target_link_libraries(naab-lang
     naab_stdlib
     naab_rest_api
     naab_manifest
+    naab_packages
     naab_scanner
     fmt::fmt
     spdlog::spdlog

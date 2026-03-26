@@ -41,6 +41,7 @@
 #include "naab/governance.h"  // For governance report CLI flags
 #include "naab/scanner.h"    // For --scan command
 #include "governance_init.h"  // For naab-lang init --governance
+#include "naab/package_manager.h"  // For package management commands
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -182,12 +183,23 @@ void print_usage() {
     fmt::print("  naab-lang blocks index [path]       Build search index\n");
     fmt::print("  naab-lang api [port]                Start REST API server\n");
     fmt::print("  naab-lang init                      Create naab.toml manifest\n");
+    fmt::print("  naab-lang init --package            Create package project structure\n");
     fmt::print("  naab-lang manifest check            Validate naab.toml\n");
     fmt::print("  naab-lang calibrate                 Benchmark installed languages\n");
     fmt::print("  naab-lang race <file> --block N     Race polyglot block alternatives\n");
     fmt::print("  naab-lang --scan <path> [--language <lang>]  Run code quality scanner\n");
     fmt::print("  naab-lang version                   Show version\n");
     fmt::print("  naab-lang help                      Show this help\n");
+    fmt::print("\nPackage Management:\n");
+    fmt::print("  naab-lang install <user/repo>       Install package from GitHub\n");
+    fmt::print("  naab-lang install <user/repo@ver>   Install specific version\n");
+    fmt::print("  naab-lang install                   Install all from naab.toml\n");
+    fmt::print("  naab-lang remove <package>          Remove installed package\n");
+    fmt::print("  naab-lang update [package]          Update packages (all or specific)\n");
+    fmt::print("  naab-lang list                      List installed packages\n");
+    fmt::print("  naab-lang info <user/repo>          Show package info\n");
+    fmt::print("  naab-lang search <query>            Search package registry\n");
+    fmt::print("  naab-lang publish                   Validate package for publishing\n");
     fmt::print("\n");
     fmt::print("Options:\n");
     fmt::print("  --verbose, -v                       Enable verbose output\n");
@@ -1702,12 +1714,14 @@ int main(int argc, char** argv) {
         bool governance_only = false;
         bool force = false;
         bool taint_flag = false;
+        bool package_mode = false;
         std::string preset;
         std::string languages_override;
 
         for (int i = 2; i < argc; i++) {
             std::string arg = argv[i];
-            if (arg == "--no-governance") no_governance = true;
+            if (arg == "--package") package_mode = true;
+            else if (arg == "--no-governance") no_governance = true;
             else if (arg == "--governance") governance_only = true;
             else if (arg == "--force") force = true;
             else if (arg == "--taint") taint_flag = true;
@@ -1717,8 +1731,147 @@ int main(int argc, char** argv) {
 
         fmt::print("\n");
         fmt::print("───────────────────────────────────────\n");
-        fmt::print("  NAAb Project Initializer\n");
+        fmt::print("  NAAb {} Initializer\n", package_mode ? "Package" : "Project");
         fmt::print("───────────────────────────────────────\n\n");
+
+        // Package mode: create a full package project structure
+        if (package_mode) {
+            namespace fs = std::filesystem;
+            std::string pkg_name = fs::current_path().filename().string();
+
+            // naab.toml with package metadata
+            if (!fs::exists("naab.toml") || force) {
+                std::ofstream f("naab.toml");
+                f << "[package]\n"
+                  << "name = \"" << pkg_name << "\"\n"
+                  << "version = \"0.1.0\"\n"
+                  << "description = \"A NAAb package\"\n"
+                  << "license = \"MIT\"\n"
+                  << "keywords = []\n\n"
+                  << "[exports]\n"
+                  << "main = \"src/lib.naab\"\n\n"
+                  << "[package.governance]\n"
+                  << "plugin_file = \"governance/checks.naab\"\n"
+                  << "rules_file = \"governance/rules.json\"\n\n"
+                  << "[dependencies]\n";
+                f.close();
+                fmt::print("✓ Created naab.toml (package manifest)\n");
+            } else {
+                fmt::print("  naab.toml already exists (skipped)\n");
+            }
+
+            // Source directory
+            fs::create_directories("src");
+            if (!fs::exists("src/lib.naab") || force) {
+                std::ofstream f("src/lib.naab");
+                f << "// " << pkg_name << " - Main entry point\n"
+                  << "// Exported functions are available to importers\n\n"
+                  << "function hello(name) {\n"
+                  << "    return \"Hello from " << pkg_name << ", \" + name + \"!\"\n"
+                  << "}\n";
+                f.close();
+                fmt::print("✓ Created src/lib.naab (entry point)\n");
+            }
+
+            // Governance directory
+            fs::create_directories("governance");
+            if (!fs::exists("governance/checks.naab") || force) {
+                std::ofstream f("governance/checks.naab");
+                f << "// Governance plugin checks for " << pkg_name << "\n"
+                  << "// These run automatically when your package is installed\n\n"
+                  << "function check_example(context) {\n"
+                  << "    // context is a dict with: code, language, function_name, file\n"
+                  << "    // Return: { \"passed\": true/false, \"message\": \"...\" }\n"
+                  << "    return { \"passed\": true, \"message\": \"Check passed\" }\n"
+                  << "}\n";
+                f.close();
+                fmt::print("✓ Created governance/checks.naab (governance plugin)\n");
+            }
+            if (!fs::exists("governance/rules.json") || force) {
+                std::ofstream f("governance/rules.json");
+                f << "[\n"
+                  << "  {\n"
+                  << "    \"id\": \"" << pkg_name << ".EXAMPLE-001\",\n"
+                  << "    \"function\": \"check_example\",\n"
+                  << "    \"description\": \"Example governance check\",\n"
+                  << "    \"level\": \"advisory\",\n"
+                  << "    \"trigger\": \"polyglot_block\"\n"
+                  << "  }\n"
+                  << "]\n";
+                f.close();
+                fmt::print("✓ Created governance/rules.json (rule definitions)\n");
+            }
+
+            // Tests directory
+            fs::create_directories("tests");
+            if (!fs::exists("tests/test_lib.naab") || force) {
+                std::ofstream f("tests/test_lib.naab");
+                f << "// Tests for " << pkg_name << "\n"
+                  << "import \"../src/lib.naab\" as lib\n\n"
+                  << "function test_hello() {\n"
+                  << "    let result = lib.hello(\"Test\")\n"
+                  << "    let expected = \"Hello from " << pkg_name << ", Test!\"\n"
+                  << "    if result == expected {\n"
+                  << "        return [1, 1]\n"
+                  << "    } else {\n"
+                  << "        io.write(\"FAIL: Expected '\" + expected + \"' got '\" + result + \"'\")\n"
+                  << "        return [0, 1]\n"
+                  << "    }\n"
+                  << "}\n\n"
+                  << "main {\n"
+                  << "    let r = test_hello()\n"
+                  << "    io.write(r[0] + \"/\" + r[1] + \" tests passed\")\n"
+                  << "}\n";
+                f.close();
+                fmt::print("✓ Created tests/test_lib.naab\n");
+            }
+
+            // Examples directory
+            fs::create_directories("examples");
+            if (!fs::exists("examples/basic.naab") || force) {
+                std::ofstream f("examples/basic.naab");
+                f << "// Example: Using " << pkg_name << "\n"
+                  << "import \"../src/lib.naab\" as lib\n\n"
+                  << "main {\n"
+                  << "    let msg = lib.hello(\"World\")\n"
+                  << "    io.write(msg)\n"
+                  << "}\n";
+                f.close();
+                fmt::print("✓ Created examples/basic.naab\n");
+            }
+
+            // CLAUDE.md
+            if (!fs::exists("CLAUDE.md") || force) {
+                std::ofstream f("CLAUDE.md");
+                f << "# " << pkg_name << "\n\n"
+                  << "## What this package does\n\n"
+                  << "[Describe what this package does in one paragraph]\n\n"
+                  << "## Key functions\n\n"
+                  << "- `hello(name)` - Returns a greeting string\n\n"
+                  << "## Usage\n\n"
+                  << "```naab\n"
+                  << "import \"" << pkg_name << "\" as pkg\n\n"
+                  << "main {\n"
+                  << "    let result = pkg.hello(\"World\")\n"
+                  << "    io.write(result)\n"
+                  << "}\n"
+                  << "```\n\n"
+                  << "## Governance rules\n\n"
+                  << "This package ships governance rules that auto-apply on install.\n"
+                  << "See `governance/rules.json` for details.\n";
+                f.close();
+                fmt::print("✓ Created CLAUDE.md (AI instructions)\n");
+            }
+
+            fmt::print("\n  Package '{}' initialized!\n\n", pkg_name);
+            fmt::print("  Next steps:\n");
+            fmt::print("    1. Edit src/lib.naab with your package code\n");
+            fmt::print("    2. Add governance checks in governance/checks.naab\n");
+            fmt::print("    3. Update CLAUDE.md for AI users\n");
+            fmt::print("    4. Push to GitHub and create a release\n");
+            fmt::print("    5. Run: naab-lang publish\n\n");
+            return 0;
+        }
 
         // Step 1: Create naab.toml (unless --governance only)
         if (!governance_only) {
@@ -2378,6 +2531,175 @@ int main(int argc, char** argv) {
 
         } catch (const std::exception& e) {
             fmt::print("Error: {}\n", e.what());
+            _exit(1);
+        }
+
+    } else if (command == "install") {
+        // ================================================================
+        // naab-lang install [spec] — Install packages
+        // ================================================================
+        naab::packages::PackageManager pm(".");
+
+        if (argc < 3) {
+            // No args → install all from naab.toml
+            if (pm.installAll()) {
+                // installAll prints its own output
+            } else {
+                fmt::print(stderr, "Error: {}\n", pm.getLastError());
+                fflush(stderr);
+                _exit(1);
+            }
+        } else {
+            std::string spec = argv[2];
+            if (pm.install(spec)) {
+                // install prints its own output
+            } else {
+                fmt::print(stderr, "Error: {}\n", pm.getLastError());
+                fflush(stderr);
+                _exit(1);
+            }
+        }
+
+    } else if (command == "remove") {
+        // ================================================================
+        // naab-lang remove <package> — Remove installed package
+        // ================================================================
+        if (argc < 3) {
+            fmt::print(stderr, "Error: Missing package name\n");
+            fmt::print(stderr, "Usage: naab-lang remove <package-name>\n");
+            fflush(stderr);
+            _exit(1);
+        }
+        naab::packages::PackageManager pm(".");
+        std::string name = argv[2];
+        if (pm.remove(name)) {
+            // remove prints its own output
+        } else {
+            fmt::print(stderr, "Error: {}\n", pm.getLastError());
+            fflush(stderr);
+            _exit(1);
+        }
+
+    } else if (command == "update") {
+        // ================================================================
+        // naab-lang update [package] — Update packages
+        // ================================================================
+        naab::packages::PackageManager pm(".");
+        std::string name = (argc >= 3) ? argv[2] : "";
+        if (pm.update(name)) {
+            // update prints its own output
+        } else {
+            fmt::print(stderr, "Error: {}\n", pm.getLastError());
+            fflush(stderr);
+            _exit(1);
+        }
+
+    } else if (command == "list") {
+        // ================================================================
+        // naab-lang list — List installed packages
+        // ================================================================
+        naab::packages::PackageManager pm(".");
+        auto packages = pm.list();
+        if (packages.empty()) {
+            fmt::print("No packages installed.\n");
+            fmt::print("  Install one with: naab-lang install user/repo\n");
+        } else {
+            fmt::print("Installed packages:\n\n");
+            for (const auto& pkg : packages) {
+                fmt::print("  {} {}", pkg.name, pkg.version);
+                if (pkg.has_governance) fmt::print(" [governance]");
+                if (pkg.has_claude_md) fmt::print(" [CLAUDE.md]");
+                fmt::print("\n");
+                if (!pkg.description.empty()) {
+                    fmt::print("    {}\n", pkg.description);
+                }
+                fmt::print("    → naab_modules/{}/\n\n", pkg.name);
+            }
+            fmt::print("{} package(s) installed.\n", packages.size());
+        }
+
+    } else if (command == "info") {
+        // ================================================================
+        // naab-lang info <user/repo> — Show package info
+        // ================================================================
+        if (argc < 3) {
+            fmt::print(stderr, "Error: Missing package spec\n");
+            fmt::print(stderr, "Usage: naab-lang info <user/repo>\n");
+            fflush(stderr);
+            _exit(1);
+        }
+        naab::packages::PackageManager pm(".");
+        std::string spec = argv[2];
+        auto pkg = pm.info(spec);
+        if (pkg.name.empty()) {
+            fmt::print(stderr, "Error: {}\n", pm.getLastError());
+            fflush(stderr);
+            _exit(1);
+        }
+        fmt::print("{} v{}\n", pkg.name, pkg.version);
+        if (!pkg.description.empty()) fmt::print("  {}\n", pkg.description);
+        if (!pkg.github.empty()) fmt::print("  GitHub: {}\n", pkg.github);
+        if (!pkg.license.empty()) fmt::print("  License: {}\n", pkg.license);
+        if (!pkg.keywords.empty()) {
+            fmt::print("  Keywords: ");
+            for (size_t i = 0; i < pkg.keywords.size(); i++) {
+                if (i > 0) fmt::print(", ");
+                fmt::print("{}", pkg.keywords[i]);
+            }
+            fmt::print("\n");
+        }
+        if (pkg.has_governance) fmt::print("  Governance: ships governance rules\n");
+        if (pkg.has_claude_md) fmt::print("  AI-ready: includes CLAUDE.md\n");
+        if (!pkg.main_file.empty()) fmt::print("  Entry point: {}\n", pkg.main_file);
+        if (!pkg.dependencies.empty()) {
+            fmt::print("  Dependencies:\n");
+            for (const auto& dep : pkg.dependencies) {
+                fmt::print("    - {} ({})\n", dep.name,
+                           dep.is_path_dep ? dep.path : dep.github + "@" + dep.version_spec);
+            }
+        }
+
+    } else if (command == "search") {
+        // ================================================================
+        // naab-lang search <query> — Search package registry
+        // ================================================================
+        if (argc < 3) {
+            fmt::print(stderr, "Error: Missing search query\n");
+            fmt::print(stderr, "Usage: naab-lang search <query>\n");
+            fflush(stderr);
+            _exit(1);
+        }
+        naab::packages::PackageManager pm(".");
+        // Join all remaining args as query
+        std::string query;
+        for (int i = 2; i < argc; i++) {
+            if (i > 2) query += " ";
+            query += argv[i];
+        }
+        auto results = pm.search(query);
+        if (results.empty()) {
+            fmt::print("No packages found matching '{}'.\n", query);
+        } else {
+            fmt::print("Search results for '{}':\n\n", query);
+            for (const auto& pkg : results) {
+                fmt::print("  {} v{}\n", pkg.github, pkg.version);
+                if (!pkg.description.empty()) {
+                    fmt::print("    {}\n", pkg.description);
+                }
+                if (pkg.has_governance) fmt::print("    [ships governance rules]\n");
+                fmt::print("\n");
+            }
+            fmt::print("{} package(s) found. Install with: naab-lang install <user/repo>\n", results.size());
+        }
+
+    } else if (command == "publish") {
+        // ================================================================
+        // naab-lang publish — Validate package for publishing
+        // ================================================================
+        naab::packages::PackageManager pm(".");
+        if (!pm.publish()) {
+            // publish() prints its own errors
+            fflush(stderr);
             _exit(1);
         }
 

@@ -22,6 +22,7 @@ TEST_DIRS=(
     "tests/governance_v4"
     "tests/robustness"
     "tests/governance_plugins"
+    "tests/package_manager"
     "tests/persistent"
     "tests/type_system/valid"
     "tests"
@@ -153,6 +154,12 @@ run_test() {
 
     # Skip non-standalone files
     if [ "${SKIP_FILES[$test_name]}" = "1" ]; then
+        SKIPPED=$((SKIPPED + 1))
+        return
+    fi
+
+    # Skip files inside naab_modules/ (package libraries, not standalone tests)
+    if [[ "$test_file" == *"/naab_modules/"* ]]; then
         SKIPPED=$((SKIPPED + 1))
         return
     fi

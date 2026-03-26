@@ -1,0 +1,7 @@
+[package]
+name = "test-pkg"
+version = "1.0.0"
+description = "Test package for module resolver"
+
+[exports]
+main = "src/lib.naab"

@@ -1,0 +1,4 @@
+// test-pkg library - exports greet function
+function greet(name) {
+    return "Hello, " + name + "!"
+}
