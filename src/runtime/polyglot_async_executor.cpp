@@ -62,7 +62,7 @@ void initializePolyglotThreadPool() {
 #ifdef HAVE_PYBIND11
 std::future<ffi::AsyncCallbackResult> PythonAsyncExecutor::executeAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     // Ensure global Python interpreter is initialized once
@@ -79,7 +79,7 @@ std::future<ffi::AsyncCallbackResult> PythonAsyncExecutor::executeAsync(
         // triggers Android bionic CFI crash (ShadowWrite CHECK failed)
         ffi::AsyncCallbackResult result;
         try {
-            interpreter::Value value = callback();
+            interpreter::NaabVal value = callback();
             result.success = true;
             result.value = value;
         } catch (const std::exception& e) {
@@ -92,7 +92,7 @@ std::future<ffi::AsyncCallbackResult> PythonAsyncExecutor::executeAsync(
 
 ffi::AsyncCallbackResult PythonAsyncExecutor::executeBlocking(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     // Ensure global Python interpreter is initialized
@@ -113,48 +113,33 @@ ffi::AsyncCallbackResult PythonAsyncExecutor::executeBlocking(
 
 ffi::AsyncCallbackWrapper::CallbackFunc PythonAsyncExecutor::makePythonCallback(
     const std::string& code,
-    const std::vector<interpreter::Value>& args
+    const std::vector<interpreter::NaabVal>& args
 ) {
     // Capture code and args by value for thread safety
-    return [code, args]() -> interpreter::Value {
+    return [code, args]() -> interpreter::NaabVal {
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
             fmt::format("Executing Python code asynchronously ({} bytes)", code.size())
         );
 
         try {
-            interpreter::Value result_value;
+            // PURE C API APPROACH: Thread-safe with PyGILState_Ensure/Release
+            // PythonCExecutor uses:
+            // - PyGILState_Ensure() to acquire GIL (thread-safe from any thread)
+            // - Python C API for execution (5x faster than pybind11)
+            // - PyGILState_Release() to release GIL
 
-            {
-                // PURE C API APPROACH: Thread-safe with PyGILState_Ensure/Release
-                // PythonCExecutor uses:
-                // - PyGILState_Ensure() to acquire GIL (thread-safe from any thread)
-                // - Python C API for execution (5x faster than pybind11)
-                // - PyGILState_Release() to release GIL
-                //
-                // Benefits:
-                // - No Android CFI crashes (bypasses bionic linker issue with pybind11)
-                // - 5x better performance (3μs vs 15μs per call)
-                // - True parallel execution via global GIL management
+            // Create C API executor (no GIL needed here - executor acquires it internally)
+            runtime::PythonCExecutor executor;
 
-                // Create C API executor (no GIL needed here - executor acquires it internally)
-                runtime::PythonCExecutor executor;
+            // Execute Python code (executor handles GIL acquisition internally)
+            auto result_nval = executor.executeWithReturn(code);
 
-                // Execute Python code (executor handles GIL acquisition internally)
-                auto result_nval = executor.executeWithReturn(code);
-
-                if (result_nval.isNull()) {
-                    throw std::runtime_error("Python execution returned null result");
-                }
-
-                // Dereference shared_ptr to get Value
-                result_value = *result_nval.toLegacy();
-
-                // Explicitly release the shared_ptr
-                
+            if (result_nval.isNull()) {
+                throw std::runtime_error("Python execution returned null result");
             }
 
-            return result_value;
+            return result_nval;
 
         } catch (const std::exception& e) {
             // Exception caught (silent - will be logged by audit logger)
@@ -175,7 +160,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc PythonAsyncExecutor::makePythonCallback(
 
 std::future<ffi::AsyncCallbackResult> JavaScriptAsyncExecutor::executeAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     // Submit to thread pool instead of creating unlimited threads
@@ -185,7 +170,7 @@ std::future<ffi::AsyncCallbackResult> JavaScriptAsyncExecutor::executeAsync(
         // Execute callback DIRECTLY - no nested threads (Android CFI fix)
         ffi::AsyncCallbackResult result;
         try {
-            interpreter::Value value = callback();
+            interpreter::NaabVal value = callback();
             result.success = true;
             result.value = value;
         } catch (const std::exception& e) {
@@ -198,7 +183,7 @@ std::future<ffi::AsyncCallbackResult> JavaScriptAsyncExecutor::executeAsync(
 
 ffi::AsyncCallbackResult JavaScriptAsyncExecutor::executeBlocking(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     auto callback = makeJavaScriptCallback(code, args);
@@ -214,10 +199,10 @@ ffi::AsyncCallbackResult JavaScriptAsyncExecutor::executeBlocking(
 
 ffi::AsyncCallbackWrapper::CallbackFunc JavaScriptAsyncExecutor::makeJavaScriptCallback(
     const std::string& code,
-    const std::vector<interpreter::Value>& args
+    const std::vector<interpreter::NaabVal>& args
 ) {
     // Capture code and args by value
-    return [code, args]() -> interpreter::Value {
+    return [code, args]() -> interpreter::NaabVal {
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
             fmt::format("Executing JavaScript code asynchronously ({} bytes)", code.size())
@@ -239,7 +224,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc JavaScriptAsyncExecutor::makeJavaScriptC
             }
 
             // Dereference shared_ptr to get Value
-            return *result_nval.toLegacy();
+            return result_nval;
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -256,7 +241,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc JavaScriptAsyncExecutor::makeJavaScriptC
 
 std::future<ffi::AsyncCallbackResult> CppAsyncExecutor::executeAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     // Submit to thread pool instead of creating unlimited threads
@@ -265,7 +250,7 @@ std::future<ffi::AsyncCallbackResult> CppAsyncExecutor::executeAsync(
     return getPolyglotThreadPool().enqueue([callback = std::move(callback), timeout]() {
         ffi::AsyncCallbackResult result;
         try {
-            interpreter::Value value = callback();
+            interpreter::NaabVal value = callback();
             result.success = true;
             result.value = value;
         } catch (const std::exception& e) {
@@ -278,7 +263,7 @@ std::future<ffi::AsyncCallbackResult> CppAsyncExecutor::executeAsync(
 
 ffi::AsyncCallbackResult CppAsyncExecutor::executeBlocking(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     auto callback = makeCppCallback(code, args);
@@ -294,10 +279,10 @@ ffi::AsyncCallbackResult CppAsyncExecutor::executeBlocking(
 
 ffi::AsyncCallbackWrapper::CallbackFunc CppAsyncExecutor::makeCppCallback(
     const std::string& code,
-    const std::vector<interpreter::Value>& args
+    const std::vector<interpreter::NaabVal>& args
 ) {
     // Capture code by value for thread safety (like Python and JavaScript)
-    return [code, args]() -> interpreter::Value {
+    return [code, args]() -> interpreter::NaabVal {
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
             fmt::format("Executing C++ code asynchronously ({} bytes)", code.size())
@@ -316,7 +301,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc CppAsyncExecutor::makeCppCallback(
             }
 
             // Dereference shared_ptr to get Value
-            return *result_nval.toLegacy();
+            return result_nval;
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -336,7 +321,7 @@ RustAsyncExecutor::~RustAsyncExecutor() = default;
 
 std::future<ffi::AsyncCallbackResult> RustAsyncExecutor::executeAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     // Submit to thread pool instead of creating unlimited threads
@@ -345,7 +330,7 @@ std::future<ffi::AsyncCallbackResult> RustAsyncExecutor::executeAsync(
     return getPolyglotThreadPool().enqueue([callback = std::move(callback), timeout]() {
         ffi::AsyncCallbackResult result;
         try {
-            interpreter::Value value = callback();
+            interpreter::NaabVal value = callback();
             result.success = true;
             result.value = value;
         } catch (const std::exception& e) {
@@ -358,7 +343,7 @@ std::future<ffi::AsyncCallbackResult> RustAsyncExecutor::executeAsync(
 
 ffi::AsyncCallbackResult RustAsyncExecutor::executeBlocking(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     auto callback = makeRustCallback(code, args);
@@ -374,10 +359,10 @@ ffi::AsyncCallbackResult RustAsyncExecutor::executeBlocking(
 
 ffi::AsyncCallbackWrapper::CallbackFunc RustAsyncExecutor::makeRustCallback(
     const std::string& code,
-    const std::vector<interpreter::Value>& args
+    const std::vector<interpreter::NaabVal>& args
 ) {
     // Capture code and args by value (no 'this' to avoid dangling pointer)
-    return [code, args]() -> interpreter::Value {
+    return [code, args]() -> interpreter::NaabVal {
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
             fmt::format("Executing Rust code asynchronously ({} bytes)", code.size())
@@ -394,7 +379,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc RustAsyncExecutor::makeRustCallback(
                 throw std::runtime_error("Rust execution returned null result");
             }
 
-            return *result_nval.toLegacy();
+            return result_nval;
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -411,7 +396,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc RustAsyncExecutor::makeRustCallback(
 
 std::future<ffi::AsyncCallbackResult> CSharpAsyncExecutor::executeAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     // Submit to thread pool instead of creating unlimited threads
@@ -420,7 +405,7 @@ std::future<ffi::AsyncCallbackResult> CSharpAsyncExecutor::executeAsync(
     return getPolyglotThreadPool().enqueue([callback = std::move(callback), timeout]() {
         ffi::AsyncCallbackResult result;
         try {
-            interpreter::Value value = callback();
+            interpreter::NaabVal value = callback();
             result.success = true;
             result.value = value;
         } catch (const std::exception& e) {
@@ -433,7 +418,7 @@ std::future<ffi::AsyncCallbackResult> CSharpAsyncExecutor::executeAsync(
 
 ffi::AsyncCallbackResult CSharpAsyncExecutor::executeBlocking(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     auto callback = makeCSharpCallback(code, args);
@@ -449,10 +434,10 @@ ffi::AsyncCallbackResult CSharpAsyncExecutor::executeBlocking(
 
 ffi::AsyncCallbackWrapper::CallbackFunc CSharpAsyncExecutor::makeCSharpCallback(
     const std::string& code,
-    const std::vector<interpreter::Value>& args
+    const std::vector<interpreter::NaabVal>& args
 ) {
     // Capture code and args by value (no 'this' capture to avoid dangling pointer)
-    return [code, args]() -> interpreter::Value {
+    return [code, args]() -> interpreter::NaabVal {
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
             fmt::format("Executing C# code asynchronously ({} bytes)", code.size())
@@ -469,7 +454,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc CSharpAsyncExecutor::makeCSharpCallback(
                 throw std::runtime_error("C# execution returned null result");
             }
 
-            return *result_nval.toLegacy();
+            return result_nval;
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -486,7 +471,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc CSharpAsyncExecutor::makeCSharpCallback(
 
 std::future<ffi::AsyncCallbackResult> ShellAsyncExecutor::executeAsync(
     const std::string& command,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     // Submit to thread pool instead of creating unlimited threads
@@ -496,7 +481,7 @@ std::future<ffi::AsyncCallbackResult> ShellAsyncExecutor::executeAsync(
         // Execute callback DIRECTLY in thread pool worker - no nested threads!
         ffi::AsyncCallbackResult result;
         try {
-            interpreter::Value value = callback();
+            interpreter::NaabVal value = callback();
             result.success = true;
             result.value = value;
         } catch (const std::exception& e) {
@@ -509,7 +494,7 @@ std::future<ffi::AsyncCallbackResult> ShellAsyncExecutor::executeAsync(
 
 ffi::AsyncCallbackResult ShellAsyncExecutor::executeBlocking(
     const std::string& command,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     auto callback = makeShellCallback(command, args);
@@ -525,10 +510,10 @@ ffi::AsyncCallbackResult ShellAsyncExecutor::executeBlocking(
 
 ffi::AsyncCallbackWrapper::CallbackFunc ShellAsyncExecutor::makeShellCallback(
     const std::string& command,
-    const std::vector<interpreter::Value>& args
+    const std::vector<interpreter::NaabVal>& args
 ) {
     // Capture command and args by value
-    return [command, args]() -> interpreter::Value {
+    return [command, args]() -> interpreter::NaabVal {
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
             fmt::format("Executing shell command asynchronously: {}", command)
@@ -545,7 +530,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc ShellAsyncExecutor::makeShellCallback(
                 throw std::runtime_error("Shell execution returned null result");
             }
 
-            return *result_nval.toLegacy();
+            return result_nval;
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -576,7 +561,7 @@ GenericSubprocessAsyncExecutor::~GenericSubprocessAsyncExecutor() = default;
 
 std::future<ffi::AsyncCallbackResult> GenericSubprocessAsyncExecutor::executeAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     auto callback = makeSubprocessCallback(code, args);
@@ -598,7 +583,7 @@ std::future<ffi::AsyncCallbackResult> GenericSubprocessAsyncExecutor::executeAsy
 
 ffi::AsyncCallbackResult GenericSubprocessAsyncExecutor::executeBlocking(
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     auto callback = makeSubprocessCallback(code, args);
@@ -614,14 +599,14 @@ ffi::AsyncCallbackResult GenericSubprocessAsyncExecutor::executeBlocking(
 
 ffi::AsyncCallbackWrapper::CallbackFunc GenericSubprocessAsyncExecutor::makeSubprocessCallback(
     const std::string& code,
-    const std::vector<interpreter::Value>& args
+    const std::vector<interpreter::NaabVal>& args
 ) {
     // Capture configuration and code by value (no 'this' to avoid dangling pointer)
     std::string lang_id = language_id_;
     std::string cmd_template = command_template_;
     std::string file_ext = file_extension_;
 
-    return [lang_id, cmd_template, file_ext, code, args]() -> interpreter::Value {
+    return [lang_id, cmd_template, file_ext, code, args]() -> interpreter::NaabVal {
         security::AuditLogger::log(
             security::AuditEvent::BLOCK_EXECUTE,
             fmt::format("Executing {} code asynchronously ({} bytes)",
@@ -643,7 +628,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc GenericSubprocessAsyncExecutor::makeSubp
                 );
             }
 
-            return *result_nval.toLegacy();
+            return result_nval;
 
         } catch (const std::exception& e) {
             security::AuditLogger::logSecurityViolation(
@@ -661,7 +646,7 @@ ffi::AsyncCallbackWrapper::CallbackFunc GenericSubprocessAsyncExecutor::makeSubp
 std::future<ffi::AsyncCallbackResult> PolyglotAsyncExecutor::executeAsync(
     Language language,
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     security::AuditLogger::log(
@@ -706,7 +691,7 @@ std::future<ffi::AsyncCallbackResult> PolyglotAsyncExecutor::executeAsync(
 ffi::AsyncCallbackResult PolyglotAsyncExecutor::executeBlocking(
     Language language,
     const std::string& code,
-    const std::vector<interpreter::Value>& args,
+    const std::vector<interpreter::NaabVal>& args,
     std::chrono::milliseconds timeout
 ) {
     switch (language) {
@@ -743,7 +728,7 @@ ffi::AsyncCallbackResult PolyglotAsyncExecutor::executeBlocking(
 }
 
 std::vector<ffi::AsyncCallbackResult> PolyglotAsyncExecutor::executeParallel(
-    const std::vector<std::tuple<Language, std::string, std::vector<interpreter::Value>>>& blocks,
+    const std::vector<std::tuple<Language, std::string, std::vector<interpreter::NaabVal>>>& blocks,
     std::chrono::milliseconds timeout
 ) {
     security::AuditLogger::log(

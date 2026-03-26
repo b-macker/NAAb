@@ -4,7 +4,6 @@
 
 
 #include "naab/ffi_async_callback.h"
-#include "naab/value.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -53,7 +52,7 @@ public:
      */
     std::future<ffi::AsyncCallbackResult> executeAsync(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -67,7 +66,7 @@ public:
      */
     ffi::AsyncCallbackResult executeBlocking(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -78,7 +77,7 @@ private:
     // Helper: Create callback that executes Python code
     ffi::AsyncCallbackWrapper::CallbackFunc makePythonCallback(
         const std::string& code,
-        const std::vector<interpreter::Value>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 };
 #endif // HAVE_PYBIND11
@@ -105,7 +104,7 @@ public:
      */
     std::future<ffi::AsyncCallbackResult> executeAsync(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -114,7 +113,7 @@ public:
      */
     ffi::AsyncCallbackResult executeBlocking(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -122,7 +121,7 @@ private:
     // Helper: Create callback that executes JavaScript code
     ffi::AsyncCallbackWrapper::CallbackFunc makeJavaScriptCallback(
         const std::string& code,
-        const std::vector<interpreter::Value>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 };
 
@@ -148,7 +147,7 @@ public:
      */
     std::future<ffi::AsyncCallbackResult> executeAsync(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(60000)
     );
 
@@ -157,7 +156,7 @@ public:
      */
     ffi::AsyncCallbackResult executeBlocking(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(60000)
     );
 
@@ -168,7 +167,7 @@ private:
     // Helper: Create callback that executes C++ code
     ffi::AsyncCallbackWrapper::CallbackFunc makeCppCallback(
         const std::string& code,
-        const std::vector<interpreter::Value>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 };
 
@@ -197,7 +196,7 @@ public:
      */
     std::future<ffi::AsyncCallbackResult> executeAsync(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -206,7 +205,7 @@ public:
      */
     ffi::AsyncCallbackResult executeBlocking(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -214,7 +213,7 @@ private:
     // Helper: Create callback that executes Rust code
     ffi::AsyncCallbackWrapper::CallbackFunc makeRustCallback(
         const std::string& code,
-        const std::vector<interpreter::Value>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 };
 
@@ -234,7 +233,7 @@ public:
      */
     std::future<ffi::AsyncCallbackResult> executeAsync(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -243,7 +242,7 @@ public:
      */
     ffi::AsyncCallbackResult executeBlocking(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -251,7 +250,7 @@ private:
     // Helper: Create callback that executes C# code
     ffi::AsyncCallbackWrapper::CallbackFunc makeCSharpCallback(
         const std::string& code,
-        const std::vector<interpreter::Value>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 };
 
@@ -271,7 +270,7 @@ public:
      */
     std::future<ffi::AsyncCallbackResult> executeAsync(
         const std::string& command,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -280,7 +279,7 @@ public:
      */
     ffi::AsyncCallbackResult executeBlocking(
         const std::string& command,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -288,7 +287,7 @@ private:
     // Helper: Create callback that executes shell command
     ffi::AsyncCallbackWrapper::CallbackFunc makeShellCallback(
         const std::string& command,
-        const std::vector<interpreter::Value>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 };
 
@@ -322,7 +321,7 @@ public:
      */
     std::future<ffi::AsyncCallbackResult> executeAsync(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -331,7 +330,7 @@ public:
      */
     ffi::AsyncCallbackResult executeBlocking(
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -343,7 +342,7 @@ private:
     // Helper: Create callback that executes code via subprocess
     ffi::AsyncCallbackWrapper::CallbackFunc makeSubprocessCallback(
         const std::string& code,
-        const std::vector<interpreter::Value>& args
+        const std::vector<interpreter::NaabVal>& args
     );
 };
 
@@ -380,7 +379,7 @@ public:
     std::future<ffi::AsyncCallbackResult> executeAsync(
         Language language,
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -390,7 +389,7 @@ public:
     ffi::AsyncCallbackResult executeBlocking(
         Language language,
         const std::string& code,
-        const std::vector<interpreter::Value>& args,
+        const std::vector<interpreter::NaabVal>& args,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -402,7 +401,7 @@ public:
      * @return Vector of results (same order as input)
      */
     std::vector<ffi::AsyncCallbackResult> executeParallel(
-        const std::vector<std::tuple<Language, std::string, std::vector<interpreter::Value>>>& blocks,
+        const std::vector<std::tuple<Language, std::string, std::vector<interpreter::NaabVal>>>& blocks,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
     );
 
@@ -442,7 +441,7 @@ void initializePolyglotThreadPool();
  */
 inline std::future<ffi::AsyncCallbackResult> executePythonAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args = {},
+    const std::vector<interpreter::NaabVal>& args = {},
     std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
 ) {
     PythonAsyncExecutor executor;
@@ -455,7 +454,7 @@ inline std::future<ffi::AsyncCallbackResult> executePythonAsync(
  */
 inline std::future<ffi::AsyncCallbackResult> executeJavaScriptAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args = {},
+    const std::vector<interpreter::NaabVal>& args = {},
     std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
 ) {
     JavaScriptAsyncExecutor executor;
@@ -467,7 +466,7 @@ inline std::future<ffi::AsyncCallbackResult> executeJavaScriptAsync(
  */
 inline std::future<ffi::AsyncCallbackResult> executeCppAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args = {},
+    const std::vector<interpreter::NaabVal>& args = {},
     std::chrono::milliseconds timeout = std::chrono::milliseconds(60000)
 ) {
     CppAsyncExecutor executor;
@@ -479,7 +478,7 @@ inline std::future<ffi::AsyncCallbackResult> executeCppAsync(
  */
 inline std::future<ffi::AsyncCallbackResult> executeRustAsync(
     const std::string& uri,
-    const std::vector<interpreter::Value>& args = {},
+    const std::vector<interpreter::NaabVal>& args = {},
     std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
 ) {
     RustAsyncExecutor executor;
@@ -491,7 +490,7 @@ inline std::future<ffi::AsyncCallbackResult> executeRustAsync(
  */
 inline std::future<ffi::AsyncCallbackResult> executeCSharpAsync(
     const std::string& code,
-    const std::vector<interpreter::Value>& args = {},
+    const std::vector<interpreter::NaabVal>& args = {},
     std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
 ) {
     CSharpAsyncExecutor executor;
@@ -503,7 +502,7 @@ inline std::future<ffi::AsyncCallbackResult> executeCSharpAsync(
  */
 inline std::future<ffi::AsyncCallbackResult> executeShellAsync(
     const std::string& command,
-    const std::vector<interpreter::Value>& args = {},
+    const std::vector<interpreter::NaabVal>& args = {},
     std::chrono::milliseconds timeout = std::chrono::milliseconds(30000)
 ) {
     ShellAsyncExecutor executor;

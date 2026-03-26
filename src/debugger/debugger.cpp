@@ -249,22 +249,22 @@ int Debugger::getCurrentDepth() const {
 }
 
 // Variable inspection
-std::shared_ptr<interpreter::Value> Debugger::inspectVariable(const std::string& name) {
+interpreter::NaabVal Debugger::inspectVariable(const std::string& name) {
     (void)name; // TODO: Use when Environment interface is available
 
     if (!current_environment_) {
-        return nullptr;
+        return interpreter::NaabVal::makeNull();
     }
 
     // Try to get variable from current environment
     // Note: This requires access to Environment::get() method
     // Implementation depends on Environment class interface
-    // For now, return nullptr - will be implemented when integrating with interpreter
-    return nullptr;
+    // For now, return null - will be implemented when integrating with interpreter
+    return interpreter::NaabVal::makeNull();
 }
 
-std::map<std::string, std::shared_ptr<interpreter::Value>> Debugger::listLocalVariables() {
-    std::map<std::string, std::shared_ptr<interpreter::Value>> result;
+std::map<std::string, interpreter::NaabVal> Debugger::listLocalVariables() {
+    std::map<std::string, interpreter::NaabVal> result;
 
     if (!call_stack_.empty()) {
         const CallFrame& frame = call_stack_.back();
@@ -274,8 +274,8 @@ std::map<std::string, std::shared_ptr<interpreter::Value>> Debugger::listLocalVa
     return result;
 }
 
-std::map<std::string, std::shared_ptr<interpreter::Value>> Debugger::listGlobalVariables() {
-    std::map<std::string, std::shared_ptr<interpreter::Value>> result;
+std::map<std::string, interpreter::NaabVal> Debugger::listGlobalVariables() {
+    std::map<std::string, interpreter::NaabVal> result;
 
     // Implementation depends on Environment class interface
     // Will be implemented when integrating with interpreter

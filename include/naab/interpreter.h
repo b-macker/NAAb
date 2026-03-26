@@ -612,7 +612,7 @@ private:
     bool gc_suspended_ = false;  // Temporarily suspend GC (e.g., during polyglot execution)
     size_t gc_threshold_ = 5000;  // Run GC every N allocations
     size_t allocation_count_ = 0;
-    std::vector<std::weak_ptr<Value>> tracked_values_;  // Global value tracking for complete GC
+    // tracked_values_ removed in Phase J — handle table is iterated directly by GC
 
     // BUG-10 fix: Track caller environments during nested function calls
     // When callFunction() switches current_env_ to func_env, the caller's env
@@ -713,7 +713,7 @@ private:
 
     // Phase 3.2: GC helpers
     void trackAllocation();
-    std::vector<std::weak_ptr<Value>>& getTrackedValues() { return tracked_values_; }
+    // getTrackedValues() removed in Phase J — handle table is iterated directly
 
     // Phase 2.4.1: Generics/Monomorphization helpers
     ast::Type inferValueType(NaabVal value);

@@ -2129,7 +2129,7 @@ void Interpreter::visit(ast::CallExpr& node) {
 
                 // Populate locals map
                 for (size_t i = 0; i < args.size(); i++) {
-                    frame.locals[func->params[i]] = args[i].toLegacy();
+                    frame.locals[func->params[i]] = args[i];
                 }
 
                 debugger_->pushFrame(frame);

@@ -1288,7 +1288,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
     std::vector<std::tuple<
         polyglot::PolyglotAsyncExecutor::Language,
         std::string,
-        std::vector<interpreter::Value>
+        std::vector<interpreter::NaabVal>
     >> tasks;
 
     // Track which blocks from group.parallel_blocks were submitted for parallel execution
@@ -1531,7 +1531,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         }
 
         // Create task with empty args (variables are injected into code)
-        std::vector<interpreter::Value> args;
+        std::vector<interpreter::NaabVal> args;
         tasks.emplace_back(lang, final_code, args);
         parallel_block_indices.push_back(i);
         parallel_return_types.push_back(return_type);
@@ -1568,7 +1568,7 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
         std::string lang_str = block.node ? block.node->getLanguage() : "unknown";
 
         if (result.success) {
-            NaabVal value = NaabVal::fromLegacy(std::make_shared<Value>(result.value));
+            NaabVal value = result.value;
 
             // Phase 12: Check for sentinel/JSON return values in parallel path
             bool par_json_parsed = false;

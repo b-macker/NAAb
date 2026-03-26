@@ -2,9 +2,11 @@
 
 // Phase 3.2: Cycle Detection and Garbage Collection
 // Mark-and-sweep algorithm for detecting and breaking reference cycles
+// Phase J: Fully NaabVal-based — no shared_ptr<Value> bridges
 
+#include "naab/naab_val.h"
 #include <memory>
-#include <set>
+#include <unordered_set>
 #include <vector>
 #include <functional>
 
@@ -12,8 +14,6 @@ namespace naab {
 namespace interpreter {
 
 // Forward declarations
-class Value;
-class NaabVal;
 class Environment;
 
 class CycleDetector {
@@ -25,7 +25,6 @@ public:
     // extra_roots: additional NaabVal values to mark as reachable (e.g., result_)
     // extra_envs: additional environments to mark from (e.g., global_env_)
     size_t detectAndCollect(std::shared_ptr<Environment> root_env,
-                           std::vector<std::weak_ptr<Value>>& tracked_values,
                            const std::vector<NaabVal>& extra_roots = {},
                            const std::vector<std::shared_ptr<Environment>>& extra_envs = {});
 
@@ -35,23 +34,16 @@ public:
     size_t getLastCollectionCount() const { return last_collection_count_; }
 
 private:
-    // Mark phase: recursively mark all reachable values from roots
-    void markReachable(std::shared_ptr<Value> value,
-                      std::set<std::shared_ptr<Value>>& visited,
-                      std::set<std::shared_ptr<Value>>& reachable);
+    // Mark phase: recursively mark all reachable NaabVal values from a root
+    void markReachable(const NaabVal& value,
+                      std::unordered_set<uint64_t>& visited);
 
     // Mark all values reachable from environment
     void markFromEnvironment(std::shared_ptr<Environment> env,
-                            std::set<std::shared_ptr<Value>>& visited,
-                            std::set<std::shared_ptr<Value>>& reachable);
+                            std::unordered_set<uint64_t>& visited);
 
-    // Sweep phase: identify unreachable values that are in cycles
-    std::vector<std::shared_ptr<Value>> findCycles(
-        const std::set<std::shared_ptr<Value>>& reachable,
-        const std::set<std::shared_ptr<Value>>& all_values);
-
-    // Break cycles by clearing internal references
-    void breakCycles(const std::vector<std::shared_ptr<Value>>& cycles);
+    // Break cycles by clearing containers in unreachable values
+    size_t breakUnreachable(const std::unordered_set<uint64_t>& reachable);
 
     // Statistics
     size_t total_allocations_ = 0;

@@ -577,7 +577,7 @@ void ReplCommandHandler::handleLocals() {
     fmt::print("Local Variables:\n");
     fmt::print("═══════════════════════════════════════════════════════════\n");
     for (const auto& [name, value] : locals) {
-        fmt::print("  {} = {}\n", name, value->toString());
+        fmt::print("  {} = {}\n", name, value.toString());
     }
     fmt::print("\n");
 }
@@ -591,12 +591,12 @@ void ReplCommandHandler::handleVar(const std::string& name) {
 
     auto value = debugger->inspectVariable(name);
 
-    if (!value) {
+    if (value.isNull()) {
         fmt::print("[ERROR] Variable '{}' not found\n", name);
         return;
     }
 
-    fmt::print("{} = {}\n", name, value->toString());
+    fmt::print("{} = {}\n", name, value.toString());
 }
 
 void ReplCommandHandler::handleWatch(const std::string& expression) {
@@ -642,8 +642,8 @@ void ReplCommandHandler::handleWatches() {
     fmt::print("Watch Expressions:\n");
     fmt::print("═══════════════════════════════════════════════════════════\n");
     for (const auto& result : results) {
-        if (result.error.empty() && result.value) {
-            fmt::print("  [{}] {} = {}\n", result.id, result.expression, result.value->toString());
+        if (result.error.empty() && !result.value.isNull()) {
+            fmt::print("  [{}] {} = {}\n", result.id, result.expression, result.value.toString());
         } else {
             fmt::print("  [{}] {} = ERROR: {}\n", result.id, result.expression, result.error);
         }

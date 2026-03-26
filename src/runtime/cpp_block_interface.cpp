@@ -16,6 +16,30 @@ static void* fromValue(naab::interpreter::Value* value) {
     return reinterpret_cast<void*>(value);
 }
 
+// Convert NaabVal to a heap-allocated Value* for C ABI boundary
+static void* naabValToHandle(const naab::interpreter::NaabVal& nval) {
+    auto* val = new naab::interpreter::Value();
+    if (nval.isInt()) val->data = nval.asInt();
+    else if (nval.isDouble()) val->data = nval.asDouble();
+    else if (nval.isBool()) val->data = nval.asBool();
+    else if (nval.isString()) val->data = nval.asString();
+    else if (nval.isStructVal()) val->data = nval.asStructConst();
+    else val->data = std::monostate{};
+    return fromValue(val);
+}
+
+// Convert Value* from C ABI boundary to NaabVal
+static naab::interpreter::NaabVal handleToNaabVal(const naab::interpreter::Value& v) {
+    using namespace naab::interpreter;
+    if (std::holds_alternative<int>(v.data)) return NaabVal::makeInt(std::get<int>(v.data));
+    if (std::holds_alternative<double>(v.data)) return NaabVal::makeDouble(std::get<double>(v.data));
+    if (std::holds_alternative<bool>(v.data)) return NaabVal::makeBool(std::get<bool>(v.data));
+    if (std::holds_alternative<std::string>(v.data)) return NaabVal::makeString(std::get<std::string>(v.data));
+    if (std::holds_alternative<std::shared_ptr<StructValue>>(v.data))
+        return NaabVal::makeStruct(std::get<std::shared_ptr<StructValue>>(v.data));
+    return NaabVal::makeNull();
+}
+
 // ============================================================================
 // Struct Type Interface (Week 6 - Task 49)
 // ============================================================================
@@ -89,7 +113,7 @@ void* naab_value_get_struct_field(void* value, const char* field_name) {
         return nullptr;
     }
 
-    return fromValue(struct_val->field_values[idx].toLegacy().get());
+    return naabValToHandle(struct_val->field_values[idx]);
 }
 
 int naab_value_set_struct_field(void* struct_value, const char* field_name, void* field_value) {
@@ -114,9 +138,9 @@ int naab_value_set_struct_field(void* struct_value, const char* field_name, void
         return -1;
     }
 
-    // Set field value (make a copy)
+    // Set field value (convert from C ABI Value* to NaabVal)
     auto* fval = toValue(field_value);
-    struct_val->field_values[idx] = naab::interpreter::NaabVal::fromLegacy(std::make_shared<naab::interpreter::Value>(*fval));
+    struct_val->field_values[idx] = handleToNaabVal(*fval);
 
     return 0;  // Success
 }

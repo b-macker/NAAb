@@ -377,5 +377,27 @@ void NaabVal::traverse(std::function<void(const NaabVal&)> visitor) const {
     }
 }
 
+int NaabVal::getHeapRefCount() const {
+    if (!isHeap()) return 0;
+    return asHeap()->refcount.load(std::memory_order_relaxed);
+}
+
+void NaabVal::forEachHeapValue(std::function<void(NaabVal)> callback) {
+    // Iterate all live entries in the handle table.
+    // g_next_handle is the high-water mark — no handles exist above it.
+    uint32_t max_handle = g_next_handle.load(std::memory_order_relaxed);
+    for (uint32_t h = 0; h < max_handle; ++h) {
+        uint32_t page_idx = h >> PAGE_BITS;
+        if (!g_pages[page_idx]) continue;  // Page not allocated
+        ValueBox* box = g_pages[page_idx][h & PAGE_MASK];
+        if (!box) continue;  // Freed handle
+        // Create a NaabVal from this handle (bumps refcount temporarily)
+        NaabVal val;
+        val.bits_ = TAG_HEAP | static_cast<uint64_t>(h);
+        box->refcount.fetch_add(1, std::memory_order_relaxed);  // retain
+        callback(val);
+    }
+}
+
 } // namespace interpreter
 } // namespace naab

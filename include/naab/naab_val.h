@@ -228,6 +228,12 @@ public:
     // GC support: traverse reachable values (only for heap types)
     void traverse(std::function<void(const NaabVal&)> visitor) const;
 
+    // GC support: iterate all live heap values in the handle table
+    static void forEachHeapValue(std::function<void(NaabVal)> callback);
+
+    // GC support: get refcount of heap object (0 for inline types)
+    int getHeapRefCount() const;
+
     // ========================================================================
     // Operators
     // ========================================================================

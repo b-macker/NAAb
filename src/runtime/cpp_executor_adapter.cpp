@@ -14,6 +14,18 @@
 namespace naab {
 namespace runtime {
 
+// Helper: Get temp directory with Termux fallback
+static std::filesystem::path getSafeTempDir() {
+    try {
+        auto dir = std::filesystem::temp_directory_path();
+        if (std::filesystem::is_directory(dir)) return dir;
+    } catch (...) {}
+    // Termux fallback
+    auto fallback = std::filesystem::path("/data/data/com.termux/files/home/.cache/naab");
+    std::filesystem::create_directories(fallback);
+    return fallback;
+}
+
 // Helper: Add hints for common C++ polyglot compilation errors
 // Truncate C++ compiler output to show only error lines (not verbose notes)
 static std::string truncateCppErrors(const std::string& stderr_output, size_t max_lines = 20) {
@@ -133,7 +145,7 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
         // Detected main() - compiling as executable (silent)
 
         // Create unique temp files for thread-safe parallel execution
-        std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+        std::filesystem::path temp_dir = getSafeTempDir();
         auto thread_id = std::this_thread::get_id();
         int counter = temp_file_counter_.fetch_add(1);
         std::ostringstream filename_base;
@@ -243,7 +255,7 @@ bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode)
         "}\n";
 
     // Create unique temp files for thread-safe parallel execution
-    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+    std::filesystem::path temp_dir = getSafeTempDir();
     auto thread_id = std::this_thread::get_id();
     int counter = temp_file_counter_.fetch_add(1);
     std::ostringstream filename_base;
@@ -333,7 +345,7 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
             // Cache miss - compile
             // Compiling (cache miss) (silent)
 
-            std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+            std::filesystem::path temp_dir = getSafeTempDir();
             auto thread_id = std::this_thread::get_id();
             int counter = temp_file_counter_.fetch_add(1);
             std::ostringstream filename_base;
@@ -622,7 +634,7 @@ interpreter::NaabVal CppExecutorAdapter::executeWithReturn(
         // Cache miss - compile and cache
         // Compiling C++ code (cache miss) (silent)
 
-        std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+        std::filesystem::path temp_dir = getSafeTempDir();
         auto thread_id = std::this_thread::get_id();
         int counter = temp_file_counter_.fetch_add(1);
         std::ostringstream filename_base;

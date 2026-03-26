@@ -3,7 +3,7 @@
 // Phase 1 Item 10: FFI Async Callback Safety
 // Thread-safe async callbacks across FFI boundaries
 
-#include "naab/value.h"
+#include "naab/naab_val.h"
 #include <string>
 #include <stdexcept>
 #include <functional>
@@ -18,9 +18,6 @@
 namespace naab {
 namespace ffi {
 
-// Use Value from interpreter namespace
-using interpreter::Value;
-
 // Exception for async callback errors
 class AsyncCallbackException : public std::runtime_error {
 public:
@@ -31,18 +28,18 @@ public:
 // Result of async callback execution
 struct AsyncCallbackResult {
     bool success;
-    Value value;
+    interpreter::NaabVal value;
     std::string error_message;
     std::string error_type;
     std::chrono::milliseconds execution_time;
 
     AsyncCallbackResult()
         : success(false)
-        , value()
+        , value(interpreter::NaabVal::makeNull())
         , execution_time(0) {}
 
     static AsyncCallbackResult makeSuccess(
-        const Value& val,
+        const interpreter::NaabVal& val,
         std::chrono::milliseconds exec_time
     ) {
         AsyncCallbackResult result;
@@ -67,7 +64,7 @@ struct AsyncCallbackResult {
 // Thread-safe wrapper for async callbacks
 class AsyncCallbackWrapper {
 public:
-    using CallbackFunc = std::function<Value()>;
+    using CallbackFunc = std::function<interpreter::NaabVal()>;
 
     // Create async callback wrapper
     // timeout_ms: Maximum execution time (0 = no timeout)

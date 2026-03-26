@@ -6,6 +6,7 @@
 #include <memory>
 #include <functional>
 #include "ast.h"
+#include "naab_val.h"
 
 namespace naab {
 namespace ast {
@@ -14,7 +15,6 @@ namespace ast {
 }
 
 namespace interpreter {
-    class Value;
     class Environment;
 }
 
@@ -48,7 +48,7 @@ struct Breakpoint {
 struct WatchResult {
     int id;
     std::string expression;
-    std::shared_ptr<interpreter::Value> value;
+    interpreter::NaabVal value;
     std::string error;  // Empty if successful, error message otherwise
 };
 
@@ -56,7 +56,7 @@ struct WatchResult {
 struct CallFrame {
     std::string function_name;
     std::string source_location;  // file:line:col format
-    std::map<std::string, std::shared_ptr<interpreter::Value>> locals;
+    std::map<std::string, interpreter::NaabVal> locals;
     std::shared_ptr<interpreter::Environment> env;
     int frame_depth;              // Depth in call stack (0 = top level)
 
@@ -103,9 +103,9 @@ public:
     int getCurrentDepth() const;
 
     // Variable inspection
-    std::shared_ptr<interpreter::Value> inspectVariable(const std::string& name);
-    std::map<std::string, std::shared_ptr<interpreter::Value>> listLocalVariables();
-    std::map<std::string, std::shared_ptr<interpreter::Value>> listGlobalVariables();
+    interpreter::NaabVal inspectVariable(const std::string& name);
+    std::map<std::string, interpreter::NaabVal> listLocalVariables();
+    std::map<std::string, interpreter::NaabVal> listGlobalVariables();
 
     // Watch expressions
     int addWatch(const std::string& expression);

@@ -2582,7 +2582,7 @@ void Interpreter::runGarbageCollection(std::shared_ptr<Environment> env) {
     }
 
     // Run mark-and-sweep cycle detection with complete root set
-    size_t collected = cycle_detector_->detectAndCollect(root_env, tracked_values_, extra_roots, extra_envs);
+    size_t collected = cycle_detector_->detectAndCollect(root_env, extra_roots, extra_envs);
 
     if (verbose_mode_) {
         if (collected > 0) {
@@ -2597,11 +2597,9 @@ void Interpreter::runGarbageCollection(std::shared_ptr<Environment> env) {
 }
 
 void Interpreter::registerValue(NaabVal value) {
-    if (value.isNull() || !gc_enabled_) {
-        return;
-    }
-    // Convert to shared_ptr<Value> for the tracked_values_ weak_ptr vector
-    tracked_values_.push_back(value.toLegacy());
+    // Phase J: No-op — handle table is iterated directly by GC.
+    // Heap values are automatically tracked via NaabVal's handle table.
+    (void)value;
 }
 
 void Interpreter::trackAllocation() {

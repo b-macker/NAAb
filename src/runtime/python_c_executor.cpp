@@ -434,8 +434,8 @@ interpreter::NaabVal PythonCExecutor::pyObjectToValue(PyObject* obj) {
 
     // Unsupported type - wrap in PythonObjectValue
     Py_INCREF(obj);
-    return interpreter::NaabVal::fromLegacy(
-        std::make_shared<interpreter::Value>(std::make_shared<naab::interpreter::PythonObjectValue>(obj)));
+    return interpreter::NaabVal::makePythonObject(
+        std::make_shared<naab::interpreter::PythonObjectValue>(obj));
 }
 
 /**

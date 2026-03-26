@@ -91,8 +91,8 @@ AsyncCallbackResult AsyncCallbackWrapper::executeWithTimeout() {
 
         // Execute callback in a separate thread with timeout
         // Use shared_ptr so detached threads don't access destroyed promise
-        auto result_promise = std::make_shared<std::promise<interpreter::Value>>();
-        std::future<interpreter::Value> result_future = result_promise->get_future();
+        auto result_promise = std::make_shared<std::promise<interpreter::NaabVal>>();
+        std::future<interpreter::NaabVal> result_future = result_promise->get_future();
 
         std::thread worker_thread([this, result_promise]() {
             try {
@@ -106,7 +106,7 @@ AsyncCallbackResult AsyncCallbackWrapper::executeWithTimeout() {
                 }
 
                 // Execute the actual callback
-                interpreter::Value result = callback_();
+                interpreter::NaabVal result = callback_();
                 result_promise->set_value(result);
 
             } catch (const std::exception& e) {
@@ -160,7 +160,7 @@ AsyncCallbackResult AsyncCallbackWrapper::executeWithTimeout() {
         }
 
         // Get result (may throw if callback threw)
-        interpreter::Value result;
+        interpreter::NaabVal result = interpreter::NaabVal::makeNull();
         try {
             result = result_future.get();
 
