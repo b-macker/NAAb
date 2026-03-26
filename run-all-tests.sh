@@ -21,6 +21,7 @@ TEST_DIRS=(
     "tests/governance_v3"
     "tests/governance_v4"
     "tests/robustness"
+    "tests/governance_plugins"
     "tests/persistent"
     "tests/type_system/valid"
     "tests"
@@ -84,6 +85,8 @@ EXPECTED_ERROR_TESTS["test_v3_secret_detection.naab"]=1
 EXPECTED_ERROR_TESTS["test_v3_simulation_markers.naab"]=1
 EXPECTED_ERROR_TESTS["test_v3_sql_injection.naab"]=1
 EXPECTED_ERROR_TESTS["test_v3_unsafe_deser.naab"]=1
+# Governance plugin tests designed to be blocked
+EXPECTED_ERROR_TESTS["test_plugin_block.naab"]=1
 
 # Category 2: Tests that need compilers/executors not installed on this platform
 declare -A MISSING_EXECUTOR_TESTS
@@ -105,6 +108,7 @@ SKIP_FILES["edge_helper_module.naab"]=1   # imported by edge tests, not standalo
 SKIP_FILES["chaos_module_taint.naab"]=1   # imported by chaos tests, not standalone
 SKIP_FILES["test_lexer_polyglot.naab"]=1  # file does not exist (stale reference)
 SKIP_FILES["test_polyglot_types.naab"]=1  # file does not exist (stale reference)
+SKIP_FILES["test_plugin.naab"]=1          # governance plugin library, not standalone
 
 # Directories to skip entirely
 SKIP_DIRS=(
@@ -157,7 +161,7 @@ run_test() {
 
     # Governance tests need governance enabled; all others disable it for speed
     local gov_flag="--no-governance"
-    if [[ "$test_file" == *"/governance_v3/"* ]] || [[ "$test_file" == *"/governance_v4/"* ]] || [[ "$test_file" == *"/robustness/"* ]]; then
+    if [[ "$test_file" == *"/governance_v3/"* ]] || [[ "$test_file" == *"/governance_v4/"* ]] || [[ "$test_file" == *"/robustness/"* ]] || [[ "$test_file" == *"/governance_plugins/"* ]]; then
         gov_flag=""
     fi
 
