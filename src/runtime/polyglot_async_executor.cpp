@@ -135,10 +135,6 @@ ffi::AsyncCallbackWrapper::CallbackFunc PythonAsyncExecutor::makePythonCallback(
             // Execute Python code (executor handles GIL acquisition internally)
             auto result_nval = executor.executeWithReturn(code);
 
-            if (result_nval.isNull()) {
-                throw std::runtime_error("Python execution returned null result");
-            }
-
             return result_nval;
 
         } catch (const std::exception& e) {
@@ -219,11 +215,6 @@ ffi::AsyncCallbackWrapper::CallbackFunc JavaScriptAsyncExecutor::makeJavaScriptC
             // Execute JavaScript code
             auto result_nval = executor->evaluate(code);
 
-            if (result_nval.isNull()) {
-                throw std::runtime_error("JavaScript execution returned null result");
-            }
-
-            // Dereference shared_ptr to get Value
             return result_nval;
 
         } catch (const std::exception& e) {
@@ -296,11 +287,6 @@ ffi::AsyncCallbackWrapper::CallbackFunc CppAsyncExecutor::makeCppCallback(
             // Execute C++ code with return value
             auto result_nval = executor.executeWithReturn(code);
 
-            if (result_nval.isNull()) {
-                throw std::runtime_error("C++ execution returned null result");
-            }
-
-            // Dereference shared_ptr to get Value
             return result_nval;
 
         } catch (const std::exception& e) {
@@ -375,10 +361,6 @@ ffi::AsyncCallbackWrapper::CallbackFunc RustAsyncExecutor::makeRustCallback(
             // CRITICAL FIX: Use executeWithReturn for inline code (not executeBlock for FFI)
             auto result_nval = executor->executeWithReturn(code);
 
-            if (result_nval.isNull()) {
-                throw std::runtime_error("Rust execution returned null result");
-            }
-
             return result_nval;
 
         } catch (const std::exception& e) {
@@ -449,10 +431,6 @@ ffi::AsyncCallbackWrapper::CallbackFunc CSharpAsyncExecutor::makeCSharpCallback(
 
             // Execute C# code
             auto result_nval = executor->executeWithReturn(code);
-
-            if (result_nval.isNull()) {
-                throw std::runtime_error("C# execution returned null result");
-            }
 
             return result_nval;
 
@@ -525,10 +503,6 @@ ffi::AsyncCallbackWrapper::CallbackFunc ShellAsyncExecutor::makeShellCallback(
 
             // Execute shell command
             auto result_nval = executor->executeWithReturn(command);
-
-            if (result_nval.isNull()) {
-                throw std::runtime_error("Shell execution returned null result");
-            }
 
             return result_nval;
 
@@ -621,12 +595,6 @@ ffi::AsyncCallbackWrapper::CallbackFunc GenericSubprocessAsyncExecutor::makeSubp
 
             // Execute via subprocess
             auto result_nval = executor->executeWithReturn(code);
-
-            if (result_nval.isNull()) {
-                throw std::runtime_error(
-                    fmt::format("{} execution returned null result", lang_id)
-                );
-            }
 
             return result_nval;
 

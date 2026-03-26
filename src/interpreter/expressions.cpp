@@ -1208,6 +1208,9 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
     struct_val->definition = actual_def;
     struct_val->field_values.resize(actual_def->fields.size());
 
+    // Track which fields were explicitly provided (can't use null check since null is valid)
+    std::vector<bool> field_provided(actual_def->fields.size(), false);
+
     // Initialize from literals
     for (const auto& [field_name, init_expr] : node.getFieldInits()) {
         if (!actual_def->field_index.count(field_name)) {
@@ -1245,11 +1248,12 @@ void Interpreter::visit(ast::StructLiteralExpr& node) {
         }
 
         struct_val->field_values[idx] = field_value;
+        field_provided[idx] = true;
     }
 
-    // Check required fields (all fields are currently required - no default values yet)
+    // Check required fields — use tracking vector since null is a valid value for nullable fields
     for (size_t i = 0; i < actual_def->fields.size(); ++i) {
-        if (!struct_val->field_values[i]) {
+        if (!field_provided[i]) {
             const auto& field = actual_def->fields[i];
             throw std::runtime_error("Missing required field '" + field.name +
                                    "' in struct '" + node.getStructName() + "'");
