@@ -24,6 +24,14 @@ struct StructValue;
 struct FutureValue;
 struct GeneratorValue;
 
+} // namespace interpreter
+
+namespace vm {
+struct VMClosure;
+} // namespace vm
+
+namespace interpreter {
+
 // Heap-allocated box for complex values.
 // Fully defined in naab_val.cpp. Other code accesses via NaabVal typed methods.
 struct ValueBox;
@@ -135,6 +143,7 @@ public:
     static NaabVal makeFuture(std::shared_ptr<FutureValue> f);
     static NaabVal makeGenerator(std::shared_ptr<GeneratorValue> g);
     static NaabVal makePythonObject(std::shared_ptr<PythonObjectValue> p);
+    static NaabVal makeVMClosure(std::shared_ptr<vm::VMClosure> c);
 
     // ========================================================================
     // Type checks — inline bit-mask operations
@@ -160,6 +169,7 @@ public:
     bool isFuture() const;
     bool isGenerator() const;
     bool isPythonObject() const;
+    bool isVMClosure() const;
 
     bool isNumeric() const { return isInt() || isDouble() || isBool(); }
 
@@ -205,6 +215,8 @@ public:
     const std::shared_ptr<GeneratorValue>& asGeneratorConst() const;
     std::shared_ptr<PythonObjectValue>& asPythonObject();
     const std::shared_ptr<PythonObjectValue>& asPythonObjectConst() const;
+    std::shared_ptr<vm::VMClosure>& asVMClosure();
+    const std::shared_ptr<vm::VMClosure>& asVMClosureConst() const;
 
     // ========================================================================
     // Conversion methods (match Value API)

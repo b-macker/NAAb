@@ -36,6 +36,9 @@ namespace interpreter {
 class CycleDetector;
 struct DependencyGroup;  // From polyglot_dependency_analyzer.h
 }
+namespace vm {
+struct VMClosure;
+}
 }
 
 namespace naab {
@@ -354,7 +357,8 @@ using ValueData = std::variant<
     std::shared_ptr<PythonObjectValue>,  // python object (index 9)
     std::shared_ptr<StructValue>,  // struct (index 10)
     std::shared_ptr<FutureValue>,  // future (index 11) - Phase 6: async/await
-    std::shared_ptr<GeneratorValue>  // generator (index 12) - Phase 5: generators
+    std::shared_ptr<GeneratorValue>,  // generator (index 12) - Phase 5: generators
+    std::shared_ptr<vm::VMClosure>   // VM closure (index 13) - Bytecode VM
 >;
 
 class Value {
@@ -374,6 +378,7 @@ public:
     explicit Value(std::shared_ptr<StructValue> v) : data(std::move(v)) {}
     explicit Value(std::shared_ptr<FutureValue> v) : data(std::move(v)) {}
     explicit Value(std::shared_ptr<GeneratorValue> v) : data(std::move(v)) {}
+    explicit Value(std::shared_ptr<vm::VMClosure> v) : data(std::move(v)) {}
 
     std::string toString() const;
     bool toBool() const;

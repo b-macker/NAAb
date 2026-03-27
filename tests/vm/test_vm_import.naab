@@ -1,0 +1,10 @@
+// Test basic VM import functionality
+import {add, multiply} from "./test_import_module.naab"
+
+main {
+    let r1 = add(3, 4)
+    print(r1)
+    let r2 = multiply(5, 6)
+    print(r2)
+    print("done")
+}

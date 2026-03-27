@@ -64,7 +64,7 @@ interpreter::NaabVal ArrayModule::call(
         return makeInt(static_cast<int>(arr.size()));
     }
 
-    // Function 2: push (mutates array)
+    // Function 2: push (mutates array in-place)
     if (function_name == "push") {
         if (args.size() != 2) {
             throw std::runtime_error(
@@ -76,9 +76,12 @@ interpreter::NaabVal ArrayModule::call(
                 )
             );
         }
-        auto arr = getArray(args[0]);
-        arr.push_back(args[1]);
-        return makeArray(arr);
+        if (!args[0].isList()) {
+            throw std::runtime_error(
+                "Type error: Expected array, got " + args[0].getTypeName());
+        }
+        args[0].asList().push_back(args[1]);
+        return args[0];
     }
 
     // Function 3: pop (returns last element and mutates)
@@ -93,7 +96,11 @@ interpreter::NaabVal ArrayModule::call(
                 )
             );
         }
-        auto arr = getArray(args[0]);
+        if (!args[0].isList()) {
+            throw std::runtime_error(
+                "Type error: Expected array, got " + args[0].getTypeName());
+        }
+        auto& arr = args[0].asList();  // Mutate in-place via shared_ptr
         if (arr.empty()) {
             throw std::runtime_error(
                 utils::ErrorFormatter::formatEmptyCollectionError(
@@ -104,10 +111,7 @@ interpreter::NaabVal ArrayModule::call(
             );
         }
         auto last = arr.back();
-        arr.pop_back();  // Remove the last element
-
-        // Mutate args[0] directly for auto-mutation
-        args[0] = interpreter::NaabVal::makeList(std::move(arr));
+        arr.pop_back();  // Remove the last element in-place
 
         return last;  // Return the popped element
     }
@@ -124,7 +128,11 @@ interpreter::NaabVal ArrayModule::call(
                 )
             );
         }
-        auto arr = getArray(args[0]);
+        if (!args[0].isList()) {
+            throw std::runtime_error(
+                "Type error: Expected array, got " + args[0].getTypeName());
+        }
+        auto& arr = args[0].asList();
         if (arr.empty()) {
             throw std::runtime_error(
                 utils::ErrorFormatter::formatEmptyCollectionError(
@@ -135,15 +143,11 @@ interpreter::NaabVal ArrayModule::call(
             );
         }
         auto first = arr.front();
-        arr.erase(arr.begin());  // Remove the first element
-
-        // Mutate args[0] directly for auto-mutation
-        args[0] = interpreter::NaabVal::makeList(std::move(arr));
-
-        return first;  // Return the shifted element
+        arr.erase(arr.begin());  // Remove the first element in-place
+        return first;
     }
 
-    // Function 5: unshift (add to start)
+    // Function 5: unshift (add to start, mutates in-place)
     if (function_name == "unshift") {
         if (args.size() != 2) {
             throw std::runtime_error(
@@ -155,9 +159,12 @@ interpreter::NaabVal ArrayModule::call(
                 )
             );
         }
-        auto arr = getArray(args[0]);
-        arr.insert(arr.begin(), args[1]);
-        return makeArray(arr);
+        if (!args[0].isList()) {
+            throw std::runtime_error(
+                "Type error: Expected array, got " + args[0].getTypeName());
+        }
+        args[0].asList().insert(args[0].asList().begin(), args[1]);
+        return args[0];
     }
 
     // Function 6: first (get first element)
@@ -420,24 +427,32 @@ interpreter::NaabVal ArrayModule::call(
 
     // Function 10: sort
     if (function_name == "sort") {
-        if (args.size() != 1) {
+        if (args.size() < 1 || args.size() > 2) {
             throw std::runtime_error(
-                utils::ErrorFormatter::formatArgumentError(
-                    "array.sort",
-                    {"array"},
-                    1,
-                    static_cast<int>(args.size())
-                )
+                "array.sort() takes 1 or 2 arguments (array, comparator?)\n\n"
+                "  Example:\n"
+                "    arr.sort()                           // default sort\n"
+                "    arr.sort(fn(a, b) { return a - b })  // custom comparator\n"
             );
         }
-        auto arr = getArray(args[0]);
+        auto& arr = args[0].asList();
 
-        // Sort using value comparison
-        std::sort(arr.begin(), arr.end(),
-            [](const auto& a, const auto& b) {
-                return compareValues(a, b) < 0;
-            });
-        return makeArray(arr);
+        if (args.size() == 2 && evaluator_) {
+            // Sort with comparator function
+            auto comp_fn = args[1];
+            std::sort(arr.begin(), arr.end(),
+                [this, &comp_fn](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+                    auto res = evaluator_(comp_fn, {a, b});
+                    return res.isInt() ? res.asInt() < 0 : res.toFloat() < 0;
+                });
+        } else {
+            // Default sort using value comparison
+            std::sort(arr.begin(), arr.end(),
+                [](const auto& a, const auto& b) {
+                    return compareValues(a, b) < 0;
+                });
+        }
+        return args[0];
     }
 
     // Function 11: contains

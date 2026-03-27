@@ -1,0 +1,69 @@
+use io
+
+function fibonacci(n) {
+    if (n <= 1) { return n }
+    return fibonacci(n - 1) + fibonacci(n - 2)
+}
+
+function factorial(n) {
+    if (n <= 1) { return 1 }
+    return n * factorial(n - 1)
+}
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Recursive fibonacci
+    total = total + 1
+    if (fibonacci(10) == 55) { passed = passed + 1 } else { io.println("FAIL 1: fib(10)") }
+
+    // Test 2: Recursive factorial
+    total = total + 1
+    if (factorial(6) == 720) { passed = passed + 1 } else { io.println("FAIL 2: fact(6)") }
+
+    // Test 3: Higher-order functions
+    total = total + 1
+    function apply(f, x) { return f(x) }
+    let double = fn(x) { return x * 2 }
+    if (apply(double, 21) == 42) { passed = passed + 1 } else { io.println("FAIL 3: HOF") }
+
+    // Test 4: Multiple closures sharing upvalue
+    total = total + 1
+    function make_counter() {
+        let count = 0
+        function inc() { count = count + 1; return count }
+        function get() { return count }
+        return [inc, get]
+    }
+    let ctr = make_counter()
+    let inc = ctr[0]
+    let get = ctr[1]
+    inc()
+    inc()
+    inc()
+    if (get() == 3) { passed = passed + 1 } else { io.println("FAIL 4: shared closure") }
+
+    // Test 5: Nested closures
+    total = total + 1
+    function outer(a) {
+        return fn(b) {
+            return fn(c) {
+                return a + b + c
+            }
+        }
+    }
+    if (outer(1)(2)(3) == 6) { passed = passed + 1 } else { io.println("FAIL 5: nested closures") }
+
+    // Test 6: Default return (null)
+    total = total + 1
+    function noop() { let x = 1 }
+    let r = noop()
+    if (r == null) { passed = passed + 1 } else { io.println("FAIL 6: default return") }
+
+    io.print("VM Functions: ")
+    io.print(passed)
+    io.print("/")
+    io.print(total)
+    io.println(" passed")
+}

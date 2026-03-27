@@ -1,0 +1,2416 @@
+#include "naab/vm.h"
+#include "naab/compiler.h"
+#include "naab/json_result_parser.h"
+#include "naab/language_registry.h"
+#include "naab/module_resolver.h"
+#include "naab/stdlib.h"
+#include "naab/stdlib_new_modules.h"
+#include <algorithm>
+#include <cstdarg>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <unordered_set>
+
+namespace naab {
+namespace vm {
+
+// ============================================================================
+// Chunk
+// ============================================================================
+
+int Chunk::addConstant(interpreter::NaabVal value) {
+    constants.push_back(std::move(value));
+    return static_cast<int>(constants.size()) - 1;
+}
+
+void Chunk::emit(uint32_t instruction, int line) {
+    code.push_back(instruction);
+    // Run-length encode line info: only add if line changed
+    if (lines.empty() || lines.back().line != line) {
+        lines.push_back({static_cast<int>(code.size()) - 1, line});
+    }
+}
+
+int Chunk::emitJump(OpCode op, int line) {
+    // Emit jump with placeholder arg (will be patched)
+    emit(encodeWide(op, 0xFFFFFF), line);
+    return static_cast<int>(code.size()) - 1;
+}
+
+void Chunk::patchJump(int offset) {
+    // Calculate jump distance: from instruction AFTER the jump to current position
+    int jump = static_cast<int>(code.size()) - offset - 1;
+    if (jump > 0xFFFFFF) {
+        // This shouldn't happen for reasonable programs
+        throw std::runtime_error("Jump offset too large");
+    }
+    // Preserve opcode, replace arg
+    uint32_t op_bits = code[static_cast<size_t>(offset)] & 0xFF000000;
+    code[static_cast<size_t>(offset)] = op_bits | (static_cast<uint32_t>(jump) & 0x00FFFFFF);
+}
+
+int Chunk::getLine(int offset) const {
+    // Binary search through run-length encoded lines
+    int result = 0;
+    for (const auto& info : lines) {
+        if (info.offset <= offset) {
+            result = info.line;
+        } else {
+            break;
+        }
+    }
+    return result;
+}
+
+// ============================================================================
+// VM
+// ============================================================================
+
+VM::VM() : stack_top_(stack_) {}
+
+VM::~VM() {
+    // Clean up open upvalues
+    while (open_upvalues_) {
+        ObjUpvalue* next = open_upvalues_->next;
+        delete open_upvalues_;
+        open_upvalues_ = next;
+    }
+}
+
+interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
+    // Set up the initial call frame
+    frame_count_ = 0;
+    stack_top_ = stack_;
+
+    // Wrap main function in a closure for uniform handling
+    main_closure_ = std::make_shared<VMClosure>(main_fn, std::vector<ObjUpvalue*>{});
+
+    // Push the main function as first stack slot
+    push(interpreter::NaabVal::makeNull());  // Placeholder for function slot
+
+    CallFrame* frame = &frames_[frame_count_++];
+    frame->function = main_fn;
+    frame->closure = main_closure_.get();
+    frame->ip = main_fn->chunk.code.data();
+    frame->slots = stack_;
+    frame->handler_count = 0;
+    frame->source_file = main_fn->source_file;
+
+    // Register built-in functions as globals
+    static const char* builtins[] = {
+        "print", "println", "len", "type", "typeof", "range",
+        "int", "float", "string", "bool", "gc_collect", "__slice"
+    };
+    for (auto name : builtins) {
+        globals_[name] = interpreter::NaabVal::makeString(
+            std::string("__builtin__:") + name);
+    }
+
+    // Register stdlib prelude modules (same as tree-walker's auto-import)
+    // Skip names that conflict with builtins (string is both a module and a function)
+    static const char* prelude_modules[] = {
+        "array", "io", "file", "debug", "bolo", "env",
+        "math", "json", "http", "crypto", "time", "os"
+    };
+    for (auto mod : prelude_modules) {
+        globals_[mod] = interpreter::NaabVal::makeString(
+            std::string("__stdlib_module__:") + mod);
+    }
+
+    // Wire up function evaluator for array.map_fn/filter_fn/reduce_fn callbacks
+    if (stdlib_) {
+        auto array_module = stdlib_->getModule("array");
+        if (array_module) {
+            auto* array_mod = dynamic_cast<stdlib::ArrayModule*>(array_module.get());
+            if (array_mod) {
+                array_mod->setFunctionEvaluator(
+                    [this](interpreter::NaabVal fn,
+                           const std::vector<interpreter::NaabVal>& args) -> interpreter::NaabVal {
+                        return this->callNaabFunction(fn, args);
+                    }
+                );
+            }
+        }
+    }
+
+    return run();
+}
+
+interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
+                                             interpreter::NaabVal* args) {
+    if (name == "print" || name == "println") {
+        for (int i = 0; i < argc; i++) {
+            if (i > 0) std::cout << " ";
+            std::cout << args[i].toString();
+        }
+        std::cout << std::endl;
+        return interpreter::NaabVal::makeNull();
+    }
+    if (name == "len") {
+        if (argc != 1) runtimeError("len() requires exactly 1 argument");
+        if (args[0].isString())
+            return interpreter::NaabVal::makeInt(static_cast<int>(args[0].asString().length()));
+        if (args[0].isList())
+            return interpreter::NaabVal::makeInt(static_cast<int>(args[0].asList().size()));
+        if (args[0].isDict())
+            return interpreter::NaabVal::makeInt(static_cast<int>(args[0].asDict().size()));
+        return interpreter::NaabVal::makeInt(0);
+    }
+    if (name == "type") {
+        if (argc != 1) runtimeError("type() requires exactly 1 argument");
+        return interpreter::NaabVal::makeString(args[0].getTypeName());
+    }
+    if (name == "typeof") {
+        if (argc != 1) runtimeError("typeof() requires exactly 1 argument");
+        return interpreter::NaabVal::makeString(args[0].getTypeName());
+    }
+    if (name == "int") {
+        if (argc != 1) runtimeError("int() takes exactly 1 argument");
+        if (args[0].isString()) {
+            try {
+                double d = std::stod(args[0].asString());
+                return interpreter::NaabVal::makeInt(static_cast<int>(d));
+            } catch (...) {
+                runtimeError("int() cannot convert \"%s\" to int", args[0].asString().c_str());
+            }
+        }
+        return interpreter::NaabVal::makeInt(args[0].toInt());
+    }
+    if (name == "float") {
+        if (argc != 1) runtimeError("float() takes exactly 1 argument");
+        if (args[0].isString()) {
+            try {
+                return interpreter::NaabVal::makeDouble(std::stod(args[0].asString()));
+            } catch (...) {
+                runtimeError("float() cannot convert \"%s\" to float", args[0].asString().c_str());
+            }
+        }
+        return interpreter::NaabVal::makeDouble(args[0].toFloat());
+    }
+    if (name == "string") {
+        if (argc != 1) runtimeError("string() takes exactly 1 argument");
+        return interpreter::NaabVal::makeString(args[0].toString());
+    }
+    if (name == "bool") {
+        if (argc != 1) runtimeError("bool() takes exactly 1 argument");
+        return interpreter::NaabVal::makeBool(args[0].toBool());
+    }
+    if (name == "range") {
+        if (argc < 1 || argc > 3) runtimeError("range() takes 1-3 arguments");
+        int start = 0, end = 0, step = 1;
+        if (argc == 1) {
+            end = args[0].isInt() ? args[0].asInt() : static_cast<int>(args[0].asDouble());
+        } else {
+            start = args[0].isInt() ? args[0].asInt() : static_cast<int>(args[0].asDouble());
+            end = args[1].isInt() ? args[1].asInt() : static_cast<int>(args[1].asDouble());
+        }
+        if (argc == 3) {
+            step = args[2].isInt() ? args[2].asInt() : static_cast<int>(args[2].asDouble());
+        }
+        if (step == 0) runtimeError("range() step cannot be zero");
+        std::vector<interpreter::NaabVal> result;
+        if (step > 0) {
+            for (int i = start; i < end; i += step)
+                result.push_back(interpreter::NaabVal::makeInt(i));
+        } else {
+            for (int i = start; i > end; i += step)
+                result.push_back(interpreter::NaabVal::makeInt(i));
+        }
+        return interpreter::NaabVal::makeList(std::move(result));
+    }
+    if (name == "__slice") {
+        if (argc != 3) runtimeError("__slice() takes exactly 3 arguments");
+        int start = args[1].isInt() ? args[1].asInt() : static_cast<int>(args[1].asDouble());
+        int end_val = args[2].isInt() ? args[2].asInt() : static_cast<int>(args[2].asDouble());
+        if (args[0].isList()) {
+            auto& list = args[0].asList();
+            int len = static_cast<int>(list.size());
+            if (start < 0) start += len;
+            if (end_val < 0) end_val += len;
+            if (start < 0) start = 0;
+            if (end_val > len) end_val = len;
+            std::vector<interpreter::NaabVal> result;
+            for (int i = start; i < end_val; i++)
+                result.push_back(list[i]);
+            return interpreter::NaabVal::makeList(std::move(result));
+        }
+        if (args[0].isString()) {
+            const std::string& s = args[0].asString();
+            int len = static_cast<int>(s.size());
+            if (start < 0) start += len;
+            if (end_val < 0) end_val += len;
+            if (start < 0) start = 0;
+            if (end_val > len) end_val = len;
+            return interpreter::NaabVal::makeString(s.substr(start, end_val - start));
+        }
+        runtimeError("__slice() requires a list or string");
+    }
+    if (name == "gc_collect") {
+        return interpreter::NaabVal::makeNull();
+    }
+    runtimeError("Unknown built-in function '%s'", name.c_str());
+}
+
+// ============================================================================
+// Polyglot Helpers (standalone — no Interpreter dependency)
+// ============================================================================
+
+static std::string serializeForLanguage(const interpreter::NaabVal& nval, const std::string& language) {
+    if (nval.isNull()) {
+        if (language == "python") return "None";
+        if (language == "go") return "nil";
+        if (language == "ruby") return "nil";
+        if (language == "nim") return "\"\"";
+        if (language == "shell" || language == "sh" || language == "bash") return "\"\"";
+        return "null";
+    }
+    if (nval.isInt()) return std::to_string(nval.asInt());
+    if (nval.isDouble()) {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%.15g", nval.asDouble());
+        return std::string(buf);
+    }
+    if (nval.isString()) {
+        const auto& str = nval.asString();
+        if (language == "shell" || language == "sh" || language == "bash") {
+            std::string escaped;
+            for (char c : str) {
+                if (c == '\'') escaped += "'\\''";
+                else escaped += c;
+            }
+            return "'" + escaped + "'";
+        }
+        std::string escaped;
+        for (char c : str) {
+            if (c == '"') escaped += "\\\"";
+            else if (c == '\\') escaped += "\\\\";
+            else if (c == '\n') escaped += "\\n";
+            else if (c == '\r') escaped += "\\r";
+            else if (c == '\t') escaped += "\\t";
+            else escaped += c;
+        }
+        return "\"" + escaped + "\"";
+    }
+    if (nval.isBool()) {
+        bool b = nval.asBool();
+        if (language == "python") return b ? "True" : "False";
+        if (language == "shell" || language == "sh" || language == "bash") return b ? "1" : "0";
+        return b ? "true" : "false";
+    }
+    if (nval.isList()) {
+        const auto& list = nval.asListConst();
+        std::string prefix = "[", suffix = "]";
+        if (language == "php") { prefix = "array("; suffix = ")"; }
+        else if (language == "rust") { prefix = "vec!["; suffix = "]"; }
+        else if (language == "go") { prefix = "[]interface{}{"; suffix = "}"; }
+        else if (language == "nim") { prefix = "@["; suffix = "]"; }
+        std::string result = prefix;
+        for (size_t i = 0; i < list.size(); i++) {
+            if (i > 0) result += ", ";
+            result += serializeForLanguage(list[i], language);
+        }
+        result += suffix;
+        return result;
+    }
+    if (nval.isDict()) {
+        const auto& dict = nval.asDictConst();
+        auto escapeKey = [](const std::string& k) -> std::string {
+            std::string escaped;
+            for (char c : k) {
+                if (c == '"') escaped += "\\\"";
+                else if (c == '\\') escaped += "\\\\";
+                else if (c == '\n') escaped += "\\n";
+                else escaped += c;
+            }
+            return escaped;
+        };
+        std::string result = "{";
+        bool first = true;
+        for (const auto& [key, val] : dict) {
+            if (!first) result += ", ";
+            first = false;
+            if (language == "ruby")
+                result += "\"" + escapeKey(key) + "\" => " + serializeForLanguage(val, language);
+            else if (language == "go")
+                result += "\"" + escapeKey(key) + "\": " + serializeForLanguage(val, language);
+            else
+                result += "\"" + escapeKey(key) + "\": " + serializeForLanguage(val, language);
+        }
+        result += "}";
+        if (language == "go") { result = "map[string]interface{}" + result; }
+        else if (language == "php") { result = "array(" + result.substr(1, result.size()-2) + ")"; }
+        return result;
+    }
+    return "null";
+}
+
+static std::string buildVarDeclarations(const std::string& language,
+    const std::vector<std::string>& var_names,
+    const std::vector<interpreter::NaabVal>& var_vals) {
+    std::string decls;
+    for (size_t i = 0; i < var_names.size() && i < var_vals.size(); i++) {
+        std::string serialized = serializeForLanguage(var_vals[i], language);
+        if (language == "python") {
+            decls += var_names[i] + " = " + serialized + "\n";
+        } else if (language == "shell" || language == "sh" || language == "bash") {
+            decls += "export " + var_names[i] + "=" + serialized + "\n";
+        } else if (language == "javascript" || language == "js") {
+            decls += "const " + var_names[i] + " = " + serialized + ";\n";
+        } else if (language == "go") {
+            bool is_complex = var_vals[i].isList() || var_vals[i].isDict();
+            decls += (is_complex ? "var " : "const ") + var_names[i] + " = " + serialized + "\n";
+        } else if (language == "rust") {
+            decls += "let " + var_names[i] + " = " + serialized + ";\n";
+        } else if (language == "nim") {
+            decls += "var " + var_names[i] + " = " + serialized + "\n";
+        } else if (language == "cpp" || language == "c++") {
+            decls += "const auto " + var_names[i] + " = " + serialized + ";\n";
+        } else if (language == "ruby") {
+            decls += var_names[i] + " = " + serialized + "\n";
+        } else {
+            decls += "let " + var_names[i] + " = " + serialized + ";\n";
+        }
+    }
+    return decls;
+}
+
+static std::string stripCommonIndent(const std::string& raw_code) {
+    std::vector<std::string> lines;
+    std::istringstream stream(raw_code);
+    std::string line;
+    while (std::getline(stream, line)) lines.push_back(line);
+
+    size_t min_indent = std::string::npos;
+    for (auto& l : lines) {
+        if (l.empty() || l.find_first_not_of(" \t") == std::string::npos) continue;
+        size_t indent = l.find_first_not_of(" \t");
+        if (indent < min_indent) min_indent = indent;
+    }
+
+    std::string result;
+    for (auto& l : lines) {
+        if (l.empty() || l.find_first_not_of(" \t") == std::string::npos)
+            result += "\n";
+        else if (min_indent != std::string::npos && l.length() > min_indent)
+            result += l.substr(min_indent) + "\n";
+        else
+            result += l + "\n";
+    }
+    return result;
+}
+
+static std::string injectAfterHeaders(const std::string& decls, const std::string& code,
+                                       const std::string& language) {
+    if (language == "go") {
+        // Go: inject after import block or package line
+        auto pos = code.find("import");
+        if (pos != std::string::npos) {
+            // Find end of import block
+            auto paren = code.find('(', pos);
+            if (paren != std::string::npos) {
+                auto close = code.find(')', paren);
+                if (close != std::string::npos) {
+                    auto nl = code.find('\n', close);
+                    if (nl != std::string::npos) {
+                        return code.substr(0, nl + 1) + decls + code.substr(nl + 1);
+                    }
+                }
+            }
+            auto nl = code.find('\n', pos);
+            if (nl != std::string::npos)
+                return code.substr(0, nl + 1) + decls + code.substr(nl + 1);
+        }
+        auto pkg = code.find("package ");
+        if (pkg != std::string::npos) {
+            auto nl = code.find('\n', pkg);
+            if (nl != std::string::npos)
+                return code.substr(0, nl + 1) + decls + code.substr(nl + 1);
+        }
+    }
+    return decls + code;
+}
+
+interpreter::NaabVal VM::run() {
+    CallFrame* frame = &frames_[frame_count_ - 1];
+
+#define READ_INSTR() (*frame->ip++)
+#define CURRENT_CHUNK() (frame->function->chunk)
+
+    for (;;) {
+      try {
+        uint32_t instruction = READ_INSTR();
+        OpCode op = decodeOp(instruction);
+        uint32_t arg = decodeArg(instruction);
+
+        switch (op) {
+            case OpCode::OP_CONST: {
+                push(CURRENT_CHUNK().constants[arg]);
+                break;
+            }
+
+            case OpCode::OP_NULL: {
+                push(interpreter::NaabVal::makeNull());
+                break;
+            }
+
+            case OpCode::OP_TRUE: {
+                push(interpreter::NaabVal::makeBool(true));
+                break;
+            }
+
+            case OpCode::OP_FALSE: {
+                push(interpreter::NaabVal::makeBool(false));
+                break;
+            }
+
+            case OpCode::OP_POP: {
+                pop();
+                break;
+            }
+
+            case OpCode::OP_POPN: {
+                uint8_t n = decodeA(instruction);
+                stack_top_ -= n;
+                break;
+            }
+
+            case OpCode::OP_DUP: {
+                push(peek(0));
+                break;
+            }
+
+            case OpCode::OP_SWAP: {
+                interpreter::NaabVal a = pop();
+                interpreter::NaabVal b = pop();
+                push(std::move(a));
+                push(std::move(b));
+                break;
+            }
+
+            case OpCode::OP_COPY_VALUE: {
+                // Deep copy TOS if it's a list or dict (value semantics)
+                interpreter::NaabVal& top = peek(0);
+                if (top.isList()) {
+                    const auto& list = top.asListConst();
+                    std::vector<interpreter::NaabVal> new_list(list.begin(), list.end());
+                    top = interpreter::NaabVal::makeList(std::move(new_list));
+                } else if (top.isDict()) {
+                    const auto& dict = top.asDictConst();
+                    std::unordered_map<std::string, interpreter::NaabVal> new_dict(dict.begin(), dict.end());
+                    top = interpreter::NaabVal::makeDict(std::move(new_dict));
+                }
+                // Other types: no-op (ints, strings, bools are value types)
+                break;
+            }
+
+            // Arithmetic
+            case OpCode::OP_ADD: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                if (a.isInt() && b.isInt()) {
+                    int64_t av = a.asInt(), bv = b.asInt();
+                    // Overflow check
+                    if ((bv > 0 && av > INT64_MAX - bv) ||
+                        (bv < 0 && av < INT64_MIN - bv)) {
+                        runtimeError("Integer overflow in addition");
+                    }
+                    push(interpreter::NaabVal::makeInt(av + bv));
+                } else if (a.isDouble() || b.isDouble()) {
+                    double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
+                    double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
+                    push(interpreter::NaabVal::makeDouble(av + bv));
+                } else if (a.isString() || b.isString()) {
+                    push(interpreter::NaabVal::makeString(a.toString() + b.toString()));
+                } else {
+                    runtimeError("Type error: Cannot add %s and %s",
+                                 a.getTypeName().c_str(), b.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_SUB: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                if (a.isInt() && b.isInt()) {
+                    push(interpreter::NaabVal::makeInt(a.asInt() - b.asInt()));
+                } else if (a.isDouble() || b.isDouble()) {
+                    double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
+                    double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
+                    push(interpreter::NaabVal::makeDouble(av - bv));
+                } else {
+                    runtimeError("Type error: Cannot subtract %s from %s",
+                                 b.getTypeName().c_str(), a.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_MUL: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                if (a.isInt() && b.isInt()) {
+                    push(interpreter::NaabVal::makeInt(a.asInt() * b.asInt()));
+                } else if (a.isDouble() || b.isDouble()) {
+                    double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
+                    double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
+                    push(interpreter::NaabVal::makeDouble(av * bv));
+                } else {
+                    runtimeError("Type error: Cannot multiply %s and %s",
+                                 a.getTypeName().c_str(), b.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_DIV: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                if (a.isInt() && b.isInt()) {
+                    if (b.asInt() == 0) runtimeError("Division by zero");
+                    push(interpreter::NaabVal::makeInt(a.asInt() / b.asInt()));
+                } else if (a.isDouble() || b.isDouble()) {
+                    double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
+                    if (bv == 0.0) runtimeError("Division by zero");
+                    double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
+                    push(interpreter::NaabVal::makeDouble(av / bv));
+                } else {
+                    runtimeError("Type error: Cannot divide %s by %s",
+                                 a.getTypeName().c_str(), b.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_MOD: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                if (a.isInt() && b.isInt()) {
+                    if (b.asInt() == 0) runtimeError("Modulo by zero");
+                    push(interpreter::NaabVal::makeInt(a.asInt() % b.asInt()));
+                } else {
+                    runtimeError("Type error: Modulo requires integers");
+                }
+                break;
+            }
+
+            case OpCode::OP_NEG: {
+                interpreter::NaabVal a = pop();
+                if (a.isInt()) {
+                    push(interpreter::NaabVal::makeInt(-a.asInt()));
+                } else if (a.isDouble()) {
+                    push(interpreter::NaabVal::makeDouble(-a.asDouble()));
+                } else {
+                    runtimeError("Type error: Cannot negate %s", a.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_NOT: {
+                interpreter::NaabVal a = pop();
+                push(interpreter::NaabVal::makeBool(!a.toBool()));
+                break;
+            }
+
+            // Comparison
+            case OpCode::OP_EQ: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                bool eq = false;
+                if (a.isNull() && b.isNull()) {
+                    eq = true;
+                } else if (a.isNull() || b.isNull()) {
+                    eq = false;
+                } else if (a.isBool() && b.isBool()) {
+                    eq = a.toBool() == b.toBool();
+                } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
+                    eq = a.toFloat() == b.toFloat();
+                } else if (a.isString() && b.isString()) {
+                    eq = a.toString() == b.toString();
+                }
+                push(interpreter::NaabVal::makeBool(eq));
+                break;
+            }
+
+            case OpCode::OP_NE: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                bool eq = false;
+                if (a.isNull() && b.isNull()) {
+                    eq = true;
+                } else if (a.isNull() || b.isNull()) {
+                    eq = false;
+                } else if (a.isBool() && b.isBool()) {
+                    eq = a.toBool() == b.toBool();
+                } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
+                    eq = a.toFloat() == b.toFloat();
+                } else if (a.isString() && b.isString()) {
+                    eq = a.toString() == b.toString();
+                }
+                push(interpreter::NaabVal::makeBool(!eq));
+                break;
+            }
+
+            case OpCode::OP_LT: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                if (a.isInt() && b.isInt()) {
+                    push(interpreter::NaabVal::makeBool(a.asInt() < b.asInt()));
+                } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
+                    double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
+                    double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
+                    push(interpreter::NaabVal::makeBool(av < bv));
+                } else if (a.isString() && b.isString()) {
+                    push(interpreter::NaabVal::makeBool(a.asString() < b.asString()));
+                } else {
+                    runtimeError("Type error: Cannot compare %s < %s",
+                                 a.getTypeName().c_str(), b.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_LE: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                if (a.isInt() && b.isInt()) {
+                    push(interpreter::NaabVal::makeBool(a.asInt() <= b.asInt()));
+                } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
+                    double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
+                    double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
+                    push(interpreter::NaabVal::makeBool(av <= bv));
+                } else if (a.isString() && b.isString()) {
+                    push(interpreter::NaabVal::makeBool(a.asString() <= b.asString()));
+                } else {
+                    runtimeError("Type error: Cannot compare %s <= %s",
+                                 a.getTypeName().c_str(), b.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_GT: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                if (a.isInt() && b.isInt()) {
+                    push(interpreter::NaabVal::makeBool(a.asInt() > b.asInt()));
+                } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
+                    double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
+                    double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
+                    push(interpreter::NaabVal::makeBool(av > bv));
+                } else if (a.isString() && b.isString()) {
+                    push(interpreter::NaabVal::makeBool(a.asString() > b.asString()));
+                } else {
+                    runtimeError("Type error: Cannot compare %s > %s",
+                                 a.getTypeName().c_str(), b.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_GE: {
+                interpreter::NaabVal b = pop();
+                interpreter::NaabVal a = pop();
+                if (a.isInt() && b.isInt()) {
+                    push(interpreter::NaabVal::makeBool(a.asInt() >= b.asInt()));
+                } else if ((a.isInt() || a.isDouble()) && (b.isInt() || b.isDouble())) {
+                    double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
+                    double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
+                    push(interpreter::NaabVal::makeBool(av >= bv));
+                } else if (a.isString() && b.isString()) {
+                    push(interpreter::NaabVal::makeBool(a.asString() >= b.asString()));
+                } else {
+                    runtimeError("Type error: Cannot compare %s >= %s",
+                                 a.getTypeName().c_str(), b.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_IN: {
+                interpreter::NaabVal container = pop();
+                interpreter::NaabVal item = pop();
+                if (container.isList()) {
+                    bool found = false;
+                    for (auto& elem : container.asList()) {
+                        if (elem.toString() == item.toString()) { found = true; break; }
+                    }
+                    push(interpreter::NaabVal::makeBool(found));
+                } else if (container.isDict()) {
+                    push(interpreter::NaabVal::makeBool(container.asDict().count(item.toString()) > 0));
+                } else if (container.isString()) {
+                    push(interpreter::NaabVal::makeBool(
+                        container.asString().find(item.toString()) != std::string::npos));
+                } else {
+                    runtimeError("Type error: 'in' requires a list, dict, or string on the right side");
+                }
+                break;
+            }
+
+            // Variable access
+            case OpCode::OP_GET_LOCAL: {
+                push(frame->slots[arg]);
+                break;
+            }
+
+            case OpCode::OP_SET_LOCAL: {
+                frame->slots[arg] = peek(0);
+                break;
+            }
+
+            case OpCode::OP_GET_UPVALUE: {
+                ObjUpvalue* upvalue = frame->closure->upvalues[arg];
+                if (upvalue->is_open) {
+                    push(*upvalue->location);
+                } else {
+                    push(upvalue->closed);
+                }
+                break;
+            }
+
+            case OpCode::OP_SET_UPVALUE: {
+                ObjUpvalue* upvalue = frame->closure->upvalues[arg];
+                if (upvalue->is_open) {
+                    *upvalue->location = peek(0);
+                } else {
+                    upvalue->closed = peek(0);
+                }
+                break;
+            }
+
+            case OpCode::OP_GET_GLOBAL: {
+                const std::string& name = CURRENT_CHUNK().constants[arg].asString();
+                auto it = globals_.find(name);
+                if (it == globals_.end()) {
+                    runtimeError("Undefined variable '%s'", name.c_str());
+                }
+                push(it->second);
+                break;
+            }
+
+            case OpCode::OP_SET_GLOBAL: {
+                const std::string& name = CURRENT_CHUNK().constants[arg].asString();
+                auto it = globals_.find(name);
+                if (it == globals_.end()) {
+                    runtimeError("Undefined variable '%s'", name.c_str());
+                }
+                it->second = peek(0);
+                break;
+            }
+
+            case OpCode::OP_DEFINE_GLOBAL: {
+                const std::string& name = CURRENT_CHUNK().constants[arg].asString();
+                globals_[name] = pop();
+                break;
+            }
+
+            // Control flow
+            case OpCode::OP_JUMP: {
+                frame->ip += arg;
+                break;
+            }
+
+            case OpCode::OP_JUMP_BACK: {
+                frame->ip -= arg;
+                break;
+            }
+
+            case OpCode::OP_JUMP_IF_FALSE: {
+                // Peek — does NOT pop. Caller must emit OP_POP if needed.
+                if (!peek(0).toBool()) {
+                    frame->ip += arg;
+                }
+                break;
+            }
+
+            case OpCode::OP_JUMP_IF_TRUE: {
+                // Peek — does NOT pop. Caller must emit OP_POP if needed.
+                if (peek(0).toBool()) {
+                    frame->ip += arg;
+                }
+                break;
+            }
+
+            case OpCode::OP_JUMP_IF_NULL: {
+                interpreter::NaabVal val = pop();
+                if (val.isNull()) {
+                    frame->ip += arg;
+                } else {
+                    // Not null — push it back (it was consumed for the check)
+                    push(std::move(val));
+                }
+                break;
+            }
+
+            case OpCode::OP_RETURN: {
+                interpreter::NaabVal result = pop();
+                closeUpvalues(frame->slots);
+                frame_count_--;
+                if (frame_count_ <= stop_frame_count_) {
+                    stack_top_ = frame->slots;
+                    push(result);
+                    return result;
+                }
+                stack_top_ = frame->slots;
+                push(std::move(result));
+                frame = &frames_[frame_count_ - 1];
+                break;
+            }
+
+            case OpCode::OP_RETURN_NULL: {
+                closeUpvalues(frame->slots);
+                frame_count_--;
+                if (frame_count_ <= stop_frame_count_) {
+                    stack_top_ = frame->slots;
+                    push(interpreter::NaabVal::makeNull());
+                    return interpreter::NaabVal::makeNull();
+                }
+                stack_top_ = frame->slots;
+                push(interpreter::NaabVal::makeNull());
+                frame = &frames_[frame_count_ - 1];
+                break;
+            }
+
+            case OpCode::OP_CALL: {
+                uint8_t argc = decodeA(instruction);
+                interpreter::NaabVal& callee = peek(argc);
+                if (!callValue(callee, argc)) {
+                    runtimeError("Value is not callable");
+                }
+                frame = &frames_[frame_count_ - 1];
+                break;
+            }
+
+            case OpCode::OP_CALL_METHOD: {
+                // Packed: [name_idx:16][argc:8] in the 24-bit arg
+                uint32_t name_idx = (arg >> 8) & 0xFFFF;
+                uint8_t argc = static_cast<uint8_t>(arg & 0xFF);
+                const std::string& method = CURRENT_CHUNK().constants[name_idx].asString();
+
+                // Object is below the args on the stack
+                interpreter::NaabVal& obj = peek(argc);
+
+                // Check for stdlib module marker
+                if (obj.isString()) {
+                    const std::string& sv = obj.asString();
+                    if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
+                        std::string mod = sv.substr(18);
+                        interpreter::NaabVal* args_ptr = stack_top_ - argc;
+                        interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
+                        stack_top_ -= (argc + 1);
+                        push(std::move(result));
+                        break;
+                    }
+                    // Also handle __builtin__:X where X is a stdlib module name
+                    // (e.g., "string" is both a builtin function and stdlib module)
+                    if (sv.size() >= 12 && sv.substr(0, 12) == "__builtin__:") {
+                        std::string mod = sv.substr(12);
+                        if (stdlib_ && stdlib_->hasModule(mod)) {
+                            interpreter::NaabVal* args_ptr = stack_top_ - argc;
+                            interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
+                            stack_top_ -= (argc + 1);
+                            push(std::move(result));
+                            break;
+                        }
+                    }
+                }
+
+                // Check if dict has a callable value at this key
+                if (obj.isDict()) {
+                    auto& dict = obj.asDict();
+                    auto it = dict.find(method);
+                    if (it != dict.end() && it->second.isVMClosure()) {
+                        // Replace obj on stack with the function, then call
+                        peek(argc) = it->second;
+                        if (!callValue(it->second, argc)) {
+                            runtimeError("Dict value '%s' is not callable", method.c_str());
+                        }
+                        frame = &frames_[frame_count_ - 1];
+                        break;
+                    }
+                }
+
+                // Built-in methods on arrays, dicts, strings
+                interpreter::NaabVal* args_ptr = stack_top_ - argc;
+                interpreter::NaabVal result = callBuiltinMethod(obj, method, argc, args_ptr);
+                // Pop args + object
+                stack_top_ -= (argc + 1);
+                push(std::move(result));
+                break;
+            }
+
+            case OpCode::OP_CLOSURE: {
+                interpreter::NaabVal closure_val = CURRENT_CHUNK().constants[arg];
+                auto& closure = closure_val.asVMClosure();
+                CompiledFunction* fn = closure->function;
+
+                // Create a new closure with captured upvalues
+                auto new_closure = std::make_shared<VMClosure>();
+                new_closure->function = fn;
+                new_closure->upvalues.resize(fn->upvalues.size());
+
+                // Read upvalue descriptors following the OP_CLOSURE instruction
+                for (size_t i = 0; i < fn->upvalues.size(); i++) {
+                    uint32_t desc = READ_INSTR();
+                    bool is_local = (desc >> 24) != 0;
+                    uint8_t index = static_cast<uint8_t>(desc & 0xFF);
+
+                    if (is_local) {
+                        new_closure->upvalues[i] = captureUpvalue(frame->slots + index);
+                    } else {
+                        // Get from enclosing closure's upvalues
+                        new_closure->upvalues[i] = frame->closure->upvalues[index];
+                    }
+                }
+
+                push(interpreter::NaabVal::makeVMClosure(std::move(new_closure)));
+                break;
+            }
+
+            case OpCode::OP_CLOSE_UPVALUE: {
+                closeUpvalues(stack_top_ - 1);
+                pop();
+                break;
+            }
+
+            // ====== Collections ======
+
+            case OpCode::OP_LIST: {
+                int count = static_cast<int>(arg);
+                std::vector<interpreter::NaabVal> elems;
+                elems.reserve(count);
+                for (int i = count; i > 0; i--) {
+                    elems.push_back(peek(i - 1));
+                }
+                for (int i = 0; i < count; i++) pop();
+                push(interpreter::NaabVal::makeList(std::move(elems)));
+                break;
+            }
+
+            case OpCode::OP_DICT: {
+                int count = static_cast<int>(arg);
+                std::unordered_map<std::string, interpreter::NaabVal> entries;
+                for (int i = count - 1; i >= 0; i--) {
+                    interpreter::NaabVal val = peek(i * 2);
+                    interpreter::NaabVal key = peek(i * 2 + 1);
+                    entries[key.toString()] = val;
+                }
+                for (int i = 0; i < count * 2; i++) pop();
+                push(interpreter::NaabVal::makeDict(std::move(entries)));
+                break;
+            }
+
+            case OpCode::OP_GET_INDEX: {
+                interpreter::NaabVal index = pop();
+                interpreter::NaabVal obj = pop();
+                if (obj.isList()) {
+                    auto& list = obj.asList();
+                    if (!index.isInt()) {
+                        runtimeError("List index must be an integer, got %s",
+                                     index.getTypeName().c_str());
+                    }
+                    int idx = static_cast<int>(index.asInt());
+                    int size = static_cast<int>(list.size());
+                    if (idx < 0) idx += size;
+                    if (idx < 0 || idx >= size) {
+                        runtimeError("Index %d out of bounds for list of size %d", idx, size);
+                    }
+                    push(list[idx]);
+                } else if (obj.isDict()) {
+                    auto& dict = obj.asDict();
+                    std::string key = index.toString();
+                    auto it = dict.find(key);
+                    if (it == dict.end()) {
+                        runtimeError("Key '%s' not found in dict", key.c_str());
+                    }
+                    push(it->second);
+                } else if (obj.isString()) {
+                    auto& str = obj.asString();
+                    if (!index.isInt()) {
+                        runtimeError("String index must be an integer");
+                    }
+                    int idx = static_cast<int>(index.asInt());
+                    int size = static_cast<int>(str.size());
+                    if (idx < 0) idx += size;
+                    if (idx < 0 || idx >= size) {
+                        runtimeError("Index %d out of bounds for string of length %d", idx, size);
+                    }
+                    push(interpreter::NaabVal::makeString(std::string(1, str[idx])));
+                } else {
+                    runtimeError("Cannot index into %s", obj.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_SET_INDEX: {
+                // Stack order from compiler: [val, obj, index] (top = index)
+                interpreter::NaabVal index = pop();
+                interpreter::NaabVal obj = pop();
+                interpreter::NaabVal val = pop();
+                if (obj.isList()) {
+                    auto& list = obj.asList();
+                    if (!index.isInt()) {
+                        runtimeError("List index must be an integer");
+                    }
+                    int idx = static_cast<int>(index.asInt());
+                    int size = static_cast<int>(list.size());
+                    if (idx < 0) idx += size;
+                    if (idx < 0 || idx >= size) {
+                        runtimeError("Index %d out of bounds for list of size %d", idx, size);
+                    }
+                    list[idx] = val;
+                } else if (obj.isDict()) {
+                    auto& dict = obj.asDict();
+                    dict[index.toString()] = val;
+                } else {
+                    runtimeError("Cannot set index on %s", obj.getTypeName().c_str());
+                }
+                push(val);
+                break;
+            }
+
+            case OpCode::OP_RANGE: {
+                bool inclusive = (arg != 0);
+                interpreter::NaabVal end_val = pop();
+                interpreter::NaabVal start_val = pop();
+                if (!start_val.isInt() || !end_val.isInt()) {
+                    runtimeError("Range bounds must be integers");
+                }
+                int64_t start = start_val.asInt();
+                int64_t end = end_val.asInt();
+                if (inclusive) end++;
+                std::vector<interpreter::NaabVal> range_list;
+                if (start <= end) {
+                    range_list.reserve(end - start);
+                    for (int64_t i = start; i < end; i++) {
+                        range_list.push_back(interpreter::NaabVal::makeInt(i));
+                    }
+                }
+                push(interpreter::NaabVal::makeList(std::move(range_list)));
+                break;
+            }
+
+            case OpCode::OP_GET_ITER: {
+                interpreter::NaabVal iterable = pop();
+                if (iterable.isList()) {
+                    push(iterable);
+                    push(interpreter::NaabVal::makeInt(0));
+                } else if (iterable.isDict()) {
+                    auto& dict = iterable.asDictConst();
+                    std::vector<interpreter::NaabVal> keys;
+                    keys.reserve(dict.size());
+                    for (auto& kv : dict) {
+                        keys.push_back(interpreter::NaabVal::makeString(kv.first));
+                    }
+                    push(interpreter::NaabVal::makeList(std::move(keys)));
+                    push(interpreter::NaabVal::makeInt(0));
+                } else if (iterable.isString()) {
+                    auto& str = iterable.asString();
+                    std::vector<interpreter::NaabVal> chars;
+                    chars.reserve(str.size());
+                    for (char c : str) {
+                        chars.push_back(interpreter::NaabVal::makeString(std::string(1, c)));
+                    }
+                    push(interpreter::NaabVal::makeList(std::move(chars)));
+                    push(interpreter::NaabVal::makeInt(0));
+                } else {
+                    runtimeError("Cannot iterate over %s", iterable.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_ITER_NEXT: {
+                int vars = (arg >> 16) & 0xFF;
+                int jump_offset = arg & 0xFFFF;
+
+                interpreter::NaabVal idx_val = peek(0);
+                interpreter::NaabVal list = peek(1);
+                int64_t idx = idx_val.asInt();
+                auto& elems = list.asListConst();
+
+                if (idx >= static_cast<int64_t>(elems.size())) {
+                    frame->ip += jump_offset;
+                } else {
+                    *(stack_top_ - 1) = interpreter::NaabVal::makeInt(idx + 1);
+                    if (vars == 0) {
+                        push(elems[idx]);
+                    } else {
+                        interpreter::NaabVal elem = elems[idx];
+                        if (elem.isList()) {
+                            auto& sub = elem.asListConst();
+                            for (int v = 0; v < vars; v++) {
+                                if (v < static_cast<int>(sub.size())) {
+                                    push(sub[v]);
+                                } else {
+                                    push(interpreter::NaabVal::makeNull());
+                                }
+                            }
+                        } else {
+                            push(elem);
+                            for (int v = 1; v < vars; v++) {
+                                push(interpreter::NaabVal::makeNull());
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+
+            case OpCode::OP_GET_MEMBER: {
+                interpreter::NaabVal obj = pop();
+                std::string name = CURRENT_CHUNK().constants[arg].toString();
+                if (obj.isDict()) {
+                    auto& dict = obj.asDict();
+                    auto it = dict.find(name);
+                    if (it != dict.end()) {
+                        push(it->second);
+                    } else {
+                        runtimeError("Key '%s' not found in dict", name.c_str());
+                    }
+                } else if (obj.isString()) {
+                    const std::string& sv = obj.asString();
+                    // Stdlib module constant access: math.PI, math.E, etc.
+                    if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
+                        std::string mod = sv.substr(18);
+                        interpreter::NaabVal* no_args = nullptr;
+                        push(callStdlibMethod(mod, name, 0, no_args));
+                    } else if (sv.size() >= 12 && sv.substr(0, 12) == "__builtin__:") {
+                        std::string mod = sv.substr(12);
+                        if (stdlib_ && stdlib_->hasModule(mod)) {
+                            interpreter::NaabVal* no_args = nullptr;
+                            push(callStdlibMethod(mod, name, 0, no_args));
+                        } else {
+                            runtimeError("Cannot access member '%s' on %s",
+                                         name.c_str(), obj.getTypeName().c_str());
+                        }
+                    } else {
+                        runtimeError("Cannot access member '%s' on %s",
+                                     name.c_str(), obj.getTypeName().c_str());
+                    }
+                } else {
+                    runtimeError("Cannot access member '%s' on %s",
+                                 name.c_str(), obj.getTypeName().c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_SET_MEMBER: {
+                interpreter::NaabVal obj = pop();
+                interpreter::NaabVal val = pop();
+                std::string name = CURRENT_CHUNK().constants[arg].toString();
+                if (obj.isDict()) {
+                    obj.asDict()[name] = val;
+                } else {
+                    runtimeError("Cannot set member '%s' on %s",
+                                 name.c_str(), obj.getTypeName().c_str());
+                }
+                push(val);
+                break;
+            }
+
+            // ====== Exception Handling ======
+
+            case OpCode::OP_TRY_BEGIN: {
+                // Push exception handler; arg = offset to catch block
+                ExceptionHandler handler;
+                handler.frame_index = frame_count_ - 1;
+                handler.catch_ip = frame->ip + arg; // arg is relative offset from next instruction
+                handler.finally_ip = nullptr;
+                handler.stack_base = stack_top_;
+                exception_handlers_.push_back(handler);
+                break;
+            }
+
+            case OpCode::OP_TRY_END: {
+                if (!exception_handlers_.empty()) {
+                    exception_handlers_.pop_back();
+                }
+                break;
+            }
+
+            case OpCode::OP_THROW: {
+                interpreter::NaabVal exception = pop();
+                // Unwind to nearest exception handler
+                if (exception_handlers_.empty()) {
+                    runtimeError("Uncaught exception: %s", exception.toString().c_str());
+                }
+                ExceptionHandler handler = exception_handlers_.back();
+                exception_handlers_.pop_back();
+                // Restore stack and frame
+                while (frame_count_ - 1 > handler.frame_index) {
+                    frame_count_--;
+                }
+                frame = &frames_[frame_count_ - 1];
+                stack_top_ = handler.stack_base;
+                frame->ip = handler.catch_ip;
+                // Push exception value for catch clause
+                push(exception);
+                break;
+            }
+
+            // ====== Structs ======
+
+            case OpCode::OP_STRUCT_NEW: {
+                // TOS = struct definition dict; clone it as a new instance
+                interpreter::NaabVal def = pop();
+                if (!def.isDict()) {
+                    runtimeError("OP_STRUCT_NEW: expected struct definition dict");
+                }
+                auto& src = def.asDictConst();
+                std::unordered_map<std::string, interpreter::NaabVal> instance(src.begin(), src.end());
+                push(interpreter::NaabVal::makeDict(std::move(instance)));
+                break;
+            }
+
+            case OpCode::OP_STRUCT_INIT_FIELD: {
+                // Pop value, set field on TOS struct instance
+                interpreter::NaabVal val = pop();
+                std::string name = CURRENT_CHUNK().constants[arg].toString();
+                interpreter::NaabVal& instance = peek(0);
+                if (!instance.isDict()) {
+                    runtimeError("OP_STRUCT_INIT_FIELD: expected struct instance");
+                }
+                instance.asDict()[name] = val;
+                break;
+            }
+
+            // ====== Polyglot ======
+
+            case OpCode::OP_POLYGLOT: {
+                // arg: [info_idx:16][num_vars:8]
+                int info_idx = (arg >> 8) & 0xFFFF;
+                int num_vars = arg & 0xFF;
+                interpreter::NaabVal block_info = CURRENT_CHUNK().constants[info_idx];
+                // Collect bound variable values from stack
+                std::vector<interpreter::NaabVal> bound_vals;
+                for (int i = num_vars - 1; i >= 0; i--) {
+                    bound_vals.push_back(peek(i));
+                }
+                for (int i = 0; i < num_vars; i++) pop();
+
+                // Extract info
+                auto& info = block_info.asDictConst();
+                std::string language = info.at("language").toString();
+                std::string raw_code = info.at("code").toString();
+                std::string return_type;
+                auto rt_it = info.find("return_type");
+                if (rt_it != info.end()) return_type = rt_it->second.toString();
+
+                // Get bound variable names
+                std::vector<std::string> bound_var_names;
+                auto bv_it = info.find("bound_vars");
+                if (bv_it != info.end() && bv_it->second.isList()) {
+                    for (auto& v : bv_it->second.asListConst()) {
+                        bound_var_names.push_back(v.toString());
+                    }
+                }
+
+                // Get executor from LanguageRegistry
+                auto& registry = runtime::LanguageRegistry::instance();
+                auto* executor = registry.getExecutor(language);
+                if (!executor) {
+                    std::string msg = "No executor found for language: " + language + "\n\n";
+                    if (language == "python") msg += "  Ensure python3 is in PATH\n";
+                    else if (language == "go") msg += "  Install: pkg install golang\n";
+                    else if (language == "javascript" || language == "js") msg += "  Ensure node is in PATH\n";
+                    else if (language == "nim") msg += "  Install: pkg install nim\n";
+                    msg += "  Verify: which " + language + "\n";
+                    runtimeError("%s", msg.c_str());
+                }
+
+                // Build variable declarations
+                std::string var_declarations = buildVarDeclarations(
+                    language, bound_var_names, bound_vals);
+
+                // Strip common indentation from code
+                std::string code = stripCommonIndent(raw_code);
+
+                // Inject declarations (header-aware for Go/PHP)
+                std::string final_code;
+                if (!var_declarations.empty() &&
+                    (language == "go" || language == "php")) {
+                    final_code = injectAfterHeaders(var_declarations, code, language);
+                } else {
+                    final_code = var_declarations + code;
+                }
+
+                // Handle -> JSON return type for Python
+                if (!return_type.empty() && language == "python") {
+                    // Auto-wrap last bare expression in print()
+                    std::istringstream iss(final_code);
+                    std::string line;
+                    std::vector<std::string> fc_lines;
+                    while (std::getline(iss, line)) fc_lines.push_back(line);
+                    for (int li = static_cast<int>(fc_lines.size()) - 1; li >= 0; --li) {
+                        std::string trimmed = fc_lines[li];
+                        size_t start = trimmed.find_first_not_of(" \t");
+                        if (start == std::string::npos) continue;
+                        trimmed = trimmed.substr(start);
+                        if (trimmed[0] == '#') continue;
+                        if (trimmed.substr(0, 7) == "import " || trimmed.substr(0, 5) == "from ") continue;
+                        if (trimmed.substr(0, 6) == "print(") break;
+                        if (trimmed.find('=') != std::string::npos && trimmed.find("==") == std::string::npos
+                            && trimmed.find("!=") == std::string::npos) break;
+                        if (trimmed.substr(0, 3) == "if " || trimmed.substr(0, 4) == "for "
+                            || trimmed.substr(0, 6) == "while " || trimmed.substr(0, 4) == "def ") break;
+                        std::string leading = fc_lines[li].substr(0, start);
+                        fc_lines[li] = leading + "print(" + trimmed + ")";
+                        break;
+                    }
+                    final_code.clear();
+                    for (size_t li = 0; li < fc_lines.size(); ++li) {
+                        if (li > 0) final_code += "\n";
+                        final_code += fc_lines[li];
+                    }
+                    final_code += "\n";
+
+                    std::string preamble =
+                        "import sys as __naab_sys, io as __naab_io, json as __naab_json\n"
+                        "__naab_buf = __naab_io.StringIO()\n"
+                        "__naab_orig = __naab_sys.stdout\n"
+                        "__naab_sys.stdout = __naab_buf\n";
+                    std::string postamble =
+                        "\n__naab_sys.stdout = __naab_orig\n"
+                        "__naab_captured = __naab_buf.getvalue().strip().split('\\n')\n"
+                        "__naab_result = None\n"
+                        "for __naab_l in reversed(__naab_captured):\n"
+                        "    __naab_l = __naab_l.strip()\n"
+                        "    if not __naab_l:\n"
+                        "        continue\n"
+                        "    try:\n"
+                        "        __naab_result = __naab_json.loads(__naab_l)\n"
+                        "        break\n"
+                        "    except:\n"
+                        "        __naab_sys.stdout.write(__naab_l + '\\n')\n"
+                        "__naab_result\n";
+                    final_code = preamble + final_code + postamble;
+                }
+
+                // Execute via language executor
+                try {
+                    interpreter::NaabVal result = executor->executeWithReturn(final_code);
+
+                    // Post-execution: parse JSON output for -> JSON blocks
+                    // Strategy 1: Check captured output buffer
+                    std::string captured = executor->getCapturedOutput();
+                    bool json_parsed = false;
+                    if (!captured.empty()) {
+                        auto polyglot_result = runtime::parsePolyglotOutput(captured, return_type);
+                        if (!polyglot_result.return_value.isNull()) {
+                            result = polyglot_result.return_value;
+                            json_parsed = true;
+                        }
+                        if (!polyglot_result.log_output.empty()) {
+                            std::cout << polyglot_result.log_output << std::flush;
+                        }
+                    }
+
+                    // Strategy 2: If result is a string, check for sentinel or try JSON parse
+                    if (!json_parsed && !result.isNull() && result.isString()) {
+                        const auto& str_val = result.asString();
+                        if (str_val.find("__NAAB_RETURN__:") != std::string::npos) {
+                            auto polyglot_result = runtime::parsePolyglotOutput(str_val, return_type);
+                            if (!polyglot_result.return_value.isNull()) {
+                                result = polyglot_result.return_value;
+                                json_parsed = true;
+                            }
+                        } else if (!return_type.empty()) {
+                            auto polyglot_result = runtime::parsePolyglotOutput(str_val, return_type);
+                            if (!polyglot_result.return_value.isNull()) {
+                                result = polyglot_result.return_value;
+                                json_parsed = true;
+                            }
+                        }
+                    }
+
+                    push(result);
+                } catch (const std::exception& e) {
+                    runtimeError("Polyglot %s error: %s", language.c_str(), e.what());
+                }
+                break;
+            }
+
+            case OpCode::OP_IMPORT: {
+                // arg = constant index of module path string
+                std::string module_path = frame->function->chunk.constants[arg].asString();
+
+                // Check module cache first
+                auto cache_it = module_cache_.find(module_path);
+                if (cache_it != module_cache_.end()) {
+                    for (auto& [ename, eval] : *cache_it->second) {
+                        globals_[ename] = eval;
+                    }
+                    push(interpreter::NaabVal::makeDict(
+                        std::unordered_map<std::string, interpreter::NaabVal>(*cache_it->second)));
+                    break;
+                }
+
+                // Try stdlib fallback
+                std::string bare_name = module_path;
+                if (bare_name.size() > 5 && bare_name.substr(bare_name.size() - 5) == ".naab") {
+                    bare_name = bare_name.substr(0, bare_name.size() - 5);
+                }
+                auto last_slash = bare_name.rfind('/');
+                if (last_slash != std::string::npos) {
+                    bare_name = bare_name.substr(last_slash + 1);
+                }
+                if (stdlib_ && stdlib_->hasModule(bare_name)) {
+                    // Push stdlib marker as module
+                    push(interpreter::NaabVal::makeString("__stdlib_module__:" + bare_name));
+                    break;
+                }
+
+                // Resolve file path
+                if (!module_resolver_) {
+                    runtimeError("Module imports require a module resolver (use setModuleResolver())");
+                }
+
+                std::filesystem::path current_dir;
+                if (!current_file_.empty()) {
+                    current_dir = std::filesystem::path(current_file_).parent_path();
+                } else {
+                    current_dir = std::filesystem::current_path();
+                }
+
+                auto resolved = module_resolver_->resolve(module_path, current_dir);
+                if (!resolved) {
+                    runtimeError("Module not found: %s", module_path.c_str());
+                }
+
+                std::string canonical = modules::ModuleResolver::canonicalizePath(*resolved);
+
+                // Check cache with canonical path
+                cache_it = module_cache_.find(canonical);
+                if (cache_it != module_cache_.end()) {
+                    for (auto& [ename, eval] : *cache_it->second) {
+                        globals_[ename] = eval;
+                    }
+                    push(interpreter::NaabVal::makeDict(
+                        std::unordered_map<std::string, interpreter::NaabVal>(*cache_it->second)));
+                    break;
+                }
+
+                // Load, compile, and execute the module
+                auto exports = importModule(canonical);
+                module_cache_[canonical] = exports;
+                module_cache_[module_path] = exports;  // Cache under original path too
+
+                // Re-register function evaluator — module VM may have overwritten it
+                // (module VM shares stdlib_ and its execute() sets the evaluator to
+                //  capture module VM's 'this', which becomes dangling after module VM dies)
+                if (stdlib_) {
+                    auto array_module = stdlib_->getModule("array");
+                    if (array_module) {
+                        auto* array_mod = dynamic_cast<stdlib::ArrayModule*>(array_module.get());
+                        if (array_mod) {
+                            array_mod->setFunctionEvaluator(
+                                [this](interpreter::NaabVal fn,
+                                       const std::vector<interpreter::NaabVal>& args) -> interpreter::NaabVal {
+                                    return this->callNaabFunction(fn, args);
+                                }
+                            );
+                        }
+                    }
+                }
+
+                // Define all module exports as globals in caller VM
+                // This ensures imported functions can find their enum/struct dependencies
+                // Always override — module exports are filtered to exclude default preludes
+                for (auto& [ename, eval] : *exports) {
+                    globals_[ename] = eval;
+                }
+
+                push(interpreter::NaabVal::makeDict(
+                    std::unordered_map<std::string, interpreter::NaabVal>(*exports)));
+                break;
+            }
+
+            case OpCode::OP_IMPORT_NAME: {
+                // arg = constant index of name to extract
+                // Module dict stays on stack — we push the extracted value on top
+                std::string name = frame->function->chunk.constants[arg].asString();
+                auto& module_val = peek(0);  // Module is on top of stack
+
+                if (module_val.isDict()) {
+                    auto& dict = module_val.asDict();
+                    auto it = dict.find(name);
+                    if (it != dict.end()) {
+                        // Push extracted value on top (module stays below)
+                        push(it->second);
+                    } else {
+                        runtimeError("Module does not export '%s'", name.c_str());
+                    }
+                } else if (module_val.isString()) {
+                    std::string marker = module_val.asString();
+                    if (marker.substr(0, 18) == "__stdlib_module__:") {
+                        push(interpreter::NaabVal::makeString(marker + "." + name));
+                    } else {
+                        runtimeError("Cannot extract '%s' from non-module value", name.c_str());
+                    }
+                } else {
+                    runtimeError("Cannot extract '%s' from non-module value", name.c_str());
+                }
+                break;
+            }
+
+            case OpCode::OP_IMPORT_WILDCARD: {
+                // arg = constant index (unused for now, could be alias)
+                auto module_val = pop();
+                if (module_val.isDict()) {
+                    auto& dict = module_val.asDict();
+                    for (auto& [name, val] : dict) {
+                        // Skip internal metadata keys
+                        if (name.substr(0, 2) == "__") continue;
+                        globals_[name] = val;
+                    }
+                } else {
+                    runtimeError("Wildcard import requires a module dict");
+                }
+                break;
+            }
+
+            case OpCode::OP_EXPORT_NAME: {
+                // No-op for now — all globals are accessible
+                break;
+            }
+
+            // Stubs for unimplemented opcodes
+            default: {
+                runtimeError("Unimplemented opcode: %d", static_cast<int>(op));
+            }
+        }
+      } catch (const VMException& e) {
+        // Route runtime errors through the exception handler system
+        if (!exception_handlers_.empty()) {
+            ExceptionHandler handler = exception_handlers_.back();
+            exception_handlers_.pop_back();
+            while (frame_count_ - 1 > handler.frame_index) {
+                frame_count_--;
+            }
+            frame = &frames_[frame_count_ - 1];
+            stack_top_ = handler.stack_base;
+            frame->ip = handler.catch_ip;
+            push(interpreter::NaabVal::makeString(e.what()));
+        } else {
+            throw std::runtime_error(e.what());
+        }
+      }
+    }
+
+#undef READ_INSTR
+#undef CURRENT_CHUNK
+}
+
+// ============================================================================
+// Function calls
+// ============================================================================
+
+bool VM::callValue(interpreter::NaabVal callee, int argc) {
+    if (callee.isVMClosure()) {
+        auto& closure = callee.asVMClosure();
+        return callFunction(closure.get(), argc);
+    }
+    // Built-in functions stored as "__builtin__:name" marker strings
+    if (callee.isString() && callee.asString().substr(0, 12) == "__builtin__:") {
+        std::string name = callee.asString().substr(12);
+        interpreter::NaabVal* args_ptr = stack_top_ - argc;
+        interpreter::NaabVal result = callBuiltinFunction(name, argc, args_ptr);
+        // Pop args + callee
+        stack_top_ -= (argc + 1);
+        push(std::move(result));
+        return true;
+    }
+    // Stdlib module markers called as functions: "use string" then "string(42)"
+    // Dispatch to builtin function of the same name (e.g., string, int, float, bool)
+    if (callee.isString() && callee.asString().substr(0, 18) == "__stdlib_module__:") {
+        std::string name = callee.asString().substr(18);
+        interpreter::NaabVal* args_ptr = stack_top_ - argc;
+        interpreter::NaabVal result = callBuiltinFunction(name, argc, args_ptr);
+        stack_top_ -= (argc + 1);
+        push(std::move(result));
+        return true;
+    }
+    return false;
+}
+
+bool VM::callFunction(VMClosure* closure, int argc) {
+    CompiledFunction* fn = closure->function;
+    // Validate arg count
+    if (argc < fn->arity) {
+        runtimeError("Expected at least %d arguments but got %d", fn->arity, argc);
+    }
+    if (argc > fn->max_arity) {
+        runtimeError("Expected at most %d arguments but got %d", fn->max_arity, argc);
+    }
+
+    if (frame_count_ >= static_cast<int>(FRAMES_MAX)) {
+        runtimeError("Stack overflow (call depth exceeded)");
+    }
+
+    CallFrame* new_frame = &frames_[frame_count_++];
+    new_frame->function = fn;
+    new_frame->closure = closure;
+    new_frame->ip = fn->chunk.code.data();
+    // The callee + args are already on the stack
+    // slots points to the callee's slot (slot 0 = function itself)
+    new_frame->slots = stack_top_ - argc - 1;
+    new_frame->handler_count = 0;
+    new_frame->source_file = fn->source_file;
+
+    return true;
+}
+
+interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
+                                          const std::vector<interpreter::NaabVal>& args) {
+    if (!fn.isVMClosure()) {
+        runtimeError("callNaabFunction: value is not a function");
+    }
+
+    // Save stack position — we'll restore it after the call so the
+    // caller's stack state isn't affected (important for re-entrant calls
+    // from stdlib callbacks like array.map_fn)
+    interpreter::NaabVal* saved_stack_top = stack_top_;
+
+    // Push function + args onto stack
+    push(fn);  // callee slot
+    for (auto& arg : args) {
+        push(arg);
+    }
+
+    // Set up the call
+    auto& closure = fn.asVMClosure();
+    if (!callFunction(closure.get(), static_cast<int>(args.size()))) {
+        stack_top_ = saved_stack_top;
+        runtimeError("callNaabFunction: failed to call function");
+    }
+
+    // Run dispatch loop for this call (stops when OP_RETURN pops back)
+    int saved_stop = stop_frame_count_;
+    stop_frame_count_ = frame_count_;
+    interpreter::NaabVal result = run();
+    stop_frame_count_ = saved_stop;
+
+    // Restore stack to before the call — the result is returned by value,
+    // not left on the stack
+    stack_top_ = saved_stack_top;
+    return result;
+}
+
+std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>
+VM::importModule(const std::string& module_path) {
+    // Check cache
+    auto cache_it = module_cache_.find(module_path);
+    if (cache_it != module_cache_.end()) {
+        return cache_it->second;
+    }
+
+    // Load the module file via ModuleResolver
+    auto module = module_resolver_->loadModule(std::filesystem::path(module_path));
+    if (!module || !module->ast) {
+        runtimeError("Failed to load module: %s", module_path.c_str());
+    }
+
+    // Compile the module (skip main blocks)
+    Compiler module_compiler;
+    auto* module_fn = module_compiler.compileModule(*module->ast, module_path);
+    if (!module_fn) {
+        runtimeError("Failed to compile module: %s (%s)",
+                     module_path.c_str(), module_compiler.getLastError().c_str());
+    }
+
+    // Execute the module in a fresh VM
+    VM module_vm;
+    module_vm.setStdlib(stdlib_);
+    module_vm.setModuleResolver(module_resolver_);
+    module_vm.setCurrentFile(module_path);
+    module_vm.module_loading_depth_ = module_loading_depth_ + 1;
+
+    // Share the module cache so sub-imports can find already-loaded modules
+    module_vm.module_cache_ = module_cache_;
+
+    module_vm.execute(module_fn);
+
+    // Take ownership of compiled functions so VMClosure pointers remain valid
+    auto compiled_fns = module_compiler.takeCompiledFunctions();
+    for (auto& fn : compiled_fns) {
+        owned_functions_.push_back(std::move(fn));
+    }
+    // Also take functions from the sub-VM (from any sub-imports it did)
+    for (auto& fn : module_vm.owned_functions_) {
+        owned_functions_.push_back(std::move(fn));
+    }
+
+    // Collect module exports: all user-defined globals
+    // Skip names that still have their default prelude values (not modified by module code)
+    auto exports = std::make_shared<std::unordered_map<std::string, interpreter::NaabVal>>();
+    for (auto& [name, val] : module_vm.globals_) {
+        // Skip globals whose values are builtin/stdlib markers (prelude defaults)
+        if (val.isString()) {
+            const std::string& sv = val.asString();
+            if (sv.size() >= 12 && sv.substr(0, 12) == "__builtin__:") continue;
+            if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") continue;
+        }
+        (*exports)[name] = val;
+    }
+
+    // Merge sub-module caches back
+    for (auto& [path, cached] : module_vm.module_cache_) {
+        module_cache_[path] = cached;
+    }
+
+    module_cache_[module_path] = exports;
+    return exports;
+}
+
+interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std::string& method,
+                                           int argc, interpreter::NaabVal* args) {
+    // String methods
+    if (obj.isString()) {
+        const std::string& s = obj.asString();
+        if (method == "length" || method == "size") {
+            return interpreter::NaabVal::makeInt(static_cast<int>(s.size()));
+        }
+        if (method == "upper" || method == "toUpperCase") {
+            std::string result = s;
+            for (auto& c : result) c = static_cast<char>(toupper(c));
+            return interpreter::NaabVal::makeString(std::move(result));
+        }
+        if (method == "lower" || method == "toLowerCase") {
+            std::string result = s;
+            for (auto& c : result) c = static_cast<char>(tolower(c));
+            return interpreter::NaabVal::makeString(std::move(result));
+        }
+        if (method == "trim") {
+            std::string result = s;
+            auto start = result.find_first_not_of(" \t\n\r");
+            auto end = result.find_last_not_of(" \t\n\r");
+            if (start == std::string::npos) return interpreter::NaabVal::makeString("");
+            return interpreter::NaabVal::makeString(result.substr(start, end - start + 1));
+        }
+        if (method == "contains" || method == "includes") {
+            if (argc < 1) runtimeError("contains() requires 1 argument");
+            return interpreter::NaabVal::makeBool(s.find(args[0].toString()) != std::string::npos);
+        }
+        if (method == "split") {
+            if (argc < 1) runtimeError("split() requires 1 argument");
+            std::string delim = args[0].toString();
+            std::vector<interpreter::NaabVal> parts;
+            size_t start = 0, end;
+            while ((end = s.find(delim, start)) != std::string::npos) {
+                parts.push_back(interpreter::NaabVal::makeString(s.substr(start, end - start)));
+                start = end + delim.size();
+            }
+            parts.push_back(interpreter::NaabVal::makeString(s.substr(start)));
+            return interpreter::NaabVal::makeList(std::move(parts));
+        }
+        if (method == "isEmpty") {
+            return interpreter::NaabVal::makeBool(s.empty());
+        }
+        if (method == "indexOf") {
+            if (argc < 1) runtimeError("indexOf() requires 1 argument");
+            auto pos = s.find(args[0].toString());
+            return interpreter::NaabVal::makeInt(pos == std::string::npos ? -1 : static_cast<int>(pos));
+        }
+        if (method == "lastIndexOf") {
+            if (argc < 1) runtimeError("lastIndexOf() requires 1 argument");
+            auto pos = s.rfind(args[0].toString());
+            return interpreter::NaabVal::makeInt(pos == std::string::npos ? -1 : static_cast<int>(pos));
+        }
+        if (method == "substring" || method == "substr") {
+            if (argc < 1) runtimeError("substring() requires at least 1 argument");
+            int start = args[0].toInt();
+            if (start < 0) start = 0;
+            if (start >= static_cast<int>(s.size())) return interpreter::NaabVal::makeString("");
+            if (argc >= 2) {
+                int end_val = args[1].toInt();
+                if (end_val < start) return interpreter::NaabVal::makeString("");
+                return interpreter::NaabVal::makeString(s.substr(start, end_val - start));
+            }
+            return interpreter::NaabVal::makeString(s.substr(start));
+        }
+        if (method == "slice") {
+            if (argc < 1) runtimeError("slice() requires at least 1 argument");
+            int len = static_cast<int>(s.size());
+            int start = args[0].toInt();
+            if (start < 0) start += len;
+            if (start < 0) start = 0;
+            int end_val = argc >= 2 ? args[1].toInt() : len;
+            if (end_val < 0) end_val += len;
+            if (end_val > len) end_val = len;
+            if (start >= end_val) return interpreter::NaabVal::makeString("");
+            return interpreter::NaabVal::makeString(s.substr(start, end_val - start));
+        }
+        if (method == "replace") {
+            if (argc < 2) runtimeError("replace() requires 2 arguments");
+            std::string result = s;
+            std::string from = args[0].toString();
+            std::string to = args[1].toString();
+            size_t pos = result.find(from);
+            if (pos != std::string::npos) result.replace(pos, from.size(), to);
+            return interpreter::NaabVal::makeString(std::move(result));
+        }
+        if (method == "startsWith" || method == "starts_with") {
+            if (argc < 1) runtimeError("startsWith() requires 1 argument");
+            std::string prefix = args[0].toString();
+            return interpreter::NaabVal::makeBool(s.substr(0, prefix.size()) == prefix);
+        }
+        if (method == "endsWith" || method == "ends_with") {
+            if (argc < 1) runtimeError("endsWith() requires 1 argument");
+            std::string suffix = args[0].toString();
+            if (suffix.size() > s.size()) return interpreter::NaabVal::makeBool(false);
+            return interpreter::NaabVal::makeBool(s.substr(s.size() - suffix.size()) == suffix);
+        }
+        if (method == "char_at") {
+            if (argc < 1) runtimeError("char_at() requires 1 argument");
+            int idx = args[0].toInt();
+            if (idx < 0) idx += static_cast<int>(s.size());
+            if (idx < 0 || idx >= static_cast<int>(s.size()))
+                runtimeError("String index %d out of bounds (length %d)", idx, static_cast<int>(s.size()));
+            return interpreter::NaabVal::makeString(std::string(1, s[idx]));
+        }
+        if (method == "reverse") {
+            std::string result(s.rbegin(), s.rend());
+            return interpreter::NaabVal::makeString(std::move(result));
+        }
+        if (method == "repeat") {
+            if (argc < 1) runtimeError("repeat() requires 1 argument");
+            int count = args[0].toInt();
+            std::string result;
+            for (int i = 0; i < count; i++) result += s;
+            return interpreter::NaabVal::makeString(std::move(result));
+        }
+        runtimeError("String has no method '%s'", method.c_str());
+    }
+
+    // List methods
+    if (obj.isList()) {
+        auto& list = obj.asList();
+        if (method == "length" || method == "size") {
+            return interpreter::NaabVal::makeInt(static_cast<int>(list.size()));
+        }
+        if (method == "push" || method == "add" || method == "append") {
+            if (argc < 1) runtimeError("push() requires 1 argument");
+            list.push_back(args[0]);
+            return interpreter::NaabVal::makeNull();
+        }
+        if (method == "pop") {
+            if (list.empty()) runtimeError("Cannot pop from empty list");
+            interpreter::NaabVal val = std::move(list.back());
+            list.pop_back();
+            return val;
+        }
+        if (method == "get") {
+            if (argc < 1) runtimeError("get() requires 1 argument");
+            int idx = args[0].toInt();
+            if (idx < 0 || idx >= static_cast<int>(list.size()))
+                runtimeError("Index %d out of bounds (size %d)", idx, static_cast<int>(list.size()));
+            return list[static_cast<size_t>(idx)];
+        }
+        if (method == "isEmpty") {
+            return interpreter::NaabVal::makeBool(list.empty());
+        }
+        if (method == "contains" || method == "includes") {
+            if (argc < 1) runtimeError("contains() requires 1 argument");
+            for (auto& item : list) {
+                if (item.toString() == args[0].toString()) return interpreter::NaabVal::makeBool(true);
+            }
+            return interpreter::NaabVal::makeBool(false);
+        }
+        if (method == "join") {
+            std::string delim = argc > 0 ? args[0].toString() : ",";
+            std::string result;
+            for (size_t i = 0; i < list.size(); i++) {
+                if (i > 0) result += delim;
+                result += list[i].toString();
+            }
+            return interpreter::NaabVal::makeString(std::move(result));
+        }
+        if (method == "reverse" || method == "reversed") {
+            std::vector<interpreter::NaabVal> reversed(list.rbegin(), list.rend());
+            return interpreter::NaabVal::makeList(std::move(reversed));
+        }
+        if (method == "take") {
+            if (argc < 1) runtimeError("take() requires 1 argument");
+            int count = args[0].toInt();
+            if (count > static_cast<int>(list.size())) count = static_cast<int>(list.size());
+            if (count < 0) count = 0;
+            std::vector<interpreter::NaabVal> result(list.begin(), list.begin() + count);
+            return interpreter::NaabVal::makeList(std::move(result));
+        }
+        if (method == "clone" || method == "copy") {
+            std::vector<interpreter::NaabVal> result(list.begin(), list.end());
+            return interpreter::NaabVal::makeList(std::move(result));
+        }
+        if (method == "indexOf" || method == "findIndex" || method == "index_of") {
+            if (argc < 1) runtimeError("indexOf() requires 1 argument");
+            for (size_t i = 0; i < list.size(); i++) {
+                if (list[i].toString() == args[0].toString())
+                    return interpreter::NaabVal::makeInt(static_cast<int>(i));
+            }
+            return interpreter::NaabVal::makeInt(-1);
+        }
+        if (method == "first") {
+            if (list.empty()) return interpreter::NaabVal::makeNull();
+            return list[0];
+        }
+        if (method == "last") {
+            if (list.empty()) return interpreter::NaabVal::makeNull();
+            return list[list.size() - 1];
+        }
+        if (method == "sort") {
+            // Sort in-place via shared_ptr reference
+            auto& arr = obj.asList();
+            if (argc >= 1 && args[0].isVMClosure()) {
+                // Comparator sort: fn(a, b) returns <0, 0, >0
+                auto comp_fn = args[0];
+                std::sort(arr.begin(), arr.end(), [this, &comp_fn](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+                    auto res = callNaabFunction(comp_fn, {a, b});
+                    if (res.isInt()) return res.asInt() < 0;
+                    if (res.isDouble()) return res.asDouble() < 0;
+                    return false;
+                });
+            } else {
+                // Default sort: numeric then string
+                std::sort(arr.begin(), arr.end(), [](const interpreter::NaabVal& a, const interpreter::NaabVal& b) {
+                    bool a_num = a.isInt() || a.isDouble();
+                    bool b_num = b.isInt() || b.isDouble();
+                    if (a_num && b_num) {
+                        double av = a.isInt() ? static_cast<double>(a.asInt()) : a.asDouble();
+                        double bv = b.isInt() ? static_cast<double>(b.asInt()) : b.asDouble();
+                        return av < bv;
+                    }
+                    return a.toString() < b.toString();
+                });
+            }
+            return obj;
+        }
+        if (method == "slice") {
+            if (argc < 1) runtimeError("slice() requires at least 1 argument");
+            int len = static_cast<int>(list.size());
+            int start = args[0].toInt();
+            if (start < 0) start += len;
+            if (start < 0) start = 0;
+            int end_val = argc >= 2 ? args[1].toInt() : len;
+            if (end_val < 0) end_val += len;
+            if (end_val > len) end_val = len;
+            if (start >= end_val) return interpreter::NaabVal::makeList({});
+            std::vector<interpreter::NaabVal> result(list.begin() + start, list.begin() + end_val);
+            return interpreter::NaabVal::makeList(std::move(result));
+        }
+        if (method == "remove" || method == "removeAt") {
+            if (argc < 1) runtimeError("remove() requires 1 argument");
+            int idx = args[0].toInt();
+            if (idx < 0 || idx >= static_cast<int>(list.size()))
+                runtimeError("Index %d out of bounds", idx);
+            interpreter::NaabVal val = list[idx];
+            list.erase(list.begin() + idx);
+            return val;
+        }
+        if (method == "shift") {
+            if (list.empty()) runtimeError("Cannot shift from empty list");
+            interpreter::NaabVal val = list[0];
+            list.erase(list.begin());
+            return val;
+        }
+        if (method == "unshift") {
+            if (argc < 1) runtimeError("unshift() requires 1 argument");
+            list.insert(list.begin(), args[0]);
+            return interpreter::NaabVal::makeInt(static_cast<int>(list.size()));
+        }
+        runtimeError("List has no method '%s'", method.c_str());
+    }
+
+    // Dict methods
+    if (obj.isDict()) {
+        auto& dict = obj.asDict();
+        if (method == "size" || method == "length") {
+            return interpreter::NaabVal::makeInt(static_cast<int>(dict.size()));
+        }
+        if (method == "get") {
+            if (argc < 1) runtimeError("get() requires 1 argument");
+            std::string key = args[0].toString();
+            auto it = dict.find(key);
+            if (it != dict.end()) return it->second;
+            if (argc >= 2) return args[1]; // default value
+            return interpreter::NaabVal::makeNull();
+        }
+        if (method == "has" || method == "contains" || method == "containsKey") {
+            if (argc < 1) runtimeError("has() requires 1 argument");
+            return interpreter::NaabVal::makeBool(dict.count(args[0].toString()) > 0);
+        }
+        if (method == "keys") {
+            std::vector<interpreter::NaabVal> keys;
+            for (auto& [k, v] : dict) {
+                (void)v;
+                keys.push_back(interpreter::NaabVal::makeString(k));
+            }
+            return interpreter::NaabVal::makeList(std::move(keys));
+        }
+        if (method == "values") {
+            std::vector<interpreter::NaabVal> values;
+            for (auto& [k, v] : dict) {
+                (void)k;
+                values.push_back(v);
+            }
+            return interpreter::NaabVal::makeList(std::move(values));
+        }
+        if (method == "put" || method == "set") {
+            if (argc < 2) runtimeError("put() requires 2 arguments");
+            dict[args[0].toString()] = args[1];
+            return interpreter::NaabVal::makeNull();
+        }
+        if (method == "remove" || method == "delete") {
+            if (argc < 1) runtimeError("remove() requires 1 argument");
+            dict.erase(args[0].toString());
+            return interpreter::NaabVal::makeNull();
+        }
+        if (method == "isEmpty") {
+            return interpreter::NaabVal::makeBool(dict.empty());
+        }
+        if (method == "clone" || method == "copy") {
+            std::unordered_map<std::string, interpreter::NaabVal> copy(dict.begin(), dict.end());
+            return interpreter::NaabVal::makeDict(std::move(copy));
+        }
+        if (method == "getString" || method == "getInt" || method == "getFloat" || method == "getBool") {
+            if (argc < 1) runtimeError("%s() requires at least 1 argument", method.c_str());
+            std::string key = args[0].toString();
+            auto it = dict.find(key);
+            if (it != dict.end()) return it->second;
+            if (argc >= 2) return args[1];
+            return interpreter::NaabVal::makeNull();
+        }
+        if (method == "entries") {
+            std::vector<interpreter::NaabVal> entries;
+            for (auto& [k, v] : dict) {
+                std::vector<interpreter::NaabVal> entry;
+                entry.push_back(interpreter::NaabVal::makeString(k));
+                entry.push_back(v);
+                entries.push_back(interpreter::NaabVal::makeList(std::move(entry)));
+            }
+            return interpreter::NaabVal::makeList(std::move(entries));
+        }
+        if (method == "merge") {
+            if (argc < 1) runtimeError("merge() requires 1 argument");
+            if (!args[0].isDict()) runtimeError("merge() argument must be a dict");
+            auto copy = dict;
+            for (auto& [k, v] : args[0].asDict()) copy[k] = v;
+            return interpreter::NaabVal::makeDict(std::move(copy));
+        }
+        runtimeError("Dict has no method '%s'", method.c_str());
+    }
+
+    runtimeError("Cannot call method '%s' on %s", method.c_str(), obj.getTypeName().c_str());
+}
+
+interpreter::NaabVal VM::callStdlibMethod(const std::string& module, const std::string& method,
+                                          int argc, interpreter::NaabVal* args) {
+    if (!stdlib_) {
+        runtimeError("Stdlib not available");
+    }
+    // Convert args to vector for stdlib call
+    std::vector<interpreter::NaabVal> arg_vec(args, args + argc);
+    auto mod = stdlib_->getModule(module);
+    if (!mod) {
+        runtimeError("Unknown stdlib module '%s'", module.c_str());
+    }
+    auto result = mod->call(method, arg_vec);
+    // Write back mutated args to stack (stdlib functions like array.pop mutate args[0])
+    // This updates the stack copy, which we then propagate to locals below
+    for (int i = 0; i < argc; i++) {
+        args[i] = arg_vec[i];
+    }
+    return result;
+}
+
+
+// ============================================================================
+// Upvalues
+// ============================================================================
+
+ObjUpvalue* VM::captureUpvalue(interpreter::NaabVal* local) {
+    // Walk the open upvalue list to see if we already have one for this slot
+    ObjUpvalue* prev = nullptr;
+    ObjUpvalue* current = open_upvalues_;
+
+    while (current != nullptr && current->location > local) {
+        prev = current;
+        current = current->next;
+    }
+
+    if (current != nullptr && current->location == local) {
+        return current;  // Reuse existing upvalue
+    }
+
+    // Create new upvalue
+    auto* upvalue = new ObjUpvalue();
+    upvalue->location = local;
+    upvalue->is_open = true;
+    upvalue->next = current;
+
+    if (prev == nullptr) {
+        open_upvalues_ = upvalue;
+    } else {
+        prev->next = upvalue;
+    }
+
+    return upvalue;
+}
+
+void VM::closeUpvalues(interpreter::NaabVal* last) {
+    while (open_upvalues_ != nullptr && open_upvalues_->location >= last) {
+        ObjUpvalue* upvalue = open_upvalues_;
+        upvalue->closed = *upvalue->location;
+        upvalue->location = &upvalue->closed;
+        upvalue->is_open = false;
+        open_upvalues_ = upvalue->next;
+    }
+}
+
+// ============================================================================
+// Exception handling (stub — Phase 8)
+// ============================================================================
+
+bool VM::throwException(interpreter::NaabVal /*value*/) {
+    return false; // TODO: Phase 8
+}
+
+void VM::unwindStack(int /*target_frame*/) {
+    // TODO: Phase 8
+}
+
+// ============================================================================
+// Error reporting
+// ============================================================================
+
+void VM::runtimeError(const char* format, ...) {
+    char buffer[1024];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    std::string msg = buffer;
+
+    // If there's an exception handler, route through it instead of crashing
+    if (!exception_handlers_.empty()) {
+        // Use longjmp-like approach: throw a special exception that run() catches
+        throw VMException(msg);
+    }
+
+    // No handlers — add stack trace and throw C++ exception
+    for (int i = frame_count_ - 1; i >= 0; i--) {
+        CallFrame* f = &frames_[i];
+        CompiledFunction* fn = f->function;
+        int offset = static_cast<int>(f->ip - fn->chunk.code.data()) - 1;
+        int line = fn->chunk.getLine(offset);
+        msg += "\n  at ";
+        if (fn->name.empty()) {
+            msg += "<script>";
+        } else {
+            msg += fn->name + "()";
+        }
+        msg += " [" + fn->source_file + ":" + std::to_string(line) + "]";
+    }
+
+    throw std::runtime_error(msg);
+}
+
+std::vector<std::string> VM::getStackTrace() const {
+    std::vector<std::string> trace;
+    for (int i = frame_count_ - 1; i >= 0; i--) {
+        const CallFrame* f = &frames_[i];
+        const CompiledFunction* fn = f->function;
+        int offset = static_cast<int>(f->ip - fn->chunk.code.data()) - 1;
+        int line = fn->chunk.getLine(offset);
+        std::string entry = fn->name.empty() ? "<script>" : fn->name + "()";
+        entry += " [" + fn->source_file + ":" + std::to_string(line) + "]";
+        trace.push_back(std::move(entry));
+    }
+    return trace;
+}
+
+// ============================================================================
+// Disassembler
+// ============================================================================
+
+static const char* opcodeName(OpCode op) {
+    switch (op) {
+        case OpCode::OP_CONST: return "OP_CONST";
+        case OpCode::OP_NULL: return "OP_NULL";
+        case OpCode::OP_TRUE: return "OP_TRUE";
+        case OpCode::OP_FALSE: return "OP_FALSE";
+        case OpCode::OP_POP: return "OP_POP";
+        case OpCode::OP_POPN: return "OP_POPN";
+        case OpCode::OP_DUP: return "OP_DUP";
+        case OpCode::OP_SWAP: return "OP_SWAP";
+        case OpCode::OP_ADD: return "OP_ADD";
+        case OpCode::OP_SUB: return "OP_SUB";
+        case OpCode::OP_MUL: return "OP_MUL";
+        case OpCode::OP_DIV: return "OP_DIV";
+        case OpCode::OP_MOD: return "OP_MOD";
+        case OpCode::OP_NEG: return "OP_NEG";
+        case OpCode::OP_NOT: return "OP_NOT";
+        case OpCode::OP_EQ: return "OP_EQ";
+        case OpCode::OP_NE: return "OP_NE";
+        case OpCode::OP_LT: return "OP_LT";
+        case OpCode::OP_LE: return "OP_LE";
+        case OpCode::OP_GT: return "OP_GT";
+        case OpCode::OP_GE: return "OP_GE";
+        case OpCode::OP_IN: return "OP_IN";
+        case OpCode::OP_GET_LOCAL: return "OP_GET_LOCAL";
+        case OpCode::OP_SET_LOCAL: return "OP_SET_LOCAL";
+        case OpCode::OP_GET_UPVALUE: return "OP_GET_UPVALUE";
+        case OpCode::OP_SET_UPVALUE: return "OP_SET_UPVALUE";
+        case OpCode::OP_GET_GLOBAL: return "OP_GET_GLOBAL";
+        case OpCode::OP_SET_GLOBAL: return "OP_SET_GLOBAL";
+        case OpCode::OP_DEFINE_GLOBAL: return "OP_DEFINE_GLOBAL";
+        case OpCode::OP_GET_QUALIFIED: return "OP_GET_QUALIFIED";
+        case OpCode::OP_JUMP: return "OP_JUMP";
+        case OpCode::OP_JUMP_BACK: return "OP_JUMP_BACK";
+        case OpCode::OP_JUMP_IF_FALSE: return "OP_JUMP_IF_FALSE";
+        case OpCode::OP_JUMP_IF_TRUE: return "OP_JUMP_IF_TRUE";
+        case OpCode::OP_JUMP_IF_NULL: return "OP_JUMP_IF_NULL";
+        case OpCode::OP_CALL: return "OP_CALL";
+        case OpCode::OP_CALL_METHOD: return "OP_CALL_METHOD";
+        case OpCode::OP_RETURN: return "OP_RETURN";
+        case OpCode::OP_RETURN_NULL: return "OP_RETURN_NULL";
+        case OpCode::OP_CLOSURE: return "OP_CLOSURE";
+        case OpCode::OP_CLOSE_UPVALUE: return "OP_CLOSE_UPVALUE";
+        case OpCode::OP_LIST: return "OP_LIST";
+        case OpCode::OP_DICT: return "OP_DICT";
+        case OpCode::OP_GET_INDEX: return "OP_GET_INDEX";
+        case OpCode::OP_SET_INDEX: return "OP_SET_INDEX";
+        case OpCode::OP_GET_MEMBER: return "OP_GET_MEMBER";
+        case OpCode::OP_SET_MEMBER: return "OP_SET_MEMBER";
+        case OpCode::OP_RANGE: return "OP_RANGE";
+        case OpCode::OP_STRUCT_NEW: return "OP_STRUCT_NEW";
+        case OpCode::OP_STRUCT_INIT_FIELD: return "OP_STRUCT_INIT_FIELD";
+        case OpCode::OP_COPY_VALUE: return "OP_COPY_VALUE";
+        case OpCode::OP_GET_ITER: return "OP_GET_ITER";
+        case OpCode::OP_ITER_NEXT: return "OP_ITER_NEXT";
+        case OpCode::OP_DESTRUCTURE_LIST: return "OP_DESTRUCTURE_LIST";
+        case OpCode::OP_DESTRUCTURE_DICT: return "OP_DESTRUCTURE_DICT";
+        case OpCode::OP_IMPORT: return "OP_IMPORT";
+        case OpCode::OP_IMPORT_NAME: return "OP_IMPORT_NAME";
+        case OpCode::OP_IMPORT_WILDCARD: return "OP_IMPORT_WILDCARD";
+        case OpCode::OP_EXPORT_NAME: return "OP_EXPORT_NAME";
+        case OpCode::OP_TRY_BEGIN: return "OP_TRY_BEGIN";
+        case OpCode::OP_TRY_END: return "OP_TRY_END";
+        case OpCode::OP_THROW: return "OP_THROW";
+        case OpCode::OP_CATCH_BEGIN: return "OP_CATCH_BEGIN";
+        case OpCode::OP_FINALLY_BEGIN: return "OP_FINALLY_BEGIN";
+        case OpCode::OP_FINALLY_END: return "OP_FINALLY_END";
+        case OpCode::OP_POLYGLOT: return "OP_POLYGLOT";
+        case OpCode::OP_GOV_CHECK_FUNC: return "OP_GOV_CHECK_FUNC";
+        case OpCode::OP_GOV_TAINT_MARK: return "OP_GOV_TAINT_MARK";
+        case OpCode::OP_GOV_TAINT_CLEAR: return "OP_GOV_TAINT_CLEAR";
+        case OpCode::OP_GOV_TAINT_CHECK_ASSIGN: return "OP_GOV_TAINT_CHECK_ASSIGN";
+        case OpCode::OP_GOV_CHECK_POLYGLOT_VARS: return "OP_GOV_CHECK_POLYGLOT_VARS";
+        case OpCode::OP_GOV_CHECK_CONTRACT_IN: return "OP_GOV_CHECK_CONTRACT_IN";
+        case OpCode::OP_GOV_CHECK_CONTRACT_OUT: return "OP_GOV_CHECK_CONTRACT_OUT";
+        case OpCode::OP_GOV_INCREMENT_BLOCK: return "OP_GOV_INCREMENT_BLOCK";
+        case OpCode::OP_YIELD: return "OP_YIELD";
+        case OpCode::OP_AWAIT: return "OP_AWAIT";
+        case OpCode::OP_MAKE_GENERATOR: return "OP_MAKE_GENERATOR";
+        case OpCode::OP_MAKE_ASYNC: return "OP_MAKE_ASYNC";
+        case OpCode::OP_RUNTIME_START: return "OP_RUNTIME_START";
+        case OpCode::OP_RUNTIME_EXEC: return "OP_RUNTIME_EXEC";
+    }
+    return "OP_UNKNOWN";
+}
+
+void disassembleChunk(const Chunk& chunk, const std::string& name) {
+    printf("== %s ==\n", name.c_str());
+    int offset = 0;
+    while (offset < static_cast<int>(chunk.code.size())) {
+        offset = disassembleInstruction(chunk, offset);
+    }
+}
+
+int disassembleInstruction(const Chunk& chunk, int offset) {
+    printf("%04d ", offset);
+
+    int line = chunk.getLine(offset);
+    if (offset > 0 && line == chunk.getLine(offset - 1)) {
+        printf("   | ");
+    } else {
+        printf("%4d ", line);
+    }
+
+    uint32_t instruction = chunk.code[static_cast<size_t>(offset)];
+    OpCode op = decodeOp(instruction);
+    uint32_t arg = decodeArg(instruction);
+
+    const char* name_str = opcodeName(op);
+
+    // Determine if this opcode uses a wide arg
+    switch (op) {
+        case OpCode::OP_CONST:
+        case OpCode::OP_GET_LOCAL:
+        case OpCode::OP_SET_LOCAL:
+        case OpCode::OP_GET_UPVALUE:
+        case OpCode::OP_SET_UPVALUE:
+        case OpCode::OP_GET_GLOBAL:
+        case OpCode::OP_SET_GLOBAL:
+        case OpCode::OP_DEFINE_GLOBAL:
+        case OpCode::OP_GET_QUALIFIED:
+        case OpCode::OP_JUMP:
+        case OpCode::OP_JUMP_BACK:
+        case OpCode::OP_JUMP_IF_FALSE:
+        case OpCode::OP_JUMP_IF_TRUE:
+        case OpCode::OP_JUMP_IF_NULL:
+        case OpCode::OP_CLOSURE:
+        case OpCode::OP_CLOSE_UPVALUE:
+        case OpCode::OP_LIST:
+        case OpCode::OP_DICT:
+        case OpCode::OP_GET_MEMBER:
+        case OpCode::OP_SET_MEMBER:
+        case OpCode::OP_STRUCT_NEW:
+        case OpCode::OP_STRUCT_INIT_FIELD:
+        case OpCode::OP_IMPORT:
+        case OpCode::OP_IMPORT_NAME:
+        case OpCode::OP_IMPORT_WILDCARD:
+        case OpCode::OP_EXPORT_NAME:
+        case OpCode::OP_TRY_BEGIN:
+        case OpCode::OP_CATCH_BEGIN:
+        case OpCode::OP_POLYGLOT:
+            printf("%-24s %d", name_str, arg);
+            // For constant references, show the value
+            if (op == OpCode::OP_CONST && arg < chunk.constants.size()) {
+                printf(" '");
+                printf("%s", chunk.constants[arg].toString().c_str());
+                printf("'");
+            }
+            if ((op == OpCode::OP_GET_GLOBAL || op == OpCode::OP_SET_GLOBAL ||
+                 op == OpCode::OP_DEFINE_GLOBAL) && arg < chunk.constants.size()) {
+                printf(" '%s'", chunk.constants[arg].toString().c_str());
+            }
+            break;
+
+        case OpCode::OP_CALL: {
+            uint8_t argc = decodeA(instruction);
+            printf("%-24s %d args", name_str, argc);
+            break;
+        }
+
+        case OpCode::OP_CALL_METHOD: {
+            uint16_t name_idx = static_cast<uint16_t>((arg >> 8) & 0xFFFF);
+            uint8_t argc = static_cast<uint8_t>(arg & 0xFF);
+            printf("%-24s %d '%s' %d args", name_str, name_idx,
+                   name_idx < chunk.constants.size() ? chunk.constants[name_idx].toString().c_str() : "?",
+                   argc);
+            break;
+        }
+
+        case OpCode::OP_POPN: {
+            printf("%-24s %d", name_str, decodeA(instruction));
+            break;
+        }
+
+        default:
+            printf("%-24s", name_str);
+            break;
+    }
+
+    printf("\n");
+    return offset + 1;
+}
+
+} // namespace vm
+} // namespace naab

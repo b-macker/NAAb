@@ -767,11 +767,32 @@ void Interpreter::visit(ast::CallExpr& node) {
                     return;
                 }
                 if (method_name == "sort") {
-                    std::vector<NaabVal> sorted = arr;
-                    std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
-                        return a.toFloat() < b.toFloat();
-                    });
-                    result_ = NaabVal::makeList(std::move(sorted));
+                    if (!args.empty()) {
+                        // Sort with comparator function: arr.sort(fn(a, b) { return -1/0/1 })
+                        NaabVal comp_fn = args[0];
+                        std::sort(arr.begin(), arr.end(), [this, &comp_fn](const NaabVal& a, const NaabVal& b) {
+                            auto res = callFunction(comp_fn, {a, b});
+                            return res.isInt() ? res.asInt() < 0 : res.toFloat() < 0;
+                        });
+                    } else {
+                        // Default sort: numeric then string comparison
+                        std::sort(arr.begin(), arr.end(), [](const NaabVal& a, const NaabVal& b) {
+                            bool a_num = a.isInt() || a.isDouble();
+                            bool b_num = b.isInt() || b.isDouble();
+                            if (a_num && b_num) {
+                                double av = a.isInt() ? static_cast<double>(a.asInt()) : a.asDouble();
+                                double bv = b.isInt() ? static_cast<double>(b.asInt()) : b.asDouble();
+                                return av < bv;
+                            }
+                            return a.toString() < b.toString();
+                        });
+                    }
+                    // Mutate in-place
+                    auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_expr->getObject());
+                    if (obj_id && current_env_->has(obj_id->getName())) {
+                        current_env_->set(obj_id->getName(), obj_val);
+                    }
+                    result_ = obj_val;
                     return;
                 }
                 if (method_name == "shift") {
@@ -1598,11 +1619,29 @@ void Interpreter::visit(ast::CallExpr& node) {
                 return;
             }
             if (method_name == "sort") {
-                std::vector<NaabVal> sorted = arr;
-                std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
-                    return a.toFloat() < b.toFloat();
-                });
-                result_ = NaabVal::makeList(std::move(sorted));
+                if (!args.empty()) {
+                    NaabVal comp_fn = args[0];
+                    std::sort(arr.begin(), arr.end(), [this, &comp_fn](const NaabVal& a, const NaabVal& b) {
+                        auto res = callFunction(comp_fn, {a, b});
+                        return res.isInt() ? res.asInt() < 0 : res.toFloat() < 0;
+                    });
+                } else {
+                    std::sort(arr.begin(), arr.end(), [](const NaabVal& a, const NaabVal& b) {
+                        bool a_num = a.isInt() || a.isDouble();
+                        bool b_num = b.isInt() || b.isDouble();
+                        if (a_num && b_num) {
+                            double av = a.isInt() ? static_cast<double>(a.asInt()) : a.asDouble();
+                            double bv = b.isInt() ? static_cast<double>(b.asInt()) : b.asDouble();
+                            return av < bv;
+                        }
+                        return a.toString() < b.toString();
+                    });
+                }
+                auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member_call->getObject());
+                if (obj_id && current_env_->has(obj_id->getName())) {
+                    current_env_->set(obj_id->getName(), obj);
+                }
+                result_ = obj;
                 return;
             }
             if (method_name == "shift") {

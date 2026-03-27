@@ -395,6 +395,18 @@ endif()
 message(STATUS "  ✓ Interpreter")
 message(STATUS "  ✓ Runtime error enhancement (Phase 4.2)")
 
+# Bytecode VM (Task 47: Bytecode VM for NAAb)
+add_library(naab_vm
+    src/vm/vm.cpp
+    src/vm/compiler.cpp
+)
+target_link_libraries(naab_vm
+    naab_parser
+    naab_stdlib
+    fmt::fmt
+)
+message(STATUS "  ✓ Bytecode VM (compiler + virtual machine)")
+
 # QuickJS library for JavaScript execution
 # Build from source if pre-built .a doesn't exist (e.g., CI on different architecture)
 set(QUICKJS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27")
@@ -667,6 +679,7 @@ target_link_libraries(naab-lang
     naab_formatter
     naab_linter
     naab_interpreter
+    naab_vm
     naab_runtime
     naab_stdlib
     naab_rest_api

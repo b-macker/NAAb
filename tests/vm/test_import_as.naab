@@ -1,0 +1,15 @@
+import "../integration/modules/enum_types.naab" as etypes
+
+main {
+    // Test 1: Direct access
+    let red = etypes.Color.Red
+    print("T1: red = " + string(red))
+
+    // Test 2: Function call
+    let name = etypes.color_name(etypes.Color.Blue)
+    print("T2: name = " + string(name))
+
+    // Test 3: Priority enum
+    let lvl = etypes.priority_level(etypes.Priority.High)
+    print("T3: level = " + string(lvl))
+}

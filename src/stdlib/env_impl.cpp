@@ -59,7 +59,7 @@ interpreter::NaabVal EnvModule::call(
         } else if (args.size() == 2) {
             return args[1];  // Return default
         } else {
-            return makeString("");
+            return interpreter::NaabVal::makeNull();
         }
     }
 

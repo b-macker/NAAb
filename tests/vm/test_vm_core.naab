@@ -1,0 +1,98 @@
+use io
+
+struct Point {
+    x: int
+    y: int
+}
+
+enum Color { Red, Green, Blue }
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test 1: For loop with range
+    total = total + 1
+    let sum = 0
+    for i in 0..5 {
+        sum = sum + i
+    }
+    if (sum == 10) { passed = passed + 1 } else { io.println("FAIL 1: range for loop") }
+
+    // Test 2: For loop over list
+    total = total + 1
+    let arr = [10, 20, 30]
+    let s = 0
+    for x in arr {
+        s = s + x
+    }
+    if (s == 60) { passed = passed + 1 } else { io.println("FAIL 2: list for loop") }
+
+    // Test 3: Nested functions / closures
+    total = total + 1
+    function make_adder(n) {
+        return fn(x) { return x + n }
+    }
+    let add5 = make_adder(5)
+    if (add5(10) == 15) { passed = passed + 1 } else { io.println("FAIL 3: closures") }
+
+    // Test 4: Try/catch
+    total = total + 1
+    let caught = false
+    try {
+        throw "oops"
+    } catch (e) {
+        caught = true
+    }
+    if (caught) { passed = passed + 1 } else { io.println("FAIL 4: try/catch") }
+
+    // Test 5: Dict member access
+    total = total + 1
+    let d = {"x": 1, "y": 2}
+    if (d["x"] + d["y"] == 3) { passed = passed + 1 } else { io.println("FAIL 5: dict") }
+
+    // Test 6: String indexing
+    total = total + 1
+    let str = "hello"
+    if (str[0] == "h") { passed = passed + 1 } else { io.println("FAIL 6: string index") }
+
+    // Test 7: Negative indexing
+    total = total + 1
+    let a = [1, 2, 3]
+    if (a[-1] == 3) { passed = passed + 1 } else { io.println("FAIL 7: negative index") }
+
+    // Test 8: List mutation
+    total = total + 1
+    let b = [1, 2, 3]
+    b[1] = 99
+    if (b[1] == 99) { passed = passed + 1 } else { io.println("FAIL 8: list mutation") }
+
+    // Test 9: While with break
+    total = total + 1
+    let count = 0
+    while (true) {
+        count = count + 1
+        if (count == 5) { break }
+    }
+    if (count == 5) { passed = passed + 1 } else { io.println("FAIL 9: while+break") }
+
+    // Test 10: Null coalesce
+    total = total + 1
+    let v = null ?? 42
+    if (v == 42) { passed = passed + 1 } else { io.println("FAIL 10: null coalesce") }
+
+    // Test 11: Enum
+    total = total + 1
+    if (Color.Red == 0) { passed = passed + 1 } else { io.println("FAIL 11: enum") }
+
+    // Test 12: Struct
+    total = total + 1
+    let p = new Point { x: 3, y: 4 }
+    if (p.x + p.y == 7) { passed = passed + 1 } else { io.println("FAIL 12: struct") }
+
+    io.print("VM Test: ")
+    io.print(passed)
+    io.print("/")
+    io.print(total)
+    io.println(" passed")
+}

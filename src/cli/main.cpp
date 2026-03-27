@@ -7,6 +7,9 @@
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include "naab/interpreter.h"
+#include "naab/vm.h"
+#include "naab/compiler.h"
+#include "naab/module_resolver.h"
 #include "naab/type_checker.h"
 #include "naab/error_reporter.h"
 #include "../formatter/formatter.h"
@@ -262,11 +265,15 @@ int main(int argc, char** argv) {
     bool global_debug = false;
     bool global_no_color = false;
     bool global_strict_types = false;
+    bool global_use_vm = false;
     int command_arg_index = 1;  // Index of the actual command/file in argv
 
     while (command_arg_index < argc) {
         std::string arg(argv[command_arg_index]);
-        if (arg == "--pipe") {
+        if (arg == "--vm") {
+            global_use_vm = true;
+            command_arg_index++;
+        } else if (arg == "--pipe") {
             global_pipe_mode = true;
             command_arg_index++;
         } else if (arg == "--governance-override") {
@@ -396,6 +403,7 @@ int main(int argc, char** argv) {
         bool no_governance = global_no_governance;
         bool governance_verbose = global_governance_verbose;
         bool strict_types = global_strict_types;
+        bool use_vm = global_use_vm;
         bool governance_record_baselines = false;
         bool governance_check_baselines = false;
         std::string governance_report_json;
@@ -452,6 +460,8 @@ int main(int argc, char** argv) {
                 governance_check_baselines = true;
             } else if (arg == "--strict-types") {
                 strict_types = true;
+            } else if (arg == "--vm") {
+                use_vm = true;
             } else if (arg.substr(0, 2) == "--") {
                 // Unknown flag — give helpful error instead of treating as filename
                 fmt::print("Error: Unknown flag '{}'\n\n"
@@ -473,7 +483,8 @@ int main(int argc, char** argv) {
                            "    --governance-junit <path>   Write JUnit governance report\n"
                            "    --governance-record-baselines  Record output baselines\n"
                            "    --governance-check-baselines   Check baselines (hard enforcement)\n"
-                           "    --strict-types        Abort on type errors (pre-execution check)\n\n"
+                           "    --strict-types        Abort on type errors (pre-execution check)\n"
+                           "    --vm                  Use bytecode VM instead of tree-walker\n\n"
                            "  Note: There is no --path flag. NAAb resolves modules relative to\n"
                            "  the script's directory. To use modules from another location,\n"
                            "  place the script in or near the modules directory, or use\n"
@@ -804,16 +815,36 @@ int main(int argc, char** argv) {
                 }
             }
 
-            // Inner try-catch: write governance reports before re-throwing.
-            // The interpreter is alive here, so we can safely access it.
-            // On success, writeReports() is already called inside execute().
-            try {
-                interpreter.execute(*program);
-            } catch (...) {
-                // Write reports before the interpreter is destroyed
-                auto* gov = interpreter.getGovernance();
-                if (gov) gov->writeReports();
-                throw;  // Re-throw to outer catch
+            if (use_vm) {
+                // Bytecode VM path
+                naab::vm::Compiler bc_compiler;
+                auto* main_fn = bc_compiler.compile(*program);
+                if (!main_fn) {
+                    throw std::runtime_error("Compilation failed: " + bc_compiler.getLastError());
+                }
+                if (verbose) {
+                    naab::vm::disassembleChunk(main_fn->chunk, filename);
+                }
+                naab::vm::VM bytecode_vm;
+                naab::stdlib::StdLib vm_stdlib;
+                naab::modules::ModuleResolver vm_module_resolver;
+                bytecode_vm.setStdlib(&vm_stdlib);
+                bytecode_vm.setModuleResolver(&vm_module_resolver);
+                bytecode_vm.setCurrentFile(filename);
+                auto result = bytecode_vm.execute(main_fn);
+                (void)result;
+            } else {
+                // Inner try-catch: write governance reports before re-throwing.
+                // The interpreter is alive here, so we can safely access it.
+                // On success, writeReports() is already called inside execute().
+                try {
+                    interpreter.execute(*program);
+                } catch (...) {
+                    // Write reports before the interpreter is destroyed
+                    auto* gov = interpreter.getGovernance();
+                    if (gov) gov->writeReports();
+                    throw;  // Re-throw to outer catch
+                }
             }
 
             if (profile) {

@@ -2,9 +2,3 @@
 # These are test/demo files with intentional dummy credentials, not real secrets.
 # The .gitleaks.toml allowlist handles path-based exclusions.
 # This file is for specific fingerprint overrides if needed.
-
-# Fake API key in governance demo (demonstrates NAAb catching hardcoded secrets)
-deb1f2f3449536dd5db9abbc3964977643c615ef:demo/scene4_secret.naab:high-entropy-string:5
-deb1f2f3449536dd5db9abbc3964977643c615ef:demo/scene4_secret.naab:high-entropy-string:3
-deb1f2f3449536dd5db9abbc3964977643c615ef:demo/demo.cast:high-entropy-string:30
-deb1f2f3449536dd5db9abbc3964977643c615ef:demo/demo.cast:high-entropy-string:28

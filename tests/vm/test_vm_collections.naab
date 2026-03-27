@@ -1,0 +1,58 @@
+use io
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test 1: List methods
+    total = total + 1
+    let arr = [3, 1, 4, 1, 5]
+    if (arr.length() == 5) { passed = passed + 1 } else { io.println("FAIL 1: length") }
+
+    // Test 2: List push
+    total = total + 1
+    let a = [1, 2]
+    a.push(3)
+    if (a.length() == 3) { passed = passed + 1 } else { io.println("FAIL 2: push") }
+
+    // Test 3: String methods
+    total = total + 1
+    let s = "Hello World"
+    if (s.length() == 11) { passed = passed + 1 } else { io.println("FAIL 3: str length") }
+
+    // Test 4: Inclusive range
+    total = total + 1
+    let r = 1..=5
+    let sum = 0
+    for x in r { sum = sum + x }
+    if (sum == 15) { passed = passed + 1 } else { io.println("FAIL 4: inclusive range") }
+
+    // Test 5: Dict operations
+    total = total + 1
+    let d = {"a": 1, "b": 2, "c": 3}
+    d["d"] = 4
+    if (d["d"] == 4) { passed = passed + 1 } else { io.println("FAIL 5: dict set") }
+
+    // Test 6: Nested collections
+    total = total + 1
+    let matrix = [[1, 2], [3, 4]]
+    if (matrix[1][0] == 3) { passed = passed + 1 } else { io.println("FAIL 6: nested list") }
+
+    // Test 7: For loop over string
+    total = total + 1
+    let chars = 0
+    for c in "abc" { chars = chars + 1 }
+    if (chars == 3) { passed = passed + 1 } else { io.println("FAIL 7: string iteration") }
+
+    // Test 8: Empty list/dict
+    total = total + 1
+    let empty = []
+    let empty_d = {}
+    if (empty.length() == 0) { passed = passed + 1 } else { io.println("FAIL 8: empty") }
+
+    io.print("VM Collections: ")
+    io.print(passed)
+    io.print("/")
+    io.print(total)
+    io.println(" passed")
+}

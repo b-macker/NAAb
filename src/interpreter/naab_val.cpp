@@ -3,6 +3,7 @@
 
 #include "naab/naab_val.h"
 #include "naab/interpreter.h"
+#include "naab/vm.h"
 #include <mutex>
 #include <stdexcept>
 #include <vector>
@@ -163,6 +164,10 @@ NaabVal NaabVal::makePythonObject(std::shared_ptr<PythonObjectValue> p) {
     return makeHeap(new ValueBox(std::make_shared<Value>(std::move(p))));
 }
 
+NaabVal NaabVal::makeVMClosure(std::shared_ptr<vm::VMClosure> c) {
+    return makeHeap(new ValueBox(std::make_shared<Value>(std::move(c))));
+}
+
 // ============================================================================
 // High-level type checks (dispatch on ValueBox's Value variant)
 // ============================================================================
@@ -181,6 +186,7 @@ bool NaabVal::isPythonObject() const { return isHeap() && heapIndex(*this) == 9;
 bool NaabVal::isStructVal()    const { return isHeap() && heapIndex(*this) == 10; }
 bool NaabVal::isFuture()       const { return isHeap() && heapIndex(*this) == 11; }
 bool NaabVal::isGenerator()    const { return isHeap() && heapIndex(*this) == 12; }
+bool NaabVal::isVMClosure()    const { return isHeap() && heapIndex(*this) == 13; }
 
 // ============================================================================
 // Heap type extraction
@@ -256,6 +262,14 @@ std::shared_ptr<PythonObjectValue>& NaabVal::asPythonObject() {
 
 const std::shared_ptr<PythonObjectValue>& NaabVal::asPythonObjectConst() const {
     return std::get<std::shared_ptr<PythonObjectValue>>(asHeap()->shared_value->data);
+}
+
+std::shared_ptr<vm::VMClosure>& NaabVal::asVMClosure() {
+    return std::get<std::shared_ptr<vm::VMClosure>>(asHeap()->shared_value->data);
+}
+
+const std::shared_ptr<vm::VMClosure>& NaabVal::asVMClosureConst() const {
+    return std::get<std::shared_ptr<vm::VMClosure>>(asHeap()->shared_value->data);
 }
 
 // ============================================================================

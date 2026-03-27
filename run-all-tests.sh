@@ -339,6 +339,45 @@ else
     echo "  LSP test script or naab-lsp binary not found, skipping"
 fi
 
+# --- Bytecode VM Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Bytecode VM Tests (--vm)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+VM_TEST_DIR="tests/vm"
+VM_PASSED=0
+VM_FAILED=0
+VM_TOTAL=0
+if [ -d "$VM_TEST_DIR" ]; then
+    for f in "$VM_TEST_DIR"/*.naab; do
+        [ -f "$f" ] || continue
+        test_name=$(basename "$f")
+        VM_TOTAL=$((VM_TOTAL + 1))
+        TOTAL=$((TOTAL + 1))
+        output_file="$HOME/.naab_test_output_$$.txt"
+        if timeout 10s "$NAAB_BIN" --vm "$f" > "$output_file" 2>&1; then
+            VM_PASSED=$((VM_PASSED + 1))
+            PASSED=$((PASSED + 1))
+            PASSED_TESTS+=("$test_name (--vm)")
+            echo "  PASS: $test_name (--vm)"
+        else
+            VM_FAILED=$((VM_FAILED + 1))
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS+=("$test_name (--vm)")
+            echo "  FAIL: $test_name (--vm)"
+            if [ -f "$output_file" ]; then
+                head -1 "$output_file" | sed 's/^/       /'
+            fi
+        fi
+        rm -f "$output_file"
+    done
+    echo ""
+    echo "  VM tests: $VM_PASSED/$VM_TOTAL passed"
+else
+    echo "  No VM test directory (tests/vm/), skipping"
+fi
+
 # --- Report Format Tests ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"

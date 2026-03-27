@@ -7,6 +7,8 @@
 #include "naab/interpreter.h"
 #include "naab/utils/string_utils.h"
 #include <cmath>
+#include <cstdlib>
+#include <ctime>
 #include <algorithm>
 #include <memory>
 #include <vector>
@@ -171,15 +173,28 @@ interpreter::NaabVal MathModule::call(
         return interpreter::NaabVal::makeDouble(std::tan(x));
     }
 
-    // Common LLM mistakes
     if (function_name == "random" || function_name == "rand") {
-        throw std::runtime_error(
-            "Unknown math function: " + function_name + "\n\n"
-            "  NAAb math module doesn't have random().\n"
-            "  Use the crypto module for random numbers:\n"
-            "    crypto.random_int(1, 100)    // random int in range\n"
-            "    crypto.random_string(16)     // random string\n"
-        );
+        // math.random() — returns a random float in [0.0, 1.0)
+        // math.random(max) — returns a random int in [0, max)
+        // math.random(min, max) — returns a random int in [min, max)
+        static bool seeded = false;
+        if (!seeded) {
+            srand(static_cast<unsigned>(time(nullptr)));
+            seeded = true;
+        }
+        if (args.empty()) {
+            return interpreter::NaabVal::makeDouble(
+                static_cast<double>(rand()) / (static_cast<double>(RAND_MAX) + 1.0));
+        } else if (args.size() == 1) {
+            int max_val = static_cast<int>(getDouble(args[0]));
+            if (max_val <= 0) return interpreter::NaabVal::makeInt(0);
+            return interpreter::NaabVal::makeInt(rand() % max_val);
+        } else {
+            int min_val = static_cast<int>(getDouble(args[0]));
+            int max_val = static_cast<int>(getDouble(args[1]));
+            if (max_val <= min_val) return interpreter::NaabVal::makeInt(min_val);
+            return interpreter::NaabVal::makeInt(min_val + (rand() % (max_val - min_val)));
+        }
     }
     if (function_name == "sum" || function_name == "avg" || function_name == "average" || function_name == "mean") {
         throw std::runtime_error(
