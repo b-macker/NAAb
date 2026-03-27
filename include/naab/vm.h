@@ -378,6 +378,9 @@ private:
     std::string source_code_;
     std::vector<std::string> script_args_;
 
+    // Generator state (for yield collection)
+    std::vector<interpreter::NaabVal>* generator_values_ = nullptr;
+
     // Core dispatch loop
     interpreter::NaabVal run();
 

@@ -1,0 +1,105 @@
+function count_up(n) {
+    for i in 0..n {
+        yield i
+    }
+}
+
+function fibonacci_gen(limit) {
+    let a = 0
+    let b = 1
+    for i in 0..limit {
+        yield a
+        let temp = a + b
+        a = b
+        b = temp
+    }
+}
+
+function single_yield() {
+    yield 42
+}
+
+function multi_yield() {
+    yield 1
+    yield 2
+    yield 3
+}
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test 1: Basic generator with for loop
+    total = total + 1
+    let nums = []
+    for x in count_up(5) {
+        nums.push(x)
+    }
+    if string(nums) == "[0, 1, 2, 3, 4]" {
+        passed = passed + 1
+        io.println("PASS: basic generator")
+    } else {
+        io.println("FAIL: basic generator, got " + string(nums))
+    }
+
+    // Test 2: Fibonacci generator
+    total = total + 1
+    let fibs = []
+    for f in fibonacci_gen(8) {
+        fibs.push(f)
+    }
+    if string(fibs) == "[0, 1, 1, 2, 3, 5, 8, 13]" {
+        passed = passed + 1
+        io.println("PASS: fibonacci generator")
+    } else {
+        io.println("FAIL: fibonacci generator, got " + string(fibs))
+    }
+
+    // Test 3: Single yield
+    total = total + 1
+    let singles = []
+    for v in single_yield() {
+        singles.push(v)
+    }
+    if string(singles) == "[42]" {
+        passed = passed + 1
+        io.println("PASS: single yield")
+    } else {
+        io.println("FAIL: single yield, got " + string(singles))
+    }
+
+    // Test 4: Multiple yields
+    total = total + 1
+    let multis = []
+    for v in multi_yield() {
+        multis.push(v)
+    }
+    if string(multis) == "[1, 2, 3]" {
+        passed = passed + 1
+        io.println("PASS: multiple yields")
+    } else {
+        io.println("FAIL: multiple yields, got " + string(multis))
+    }
+
+    // Test 5: Generator with closure
+    total = total + 1
+    let offset = 10
+    function offset_gen(n) {
+        for i in 0..n {
+            yield i + offset
+        }
+    }
+    let offsets = []
+    for v in offset_gen(3) {
+        offsets.push(v)
+    }
+    if string(offsets) == "[10, 11, 12]" {
+        passed = passed + 1
+        io.println("PASS: generator with closure")
+    } else {
+        io.println("FAIL: generator with closure, got " + string(offsets))
+    }
+
+    io.println("")
+    io.println("Generators: " + string(passed) + "/" + string(total) + " passed")
+}

@@ -247,6 +247,31 @@ void Compiler::compileFunctionBody(const std::string& name,
     fn->is_async = is_async;
     fn->source_line = line;
 
+    // Detect if function body contains yield → mark as generator
+    std::function<bool(ast::Stmt*)> containsYield = [&](ast::Stmt* stmt) -> bool {
+        if (!stmt) return false;
+        if (auto* compound = dynamic_cast<ast::CompoundStmt*>(stmt)) {
+            for (auto& s : compound->getStatements()) {
+                if (containsYield(s.get())) return true;
+            }
+        } else if (auto* expr_stmt = dynamic_cast<ast::ExprStmt*>(stmt)) {
+            if (dynamic_cast<ast::YieldExpr*>(expr_stmt->getExpr())) return true;
+        } else if (auto* if_stmt = dynamic_cast<ast::IfStmt*>(stmt)) {
+            if (containsYield(if_stmt->getThenBranch())) return true;
+            if (if_stmt->getElseBranch() && containsYield(if_stmt->getElseBranch())) return true;
+        } else if (auto* for_stmt = dynamic_cast<ast::ForStmt*>(stmt)) {
+            if (containsYield(for_stmt->getBody())) return true;
+        } else if (auto* while_stmt = dynamic_cast<ast::WhileStmt*>(stmt)) {
+            if (containsYield(while_stmt->getBody())) return true;
+        } else if (auto* try_stmt = dynamic_cast<ast::TryStmt*>(stmt)) {
+            if (containsYield(try_stmt->getTryBody())) return true;
+            if (try_stmt->getCatchClause())
+                if (containsYield(try_stmt->getCatchClause()->body.get())) return true;
+        }
+        return false;
+    };
+    fn->is_generator = containsYield(body);
+
     // Count required params (those without defaults)
     for (auto& param : params) {
         if (!param.default_value.has_value()) {
@@ -1131,15 +1156,15 @@ void Compiler::visit(ast::MatchExpr& node) {
 }
 
 void Compiler::visit(ast::AwaitExpr& node) {
-    (void)node;
-    // TODO: Phase 12
-    throw std::runtime_error("AwaitExpr compilation not yet implemented");
+    int line = node.getLocation().line;
+    node.getExpr()->accept(*this);
+    emitOp(OpCode::OP_AWAIT, line);
 }
 
 void Compiler::visit(ast::YieldExpr& node) {
-    (void)node;
-    // TODO: Phase 12
-    throw std::runtime_error("YieldExpr compilation not yet implemented");
+    int line = node.getLocation().line;
+    node.getExpr()->accept(*this);
+    emitOp(OpCode::OP_YIELD, line);
 }
 
 } // namespace vm

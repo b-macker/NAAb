@@ -1,6 +1,7 @@
 #include "naab/vm.h"
 #include "naab/compiler.h"
 #include "naab/governance.h"
+#include "naab/interpreter.h"
 #include "naab/json_result_parser.h"
 #include "naab/language_registry.h"
 #include "naab/module_resolver.h"
@@ -11,6 +12,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -1109,6 +1111,32 @@ interpreter::NaabVal VM::run() {
                     push(interpreter::NaabVal::makeInt(0));
                 } else if (iterable.isDict()) {
                     auto& dict = iterable.asDictConst();
+                    // Check for generator wrapper dict
+                    auto gen_it = dict.find("__is_generator__");
+                    if (gen_it != dict.end() && gen_it->second.isBool() && gen_it->second.asBool()) {
+                        // Eagerly run generator function, collect yielded values
+                        auto fn_it = dict.find("__generator__");
+                        auto args_it = dict.find("__args__");
+                        if (fn_it != dict.end() && fn_it->second.isVMClosure()) {
+                            auto& gen_args = args_it->second.asListConst();
+                            // Save and set generator collection target
+                            auto* saved_gen = generator_values_;
+                            std::vector<interpreter::NaabVal> collected;
+                            generator_values_ = &collected;
+                            try {
+                                callNaabFunction(fn_it->second, gen_args);
+                            } catch (...) {
+                                generator_values_ = saved_gen;
+                                throw;
+                            }
+                            generator_values_ = saved_gen;
+                            // Now iterate over collected values
+                            push(interpreter::NaabVal::makeList(std::move(collected)));
+                            push(interpreter::NaabVal::makeInt(0));
+                            break;
+                        }
+                    }
+                    // Regular dict iteration
                     std::vector<interpreter::NaabVal> keys;
                     keys.reserve(dict.size());
                     for (auto& kv : dict) {
@@ -1599,6 +1627,36 @@ interpreter::NaabVal VM::run() {
                 break;
             }
 
+            case OpCode::OP_AWAIT: {
+                interpreter::NaabVal val = pop();
+                if (val.isFuture()) {
+                    auto& future_val = val.asFuture();
+                    try {
+                        push(future_val->future.get());
+                    } catch (const std::exception& e) {
+                        runtimeError("Await error: %s failed\n  Cause: %s",
+                                     future_val->description.c_str(), e.what());
+                    }
+                } else {
+                    // await on non-future = identity (pass through)
+                    push(val);
+                }
+                break;
+            }
+
+            case OpCode::OP_YIELD: {
+                interpreter::NaabVal val = pop();
+                if (generator_values_) {
+                    generator_values_->push_back(val);
+                } else {
+                    runtimeError("'yield' used outside of a generator function");
+                }
+                // yield is an expression — push null as its result value
+                // (ExprStmt will OP_POP this)
+                push(interpreter::NaabVal::makeNull());
+                break;
+            }
+
             // Stubs for unimplemented opcodes
             default: {
                 runtimeError("Unimplemented opcode: %d", static_cast<int>(op));
@@ -1648,6 +1706,67 @@ interpreter::NaabVal VM::run() {
 bool VM::callValue(interpreter::NaabVal callee, int argc) {
     if (callee.isVMClosure()) {
         auto& closure = callee.asVMClosure();
+        CompiledFunction* fn = closure->function;
+
+        // Async function: spawn on separate thread, return FutureValue
+        if (fn->is_async) {
+            // Collect args from stack
+            interpreter::NaabVal* args_start = stack_top_ - argc;
+            std::vector<interpreter::NaabVal> args(args_start, stack_top_);
+
+            // Capture what the async body needs
+            auto closure_copy = callee.asVMClosure();  // shared_ptr copy
+            auto stdlib_ptr = stdlib_;
+            auto module_resolver_ptr = module_resolver_;
+            auto governance_ptr = governance_;
+            std::string file = fn->source_file;
+
+            auto future_val = std::make_shared<interpreter::FutureValue>();
+            future_val->description = "async fn " + fn->name;
+            future_val->func_name = fn->name;
+
+            auto shared_future = std::async(std::launch::async,
+                [closure_copy, args, stdlib_ptr, module_resolver_ptr, governance_ptr, file]() -> interpreter::NaabVal {
+                    VM async_vm;
+                    async_vm.setStdlib(stdlib_ptr);
+                    async_vm.setModuleResolver(module_resolver_ptr);
+                    async_vm.setGovernance(governance_ptr);
+                    async_vm.setCurrentFile(file);
+                    return async_vm.callNaabFunction(
+                        interpreter::NaabVal::makeVMClosure(closure_copy), args);
+                }).share();
+
+            future_val->future = shared_future;
+            stack_top_ -= (argc + 1);  // Pop args + callee
+            push(interpreter::NaabVal::makeFuture(future_val));
+            return true;
+        }
+
+        // Generator function: return GeneratorValue (eagerly evaluated when iterated)
+        if (fn->is_generator) {
+            interpreter::NaabVal* args_start = stack_top_ - argc;
+            std::vector<interpreter::NaabVal> args(args_start, stack_top_);
+            auto closure_copy = callee.asVMClosure();
+
+            auto gen = std::make_shared<interpreter::GeneratorValue>();
+            // Store the VM closure and args for later execution
+            // We'll use a shared_ptr<FunctionValue> wrapper for compatibility
+            gen->args = std::move(args);
+            // Store the closure in the generator for later use
+            // We'll eagerly run it at iteration time via callNaabFunction
+
+            stack_top_ -= (argc + 1);  // Pop args + callee
+            // Return the callee+args bundled — we'll eagerly collect yields when iterated
+            // Use a dict to carry the closure + args
+            std::unordered_map<std::string, interpreter::NaabVal> gen_info;
+            gen_info["__generator__"] = interpreter::NaabVal::makeVMClosure(closure_copy);
+            std::vector<interpreter::NaabVal> gen_args_list(gen->args.begin(), gen->args.end());
+            gen_info["__args__"] = interpreter::NaabVal::makeList(std::move(gen_args_list));
+            gen_info["__is_generator__"] = interpreter::NaabVal::makeBool(true);
+            push(interpreter::NaabVal::makeDict(std::move(gen_info)));
+            return true;
+        }
+
         return callFunction(closure.get(), argc);
     }
     // Built-in functions stored as "__builtin__:name" marker strings
