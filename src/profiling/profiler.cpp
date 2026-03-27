@@ -100,51 +100,58 @@ void Profiler::disable() {
 void Profiler::startFunction(const std::string& name) {
     if (!enabled_) return;
 
-    auto& timer = active_timers_[name];
-    timer.start();
+    auto& stack = active_timer_stacks_[name];
+    stack.emplace_back();
+    stack.back().start();
 }
 
 void Profiler::endFunction(const std::string& name) {
     if (!enabled_) return;
 
-    auto it = active_timers_.find(name);
-    if (it == active_timers_.end()) {
-        fmt::print("[WARN] endFunction called for '{}' without startFunction\n", name);
+    auto it = active_timer_stacks_.find(name);
+    if (it == active_timer_stacks_.end() || it->second.empty()) {
+        // Silently ignore — can happen for top-level <script> frame
         return;
     }
 
-    it->second.stop();
-    double duration = it->second.elapsedMs();
+    auto& stack = it->second;
+    stack.back().stop();
+    double duration = stack.back().elapsedMs();
 
     recordEntry(name, "function", duration);
 
-    // Remove from active timers
-    active_timers_.erase(it);
+    stack.pop_back();
+    if (stack.empty()) {
+        active_timer_stacks_.erase(it);
+    }
 }
 
 void Profiler::startBlock(const std::string& block_id) {
     if (!enabled_) return;
 
-    auto& timer = active_timers_[block_id];
-    timer.start();
+    auto& stack = active_timer_stacks_[block_id];
+    stack.emplace_back();
+    stack.back().start();
 }
 
 void Profiler::endBlock(const std::string& block_id) {
     if (!enabled_) return;
 
-    auto it = active_timers_.find(block_id);
-    if (it == active_timers_.end()) {
-        fmt::print("[WARN] endBlock called for '{}' without startBlock\n", block_id);
+    auto it = active_timer_stacks_.find(block_id);
+    if (it == active_timer_stacks_.end() || it->second.empty()) {
         return;
     }
 
-    it->second.stop();
-    double duration = it->second.elapsedMs();
+    auto& stack = it->second;
+    stack.back().stop();
+    double duration = stack.back().elapsedMs();
 
     recordEntry(block_id, "block", duration);
 
-    // Remove from active timers
-    active_timers_.erase(it);
+    stack.pop_back();
+    if (stack.empty()) {
+        active_timer_stacks_.erase(it);
+    }
 }
 
 void Profiler::recordEntry(const std::string& name, const std::string& type, double duration_ms) {
@@ -228,7 +235,7 @@ ProfileReport Profiler::generateReport() const {
 
 void Profiler::clear() {
     entries_.clear();
-    active_timers_.clear();
+    active_timer_stacks_.clear();
     fmt::print("[PROFILER] Profiling data cleared\n");
 }
 

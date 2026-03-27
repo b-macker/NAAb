@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -244,6 +245,9 @@ struct CompiledFunction {
 
     // Default parameter expressions (compiled as sub-chunks)
     std::vector<std::optional<Chunk>> default_chunks;
+
+    // Debug info: slot index → variable name (for debugger variable inspection)
+    std::vector<std::string> local_names;
 };
 
 // ============================================================================
@@ -333,6 +337,9 @@ public:
     void setGovernanceVerbose(bool v) { governance_verbose_ = v; }
     governance::GovernanceEngine* getGovernance() const { return governance_; }
 
+    // Debugger: get current scope variables (slot → name mapping)
+    std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;
+
 private:
     // Value stack
     static constexpr size_t STACK_MAX = 65536;
@@ -375,6 +382,7 @@ private:
     bool profile_ = false;
     bool explain_ = false;
     bool governance_verbose_ = false;
+    int last_debug_line_ = -1;  // Track line changes for debugger (avoid multi-break per line)
     std::string source_code_;
     std::vector<std::string> script_args_;
 

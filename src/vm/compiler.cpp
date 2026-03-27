@@ -40,6 +40,12 @@ CompiledFunction* Compiler::endFunction() {
     fn->local_count = static_cast<int>(current_->locals.size());
     fn->upvalues = current_->upvalues;
 
+    // Populate debug info: slot index → variable name
+    fn->local_names.resize(current_->locals.size());
+    for (size_t i = 0; i < current_->locals.size(); i++) {
+        fn->local_names[i] = current_->locals[i].name;
+    }
+
     CompilerState* old = current_;
     current_ = current_->enclosing;
     delete old;

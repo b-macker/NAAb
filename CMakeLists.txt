@@ -403,6 +403,8 @@ add_library(naab_vm
 target_link_libraries(naab_vm
     naab_parser
     naab_stdlib
+    naab_debugger
+    naab_profiling
     fmt::fmt
 )
 message(STATUS "  ✓ Bytecode VM (compiler + virtual machine)")
@@ -686,6 +688,7 @@ target_link_libraries(naab-lang
     naab_manifest
     naab_packages
     naab_scanner
+    naab_profiling
     fmt::fmt
     spdlog::spdlog
 )

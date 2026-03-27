@@ -1,7 +1,9 @@
 #include "naab/vm.h"
 #include "naab/compiler.h"
+#include "naab/debugger.h"
 #include "naab/governance.h"
 #include "naab/interpreter.h"
+#include "naab/profiler.h"
 #include "naab/json_result_parser.h"
 #include "naab/language_registry.h"
 #include "naab/module_resolver.h"
@@ -449,6 +451,18 @@ interpreter::NaabVal VM::run() {
         OpCode op = decodeOp(instruction);
         uint32_t arg = decodeArg(instruction);
 
+        // Debugger: check for breakpoints/stepping on line changes
+        if (debugger_ && debugger_->isActive()) {
+            int ip_offset = static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1;
+            int line = CURRENT_CHUNK().getLine(ip_offset);
+            if (line != last_debug_line_) {
+                last_debug_line_ = line;
+                std::string loc = (frame->source_file.empty() ? current_file_ : frame->source_file)
+                    + ":" + std::to_string(line);
+                debugger_->shouldBreak(loc);
+            }
+        }
+
         switch (op) {
             case OpCode::OP_CONST: {
                 push(CURRENT_CHUNK().constants[arg]);
@@ -842,6 +856,13 @@ interpreter::NaabVal VM::run() {
             }
 
             case OpCode::OP_RETURN: {
+                // Debugger/Profiler: end of function
+                if (debugger_ && debugger_->isActive()) debugger_->popFrame();
+                if (profile_) {
+                    profiling::Profiler::instance().endFunction(
+                        frame->function->name.empty() ? "<anonymous>" : frame->function->name);
+                }
+
                 interpreter::NaabVal result = pop();
                 closeUpvalues(frame->slots);
                 frame_count_--;
@@ -857,6 +878,13 @@ interpreter::NaabVal VM::run() {
             }
 
             case OpCode::OP_RETURN_NULL: {
+                // Debugger/Profiler: end of function
+                if (debugger_ && debugger_->isActive()) debugger_->popFrame();
+                if (profile_) {
+                    profiling::Profiler::instance().endFunction(
+                        frame->function->name.empty() ? "<anonymous>" : frame->function->name);
+                }
+
                 closeUpvalues(frame->slots);
                 frame_count_--;
                 if (frame_count_ <= stop_frame_count_) {
@@ -1822,6 +1850,21 @@ bool VM::callFunction(VMClosure* closure, int argc) {
     new_frame->handler_count = 0;
     new_frame->source_file = fn->source_file;
 
+    // Debugger: push call frame for backtrace
+    if (debugger_ && debugger_->isActive()) {
+        int line = fn->chunk.getLine(0);
+        std::string loc = fn->source_file + ":" + std::to_string(line);
+        naab::debugger::CallFrame dbg_frame(
+            fn->name.empty() ? "<anonymous>" : fn->name, loc, frame_count_ - 1);
+        debugger_->pushFrame(dbg_frame);
+    }
+
+    // Profiler: start timing this function
+    if (profile_) {
+        profiling::Profiler::instance().startFunction(
+            fn->name.empty() ? "<anonymous>" : fn->name);
+    }
+
     return true;
 }
 
@@ -2484,6 +2527,29 @@ static const char* opcodeName(OpCode op) {
     }
     return "OP_UNKNOWN";
 }
+
+// ============================================================================
+// Debugger: variable inspection
+// ============================================================================
+
+std::map<std::string, interpreter::NaabVal> VM::getCurrentScopeVariables() const {
+    std::map<std::string, interpreter::NaabVal> vars;
+    if (frame_count_ <= 0) return vars;
+    const CallFrame& cf = frames_[frame_count_ - 1];
+    const auto& names = cf.function->local_names;
+    for (size_t i = 0; i < names.size(); i++) {
+        if (names[i].empty()) continue;
+        // Only include slots that are within the current stack range
+        if (&cf.slots[i] < stack_top_) {
+            vars[names[i]] = cf.slots[i];
+        }
+    }
+    return vars;
+}
+
+// ============================================================================
+// Disassembler
+// ============================================================================
 
 void disassembleChunk(const Chunk& chunk, const std::string& name) {
     printf("== %s ==\n", name.c_str());

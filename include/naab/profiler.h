@@ -89,7 +89,7 @@ public:
 
 private:
     bool enabled_;
-    std::unordered_map<std::string, Timer> active_timers_;
+    std::unordered_map<std::string, std::vector<Timer>> active_timer_stacks_;
     std::vector<ProfileEntry> entries_;
 
     // Singleton instance

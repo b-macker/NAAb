@@ -45,6 +45,8 @@
 #include "naab/scanner.h"    // For --scan command
 #include "governance_init.h"  // For naab-lang init --governance
 #include "naab/package_manager.h"  // For package management commands
+#include "naab/profiler.h"   // For VM profiler integration
+#include "naab/debugger.h"   // For VM debugger integration
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
@@ -863,6 +865,139 @@ int main(int argc, char** argv) {
                     bytecode_vm.setGovernance(&vm_governance);
                 }
 
+                // Profiler
+                bytecode_vm.setProfileMode(profile);
+                if (profile) {
+                    naab::profiling::Profiler::instance().enable();
+                }
+
+                // Debugger
+                std::shared_ptr<naab::debugger::Debugger> vm_debugger;
+                if (debug) {
+                    vm_debugger = std::make_shared<naab::debugger::Debugger>();
+                    vm_debugger->setActive(true);
+                    bytecode_vm.setDebugger(vm_debugger.get());
+
+                    // Interactive command loop (same as tree-walker)
+                    vm_debugger->setBreakpointCallback([&bytecode_vm, vm_debugger](
+                        const naab::debugger::Breakpoint& bp,
+                        const naab::debugger::CallFrame& dbg_frame) {
+
+                        fprintf(stderr, "\n[naab-debug] Hit breakpoint #%d at %s\n",
+                                bp.id, bp.location.c_str());
+                        if (!dbg_frame.function_name.empty()) {
+                            fprintf(stderr, "  in function: %s\n", dbg_frame.function_name.c_str());
+                        }
+
+                        while (true) {
+                            fprintf(stderr, "(naab-debug) ");
+                            fflush(stderr);
+
+                            std::string cmd;
+                            if (!std::getline(std::cin, cmd)) {
+                                fprintf(stderr, "[naab-debug] EOF, quitting.\n");
+                                std::exit(0);
+                            }
+
+                            size_t start = cmd.find_first_not_of(" \t");
+                            if (start == std::string::npos) continue;
+                            cmd = cmd.substr(start);
+
+                            if (cmd == "c" || cmd == "continue") {
+                                vm_debugger->resume();
+                                break;
+                            } else if (cmd == "s" || cmd == "step") {
+                                vm_debugger->step(naab::debugger::StepMode::INTO);
+                                break;
+                            } else if (cmd == "n" || cmd == "next") {
+                                vm_debugger->step(naab::debugger::StepMode::OVER);
+                                break;
+                            } else if (cmd == "o" || cmd == "out") {
+                                vm_debugger->step(naab::debugger::StepMode::OUT);
+                                break;
+                            } else if (cmd == "q" || cmd == "quit") {
+                                fprintf(stderr, "[naab-debug] Quitting.\n");
+                                std::exit(0);
+                            } else if (cmd == "v" || cmd == "vars") {
+                                auto vars = bytecode_vm.getCurrentScopeVariables();
+                                if (vars.empty()) {
+                                    fprintf(stderr, "  (no variables in scope)\n");
+                                } else {
+                                    for (const auto& [name, val] : vars) {
+                                        if (val.isNull()) continue;
+                                        if (val.isString()) {
+                                            const auto& s = val.asString();
+                                            if (s.size() >= 18 && s.substr(0, 18) == "__stdlib_module__:") continue;
+                                            if (s.size() >= 10 && s.substr(0, 10) == "__module__:") continue;
+                                        }
+                                        if (val.isFunction() || val.isVMClosure()) continue;
+                                        fprintf(stderr, "  %s = %s\n", name.c_str(), val.toString().c_str());
+                                    }
+                                }
+                            } else if (cmd == "bt" || cmd == "backtrace") {
+                                auto stack = vm_debugger->getCallStack();
+                                if (stack.empty()) {
+                                    fprintf(stderr, "  (empty call stack)\n");
+                                } else {
+                                    for (int i = static_cast<int>(stack.size()) - 1; i >= 0; --i) {
+                                        fprintf(stderr, "  #%d %s at %s\n",
+                                                static_cast<int>(stack.size()) - 1 - i,
+                                                stack[i].function_name.c_str(),
+                                                stack[i].source_location.c_str());
+                                    }
+                                }
+                            } else if (cmd.size() > 2 && cmd[0] == 'p' && cmd[1] == ' ') {
+                                std::string var_name = cmd.substr(2);
+                                size_t vs = var_name.find_first_not_of(" \t");
+                                if (vs != std::string::npos) var_name = var_name.substr(vs);
+                                auto vars = bytecode_vm.getCurrentScopeVariables();
+                                auto it = vars.find(var_name);
+                                if (it != vars.end() && !it->second.isNull()) {
+                                    fprintf(stderr, "  %s = %s\n", var_name.c_str(), it->second.toString().c_str());
+                                } else {
+                                    fprintf(stderr, "  Variable '%s' not found in scope\n", var_name.c_str());
+                                }
+                            } else if (cmd.size() > 2 && cmd[0] == 'b' && cmd[1] == ' ') {
+                                std::string loc = cmd.substr(2);
+                                size_t ls = loc.find_first_not_of(" \t");
+                                if (ls != std::string::npos) loc = loc.substr(ls);
+                                int bp_id = vm_debugger->setBreakpoint(loc);
+                                fprintf(stderr, "  Breakpoint #%d set at %s\n", bp_id, loc.c_str());
+                            } else if (cmd.size() > 2 && cmd[0] == 'w' && cmd[1] == ' ') {
+                                std::string expr = cmd.substr(2);
+                                size_t es = expr.find_first_not_of(" \t");
+                                if (es != std::string::npos) expr = expr.substr(es);
+                                int w_id = vm_debugger->addWatch(expr);
+                                fprintf(stderr, "  Watch #%d added: %s\n", w_id, expr.c_str());
+                            } else if (cmd == "h" || cmd == "help") {
+                                fprintf(stderr,
+                                    "  c(ontinue)     Continue to next breakpoint\n"
+                                    "  s(tep)         Step into\n"
+                                    "  n(ext)         Step over\n"
+                                    "  o(ut)          Step out\n"
+                                    "  p <var>        Print variable\n"
+                                    "  v(ars)         Show all variables\n"
+                                    "  bt             Backtrace\n"
+                                    "  b <file>:<ln>  Set breakpoint\n"
+                                    "  w <expr>       Add watch\n"
+                                    "  q(uit)         Quit\n"
+                                );
+                            } else {
+                                fprintf(stderr, "  Unknown command: %s (type 'h' for help)\n", cmd.c_str());
+                            }
+                        }
+                    });
+
+                    // Push initial main frame and start in step mode
+                    naab::debugger::CallFrame main_frame("main", filename + ":1", 0);
+                    vm_debugger->pushFrame(main_frame);
+                    vm_debugger->step(naab::debugger::StepMode::INTO);
+
+                    fprintf(stderr, "[naab-debug] Debugger attached (VM mode). Will break at first statement.\n"
+                                    "  Commands: c(ontinue) s(tep) n(ext) o(ut) p <var> v(ars) bt q(uit)\n"
+                                    "  Set breakpoints: b <file>:<line>\n");
+                }
+
                 try {
                     auto result = bytecode_vm.execute(main_fn);
                     (void)result;
@@ -870,6 +1005,12 @@ int main(int argc, char** argv) {
                 } catch (...) {
                     if (vm_governance.isActive()) vm_governance.writeReports();
                     throw;
+                }
+
+                // Print profile report
+                if (profile) {
+                    auto report = naab::profiling::Profiler::instance().generateReport();
+                    fmt::print(stderr, "{}", report.toString());
                 }
             } else {
                 // Inner try-catch: write governance reports before re-throwing.
