@@ -1,5 +1,6 @@
 #include "naab/vm.h"
 #include "naab/compiler.h"
+#include "naab/governance.h"
 #include "naab/json_result_parser.h"
 #include "naab/language_registry.h"
 #include "naab/module_resolver.h"
@@ -891,6 +892,21 @@ interpreter::NaabVal VM::run() {
                     const std::string& sv = obj.asString();
                     if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
                         std::string mod = sv.substr(18);
+
+                        // Governance: check module-level permissions
+                        if (governance_) {
+                            if (mod == "file") {
+                                std::string fs_mode = (method == "read" || method == "read_lines"
+                                                       || method == "exists" || method == "size")
+                                                      ? "read" : "write";
+                                std::string err = governance_->checkFilesystemAllowed(fs_mode);
+                                if (!err.empty()) runtimeError("%s", err.c_str());
+                            } else if (mod == "http") {
+                                std::string err = governance_->checkNetworkAllowed();
+                                if (!err.empty()) runtimeError("%s", err.c_str());
+                            }
+                        }
+
                         interpreter::NaabVal* args_ptr = stack_top_ - argc;
                         interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
                         stack_top_ -= (argc + 1);
@@ -1301,6 +1317,19 @@ interpreter::NaabVal VM::run() {
                     }
                 }
 
+                // Governance: check polyglot block
+                if (governance_) {
+                    int gov_line = CURRENT_CHUNK().getLine(
+                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                    governance_->setCheckContext(current_file_, gov_line);
+                    std::string err = governance_->checkPolyglotBlock(
+                        language, raw_code, current_file_, gov_line,
+                        bound_var_names.size());
+                    if (!err.empty()) runtimeError("%s", err.c_str());
+                    std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
+                    if (!count_err.empty()) runtimeError("%s", count_err.c_str());
+                }
+
                 // Get executor from LanguageRegistry
                 auto& registry = runtime::LanguageRegistry::instance();
                 auto* executor = registry.getExecutor(language);
@@ -1576,7 +1605,7 @@ interpreter::NaabVal VM::run() {
             }
         }
       } catch (const VMException& e) {
-        // Route runtime errors through the exception handler system
+        // Route VM runtime errors through the exception handler system
         if (!exception_handlers_.empty()) {
             ExceptionHandler handler = exception_handlers_.back();
             exception_handlers_.pop_back();
@@ -1589,6 +1618,21 @@ interpreter::NaabVal VM::run() {
             push(interpreter::NaabVal::makeString(e.what()));
         } else {
             throw std::runtime_error(e.what());
+        }
+      } catch (const std::runtime_error& e) {
+        // Route C++ exceptions (from stdlib, polyglot, etc.) through exception handlers
+        if (!exception_handlers_.empty()) {
+            ExceptionHandler handler = exception_handlers_.back();
+            exception_handlers_.pop_back();
+            while (frame_count_ - 1 > handler.frame_index) {
+                frame_count_--;
+            }
+            frame = &frames_[frame_count_ - 1];
+            stack_top_ = handler.stack_base;
+            frame->ip = handler.catch_ip;
+            push(interpreter::NaabVal::makeString(e.what()));
+        } else {
+            throw;  // Re-throw if no handler
         }
       }
     }
@@ -1637,6 +1681,12 @@ bool VM::callFunction(VMClosure* closure, int argc) {
     }
     if (argc > fn->max_arity) {
         runtimeError("Expected at most %d arguments but got %d", fn->max_arity, argc);
+    }
+
+    // Governance: check call depth
+    if (governance_) {
+        std::string err = governance_->checkCallDepth(static_cast<size_t>(frame_count_ + 1));
+        if (!err.empty()) runtimeError("%s", err.c_str());
     }
 
     if (frame_count_ >= static_cast<int>(FRAMES_MAX)) {
@@ -1719,6 +1769,7 @@ VM::importModule(const std::string& module_path) {
     module_vm.setStdlib(stdlib_);
     module_vm.setModuleResolver(module_resolver_);
     module_vm.setCurrentFile(module_path);
+    module_vm.setGovernance(governance_);  // Propagate governance to modules
     module_vm.module_loading_depth_ = module_loading_depth_ + 1;
 
     // Share the module cache so sub-imports can find already-loaded modules

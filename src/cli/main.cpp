@@ -790,11 +790,15 @@ int main(int argc, char** argv) {
             }
 
             // Phase 3.1: Set source code for enhanced error messages
-            interpreter.setSourceCode(source, filename);
+            // Skip for VM path — VM has its own governance setup
+            if (!use_vm) {
+                interpreter.setSourceCode(source, filename);
+            }
 
             // CLI governance report path overrides (after govern.json is loaded)
-            if (!governance_report_json.empty() || !governance_report_sarif.empty() ||
-                !governance_report_junit.empty()) {
+            // VM mode handles its own governance setup
+            if (!use_vm && (!governance_report_json.empty() || !governance_report_sarif.empty() ||
+                !governance_report_junit.empty())) {
                 auto* gov = interpreter.getGovernance();
                 if (gov) {
                     auto& rules = gov->getMutableRules();
@@ -831,8 +835,42 @@ int main(int argc, char** argv) {
                 bytecode_vm.setStdlib(&vm_stdlib);
                 bytecode_vm.setModuleResolver(&vm_module_resolver);
                 bytecode_vm.setCurrentFile(filename);
-                auto result = bytecode_vm.execute(main_fn);
-                (void)result;
+
+                // Governance: discover and load govern.json for VM
+                naab::governance::GovernanceEngine vm_governance;
+                auto abs_file = std::filesystem::absolute(filename);
+                auto script_dir = abs_file.parent_path();
+                if (vm_governance.discoverAndLoad(script_dir.string())) {
+                    auto mode = vm_governance.getMode();
+                    std::string mode_str = (mode == naab::governance::GovernanceMode::ENFORCE) ? "enforce"
+                                         : (mode == naab::governance::GovernanceMode::AUDIT)   ? "audit"
+                                         : "off";
+                    fprintf(stderr, "[governance] Loaded: %s (mode: %s)\n",
+                            vm_governance.getLoadedPath().c_str(), mode_str.c_str());
+                    if (governance_override) vm_governance.setOverrideEnabled(true);
+                    if (governance_verbose) bytecode_vm.setGovernanceVerbose(true);
+                    // Apply CLI report path overrides
+                    if (!governance_report_json.empty() || !governance_report_sarif.empty() ||
+                        !governance_report_junit.empty()) {
+                        auto& rules = vm_governance.getMutableRules();
+                        if (!governance_report_json.empty())
+                            rules.output.file_output.report_json = governance_report_json;
+                        if (!governance_report_sarif.empty())
+                            rules.output.file_output.report_sarif = governance_report_sarif;
+                        if (!governance_report_junit.empty())
+                            rules.output.file_output.report_junit = governance_report_junit;
+                    }
+                    bytecode_vm.setGovernance(&vm_governance);
+                }
+
+                try {
+                    auto result = bytecode_vm.execute(main_fn);
+                    (void)result;
+                    if (vm_governance.isActive()) vm_governance.writeReports();
+                } catch (...) {
+                    if (vm_governance.isActive()) vm_governance.writeReports();
+                    throw;
+                }
             } else {
                 // Inner try-catch: write governance reports before re-throwing.
                 // The interpreter is alive here, so we can safely access it.

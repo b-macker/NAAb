@@ -330,6 +330,8 @@ public:
     void setScriptArgs(const std::vector<std::string>& args) { script_args_ = args; }
     void setCurrentFile(const std::string& f) { current_file_ = f; }
     void setModuleResolver(modules::ModuleResolver* mr) { module_resolver_ = mr; }
+    void setGovernanceVerbose(bool v) { governance_verbose_ = v; }
+    governance::GovernanceEngine* getGovernance() const { return governance_; }
 
 private:
     // Value stack
@@ -372,6 +374,7 @@ private:
     bool verbose_ = false;
     bool profile_ = false;
     bool explain_ = false;
+    bool governance_verbose_ = false;
     std::string source_code_;
     std::vector<std::string> script_args_;
 
