@@ -268,7 +268,6 @@ message(STATUS "  ✓ Parser error hints (Phase 4.2)")
 
 # Semantic analyzer (use Clang type checker blocks)
 add_library(naab_semantic
-    src/semantic/analyzer.cpp
     src/semantic/symbol_table.cpp
     src/semantic/type_checker.cpp
     src/semantic/type_system.cpp  # Type system implementation
@@ -569,9 +568,6 @@ message(STATUS "  ✓ Package manager")
 
 # Standard library
 add_library(naab_stdlib
-    src/stdlib/core.cpp
-    src/stdlib/io.cpp
-    src/stdlib/collections.cpp
     src/stdlib/json_impl.cpp
     src/stdlib/http_impl.cpp
     src/stdlib/stdlib.cpp

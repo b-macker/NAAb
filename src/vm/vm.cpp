@@ -446,6 +446,12 @@ interpreter::NaabVal VM::run() {
 
 #define READ_INSTR() (*frame->ip++)
 #define CURRENT_CHUNK() (frame->function->chunk)
+#define READ_CONSTANT(idx) \
+    (static_cast<size_t>(idx) < CURRENT_CHUNK().constants.size() \
+        ? CURRENT_CHUNK().constants[idx] \
+        : (runtimeError("Invalid constant index %d (pool size %d)", \
+            static_cast<int>(idx), static_cast<int>(CURRENT_CHUNK().constants.size())), \
+           interpreter::NaabVal::makeNull()))
 
     // Debugger check — extracted to lambda so computed goto DISPATCH macro stays small
     auto debugCheck = [&]() {
@@ -535,7 +541,7 @@ interpreter::NaabVal VM::run() {
         switch (op) {
 #endif
             VM_CASE(OP_CONST): {
-                push(CURRENT_CHUNK().constants[arg]);
+                push(READ_CONSTANT(arg));
             }
                 VM_NEXT();
 
@@ -924,7 +930,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_GET_GLOBAL): {
-                const std::string& name = CURRENT_CHUNK().constants[arg].asString();
+                const std::string& name = READ_CONSTANT(arg).asString();
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
                     runtimeError("Undefined variable '%s'", name.c_str());
@@ -934,7 +940,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_SET_GLOBAL): {
-                const std::string& name = CURRENT_CHUNK().constants[arg].asString();
+                const std::string& name = READ_CONSTANT(arg).asString();
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
                     runtimeError("Undefined variable '%s'", name.c_str());
@@ -944,7 +950,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_DEFINE_GLOBAL): {
-                const std::string& name = CURRENT_CHUNK().constants[arg].asString();
+                const std::string& name = READ_CONSTANT(arg).asString();
                 globals_[name] = pop();
             }
                 VM_NEXT();
@@ -1060,7 +1066,7 @@ interpreter::NaabVal VM::run() {
                 // Packed: [name_idx:16][argc:8] in the 24-bit arg
                 uint32_t name_idx = (arg >> 8) & 0xFFFF;
                 uint8_t argc = static_cast<uint8_t>(arg & 0xFF);
-                const std::string& method = CURRENT_CHUNK().constants[name_idx].asString();
+                const std::string& method = READ_CONSTANT(name_idx).asString();
 
                 // Object is below the args on the stack
                 interpreter::NaabVal& obj = peek(argc);
@@ -1145,7 +1151,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_CLOSURE): {
-                interpreter::NaabVal closure_val = CURRENT_CHUNK().constants[arg];
+                interpreter::NaabVal closure_val = READ_CONSTANT(arg);
                 auto& closure = closure_val.asVMClosure();
                 CompiledFunction* fn = closure->function;
 
@@ -1390,7 +1396,7 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_GET_MEMBER): {
                 interpreter::NaabVal obj = pop();
-                std::string name = CURRENT_CHUNK().constants[arg].toString();
+                std::string name = READ_CONSTANT(arg).toString();
                 if (obj.isDict()) {
                     auto& dict = obj.asDict();
                     auto it = dict.find(name);
@@ -1441,7 +1447,7 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_SET_MEMBER): {
                 interpreter::NaabVal obj = pop();
                 interpreter::NaabVal val = pop();
-                std::string name = CURRENT_CHUNK().constants[arg].toString();
+                std::string name = READ_CONSTANT(arg).toString();
                 if (obj.isDict()) {
                     obj.asDict()[name] = val;
                 } else {
@@ -1509,7 +1515,7 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_STRUCT_INIT_FIELD): {
                 // Pop value, set field on TOS struct instance
                 interpreter::NaabVal val = pop();
-                std::string name = CURRENT_CHUNK().constants[arg].toString();
+                std::string name = READ_CONSTANT(arg).toString();
                 interpreter::NaabVal& instance = peek(0);
                 if (!instance.isDict()) {
                     runtimeError("OP_STRUCT_INIT_FIELD: expected struct instance");
@@ -1524,7 +1530,7 @@ interpreter::NaabVal VM::run() {
                 // arg: [info_idx:16][num_vars:8]
                 int info_idx = (arg >> 8) & 0xFFFF;
                 int num_vars = arg & 0xFF;
-                interpreter::NaabVal block_info = CURRENT_CHUNK().constants[info_idx];
+                interpreter::NaabVal block_info = READ_CONSTANT(info_idx);
                 // Collect bound variable values from stack
                 std::vector<interpreter::NaabVal> bound_vals;
                 for (int i = num_vars - 1; i >= 0; i--) {

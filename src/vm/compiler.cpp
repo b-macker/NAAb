@@ -752,10 +752,9 @@ void Compiler::visit(ast::IfExpr& node) {
     patchJump(end_jump);
 }
 
-// Remaining stubs — throw "not yet implemented" for now
+// UseStatement: handled by ModuleUseStmt — this node type is a no-op in the compiler
 void Compiler::visit(ast::UseStatement& node) {
     (void)node;
-    // TODO: Phase 9
 }
 
 void Compiler::visit(ast::FunctionDecl& node) {
@@ -815,8 +814,8 @@ void Compiler::visit(ast::EnumDecl& node) {
 }
 
 void Compiler::visit(ast::InterfaceDecl& node) {
+    // Interfaces are parsed but not enforced at runtime (same as tree-walker)
     (void)node;
-    // TODO: Phase 7
 }
 
 void Compiler::visit(ast::FunctionDeclStmt& node) {
@@ -864,8 +863,8 @@ void Compiler::visit(ast::StructDeclStmt& node) {
 }
 
 void Compiler::visit(ast::RuntimeDeclStmt& node) {
+    // Persistent runtimes not yet compiled — silently skip (same as tree-walker)
     (void)node;
-    // TODO: Phase 10
 }
 
 void Compiler::visit(ast::DestructureStmt& node) {
