@@ -211,6 +211,7 @@ void print_usage() {
     fmt::print("  --profile, -p                       Enable performance profiling\n");
     fmt::print("  --explain                           Explain execution step-by-step\n");
     fmt::print("  --debug, -d                         Enable interactive debugger\n");
+    fmt::print("  --tree-walk                         Use tree-walk interpreter instead of VM\n");
     fmt::print("  --no-color                          Disable colored error messages\n");
     fmt::print("  --pipe                              Pipe mode: io.write() → stderr,\n");
     fmt::print("                                      io.output() → stdout (for JSON)\n");
@@ -274,6 +275,9 @@ int main(int argc, char** argv) {
         std::string arg(argv[command_arg_index]);
         if (arg == "--vm") {
             global_use_vm = true;
+            command_arg_index++;
+        } else if (arg == "--tree-walk") {
+            global_use_vm = false;
             command_arg_index++;
         } else if (arg == "--pipe") {
             global_pipe_mode = true;
@@ -464,6 +468,8 @@ int main(int argc, char** argv) {
                 strict_types = true;
             } else if (arg == "--vm") {
                 use_vm = true;
+            } else if (arg == "--tree-walk") {
+                use_vm = false;
             } else if (arg.substr(0, 2) == "--") {
                 // Unknown flag — give helpful error instead of treating as filename
                 fmt::print("Error: Unknown flag '{}'\n\n"
@@ -486,7 +492,8 @@ int main(int argc, char** argv) {
                            "    --governance-record-baselines  Record output baselines\n"
                            "    --governance-check-baselines   Check baselines (hard enforcement)\n"
                            "    --strict-types        Abort on type errors (pre-execution check)\n"
-                           "    --vm                  Use bytecode VM instead of tree-walker\n\n"
+                           "    --vm                  Use bytecode VM (default)\n"
+                           "    --tree-walk           Use tree-walk interpreter instead of VM\n\n"
                            "  Note: There is no --path flag. NAAb resolves modules relative to\n"
                            "  the script's directory. To use modules from another location,\n"
                            "  place the script in or near the modules directory, or use\n"
