@@ -9,6 +9,8 @@
 #include "naab/module_resolver.h"
 #include "naab/stdlib.h"
 #include "naab/stdlib_new_modules.h"
+#include "naab/sandbox.h"
+#include "naab/resource_limits.h"
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
@@ -540,6 +542,11 @@ interpreter::NaabVal VM::run() {
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av + bv));
+                } else if (a.isList() && b.isList()) {
+                    auto result = a.asListConst();
+                    auto& blist = b.asListConst();
+                    result.insert(result.end(), blist.begin(), blist.end());
+                    push(interpreter::NaabVal::makeList(std::move(result)));
                 } else if (a.isString() || b.isString()) {
                     push(interpreter::NaabVal::makeString(a.toString() + b.toString()));
                 } else {
@@ -574,6 +581,26 @@ interpreter::NaabVal VM::run() {
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
                     push(interpreter::NaabVal::makeDouble(av * bv));
+                } else if (a.isString() && b.isInt()) {
+                    // String repetition: "abc" * 3 -> "abcabcabc"
+                    std::string result;
+                    int64_t count = b.asInt();
+                    if (count > 0) {
+                        const std::string& s = a.asString();
+                        result.reserve(s.size() * count);
+                        for (int64_t i = 0; i < count; i++) result += s;
+                    }
+                    push(interpreter::NaabVal::makeString(std::move(result)));
+                } else if (a.isInt() && b.isString()) {
+                    // 3 * "abc" -> "abcabcabc"
+                    std::string result;
+                    int64_t count = a.asInt();
+                    if (count > 0) {
+                        const std::string& s = b.asString();
+                        result.reserve(s.size() * count);
+                        for (int64_t i = 0; i < count; i++) result += s;
+                    }
+                    push(interpreter::NaabVal::makeString(std::move(result)));
                 } else {
                     runtimeError("Type error: Cannot multiply %s and %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
@@ -1386,6 +1413,14 @@ interpreter::NaabVal VM::run() {
                     if (!count_err.empty()) runtimeError("%s", count_err.c_str());
                 }
 
+                // Enterprise Security: Activate sandbox for polyglot execution
+                auto& sandbox_manager = security::SandboxManager::instance();
+                security::SandboxConfig sandbox_config = sandbox_manager.getDefaultConfig();
+                if (governance_ && governance_->getTimeoutSeconds() > 0) {
+                    sandbox_config.max_cpu_seconds = governance_->getTimeoutSeconds();
+                }
+                security::ScopedSandbox scoped_sandbox(sandbox_config);
+
                 // Get executor from LanguageRegistry
                 auto& registry = runtime::LanguageRegistry::instance();
                 auto* executor = registry.getExecutor(language);
@@ -1701,7 +1736,10 @@ interpreter::NaabVal VM::run() {
             frame = &frames_[frame_count_ - 1];
             stack_top_ = handler.stack_base;
             frame->ip = handler.catch_ip;
-            push(interpreter::NaabVal::makeString(e.what()));
+            // Push error as dict with "message" key (matching tree-walker)
+            std::unordered_map<std::string, interpreter::NaabVal> err;
+            err["message"] = interpreter::NaabVal::makeString(e.what());
+            push(interpreter::NaabVal::makeDict(std::move(err)));
         } else {
             throw std::runtime_error(e.what());
         }
@@ -1716,7 +1754,10 @@ interpreter::NaabVal VM::run() {
             frame = &frames_[frame_count_ - 1];
             stack_top_ = handler.stack_base;
             frame->ip = handler.catch_ip;
-            push(interpreter::NaabVal::makeString(e.what()));
+            // Push error as dict with "message" key (matching tree-walker)
+            std::unordered_map<std::string, interpreter::NaabVal> err;
+            err["message"] = interpreter::NaabVal::makeString(e.what());
+            push(interpreter::NaabVal::makeDict(std::move(err)));
         } else {
             throw;  // Re-throw if no handler
         }
@@ -1748,18 +1789,20 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             auto module_resolver_ptr = module_resolver_;
             auto governance_ptr = governance_;
             std::string file = fn->source_file;
+            auto globals_copy = globals_;  // copy globals for async VM
 
             auto future_val = std::make_shared<interpreter::FutureValue>();
             future_val->description = "async fn " + fn->name;
             future_val->func_name = fn->name;
 
             auto shared_future = std::async(std::launch::async,
-                [closure_copy, args, stdlib_ptr, module_resolver_ptr, governance_ptr, file]() -> interpreter::NaabVal {
+                [closure_copy, args, stdlib_ptr, module_resolver_ptr, governance_ptr, file, globals_copy]() -> interpreter::NaabVal {
                     VM async_vm;
                     async_vm.setStdlib(stdlib_ptr);
                     async_vm.setModuleResolver(module_resolver_ptr);
                     async_vm.setGovernance(governance_ptr);
                     async_vm.setCurrentFile(file);
+                    async_vm.setGlobals(globals_copy);
                     return async_vm.callNaabFunction(
                         interpreter::NaabVal::makeVMClosure(closure_copy), args);
                 }).share();
@@ -2015,7 +2058,7 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
         if (method == "isEmpty") {
             return interpreter::NaabVal::makeBool(s.empty());
         }
-        if (method == "indexOf") {
+        if (method == "indexOf" || method == "index_of") {
             if (argc < 1) runtimeError("indexOf() requires 1 argument");
             auto pos = s.find(args[0].toString());
             return interpreter::NaabVal::makeInt(pos == std::string::npos ? -1 : static_cast<int>(pos));

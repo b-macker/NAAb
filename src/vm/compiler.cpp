@@ -401,9 +401,15 @@ void Compiler::visit(ast::LiteralExpr& node) {
 
     switch (node.getLiteralKind()) {
         case ast::LiteralKind::Int: {
-            int64_t val = std::stoll(node.getValue());
-            int idx = makeConstant(interpreter::NaabVal::makeInt(val));
-            emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+            try {
+                int64_t val = std::stoll(node.getValue());
+                int idx = makeConstant(interpreter::NaabVal::makeInt(val));
+                emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+            } catch (const std::out_of_range&) {
+                double val = std::stod(node.getValue());
+                int idx = makeConstant(interpreter::NaabVal::makeDouble(val));
+                emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+            }
             break;
         }
         case ast::LiteralKind::Float: {
@@ -678,17 +684,22 @@ void Compiler::visit(ast::UseStatement& node) {
 }
 
 void Compiler::visit(ast::FunctionDecl& node) {
+    // For local scope, declare before body so recursive self-references resolve
+    bool is_local = (current_->scope_depth > 0);
+    if (is_local) {
+        addLocal(node.getName());
+    }
+
     // Compile the function body into a new CompiledFunction
     compileFunctionBody(node.getName(), node.getParams(), node.getBody(),
                         node.isAsync(), node.getLocation().line);
 
-    // The closure is now on the stack. Define it as a global.
-    if (current_->scope_depth == 0) {
+    // The closure is now on the stack. Define it.
+    if (!is_local) {
         int name_idx = identifierConstant(node.getName());
         emitWide(OpCode::OP_DEFINE_GLOBAL, static_cast<uint32_t>(name_idx),
                  node.getLocation().line);
     } else {
-        addLocal(node.getName());
         markInitialized();
     }
 }
@@ -735,11 +746,14 @@ void Compiler::visit(ast::InterfaceDecl& node) {
 
 void Compiler::visit(ast::FunctionDeclStmt& node) {
     auto* decl = node.getDecl();
+
+    // Declare local BEFORE compiling body so recursive self-references resolve
+    addLocal(decl->getName());
+
     compileFunctionBody(decl->getName(), decl->getParams(), decl->getBody(),
                         decl->isAsync(), decl->getLocation().line);
 
-    // Define as local in current scope
-    addLocal(decl->getName());
+    // The compiled closure is on the stack — it occupies the local slot
     markInitialized();
 }
 
@@ -768,8 +782,52 @@ void Compiler::visit(ast::RuntimeDeclStmt& node) {
 }
 
 void Compiler::visit(ast::DestructureStmt& node) {
-    (void)node;
-    // TODO: Phase 7
+    int line = node.getLocation().line;
+    node.getInit()->accept(*this);  // push the source value
+
+    // Reserve source as a hidden local so we can reference it by slot index
+    addLocal(" __destr_src__");
+    markInitialized();
+    int source_slot = static_cast<int>(current_->locals.size()) - 1;
+
+    auto& names = node.getNames();
+    int rest_index = node.getRestIndex();
+
+    if (node.getDestructureKind() == ast::DestructureStmt::Kind::Array) {
+        for (size_t i = 0; i < names.size(); i++) {
+            // Load source from its local slot
+            emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(source_slot), line);
+
+            if (static_cast<int>(i) == rest_index) {
+                // Rest element: arr.slice(i)
+                emitWide(OpCode::OP_CONST, makeConstant(
+                    interpreter::NaabVal::makeInt(static_cast<int>(i))), line);
+                uint32_t slice_idx = static_cast<uint32_t>(identifierConstant("slice"));
+                uint32_t method_arg = (slice_idx << 8) | 1;
+                emitWide(OpCode::OP_CALL_METHOD, method_arg, line);
+            } else {
+                emitWide(OpCode::OP_CONST, makeConstant(
+                    interpreter::NaabVal::makeInt(static_cast<int>(i))), line);
+                emitOp(OpCode::OP_GET_INDEX, line);
+            }
+            addLocal(names[i]);
+            markInitialized();
+        }
+    } else {
+        // Dict destructuring: let {x, y} = expr
+        // Use "get" method so missing keys return null instead of throwing
+        for (auto& name : names) {
+            emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(source_slot), line);
+            emitWide(OpCode::OP_CONST, makeConstant(
+                interpreter::NaabVal::makeString(name)), line);
+            uint32_t get_idx = static_cast<uint32_t>(identifierConstant("get"));
+            uint32_t method_arg = (get_idx << 8) | 1;
+            emitWide(OpCode::OP_CALL_METHOD, method_arg, line);
+            addLocal(name);
+            markInitialized();
+        }
+    }
+    // Hidden local stays on stack — cleaned up when scope ends
 }
 
 void Compiler::visit(ast::ForStmt& node) {
@@ -1010,8 +1068,22 @@ void Compiler::visit(ast::CallExpr& node) {
 void Compiler::visit(ast::MemberExpr& node) {
     int line = node.getLocation().line;
     node.getObject()->accept(*this);
-    int name_idx = identifierConstant(node.getMember());
-    emitWide(OpCode::OP_GET_MEMBER, static_cast<uint32_t>(name_idx), line);
+    if (node.isOptional()) {
+        // Optional chaining: obj?.member → null if obj is null
+        emitOp(OpCode::OP_DUP, line);
+        int skip = emitJump(OpCode::OP_JUMP_IF_NULL, line);
+        emitOp(OpCode::OP_POP, line); // pop dup (not null)
+        int name_idx = identifierConstant(node.getMember());
+        emitWide(OpCode::OP_GET_MEMBER, static_cast<uint32_t>(name_idx), line);
+        int end = emitJump(OpCode::OP_JUMP, line);
+        patchJump(skip);
+        emitOp(OpCode::OP_POP, line); // pop null dup
+        // original null remains on stack
+        patchJump(end);
+    } else {
+        int name_idx = identifierConstant(node.getMember());
+        emitWide(OpCode::OP_GET_MEMBER, static_cast<uint32_t>(name_idx), line);
+    }
 }
 
 void Compiler::visit(ast::DictExpr& node) {
@@ -1121,30 +1193,64 @@ void Compiler::visit(ast::MatchExpr& node) {
             arm.body->accept(*this);
             // No jump needed — wildcard is always last
         } else {
-            // Compare subject == pattern
-            emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(subject_slot), line);
-            arm.pattern->accept(*this);
-            emitOp(OpCode::OP_EQ, line);
+            // Check if pattern is a variable binding (IdentifierExpr that's not a known constant)
+            auto* ident_pattern = dynamic_cast<ast::IdentifierExpr*>(arm.pattern.get());
+            bool is_binding = ident_pattern && arm.guard;  // variable binding with guard
 
-            if (arm.guard) {
-                int no_match = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
-                emitOp(OpCode::OP_POP, line); // pop EQ result (true)
+            if (is_binding) {
+                // Variable binding: bind subject to name, then check guard
+                emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(subject_slot), line);
+                addLocal(ident_pattern->getName());
+                markInitialized();
+
                 arm.guard->accept(*this);
                 int no_guard = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
                 emitOp(OpCode::OP_POP, line); // pop guard result (true)
+
+                // Remove binding from compiler's local list BEFORE body
+                // (body shouldn't see it as local since it occupies a stack slot we'll manage)
+                // Actually keep it — body needs to reference 'n'. Remove after body.
                 arm.body->accept(*this);
+                // Stack: [..., binding_var, result]
+                // Swap: store result in binding slot, pop the extra
+                int binding_slot = static_cast<int>(current_->locals.size()) - 1;
+                emitWide(OpCode::OP_SET_LOCAL, static_cast<uint32_t>(binding_slot), line);
+                emitOp(OpCode::OP_POP, line);
+                // Now stack: [..., result] in binding_var's old slot
                 end_jumps.push_back(emitJump(OpCode::OP_JUMP, line));
+
                 patchJump(no_guard);
                 emitOp(OpCode::OP_POP, line); // pop guard result (false)
-                patchJump(no_match);
-                emitOp(OpCode::OP_POP, line); // pop EQ result (false)
+                emitOp(OpCode::OP_POP, line); // pop binding variable
+
+                // Single compile-time cleanup of binding local
+                current_->locals.pop_back();
             } else {
-                int no_match = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
-                emitOp(OpCode::OP_POP, line); // pop EQ result (true)
-                arm.body->accept(*this);
-                end_jumps.push_back(emitJump(OpCode::OP_JUMP, line));
-                patchJump(no_match);
-                emitOp(OpCode::OP_POP, line); // pop EQ result (false)
+                // Compare subject == pattern
+                emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(subject_slot), line);
+                arm.pattern->accept(*this);
+                emitOp(OpCode::OP_EQ, line);
+
+                if (arm.guard) {
+                    int no_match = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
+                    emitOp(OpCode::OP_POP, line); // pop EQ result (true)
+                    arm.guard->accept(*this);
+                    int no_guard = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
+                    emitOp(OpCode::OP_POP, line); // pop guard result (true)
+                    arm.body->accept(*this);
+                    end_jumps.push_back(emitJump(OpCode::OP_JUMP, line));
+                    patchJump(no_guard);
+                    emitOp(OpCode::OP_POP, line); // pop guard result (false)
+                    patchJump(no_match);
+                    emitOp(OpCode::OP_POP, line); // pop EQ result (false)
+                } else {
+                    int no_match = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
+                    emitOp(OpCode::OP_POP, line); // pop EQ result (true)
+                    arm.body->accept(*this);
+                    end_jumps.push_back(emitJump(OpCode::OP_JUMP, line));
+                    patchJump(no_match);
+                    emitOp(OpCode::OP_POP, line); // pop EQ result (false)
+                }
             }
         }
     }

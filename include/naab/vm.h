@@ -333,6 +333,7 @@ public:
     void setSourceCode(const std::string& src) { source_code_ = src; }
     void setScriptArgs(const std::vector<std::string>& args) { script_args_ = args; }
     void setCurrentFile(const std::string& f) { current_file_ = f; }
+    void setGlobals(const std::unordered_map<std::string, interpreter::NaabVal>& g) { globals_ = g; }
     void setModuleResolver(modules::ModuleResolver* mr) { module_resolver_ = mr; }
     void setGovernanceVerbose(bool v) { governance_verbose_ = v; }
     governance::GovernanceEngine* getGovernance() const { return governance_; }
