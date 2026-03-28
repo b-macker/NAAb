@@ -270,7 +270,7 @@ struct CallFrame {
 struct ObjUpvalue {
     interpreter::NaabVal* location = nullptr;  // Points into stack while open
     interpreter::NaabVal closed;               // Value after closing
-    ObjUpvalue* next = nullptr;                // Linked list
+    std::shared_ptr<ObjUpvalue> next;          // Linked list (shared for safe cleanup)
     bool is_open = true;
 };
 
@@ -304,10 +304,10 @@ struct PolyglotBlockInfo {
 
 struct VMClosure {
     CompiledFunction* function = nullptr;
-    std::vector<ObjUpvalue*> upvalues;
+    std::vector<std::shared_ptr<ObjUpvalue>> upvalues;
 
     VMClosure() = default;
-    VMClosure(CompiledFunction* fn, std::vector<ObjUpvalue*> ups)
+    VMClosure(CompiledFunction* fn, std::vector<std::shared_ptr<ObjUpvalue>> ups)
         : function(fn), upvalues(std::move(ups)) {}
 };
 
@@ -342,21 +342,21 @@ public:
     std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;
 
 private:
-    // Value stack
+    // Value stack (heap-allocated to avoid 560KB on C++ stack)
     static constexpr size_t STACK_MAX = 65536;
-    interpreter::NaabVal stack_[STACK_MAX];
+    std::unique_ptr<interpreter::NaabVal[]> stack_;
     interpreter::NaabVal* stack_top_;
 
-    // Call frames
+    // Call frames (heap-allocated)
     static constexpr size_t FRAMES_MAX = 1024;
-    CallFrame frames_[FRAMES_MAX];
+    std::unique_ptr<CallFrame[]> frames_;
     int frame_count_ = 0;
 
     // Main closure wrapper (keeps it alive)
     std::shared_ptr<VMClosure> main_closure_;
 
-    // Open upvalues
-    ObjUpvalue* open_upvalues_ = nullptr;
+    // Open upvalues (shared_ptr for automatic cleanup when closures are destroyed)
+    std::shared_ptr<ObjUpvalue> open_upvalues_;
 
     // Exception handlers
     std::vector<ExceptionHandler> exception_handlers_;
@@ -395,7 +395,7 @@ private:
 
     // Stack operations (inline for speed)
     void push(interpreter::NaabVal val) {
-        if (stack_top_ >= stack_ + STACK_MAX) {
+        if (stack_top_ >= stack_.get() + STACK_MAX) {
             runtimeError("Stack overflow");
         }
         *stack_top_++ = std::move(val);
@@ -424,12 +424,8 @@ private:
                                           const std::vector<interpreter::NaabVal>& args);
 
     // Upvalue management
-    ObjUpvalue* captureUpvalue(interpreter::NaabVal* local);
+    std::shared_ptr<ObjUpvalue> captureUpvalue(interpreter::NaabVal* local);
     void closeUpvalues(interpreter::NaabVal* last);
-
-    // Exception handling
-    bool throwException(interpreter::NaabVal value);
-    void unwindStack(int target_frame);
 
     // Module import
     std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>

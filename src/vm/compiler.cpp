@@ -303,7 +303,7 @@ void Compiler::compileFunctionBody(const std::string& name,
 
     // Emit OP_CLOSURE with the function constant
     int fn_idx = makeConstant(interpreter::NaabVal::makeVMClosure(
-        std::make_shared<VMClosure>(compiled, std::vector<ObjUpvalue*>{})));
+        std::make_shared<VMClosure>(compiled, std::vector<std::shared_ptr<ObjUpvalue>>{})));
     emitWide(OpCode::OP_CLOSURE, static_cast<uint32_t>(fn_idx), line);
 
     // Emit upvalue descriptors following the closure instruction
@@ -454,8 +454,31 @@ void Compiler::visit(ast::IdentifierExpr& node) {
 }
 
 void Compiler::visit(ast::UnaryExpr& node) {
-    node.getOperand()->accept(*this);
     int line = node.getLocation().line;
+
+    // Constant folding: -42 → OP_CONST(-42), !true → OP_CONST(false)
+    if (auto* lit = dynamic_cast<ast::LiteralExpr*>(node.getOperand())) {
+        if (node.getOp() == ast::UnaryOp::Neg && lit->getLiteralKind() == ast::LiteralKind::Int) {
+            try {
+                int v = std::stoi(lit->getValue());
+                int ci = makeConstant(interpreter::NaabVal::makeInt(-v));
+                emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line);
+                return;
+            } catch (...) { /* too large, fall through */ }
+        }
+        if (node.getOp() == ast::UnaryOp::Neg && lit->getLiteralKind() == ast::LiteralKind::Float) {
+            int ci = makeConstant(interpreter::NaabVal::makeDouble(-std::stod(lit->getValue())));
+            emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line);
+            return;
+        }
+        if (node.getOp() == ast::UnaryOp::Not && lit->getLiteralKind() == ast::LiteralKind::Bool) {
+            int ci = makeConstant(interpreter::NaabVal::makeBool(lit->getValue() != "true"));
+            emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line);
+            return;
+        }
+    }
+
+    node.getOperand()->accept(*this);
 
     switch (node.getOp()) {
         case ast::UnaryOp::Neg: emitOp(OpCode::OP_NEG, line); break;
@@ -551,6 +574,47 @@ void Compiler::visit(ast::BinaryExpr& node) {
         emitOp(OpCode::OP_GET_INDEX, line);
         return;
     }
+
+    // Constant folding: evaluate binary ops on literals at compile time
+    auto* left_lit = dynamic_cast<ast::LiteralExpr*>(node.getLeft());
+    auto* right_lit = dynamic_cast<ast::LiteralExpr*>(node.getRight());
+    if (left_lit && right_lit) {
+        // Int op Int (only for values that fit in int)
+        if (left_lit->getLiteralKind() == ast::LiteralKind::Int &&
+            right_lit->getLiteralKind() == ast::LiteralKind::Int) {
+            int a, b;
+            try { a = std::stoi(left_lit->getValue()); b = std::stoi(right_lit->getValue()); }
+            catch (...) { goto no_fold; }  // too large for int, skip folding
+            switch (node.getOp()) {
+                case ast::BinaryOp::Add: { int ci = makeConstant(interpreter::NaabVal::makeInt(a + b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                case ast::BinaryOp::Sub: { int ci = makeConstant(interpreter::NaabVal::makeInt(a - b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                case ast::BinaryOp::Mul: { int ci = makeConstant(interpreter::NaabVal::makeInt(a * b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                case ast::BinaryOp::Div:
+                    if (b != 0) { { int ci = makeConstant(interpreter::NaabVal::makeInt(a / b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return; }
+                    break;
+                case ast::BinaryOp::Mod:
+                    if (b != 0) { { int ci = makeConstant(interpreter::NaabVal::makeInt(a % b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return; }
+                    break;
+                case ast::BinaryOp::Lt: { int ci = makeConstant(interpreter::NaabVal::makeBool(a < b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                case ast::BinaryOp::Le: { int ci = makeConstant(interpreter::NaabVal::makeBool(a <= b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                case ast::BinaryOp::Gt: { int ci = makeConstant(interpreter::NaabVal::makeBool(a > b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                case ast::BinaryOp::Ge: { int ci = makeConstant(interpreter::NaabVal::makeBool(a >= b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                case ast::BinaryOp::Eq: { int ci = makeConstant(interpreter::NaabVal::makeBool(a == b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                case ast::BinaryOp::Ne: { int ci = makeConstant(interpreter::NaabVal::makeBool(a != b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                default: break;
+            }
+        }
+        // String + String concatenation
+        if (left_lit->getLiteralKind() == ast::LiteralKind::String &&
+            right_lit->getLiteralKind() == ast::LiteralKind::String &&
+            node.getOp() == ast::BinaryOp::Add) {
+            { int ci = makeConstant(interpreter::NaabVal::makeString(
+                left_lit->getValue() + right_lit->getValue()));
+              emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); }
+            return;
+        }
+    }
+    no_fold:
 
     // Standard binary ops
     node.getLeft()->accept(*this);

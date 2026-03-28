@@ -268,7 +268,7 @@ int main(int argc, char** argv) {
     bool global_debug = false;
     bool global_no_color = false;
     bool global_strict_types = false;
-    bool global_use_vm = false;
+    bool global_use_vm = true;  // VM is default since Phase 16
     int command_arg_index = 1;  // Index of the actual command/file in argv
 
     while (command_arg_index < argc) {
@@ -2297,6 +2297,20 @@ int main(int argc, char** argv) {
                     if (bench_file.substr(bench_file.size() - lang.ext.size()) != lang.ext) continue;
 
                     std::string bench_name = bench_entry.path().stem().string();
+
+                    // Reject filenames with shell metacharacters (defensive)
+                    bool unsafe = false;
+                    for (char c : bench_file) {
+                        if (c == ';' || c == '|' || c == '&' || c == '`' ||
+                            c == '$' || c == '(' || c == ')') {
+                            unsafe = true;
+                            break;
+                        }
+                    }
+                    if (unsafe) {
+                        fmt::print(stderr, "  Skipping unsafe filename: {}\n", bench_file);
+                        continue;
+                    }
 
                     std::vector<int64_t> times;
                     for (int iter = 0; iter < iterations; ++iter) {

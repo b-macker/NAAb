@@ -28,6 +28,7 @@ struct GeneratorValue;
 
 namespace vm {
 struct VMClosure;
+class VM;
 } // namespace vm
 
 namespace interpreter {
@@ -37,6 +38,7 @@ namespace interpreter {
 struct ValueBox;
 
 class NaabVal {
+    friend class vm::VM;  // VM accesses bits_ directly for arithmetic fast paths
     uint64_t bits_;
 
     // NaN-boxing tag constants.

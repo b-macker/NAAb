@@ -77,24 +77,24 @@ int Chunk::getLine(int offset) const {
 // VM
 // ============================================================================
 
-VM::VM() : stack_top_(stack_) {}
+VM::VM()
+    : stack_(std::make_unique<interpreter::NaabVal[]>(STACK_MAX))
+    , stack_top_(stack_.get())
+    , frames_(std::make_unique<CallFrame[]>(FRAMES_MAX))
+{}
 
 VM::~VM() {
-    // Clean up open upvalues
-    while (open_upvalues_) {
-        ObjUpvalue* next = open_upvalues_->next;
-        delete open_upvalues_;
-        open_upvalues_ = next;
-    }
+    // shared_ptr handles cleanup — just break the linked list to avoid deep recursion
+    open_upvalues_.reset();
 }
 
 interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
     // Set up the initial call frame
     frame_count_ = 0;
-    stack_top_ = stack_;
+    stack_top_ = stack_.get();
 
     // Wrap main function in a closure for uniform handling
-    main_closure_ = std::make_shared<VMClosure>(main_fn, std::vector<ObjUpvalue*>{});
+    main_closure_ = std::make_shared<VMClosure>(main_fn, std::vector<std::shared_ptr<ObjUpvalue>>{});
 
     // Push the main function as first stack slot
     push(interpreter::NaabVal::makeNull());  // Placeholder for function slot
@@ -103,7 +103,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
     frame->function = main_fn;
     frame->closure = main_closure_.get();
     frame->ip = main_fn->chunk.code.data();
-    frame->slots = stack_;
+    frame->slots = stack_.get();
     frame->handler_count = 0;
     frame->source_file = main_fn->source_file;
 
@@ -447,13 +447,8 @@ interpreter::NaabVal VM::run() {
 #define READ_INSTR() (*frame->ip++)
 #define CURRENT_CHUNK() (frame->function->chunk)
 
-    for (;;) {
-      try {
-        uint32_t instruction = READ_INSTR();
-        OpCode op = decodeOp(instruction);
-        uint32_t arg = decodeArg(instruction);
-
-        // Debugger: check for breakpoints/stepping on line changes
+    // Debugger check — extracted to lambda so computed goto DISPATCH macro stays small
+    auto debugCheck = [&]() {
         if (debugger_ && debugger_->isActive()) {
             int ip_offset = static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1;
             int line = CURRENT_CHUNK().getLine(ip_offset);
@@ -464,53 +459,126 @@ interpreter::NaabVal VM::run() {
                 debugger_->shouldBreak(loc);
             }
         }
+    };
+
+// Computed goto dispatch for GCC/Clang — eliminates branch prediction overhead
+#if defined(__GNUC__) || defined(__clang__)
+#define USE_COMPUTED_GOTO
+#endif
+
+#ifdef USE_COMPUTED_GOTO
+    // Dispatch table: 80 entries, one per opcode. Unimplemented opcodes → vm_default.
+    static void* dispatch_table[] = {
+        &&vm_OP_CONST, &&vm_OP_NULL, &&vm_OP_TRUE, &&vm_OP_FALSE,        // 0-3
+        &&vm_OP_POP, &&vm_OP_POPN, &&vm_OP_DUP, &&vm_OP_SWAP,           // 4-7
+        &&vm_OP_ADD, &&vm_OP_SUB, &&vm_OP_MUL, &&vm_OP_DIV,             // 8-11
+        &&vm_OP_MOD, &&vm_OP_NEG, &&vm_OP_NOT, &&vm_OP_EQ,              // 12-15
+        &&vm_OP_NE, &&vm_OP_LT, &&vm_OP_LE, &&vm_OP_GT,                // 16-19
+        &&vm_OP_GE, &&vm_OP_IN,                                          // 20-21
+        &&vm_OP_GET_LOCAL, &&vm_OP_SET_LOCAL,                             // 22-23
+        &&vm_OP_GET_UPVALUE, &&vm_OP_SET_UPVALUE,                        // 24-25
+        &&vm_OP_GET_GLOBAL, &&vm_OP_SET_GLOBAL,                          // 26-27
+        &&vm_OP_DEFINE_GLOBAL, &&vm_default,                              // 28-29 (29=GET_QUALIFIED stub)
+        &&vm_OP_JUMP, &&vm_OP_JUMP_BACK,                                 // 30-31
+        &&vm_OP_JUMP_IF_FALSE, &&vm_OP_JUMP_IF_TRUE, &&vm_OP_JUMP_IF_NULL, // 32-34
+        &&vm_OP_CALL, &&vm_OP_CALL_METHOD,                               // 35-36
+        &&vm_OP_RETURN, &&vm_OP_RETURN_NULL,                              // 37-38
+        &&vm_OP_CLOSURE, &&vm_OP_CLOSE_UPVALUE,                          // 39-40
+        &&vm_OP_LIST, &&vm_OP_DICT,                                       // 41-42
+        &&vm_OP_GET_INDEX, &&vm_OP_SET_INDEX,                             // 43-44
+        &&vm_OP_GET_MEMBER, &&vm_OP_SET_MEMBER,                           // 45-46
+        &&vm_OP_RANGE,                                                     // 47
+        &&vm_OP_STRUCT_NEW, &&vm_OP_STRUCT_INIT_FIELD, &&vm_OP_COPY_VALUE, // 48-50
+        &&vm_OP_GET_ITER, &&vm_OP_ITER_NEXT,                              // 51-52
+        &&vm_STUB_NOP, &&vm_STUB_NOP,                                      // 53-54 (DESTRUCTURE — compiler uses GET_INDEX)
+        &&vm_OP_IMPORT, &&vm_OP_IMPORT_NAME,                              // 55-56
+        &&vm_OP_IMPORT_WILDCARD, &&vm_OP_EXPORT_NAME,                     // 57-58
+        &&vm_OP_TRY_BEGIN, &&vm_OP_TRY_END, &&vm_OP_THROW,               // 59-61
+        &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,                      // 62-64 (CATCH/FINALLY — compiler inlines)
+        &&vm_OP_POLYGLOT,                                                  // 65
+        &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,      // 66-69 (GOV — handled at AST level)
+        &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,      // 70-73 (GOV — handled at AST level)
+        &&vm_OP_YIELD, &&vm_OP_AWAIT,                                     // 74-75
+        &&vm_STUB_NOP, &&vm_STUB_NOP,                                     // 76-77 (MAKE_GEN/ASYNC — reserved)
+        &&vm_STUB_NOP, &&vm_STUB_NOP,                                     // 78-79 (RUNTIME — reserved)
+    };
+
+    #define VM_CASE(opcode) vm_##opcode
+    #define VM_NEXT() do { \
+        instruction = READ_INSTR(); \
+        op = decodeOp(instruction); \
+        arg = decodeArg(instruction); \
+        debugCheck(); \
+        goto *dispatch_table[static_cast<uint8_t>(op)]; \
+    } while(0)
+    #define VM_DEFAULT vm_default
+#else
+    #define VM_CASE(opcode) case OpCode::opcode
+    #define VM_NEXT() break
+    #define VM_DEFAULT default
+#endif
+
+    uint32_t instruction;
+    OpCode op;
+    uint32_t arg;
+
+    for (;;) {
+      try {
+#ifdef USE_COMPUTED_GOTO
+        VM_NEXT();  // Initial dispatch (and re-dispatch after exception handling)
+#else
+        instruction = READ_INSTR();
+        op = decodeOp(instruction);
+        arg = decodeArg(instruction);
+        debugCheck();
 
         switch (op) {
-            case OpCode::OP_CONST: {
+#endif
+            VM_CASE(OP_CONST): {
                 push(CURRENT_CHUNK().constants[arg]);
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_NULL: {
+            VM_CASE(OP_NULL): {
                 push(interpreter::NaabVal::makeNull());
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_TRUE: {
+            VM_CASE(OP_TRUE): {
                 push(interpreter::NaabVal::makeBool(true));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_FALSE: {
+            VM_CASE(OP_FALSE): {
                 push(interpreter::NaabVal::makeBool(false));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_POP: {
+            VM_CASE(OP_POP): {
                 pop();
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_POPN: {
+            VM_CASE(OP_POPN): {
                 uint8_t n = decodeA(instruction);
                 stack_top_ -= n;
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_DUP: {
+            VM_CASE(OP_DUP): {
                 push(peek(0));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_SWAP: {
+            VM_CASE(OP_SWAP): {
                 interpreter::NaabVal a = pop();
                 interpreter::NaabVal b = pop();
                 push(std::move(a));
                 push(std::move(b));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_COPY_VALUE: {
+            VM_CASE(OP_COPY_VALUE): {
                 // Deep copy TOS if it's a list or dict (value semantics)
                 interpreter::NaabVal& top = peek(0);
                 if (top.isList()) {
@@ -523,11 +591,23 @@ interpreter::NaabVal VM::run() {
                     top = interpreter::NaabVal::makeDict(std::move(new_dict));
                 }
                 // Other types: no-op (ints, strings, bools are value types)
-                break;
             }
+                VM_NEXT();
 
             // Arithmetic
-            case OpCode::OP_ADD: {
+            VM_CASE(OP_ADD): {
+                // Fast path: int + int — direct bits_ manipulation, no pop/push overhead
+                interpreter::NaabVal& b_ref = *(stack_top_ - 1);
+                interpreter::NaabVal& a_ref = *(stack_top_ - 2);
+                if ((a_ref.bits_ & interpreter::NaabVal::TAG_MASK) == interpreter::NaabVal::TAG_INT &&
+                    (b_ref.bits_ & interpreter::NaabVal::TAG_MASK) == interpreter::NaabVal::TAG_INT) {
+                    int32_t ai = static_cast<int32_t>(static_cast<uint32_t>(a_ref.bits_));
+                    int32_t bi = static_cast<int32_t>(static_cast<uint32_t>(b_ref.bits_));
+                    uint32_t ru; int32_t ri = ai + bi;
+                    std::memcpy(&ru, &ri, sizeof(ru));
+                    a_ref.bits_ = interpreter::NaabVal::TAG_INT | static_cast<uint64_t>(ru);
+                    stack_top_--;
+                } else {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -553,10 +633,23 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot add %s and %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
-                break;
+                } // end slow path else
             }
+                VM_NEXT();
 
-            case OpCode::OP_SUB: {
+            VM_CASE(OP_SUB): {
+                // Fast path: int - int
+                interpreter::NaabVal& b_ref = *(stack_top_ - 1);
+                interpreter::NaabVal& a_ref = *(stack_top_ - 2);
+                if ((a_ref.bits_ & interpreter::NaabVal::TAG_MASK) == interpreter::NaabVal::TAG_INT &&
+                    (b_ref.bits_ & interpreter::NaabVal::TAG_MASK) == interpreter::NaabVal::TAG_INT) {
+                    int32_t ai = static_cast<int32_t>(static_cast<uint32_t>(a_ref.bits_));
+                    int32_t bi = static_cast<int32_t>(static_cast<uint32_t>(b_ref.bits_));
+                    uint32_t ru; int32_t ri = ai - bi;
+                    std::memcpy(&ru, &ri, sizeof(ru));
+                    a_ref.bits_ = interpreter::NaabVal::TAG_INT | static_cast<uint64_t>(ru);
+                    stack_top_--;
+                } else {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -569,10 +662,11 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot subtract %s from %s",
                                  b.getTypeName().c_str(), a.getTypeName().c_str());
                 }
-                break;
+                } // end slow path
             }
+                VM_NEXT();
 
-            case OpCode::OP_MUL: {
+            VM_CASE(OP_MUL): {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -605,10 +699,10 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot multiply %s and %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_DIV: {
+            VM_CASE(OP_DIV): {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -623,10 +717,10 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot divide %s by %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_MOD: {
+            VM_CASE(OP_MOD): {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -635,10 +729,10 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Type error: Modulo requires integers");
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_NEG: {
+            VM_CASE(OP_NEG): {
                 interpreter::NaabVal a = pop();
                 if (a.isInt()) {
                     push(interpreter::NaabVal::makeInt(-a.asInt()));
@@ -647,17 +741,17 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Type error: Cannot negate %s", a.getTypeName().c_str());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_NOT: {
+            VM_CASE(OP_NOT): {
                 interpreter::NaabVal a = pop();
                 push(interpreter::NaabVal::makeBool(!a.toBool()));
-                break;
             }
+                VM_NEXT();
 
             // Comparison
-            case OpCode::OP_EQ: {
+            VM_CASE(OP_EQ): {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 bool eq = false;
@@ -673,10 +767,10 @@ interpreter::NaabVal VM::run() {
                     eq = a.toString() == b.toString();
                 }
                 push(interpreter::NaabVal::makeBool(eq));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_NE: {
+            VM_CASE(OP_NE): {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 bool eq = false;
@@ -692,10 +786,20 @@ interpreter::NaabVal VM::run() {
                     eq = a.toString() == b.toString();
                 }
                 push(interpreter::NaabVal::makeBool(!eq));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_LT: {
+            VM_CASE(OP_LT): {
+                // Fast path: int < int
+                interpreter::NaabVal& b_ref = *(stack_top_ - 1);
+                interpreter::NaabVal& a_ref = *(stack_top_ - 2);
+                if ((a_ref.bits_ & interpreter::NaabVal::TAG_MASK) == interpreter::NaabVal::TAG_INT &&
+                    (b_ref.bits_ & interpreter::NaabVal::TAG_MASK) == interpreter::NaabVal::TAG_INT) {
+                    int32_t ai = static_cast<int32_t>(static_cast<uint32_t>(a_ref.bits_));
+                    int32_t bi = static_cast<int32_t>(static_cast<uint32_t>(b_ref.bits_));
+                    a_ref.bits_ = interpreter::NaabVal::TAG_BOOL | (ai < bi ? 1ULL : 0ULL);
+                    stack_top_--;
+                } else {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -710,10 +814,11 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot compare %s < %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
-                break;
+                } // end slow path
             }
+                VM_NEXT();
 
-            case OpCode::OP_LE: {
+            VM_CASE(OP_LE): {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -728,10 +833,10 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot compare %s <= %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_GT: {
+            VM_CASE(OP_GT): {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -746,10 +851,10 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot compare %s > %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_GE: {
+            VM_CASE(OP_GE): {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -764,10 +869,10 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot compare %s >= %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_IN: {
+            VM_CASE(OP_IN): {
                 interpreter::NaabVal container = pop();
                 interpreter::NaabVal item = pop();
                 if (container.isList()) {
@@ -784,94 +889,94 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Type error: 'in' requires a list, dict, or string on the right side");
                 }
-                break;
             }
+                VM_NEXT();
 
             // Variable access
-            case OpCode::OP_GET_LOCAL: {
+            VM_CASE(OP_GET_LOCAL): {
                 push(frame->slots[arg]);
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_SET_LOCAL: {
+            VM_CASE(OP_SET_LOCAL): {
                 frame->slots[arg] = peek(0);
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_GET_UPVALUE: {
-                ObjUpvalue* upvalue = frame->closure->upvalues[arg];
+            VM_CASE(OP_GET_UPVALUE): {
+                auto& upvalue = frame->closure->upvalues[arg];
                 if (upvalue->is_open) {
                     push(*upvalue->location);
                 } else {
                     push(upvalue->closed);
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_SET_UPVALUE: {
-                ObjUpvalue* upvalue = frame->closure->upvalues[arg];
+            VM_CASE(OP_SET_UPVALUE): {
+                auto& upvalue = frame->closure->upvalues[arg];
                 if (upvalue->is_open) {
                     *upvalue->location = peek(0);
                 } else {
                     upvalue->closed = peek(0);
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_GET_GLOBAL: {
+            VM_CASE(OP_GET_GLOBAL): {
                 const std::string& name = CURRENT_CHUNK().constants[arg].asString();
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
                     runtimeError("Undefined variable '%s'", name.c_str());
                 }
                 push(it->second);
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_SET_GLOBAL: {
+            VM_CASE(OP_SET_GLOBAL): {
                 const std::string& name = CURRENT_CHUNK().constants[arg].asString();
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
                     runtimeError("Undefined variable '%s'", name.c_str());
                 }
                 it->second = peek(0);
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_DEFINE_GLOBAL: {
+            VM_CASE(OP_DEFINE_GLOBAL): {
                 const std::string& name = CURRENT_CHUNK().constants[arg].asString();
                 globals_[name] = pop();
-                break;
             }
+                VM_NEXT();
 
             // Control flow
-            case OpCode::OP_JUMP: {
+            VM_CASE(OP_JUMP): {
                 frame->ip += arg;
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_JUMP_BACK: {
+            VM_CASE(OP_JUMP_BACK): {
                 frame->ip -= arg;
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_JUMP_IF_FALSE: {
+            VM_CASE(OP_JUMP_IF_FALSE): {
                 // Peek — does NOT pop. Caller must emit OP_POP if needed.
                 if (!peek(0).toBool()) {
                     frame->ip += arg;
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_JUMP_IF_TRUE: {
+            VM_CASE(OP_JUMP_IF_TRUE): {
                 // Peek — does NOT pop. Caller must emit OP_POP if needed.
                 if (peek(0).toBool()) {
                     frame->ip += arg;
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_JUMP_IF_NULL: {
+            VM_CASE(OP_JUMP_IF_NULL): {
                 interpreter::NaabVal val = pop();
                 if (val.isNull()) {
                     frame->ip += arg;
@@ -879,10 +984,10 @@ interpreter::NaabVal VM::run() {
                     // Not null — push it back (it was consumed for the check)
                     push(std::move(val));
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_RETURN: {
+            VM_CASE(OP_RETURN): {
                 // Debugger/Profiler: end of function
                 if (debugger_ && debugger_->isActive()) debugger_->popFrame();
                 if (profile_) {
@@ -892,6 +997,14 @@ interpreter::NaabVal VM::run() {
 
                 interpreter::NaabVal result = pop();
                 closeUpvalues(frame->slots);
+                // Pop exception handlers belonging to this frame (e.g., return inside try block)
+                {
+                    int fi = frame_count_ - 1;
+                    while (!exception_handlers_.empty() &&
+                           exception_handlers_.back().frame_index == fi) {
+                        exception_handlers_.pop_back();
+                    }
+                }
                 frame_count_--;
                 if (frame_count_ <= stop_frame_count_) {
                     stack_top_ = frame->slots;
@@ -901,10 +1014,10 @@ interpreter::NaabVal VM::run() {
                 stack_top_ = frame->slots;
                 push(std::move(result));
                 frame = &frames_[frame_count_ - 1];
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_RETURN_NULL: {
+            VM_CASE(OP_RETURN_NULL): {
                 // Debugger/Profiler: end of function
                 if (debugger_ && debugger_->isActive()) debugger_->popFrame();
                 if (profile_) {
@@ -913,6 +1026,14 @@ interpreter::NaabVal VM::run() {
                 }
 
                 closeUpvalues(frame->slots);
+                // Pop exception handlers belonging to this frame (e.g., return inside try block)
+                {
+                    int fi = frame_count_ - 1;
+                    while (!exception_handlers_.empty() &&
+                           exception_handlers_.back().frame_index == fi) {
+                        exception_handlers_.pop_back();
+                    }
+                }
                 frame_count_--;
                 if (frame_count_ <= stop_frame_count_) {
                     stack_top_ = frame->slots;
@@ -922,20 +1043,20 @@ interpreter::NaabVal VM::run() {
                 stack_top_ = frame->slots;
                 push(interpreter::NaabVal::makeNull());
                 frame = &frames_[frame_count_ - 1];
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_CALL: {
+            VM_CASE(OP_CALL): {
                 uint8_t argc = decodeA(instruction);
                 interpreter::NaabVal& callee = peek(argc);
                 if (!callValue(callee, argc)) {
                     runtimeError("Value is not callable");
                 }
                 frame = &frames_[frame_count_ - 1];
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_CALL_METHOD: {
+            VM_CASE(OP_CALL_METHOD): {
                 // Packed: [name_idx:16][argc:8] in the 24-bit arg
                 uint32_t name_idx = (arg >> 8) & 0xFFFF;
                 uint8_t argc = static_cast<uint8_t>(arg & 0xFF);
@@ -968,7 +1089,7 @@ interpreter::NaabVal VM::run() {
                         interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
                         stack_top_ -= (argc + 1);
                         push(std::move(result));
-                        break;
+                        goto done_call_method;
                     }
                     // Also handle __builtin__:X where X is a stdlib module name
                     // (e.g., "string" is both a builtin function and stdlib module)
@@ -979,7 +1100,7 @@ interpreter::NaabVal VM::run() {
                             interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
                             stack_top_ -= (argc + 1);
                             push(std::move(result));
-                            break;
+                            goto done_call_method;
                         }
                     }
                 }
@@ -995,7 +1116,7 @@ interpreter::NaabVal VM::run() {
                             runtimeError("Dict value '%s' is not callable", method.c_str());
                         }
                         frame = &frames_[frame_count_ - 1];
-                        break;
+                        goto done_call_method;
                     }
                     // Struct method lookup: "StructName.method" in globals
                     auto sn_it = dict.find("__struct_name__");
@@ -1008,7 +1129,7 @@ interpreter::NaabVal VM::run() {
                                 runtimeError("Struct method '%s' is not callable", qualified.c_str());
                             }
                             frame = &frames_[frame_count_ - 1];
-                            break;
+                            goto done_call_method;
                         }
                     }
                 }
@@ -1019,10 +1140,11 @@ interpreter::NaabVal VM::run() {
                 // Pop args + object
                 stack_top_ -= (argc + 1);
                 push(std::move(result));
-                break;
             }
+            done_call_method:
+                VM_NEXT();
 
-            case OpCode::OP_CLOSURE: {
+            VM_CASE(OP_CLOSURE): {
                 interpreter::NaabVal closure_val = CURRENT_CHUNK().constants[arg];
                 auto& closure = closure_val.asVMClosure();
                 CompiledFunction* fn = closure->function;
@@ -1047,18 +1169,18 @@ interpreter::NaabVal VM::run() {
                 }
 
                 push(interpreter::NaabVal::makeVMClosure(std::move(new_closure)));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_CLOSE_UPVALUE: {
+            VM_CASE(OP_CLOSE_UPVALUE): {
                 closeUpvalues(stack_top_ - 1);
                 pop();
-                break;
             }
+                VM_NEXT();
 
             // ====== Collections ======
 
-            case OpCode::OP_LIST: {
+            VM_CASE(OP_LIST): {
                 int count = static_cast<int>(arg);
                 std::vector<interpreter::NaabVal> elems;
                 elems.reserve(count);
@@ -1067,10 +1189,10 @@ interpreter::NaabVal VM::run() {
                 }
                 for (int i = 0; i < count; i++) pop();
                 push(interpreter::NaabVal::makeList(std::move(elems)));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_DICT: {
+            VM_CASE(OP_DICT): {
                 int count = static_cast<int>(arg);
                 std::unordered_map<std::string, interpreter::NaabVal> entries;
                 for (int i = count - 1; i >= 0; i--) {
@@ -1080,10 +1202,10 @@ interpreter::NaabVal VM::run() {
                 }
                 for (int i = 0; i < count * 2; i++) pop();
                 push(interpreter::NaabVal::makeDict(std::move(entries)));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_GET_INDEX: {
+            VM_CASE(OP_GET_INDEX): {
                 interpreter::NaabVal index = pop();
                 interpreter::NaabVal obj = pop();
                 if (obj.isList()) {
@@ -1122,10 +1244,10 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Cannot index into %s", obj.getTypeName().c_str());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_SET_INDEX: {
+            VM_CASE(OP_SET_INDEX): {
                 // Stack order from compiler: [val, obj, index] (top = index)
                 interpreter::NaabVal index = pop();
                 interpreter::NaabVal obj = pop();
@@ -1149,10 +1271,10 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Cannot set index on %s", obj.getTypeName().c_str());
                 }
                 push(val);
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_RANGE: {
+            VM_CASE(OP_RANGE): {
                 bool inclusive = (arg != 0);
                 interpreter::NaabVal end_val = pop();
                 interpreter::NaabVal start_val = pop();
@@ -1170,10 +1292,10 @@ interpreter::NaabVal VM::run() {
                     }
                 }
                 push(interpreter::NaabVal::makeList(std::move(range_list)));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_GET_ITER: {
+            VM_CASE(OP_GET_ITER): {
                 interpreter::NaabVal iterable = pop();
                 if (iterable.isList()) {
                     push(iterable);
@@ -1202,7 +1324,7 @@ interpreter::NaabVal VM::run() {
                             // Now iterate over collected values
                             push(interpreter::NaabVal::makeList(std::move(collected)));
                             push(interpreter::NaabVal::makeInt(0));
-                            break;
+                            goto done_get_iter;
                         }
                     }
                     // Regular dict iteration
@@ -1225,10 +1347,11 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Cannot iterate over %s", iterable.getTypeName().c_str());
                 }
-                break;
             }
+            done_get_iter:
+                VM_NEXT();
 
-            case OpCode::OP_ITER_NEXT: {
+            VM_CASE(OP_ITER_NEXT): {
                 int vars = (arg >> 16) & 0xFF;
                 int jump_offset = arg & 0xFFFF;
 
@@ -1262,10 +1385,10 @@ interpreter::NaabVal VM::run() {
                         }
                     }
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_GET_MEMBER: {
+            VM_CASE(OP_GET_MEMBER): {
                 interpreter::NaabVal obj = pop();
                 std::string name = CURRENT_CHUNK().constants[arg].toString();
                 if (obj.isDict()) {
@@ -1312,10 +1435,10 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Cannot access member '%s' on %s",
                                  name.c_str(), obj.getTypeName().c_str());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_SET_MEMBER: {
+            VM_CASE(OP_SET_MEMBER): {
                 interpreter::NaabVal obj = pop();
                 interpreter::NaabVal val = pop();
                 std::string name = CURRENT_CHUNK().constants[arg].toString();
@@ -1326,12 +1449,12 @@ interpreter::NaabVal VM::run() {
                                  name.c_str(), obj.getTypeName().c_str());
                 }
                 push(val);
-                break;
             }
+                VM_NEXT();
 
             // ====== Exception Handling ======
 
-            case OpCode::OP_TRY_BEGIN: {
+            VM_CASE(OP_TRY_BEGIN): {
                 // Push exception handler; arg = offset to catch block
                 ExceptionHandler handler;
                 handler.frame_index = frame_count_ - 1;
@@ -1339,17 +1462,17 @@ interpreter::NaabVal VM::run() {
                 handler.finally_ip = nullptr;
                 handler.stack_base = stack_top_;
                 exception_handlers_.push_back(handler);
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_TRY_END: {
+            VM_CASE(OP_TRY_END): {
                 if (!exception_handlers_.empty()) {
                     exception_handlers_.pop_back();
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_THROW: {
+            VM_CASE(OP_THROW): {
                 interpreter::NaabVal exception = pop();
                 // Unwind to nearest exception handler
                 if (exception_handlers_.empty()) {
@@ -1366,12 +1489,12 @@ interpreter::NaabVal VM::run() {
                 frame->ip = handler.catch_ip;
                 // Push exception value for catch clause
                 push(exception);
-                break;
             }
+                VM_NEXT();
 
             // ====== Structs ======
 
-            case OpCode::OP_STRUCT_NEW: {
+            VM_CASE(OP_STRUCT_NEW): {
                 // TOS = struct definition dict; clone it as a new instance
                 interpreter::NaabVal def = pop();
                 if (!def.isDict()) {
@@ -1380,10 +1503,10 @@ interpreter::NaabVal VM::run() {
                 auto& src = def.asDictConst();
                 std::unordered_map<std::string, interpreter::NaabVal> instance(src.begin(), src.end());
                 push(interpreter::NaabVal::makeDict(std::move(instance)));
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_STRUCT_INIT_FIELD: {
+            VM_CASE(OP_STRUCT_INIT_FIELD): {
                 // Pop value, set field on TOS struct instance
                 interpreter::NaabVal val = pop();
                 std::string name = CURRENT_CHUNK().constants[arg].toString();
@@ -1392,12 +1515,12 @@ interpreter::NaabVal VM::run() {
                     runtimeError("OP_STRUCT_INIT_FIELD: expected struct instance");
                 }
                 instance.asDict()[name] = val;
-                break;
             }
+                VM_NEXT();
 
             // ====== Polyglot ======
 
-            case OpCode::OP_POLYGLOT: {
+            VM_CASE(OP_POLYGLOT): {
                 // arg: [info_idx:16][num_vars:8]
                 int info_idx = (arg >> 8) & 0xFFFF;
                 int num_vars = arg & 0xFF;
@@ -1569,10 +1692,10 @@ interpreter::NaabVal VM::run() {
                 } catch (const std::exception& e) {
                     runtimeError("Polyglot %s error: %s", language.c_str(), e.what());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_IMPORT: {
+            VM_CASE(OP_IMPORT): {
                 // arg = constant index of module path string
                 std::string module_path = frame->function->chunk.constants[arg].asString();
 
@@ -1584,7 +1707,7 @@ interpreter::NaabVal VM::run() {
                     }
                     push(interpreter::NaabVal::makeDict(
                         std::unordered_map<std::string, interpreter::NaabVal>(*cache_it->second)));
-                    break;
+                    goto done_import;
                 }
 
                 // Try stdlib fallback
@@ -1599,7 +1722,7 @@ interpreter::NaabVal VM::run() {
                 if (stdlib_ && stdlib_->hasModule(bare_name)) {
                     // Push stdlib marker as module
                     push(interpreter::NaabVal::makeString("__stdlib_module__:" + bare_name));
-                    break;
+                    goto done_import;
                 }
 
                 // Resolve file path
@@ -1629,7 +1752,7 @@ interpreter::NaabVal VM::run() {
                     }
                     push(interpreter::NaabVal::makeDict(
                         std::unordered_map<std::string, interpreter::NaabVal>(*cache_it->second)));
-                    break;
+                    goto done_import;
                 }
 
                 // Load, compile, and execute the module
@@ -1664,10 +1787,11 @@ interpreter::NaabVal VM::run() {
 
                 push(interpreter::NaabVal::makeDict(
                     std::unordered_map<std::string, interpreter::NaabVal>(*exports)));
-                break;
             }
+            done_import:
+                VM_NEXT();
 
-            case OpCode::OP_IMPORT_NAME: {
+            VM_CASE(OP_IMPORT_NAME): {
                 // arg = constant index of name to extract
                 // Module dict stays on stack — we push the extracted value on top
                 std::string name = frame->function->chunk.constants[arg].asString();
@@ -1692,10 +1816,10 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Cannot extract '%s' from non-module value", name.c_str());
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_IMPORT_WILDCARD: {
+            VM_CASE(OP_IMPORT_WILDCARD): {
                 // arg = constant index (unused for now, could be alias)
                 auto module_val = pop();
                 if (module_val.isDict()) {
@@ -1708,15 +1832,15 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Wildcard import requires a module dict");
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_EXPORT_NAME: {
+            VM_CASE(OP_EXPORT_NAME): {
                 // No-op for now — all globals are accessible
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_AWAIT: {
+            VM_CASE(OP_AWAIT): {
                 interpreter::NaabVal val = pop();
                 if (val.isFuture()) {
                     auto& future_val = val.asFuture();
@@ -1730,10 +1854,10 @@ interpreter::NaabVal VM::run() {
                     // await on non-future = identity (pass through)
                     push(val);
                 }
-                break;
             }
+                VM_NEXT();
 
-            case OpCode::OP_YIELD: {
+            VM_CASE(OP_YIELD): {
                 interpreter::NaabVal val = pop();
                 if (generator_values_) {
                     generator_values_->push_back(val);
@@ -1743,14 +1867,20 @@ interpreter::NaabVal VM::run() {
                 // yield is an expression — push null as its result value
                 // (ExprStmt will OP_POP this)
                 push(interpreter::NaabVal::makeNull());
-                break;
             }
+                VM_NEXT();
 
-            // Stubs for unimplemented opcodes
-            default: {
+            // Reserved opcodes — no-op (compiler doesn't emit these)
+            vm_STUB_NOP:
+                VM_NEXT();
+
+            // Truly unimplemented opcodes
+            VM_DEFAULT: {
                 runtimeError("Unimplemented opcode: %d", static_cast<int>(op));
             }
-        }
+#ifndef USE_COMPUTED_GOTO
+        }  // end switch
+#endif
       } catch (const VMException& e) {
         // Route VM runtime errors through the exception handler system
         if (!exception_handlers_.empty()) {
@@ -1792,6 +1922,12 @@ interpreter::NaabVal VM::run() {
 
 #undef READ_INSTR
 #undef CURRENT_CHUNK
+#undef VM_CASE
+#undef VM_NEXT
+#undef VM_DEFAULT
+#ifdef USE_COMPUTED_GOTO
+#undef USE_COMPUTED_GOTO
+#endif
 }
 
 // ============================================================================
@@ -2409,27 +2545,27 @@ interpreter::NaabVal VM::callStdlibMethod(const std::string& module, const std::
 // Upvalues
 // ============================================================================
 
-ObjUpvalue* VM::captureUpvalue(interpreter::NaabVal* local) {
+std::shared_ptr<ObjUpvalue> VM::captureUpvalue(interpreter::NaabVal* local) {
     // Walk the open upvalue list to see if we already have one for this slot
-    ObjUpvalue* prev = nullptr;
-    ObjUpvalue* current = open_upvalues_;
+    std::shared_ptr<ObjUpvalue> prev;
+    std::shared_ptr<ObjUpvalue> current = open_upvalues_;
 
-    while (current != nullptr && current->location > local) {
+    while (current && current->location > local) {
         prev = current;
         current = current->next;
     }
 
-    if (current != nullptr && current->location == local) {
+    if (current && current->location == local) {
         return current;  // Reuse existing upvalue
     }
 
     // Create new upvalue
-    auto* upvalue = new ObjUpvalue();
+    auto upvalue = std::make_shared<ObjUpvalue>();
     upvalue->location = local;
     upvalue->is_open = true;
     upvalue->next = current;
 
-    if (prev == nullptr) {
+    if (!prev) {
         open_upvalues_ = upvalue;
     } else {
         prev->next = upvalue;
@@ -2439,8 +2575,8 @@ ObjUpvalue* VM::captureUpvalue(interpreter::NaabVal* local) {
 }
 
 void VM::closeUpvalues(interpreter::NaabVal* last) {
-    while (open_upvalues_ != nullptr && open_upvalues_->location >= last) {
-        ObjUpvalue* upvalue = open_upvalues_;
+    while (open_upvalues_ && open_upvalues_->location >= last) {
+        auto upvalue = open_upvalues_;
         upvalue->closed = *upvalue->location;
         upvalue->location = &upvalue->closed;
         upvalue->is_open = false;
@@ -2449,29 +2585,21 @@ void VM::closeUpvalues(interpreter::NaabVal* last) {
 }
 
 // ============================================================================
-// Exception handling (stub — Phase 8)
-// ============================================================================
-
-bool VM::throwException(interpreter::NaabVal /*value*/) {
-    return false; // TODO: Phase 8
-}
-
-void VM::unwindStack(int /*target_frame*/) {
-    // TODO: Phase 8
-}
-
-// ============================================================================
 // Error reporting
 // ============================================================================
 
 void VM::runtimeError(const char* format, ...) {
-    char buffer[1024];
     va_list args;
     va_start(args, format);
-    vsnprintf(buffer, sizeof(buffer), format, args);
-    va_end(args);
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int needed = vsnprintf(nullptr, 0, format, args_copy);
+    va_end(args_copy);
 
-    std::string msg = buffer;
+    std::string msg(needed + 1, '\0');
+    vsnprintf(msg.data(), msg.size(), format, args);
+    va_end(args);
+    msg.resize(needed);
 
     // If there's an exception handler, route through it instead of crashing
     if (!exception_handlers_.empty()) {

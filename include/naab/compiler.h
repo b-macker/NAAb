@@ -58,6 +58,7 @@ private:
             int scope_depth;                    // Depth at loop start
         };
         std::vector<LoopContext> loops;
+        bool dead_code = false;  // Set after unconditional return/jump; skip emitting
     };
 
     CompilerState* current_ = nullptr;
@@ -68,6 +69,9 @@ private:
 
     // Owned compiled functions (for memory management)
     std::vector<std::unique_ptr<CompiledFunction>> compiled_functions_;
+
+    // String interning: dedup string constants in the constant pool
+    std::unordered_map<std::string, int> string_constants_;
 
     // Scope management
     void beginScope();
