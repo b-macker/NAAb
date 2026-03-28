@@ -997,6 +997,20 @@ interpreter::NaabVal VM::run() {
                         frame = &frames_[frame_count_ - 1];
                         break;
                     }
+                    // Struct method lookup: "StructName.method" in globals
+                    auto sn_it = dict.find("__struct_name__");
+                    if (sn_it != dict.end() && sn_it->second.isString()) {
+                        std::string qualified = sn_it->second.asString() + "." + method;
+                        auto git = globals_.find(qualified);
+                        if (git != globals_.end() && git->second.isVMClosure()) {
+                            peek(argc) = git->second;
+                            if (!callValue(git->second, argc)) {
+                                runtimeError("Struct method '%s' is not callable", qualified.c_str());
+                            }
+                            frame = &frames_[frame_count_ - 1];
+                            break;
+                        }
+                    }
                 }
 
                 // Built-in methods on arrays, dicts, strings
@@ -1260,7 +1274,19 @@ interpreter::NaabVal VM::run() {
                     if (it != dict.end()) {
                         push(it->second);
                     } else {
-                        runtimeError("Key '%s' not found in dict", name.c_str());
+                        // Struct method lookup: "StructName.method" in globals
+                        auto sn_it = dict.find("__struct_name__");
+                        if (sn_it != dict.end() && sn_it->second.isString()) {
+                            std::string qualified = sn_it->second.asString() + "." + name;
+                            auto git = globals_.find(qualified);
+                            if (git != globals_.end()) {
+                                push(git->second);
+                            } else {
+                                runtimeError("Dict has no method '%s'", name.c_str());
+                            }
+                        } else {
+                            runtimeError("Key '%s' not found in dict", name.c_str());
+                        }
                     }
                 } else if (obj.isString()) {
                     const std::string& sv = obj.asString();
@@ -1936,8 +1962,12 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     }
 
     // Run dispatch loop for this call (stops when OP_RETURN pops back)
+    // Use frame_count_ - 1 so that inner function returns (which bring
+    // frame_count_ back to this level) don't prematurely exit run().
+    // Only when THIS function's own OP_RETURN fires (frame_count_ drops
+    // below this level) does run() return.
     int saved_stop = stop_frame_count_;
-    stop_frame_count_ = frame_count_;
+    stop_frame_count_ = frame_count_ - 1;
     interpreter::NaabVal result = run();
     stop_frame_count_ = saved_stop;
 
