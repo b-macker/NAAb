@@ -129,6 +129,9 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
         "math", "json", "http", "crypto", "time", "os"
     };
     for (auto mod : prelude_modules) {
+        // Don't overwrite block imports injected via setGlobal()
+        auto it = globals_.find(mod);
+        if (it != globals_.end() && it->second.isBlock()) continue;
         globals_[mod] = interpreter::NaabVal::makeString(
             std::string("__stdlib_module__:") + mod);
     }
@@ -1359,6 +1362,24 @@ interpreter::NaabVal VM::run() {
                     }
                 }
 
+                // Block method calls: obj is a BlockValue, dispatch to executor
+                if (obj.isBlock()) {
+                    auto& block = obj.asBlock();
+                    auto* executor = block->getExecutor();
+                    if (executor) {
+                        std::vector<interpreter::NaabVal> arg_vec;
+                        interpreter::NaabVal* args_ptr = stack_top_ - argc;
+                        for (int i = 0; i < static_cast<int>(argc); i++) {
+                            arg_vec.push_back(args_ptr[i]);
+                        }
+                        interpreter::NaabVal result = executor->callFunction(method, arg_vec);
+                        stack_top_ -= (argc + 1);
+                        syncTaintTop();
+                        push(std::move(result));
+                        goto done_call_method;
+                    }
+                }
+
                 // Built-in methods on arrays, dicts, strings
                 {
                     bool obj_tainted = peekTaint(argc);
@@ -1710,6 +1731,13 @@ interpreter::NaabVal VM::run() {
                         runtimeError("Cannot access member '%s' on %s",
                                      name.c_str(), obj.getTypeName().c_str());
                     }
+                } else if (obj.isBlock()) {
+                    // Block member access: create sub-BlockValue with member_path
+                    auto& block = obj.asBlock();
+                    auto sub_block = std::make_shared<interpreter::BlockValue>(
+                        block->metadata, block->code, block->getExecutor());
+                    sub_block->member_path = name;
+                    push(interpreter::NaabVal::makeBlock(sub_block));
                 } else {
                     runtimeError("Cannot access member '%s' on %s",
                                  name.c_str(), obj.getTypeName().c_str());
@@ -2385,6 +2413,23 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
         push(std::move(result));
         return true;
     }
+    // Block method calls: dispatch to executor->callFunction(member_path, args)
+    if (callee.isBlock()) {
+        auto& block = callee.asBlock();
+        auto* executor = block->getExecutor();
+        if (executor && !block->member_path.empty()) {
+            std::vector<interpreter::NaabVal> args;
+            interpreter::NaabVal* args_start = stack_top_ - argc;
+            for (int i = 0; i < argc; i++) {
+                args.push_back(args_start[i]);
+            }
+            interpreter::NaabVal result = executor->callFunction(block->member_path, args);
+            stack_top_ -= (argc + 1);
+            syncTaintTop();
+            push(std::move(result));
+            return true;
+        }
+    }
     return false;
 }
 
@@ -2890,6 +2935,16 @@ interpreter::NaabVal VM::callBuiltinMethod(interpreter::NaabVal& obj, const std:
             return interpreter::NaabVal::makeDict(std::move(copy));
         }
         runtimeError("Dict has no method '%s'", method.c_str());
+    }
+
+    // Block method calls: dispatch to executor->callFunction
+    if (obj.isBlock()) {
+        auto& block = obj.asBlock();
+        auto* executor = block->getExecutor();
+        if (executor) {
+            std::vector<interpreter::NaabVal> arg_vec(args, args + argc);
+            return executor->callFunction(method, arg_vec);
+        }
     }
 
     runtimeError("Cannot call method '%s' on %s", method.c_str(), obj.getTypeName().c_str());

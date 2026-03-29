@@ -1010,6 +1010,39 @@ int main(int argc, char** argv) {
                                     "  Set breakpoints: b <file>:<line>\n");
                 }
 
+                // VM block imports: load blocks from UseStatements and inject into globals
+                for (auto& import : program->getImports()) {
+                    auto& block_registry = naab::runtime::BlockRegistry::instance();
+                    if (!block_registry.isInitialized()) {
+                        std::string home_dir = std::getenv("HOME") ? std::getenv("HOME") : ".";
+                        std::string blocks_path = home_dir + "/.naab/language/blocks/library/";
+                        block_registry.initialize(blocks_path);
+                    }
+                    auto metadata_opt = block_registry.getBlock(import->getBlockId());
+                    if (metadata_opt.has_value()) {
+                        auto metadata = *metadata_opt;
+                        auto code = block_registry.getBlockSource(import->getBlockId());
+                        auto& lang_registry = naab::runtime::LanguageRegistry::instance();
+                        auto* executor = lang_registry.getExecutor(metadata.language);
+                        if (executor) {
+                            // Execute block code to define functions in executor context
+                            if (metadata.language == "javascript") {
+                                auto* js_exec = dynamic_cast<naab::runtime::JsExecutorAdapter*>(executor);
+                                if (js_exec) js_exec->execute(code, naab::runtime::JsExecutionMode::BLOCK_LIBRARY);
+                            } else if (metadata.language == "cpp" || metadata.language == "c++") {
+                                auto* cpp_exec = dynamic_cast<naab::runtime::CppExecutorAdapter*>(executor);
+                                if (cpp_exec) cpp_exec->execute(code, naab::runtime::CppExecutionMode::BLOCK_LIBRARY);
+                            } else {
+                                executor->execute(code);
+                            }
+                            auto block_value = std::make_shared<naab::interpreter::BlockValue>(
+                                metadata, code, executor);
+                            bytecode_vm.setGlobal(import->getAlias(),
+                                naab::interpreter::NaabVal::makeBlock(block_value));
+                        }
+                    }
+                }
+
                 try {
                     auto result = bytecode_vm.execute(main_fn);
                     (void)result;
