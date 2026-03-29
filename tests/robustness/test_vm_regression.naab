@@ -1,0 +1,342 @@
+// Test: VM Regression — covers bugs 40-46 fixed in VM
+// Ensures string coercion, match semantics, f-strings, dict destructuring,
+// and implicit return all work correctly.
+
+use array
+
+// R1: String + non-string auto-coercion (Bug 46)
+fn test_string_coercion() {
+    let passed = 0
+    let total = 0
+
+    // string + int
+    total = total + 1
+    let s1 = "val: " + 42
+    if s1 == "val: 42" { passed = passed + 1 }
+
+    // string + float
+    total = total + 1
+    let s2 = "pi: " + 3.14
+    if s2 == "pi: 3.14" { passed = passed + 1 }
+
+    // string + bool
+    total = total + 1
+    let s3 = "ok: " + true
+    if s3 == "ok: true" { passed = passed + 1 }
+
+    // int + string
+    total = total + 1
+    let s4 = 42 + " is the answer"
+    if s4 == "42 is the answer" { passed = passed + 1 }
+
+    // float + string
+    total = total + 1
+    let s5 = 3.14 + " is pi"
+    if s5 == "3.14 is pi" { passed = passed + 1 }
+
+    // chained string + float + string
+    total = total + 1
+    let s6 = "CPU: " + 50.0 + "%"
+    if s6 == "CPU: 50%"  { passed = passed + 1 }
+
+    // dict value + string concat
+    total = total + 1
+    let d = {"val": 99.5}
+    let s7 = "result: " + d["val"]
+    if s7 == "result: 99.5" { passed = passed + 1 }
+
+    // null + string
+    total = total + 1
+    let s8 = "x: " + null
+    if s8 == "x: null" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// R2: Match non-exhaustive throw (Bug 40)
+fn test_match_throw() {
+    let passed = 0
+    let total = 0
+
+    // non-exhaustive match should throw
+    total = total + 1
+    let caught = false
+    try {
+        let x = 99
+        let r = match x {
+            1 => "one",
+            2 => "two"
+        }
+    } catch (e) {
+        caught = true
+    }
+    if caught { passed = passed + 1 }
+
+    // exhaustive match with wildcard should NOT throw
+    total = total + 1
+    let r2 = match 99 {
+        1 => "one",
+        _ => "other"
+    }
+    if r2 == "other" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// R3: Guarded wildcard in match (Bug 43)
+fn test_guarded_wildcard() {
+    let passed = 0
+    let total = 0
+
+    // guarded wildcard that fails should not match
+    total = total + 1
+    let r1 = match 5 {
+        _ if false => "never",
+        _ => "fallback"
+    }
+    if r1 == "fallback" { passed = passed + 1 }
+
+    // guarded wildcard that passes should match
+    total = total + 1
+    let r2 = match 5 {
+        _ if true => "always",
+        _ => "fallback"
+    }
+    if r2 == "always" { passed = passed + 1 }
+
+    // multiple guarded wildcards
+    total = total + 1
+    let x = 10
+    let r3 = match x {
+        _ if x > 20 => "big",
+        _ if x > 5 => "medium",
+        _ => "small"
+    }
+    if r3 == "medium" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// R4: Bare identifier binding in match (Bug 44)
+fn test_match_binding() {
+    let passed = 0
+    let total = 0
+
+    // bare identifier catches all and binds value
+    total = total + 1
+    let r1 = match 42 {
+        1 => "one",
+        other => "got: " + other
+    }
+    if r1 == "got: 42" { passed = passed + 1 }
+
+    // binding with string value
+    total = total + 1
+    let r2 = match "hello" {
+        "bye" => "goodbye",
+        msg => "received: " + msg
+    }
+    if r2 == "received: hello" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// R5: F-string interpolation (Bug 45)
+fn test_fstring() {
+    let passed = 0
+    let total = 0
+
+    // basic variable interpolation
+    total = total + 1
+    let x = 42
+    let s1 = f"value: {x}"
+    if s1 == "value: 42" { passed = passed + 1 }
+
+    // multiple interpolations
+    total = total + 1
+    let a = 3
+    let b = 4
+    let s2 = f"point: {a}, {b}"
+    if s2 == "point: 3, 4" { passed = passed + 1 }
+
+    // expression in interpolation
+    total = total + 1
+    let n = 10
+    let s3 = f"double: {n * 2}"
+    if s3 == "double: 20" { passed = passed + 1 }
+
+    // string variable interpolation
+    total = total + 1
+    let name = "world"
+    let s4 = f"hello {name}!"
+    if s4 == "hello world!" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// R6: Dict destructuring in for loops (Bug 41)
+fn test_dict_destructure() {
+    let passed = 0
+    let total = 0
+
+    // for [k, v] in dict
+    total = total + 1
+    let d = {"a": 1, "b": 2, "c": 3}
+    let keys = []
+    let vals = []
+    for [k, v] in d {
+        array.push(keys, k)
+        array.push(vals, v)
+    }
+    if len(keys) == 3 { passed = passed + 1 }
+
+    // values are accessible
+    total = total + 1
+    let sum = 0
+    for [k, v] in d {
+        sum = sum + v
+    }
+    if sum == 6 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// R7: Implicit return (Bug 42)
+fn test_implicit_return() {
+    let passed = 0
+    let total = 0
+
+    // function returning last expression
+    fn last_expr() {
+        let x = 10
+        x + 5
+    }
+    total = total + 1
+    if last_expr() == 15 { passed = passed + 1 }
+
+    // function returning last variable
+    fn last_var() {
+        let result = "done"
+    }
+    total = total + 1
+    if last_var() == "done" { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// R8: Numeric operations still work (no regression from OP_ADD reorder)
+fn test_numeric_ops() {
+    let passed = 0
+    let total = 0
+
+    // int + int
+    total = total + 1
+    if 3 + 4 == 7 { passed = passed + 1 }
+
+    // float + float
+    total = total + 1
+    let f = 1.5 + 2.5
+    if f == 4.0 { passed = passed + 1 }
+
+    // int + float promotion
+    total = total + 1
+    let m = 3 + 1.5
+    if m == 4.5 { passed = passed + 1 }
+
+    // list + list concat
+    total = total + 1
+    let l = [1, 2] + [3, 4]
+    if len(l) == 4 { passed = passed + 1 }
+
+    // subtraction still works
+    total = total + 1
+    if 10 - 3 == 7 { passed = passed + 1 }
+
+    // multiplication
+    total = total + 1
+    if 6 * 7 == 42 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+// R9: Async closure upvalue capture (Bug 47)
+fn test_async_closure() {
+    let passed = 0
+    let total = 0
+
+    // async function capturing outer variable via closure
+    total = total + 1
+    let captured = "async_val"
+    async fn inner() {
+        return captured
+    }
+    let f = inner()
+    let r = await f
+    if r == "async_val" { passed = passed + 1 }
+
+    // async closure capturing modified variable
+    total = total + 1
+    let counter = 10
+    counter = counter + 5
+    async fn inner2() {
+        return counter
+    }
+    let f2 = inner2()
+    let r2 = await f2
+    if r2 == 15 { passed = passed + 1 }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_string_coercion()
+    print("  R1 string_coercion: " + string(r1[0]) + "/" + string(r1[1]))
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_match_throw()
+    print("  R2 match_throw: " + string(r2[0]) + "/" + string(r2[1]))
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_guarded_wildcard()
+    print("  R3 guarded_wildcard: " + string(r3[0]) + "/" + string(r3[1]))
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_match_binding()
+    print("  R4 match_binding: " + string(r4[0]) + "/" + string(r4[1]))
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_fstring()
+    print("  R5 fstring: " + string(r5[0]) + "/" + string(r5[1]))
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_dict_destructure()
+    print("  R6 dict_destructure: " + string(r6[0]) + "/" + string(r6[1]))
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    let r7 = test_implicit_return()
+    print("  R7 implicit_return: " + string(r7[0]) + "/" + string(r7[1]))
+    total_passed = total_passed + r7[0]
+    total_tests = total_tests + r7[1]
+
+    let r8 = test_numeric_ops()
+    print("  R8 numeric_ops: " + string(r8[0]) + "/" + string(r8[1]))
+    total_passed = total_passed + r8[0]
+    total_tests = total_tests + r8[1]
+
+    let r9 = test_async_closure()
+    print("  R9 async_closure: " + string(r9[0]) + "/" + string(r9[1]))
+    total_passed = total_passed + r9[0]
+    total_tests = total_tests + r9[1]
+
+    print("")
+    print("VM Regression: " + string(total_passed) + "/" + string(total_tests))
+}
