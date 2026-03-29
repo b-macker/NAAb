@@ -42,6 +42,9 @@ struct BlockValue {
         : metadata(meta), code(c), python_namespace(""), member_path(""),
           executor_(nullptr), owned_executor_(std::move(exec)) {}
 
+    // C++ block ID for multi-block executor sharing (set after compile)
+    std::string cpp_block_id;
+
     // Phase 7: Get active executor (owned or borrowed)
     naab::runtime::Executor* getExecutor() const {
         return owned_executor_ ? owned_executor_.get() : executor_;

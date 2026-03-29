@@ -48,6 +48,10 @@ public:
     // Get captured output
     std::string getCapturedOutput() override;
 
+    // Set active block ID (for multi-block scenarios where blocks share an executor)
+    void setCurrentBlockId(const std::string& block_id) { current_block_id_ = block_id; }
+    const std::string& getCurrentBlockId() const { return current_block_id_; }
+
 private:
     CppExecutor executor_;
     std::string current_block_id_;

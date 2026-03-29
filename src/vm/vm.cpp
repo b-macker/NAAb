@@ -12,6 +12,7 @@
 #include "naab/sandbox.h"
 #include "naab/error_helpers.h"
 #include "naab/js_executor_adapter.h"
+#include "naab/cpp_executor_adapter.h"
 #include "naab/resource_limits.h"
 #include <algorithm>
 #include <cstdarg>
@@ -684,6 +685,15 @@ interpreter::NaabVal VM::run() {
                     (b_ref.bits_ & interpreter::NaabVal::TAG_MASK) == interpreter::NaabVal::TAG_INT) {
                     int32_t ai = static_cast<int32_t>(static_cast<uint32_t>(a_ref.bits_));
                     int32_t bi = static_cast<int32_t>(static_cast<uint32_t>(b_ref.bits_));
+                    // Overflow check
+                    if ((bi > 0 && ai > INT32_MAX - bi) || (bi < 0 && ai < INT32_MIN - bi)) {
+                        runtimeError("Math error: Integer overflow in addition\n\n"
+                            "  Expression: %d + %d\n"
+                            "  INT_MAX: %d, INT_MIN: %d\n\n"
+                            "  Help:\n"
+                            "  - Use float for larger numbers: %d.0 + %d.0\n",
+                            ai, bi, INT32_MAX, INT32_MIN, ai, bi);
+                    }
                     uint32_t ru; int32_t ri = ai + bi;
                     std::memcpy(&ru, &ri, sizeof(ru));
                     bool combined_t = *(taint_top_ - 2) || *(taint_top_ - 1);
@@ -699,11 +709,14 @@ interpreter::NaabVal VM::run() {
                     // String concatenation with auto-coercion (must be before double check)
                     push(interpreter::NaabVal::makeString(a.toString() + b.toString()));
                 } else if (a.isInt() && b.isInt()) {
-                    int64_t av = a.asInt(), bv = b.asInt();
+                    int32_t av = static_cast<int32_t>(a.asInt()), bv = static_cast<int32_t>(b.asInt());
                     // Overflow check
-                    if ((bv > 0 && av > INT64_MAX - bv) ||
-                        (bv < 0 && av < INT64_MIN - bv)) {
-                        runtimeError("Integer overflow in addition");
+                    if ((bv > 0 && av > INT32_MAX - bv) ||
+                        (bv < 0 && av < INT32_MIN - bv)) {
+                        runtimeError("Math error: Integer overflow in addition\n\n"
+                            "  Expression: %d + %d\n"
+                            "  Help: Use float for larger numbers: %d.0 + %d.0\n",
+                            av, bv, av, bv);
                     }
                     push(interpreter::NaabVal::makeInt(av + bv));
                 } else if (a.isDouble() || b.isDouble()) {
@@ -732,6 +745,13 @@ interpreter::NaabVal VM::run() {
                     (b_ref.bits_ & interpreter::NaabVal::TAG_MASK) == interpreter::NaabVal::TAG_INT) {
                     int32_t ai = static_cast<int32_t>(static_cast<uint32_t>(a_ref.bits_));
                     int32_t bi = static_cast<int32_t>(static_cast<uint32_t>(b_ref.bits_));
+                    // Overflow check
+                    if ((bi < 0 && ai > INT32_MAX + bi) || (bi > 0 && ai < INT32_MIN + bi)) {
+                        runtimeError("Math error: Integer overflow in subtraction\n\n"
+                            "  Expression: %d - %d\n"
+                            "  Help: Use float for larger numbers: %d.0 - %d.0\n",
+                            ai, bi, ai, bi);
+                    }
                     uint32_t ru; int32_t ri = ai - bi;
                     std::memcpy(&ru, &ri, sizeof(ru));
                     bool combined_t = *(taint_top_ - 2) || *(taint_top_ - 1);
@@ -744,7 +764,14 @@ interpreter::NaabVal VM::run() {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
-                    push(interpreter::NaabVal::makeInt(a.asInt() - b.asInt()));
+                    int32_t av = static_cast<int32_t>(a.asInt()), bv = static_cast<int32_t>(b.asInt());
+                    if ((bv < 0 && av > INT32_MAX + bv) || (bv > 0 && av < INT32_MIN + bv)) {
+                        runtimeError("Math error: Integer overflow in subtraction\n\n"
+                            "  Expression: %d - %d\n"
+                            "  Help: Use float for larger numbers: %d.0 - %d.0\n",
+                            av, bv, av, bv);
+                    }
+                    push(interpreter::NaabVal::makeInt(av - bv));
                 } else if (a.isDouble() || b.isDouble()) {
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
@@ -763,7 +790,16 @@ interpreter::NaabVal VM::run() {
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
-                    push(interpreter::NaabVal::makeInt(a.asInt() * b.asInt()));
+                    int32_t av = static_cast<int32_t>(a.asInt()), bv = static_cast<int32_t>(b.asInt());
+                    // Overflow check using 64-bit multiplication
+                    int64_t result64 = static_cast<int64_t>(av) * static_cast<int64_t>(bv);
+                    if (result64 > INT32_MAX || result64 < INT32_MIN) {
+                        runtimeError("Math error: Integer overflow in multiplication\n\n"
+                            "  Expression: %d * %d\n"
+                            "  Help: Use float for larger numbers: %d.0 * %d.0\n",
+                            av, bv, av, bv);
+                    }
+                    push(interpreter::NaabVal::makeInt(static_cast<int32_t>(result64)));
                 } else if (a.isDouble() || b.isDouble()) {
                     double av = a.isDouble() ? a.asDouble() : static_cast<double>(a.asInt());
                     double bv = b.isDouble() ? b.asDouble() : static_cast<double>(b.asInt());
@@ -834,7 +870,15 @@ interpreter::NaabVal VM::run() {
                 bool t = peekTaint(0);
                 interpreter::NaabVal a = pop();
                 if (a.isInt()) {
-                    push(interpreter::NaabVal::makeInt(-a.asInt()));
+                    int32_t av = static_cast<int32_t>(a.asInt());
+                    if (av == INT32_MIN) {
+                        runtimeError("Math error: Integer overflow in negation\n\n"
+                            "  Expression: -(%d)\n"
+                            "  -INT_MIN cannot be represented as a 32-bit integer\n"
+                            "  Help: Use float: -(%d.0)\n",
+                            av, av);
+                    }
+                    push(interpreter::NaabVal::makeInt(-av));
                 } else if (a.isDouble()) {
                     push(interpreter::NaabVal::makeDouble(-a.asDouble()));
                 } else {
@@ -1473,6 +1517,11 @@ interpreter::NaabVal VM::run() {
                     auto& block = obj.asBlock();
                     auto* executor = block->getExecutor();
                     if (executor) {
+                        // Restore C++ block ID for multi-block executor sharing
+                        if (!block->cpp_block_id.empty()) {
+                            auto* cpp_exec = dynamic_cast<runtime::CppExecutorAdapter*>(executor);
+                            if (cpp_exec) cpp_exec->setCurrentBlockId(block->cpp_block_id);
+                        }
                         std::vector<interpreter::NaabVal> arg_vec;
                         interpreter::NaabVal* args_ptr = stack_top_ - argc;
                         for (int i = 0; i < static_cast<int>(argc); i++) {

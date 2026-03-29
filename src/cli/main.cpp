@@ -1037,6 +1037,11 @@ int main(int argc, char** argv) {
                             }
                             auto block_value = std::make_shared<naab::interpreter::BlockValue>(
                                 metadata, code, executor);
+                            // Store C++ block ID for multi-block executor sharing
+                            if (metadata.language == "cpp" || metadata.language == "c++") {
+                                auto* cpp_exec = dynamic_cast<naab::runtime::CppExecutorAdapter*>(executor);
+                                if (cpp_exec) block_value->cpp_block_id = cpp_exec->getCurrentBlockId();
+                            }
                             bytecode_vm.setGlobal(import->getAlias(),
                                 naab::interpreter::NaabVal::makeBlock(block_value));
                         }

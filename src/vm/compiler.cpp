@@ -496,8 +496,14 @@ void Compiler::visit(ast::LiteralExpr& node) {
         case ast::LiteralKind::Int: {
             try {
                 int64_t val = std::stoll(node.getValue());
-                int idx = makeConstant(interpreter::NaabVal::makeInt(val));
-                emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+                if (val > INT32_MAX || val < INT32_MIN) {
+                    // Exceeds 32-bit int range — promote to double
+                    int idx = makeConstant(interpreter::NaabVal::makeDouble(static_cast<double>(val)));
+                    emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+                } else {
+                    int idx = makeConstant(interpreter::NaabVal::makeInt(static_cast<int>(val)));
+                    emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+                }
             } catch (const std::out_of_range&) {
                 double val = std::stod(node.getValue());
                 int idx = makeConstant(interpreter::NaabVal::makeDouble(val));
@@ -1280,6 +1286,9 @@ void Compiler::visit(ast::ModuleUseStmt& node) {
         emitWide(OpCode::OP_CONST, static_cast<uint32_t>(marker_idx), line);
         int name_idx = identifierConstant(bind_name);
         emitWide(OpCode::OP_DEFINE_GLOBAL, static_cast<uint32_t>(name_idx), line);
+    } else if (module_path.find("BLOCK-") == 0) {
+        // Block import: blocks are pre-loaded by main.cpp via setGlobal()
+        // No codegen needed — the global is already set before execution
     } else {
         // File-based module: use OP_IMPORT to load the .naab file
         // Convert dot notation to path: "foo.bar" -> "foo/bar"
