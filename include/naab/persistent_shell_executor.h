@@ -11,6 +11,7 @@ namespace runtime {
 class PersistentShellExecutor : public PersistentProcessExecutor {
 public:
     PersistentShellExecutor();
+    ~PersistentShellExecutor() override { stop(); }
 
 protected:
     std::string wrapCodeForExecution(const std::string& code) const override;

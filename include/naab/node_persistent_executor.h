@@ -11,6 +11,7 @@ namespace runtime {
 class NodePersistentExecutor : public PersistentProcessExecutor {
 public:
     NodePersistentExecutor();
+    ~NodePersistentExecutor() override { stop(); }
 
 protected:
     std::string wrapCodeForExecution(const std::string& code) const override;

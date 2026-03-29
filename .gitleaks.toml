@@ -21,6 +21,7 @@ description = "Allowed patterns that are not secrets"
 paths = [
     '''tests/.*''',
     '''examples/.*''',
+    '''demo/.*''',
     '''fuzz/corpus/.*''',
     '''docs/.*''',
     '''blocks/library/.*''',

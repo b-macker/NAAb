@@ -28,7 +28,20 @@ PersistentProcessExecutor::PersistentProcessExecutor(
 }
 
 PersistentProcessExecutor::~PersistentProcessExecutor() {
-    stop();
+    // NOTE: Do NOT call stop() here — it calls getExitCommand() which is
+    // pure virtual. By the time the base destructor runs, the derived class
+    // is already destroyed. Derived classes must call stop() in their own
+    // destructors while their vtable is still intact.
+
+    // Best-effort cleanup: close fds and kill process without virtual calls
+    if (stdin_pipe_fd_ >= 0) { close(stdin_pipe_fd_); stdin_pipe_fd_ = -1; }
+    if (stdout_pipe_fd_ >= 0) { close(stdout_pipe_fd_); stdout_pipe_fd_ = -1; }
+    if (stderr_pipe_fd_ >= 0) { close(stderr_pipe_fd_); stderr_pipe_fd_ = -1; }
+    if (child_pid_ > 0) {
+        kill(child_pid_, SIGTERM);
+        usleep(50000);
+        waitpid(child_pid_, nullptr, WNOHANG);
+    }
 }
 
 bool PersistentProcessExecutor::start() {

@@ -11,6 +11,7 @@ namespace runtime {
 class PersistentRubyExecutor : public PersistentProcessExecutor {
 public:
     PersistentRubyExecutor();
+    ~PersistentRubyExecutor() override { stop(); }
 
 protected:
     std::string wrapCodeForExecution(const std::string& code) const override;
