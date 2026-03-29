@@ -614,6 +614,7 @@ void Compiler::visit(ast::UnaryExpr& node) {
         if (node.getOp() == ast::UnaryOp::Neg && lit->getLiteralKind() == ast::LiteralKind::Int) {
             try {
                 int v = std::stoi(lit->getValue());
+                if (v == INT32_MIN) goto no_fold_unary;  // -INT_MIN overflows
                 int ci = makeConstant(interpreter::NaabVal::makeInt(-v));
                 emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line);
                 return;
@@ -631,6 +632,7 @@ void Compiler::visit(ast::UnaryExpr& node) {
         }
     }
 
+    no_fold_unary:
     node.getOperand()->accept(*this);
 
     switch (node.getOp()) {
@@ -749,9 +751,21 @@ void Compiler::visit(ast::BinaryExpr& node) {
             try { a = std::stoi(left_lit->getValue()); b = std::stoi(right_lit->getValue()); }
             catch (...) { goto no_fold; }  // too large for int, skip folding
             switch (node.getOp()) {
-                case ast::BinaryOp::Add: { int ci = makeConstant(interpreter::NaabVal::makeInt(a + b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
-                case ast::BinaryOp::Sub: { int ci = makeConstant(interpreter::NaabVal::makeInt(a - b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
-                case ast::BinaryOp::Mul: { int ci = makeConstant(interpreter::NaabVal::makeInt(a * b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return;
+                case ast::BinaryOp::Add: {
+                    long long r = (long long)a + b;
+                    if (r > INT32_MAX || r < INT32_MIN) break;  // overflow, skip folding → runtime will catch
+                    int ci = makeConstant(interpreter::NaabVal::makeInt((int)r)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line);
+                } return;
+                case ast::BinaryOp::Sub: {
+                    long long r = (long long)a - b;
+                    if (r > INT32_MAX || r < INT32_MIN) break;  // overflow
+                    int ci = makeConstant(interpreter::NaabVal::makeInt((int)r)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line);
+                } return;
+                case ast::BinaryOp::Mul: {
+                    long long r = (long long)a * b;
+                    if (r > INT32_MAX || r < INT32_MIN) break;  // overflow
+                    int ci = makeConstant(interpreter::NaabVal::makeInt((int)r)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line);
+                } return;
                 case ast::BinaryOp::Div:
                     if (b != 0) { { int ci = makeConstant(interpreter::NaabVal::makeInt(a / b)); emitWide(OpCode::OP_CONST, static_cast<uint32_t>(ci), line); } return; }
                     break;
