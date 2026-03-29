@@ -2656,16 +2656,16 @@ result
         }
     }
 
-    // 16. math.random (wrong module)
+    // 16. math.random (now implemented — returns float in [0.0, 1.0))
     try {
-        math.random()
-        print("  FAIL: math.random — no error")
-    } catch (e) {
-        if string.contains(e["message"], "crypto") {
-            print("  PASS: math.random → suggests crypto.random_int")
+        let r = math.random()
+        if r >= 0.0 {
+            print("  PASS: math.random returns value")
         } else {
-            print("  FAIL: math.random — unhelpful: " + e["message"])
+            print("  FAIL: math.random returned unexpected: " + string(r))
         }
+    } catch (e) {
+        print("  FAIL: math.random threw error: " + e["message"])
     }
 
     // 17. math.log (not implemented)

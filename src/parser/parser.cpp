@@ -471,9 +471,21 @@ std::unique_ptr<ast::Program> Parser::parseProgram() {
         skipNewlines();
 
         if (check(lexer::TokenType::USE)) {
-            // Phase 4.0: Module use statement (use math_utils)
-            auto module_use = parseModuleUseStmt();
-            module_uses.push_back(std::move(module_use));
+            // Lookahead: block import or module import?
+            size_t saved_pos = pos_;
+            advance();  // skip 'use'
+            skipNewlines();
+            bool is_block = check(lexer::TokenType::BLOCK_ID) || check(lexer::TokenType::STRING);
+            pos_ = saved_pos;
+
+            if (is_block) {
+                // Block import can appear anywhere among use statements
+                imports.push_back(parseUseStatement());
+            } else {
+                // Phase 4.0: Module use statement (use math_utils)
+                auto module_use = parseModuleUseStmt();
+                module_uses.push_back(std::move(module_use));
+            }
         }
         else if (check(lexer::TokenType::IMPORT)) {
             auto import_stmt = parseImportStmt();

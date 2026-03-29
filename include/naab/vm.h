@@ -376,6 +376,10 @@ private:
     std::vector<std::unique_ptr<CompiledFunction>> owned_functions_;
     int module_loading_depth_ = 0;
 
+    // Recursive run() depth guard (callNaabFunction re-enters run())
+    int run_depth_ = 0;
+    static constexpr int MAX_RUN_DEPTH = 64;
+
     // Integration
     governance::GovernanceEngine* governance_ = nullptr;
     stdlib::StdLib* stdlib_ = nullptr;

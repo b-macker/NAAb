@@ -97,6 +97,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
     frame_count_ = 0;
     stack_top_ = stack_.get();
     taint_top_ = taint_stack_.get();
+    run_depth_ = 0;
 
     // Wrap main function in a closure for uniform handling
     main_closure_ = std::make_shared<VMClosure>(main_fn, std::vector<std::shared_ptr<ObjUpvalue>>{});
@@ -2498,6 +2499,13 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
         runtimeError("callNaabFunction: value is not a function");
     }
 
+    if (++run_depth_ > MAX_RUN_DEPTH) {
+        --run_depth_;
+        runtimeError("Maximum callback nesting depth exceeded (%d). "
+                     "This usually indicates infinite recursion in stdlib callbacks.",
+                     MAX_RUN_DEPTH);
+    }
+
     // Save stack position — we'll restore it after the call so the
     // caller's stack state isn't affected (important for re-entrant calls
     // from stdlib callbacks like array.map_fn)
@@ -2530,6 +2538,7 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     // not left on the stack
     stack_top_ = saved_stack_top;
     syncTaintTop();
+    --run_depth_;
     return result;
 }
 
