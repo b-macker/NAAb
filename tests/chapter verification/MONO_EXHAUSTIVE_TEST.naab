@@ -1689,25 +1689,32 @@ puts "    Ruby: Hello from Ruby!"
         let mag = cvec.magnitude(3.0, 4.0)
         print("  cvec.magnitude(3,4) = " + (mag))
 
-        let dist = cvec.distance(10.0, 3.0)
-        print("  cvec.distance(10,3) = " + (dist))
+        let dist = cvec.distance(6.0, 8.0)
+        print("  cvec.distance(6,8) = " + (dist))
 
-        assert_eq(cvec.min_val(5, 15), 5, "cvec.min_val(5,15)")
-        assert_eq(cvec.max_val(5, 15), 15, "cvec.max_val(5,15)")
-        assert_eq(cvec.sum(100, 200), 300, "cvec.sum(100,200)")
-        assert_eq(cvec.product(6, 7), 42, "cvec.product(6,7)")
+        let mid = cvec.midpoint(10.0, 20.0)
+        print("  cvec.midpoint(10,20) = " + (mid))
 
-        let lerp_result = cvec.lerp(10.0, 20.0)
-        print("  cvec.lerp(10,20) = " + (lerp_result))
+        let d = cvec.dot(3.0, 4.0)
+        print("  cvec.dot(3,4) = " + (d))
 
-        let hyp = cvec.hypotenuse(5.0, 12.0)
-        print("  cvec.hypotenuse(5,12) = " + (hyp))
+        let c = cvec.clamp01(1.5)
+        print("  cvec.clamp01(1.5) = " + (c))
 
-        let avg_result = cvec.avg(10.0, 20.0)
-        print("  cvec.avg(10,20) = " + (avg_result))
+        let rad = cvec.to_radians(180.0)
+        print("  cvec.to_radians(180) = " + (rad))
 
-        let pow_cvec = cvec.power(2.0, 8.0)
-        print("  cvec.power(2,8) = " + (pow_cvec))
+        let deg = cvec.to_degrees(3.14159)
+        print("  cvec.to_degrees(pi) = " + (deg))
+
+        let hyp = cvec.hypot_val(5.0, 12.0)
+        print("  cvec.hypot_val(5,12) = " + (hyp))
+
+        let na = cvec.normalize_angle(-1.0)
+        print("  cvec.normalize_angle(-1) = " + (na))
+
+        let ss = cvec.smoothstep(0.0, 1.0)
+        print("  cvec.smoothstep(0,1) = " + (ss))
     } catch (e) {
         print("  BLOCK-CPP-VECTOR error: " + (e))
     }

@@ -122,8 +122,9 @@ bool CppExecutorAdapter::execute(const std::string& code) {
 bool CppExecutorAdapter::execute(const std::string& code, CppExecutionMode mode) {
     // For BLOCK_LIBRARY mode, compile to shared library
     if (mode == CppExecutionMode::BLOCK_LIBRARY) {
-        // Generate unique block ID for this library
-        std::string block_id = "BLOCK_LIB_" + std::to_string(block_counter_++);
+        // Generate unique block ID based on code hash (so each block gets its own cache)
+        size_t code_hash = std::hash<std::string>{}(code);
+        std::string block_id = "BLOCK_LIB_" + std::to_string(code_hash);
         current_block_id_ = block_id;
 
         // Compile to shared library (no wrapping)
