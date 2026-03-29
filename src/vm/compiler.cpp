@@ -1020,8 +1020,14 @@ void Compiler::visit(ast::StructDeclStmt& node) {
 }
 
 void Compiler::visit(ast::RuntimeDeclStmt& node) {
-    // Persistent runtimes not yet compiled — silently skip (same as tree-walker)
-    (void)node;
+    int line = node.getLocation().line;
+    // Push runtime name and language as constants
+    int name_idx = makeConstant(interpreter::NaabVal::makeString(node.getName()));
+    int lang_idx = makeConstant(interpreter::NaabVal::makeString(node.getLanguage()));
+    // Encode: name_idx in upper 12 bits, lang_idx in lower 12 bits
+    uint32_t packed = ((static_cast<uint32_t>(name_idx) & 0xFFF) << 12) |
+                      (static_cast<uint32_t>(lang_idx) & 0xFFF);
+    emitWide(OpCode::OP_RUNTIME_START, packed, line);
 }
 
 void Compiler::visit(ast::DestructureStmt& node) {

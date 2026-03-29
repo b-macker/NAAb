@@ -23,6 +23,7 @@ namespace governance { class GovernanceEngine; }
 namespace debugger { class Debugger; }
 namespace stdlib { class StdLib; }
 namespace modules { class ModuleResolver; }
+namespace runtime { class Executor; }
 
 namespace vm {
 
@@ -396,6 +397,14 @@ private:
     int last_debug_line_ = -1;  // Track line changes for debugger (avoid multi-break per line)
     std::string source_code_;
     std::vector<std::string> script_args_;
+
+    // Persistent runtimes (Phase 12: runtime py = python.start())
+    struct PersistentRuntime {
+        std::string language;
+        runtime::Executor* executor;
+        std::string code_buffer;
+    };
+    std::unordered_map<std::string, PersistentRuntime> named_runtimes_;
 
     // Generator state (for yield collection)
     std::vector<interpreter::NaabVal>* generator_values_ = nullptr;

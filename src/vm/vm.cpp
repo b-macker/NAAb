@@ -11,6 +11,7 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/sandbox.h"
 #include "naab/error_helpers.h"
+#include "naab/js_executor_adapter.h"
 #include "naab/resource_limits.h"
 #include <algorithm>
 #include <cstdarg>
@@ -574,7 +575,7 @@ interpreter::NaabVal VM::run() {
         &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,      // 70-73 (GOV — handled at AST level)
         &&vm_OP_YIELD, &&vm_OP_AWAIT,                                     // 74-75
         &&vm_STUB_NOP, &&vm_STUB_NOP,                                     // 76-77 (MAKE_GEN/ASYNC — reserved)
-        &&vm_STUB_NOP, &&vm_STUB_NOP,                                     // 78-79 (RUNTIME — reserved)
+        &&vm_OP_RUNTIME_START, &&vm_STUB_NOP,                              // 78-79 (RUNTIME_START, EXEC via CALL_METHOD)
     };
 
     #define VM_CASE(opcode) vm_##opcode
@@ -1343,6 +1344,99 @@ interpreter::NaabVal VM::run() {
                             goto done_call_method;
                         }
                     }
+                    // Phase 12: Persistent runtime .exec() dispatch
+                    if (sv.size() >= 17 && sv.substr(0, 17) == "__NAAB_RUNTIME__:" && method == "exec") {
+                        std::string runtime_name = sv.substr(17);
+                        auto rit = named_runtimes_.find(runtime_name);
+                        if (rit == named_runtimes_.end()) {
+                            runtimeError("Runtime error: Runtime '%s' not found", runtime_name.c_str());
+                        }
+                        if (argc < 1) {
+                            runtimeError("Runtime error: %s.exec() requires a code argument.\n\n"
+                                "  Example: %s.exec(<<python\n    your code here\n  >>)\n",
+                                runtime_name.c_str(), runtime_name.c_str());
+                        }
+
+                        // Get code argument (string)
+                        interpreter::NaabVal code_val = peek(0);
+                        std::string code;
+                        if (code_val.isString()) {
+                            code = code_val.asString();
+                        } else {
+                            // Result of an already-executed polyglot block — use directly
+                            stack_top_ -= (argc + 1);
+                            syncTaintTop();
+                            push(std::move(code_val));
+                            goto done_call_method;
+                        }
+
+                        auto& rt = rit->second;
+
+                        // Governance checks
+                        if (governance_ && governance_->isActive()) {
+                            int gov_line = CURRENT_CHUNK().getLine(
+                                static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                            std::string gov_err = governance_->checkPolyglotBlock(
+                                rt.language, code, current_file_, gov_line, 0);
+                            if (!gov_err.empty()) runtimeError("%s", gov_err.c_str());
+                        }
+
+                        // For subprocess-based languages, accumulate code
+                        bool is_embedded = (rt.language == "python" || rt.language == "javascript" ||
+                                           rt.language == "js");
+                        if (!is_embedded) {
+                            rt.code_buffer += code + "\n";
+                            code = rt.code_buffer;
+                        }
+
+                        // Detect if code is a statement (no return value)
+                        std::string trimmed_code = code;
+                        size_t fc = trimmed_code.find_first_not_of(" \t\n\r");
+                        if (fc != std::string::npos) trimmed_code = trimmed_code.substr(fc);
+                        bool is_statement = (
+                            trimmed_code.find("var ") == 0 ||
+                            trimmed_code.find("let ") == 0 ||
+                            trimmed_code.find("const ") == 0 ||
+                            trimmed_code.find("function ") == 0 ||
+                            trimmed_code.find("import ") == 0 ||
+                            trimmed_code.find("class ") == 0 ||
+                            trimmed_code.find("def ") == 0 ||
+                            trimmed_code.find("from ") == 0 ||
+                            trimmed_code.find("for ") == 0 ||
+                            trimmed_code.find("while ") == 0 ||
+                            trimmed_code.find("if ") == 0);
+
+                        // Execute on the persistent executor
+                        try {
+                            interpreter::NaabVal result;
+                            bool is_js = (rt.language == "javascript" || rt.language == "js");
+                            if (is_js) {
+                                auto* js_adapter = dynamic_cast<runtime::JsExecutorAdapter*>(rt.executor);
+                                if (js_adapter) {
+                                    if (is_statement) {
+                                        js_adapter->execute(code, runtime::JsExecutionMode::BLOCK_LIBRARY);
+                                        result = interpreter::NaabVal::makeNull();
+                                    } else {
+                                        result = js_adapter->executeWithReturn(code);
+                                    }
+                                } else {
+                                    result = rt.executor->executeWithReturn(code);
+                                }
+                            } else if (is_statement) {
+                                rt.executor->execute(code);
+                                result = interpreter::NaabVal::makeNull();
+                            } else {
+                                result = rt.executor->executeWithReturn(code);
+                            }
+                            stack_top_ -= (argc + 1);
+                            syncTaintTop();
+                            push(std::move(result));
+                        } catch (const std::exception& e) {
+                            runtimeError("Persistent runtime '%s' error: %s",
+                                runtime_name.c_str(), e.what());
+                        }
+                        goto done_call_method;
+                    }
                 }
 
                 // Check if dict has a callable value at this key
@@ -1952,6 +2046,38 @@ interpreter::NaabVal VM::run() {
                     final_code = var_declarations + code;
                 }
 
+                // Phase 12: Inject naab_return() helper function per language
+                // (mirrors polyglot.cpp:251-292)
+                bool code_uses_naab_return = (raw_code.find("naab_return") != std::string::npos);
+                if (code_uses_naab_return) {
+                    std::string helper;
+                    if (language == "python") {
+                        if (!return_type.empty()) {
+                            helper = "def naab_return(data):\n    import json as __nrj\n    print(__nrj.dumps(data) if not isinstance(data, str) else data)\n";
+                        } else {
+                            helper = "def naab_return(data):\n    return data\n";
+                        }
+                    } else if (language == "javascript" || language == "js") {
+                        helper = "function naab_return(data) { return data; }\n";
+                    } else if (language == "typescript" || language == "ts") {
+                        helper = "function naab_return(data) { return data; }\n";
+                    } else if (language == "shell" || language == "sh" || language == "bash") {
+                        helper = "naab_return() { echo \"__NAAB_RETURN__:$1\"; }\n";
+                    } else if (language == "ruby") {
+                        helper = "require 'json'\ndef naab_return(data); puts \"__NAAB_RETURN__:\" + data.to_json; end\n";
+                    } else if (language == "php") {
+                        if (final_code.find("<?php") == std::string::npos) helper = "<?php\n";
+                        helper += "function naab_return($data) { echo \"__NAAB_RETURN__:\" . json_encode($data) . \"\\n\"; }\n";
+                    } else if (language == "rust") {
+                        helper = "macro_rules! naab_return { ($val:expr) => { println!(\"__NAAB_RETURN__:{}\", $val); }; }\n";
+                    } else if (language == "cpp" || language == "c++") {
+                        helper = "#include <sstream>\n#define naab_return(val) do { std::ostringstream __os; __os << \"__NAAB_RETURN__:\" << (val); std::cout << __os.str() << std::endl; } while(0)\n";
+                    }
+                    if (!helper.empty()) {
+                        final_code = helper + final_code;
+                    }
+                }
+
                 // Handle -> JSON return type for Python
                 if (!return_type.empty() && language == "python") {
                     // Auto-wrap last bare expression in print()
@@ -2041,6 +2167,23 @@ interpreter::NaabVal VM::run() {
                         }
                     }
 
+                    // Phase 12: Contract violation — -> JSON declared but no JSON produced
+                    if (!return_type.empty() && return_type == "JSON") {
+                        bool has_valid_result = json_parsed || (!result.isNull() && !result.isString());
+                        if (!has_valid_result) {
+                            std::string err = "Block contract violation: <<" + language +
+                                " -> JSON>> expected a JSON return value, "
+                                "but no valid JSON was found in stdout.\n\n"
+                                "  The '-> JSON' header means the block MUST output valid JSON.\n"
+                                "  The last printed line must be a JSON string.\n\n"
+                                "  Common fixes:\n"
+                                "  - Use naab_return({key: value}) for structured data\n"
+                                "  - Use print(json.dumps(data)) for Python\n"
+                                "  - Use JSON.stringify(data) for JavaScript\n";
+                            runtimeError("%s", err.c_str());
+                        }
+                    }
+
                     push(result);
                     // Governance: mark polyglot output as tainted if configured
                     if (governance_ && governance_->isActive()) {
@@ -2052,6 +2195,41 @@ interpreter::NaabVal VM::run() {
                 } catch (const std::exception& e) {
                     runtimeError("Polyglot %s error: %s", language.c_str(), e.what());
                 }
+            }
+                VM_NEXT();
+
+            VM_CASE(OP_RUNTIME_START): {
+                // Phase 12: Persistent runtime declaration
+                // Packed: name_idx in upper 12 bits, lang_idx in lower 12 bits
+                uint32_t name_idx = (arg >> 12) & 0xFFF;
+                uint32_t lang_idx = arg & 0xFFF;
+                const std::string& name = READ_CONSTANT(name_idx).asString();
+                const std::string& language = READ_CONSTANT(lang_idx).asString();
+
+                if (named_runtimes_.count(name)) {
+                    runtimeError("Runtime error: Runtime '%s' already exists.\n\n"
+                        "  Each runtime name must be unique. Use a different name:\n"
+                        "    runtime %s2 = %s.start()\n",
+                        name.c_str(), name.c_str(), language.c_str());
+                }
+
+                auto& registry = runtime::LanguageRegistry::instance();
+                auto* executor = registry.getExecutor(language);
+                if (!executor) {
+                    runtimeError("Runtime error: Unknown language '%s' for persistent runtime.\n\n"
+                        "  Supported languages: python, javascript, js, shell, bash, sh,\n"
+                        "    rust, go, cpp, csharp, cs, ruby, php, typescript, ts\n\n"
+                        "  Example: runtime py = python.start()\n", language.c_str());
+                }
+
+                PersistentRuntime rt;
+                rt.language = language;
+                rt.executor = executor;
+                rt.code_buffer = "";
+                named_runtimes_[name] = std::move(rt);
+
+                // Define as global string marker for .exec() dispatch
+                globals_[name] = interpreter::NaabVal::makeString("__NAAB_RUNTIME__:" + name);
             }
                 VM_NEXT();
 
