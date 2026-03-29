@@ -1,0 +1,92 @@
+use array
+use math
+use string
+import "./models.naab" as models
+
+export fn add_vehicle(fleet, vehicle) {
+    let vid = vehicle.get("id")
+    for v in fleet {
+        if v.get("id") == vid {
+            return { "fleet": fleet, "success": false, "error": "Vehicle ID already exists" }
+        }
+    }
+    
+    let updated_fleet = fleet
+    updated_fleet.push(vehicle)
+    return { "fleet": updated_fleet, "success": true }
+}
+
+export fn retire_vehicle(vehicle, reason) {
+    let v = vehicle
+    v.put("status", "Retired")
+    v.put("retire_reason", reason)
+    return v
+}
+
+export fn get_available_vehicles(fleet) {
+    let available = []
+    for v in fleet {
+        if v.get("status") == "Available" {
+            available.push(v)
+        }
+    }
+    return available
+}
+
+export fn assign_vehicle(fleet, vehicle_id) {
+    let updated_fleet = fleet
+    for i in 0..len(updated_fleet) {
+        let v = updated_fleet[i]
+        if v.get("id") == vehicle_id {
+            if v.get("status") == "Available" {
+                v.put("status", "InTransit")
+                updated_fleet[i] = v
+                return { "fleet": updated_fleet, "vehicle": v, "success": true }
+            }
+        }
+    }
+    return { "fleet": fleet, "vehicle": null, "success": false }
+}
+
+export fn release_vehicle(fleet, vehicle_id) {
+    let updated_fleet = fleet
+    for i in 0..len(updated_fleet) {
+        let v = updated_fleet[i]
+        if v.get("id") == vehicle_id {
+            v.put("status", "Available")
+            updated_fleet[i] = v
+            return { "fleet": updated_fleet, "success": true }
+        }
+    }
+    return { "fleet": fleet, "success": false }
+}
+
+export fn calculate_depreciation(vehicle, years) {
+    let v_type = vehicle.get("type")
+    let capacity_kg = float(vehicle.get("capacity_kg"))
+    
+    let purchase_value = 0.0
+    if v_type == "Van" or v_type == "Motorcycle" {
+        purchase_value = capacity_kg * 50.0
+    } else if v_type == "Truck" or v_type == "Semi" {
+        purchase_value = capacity_kg * 100.0
+    } else {
+        purchase_value = capacity_kg * 50.0
+    }
+    
+    let annual_depreciation = purchase_value * 0.09
+    let total_depreciation = annual_depreciation * float(years)
+    let cap = purchase_value * 0.9
+    
+    return math.min(total_depreciation, cap)
+}
+
+export fn get_maintenance_due(fleet, mileage_threshold) {
+    let due = []
+    for v in fleet {
+        if int(v.get("mileage")) > mileage_threshold {
+            due.push(v)
+        }
+    }
+    return due
+}

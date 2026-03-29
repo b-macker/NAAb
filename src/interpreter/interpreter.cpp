@@ -379,6 +379,59 @@ NaabVal Environment::get(const std::string& name) {
         error_msg += "\n\n  NAAb does not have a JSON object. Dicts are native:\n"
                      "    let data = {\"key\": \"value\"}  // dict literal\n"
                      "    let val = data.get(\"key\")";
+    } else if (name == "round" || name == "abs" || name == "floor" || name == "ceil" ||
+               name == "sqrt" || name == "pow" || name == "min" || name == "max" ||
+               name == "random" || name == "sin" || name == "cos") {
+        error_msg += "\n\n  '" + name + "' is not a builtin. It's in the math module:\n"
+                     "    use math\n"
+                     "    let x = math." + name + "(...)\n";
+    } else if (name == "PI" || name == "pi" || name == "E") {
+        std::string correct = (name == "E") ? "E" : "PI";
+        error_msg += "\n\n  '" + name + "' is not a builtin. It's a math constant:\n"
+                     "    use math\n"
+                     "    let x = math." + correct + "\n";
+    } else if (name == "keys" || name == "values" || name == "entries") {
+        error_msg += "\n\n  '" + name + "' is not a global function. Use dot-notation on a dict:\n"
+                     "    let k = my_dict." + name + "()\n";
+    } else if (name == "push" || name == "pop" || name == "shift" || name == "unshift" ||
+               name == "sort" || name == "reverse" || name == "contains" || name == "find") {
+        error_msg += "\n\n  '" + name + "' is not a global function. Use dot-notation:\n"
+                     "    my_array." + name + "(...)\n";
+    } else if (name == "upper" || name == "lower" || name == "trim" || name == "split" ||
+               name == "replace" || name == "starts_with" || name == "ends_with") {
+        error_msg += "\n\n  '" + name + "' is not a global function. Use dot-notation:\n"
+                     "    my_string." + name + "(...)\n"
+                     "  Or use the string module:\n"
+                     "    use string\n"
+                     "    string." + name + "(my_string, ...)\n";
+    } else if (name == "parseInt" || name == "parseFloat" || name == "Number") {
+        error_msg += "\n\n  NAAb uses type cast builtins instead:\n"
+                     "    let x = int(\"42\")      // parseInt\n"
+                     "    let y = float(\"3.14\")  // parseFloat\n";
+    } else if (name == "toString" || name == "str") {
+        error_msg += "\n\n  NAAb uses the string() cast builtin:\n"
+                     "    let s = string(42)   // \"42\"\n";
+    } else if (name == "sorted" || name == "reversed") {
+        std::string fn = (name == "sorted") ? "sort" : "reverse";
+        error_msg += "\n\n  '" + name + "' is not a builtin. Arrays have mutable methods:\n"
+                     "    my_array." + fn + "()   // mutates in place\n";
+    } else if (name == "enumerate" || name == "zip") {
+        error_msg += "\n\n  NAAb does not have '" + name + "'. Use index-based loops:\n"
+                     "    for i in 0..len(arr) {\n"
+                     "        let item = arr[i]\n"
+                     "    }\n";
+    } else if (name == "map" || name == "filter" || name == "reduce") {
+        error_msg += "\n\n  '" + name + "' is not a global function. Use the array module:\n"
+                     "    use array\n"
+                     "    array." + name + "_fn(arr, fn(x) { return x })\n";
+    } else if (name == "append" || name == "extend") {
+        error_msg += "\n\n  NAAb arrays use push() instead of '" + name + "':\n"
+                     "    my_array.push(item)\n";
+    } else if (name == "format" || name == "sprintf" || name == "printf") {
+        error_msg += "\n\n  NAAb uses string concatenation with + operator:\n"
+                     "    let msg = \"Hello \" + name + \"!\"\n"
+                     "  Or use string() for type conversion:\n"
+                     "    let msg = \"Count: \" + string(count)\n";
     } else {
         auto all_names = getAllNames();
         auto suggestion = error::suggestForUndefinedVariable(name, all_names);

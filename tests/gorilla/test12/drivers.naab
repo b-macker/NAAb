@@ -1,0 +1,135 @@
+use array
+use math
+use string
+use json
+import "./models.naab" as models
+
+export fn register_driver(drivers, driver) {
+    let did = driver.get("id")
+    for d in drivers {
+        if d.get("id") == did {
+            return { "drivers": drivers, "success": false, "error": "Driver ID already exists" }
+        }
+    }
+    
+    let updated_drivers = drivers
+    updated_drivers.push(driver)
+    return { "drivers": updated_drivers, "success": true }
+}
+
+export fn assign_driver(drivers, driver_id) {
+    let updated_drivers = drivers
+    for i in 0..len(updated_drivers) {
+        let d = updated_drivers[i]
+        if d.get("id") == driver_id {
+            if bool(d.get("available")) == true {
+                d.put("available", false)
+                updated_drivers[i] = d
+                return { "drivers": updated_drivers, "driver": d, "success": true }
+            }
+        }
+    }
+    return { "drivers": drivers, "driver": null, "success": false }
+}
+
+export fn get_available_drivers(drivers) {
+    let available = []
+    for d in drivers {
+        if bool(d.get("available")) == true {
+            available.push(d)
+        }
+    }
+    return available
+}
+
+export fn calculate_driver_score(driver, delivery_history) {
+    let driver_id = driver.get("id")
+    let driver_deliveries = []
+    for d in delivery_history {
+        if d.get("driver_id") == driver_id {
+            driver_deliveries.push(d)
+        }
+    }
+    
+    let total = len(driver_deliveries)
+    let completed = 0
+    let on_time = 0
+    
+    for d in driver_deliveries {
+        if d.get("status") == "delivered" {
+            completed = completed + 1
+            if bool(d.get("on_time", true)) == true {
+                on_time = on_time + 1
+            }
+        }
+    }
+    
+    let delivery_score = 0.0
+    if total > 0 {
+        delivery_score = (float(completed) / float(total)) * 30.0
+    }
+    
+    let reliability_score = 0.0
+    if completed > 0 {
+        reliability_score = (float(on_time) / float(completed)) * 25.0
+    }
+    
+    let efficiency_json = <<python[delivery_history, driver]
+import json
+did = driver.get("id")
+completed_dels = [d for d in delivery_history if d.get("driver_id") == did and d.get("status") == "delivered"]
+if not completed_dels:
+    score = 0.0
+else:
+    ratios = []
+    for d in completed_dels:
+        fuel_used = float(d.get("fuel_used", 0))
+        expected_fuel = float(d.get("expected_fuel", 1))
+        if expected_fuel > 0:
+            ratios.append(fuel_used / expected_fuel)
+    if not ratios:
+        score = 0.0
+    else:
+        avg_ratio = sum(ratios) / len(ratios)
+        deviation = abs(1.0 - avg_ratio)
+        score = max(0.0, 25.0 * (1.0 - deviation))
+json.dumps({"score": round(score, 2)})
+>>
+    let efficiency_data = json.parse(efficiency_json)
+    let efficiency_score = float(efficiency_data.get("score"))
+    
+    let rating_score = (float(driver.get("rating")) / 5.0) * 20.0
+    let total_score = delivery_score + reliability_score + efficiency_score + rating_score
+    
+    return {
+        "driver_id": driver_id,
+        "total_score": total_score,
+        "delivery_score": delivery_score,
+        "reliability_score": reliability_score,
+        "efficiency_score": efficiency_score,
+        "rating_score": rating_score
+    }
+}
+
+export fn update_driver_hours(driver, hours_worked) {
+    let d = driver
+    let current_hours = float(d.get("total_hours"))
+    d.put("total_hours", current_hours + float(hours_worked))
+    return d
+}
+
+export fn check_hours_compliance(driver) {
+    let weekly_limit = int(driver.get("max_hours_per_week"))
+    let current_hours = int(driver.get("total_hours"))
+    let compliant = current_hours <= weekly_limit
+    let hours_remaining = 0
+    if compliant {
+        hours_remaining = weekly_limit - current_hours
+    }
+    
+    return {
+        "compliant": compliant,
+        "hours_remaining": hours_remaining,
+        "weekly_limit": weekly_limit
+    }
+}

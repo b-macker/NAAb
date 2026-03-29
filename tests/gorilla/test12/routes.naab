@@ -1,0 +1,158 @@
+use array
+use math
+use string
+use json
+
+export fn create_route_plan(vehicle, driver, stops, distances) {
+    let total_distance = 0.0
+    for d in distances {
+        total_distance = total_distance + float(d)
+    }
+    
+    let stops_count = float(len(stops))
+    let estimated_hours = total_distance / 60.0 + stops_count * 0.5
+    
+    return {
+        "vehicle_id": vehicle.get("id"),
+        "driver_id": driver.get("id"),
+        "stops": stops,
+        "distances": distances,
+        "total_distance": total_distance,
+        "estimated_hours": estimated_hours,
+        "status": "planned"
+    }
+}
+
+export fn calculate_route_cost(route, vehicle, driver) {
+    let fuel_type = string(vehicle.get("fuel_type"))
+    let fuel_price = 1.40
+    if fuel_type == "Diesel" {
+        fuel_price = 1.50
+    } else if fuel_type == "Gasoline" {
+        fuel_price = 1.40
+    } else if fuel_type == "Electric" {
+        fuel_price = 0.30
+    } else if fuel_type == "Hybrid" {
+        fuel_price = 0.90
+    }
+    
+    let total_distance = float(route.get("total_distance"))
+    let fuel_efficiency = float(vehicle.get("fuel_efficiency"))
+    let fuel_cost = (total_distance / fuel_efficiency) * fuel_price
+    
+    let estimated_hours = float(route.get("estimated_hours"))
+    let hourly_rate = float(driver.get("hourly_rate"))
+    let driver_cost = estimated_hours * hourly_rate
+    
+    let total_cost = fuel_cost + driver_cost
+    
+    return {
+        "fuel_cost": fuel_cost,
+        "driver_cost": driver_cost,
+        "total_cost": total_cost
+    }
+}
+
+export fn optimize_route_order(stops, distances_matrix) {
+    let result_json = <<python[stops, distances_matrix]
+import json
+n = len(stops)
+if n <= 1:
+    optimized_indices = list(range(n))
+    total_dist = 0.0
+    savings = 0.0
+else:
+    visited = [False] * n
+    optimized_indices = [0]
+    visited[0] = True
+    total_dist = 0.0
+    current = 0
+    for _ in range(n - 1):
+        next_stop = -1
+        min_dist = float('inf')
+        for i in range(n):
+            if not visited[i]:
+                d = float(distances_matrix[current][i])
+                if d < min_dist:
+                    min_dist = d
+                    next_stop = i
+        if next_stop != -1:
+            optimized_indices.append(next_stop)
+            visited[next_stop] = True
+            total_dist += min_dist
+            current = next_stop
+    original_dist = 0.0
+    for i in range(n - 1):
+        original_dist += float(distances_matrix[i][i+1])
+    savings = 0.0
+    if original_dist > 0:
+        savings = (original_dist - total_dist) / original_dist * 100.0
+p_stops = [str(x) for x in stops]
+optimized_order = [p_stops[i] for i in optimized_indices]
+json.dumps({"optimized_stops": optimized_order, "total_distance": float(total_dist), "savings_percent": float(round(savings, 2))})
+>>
+    return json.parse(result_json)
+}
+
+export fn estimate_delivery_time(distance_km, stops_count, priority) {
+    let base_time = float(distance_km) / 60.0 + float(stops_count) * 0.5
+    if priority == "high" {
+        return base_time * 0.8
+    } else if priority == "low" {
+        return base_time * 1.2
+    } else {
+        return base_time
+    }
+}
+
+export fn check_route_capacity(route_deliveries, vehicle) {
+    let total_weight = 0.0
+    for d in route_deliveries {
+        total_weight = total_weight + float(d.get("weight_kg"))
+    }
+    
+    let capacity = float(vehicle.get("capacity_kg"))
+    let utilization = 0.0
+    if capacity > 0.0 {
+        utilization = total_weight / capacity
+    }
+    
+    let fits = total_weight <= capacity
+    
+    return {
+        "fits": fits,
+        "total_weight": total_weight,
+        "capacity": capacity,
+        "utilization": utilization
+    }
+}
+
+export fn get_route_history(routes, filters) {
+    if filters == null or len(filters.keys()) == 0 {
+        return routes
+    }
+    
+    let filtered = []
+    let f_vehicle_id = filters.get("vehicle_id")
+    let f_driver_id = filters.get("driver_id")
+    let f_status = filters.get("status")
+    
+    for r in routes {
+        let is_match = true
+        if f_vehicle_id != null and r.get("vehicle_id") != f_vehicle_id {
+            is_match = false
+        }
+        if f_driver_id != null and r.get("driver_id") != f_driver_id {
+            is_match = false
+        }
+        if f_status != null and r.get("status") != f_status {
+            is_match = false
+        }
+        
+        if is_match {
+            filtered.push(r)
+        }
+    }
+    
+    return filtered
+}

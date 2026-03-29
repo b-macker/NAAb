@@ -341,6 +341,7 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     if (!return_type.empty() && (language == "python")) {
         // Auto-wrap bare Python expressions in print() for -> JSON
         // Find last non-empty, non-comment, non-import line and wrap if it's a bare expression
+        // Supports multi-line expressions (e.g., json.dumps({\n...\n}))
         {
             std::istringstream iss(final_code);
             std::string line;
@@ -348,6 +349,27 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             while (std::getline(iss, line)) {
                 lines.push_back(line);
             }
+
+            // Helper: count bracket depth on a line (positive = more openers, negative = more closers)
+            auto bracketDepth = [](const std::string& s) -> int {
+                int depth = 0;
+                bool in_string = false;
+                char string_char = 0;
+                for (size_t j = 0; j < s.size(); ++j) {
+                    char c = s[j];
+                    if (in_string) {
+                        if (c == '\\' && j + 1 < s.size()) { ++j; continue; }
+                        if (c == string_char) in_string = false;
+                        continue;
+                    }
+                    if (c == '"' || c == '\'') { in_string = true; string_char = c; continue; }
+                    if (c == '#') break;  // comment — stop counting
+                    if (c == '(' || c == '[' || c == '{') ++depth;
+                    else if (c == ')' || c == ']' || c == '}') --depth;
+                }
+                return depth;
+            };
+
             for (int i = static_cast<int>(lines.size()) - 1; i >= 0; --i) {
                 std::string trimmed = lines[i];
                 // Trim leading whitespace
@@ -368,10 +390,33 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                     || trimmed.substr(0, 6) == "class " || trimmed.substr(0, 4) == "try:"
                     || trimmed.substr(0, 7) == "except:" || trimmed.substr(0, 7) == "except "
                     || trimmed.substr(0, 4) == "with ") break;
-                // It's a bare expression — wrap in print()
-                // Preserve leading whitespace
-                std::string leading = lines[i].substr(0, start);
-                lines[i] = leading + "print(" + trimmed + ")";
+
+                // Check if this line is a continuation of a multi-line expression
+                int end_depth = bracketDepth(trimmed);
+                if (end_depth < 0) {
+                    // More closers than openers — walk backwards to find expression start
+                    int cumulative_depth = end_depth;
+                    int expr_start = i;
+                    for (int j = i - 1; j >= 0 && cumulative_depth < 0; --j) {
+                        std::string jtrimmed = lines[j];
+                        size_t jstart = jtrimmed.find_first_not_of(" \t");
+                        if (jstart == std::string::npos) continue;
+                        cumulative_depth += bracketDepth(jtrimmed.substr(jstart));
+                        expr_start = j;
+                    }
+                    // Wrap from expr_start to i
+                    size_t sstart = lines[expr_start].find_first_not_of(" \t");
+                    std::string leading = (sstart != std::string::npos)
+                        ? lines[expr_start].substr(0, sstart) : "";
+                    std::string strimmed = (sstart != std::string::npos)
+                        ? lines[expr_start].substr(sstart) : lines[expr_start];
+                    lines[expr_start] = leading + "print(" + strimmed;
+                    lines[i] = lines[i] + ")";
+                } else {
+                    // Single-line bare expression — wrap in print()
+                    std::string leading = lines[i].substr(0, start);
+                    lines[i] = leading + "print(" + trimmed + ")";
+                }
                 break;
             }
             // Rejoin
@@ -957,13 +1002,23 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
                 << "  Common causes:\n"
                 << "  - Missing colons after if/for/def/class\n"
                 << "  - Unclosed parentheses or brackets\n"
-                << "  - Python 3 syntax required (print is a function)\n\n"
-                << "  Tip: The last expression in the block is the return value.\n"
-                << "  For multi-line blocks, put the result on the last line:\n"
-                << "    let r = <<python\n"
-                << "    x = compute()\n"
-                << "    x  # this value is returned to NAAb\n"
-                << "    >>\n";
+                << "  - Python 3 syntax required (print is a function)\n\n";
+            if (!return_type.empty() && (error_msg.find("does not match") != std::string::npos ||
+                error_msg.find("unexpected") != std::string::npos)) {
+                oss << "  Tip: With -> JSON, multi-line expressions can cause issues.\n"
+                    << "  Build the dict first, then call json.dumps() on one line:\n\n"
+                    << "    let r = <<python[data] -> JSON\n"
+                    << "    result = {\"key\": val, \"other\": data}\n"
+                    << "    json.dumps(result)\n"
+                    << "    >>\n";
+            } else {
+                oss << "  Tip: The last expression in the block is the return value.\n"
+                    << "  For multi-line blocks, put the result on the last line:\n"
+                    << "    let r = <<python\n"
+                    << "    x = compute()\n"
+                    << "    x  # this value is returned to NAAb\n"
+                    << "    >>\n";
+            }
         }
         // Python/JS import errors
         else if (error_msg.find("ModuleNotFoundError") != std::string::npos ||

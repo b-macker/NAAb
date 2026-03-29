@@ -1,0 +1,77 @@
+use array
+use string
+import "./models.naab" as models
+
+export fn create_delivery_batch(deliveries, new_deliveries) {
+    let updated_deliveries = deliveries
+    for d in new_deliveries {
+        updated_deliveries.push(d)
+    }
+    return { "deliveries": updated_deliveries, "added_count": len(new_deliveries) }
+}
+
+export fn assign_delivery(delivery, route_id, driver_id) {
+    let d = delivery
+    d.put("status", "assigned")
+    d.put("route_id", route_id)
+    d.put("driver_id", driver_id)
+    
+    let timestamp = <<shell[]
+date '+%Y-%m-%d %H:%M:%S'
+>>
+    d.put("assigned_at", string(timestamp).trim())
+    return d
+}
+
+export fn complete_delivery(delivery) {
+    let d = delivery
+    d.put("status", "delivered")
+    
+    let timestamp = <<shell[]
+date '+%Y-%m-%d %H:%M:%S'
+>>
+    d.put("completed_at", string(timestamp).trim())
+    return d
+}
+
+export fn fail_delivery(delivery, reason) {
+    let d = delivery
+    d.put("status", "failed")
+    d.put("failure_reason", reason)
+    
+    let timestamp = <<shell[]
+date '+%Y-%m-%d %H:%M:%S'
+>>
+    d.put("failed_at", string(timestamp).trim())
+    return d
+}
+
+export fn calculate_on_time_rate(deliveries) {
+    let delivered = 0
+    let failed = 0
+    for d in deliveries {
+        let status = d.get("status")
+        if status == "delivered" {
+            delivered = delivered + 1
+        } else if status == "failed" {
+            failed = failed + 1
+        }
+    }
+    
+    let total_completed = delivered + failed
+    if total_completed == 0 {
+        return 0.0
+    }
+    
+    return float(delivered) / float(total_completed)
+}
+
+export fn get_deliveries_by_status(deliveries, status) {
+    let filtered = []
+    for d in deliveries {
+        if d.get("status") == status {
+            filtered.push(d)
+        }
+    }
+    return filtered
+}

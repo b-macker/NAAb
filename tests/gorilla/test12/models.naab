@@ -1,0 +1,140 @@
+use string
+use array
+
+export enum VehicleStatus { Available, InTransit, Maintenance, Retired }
+export enum DeliveryStatus { Pending, Assigned, InProgress, Delivered, Failed }
+export enum FuelType { Diesel, Gasoline, Electric, Hybrid }
+export enum VehicleType { Van, Truck, Semi, Motorcycle }
+
+export fn create_vehicle(id, plate, v_type, fuel_type, capacity_kg, mileage, fuel_efficiency, status) {
+    return {
+        "id": int(id),
+        "plate": string(plate),
+        "type": string(v_type),
+        "fuel_type": string(fuel_type),
+        "capacity_kg": float(capacity_kg),
+        "mileage": int(mileage),
+        "fuel_efficiency": float(fuel_efficiency),
+        "status": string(status)
+    }
+}
+
+export fn create_driver(id, name, license_class, hourly_rate, rating, total_hours, max_hours_per_week, available) {
+    return {
+        "id": int(id),
+        "name": string(name),
+        "license_class": string(license_class),
+        "hourly_rate": float(hourly_rate),
+        "rating": float(rating),
+        "total_hours": float(total_hours),
+        "max_hours_per_week": float(max_hours_per_week),
+        "available": bool(available)
+    }
+}
+
+export fn create_delivery(id, origin, destination, weight_kg, priority, deadline) {
+    let timestamp = <<shell[]
+date '+%Y-%m-%d %H:%M:%S'
+>>
+
+    return {
+        "id": int(id),
+        "origin": string(origin),
+        "destination": string(destination),
+        "weight_kg": float(weight_kg),
+        "priority": string(priority),
+        "status": "pending",
+        "created_at": string(timestamp).trim(),
+        "deadline": string(deadline)
+    }
+}
+
+export fn validate_vehicle(vehicle) {
+    let errors = []
+    let id = vehicle.get("id")
+    let plate = vehicle.get("plate")
+    let capacity_kg = vehicle.get("capacity_kg")
+    let mileage = vehicle.get("mileage")
+    let fuel_efficiency = vehicle.get("fuel_efficiency")
+
+    if id == null or int(id) <= 0 {
+        errors.push("Invalid vehicle ID")
+    }
+    if plate == null or string(plate).length() == 0 {
+        errors.push("Plate cannot be empty")
+    }
+    if capacity_kg == null or float(capacity_kg) <= 0.0 {
+        errors.push("Capacity must be positive")
+    }
+    if mileage == null or int(mileage) < 0 {
+        errors.push("Mileage cannot be negative")
+    }
+    if fuel_efficiency == null or float(fuel_efficiency) <= 0.0 {
+        errors.push("Fuel efficiency must be positive")
+    }
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+export fn validate_driver(driver) {
+    let errors = []
+    let id = driver.get("id")
+    let name = driver.get("name")
+    let hourly_rate = driver.get("hourly_rate")
+    let rating = driver.get("rating")
+    let max_hours_per_week = driver.get("max_hours_per_week")
+
+    if id == null or int(id) <= 0 {
+        errors.push("Invalid driver ID")
+    }
+    if name == null or string(name).length() == 0 {
+        errors.push("Name cannot be empty")
+    }
+    if hourly_rate == null or float(hourly_rate) <= 0.0 {
+        errors.push("Hourly rate must be positive")
+    }
+    if rating == null or float(rating) < 0.0 or float(rating) > 5.0 {
+        errors.push("Rating must be between 0.0 and 5.0")
+    }
+    if max_hours_per_week == null or float(max_hours_per_week) <= 0.0 {
+        errors.push("Max hours per week must be positive")
+    }
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+export fn status_name(status) {
+    if status == VehicleStatus.Available {
+        return "Available"
+    } else if status == VehicleStatus.InTransit {
+        return "InTransit"
+    } else if status == VehicleStatus.Maintenance {
+        return "Maintenance"
+    } else if status == VehicleStatus.Retired {
+        return "Retired"
+    } else {
+        return "Unknown"
+    }
+}
+
+export fn delivery_status_name(status) {
+    if status == DeliveryStatus.Pending {
+        return "Pending"
+    } else if status == DeliveryStatus.Assigned {
+        return "Assigned"
+    } else if status == DeliveryStatus.InProgress {
+        return "InProgress"
+    } else if status == DeliveryStatus.Delivered {
+        return "Delivered"
+    } else if status == DeliveryStatus.Failed {
+        return "Failed"
+    } else {
+        return "Unknown"
+    }
+}

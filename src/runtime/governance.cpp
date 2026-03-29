@@ -5745,6 +5745,11 @@ std::string GovernanceEngine::checkPolyglotOptimization(
         should_suggest = true;
     }
 
+    // Never suggest a language that is blocked by governance
+    if (should_suggest && rules_.blocked_languages.count(result.optimal_language)) {
+        should_suggest = false;
+    }
+
     if (should_suggest && show_suggestions) {
         // Build concise note for all levels
         std::string note = fmt::format(

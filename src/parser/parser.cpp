@@ -1318,10 +1318,21 @@ std::unique_ptr<ast::Stmt> Parser::parseStatement() {
     }
 
     // Match expression used as statement
+    // But if next token is '=' or compound assign, this is an assignment, not a match expr
     if (check(lexer::TokenType::MATCH)) {
-        auto expr = parseMatchExpr();
-        optionalSemicolon();
-        return std::make_unique<ast::ExprStmt>(std::move(expr), ast::SourceLocation());
+        bool is_assignment = false;
+        if (pos_ + 1 < tokens_.size()) {
+            auto nt = tokens_[pos_ + 1].type;
+            is_assignment = (nt == lexer::TokenType::EQ ||
+                            nt == lexer::TokenType::PLUS_EQ ||
+                            nt == lexer::TokenType::MINUS_EQ);
+        }
+        if (!is_assignment) {
+            auto expr = parseMatchExpr();
+            optionalSemicolon();
+            return std::make_unique<ast::ExprStmt>(std::move(expr), ast::SourceLocation());
+        }
+        // Fall through to parseExprStmt() for assignment
     }
 
     // Detect 'var' keyword and suggest 'let'
@@ -2671,8 +2682,35 @@ std::unique_ptr<ast::Expr> Parser::parsePrimary() {
     }
 
     // Match expression: match value { pattern => expr, ... }
+    // 'match' can also be used as a variable name (e.g., let match = true; print(match))
+    // Only parse as match expression if next token can start a match subject expression
     if (check(lexer::TokenType::MATCH)) {
-        return parseMatchExpr();
+        bool is_match_expr = false;
+        if (pos_ + 1 < tokens_.size()) {
+            auto next_type = tokens_[pos_ + 1].type;
+            // Match expression requires a subject: match <expr> { ... }
+            // Subject can start with: identifier, number, string, bool, null, (, [, {, -, !, not
+            is_match_expr = (next_type == lexer::TokenType::IDENTIFIER ||
+                            next_type == lexer::TokenType::NUMBER ||
+                            next_type == lexer::TokenType::STRING ||
+                            next_type == lexer::TokenType::BOOLEAN ||
+                            next_type == lexer::TokenType::NULL_LITERAL ||
+                            next_type == lexer::TokenType::LPAREN ||
+                            next_type == lexer::TokenType::LBRACKET ||
+                            next_type == lexer::TokenType::LBRACE ||
+                            next_type == lexer::TokenType::MINUS ||
+                            next_type == lexer::TokenType::NOT ||
+                            isAllowedNameToken(next_type));
+        }
+        if (is_match_expr) {
+            return parseMatchExpr();
+        }
+        // Otherwise treat 'match' as identifier (variable name)
+        auto& token = current();
+        std::string name = token.value;
+        ast::SourceLocation loc(token.line, token.column, filename_);
+        advance();
+        return std::make_unique<ast::IdentifierExpr>(name, loc);
     }
 
     // If expression: if condition { expr } else { expr }

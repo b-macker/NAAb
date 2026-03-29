@@ -3375,6 +3375,71 @@ std::string VM::getVariableHelper(const std::string& name) const {
                "    let str = json.stringify(data)   // instead of JSON.stringify(data)\n"
                "  Dicts are native: let d = {\"key\": \"value\"}";
     }
+    if (name == "round" || name == "abs" || name == "floor" || name == "ceil" ||
+        name == "sqrt" || name == "pow" || name == "min" || name == "max" ||
+        name == "random" || name == "sin" || name == "cos") {
+        return "\n  '" + name + "' is not a builtin. It's in the math module:\n"
+               "    use math\n"
+               "    let x = math." + name + "(...)\n";
+    }
+    if (name == "PI" || name == "pi" || name == "E") {
+        std::string correct = (name == "E") ? "E" : "PI";
+        return "\n  '" + name + "' is not a builtin. It's a math constant:\n"
+               "    use math\n"
+               "    let x = math." + correct + "\n";
+    }
+    if (name == "keys" || name == "values" || name == "entries") {
+        return "\n  '" + name + "' is not a global function. Use dot-notation on a dict:\n"
+               "    let k = my_dict." + name + "()\n";
+    }
+    if (name == "push" || name == "pop" || name == "shift" || name == "unshift" ||
+        name == "sort" || name == "reverse" || name == "contains" || name == "find") {
+        return "\n  '" + name + "' is not a global function. Use dot-notation:\n"
+               "    my_array." + name + "(...)\n";
+    }
+    if (name == "upper" || name == "lower" || name == "trim" || name == "split" ||
+        name == "replace" || name == "starts_with" || name == "ends_with") {
+        return "\n  '" + name + "' is not a global function. Use dot-notation:\n"
+               "    my_string." + name + "(...)\n"
+               "  Or use the string module:\n"
+               "    use string\n"
+               "    string." + name + "(my_string, ...)\n";
+    }
+    if (name == "parseInt" || name == "parseFloat" || name == "Number") {
+        return "\n  NAAb uses type cast builtins instead:\n"
+               "    let x = int(\"42\")      // parseInt\n"
+               "    let y = float(\"3.14\")  // parseFloat\n";
+    }
+    if (name == "toString" || name == "str") {
+        return "\n  NAAb uses the string() cast builtin:\n"
+               "    let s = string(42)   // \"42\"\n";
+    }
+    if (name == "sorted" || name == "reversed") {
+        std::string fn = (name == "sorted") ? "sort" : "reverse";
+        return "\n  '" + name + "' is not a builtin. Arrays have mutable methods:\n"
+               "    my_array." + fn + "()   // mutates in place\n";
+    }
+    if (name == "enumerate" || name == "zip") {
+        return "\n  NAAb does not have '" + name + "'. Use index-based loops:\n"
+               "    for i in 0..len(arr) {\n"
+               "        let item = arr[i]\n"
+               "    }\n";
+    }
+    if (name == "map" || name == "filter" || name == "reduce") {
+        return "\n  '" + name + "' is not a global function. Use the array module:\n"
+               "    use array\n"
+               "    array." + name + "_fn(arr, fn(x) { return x })\n";
+    }
+    if (name == "append" || name == "extend") {
+        return "\n  NAAb arrays use push() instead of '" + name + "':\n"
+               "    my_array.push(item)\n";
+    }
+    if (name == "format" || name == "sprintf" || name == "printf") {
+        return "\n  NAAb uses string concatenation with + operator:\n"
+               "    let msg = \"Hello \" + name + \"!\"\n"
+               "  Or use string() for type conversion:\n"
+               "    let msg = \"Count: \" + string(count)\n";
+    }
 
     // Fall back to fuzzy matching via error_helpers (stdlib modules, Python operators,
     // common typos, Levenshtein distance)
