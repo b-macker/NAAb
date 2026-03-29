@@ -1,4 +1,7 @@
 #include "naab/compiler.h"
+#include "naab/governance.h"
+#include "naab/lexer.h"
+#include "naab/parser.h"
 #include <stdexcept>
 #include <unordered_set>
 
@@ -33,8 +36,18 @@ void Compiler::beginFunction(CompiledFunction* fn) {
 }
 
 CompiledFunction* Compiler::endFunction() {
-    // Emit implicit return null
-    emitOp(OpCode::OP_RETURN_NULL, 0);
+    // Emit implicit return null (unless last instruction is already a RETURN)
+    auto& code = currentChunk().code;
+    bool already_returns = false;
+    if (!code.empty()) {
+        OpCode last_op = decodeOp(code.back());
+        if (last_op == OpCode::OP_RETURN || last_op == OpCode::OP_RETURN_NULL) {
+            already_returns = true;
+        }
+    }
+    if (!already_returns) {
+        emitOp(OpCode::OP_RETURN_NULL, 0);
+    }
 
     CompiledFunction* fn = current_->function;
     fn->local_count = static_cast<int>(current_->locals.size());
@@ -296,9 +309,43 @@ void Compiler::compileFunctionBody(const std::string& name,
     // Compile the body
     beginScope();
     body->accept(*this);
+
+    // Implicit return: detect last statement type and emit return value before endScope.
+    // Tree-walker returns the last evaluated value when no explicit return is present.
+    bool emitted_implicit_return = false;
+    auto* compound = dynamic_cast<ast::CompoundStmt*>(body);
+    if (compound && !compound->getStatements().empty()) {
+        auto& stmts = compound->getStatements();
+        auto* last_stmt = stmts.back().get();
+        // Skip if last statement is already a return
+        if (!dynamic_cast<ast::ReturnStmt*>(last_stmt)) {
+            if (auto* var_decl = dynamic_cast<ast::VarDeclStmt*>(last_stmt)) {
+                // VarDeclStmt: value is in the local we just defined. Push it and return.
+                int slot = resolveLocal(current_, var_decl->getName());
+                if (slot >= 0) {
+                    emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(slot), line);
+                    emitOp(OpCode::OP_RETURN, line);
+                    emitted_implicit_return = true;
+                }
+            } else if (dynamic_cast<ast::ExprStmt*>(last_stmt)) {
+                // ExprStmt: the OP_POP at the end discarded the value.
+                // Replace it with OP_RETURN.
+                auto& code = currentChunk().code;
+                if (!code.empty()) {
+                    OpCode last_op = decodeOp(code.back());
+                    if (last_op == OpCode::OP_POP) {
+                        // Replace opcode byte (high 8 bits) with OP_RETURN
+                        code.back() = encodeWide(OpCode::OP_RETURN, code.back() & 0x00FFFFFF);
+                        emitted_implicit_return = true;
+                    }
+                }
+            }
+        }
+    }
+
     endScope();
 
-    // endFunction emits OP_RETURN_NULL
+    // endFunction emits OP_RETURN_NULL (unless we already emitted a return)
     CompiledFunction* compiled = endFunction();
 
     // Emit OP_CLOSURE with the function constant
@@ -379,6 +426,12 @@ void Compiler::visit(ast::ExprStmt& node) {
 
 void Compiler::visit(ast::ReturnStmt& node) {
     if (node.getExpr()) {
+        // Pre-flight: if return expression is tainted, mark this function as returning tainted data
+        if (governance_ && governance_->isActive() && current_ && current_->function) {
+            if (exprContainsTaint(node.getExpr())) {
+                tainted_functions_[current_->function->name] = true;
+            }
+        }
         node.getExpr()->accept(*this);
         emitOp(OpCode::OP_RETURN, node.getLocation().line);
     } else {
@@ -388,12 +441,41 @@ void Compiler::visit(ast::ReturnStmt& node) {
 
 void Compiler::visit(ast::VarDeclStmt& node) {
     int line = node.getLocation().line;
+    bool rhs_tainted = false;
     if (node.getInit()) {
+        // Pre-flight: check if RHS expression is statically tainted BEFORE compiling
+        // (we need the AST, which is lost after accept())
+        if (governance_ && governance_->isActive()) {
+            rhs_tainted = exprContainsTaint(node.getInit());
+            // Check if RHS is a sanitizer call (clears taint)
+            if (rhs_tainted) {
+                if (auto* call = dynamic_cast<ast::CallExpr*>(node.getInit())) {
+                    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+                        if (governance_->isSanitizer(id->getName())) rhs_tainted = false;
+                    }
+                    if (auto* mem = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+                        std::string full;
+                        if (auto* oid = dynamic_cast<ast::IdentifierExpr*>(mem->getObject()))
+                            full = oid->getName() + ".";
+                        full += mem->getMember();
+                        if (governance_->isSanitizer(full)) rhs_tainted = false;
+                    }
+                }
+            }
+        }
         node.getInit()->accept(*this);
         // Deep copy lists/dicts for value semantics (let arr2 = arr1 → independent copies)
         emitOp(OpCode::OP_COPY_VALUE, line);
     } else {
         emitOp(OpCode::OP_NULL, line);
+    }
+
+    // Pre-flight: emit OP_GOV_TAINT_MARK to set taint on shadow taint stack
+    if (rhs_tainted) {
+        emitOp(OpCode::OP_GOV_TAINT_MARK, line);
+        markVarTainted(node.getName());
+    } else if (governance_ && governance_->isActive()) {
+        clearVarTaint(node.getName());
     }
 
     if (current_->scope_depth > 0) {
@@ -430,8 +512,73 @@ void Compiler::visit(ast::LiteralExpr& node) {
             break;
         }
         case ast::LiteralKind::String: {
-            int idx = makeConstant(interpreter::NaabVal::makeString(node.getValue()));
-            emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+            const std::string& raw = node.getValue();
+            // Check for string interpolation ${...}
+            if (raw.find("${") != std::string::npos) {
+                // Split into literal parts and expressions, compile as concatenation.
+                // Strategy: build result string on stack via OP_ADD.
+                // For each expression, call string(expr) to convert to string first.
+                // string() is a global builtin.
+
+                // Collect segments: literal strings and expression texts
+                struct Segment { bool is_expr; std::string text; };
+                std::vector<Segment> segments;
+                size_t i = 0;
+                while (i < raw.size()) {
+                    if (raw[i] == '$' && i + 1 < raw.size() && raw[i + 1] == '{') {
+                        i += 2; // skip ${
+                        int depth = 1;
+                        std::string expr_text;
+                        while (i < raw.size() && depth > 0) {
+                            if (raw[i] == '{') depth++;
+                            else if (raw[i] == '}') { depth--; if (depth == 0) break; }
+                            expr_text += raw[i++];
+                        }
+                        if (i < raw.size()) i++; // skip }
+                        segments.push_back({true, expr_text});
+                    } else {
+                        std::string text;
+                        while (i < raw.size() && !(raw[i] == '$' && i + 1 < raw.size() && raw[i + 1] == '{')) {
+                            text += raw[i++];
+                        }
+                        if (!text.empty()) segments.push_back({false, text});
+                    }
+                }
+
+                if (segments.empty()) {
+                    int idx = makeConstant(interpreter::NaabVal::makeString(""));
+                    emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+                } else {
+                    // Compile first segment
+                    bool have_value = false;
+                    for (size_t si = 0; si < segments.size(); si++) {
+                        auto& seg = segments[si];
+                        if (seg.is_expr) {
+                            // Emit: string(expr) — push string builtin, push expr, call
+                            int str_fn = identifierConstant("string");
+                            emitWide(OpCode::OP_GET_GLOBAL, static_cast<uint32_t>(str_fn), line);
+                            // Compile the expression inline
+                            naab::lexer::Lexer expr_lexer(seg.text);
+                            auto expr_tokens = expr_lexer.tokenize();
+                            naab::parser::Parser expr_parser(expr_tokens);
+                            auto expr_ast = expr_parser.parseExpression();
+                            expr_ast->accept(*this);
+                            // Call string(expr) — 1 arg
+                            emit3(OpCode::OP_CALL, 1, 0, 0, line);
+                        } else {
+                            int tidx = makeConstant(interpreter::NaabVal::makeString(seg.text));
+                            emitWide(OpCode::OP_CONST, static_cast<uint32_t>(tidx), line);
+                        }
+                        if (have_value) {
+                            emitOp(OpCode::OP_ADD, line); // concat with previous
+                        }
+                        have_value = true;
+                    }
+                }
+            } else {
+                int idx = makeConstant(interpreter::NaabVal::makeString(raw));
+                emitWide(OpCode::OP_CONST, static_cast<uint32_t>(idx), line);
+            }
             break;
         }
         case ast::LiteralKind::Bool: {
@@ -529,9 +676,19 @@ void Compiler::visit(ast::BinaryExpr& node) {
 
     // Assignment
     if (node.getOp() == ast::BinaryOp::Assign) {
+        // Pre-flight taint analysis on RHS
+        bool assign_tainted = false;
+        if (governance_ && governance_->isActive()) {
+            assign_tainted = exprContainsTaint(node.getRight());
+        }
         node.getRight()->accept(*this);
+        if (assign_tainted) {
+            emitOp(OpCode::OP_GOV_TAINT_MARK, line);
+        }
         // Determine assignment target
         if (auto* ident = dynamic_cast<ast::IdentifierExpr*>(node.getLeft())) {
+            if (assign_tainted) markVarTainted(ident->getName());
+            else if (governance_ && governance_->isActive()) clearVarTaint(ident->getName());
             emitSetVariable(ident->getName(), line);
         } else if (auto* member = dynamic_cast<ast::MemberExpr*>(node.getLeft())) {
             member->getObject()->accept(*this);
@@ -921,7 +1078,15 @@ void Compiler::visit(ast::ForStmt& node) {
 
     // Compile the iterable and convert to iterator state (list + index on stack)
     node.getIter()->accept(*this);
-    emitOp(OpCode::OP_GET_ITER, line);
+    // Pre-flight: if iterable expression is tainted, mark it so iterator elements inherit taint
+    if (governance_ && governance_->isActive() && exprContainsTaint(node.getIter())) {
+        emitOp(OpCode::OP_GOV_TAINT_MARK, line);
+    }
+    // arg: number of destructure vars (0 = no destructuring)
+    // When > 0 and iterable is dict, OP_GET_ITER produces [key,value] pairs
+    int destruct_vars = node.isDestructuring()
+        ? static_cast<int>(node.getDestructureNames().size()) : 0;
+    emitWide(OpCode::OP_GET_ITER, static_cast<uint32_t>(destruct_vars), line);
 
     // The iterator state occupies 2 stack slots: [list, index]
     // Reserve as anonymous locals so the stack accounting is correct
@@ -1297,13 +1462,25 @@ void Compiler::visit(ast::MatchExpr& node) {
 
     for (auto& arm : node.getArms()) {
         if (arm.pattern == nullptr) {
-            // Wildcard: always matches. Body produces result on stack.
-            arm.body->accept(*this);
-            // No jump needed — wildcard is always last
+            // Wildcard arm
+            if (arm.guard) {
+                // Guarded wildcard: _ if cond => body
+                arm.guard->accept(*this);
+                int no_guard = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
+                emitOp(OpCode::OP_POP, line); // pop guard result (true)
+                arm.body->accept(*this);
+                end_jumps.push_back(emitJump(OpCode::OP_JUMP, line));
+                patchJump(no_guard);
+                emitOp(OpCode::OP_POP, line); // pop guard result (false)
+            } else {
+                // Unguarded wildcard: always matches
+                arm.body->accept(*this);
+                end_jumps.push_back(emitJump(OpCode::OP_JUMP, line));
+            }
         } else {
-            // Check if pattern is a variable binding (IdentifierExpr that's not a known constant)
+            // Check if pattern is a variable binding (IdentifierExpr)
             auto* ident_pattern = dynamic_cast<ast::IdentifierExpr*>(arm.pattern.get());
-            bool is_binding = ident_pattern && arm.guard;  // variable binding with guard
+            bool is_binding = ident_pattern != nullptr;  // any identifier is a binding
 
             // Check for array destructure pattern: [x, y] => ...
             auto* list_pattern = dynamic_cast<ast::ListExpr*>(arm.pattern.get());
@@ -1420,27 +1597,35 @@ void Compiler::visit(ast::MatchExpr& node) {
                     current_->locals.pop_back();
                 }
             } else if (is_binding) {
-                // Variable binding: bind subject to name, then check guard
+                // Variable binding: bind subject to name, then optionally check guard
                 emitWide(OpCode::OP_GET_LOCAL, static_cast<uint32_t>(subject_slot), line);
                 addLocal(ident_pattern->getName());
                 markInitialized();
 
-                arm.guard->accept(*this);
-                int no_guard = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
-                emitOp(OpCode::OP_POP, line); // pop guard result (true)
+                if (arm.guard) {
+                    arm.guard->accept(*this);
+                    int no_guard = emitJump(OpCode::OP_JUMP_IF_FALSE, line);
+                    emitOp(OpCode::OP_POP, line); // pop guard result (true)
 
-                arm.body->accept(*this);
-                // Stack: [..., binding_var, result]
-                // Swap: store result in binding slot, pop the extra
-                int binding_slot = static_cast<int>(current_->locals.size()) - 1;
-                emitWide(OpCode::OP_SET_LOCAL, static_cast<uint32_t>(binding_slot), line);
-                emitOp(OpCode::OP_POP, line);
-                // Now stack: [..., result] in binding_var's old slot
-                end_jumps.push_back(emitJump(OpCode::OP_JUMP, line));
+                    arm.body->accept(*this);
+                    // Stack: [..., binding_var, result]
+                    int binding_slot = static_cast<int>(current_->locals.size()) - 1;
+                    emitWide(OpCode::OP_SET_LOCAL, static_cast<uint32_t>(binding_slot), line);
+                    emitOp(OpCode::OP_POP, line);
+                    end_jumps.push_back(emitJump(OpCode::OP_JUMP, line));
 
-                patchJump(no_guard);
-                emitOp(OpCode::OP_POP, line); // pop guard result (false)
-                emitOp(OpCode::OP_POP, line); // pop binding variable
+                    patchJump(no_guard);
+                    emitOp(OpCode::OP_POP, line); // pop guard result (false)
+                    emitOp(OpCode::OP_POP, line); // pop binding variable
+                } else {
+                    // No guard — always matches (catch-all binding)
+                    arm.body->accept(*this);
+                    // Stack: [..., binding_var, result]
+                    int binding_slot = static_cast<int>(current_->locals.size()) - 1;
+                    emitWide(OpCode::OP_SET_LOCAL, static_cast<uint32_t>(binding_slot), line);
+                    emitOp(OpCode::OP_POP, line);
+                    end_jumps.push_back(emitJump(OpCode::OP_JUMP, line));
+                }
 
                 // Single compile-time cleanup of binding local
                 current_->locals.pop_back();
@@ -1474,6 +1659,30 @@ void Compiler::visit(ast::MatchExpr& node) {
         }
     }
 
+    // Check if any arm is an unguarded wildcard (guaranteed catch-all).
+    // A guarded wildcard (_ if cond) might not match, so it doesn't count.
+    // An unguarded binding pattern (x => ...) without guard also always matches.
+    bool has_catch_all = false;
+    for (auto& arm : node.getArms()) {
+        if (arm.pattern == nullptr && !arm.guard) {
+            has_catch_all = true; break;
+        }
+        // Bare identifier without guard is also a catch-all (binds and always matches)
+        if (arm.pattern && !arm.guard) {
+            if (dynamic_cast<ast::IdentifierExpr*>(arm.pattern.get())) {
+                has_catch_all = true; break;
+            }
+        }
+    }
+
+    if (!has_catch_all) {
+        // No wildcard arm: if we reach here, no arm matched → throw
+        int err_idx = makeConstant(interpreter::NaabVal::makeString(
+            "Match error: no pattern matched the value"));
+        emitWide(OpCode::OP_CONST, static_cast<uint32_t>(err_idx), line);
+        emitOp(OpCode::OP_THROW, line);
+    }
+
     for (int j : end_jumps) {
         patchJump(j);
     }
@@ -1496,6 +1705,136 @@ void Compiler::visit(ast::YieldExpr& node) {
     int line = node.getLocation().line;
     node.getExpr()->accept(*this);
     emitOp(OpCode::OP_YIELD, line);
+}
+
+// ============================================================================
+// Pre-flight compile-time taint analysis
+// Mirrors tree-walker's expressionContainsTaint() for static taint detection.
+// This catches cases the runtime shadow taint stack misses:
+// - Both branches of if-expressions
+// - ${var} in string interpolation
+// - Pipeline expressions containing tainted vars
+// - Await expressions wrapping tainted calls
+// ============================================================================
+
+bool Compiler::exprContainsTaint(ast::Expr* expr) {
+    if (!expr || !governance_ || !governance_->isActive()) return false;
+
+    // IdentifierExpr: check if variable is in compile-time taint set
+    if (auto* id = dynamic_cast<ast::IdentifierExpr*>(expr)) {
+        return tainted_vars_.count(id->getName()) > 0;
+    }
+
+    // CallExpr: check if callee is a taint source (e.g., env.get)
+    if (auto* call = dynamic_cast<ast::CallExpr*>(expr)) {
+        if (auto* member = dynamic_cast<ast::MemberExpr*>(call->getCallee())) {
+            std::string full_name;
+            if (auto* obj_id = dynamic_cast<ast::IdentifierExpr*>(member->getObject())) {
+                full_name = obj_id->getName() + ".";
+            }
+            full_name += member->getMember();
+            if (governance_->isTaintSource(full_name)) return true;
+            // Check if callee is a sanitizer (clears taint)
+            if (governance_->isSanitizer(full_name)) return false;
+        }
+        if (auto* id = dynamic_cast<ast::IdentifierExpr*>(call->getCallee())) {
+            if (governance_->isTaintSource(id->getName())) return true;
+            // Sanitizer functions clear taint
+            if (governance_->isSanitizer(id->getName())) return false;
+            // Check if this is a known tainted function (returns tainted data)
+            if (tainted_functions_.count(id->getName()) > 0) return true;
+        }
+        // Check if any argument is tainted (taint flows through function calls)
+        for (auto& arg : call->getArgs()) {
+            if (exprContainsTaint(arg.get())) return true;
+        }
+        return false;
+    }
+
+    // BinaryExpr: either operand tainted → result tainted
+    if (auto* bin = dynamic_cast<ast::BinaryExpr*>(expr)) {
+        return exprContainsTaint(bin->getLeft()) || exprContainsTaint(bin->getRight());
+    }
+
+    // UnaryExpr: taint passes through
+    if (auto* un = dynamic_cast<ast::UnaryExpr*>(expr)) {
+        return exprContainsTaint(un->getOperand());
+    }
+
+    // IfExpr: EITHER branch could execute → check BOTH (static analysis)
+    if (auto* ife = dynamic_cast<ast::IfExpr*>(expr)) {
+        return exprContainsTaint(ife->getCondition()) ||
+               exprContainsTaint(ife->getThenExpr()) ||
+               exprContainsTaint(ife->getElseExpr());
+    }
+
+    // LiteralExpr(String): scan ${var} for tainted variable references
+    if (auto* lit = dynamic_cast<ast::LiteralExpr*>(expr)) {
+        if (lit->getLiteralKind() == ast::LiteralKind::String) {
+            const std::string& raw = lit->getValue();
+            size_t pos = 0;
+            while ((pos = raw.find("${", pos)) != std::string::npos) {
+                pos += 2;
+                int depth = 1;
+                std::string expr_text;
+                size_t i = pos;
+                while (i < raw.size() && depth > 0) {
+                    if (raw[i] == '{') depth++;
+                    else if (raw[i] == '}') { depth--; if (depth == 0) break; }
+                    expr_text += raw[i]; i++;
+                }
+                // Extract identifiers from interpolated expression
+                std::string word;
+                for (char c : expr_text) {
+                    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+                        word += c;
+                    } else {
+                        if (!word.empty() && tainted_vars_.count(word) > 0) return true;
+                        word.clear();
+                    }
+                }
+                if (!word.empty() && tainted_vars_.count(word) > 0) return true;
+                pos = i + 1;
+            }
+        }
+        return false;
+    }
+
+    // AwaitExpr: taint passes through
+    if (auto* aw = dynamic_cast<ast::AwaitExpr*>(expr)) {
+        return exprContainsTaint(aw->getExpr());
+    }
+
+    // MemberExpr: taint from object propagates
+    if (auto* mem = dynamic_cast<ast::MemberExpr*>(expr)) {
+        return exprContainsTaint(mem->getObject());
+    }
+
+    // ListExpr: any element tainted → list tainted
+    if (auto* list = dynamic_cast<ast::ListExpr*>(expr)) {
+        for (auto& elem : list->getElements()) {
+            if (exprContainsTaint(elem.get())) return true;
+        }
+        return false;
+    }
+
+    // DictExpr: any value tainted → dict tainted
+    if (auto* dict = dynamic_cast<ast::DictExpr*>(expr)) {
+        for (auto& entry : dict->getEntries()) {
+            if (exprContainsTaint(entry.second.get())) return true;
+        }
+        return false;
+    }
+
+    // InlineCodeExpr (polyglot): check if polyglot_output is a taint source
+    if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(expr)) {
+        if (governance_->isTaintSource("polyglot_output") ||
+            governance_->isTaintSource("polyglot_output:" + ice->getLanguage()))
+            return true;
+        return false;
+    }
+
+    return false;
 }
 
 } // namespace vm

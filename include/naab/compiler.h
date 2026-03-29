@@ -73,6 +73,14 @@ private:
     // String interning: dedup string constants in the constant pool
     std::unordered_map<std::string, int> string_constants_;
 
+    // Pre-flight taint analysis: track statically-tainted variables at compile time
+    // Mirrors tree-walker's expressionContainsTaint() for static analysis
+    std::unordered_map<std::string, bool> tainted_vars_;
+    std::unordered_map<std::string, bool> tainted_functions_;  // functions that return tainted data
+    bool exprContainsTaint(ast::Expr* expr);
+    void markVarTainted(const std::string& name) { tainted_vars_[name] = true; }
+    void clearVarTaint(const std::string& name) { tainted_vars_.erase(name); }
+
     // Scope management
     void beginScope();
     void endScope();

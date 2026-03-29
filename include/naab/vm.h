@@ -272,6 +272,7 @@ struct ObjUpvalue {
     interpreter::NaabVal closed;               // Value after closing
     std::shared_ptr<ObjUpvalue> next;          // Linked list (shared for safe cleanup)
     bool is_open = true;
+    bool tainted = false;                      // Governance taint tracking
 };
 
 // ============================================================================
@@ -347,6 +348,10 @@ private:
     std::unique_ptr<interpreter::NaabVal[]> stack_;
     interpreter::NaabVal* stack_top_;
 
+    // Shadow taint stack (mirrors value stack 1:1 for governance taint tracking)
+    std::unique_ptr<bool[]> taint_stack_;
+    bool* taint_top_;
+
     // Call frames (heap-allocated)
     static constexpr size_t FRAMES_MAX = 1024;
     std::unique_ptr<CallFrame[]> frames_;
@@ -390,6 +395,9 @@ private:
     // Generator state (for yield collection)
     std::vector<interpreter::NaabVal>* generator_values_ = nullptr;
 
+    // Loop iteration counters for governance (keyed by back-edge target IP)
+    std::unordered_map<uint32_t*, int> loop_iter_counts_;
+
     // Core dispatch loop
     interpreter::NaabVal run();
 
@@ -399,14 +407,26 @@ private:
             runtimeError("Stack overflow");
         }
         *stack_top_++ = std::move(val);
+        *taint_top_++ = false;  // default untainted
     }
 
     interpreter::NaabVal pop() {
+        --taint_top_;
         return std::move(*--stack_top_);
     }
 
     interpreter::NaabVal& peek(int distance = 0) {
         return *(stack_top_ - 1 - distance);
+    }
+
+    // Taint stack access (mirrors peek)
+    bool& peekTaint(int distance = 0) {
+        return *(taint_top_ - 1 - distance);
+    }
+
+    // Sync taint_top_ after direct stack_top_ manipulation
+    void syncTaintTop() {
+        taint_top_ = taint_stack_.get() + (stack_top_ - stack_.get());
     }
 
     // Function calls

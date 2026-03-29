@@ -829,8 +829,36 @@ int main(int argc, char** argv) {
             }
 
             if (use_vm) {
-                // Bytecode VM path
+                // Governance: discover and load govern.json BEFORE compilation
+                // (compiler needs it for pre-flight taint analysis)
+                naab::governance::GovernanceEngine vm_governance;
+                auto abs_file = std::filesystem::absolute(filename);
+                auto script_dir = abs_file.parent_path();
+                bool gov_loaded = vm_governance.discoverAndLoad(script_dir.string());
+                if (gov_loaded) {
+                    auto mode = vm_governance.getMode();
+                    std::string mode_str = (mode == naab::governance::GovernanceMode::ENFORCE) ? "enforce"
+                                         : (mode == naab::governance::GovernanceMode::AUDIT)   ? "audit"
+                                         : "off";
+                    fprintf(stderr, "[governance] Loaded: %s (mode: %s)\n",
+                            vm_governance.getLoadedPath().c_str(), mode_str.c_str());
+                    if (governance_override) vm_governance.setOverrideEnabled(true);
+                    // Apply CLI report path overrides
+                    if (!governance_report_json.empty() || !governance_report_sarif.empty() ||
+                        !governance_report_junit.empty()) {
+                        auto& rules = vm_governance.getMutableRules();
+                        if (!governance_report_json.empty())
+                            rules.output.file_output.report_json = governance_report_json;
+                        if (!governance_report_sarif.empty())
+                            rules.output.file_output.report_sarif = governance_report_sarif;
+                        if (!governance_report_junit.empty())
+                            rules.output.file_output.report_junit = governance_report_junit;
+                    }
+                }
+
+                // Bytecode VM path — compiler gets governance for pre-flight taint analysis
                 naab::vm::Compiler bc_compiler;
+                if (gov_loaded) bc_compiler.setGovernance(&vm_governance);
                 auto* main_fn = bc_compiler.compile(*program);
                 if (!main_fn) {
                     throw std::runtime_error("Compilation failed: " + bc_compiler.getLastError());
@@ -844,31 +872,8 @@ int main(int argc, char** argv) {
                 bytecode_vm.setStdlib(&vm_stdlib);
                 bytecode_vm.setModuleResolver(&vm_module_resolver);
                 bytecode_vm.setCurrentFile(filename);
-
-                // Governance: discover and load govern.json for VM
-                naab::governance::GovernanceEngine vm_governance;
-                auto abs_file = std::filesystem::absolute(filename);
-                auto script_dir = abs_file.parent_path();
-                if (vm_governance.discoverAndLoad(script_dir.string())) {
-                    auto mode = vm_governance.getMode();
-                    std::string mode_str = (mode == naab::governance::GovernanceMode::ENFORCE) ? "enforce"
-                                         : (mode == naab::governance::GovernanceMode::AUDIT)   ? "audit"
-                                         : "off";
-                    fprintf(stderr, "[governance] Loaded: %s (mode: %s)\n",
-                            vm_governance.getLoadedPath().c_str(), mode_str.c_str());
-                    if (governance_override) vm_governance.setOverrideEnabled(true);
+                if (gov_loaded) {
                     if (governance_verbose) bytecode_vm.setGovernanceVerbose(true);
-                    // Apply CLI report path overrides
-                    if (!governance_report_json.empty() || !governance_report_sarif.empty() ||
-                        !governance_report_junit.empty()) {
-                        auto& rules = vm_governance.getMutableRules();
-                        if (!governance_report_json.empty())
-                            rules.output.file_output.report_json = governance_report_json;
-                        if (!governance_report_sarif.empty())
-                            rules.output.file_output.report_sarif = governance_report_sarif;
-                        if (!governance_report_junit.empty())
-                            rules.output.file_output.report_junit = governance_report_junit;
-                    }
                     bytecode_vm.setGovernance(&vm_governance);
                 }
 

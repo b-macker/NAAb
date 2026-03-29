@@ -80,8 +80,12 @@ int Chunk::getLine(int offset) const {
 VM::VM()
     : stack_(std::make_unique<interpreter::NaabVal[]>(STACK_MAX))
     , stack_top_(stack_.get())
+    , taint_stack_(std::make_unique<bool[]>(STACK_MAX))
+    , taint_top_(taint_stack_.get())
     , frames_(std::make_unique<CallFrame[]>(FRAMES_MAX))
-{}
+{
+    std::memset(taint_stack_.get(), 0, STACK_MAX * sizeof(bool));
+}
 
 VM::~VM() {
     // shared_ptr handles cleanup — just break the linked list to avoid deep recursion
@@ -92,6 +96,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
     // Set up the initial call frame
     frame_count_ = 0;
     stack_top_ = stack_.get();
+    taint_top_ = taint_stack_.get();
 
     // Wrap main function in a closure for uniform handling
     main_closure_ = std::make_shared<VMClosure>(main_fn, std::vector<std::shared_ptr<ObjUpvalue>>{});
@@ -144,7 +149,65 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
         }
     }
 
-    return run();
+    // Pre-execution governance: validate scope patterns, require main block
+    if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
+        // Collect function names from globals for scope validation
+        std::vector<std::string> func_names;
+        for (auto& [gname, gval] : globals_) {
+            if (gval.isVMClosure()) {
+                func_names.push_back(gname);
+            }
+        }
+        governance_->validateScopePatterns(func_names);
+
+        // Check require_main_block — the compiler always has a main function
+        // but if the source has no main{} block, the main function will be empty
+        if (governance_->requiresMainBlock()) {
+            // If the main function has only OP_RETURN_NULL (empty), there's no main block
+            if (main_fn->chunk.code.size() <= 1) {
+                auto level = governance_->getRules().main_block_level;
+                std::string msg = "Governance error: Program requires a main { } block ["
+                    + std::string(level == governance::EnforcementLevel::HARD ? "HARD-MANDATORY" :
+                                  level == governance::EnforcementLevel::SOFT ? "SOFT-MANDATORY" : "ADVISORY")
+                    + "]\n\n"
+                    "  Rule (govern.json): requirements.main_block\n\n"
+                    "  Help:\n"
+                    "  - All programs must have a main { } block when governance requires it\n";
+                if (level == governance::EnforcementLevel::HARD) {
+                    throw std::runtime_error(msg);
+                } else if (level == governance::EnforcementLevel::SOFT) {
+                    if (!governance_->isOverrideEnabled()) {
+                        throw std::runtime_error(msg + "\n  To override: run with --governance-override\n");
+                    }
+                    fprintf(stderr, "[governance] OVERRIDE requirements.main_block: %s\n", msg.c_str());
+                } else {
+                    fprintf(stderr, "[governance] WARNING requirements.main_block: Program has no main block\n");
+                }
+            }
+        }
+    }
+
+    auto result = run();
+
+    // Post-execution governance: flush advisories, print summary, write reports
+    if (governance_ && governance_->isActive() && module_loading_depth_ == 0) {
+        governance_->flushGroupedAdvisories();
+
+        if (governance_verbose_) {
+            std::string summary = governance_->formatSummary();
+            if (!summary.empty()) {
+                fprintf(stderr, "\n%s\n", summary.c_str());
+            }
+        } else {
+            std::string oneline = governance_->formatSummaryOneLine();
+            if (!oneline.empty()) {
+                fprintf(stderr, "\n%s\n", oneline.c_str());
+            }
+        }
+        governance_->writeReports();
+    }
+
+    return result;
 }
 
 interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
@@ -502,7 +565,7 @@ interpreter::NaabVal VM::run() {
         &&vm_OP_TRY_BEGIN, &&vm_OP_TRY_END, &&vm_OP_THROW,               // 59-61
         &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,                      // 62-64 (CATCH/FINALLY — compiler inlines)
         &&vm_OP_POLYGLOT,                                                  // 65
-        &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,      // 66-69 (GOV — handled at AST level)
+        &&vm_STUB_NOP, &&vm_OP_GOV_TAINT_MARK, &&vm_STUB_NOP, &&vm_STUB_NOP, // 66-69 (GOV — 67=TAINT_MARK active)
         &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,      // 70-73 (GOV — handled at AST level)
         &&vm_OP_YIELD, &&vm_OP_AWAIT,                                     // 74-75
         &&vm_STUB_NOP, &&vm_STUB_NOP,                                     // 76-77 (MAKE_GEN/ASYNC — reserved)
@@ -568,19 +631,25 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_POPN): {
                 uint8_t n = decodeA(instruction);
                 stack_top_ -= n;
+                taint_top_ -= n;
             }
                 VM_NEXT();
 
             VM_CASE(OP_DUP): {
+                bool t = peekTaint(0);
                 push(peek(0));
+                peekTaint(0) = t;
             }
                 VM_NEXT();
 
             VM_CASE(OP_SWAP): {
+                bool ta = peekTaint(0), tb = peekTaint(1);
                 interpreter::NaabVal a = pop();
                 interpreter::NaabVal b = pop();
                 push(std::move(a));
                 push(std::move(b));
+                peekTaint(0) = tb;
+                peekTaint(1) = ta;
             }
                 VM_NEXT();
 
@@ -611,12 +680,19 @@ interpreter::NaabVal VM::run() {
                     int32_t bi = static_cast<int32_t>(static_cast<uint32_t>(b_ref.bits_));
                     uint32_t ru; int32_t ri = ai + bi;
                     std::memcpy(&ru, &ri, sizeof(ru));
+                    bool combined_t = *(taint_top_ - 2) || *(taint_top_ - 1);
                     a_ref.bits_ = interpreter::NaabVal::TAG_INT | static_cast<uint64_t>(ru);
                     stack_top_--;
+                    taint_top_--;
+                    *(taint_top_ - 1) = combined_t;
                 } else {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
-                if (a.isInt() && b.isInt()) {
+                if (a.isString() || b.isString()) {
+                    // String concatenation with auto-coercion (must be before double check)
+                    push(interpreter::NaabVal::makeString(a.toString() + b.toString()));
+                } else if (a.isInt() && b.isInt()) {
                     int64_t av = a.asInt(), bv = b.asInt();
                     // Overflow check
                     if ((bv > 0 && av > INT64_MAX - bv) ||
@@ -633,12 +709,11 @@ interpreter::NaabVal VM::run() {
                     auto& blist = b.asListConst();
                     result.insert(result.end(), blist.begin(), blist.end());
                     push(interpreter::NaabVal::makeList(std::move(result)));
-                } else if (a.isString() || b.isString()) {
-                    push(interpreter::NaabVal::makeString(a.toString() + b.toString()));
                 } else {
                     runtimeError("Type error: Cannot add %s and %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
+                peekTaint(0) = ta || tb;
                 } // end slow path else
             }
                 VM_NEXT();
@@ -653,9 +728,13 @@ interpreter::NaabVal VM::run() {
                     int32_t bi = static_cast<int32_t>(static_cast<uint32_t>(b_ref.bits_));
                     uint32_t ru; int32_t ri = ai - bi;
                     std::memcpy(&ru, &ri, sizeof(ru));
+                    bool combined_t = *(taint_top_ - 2) || *(taint_top_ - 1);
                     a_ref.bits_ = interpreter::NaabVal::TAG_INT | static_cast<uint64_t>(ru);
                     stack_top_--;
+                    taint_top_--;
+                    *(taint_top_ - 1) = combined_t;
                 } else {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -668,11 +747,13 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot subtract %s from %s",
                                  b.getTypeName().c_str(), a.getTypeName().c_str());
                 }
+                peekTaint(0) = ta || tb;
                 } // end slow path
             }
                 VM_NEXT();
 
             VM_CASE(OP_MUL): {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -705,10 +786,12 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot multiply %s and %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
+                peekTaint(0) = ta || tb;
             }
                 VM_NEXT();
 
             VM_CASE(OP_DIV): {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -723,10 +806,12 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot divide %s by %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
+                peekTaint(0) = ta || tb;
             }
                 VM_NEXT();
 
             VM_CASE(OP_MOD): {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -735,10 +820,12 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Type error: Modulo requires integers");
                 }
+                peekTaint(0) = ta || tb;
             }
                 VM_NEXT();
 
             VM_CASE(OP_NEG): {
+                bool t = peekTaint(0);
                 interpreter::NaabVal a = pop();
                 if (a.isInt()) {
                     push(interpreter::NaabVal::makeInt(-a.asInt()));
@@ -747,17 +834,21 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Type error: Cannot negate %s", a.getTypeName().c_str());
                 }
+                peekTaint(0) = t;
             }
                 VM_NEXT();
 
             VM_CASE(OP_NOT): {
+                bool t = peekTaint(0);
                 interpreter::NaabVal a = pop();
                 push(interpreter::NaabVal::makeBool(!a.toBool()));
+                peekTaint(0) = t;
             }
                 VM_NEXT();
 
             // Comparison
             VM_CASE(OP_EQ): {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 bool eq = false;
@@ -773,10 +864,12 @@ interpreter::NaabVal VM::run() {
                     eq = a.toString() == b.toString();
                 }
                 push(interpreter::NaabVal::makeBool(eq));
+                peekTaint(0) = ta || tb;
             }
                 VM_NEXT();
 
             VM_CASE(OP_NE): {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 bool eq = false;
@@ -792,6 +885,7 @@ interpreter::NaabVal VM::run() {
                     eq = a.toString() == b.toString();
                 }
                 push(interpreter::NaabVal::makeBool(!eq));
+                peekTaint(0) = ta || tb;
             }
                 VM_NEXT();
 
@@ -803,9 +897,13 @@ interpreter::NaabVal VM::run() {
                     (b_ref.bits_ & interpreter::NaabVal::TAG_MASK) == interpreter::NaabVal::TAG_INT) {
                     int32_t ai = static_cast<int32_t>(static_cast<uint32_t>(a_ref.bits_));
                     int32_t bi = static_cast<int32_t>(static_cast<uint32_t>(b_ref.bits_));
+                    bool combined_t = *(taint_top_ - 2) || *(taint_top_ - 1);
                     a_ref.bits_ = interpreter::NaabVal::TAG_BOOL | (ai < bi ? 1ULL : 0ULL);
                     stack_top_--;
+                    taint_top_--;
+                    *(taint_top_ - 1) = combined_t;
                 } else {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -820,11 +918,13 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot compare %s < %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
+                peekTaint(0) = ta || tb;
                 } // end slow path
             }
                 VM_NEXT();
 
             VM_CASE(OP_LE): {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -839,10 +939,12 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot compare %s <= %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
+                peekTaint(0) = ta || tb;
             }
                 VM_NEXT();
 
             VM_CASE(OP_GT): {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -857,10 +959,12 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot compare %s > %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
+                peekTaint(0) = ta || tb;
             }
                 VM_NEXT();
 
             VM_CASE(OP_GE): {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal b = pop();
                 interpreter::NaabVal a = pop();
                 if (a.isInt() && b.isInt()) {
@@ -875,10 +979,12 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Type error: Cannot compare %s >= %s",
                                  a.getTypeName().c_str(), b.getTypeName().c_str());
                 }
+                peekTaint(0) = ta || tb;
             }
                 VM_NEXT();
 
             VM_CASE(OP_IN): {
+                bool tb = peekTaint(0), ta = peekTaint(1);
                 interpreter::NaabVal container = pop();
                 interpreter::NaabVal item = pop();
                 if (container.isList()) {
@@ -895,17 +1001,24 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Type error: 'in' requires a list, dict, or string on the right side");
                 }
+                peekTaint(0) = ta || tb;
             }
                 VM_NEXT();
 
             // Variable access
             VM_CASE(OP_GET_LOCAL): {
+                // Local's taint is at the same offset in the taint stack
+                size_t slot_offset = static_cast<size_t>(frame->slots - stack_.get()) + arg;
                 push(frame->slots[arg]);
+                peekTaint(0) = taint_stack_[slot_offset];
             }
                 VM_NEXT();
 
             VM_CASE(OP_SET_LOCAL): {
                 frame->slots[arg] = peek(0);
+                // Copy taint to local's position
+                size_t slot_offset = static_cast<size_t>(frame->slots - stack_.get()) + arg;
+                taint_stack_[slot_offset] = peekTaint(0);
             }
                 VM_NEXT();
 
@@ -913,8 +1026,12 @@ interpreter::NaabVal VM::run() {
                 auto& upvalue = frame->closure->upvalues[arg];
                 if (upvalue->is_open) {
                     push(*upvalue->location);
+                    // Get taint from the upvalue's stack position
+                    size_t uv_offset = static_cast<size_t>(upvalue->location - stack_.get());
+                    peekTaint(0) = taint_stack_[uv_offset];
                 } else {
                     push(upvalue->closed);
+                    peekTaint(0) = upvalue->tainted;
                 }
             }
                 VM_NEXT();
@@ -923,8 +1040,11 @@ interpreter::NaabVal VM::run() {
                 auto& upvalue = frame->closure->upvalues[arg];
                 if (upvalue->is_open) {
                     *upvalue->location = peek(0);
+                    size_t uv_offset = static_cast<size_t>(upvalue->location - stack_.get());
+                    taint_stack_[uv_offset] = peekTaint(0);
                 } else {
                     upvalue->closed = peek(0);
+                    upvalue->tainted = peekTaint(0);
                 }
             }
                 VM_NEXT();
@@ -936,6 +1056,9 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Undefined variable '%s'", name.c_str());
                 }
                 push(it->second);
+                if (governance_ && governance_->isActive()) {
+                    peekTaint(0) = governance_->isTainted(name);
+                }
             }
                 VM_NEXT();
 
@@ -946,12 +1069,21 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Undefined variable '%s'", name.c_str());
                 }
                 it->second = peek(0);
+                if (governance_ && governance_->isActive()) {
+                    if (peekTaint(0)) governance_->markTainted(name);
+                    else governance_->clearTaint(name);
+                }
             }
                 VM_NEXT();
 
             VM_CASE(OP_DEFINE_GLOBAL): {
                 const std::string& name = READ_CONSTANT(arg).asString();
+                bool t = peekTaint(0);
                 globals_[name] = pop();
+                if (governance_ && governance_->isActive()) {
+                    if (t) governance_->markTainted(name);
+                    else governance_->clearTaint(name);
+                }
             }
                 VM_NEXT();
 
@@ -963,6 +1095,14 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_JUMP_BACK): {
                 frame->ip -= arg;
+                // Governance: check loop iteration limits
+                if (governance_ && governance_->isActive()) {
+                    uint32_t* target = frame->ip;
+                    int& count = loop_iter_counts_[target];
+                    count++;
+                    std::string err = governance_->checkLoopIterations(static_cast<size_t>(count));
+                    if (!err.empty()) runtimeError("%s", err.c_str());
+                }
             }
                 VM_NEXT();
 
@@ -983,12 +1123,14 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_JUMP_IF_NULL): {
+                bool t = peekTaint(0);
                 interpreter::NaabVal val = pop();
                 if (val.isNull()) {
                     frame->ip += arg;
                 } else {
                     // Not null — push it back (it was consumed for the check)
                     push(std::move(val));
+                    peekTaint(0) = t;
                 }
             }
                 VM_NEXT();
@@ -999,6 +1141,29 @@ interpreter::NaabVal VM::run() {
                 if (profile_) {
                     profiling::Profiler::instance().endFunction(
                         frame->function->name.empty() ? "<anonymous>" : frame->function->name);
+                }
+
+                // Governance: track return taint + check function contract
+                bool return_tainted = peekTaint(0);
+                if (governance_ && governance_->isActive()) {
+                    governance_->setLastReturnTainted(return_tainted);
+
+                    // Function output contract check
+                    const std::string& fn_name = frame->function->name;
+                    if (!fn_name.empty()) {
+                        std::string result_str = peek(0).toString();
+                        std::string result_type = peek(0).getTypeName();
+                        int line = CURRENT_CHUNK().getLine(
+                            static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 1);
+                        std::string err = governance_->checkFunctionContract(
+                            fn_name, result_str, result_type, line,
+                            frame->source_file.empty() ? current_file_ : frame->source_file);
+                        if (!err.empty()) {
+                            governance_->logContractCheck(fn_name, "FAIL", err,
+                                frame->source_file.empty() ? current_file_ : frame->source_file, line);
+                            runtimeError("%s", err.c_str());
+                        }
+                    }
                 }
 
                 interpreter::NaabVal result = pop();
@@ -1014,11 +1179,15 @@ interpreter::NaabVal VM::run() {
                 frame_count_--;
                 if (frame_count_ <= stop_frame_count_) {
                     stack_top_ = frame->slots;
+                    syncTaintTop();
                     push(result);
+                    peekTaint(0) = return_tainted;
                     return result;
                 }
                 stack_top_ = frame->slots;
+                syncTaintTop();
                 push(std::move(result));
+                peekTaint(0) = return_tainted;
                 frame = &frames_[frame_count_ - 1];
             }
                 VM_NEXT();
@@ -1029,6 +1198,11 @@ interpreter::NaabVal VM::run() {
                 if (profile_) {
                     profiling::Profiler::instance().endFunction(
                         frame->function->name.empty() ? "<anonymous>" : frame->function->name);
+                }
+
+                // Governance: clear return taint for null returns
+                if (governance_ && governance_->isActive()) {
+                    governance_->setLastReturnTainted(false);
                 }
 
                 closeUpvalues(frame->slots);
@@ -1043,10 +1217,12 @@ interpreter::NaabVal VM::run() {
                 frame_count_--;
                 if (frame_count_ <= stop_frame_count_) {
                     stack_top_ = frame->slots;
+                    syncTaintTop();
                     push(interpreter::NaabVal::makeNull());
                     return interpreter::NaabVal::makeNull();
                 }
                 stack_top_ = frame->slots;
+                syncTaintTop();
                 push(interpreter::NaabVal::makeNull());
                 frame = &frames_[frame_count_ - 1];
             }
@@ -1071,11 +1247,15 @@ interpreter::NaabVal VM::run() {
                 // Object is below the args on the stack
                 interpreter::NaabVal& obj = peek(argc);
 
+                // Build full method name for governance checks (mod.method)
+                std::string full_method_name;
+
                 // Check for stdlib module marker
                 if (obj.isString()) {
                     const std::string& sv = obj.asString();
                     if (sv.size() >= 18 && sv.substr(0, 18) == "__stdlib_module__:") {
                         std::string mod = sv.substr(18);
+                        full_method_name = mod + "." + method;
 
                         // Governance: check module-level permissions
                         if (governance_) {
@@ -1091,10 +1271,40 @@ interpreter::NaabVal VM::run() {
                             }
                         }
 
+                        // Governance: check if this is a taint sink (e.g., env.set_var)
+                        // If any argument is tainted, temporarily mark it and call checkTaintedSink
+                        if (governance_ && governance_->isActive()) {
+                            for (int ai = 0; ai < static_cast<int>(argc); ai++) {
+                                ptrdiff_t arg_offset = (stack_top_ - argc + ai) - stack_.get();
+                                if (taint_stack_[arg_offset]) {
+                                    std::string arg_label = "__arg" + std::to_string(ai) + "__";
+                                    governance_->markTainted(arg_label);
+                                    int gov_line = CURRENT_CHUNK().getLine(
+                                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                                    std::string terr = governance_->checkTaintedSink(
+                                        arg_label, full_method_name, current_file_, gov_line);
+                                    governance_->clearTaint(arg_label);
+                                    if (!terr.empty()) runtimeError("%s", terr.c_str());
+                                }
+                            }
+                        }
+
                         interpreter::NaabVal* args_ptr = stack_top_ - argc;
                         interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
                         stack_top_ -= (argc + 1);
+                        syncTaintTop();
                         push(std::move(result));
+                        // Governance: check taint source/sanitizer
+                        if (governance_ && governance_->isActive()) {
+                            if (governance_->isTaintSource(full_method_name)) {
+                                peekTaint(0) = true;
+                            } else if (governance_->isSanitizer(full_method_name)) {
+                                peekTaint(0) = false;
+                            } else if (governance_->lastReturnWasTainted()) {
+                                peekTaint(0) = true;
+                                governance_->setLastReturnTainted(false);
+                            }
+                        }
                         goto done_call_method;
                     }
                     // Also handle __builtin__:X where X is a stdlib module name
@@ -1102,10 +1312,19 @@ interpreter::NaabVal VM::run() {
                     if (sv.size() >= 12 && sv.substr(0, 12) == "__builtin__:") {
                         std::string mod = sv.substr(12);
                         if (stdlib_ && stdlib_->hasModule(mod)) {
+                            full_method_name = mod + "." + method;
                             interpreter::NaabVal* args_ptr = stack_top_ - argc;
                             interpreter::NaabVal result = callStdlibMethod(mod, method, argc, args_ptr);
                             stack_top_ -= (argc + 1);
+                            syncTaintTop();
                             push(std::move(result));
+                            if (governance_ && governance_->isActive()) {
+                                if (governance_->isTaintSource(full_method_name)) {
+                                    peekTaint(0) = true;
+                                } else if (governance_->isSanitizer(full_method_name)) {
+                                    peekTaint(0) = false;
+                                }
+                            }
                             goto done_call_method;
                         }
                     }
@@ -1141,11 +1360,17 @@ interpreter::NaabVal VM::run() {
                 }
 
                 // Built-in methods on arrays, dicts, strings
-                interpreter::NaabVal* args_ptr = stack_top_ - argc;
-                interpreter::NaabVal result = callBuiltinMethod(obj, method, argc, args_ptr);
-                // Pop args + object
-                stack_top_ -= (argc + 1);
-                push(std::move(result));
+                {
+                    bool obj_tainted = peekTaint(argc);
+                    interpreter::NaabVal* args_ptr = stack_top_ - argc;
+                    interpreter::NaabVal result = callBuiltinMethod(obj, method, argc, args_ptr);
+                    // Pop args + object
+                    stack_top_ -= (argc + 1);
+                    syncTaintTop();
+                    push(std::move(result));
+                    // Built-in methods propagate taint from object
+                    peekTaint(0) = obj_tainted;
+                }
             }
             done_call_method:
                 VM_NEXT();
@@ -1188,6 +1413,13 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_LIST): {
                 int count = static_cast<int>(arg);
+                // Taint: list is tainted if ANY element is tainted
+                bool list_taint = false;
+                if (governance_) {
+                    for (int i = count; i > 0; i--) {
+                        if (peekTaint(i - 1)) { list_taint = true; break; }
+                    }
+                }
                 std::vector<interpreter::NaabVal> elems;
                 elems.reserve(count);
                 for (int i = count; i > 0; i--) {
@@ -1195,11 +1427,19 @@ interpreter::NaabVal VM::run() {
                 }
                 for (int i = 0; i < count; i++) pop();
                 push(interpreter::NaabVal::makeList(std::move(elems)));
+                if (governance_) peekTaint(0) = list_taint;
             }
                 VM_NEXT();
 
             VM_CASE(OP_DICT): {
                 int count = static_cast<int>(arg);
+                // Taint: dict is tainted if ANY value is tainted
+                bool dict_taint = false;
+                if (governance_) {
+                    for (int i = count - 1; i >= 0; i--) {
+                        if (peekTaint(i * 2)) { dict_taint = true; break; }
+                    }
+                }
                 std::unordered_map<std::string, interpreter::NaabVal> entries;
                 for (int i = count - 1; i >= 0; i--) {
                     interpreter::NaabVal val = peek(i * 2);
@@ -1208,10 +1448,14 @@ interpreter::NaabVal VM::run() {
                 }
                 for (int i = 0; i < count * 2; i++) pop();
                 push(interpreter::NaabVal::makeDict(std::move(entries)));
+                if (governance_) peekTaint(0) = dict_taint;
             }
                 VM_NEXT();
 
             VM_CASE(OP_GET_INDEX): {
+                // Taint: result inherits taint from container or index
+                bool idx_taint = peekTaint(0);
+                bool obj_taint = peekTaint(1);
                 interpreter::NaabVal index = pop();
                 interpreter::NaabVal obj = pop();
                 if (obj.isList()) {
@@ -1250,11 +1494,13 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Cannot index into %s", obj.getTypeName().c_str());
                 }
+                if (governance_) peekTaint(0) = obj_taint || idx_taint;
             }
                 VM_NEXT();
 
             VM_CASE(OP_SET_INDEX): {
                 // Stack order from compiler: [val, obj, index] (top = index)
+                bool val_taint_si = governance_ ? peekTaint(2) : false;
                 interpreter::NaabVal index = pop();
                 interpreter::NaabVal obj = pop();
                 interpreter::NaabVal val = pop();
@@ -1277,11 +1523,13 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Cannot set index on %s", obj.getTypeName().c_str());
                 }
                 push(val);
+                if (governance_) peekTaint(0) = val_taint_si;
             }
                 VM_NEXT();
 
             VM_CASE(OP_RANGE): {
                 bool inclusive = (arg != 0);
+                bool range_taint = governance_ ? (peekTaint(0) || peekTaint(1)) : false;
                 interpreter::NaabVal end_val = pop();
                 interpreter::NaabVal start_val = pop();
                 if (!start_val.isInt() || !end_val.isInt()) {
@@ -1298,10 +1546,12 @@ interpreter::NaabVal VM::run() {
                     }
                 }
                 push(interpreter::NaabVal::makeList(std::move(range_list)));
+                if (governance_) peekTaint(0) = range_taint;
             }
                 VM_NEXT();
 
             VM_CASE(OP_GET_ITER): {
+                bool iter_taint = governance_ ? peekTaint(0) : false;
                 interpreter::NaabVal iterable = pop();
                 if (iterable.isList()) {
                     push(iterable);
@@ -1330,16 +1580,30 @@ interpreter::NaabVal VM::run() {
                             // Now iterate over collected values
                             push(interpreter::NaabVal::makeList(std::move(collected)));
                             push(interpreter::NaabVal::makeInt(0));
+                            if (governance_) peekTaint(1) = iter_taint;
                             goto done_get_iter;
                         }
                     }
                     // Regular dict iteration
-                    std::vector<interpreter::NaabVal> keys;
-                    keys.reserve(dict.size());
-                    for (auto& kv : dict) {
-                        keys.push_back(interpreter::NaabVal::makeString(kv.first));
+                    // arg > 0 means destructuring: produce [key, value] pairs
+                    if (arg > 0) {
+                        std::vector<interpreter::NaabVal> pairs;
+                        pairs.reserve(dict.size());
+                        for (auto& kv : dict) {
+                            std::vector<interpreter::NaabVal> pair;
+                            pair.push_back(interpreter::NaabVal::makeString(kv.first));
+                            pair.push_back(kv.second);
+                            pairs.push_back(interpreter::NaabVal::makeList(std::move(pair)));
+                        }
+                        push(interpreter::NaabVal::makeList(std::move(pairs)));
+                    } else {
+                        std::vector<interpreter::NaabVal> keys;
+                        keys.reserve(dict.size());
+                        for (auto& kv : dict) {
+                            keys.push_back(interpreter::NaabVal::makeString(kv.first));
+                        }
+                        push(interpreter::NaabVal::makeList(std::move(keys)));
                     }
-                    push(interpreter::NaabVal::makeList(std::move(keys)));
                     push(interpreter::NaabVal::makeInt(0));
                 } else if (iterable.isString()) {
                     auto& str = iterable.asString();
@@ -1353,6 +1617,8 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Cannot iterate over %s", iterable.getTypeName().c_str());
                 }
+                // Taint: propagate iterable taint to the list on stack
+                if (governance_) peekTaint(1) = iter_taint;
             }
             done_get_iter:
                 VM_NEXT();
@@ -1360,6 +1626,9 @@ interpreter::NaabVal VM::run() {
             VM_CASE(OP_ITER_NEXT): {
                 int vars = (arg >> 16) & 0xFF;
                 int jump_offset = arg & 0xFFFF;
+
+                // Taint: iterable's taint propagates to extracted elements
+                bool iterable_taint = governance_ ? peekTaint(1) : false;
 
                 interpreter::NaabVal idx_val = peek(0);
                 interpreter::NaabVal list = peek(1);
@@ -1372,6 +1641,7 @@ interpreter::NaabVal VM::run() {
                     *(stack_top_ - 1) = interpreter::NaabVal::makeInt(idx + 1);
                     if (vars == 0) {
                         push(elems[idx]);
+                        if (governance_) peekTaint(0) = iterable_taint;
                     } else {
                         interpreter::NaabVal elem = elems[idx];
                         if (elem.isList()) {
@@ -1382,9 +1652,11 @@ interpreter::NaabVal VM::run() {
                                 } else {
                                     push(interpreter::NaabVal::makeNull());
                                 }
+                                if (governance_) peekTaint(0) = iterable_taint;
                             }
                         } else {
                             push(elem);
+                            if (governance_) peekTaint(0) = iterable_taint;
                             for (int v = 1; v < vars; v++) {
                                 push(interpreter::NaabVal::makeNull());
                             }
@@ -1395,6 +1667,7 @@ interpreter::NaabVal VM::run() {
                 VM_NEXT();
 
             VM_CASE(OP_GET_MEMBER): {
+                bool member_obj_taint = governance_ ? peekTaint(0) : false;
                 interpreter::NaabVal obj = pop();
                 std::string name = READ_CONSTANT(arg).toString();
                 if (obj.isDict()) {
@@ -1441,10 +1714,12 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Cannot access member '%s' on %s",
                                  name.c_str(), obj.getTypeName().c_str());
                 }
+                if (governance_) peekTaint(0) = member_obj_taint;
             }
                 VM_NEXT();
 
             VM_CASE(OP_SET_MEMBER): {
+                bool val_taint_sm = governance_ ? peekTaint(1) : false;
                 interpreter::NaabVal obj = pop();
                 interpreter::NaabVal val = pop();
                 std::string name = READ_CONSTANT(arg).toString();
@@ -1455,6 +1730,7 @@ interpreter::NaabVal VM::run() {
                                  name.c_str(), obj.getTypeName().c_str());
                 }
                 push(val);
+                if (governance_) peekTaint(0) = val_taint_sm;
             }
                 VM_NEXT();
 
@@ -1492,8 +1768,9 @@ interpreter::NaabVal VM::run() {
                 }
                 frame = &frames_[frame_count_ - 1];
                 stack_top_ = handler.stack_base;
+                syncTaintTop();
                 frame->ip = handler.catch_ip;
-                // Push exception value for catch clause
+                // Push exception value for catch clause (untainted)
                 push(exception);
             }
                 VM_NEXT();
@@ -1514,6 +1791,8 @@ interpreter::NaabVal VM::run() {
 
             VM_CASE(OP_STRUCT_INIT_FIELD): {
                 // Pop value, set field on TOS struct instance
+                // Taint: if value is tainted, struct instance becomes tainted
+                bool field_taint = governance_ ? peekTaint(0) : false;
                 interpreter::NaabVal val = pop();
                 std::string name = READ_CONSTANT(arg).toString();
                 interpreter::NaabVal& instance = peek(0);
@@ -1521,6 +1800,7 @@ interpreter::NaabVal VM::run() {
                     runtimeError("OP_STRUCT_INIT_FIELD: expected struct instance");
                 }
                 instance.asDict()[name] = val;
+                if (governance_ && field_taint) peekTaint(0) = true;
             }
                 VM_NEXT();
 
@@ -1531,10 +1811,12 @@ interpreter::NaabVal VM::run() {
                 int info_idx = (arg >> 8) & 0xFFFF;
                 int num_vars = arg & 0xFF;
                 interpreter::NaabVal block_info = READ_CONSTANT(info_idx);
-                // Collect bound variable values from stack
+                // Collect bound variable values and taint from stack
                 std::vector<interpreter::NaabVal> bound_vals;
+                std::vector<bool> bound_taints;
                 for (int i = num_vars - 1; i >= 0; i--) {
                     bound_vals.push_back(peek(i));
+                    bound_taints.push_back(governance_ ? peekTaint(i) : false);
                 }
                 for (int i = 0; i < num_vars; i++) pop();
 
@@ -1566,6 +1848,31 @@ interpreter::NaabVal VM::run() {
                     if (!err.empty()) runtimeError("%s", err.c_str());
                     std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
                     if (!count_err.empty()) runtimeError("%s", count_err.c_str());
+
+                    // Taint sink check: block tainted variables from reaching polyglot blocks
+                    // Use shadow taint stack data (bound_taints) for locals, AND governance taint set for globals
+                    if (governance_->isActive()) {
+                        std::string sink_type;
+                        if (language == "shell" || language == "sh" || language == "bash") {
+                            sink_type = "shell_exec";
+                        } else if (language == "js" || language == "javascript") {
+                            sink_type = "javascript_exec";
+                        } else {
+                            sink_type = language + "_exec";
+                        }
+                        for (size_t bi = 0; bi < bound_var_names.size(); bi++) {
+                            // Check both shadow taint stack AND governance taint set
+                            bool is_tainted = (bi < bound_taints.size() && bound_taints[bi])
+                                              || governance_->isTainted(bound_var_names[bi]);
+                            if (is_tainted) {
+                                // Temporarily mark tainted so checkTaintedSink can detect it
+                                governance_->markTainted(bound_var_names[bi]);
+                                std::string terr = governance_->checkTaintedSink(
+                                    bound_var_names[bi], sink_type, current_file_, gov_line);
+                                if (!terr.empty()) runtimeError("%s", terr.c_str());
+                            }
+                        }
+                    }
                 }
 
                 // Enterprise Security: Activate sandbox for polyglot execution
@@ -1695,6 +2002,13 @@ interpreter::NaabVal VM::run() {
                     }
 
                     push(result);
+                    // Governance: mark polyglot output as tainted if configured
+                    if (governance_ && governance_->isActive()) {
+                        if (governance_->isTaintSource("polyglot_output") ||
+                            governance_->isTaintSource("polyglot_output:" + language)) {
+                            peekTaint(0) = true;
+                        }
+                    }
                 } catch (const std::exception& e) {
                     runtimeError("Polyglot %s error: %s", language.c_str(), e.what());
                 }
@@ -1876,6 +2190,14 @@ interpreter::NaabVal VM::run() {
             }
                 VM_NEXT();
 
+            // Pre-flight taint mark: compiler detected static taint in RHS expression
+            vm_OP_GOV_TAINT_MARK:
+            {
+                // Mark TOS as tainted on the shadow taint stack
+                if (governance_) peekTaint(0) = true;
+            }
+                VM_NEXT();
+
             // Reserved opcodes — no-op (compiler doesn't emit these)
             vm_STUB_NOP:
                 VM_NEXT();
@@ -1897,6 +2219,7 @@ interpreter::NaabVal VM::run() {
             }
             frame = &frames_[frame_count_ - 1];
             stack_top_ = handler.stack_base;
+            syncTaintTop();
             frame->ip = handler.catch_ip;
             // Push error as dict with "message" key (matching tree-walker)
             std::unordered_map<std::string, interpreter::NaabVal> err;
@@ -1915,6 +2238,7 @@ interpreter::NaabVal VM::run() {
             }
             frame = &frames_[frame_count_ - 1];
             stack_top_ = handler.stack_base;
+            syncTaintTop();
             frame->ip = handler.catch_ip;
             // Push error as dict with "message" key (matching tree-walker)
             std::unordered_map<std::string, interpreter::NaabVal> err;
@@ -1951,8 +2275,24 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             interpreter::NaabVal* args_start = stack_top_ - argc;
             std::vector<interpreter::NaabVal> args(args_start, stack_top_);
 
-            // Capture what the async body needs
-            auto closure_copy = callee.asVMClosure();  // shared_ptr copy
+            // Deep-copy closure with pre-closed upvalues for the async thread.
+            // Upvalue locations point into THIS VM's stack, which is invalid
+            // in the async VM's separate stack. Close them now so the values
+            // are self-contained in the ObjUpvalue::closed field.
+            auto orig_closure = callee.asVMClosure();
+            std::vector<std::shared_ptr<ObjUpvalue>> closed_upvalues;
+            closed_upvalues.reserve(orig_closure->upvalues.size());
+            for (auto& uv : orig_closure->upvalues) {
+                auto new_uv = std::make_shared<ObjUpvalue>();
+                // Copy the current value (from stack or already-closed)
+                new_uv->closed = *uv->location;
+                new_uv->location = &new_uv->closed;  // self-referencing
+                new_uv->is_open = false;              // Mark as closed!
+                new_uv->tainted = uv->tainted;
+                closed_upvalues.push_back(std::move(new_uv));
+            }
+            auto closure_copy = std::make_shared<VMClosure>(
+                orig_closure->function, std::move(closed_upvalues));
             auto stdlib_ptr = stdlib_;
             auto module_resolver_ptr = module_resolver_;
             auto governance_ptr = governance_;
@@ -1977,6 +2317,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
 
             future_val->future = shared_future;
             stack_top_ -= (argc + 1);  // Pop args + callee
+            syncTaintTop();
             push(interpreter::NaabVal::makeFuture(future_val));
             return true;
         }
@@ -1995,6 +2336,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
             // We'll eagerly run it at iteration time via callNaabFunction
 
             stack_top_ -= (argc + 1);  // Pop args + callee
+            syncTaintTop();
             // Return the callee+args bundled — we'll eagerly collect yields when iterated
             // Use a dict to carry the closure + args
             std::unordered_map<std::string, interpreter::NaabVal> gen_info;
@@ -2011,11 +2353,25 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
     // Built-in functions stored as "__builtin__:name" marker strings
     if (callee.isString() && callee.asString().substr(0, 12) == "__builtin__:") {
         std::string name = callee.asString().substr(12);
+        // Check arg taint for sanitizer detection
+        bool any_arg_tainted = false;
+        for (int i = 0; i < argc; i++) {
+            if (peekTaint(i)) { any_arg_tainted = true; break; }
+        }
         interpreter::NaabVal* args_ptr = stack_top_ - argc;
         interpreter::NaabVal result = callBuiltinFunction(name, argc, args_ptr);
         // Pop args + callee
         stack_top_ -= (argc + 1);
+        syncTaintTop();
         push(std::move(result));
+        // Governance: sanitizer builtins (int, float, string, bool) clear taint
+        if (governance_ && governance_->isActive() && any_arg_tainted) {
+            if (governance_->isSanitizer(name)) {
+                peekTaint(0) = false;
+            } else {
+                peekTaint(0) = true;  // Propagate taint through non-sanitizer calls
+            }
+        }
         return true;
     }
     // Stdlib module markers called as functions: "use string" then "string(42)"
@@ -2025,6 +2381,7 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
         interpreter::NaabVal* args_ptr = stack_top_ - argc;
         interpreter::NaabVal result = callBuiltinFunction(name, argc, args_ptr);
         stack_top_ -= (argc + 1);
+        syncTaintTop();
         push(std::move(result));
         return true;
     }
@@ -2041,10 +2398,21 @@ bool VM::callFunction(VMClosure* closure, int argc) {
         runtimeError("Expected at most %d arguments but got %d", fn->max_arity, argc);
     }
 
-    // Governance: check call depth
+    // Governance: check call depth + input contracts
     if (governance_) {
         std::string err = governance_->checkCallDepth(static_cast<size_t>(frame_count_ + 1));
         if (!err.empty()) runtimeError("%s", err.c_str());
+
+        // Check function input contracts
+        if (governance_->isActive() && !fn->name.empty()) {
+            std::vector<std::string> arg_types;
+            interpreter::NaabVal* args_start = stack_top_ - argc;
+            for (int i = 0; i < argc; i++) {
+                arg_types.push_back(args_start[i].getTypeName());
+            }
+            std::string cerr = governance_->checkFunctionInputContract(fn->name, arg_types);
+            if (!cerr.empty()) runtimeError("%s", cerr.c_str());
+        }
     }
 
     if (frame_count_ >= static_cast<int>(FRAMES_MAX)) {
@@ -2116,6 +2484,7 @@ interpreter::NaabVal VM::callNaabFunction(interpreter::NaabVal fn,
     // Restore stack to before the call — the result is returned by value,
     // not left on the stack
     stack_top_ = saved_stack_top;
+    syncTaintTop();
     return result;
 }
 
@@ -2583,6 +2952,11 @@ std::shared_ptr<ObjUpvalue> VM::captureUpvalue(interpreter::NaabVal* local) {
 void VM::closeUpvalues(interpreter::NaabVal* last) {
     while (open_upvalues_ && open_upvalues_->location >= last) {
         auto upvalue = open_upvalues_;
+        // Copy taint from stack position to upvalue before closing
+        if (governance_) {
+            ptrdiff_t stack_offset = upvalue->location - stack_.get();
+            upvalue->tainted = taint_stack_[stack_offset];
+        }
         upvalue->closed = *upvalue->location;
         upvalue->location = &upvalue->closed;
         upvalue->is_open = false;
