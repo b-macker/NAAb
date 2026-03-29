@@ -143,6 +143,10 @@ dismiss-test-alerts.sh
 EXECUTOR_IMPLEMENTATION_SUMMARY.md
 TESTING_STATUS.md
 
+# Debug test files (ad-hoc development artifacts)
+tests/_debug_*.naab
+tests/debug_*.naab
+
 # Governance audit logs (generated during test runs)
 .governance-audit*.jsonl
 
