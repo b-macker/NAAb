@@ -10,6 +10,7 @@
 #include "naab/stdlib.h"
 #include "naab/stdlib_new_modules.h"
 #include "naab/sandbox.h"
+#include "naab/error_helpers.h"
 #include "naab/resource_limits.h"
 #include <algorithm>
 #include <cstdarg>
@@ -1057,7 +1058,12 @@ interpreter::NaabVal VM::run() {
                 const std::string& name = READ_CONSTANT(arg).asString();
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
-                    runtimeError("Undefined variable '%s'", name.c_str());
+                    std::string helper = getVariableHelper(name);
+                    if (helper.empty()) {
+                        runtimeError("Undefined variable '%s'", name.c_str());
+                    } else {
+                        runtimeError("Undefined variable '%s'\n%s", name.c_str(), helper.c_str());
+                    }
                 }
                 push(it->second);
                 if (governance_ && governance_->isActive()) {
@@ -1070,7 +1076,12 @@ interpreter::NaabVal VM::run() {
                 const std::string& name = READ_CONSTANT(arg).asString();
                 auto it = globals_.find(name);
                 if (it == globals_.end()) {
-                    runtimeError("Undefined variable '%s'", name.c_str());
+                    std::string helper = getVariableHelper(name);
+                    if (helper.empty()) {
+                        runtimeError("Undefined variable '%s'", name.c_str());
+                    } else {
+                        runtimeError("Undefined variable '%s'\n%s", name.c_str(), helper.c_str());
+                    }
                 }
                 it->second = peek(0);
                 if (governance_ && governance_->isActive()) {
@@ -3026,6 +3037,129 @@ void VM::closeUpvalues(interpreter::NaabVal* last) {
         upvalue->is_open = false;
         open_upvalues_ = upvalue->next;
     }
+}
+
+// ============================================================================
+// Helper Error Messages (DX parity with tree-walker interpreter)
+// ============================================================================
+
+std::string VM::getVariableHelper(const std::string& name) const {
+    // Known non-NAAb identifiers — mirrors interpreter.cpp:293-388 exactly
+    if (name == "Sys" || name == "System" || name == "sys") {
+        return "\n  NAAb does not have a 'Sys' object. Use built-in functions directly:\n"
+               "    print(\"hello\")          // instead of Sys.print(\"hello\")\n"
+               "    print(\"error: oops\")    // instead of Sys.error(\"oops\")\n\n"
+               "  IMPORTANT - Sys.callFunction is NOT needed in NAAb:\n"
+               "    Functions are first-class values. Call them directly:\n"
+               "      let fn = someDict.get(\"myFunc\")\n"
+               "      let result = fn(arg1, arg2)    // NOT Sys.callFunction(fn, arg1, arg2)\n"
+               "      // or: someDict.myFunc(arg1, arg2)\n\n"
+               "  Common replacements:\n"
+               "    Sys.callFunction(fn, a, b) -> fn(a, b)\n"
+               "    Sys.print(msg)             -> print(msg)\n"
+               "    Sys.exit(code)             -> // just return or end the block\n\n"
+               "  Built-in functions: print, len, type, typeof, int, float, string, bool\n"
+               "  For sleep: import time; time.sleep(seconds)\n"
+               "  For exit:  NAAb has no exit(). End the main block or return from functions.";
+    }
+    if (name == "Console" || name == "console") {
+        return "\n  NAAb does not have a 'Console' object. Use:\n"
+               "    print(\"hello\")          // instead of Console.log(\"hello\")\n"
+               "    print(\"error: oops\")    // instead of Console.error(\"oops\")";
+    }
+    if (name == "Math") {
+        return "\n  NAAb math functions are in the 'math' module (lowercase):\n"
+               "    import math\n"
+               "    let x = math.sqrt(16)   // instead of Math.sqrt(16)\n"
+               "    let pi = math.PI";
+    }
+    if (name == "Array") {
+        return "\n  NAAb array functions are in the 'array' module (lowercase):\n"
+               "    import array\n"
+               "    array.push(myArr, item) // instead of Array.push(...)";
+    }
+    if (name == "String") {
+        return "\n  NAAb string functions are in the 'string' module (lowercase):\n"
+               "    import string\n"
+               "    string.upper(myStr)     // instead of String.toUpperCase(...)";
+    }
+    if (name == "File" || name == "fs" || name == "FS") {
+        return "\n  NAAb file functions are in the 'file' module:\n"
+               "    import file\n"
+               "    let content = file.read(\"path.txt\")";
+    }
+    if (name == "sleep") {
+        return "\n  'sleep' is not a global built-in. It's in the time module:\n"
+               "    import time\n"
+               "    time.sleep(1.0)          // sleep for 1 second";
+    }
+    if (name == "exit") {
+        return "\n  NAAb has no exit() function. To stop execution:\n"
+               "    return              // from a function\n"
+               "    // or just let the main block end naturally";
+    }
+    if (name == "error") {
+        return "\n  'error' is not a built-in function. To print errors:\n"
+               "    print(\"ERROR: something went wrong\")\n"
+               "  To throw an error:\n"
+               "    throw \"something went wrong\"";
+    }
+    if (name == "require" || name == "include") {
+        return "\n  NAAb uses 'import' for modules, not 'require':\n"
+               "    import \"path/to/module.naab\" as MyModule\n"
+               "    import math        // stdlib module";
+    }
+    if (name == "callFunction") {
+        return "\n  NAAb does not need callFunction(). Functions are first-class:\n"
+               "    let fn = myDict.get(\"funcName\")\n"
+               "    let result = fn(arg1, arg2)   // call directly\n"
+               "    // or: myDict.funcName(arg1, arg2)";
+    }
+    if (name == "process" || name == "os" || name == "OS") {
+        return "\n  NAAb does not have a '" + name + "' object.\n"
+               "    For environment variables: import env; env.get(\"PATH\")\n"
+               "    For command args: import env; let args = env.args()";
+    }
+    if (name == "this" || name == "self") {
+        return "\n  NAAb does not use '" + name + "'. In structs, access fields directly:\n"
+               "    struct Point { x: Int, y: Int }\n"
+               "  In closures/dicts, capture variables from the enclosing scope.";
+    }
+    if (name == "True" || name == "False") {
+        std::string correct = (name == "True") ? "true" : "false";
+        return "\n  NAAb uses '" + correct + "' (lowercase), not Python's '" + name + "':\n"
+               "    let x = " + correct + "\n"
+               "  Inside <<python>> blocks, use Python's " + name + ".";
+    }
+    if (name == "None" || name == "nil" || name == "undefined") {
+        return "\n  NAAb uses 'null' (not '" + name + "'):\n"
+               "    let x = null\n"
+               "  Inside <<python>> blocks, use Python's None.";
+    }
+    if (name == "Object" || name == "Map") {
+        return "\n  NAAb dicts are created with literal syntax:\n"
+               "    let d = {\"key\": \"value\"}\n"
+               "    d.get(\"key\")    // access values\n"
+               "    d.put(\"k\", v)   // set values";
+    }
+    if (name == "JSON") {
+        return "\n  NAAb does not have a JSON object. Use the json module (lowercase):\n"
+               "    let data = json.parse(str)      // instead of JSON.parse(str)\n"
+               "    let str = json.stringify(data)   // instead of JSON.stringify(data)\n"
+               "  Dicts are native: let d = {\"key\": \"value\"}";
+    }
+
+    // Fall back to fuzzy matching via error_helpers (stdlib modules, Python operators,
+    // common typos, Levenshtein distance)
+    std::vector<std::string> candidates;
+    candidates.reserve(globals_.size());
+    for (const auto& [gname, _] : globals_) {
+        // Skip internal markers
+        if (gname.find("__stdlib_module__:") == 0) continue;
+        if (gname.find("__builtin__:") == 0) continue;
+        candidates.push_back(gname);
+    }
+    return naab::error::suggestForUndefinedVariable(name, candidates);
 }
 
 // ============================================================================

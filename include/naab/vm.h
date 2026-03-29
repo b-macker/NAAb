@@ -456,6 +456,9 @@ private:
     std::shared_ptr<std::unordered_map<std::string, interpreter::NaabVal>>
         importModule(const std::string& module_path);
 
+    // Helper error messages (DX parity with tree-walker)
+    std::string getVariableHelper(const std::string& name) const;
+
     // Error
     [[noreturn]] void runtimeError(const char* format, ...);
     std::vector<std::string> getStackTrace() const;
