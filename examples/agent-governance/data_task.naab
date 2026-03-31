@@ -1,0 +1,12 @@
+use file
+
+main {
+    // data-bot: allowed to read ./data, write ./output
+    let raw = file.read("./data/input.csv")
+    let count = <<python[raw]
+lines = raw.strip().split('\n')
+len(lines) - 1
+>>
+    file.write("./output/report.txt", "Processed " + string(count) + " records")
+    print("Data task complete: " + string(count) + " records")
+}

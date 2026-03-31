@@ -1,0 +1,15 @@
+use file
+use env
+import "./telemetry.naab" as telemetry
+import "./dashboard.naab" as dashboard
+
+main {
+    let filepath = env.get("TELEMETRY_FILE") ?? "telemetry.jsonl"
+
+    let events = telemetry.load_events(filepath)
+    if len(events) == 0 {
+        print("No telemetry events found in: " + filepath)
+        return
+    }
+    print(dashboard.generate_text_report(events))
+}

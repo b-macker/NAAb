@@ -1,0 +1,11 @@
+use file
+
+main {
+    // ops-bot: allowed to read ./config, write ./output
+    let cfg = file.read("./config/settings.txt")
+    let status = <<shell[]
+echo "System OK - $(date)"
+>>
+    file.write("./output/status.txt", status)
+    print("Ops task complete: " + status)
+}

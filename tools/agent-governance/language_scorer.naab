@@ -1,0 +1,215 @@
+use json
+use array
+use string
+use math
+import "./models.naab" as models
+
+export fn detect_task_type(description) {
+    let desc = description.lower()
+    let task_types = ["numerical", "text_processing", "system_ops", "web", "data_pipeline", "machine_learning", "networking"]
+    let keywords = {
+        "numerical": ["calculate", "compute", "statistics", "math", "average", "sum", "regression", "analyze", "data"],
+        "text_processing": ["parse", "format", "extract", "regex", "transform", "csv", "json", "string"],
+        "system_ops": ["deploy", "backup", "cron", "monitor", "server", "docker", "container", "shell"],
+        "web": ["http", "api", "rest", "endpoint", "frontend", "html", "css", "javascript", "browser"],
+        "data_pipeline": ["etl", "pipeline", "transform", "load", "extract", "batch", "stream"],
+        "machine_learning": ["train", "model", "predict", "classify", "cluster", "neural", "tensor"],
+        "networking": ["socket", "tcp", "udp", "dns", "proxy", "tunnel"]
+    }
+
+    let best_type = "general"
+    let max_hits = 0
+
+    for t in task_types {
+        let hits = 0
+        let kw_list = keywords.get(t)
+        for kw in kw_list {
+            if desc.contains(kw) {
+                hits = hits + 1
+            }
+        }
+        if hits > max_hits {
+            max_hits = hits
+            best_type = t
+        }
+    }
+
+    return best_type
+}
+
+export fn get_language_strengths() {
+    return {
+        "python": {
+            "strengths": ["data analysis", "machine learning", "statistics", "math", "scripting", "automation", "text processing", "json", "csv", "api"],
+            "weaknesses": ["performance", "low-level", "concurrency"],
+            "best_for": ["numerical", "data_pipeline", "machine_learning", "text_processing"]
+        },
+        "shell": {
+            "strengths": ["system administration", "deployment", "file management", "automation", "ops", "devops", "scripting", "cron", "backup"],
+            "weaknesses": ["math", "complex logic", "performance"],
+            "best_for": ["system_ops", "automation"]
+        },
+        "go": {
+            "strengths": ["concurrency", "networking", "microservices", "performance", "distributed systems", "containers"],
+            "weaknesses": ["data analysis", "scripting"],
+            "best_for": ["networking", "system_ops"]
+        },
+        "rust": {
+            "strengths": ["systems programming", "performance", "safety", "memory", "embedded", "low-level"],
+            "weaknesses": ["quick prototyping", "scripting"],
+            "best_for": ["performance", "system_ops"]
+        },
+        "javascript": {
+            "strengths": ["web", "frontend", "dom", "browser", "ui", "react", "node", "api"],
+            "weaknesses": ["performance", "data science"],
+            "best_for": ["web"]
+        },
+        "nim": {
+            "strengths": ["performance", "scripting", "systems", "cross-compilation"],
+            "weaknesses": ["ecosystem", "data analysis"],
+            "best_for": ["general"]
+        }
+    }
+}
+
+export fn score_language(task_description, language) {
+    let task_type = detect_task_type(task_description)
+    let strengths_db = get_language_strengths()
+    let reasons = []
+    
+    let strengths = strengths_db.get(language)
+    let score = 0
+    
+    if strengths != null {
+        let base_score = 40
+        let desc = task_description.lower()
+        
+        let best_for = strengths.get("best_for")
+        if array.contains(best_for, task_type) {
+            base_score = base_score + 30
+        }
+        
+        let keyword_hits = 0
+        let s_list = strengths.get("strengths")
+        for kw in s_list {
+            if desc.contains(kw) {
+                keyword_hits = keyword_hits + 5
+            }
+        }
+        
+        score = base_score + keyword_hits
+        if score > 100 { score = 100 }
+    }
+    
+    if score > 70 {
+        reasons.push(language + " is very strong in " + task_type)
+    } else if score > 40 {
+        reasons.push(language + " is a decent fit for this task")
+    } else {
+        reasons.push(language + " might not be the ideal choice")
+    }
+    
+    return {
+        "language": language,
+        "score": score,
+        "task_type": task_type,
+        "reasons": reasons
+    }
+}
+
+export fn rank_languages(task_description, available_languages) {
+    let results = []
+    for lang in available_languages {
+        results.push(score_language(task_description, lang))
+    }
+    
+    let sorted_results = <<python[results] -> JSON
+import json
+sorted_data = sorted(results, key=lambda x: x["score"], reverse=True)
+json.dumps(sorted_data)
+>>
+    return sorted_results
+}
+
+export fn assign_language(task_description, agent) {
+    let allowed = agent.get("allowed_languages")
+    let ranked = rank_languages(task_description, allowed)
+    
+    if len(ranked) == 0 {
+        return {
+            "language": "",
+            "score": 0,
+            "alternative": "",
+            "reason": "No allowed languages for this agent"
+        }
+    }
+    
+    let best = ranked[0]
+    let alt = ""
+    if len(ranked) > 1 {
+        let second = ranked[1]
+        alt = second.get("language")
+    }
+    
+    let reason = "Recommended " + best.get("language") + " because it scored " + string(best.get("score")) + " for " + best.get("task_type") + " tasks."
+    
+    return {
+        "language": best.get("language"),
+        "score": best.get("score"),
+        "alternative": alt,
+        "reason": reason
+    }
+}
+
+export fn validate_assignment(language, task_type) {
+    let strengths_db = get_language_strengths()
+    let s = strengths_db.get(language, {})
+    let warnings = []
+    
+    if not s.contains("best_for") {
+        return { "suitable": false, "score": 0, "warnings": ["Unknown language"] }
+    }
+    
+    let best_for = s.get("best_for")
+    let suitable = array.contains(best_for, task_type)
+    let score = if suitable { 80 } else { 30 }
+    
+    if not suitable {
+        warnings.push(language + " is not typically recommended for " + task_type)
+    }
+    
+    return {
+        "suitable": suitable,
+        "score": score,
+        "warnings": warnings
+    }
+}
+
+export fn compare_languages(lang_a, lang_b, task_description) {
+    let res_a = score_language(task_description, lang_a)
+    let res_b = score_language(task_description, lang_b)
+    
+    let score_a = res_a.get("score")
+    let score_b = res_b.get("score")
+    
+    let winner = if score_a >= score_b { lang_a } else { lang_b }
+    let margin = math.abs(score_a - score_b)
+    let reason = winner + " is better by a margin of " + string(margin) + " points."
+    
+    return {
+        "winner": winner,
+        "margin": margin,
+        "reasoning": reason
+    }
+}
+
+export fn format_recommendation(assignment) {
+    let rec = "LANGUAGE RECOMMENDATION\n"
+    rec = rec + "-----------------------\n"
+    rec = rec + "Primary Choice: " + assignment.get("language") + " (Score: " + string(assignment.get("score")) + ")\n"
+    if assignment.get("alternative") != "" {
+        rec = rec + "Alternative:    " + assignment.get("alternative") + "\n"
+    }
+    rec = rec + "Rationale:      " + assignment.get("reason")
+    return rec
+}

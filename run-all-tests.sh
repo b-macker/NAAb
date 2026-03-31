@@ -244,6 +244,11 @@ for dir in "${TEST_DIRS[@]}"; do
         while IFS= read -r -d '' test_file; do
             run_test "$test_file" "$timeout"
         done < <(find "$dir" -maxdepth 1 -name "*.naab" -type f -print0 | sort -z)
+    elif [ "$dir" = "examples" ]; then
+        # Exclude agent-governance (requires run.sh setup with test data)
+        while IFS= read -r -d '' test_file; do
+            run_test "$test_file" "$timeout"
+        done < <(find "$dir" -name "*.naab" -type f -not -path "*/agent-governance/*" -print0 | sort -z)
     else
         while IFS= read -r -d '' test_file; do
             run_test "$test_file" "$timeout"
@@ -418,6 +423,27 @@ if [ -f "$INIT_SCRIPT" ]; then
     fi
 else
     echo "  Init governance test script not found, skipping"
+fi
+
+# --- Multi-Agent Governance Integration Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Multi-Agent Governance Integration Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+MULTIAGENT_SCRIPT="tests/cli/test_multiagent_governance.sh"
+if [ -f "$MULTIAGENT_SCRIPT" ]; then
+    if bash "$MULTIAGENT_SCRIPT" 2>&1; then
+        echo ""
+        echo "  Multi-agent governance tests: ALL PASSED"
+    else
+        echo ""
+        echo "  Multi-agent governance tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("multiagent-governance")
+    fi
+else
+    echo "  Multi-agent governance test script not found, skipping"
 fi
 
 # Print summary

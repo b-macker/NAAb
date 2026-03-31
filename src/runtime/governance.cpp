@@ -19,6 +19,7 @@
 #include <regex>
 #include <chrono>
 #include <functional>
+#include <sys/file.h>
 #include <fmt/core.h>
 
 namespace naab {
@@ -1523,6 +1524,34 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             }
         }
     }
+
+    // --- Telemetry output config ---
+    if (j.contains("telemetry") && j["telemetry"].is_object()) {
+        auto& tel = j["telemetry"];
+        if (tel.contains("enabled")) rules_.telemetry_output.enabled = tel["enabled"].get<bool>();
+        if (tel.contains("output_file")) rules_.telemetry_output.output_file = tel["output_file"].get<std::string>();
+    }
+
+    // --- Agent roles ---
+    if (j.contains("agent_roles") && j["agent_roles"].is_object()) {
+        for (auto& [name, role_json] : j["agent_roles"].items()) {
+            AgentRoleConfig role;
+            role.name = name;
+            if (role_json.contains("allowed_languages") && role_json["allowed_languages"].is_array()) {
+                for (const auto& l : role_json["allowed_languages"])
+                    role.allowed_languages.push_back(l.get<std::string>());
+            }
+            if (role_json.contains("blocked_paths") && role_json["blocked_paths"].is_array()) {
+                for (const auto& p : role_json["blocked_paths"])
+                    role.blocked_paths.push_back(p.get<std::string>());
+            }
+            if (role_json.contains("allowed_paths") && role_json["allowed_paths"].is_array()) {
+                for (const auto& p : role_json["allowed_paths"])
+                    role.allowed_paths.push_back(p.get<std::string>());
+            }
+            rules_.agent_roles.push_back(role);
+        }
+    }
 }
 
 // EVA-11/EVA-12: Governance integrity check
@@ -1848,6 +1877,94 @@ std::string GovernanceEngine::checkFilesystemAllowed(const std::string& mode) {
                 "let data = file.read(\"input.txt\")"));
     }
     recordPass("capabilities.filesystem", EnforcementLevel::HARD);
+    return "";
+}
+
+std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const std::string& mode) {
+    // Canonicalize path for consistent prefix matching
+    std::string canon;
+    try {
+        canon = std::filesystem::weakly_canonical(filepath).string();
+    } catch (...) {
+        canon = filepath;
+    }
+
+    // Layer 1: Base filesystem blocked_paths (deny wins)
+    for (const auto& bp : rules_.capabilities.filesystem.blocked_paths) {
+        if (canon.find(bp) == 0) {
+            return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+                formatError(EnforcementLevel::HARD,
+                    "File path blocked by governance: " + filepath,
+                    "",
+                    "capabilities.filesystem.blocked_paths contains \"" + bp + "\"",
+                    "This path is blocked by the project's governance configuration",
+                    "file." + mode + "(\"" + filepath + "\", ...)",
+                    "Use an allowed path instead"));
+        }
+    }
+
+    // Layer 2: Base filesystem allowed_paths (if non-empty, must match one)
+    if (!rules_.capabilities.filesystem.allowed_paths.empty()) {
+        bool base_allowed = false;
+        for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
+            if (canon.find(ap) == 0) {
+                base_allowed = true;
+                break;
+            }
+        }
+        if (!base_allowed) {
+            return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
+                formatError(EnforcementLevel::HARD,
+                    "File path not in allowed paths: " + filepath,
+                    "",
+                    "capabilities.filesystem.allowed_paths does not match",
+                    "Only paths matching the allowed list are accessible",
+                    "file." + mode + "(\"" + filepath + "\", ...)",
+                    "Use a path within the allowed directories"));
+        }
+    }
+
+    // Layer 3+4: Agent role path restrictions
+    for (const auto& role : rules_.agent_roles) {
+        if (role.name == agent_id_) {
+            // Agent blocked_paths
+            for (const auto& bp : role.blocked_paths) {
+                if (canon.find(bp) == 0) {
+                    return enforce("agent_role.path", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + agent_id_ + "' blocked from path: " + filepath,
+                            "",
+                            "agent_roles." + agent_id_ + ".blocked_paths contains \"" + bp + "\"",
+                            "Your agent role does not permit access to this path",
+                            "file." + mode + "(\"" + filepath + "\", ...)",
+                            "Request access from the project governance config"));
+                }
+            }
+            // Agent allowed_paths (if non-empty, must match one)
+            if (!role.allowed_paths.empty()) {
+                bool agent_allowed = false;
+                for (const auto& ap : role.allowed_paths) {
+                    if (canon.find(ap) == 0) {
+                        agent_allowed = true;
+                        break;
+                    }
+                }
+                if (!agent_allowed) {
+                    return enforce("agent_role.path", EnforcementLevel::HARD,
+                        formatError(EnforcementLevel::HARD,
+                            "Agent '" + agent_id_ + "' not allowed to access: " + filepath,
+                            "",
+                            "agent_roles." + agent_id_ + ".allowed_paths",
+                            "Your agent role restricts file access to specific paths",
+                            "file." + mode + "(\"" + filepath + "\", ...)",
+                            "Use a path within your agent's allowed directories"));
+                }
+            }
+            break;
+        }
+    }
+
+    recordPass("capabilities.filesystem.path", EnforcementLevel::HARD);
     return "";
 }
 
@@ -2282,6 +2399,46 @@ std::string GovernanceEngine::formatSummaryOneLine() const {
         }
     }
     return oss.str();
+}
+
+// ============================================================================
+// Dashboard Summary (--governance-dashboard)
+// ============================================================================
+
+void GovernanceEngine::printDashboard() const {
+    if (check_results_.empty()) return;
+
+    int passed = 0, blocked = 0;
+    std::map<std::string, int> block_counts;
+    for (const auto& r : check_results_) {
+        if (r.passed) {
+            passed++;
+        } else {
+            blocked++;
+            block_counts[r.rule_name]++;
+        }
+    }
+
+    // Find top violation
+    std::string top_rule;
+    int top_count = 0;
+    for (const auto& [rule, count] : block_counts) {
+        if (count > top_count) {
+            top_count = count;
+            top_rule = rule;
+        }
+    }
+
+    fprintf(stderr, "\n─── Agent Governance Summary ───\n");
+    fprintf(stderr, "Agent:      %s\n", agent_id_.c_str());
+    fprintf(stderr, "Checks:     %d passed, %d blocked\n", passed, blocked);
+    if (!top_rule.empty())
+        fprintf(stderr, "Top block:  %s (%d violation%s)\n",
+                top_rule.c_str(), top_count, top_count != 1 ? "s" : "");
+    if (rules_.telemetry_output.enabled)
+        fprintf(stderr, "Telemetry:  %zu events → %s\n",
+                check_results_.size(), rules_.telemetry_output.output_file.c_str());
+    fprintf(stderr, "────────────────────────────────\n");
 }
 
 // ============================================================================
@@ -5633,6 +5790,95 @@ void GovernanceEngine::writeReports() const {
     writeFile(rules_.output.file_output.report_junit, generateJunitReport());
     writeFile(rules_.output.file_output.report_csv, generateCsvReport());
     writeFile(rules_.output.file_output.report_html, generateHtmlReport());
+    writeTelemetry();
+}
+
+// --- Telemetry JSONL Output ---
+void GovernanceEngine::writeTelemetry() const {
+    if (!rules_.telemetry_output.enabled || rules_.telemetry_output.output_file.empty()) return;
+
+    // Use C FILE* + flock for atomic multi-process writes
+    FILE* fp = fopen(rules_.telemetry_output.output_file.c_str(), "a");
+    if (!fp) {
+        fprintf(stderr, "[governance] Warning: Could not open telemetry file: %s\n",
+                rules_.telemetry_output.output_file.c_str());
+        return;
+    }
+    int fd = fileno(fp);
+    ::flock(fd, LOCK_EX);  // Blocking exclusive lock
+
+    // ISO timestamp
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_buf;
+    localtime_r(&t, &tm_buf);
+    char ts_buf[32];
+    std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+    std::string timestamp(ts_buf);
+
+    for (const auto& r : check_results_) {
+        nlohmann::json ev;
+        ev["agent_id"] = agent_id_;
+        ev["event_type"] = r.passed ? "GovernanceCheck" : "RuleViolation";
+        ev["rule_name"] = r.rule_name;
+        ev["result"] = r.passed ? "pass" : "block";
+        ev["message"] = r.message.empty()
+            ? (r.passed ? "Check passed: " + r.rule_name : "Check failed: " + r.rule_name)
+            : r.message;
+        ev["timestamp"] = timestamp;
+        ev["file"] = r.file;
+        ev["line"] = r.line;
+        ev["category"] = r.category;
+        ev["severity"] = r.severity;
+        ev["level"] = levelToString(r.level);
+        std::string line = ev.dump() + "\n";
+        fwrite(line.c_str(), 1, line.size(), fp);
+    }
+
+    ::flock(fd, LOCK_UN);
+    fclose(fp);
+
+    if (!check_results_.empty()) {
+        fprintf(stderr, "[governance] Telemetry: %zu events written to %s\n",
+                check_results_.size(), rules_.telemetry_output.output_file.c_str());
+    }
+}
+
+// --- Agent Role Application ---
+void GovernanceEngine::applyAgentRole() {
+    for (const auto& role : rules_.agent_roles) {
+        if (role.name == agent_id_) {
+            // Restrict allowed languages: intersect with base allowed_languages
+            if (!role.allowed_languages.empty()) {
+                if (rules_.allowed_languages.empty()) {
+                    // No base restriction — apply role's languages as the restriction
+                    for (const auto& l : role.allowed_languages)
+                        rules_.allowed_languages.insert(l);
+                } else {
+                    // Intersect: keep only languages in both base AND role
+                    std::unordered_set<std::string> intersection;
+                    for (const auto& l : role.allowed_languages) {
+                        if (rules_.allowed_languages.count(l))
+                            intersection.insert(l);
+                    }
+                    rules_.allowed_languages = intersection;
+                }
+            }
+
+            // Path restrictions enforced at runtime via checkPathAccess()
+            fprintf(stderr, "[governance] Agent role applied: %s (languages: ",
+                    agent_id_.c_str());
+            bool first = true;
+            for (const auto& l : rules_.allowed_languages) {
+                if (!first) fprintf(stderr, ", ");
+                fprintf(stderr, "%s", l.c_str());
+                first = false;
+            }
+            fprintf(stderr, ")\n");
+            return;
+        }
+    }
+    // No matching role found — base rules apply unchanged
 }
 
 // --- Environment Variable Substitution ---

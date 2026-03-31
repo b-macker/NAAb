@@ -1,0 +1,202 @@
+[
+  {
+    "agent_id": "agent-alpha",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "no_secrets",
+    "result": "pass",
+    "message": "No secrets detected in code block",
+    "timestamp": "2024-01-15T10:00:00",
+    "session_id": "session-001"
+  },
+  {
+    "agent_id": "agent-alpha",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "variable_binding",
+    "result": "pass",
+    "message": "All variables properly bound",
+    "timestamp": "2024-01-15T10:01:00",
+    "session_id": "session-001"
+  },
+  {
+    "agent_id": "agent-alpha",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "naming_conventions",
+    "result": "block",
+    "message": "Variable 'myVar' should be snake_case",
+    "timestamp": "2024-01-15T10:02:00",
+    "session_id": "session-001"
+  },
+  {
+    "agent_id": "agent-alpha",
+    "event_type": 1,
+    "language": "python",
+    "rule_name": "naming_helper",
+    "result": "triggered",
+    "message": "Suggested: rename 'myVar' to 'my_var'",
+    "timestamp": "2024-01-15T10:02:30",
+    "session_id": "session-001"
+  },
+  {
+    "agent_id": "agent-alpha",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "naming_conventions",
+    "result": "pass",
+    "message": "All variables use snake_case",
+    "timestamp": "2024-01-15T10:03:00",
+    "session_id": "session-001"
+  },
+  {
+    "agent_id": "agent-beta",
+    "event_type": 0,
+    "language": "shell",
+    "rule_name": "shell_injection",
+    "result": "block",
+    "message": "Potential shell injection detected: unsanitized input in command",
+    "timestamp": "2024-01-15T11:00:00",
+    "session_id": "session-002"
+  },
+  {
+    "agent_id": "agent-beta",
+    "event_type": 1,
+    "language": "shell",
+    "rule_name": "shell_injection_helper",
+    "result": "triggered",
+    "message": "Use quoted variables: \"$var\" instead of $var",
+    "timestamp": "2024-01-15T11:00:30",
+    "session_id": "session-002"
+  },
+  {
+    "agent_id": "agent-beta",
+    "event_type": 0,
+    "language": "shell",
+    "rule_name": "shell_injection",
+    "result": "pass",
+    "message": "Shell command properly sanitized",
+    "timestamp": "2024-01-15T11:01:00",
+    "session_id": "session-002"
+  },
+  {
+    "agent_id": "agent-beta",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "no_secrets",
+    "result": "block",
+    "message": "Hardcoded API key detected: 'sk-...'",
+    "timestamp": "2024-01-15T11:05:00",
+    "session_id": "session-002"
+  },
+  {
+    "agent_id": "agent-beta",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "no_secrets",
+    "result": "block",
+    "message": "Hardcoded password detected in string literal",
+    "timestamp": "2024-01-15T11:10:00",
+    "session_id": "session-002"
+  },
+  {
+    "agent_id": "agent-gamma",
+    "event_type": 4,
+    "language": "python",
+    "rule_name": "language_assignment",
+    "result": "pass",
+    "message": "Python assigned for data analysis task (score: 92)",
+    "timestamp": "2024-01-15T12:00:00",
+    "session_id": "session-003"
+  },
+  {
+    "agent_id": "agent-gamma",
+    "event_type": 2,
+    "language": "python",
+    "rule_name": "execution",
+    "result": "pass",
+    "message": "Python block executed successfully in 0.3s",
+    "timestamp": "2024-01-15T12:01:00",
+    "session_id": "session-003"
+  },
+  {
+    "agent_id": "agent-gamma",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "complexity_floor",
+    "result": "block",
+    "message": "Function 'analyze_data' has complexity score 2, minimum is 20",
+    "timestamp": "2024-01-15T12:05:00",
+    "session_id": "session-003"
+  },
+  {
+    "agent_id": "agent-gamma",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "complexity_floor",
+    "result": "block",
+    "message": "Function 'process_results' has complexity score 1, minimum is 20",
+    "timestamp": "2024-01-15T12:10:00",
+    "session_id": "session-003"
+  },
+  {
+    "agent_id": "agent-gamma",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "complexity_floor",
+    "result": "block",
+    "message": "Function 'compute_stats' has complexity score 0, minimum is 20",
+    "timestamp": "2024-01-15T12:15:00",
+    "session_id": "session-003"
+  },
+  {
+    "agent_id": "agent-alpha",
+    "event_type": 3,
+    "language": "python",
+    "rule_name": "no_placeholders",
+    "result": "block",
+    "message": "Placeholder detected: TODO comment in code block",
+    "timestamp": "2024-01-15T13:00:00",
+    "session_id": "session-004"
+  },
+  {
+    "agent_id": "agent-alpha",
+    "event_type": 0,
+    "language": "shell",
+    "rule_name": "blocked_commands",
+    "result": "block",
+    "message": "Command 'rm' is blocked by governance",
+    "timestamp": "2024-01-15T13:05:00",
+    "session_id": "session-004"
+  },
+  {
+    "agent_id": "agent-beta",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "no_secrets",
+    "result": "block",
+    "message": "AWS access key pattern detected",
+    "timestamp": "2024-01-15T14:00:00",
+    "session_id": "session-005"
+  },
+  {
+    "agent_id": "agent-delta",
+    "event_type": 0,
+    "language": "python",
+    "rule_name": "variable_binding",
+    "result": "pass",
+    "message": "All 3 variables properly bound in polyglot block",
+    "timestamp": "2024-01-15T15:00:00",
+    "session_id": "session-006"
+  },
+  {
+    "agent_id": "agent-delta",
+    "event_type": 2,
+    "language": "shell",
+    "rule_name": "execution",
+    "result": "pass",
+    "message": "Shell block executed successfully in 0.1s",
+    "timestamp": "2024-01-15T15:05:00",
+    "session_id": "session-006"
+  }
+]

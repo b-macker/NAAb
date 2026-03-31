@@ -1,0 +1,167 @@
+use json
+use file
+use string
+use array
+import "./models.naab" as models
+
+export fn load_roles(config_path) {
+    if not file.exists(config_path) {
+        return []
+    }
+    let content = file.read(config_path)
+    if content == "" {
+        return []
+    }
+    let cfg = json.parse(content)
+    return cfg.get("agent_roles", [])
+}
+
+export fn create_role(name, allowed_paths, blocked_paths, allowed_languages, max_complexity) {
+    return {
+        "name": name,
+        "allowed_paths": allowed_paths,
+        "blocked_paths": blocked_paths,
+        "allowed_languages": allowed_languages,
+        "max_complexity": max_complexity
+    }
+}
+
+export fn check_access(agent, file_path) {
+    let blocked = agent.get("blocked_paths")
+    for bp in blocked {
+        if file_path.starts_with(bp) {
+            return {
+                "allowed": false,
+                "reason": "Path blocked: " + bp
+            }
+        }
+    }
+    
+    let allowed = agent.get("allowed_paths")
+    if len(allowed) == 0 {
+        return { "allowed": true, "reason": "All paths allowed (empty allow list)" }
+    }
+    
+    for ap in allowed {
+        if file_path.starts_with(ap) {
+            return {
+                "allowed": true,
+                "reason": "Path allowed: " + ap
+            }
+        }
+    }
+    
+    return {
+        "allowed": false,
+        "reason": "Path not in allowed list"
+    }
+}
+
+export fn check_language_permission(agent, language) {
+    let allowed = agent.get("allowed_languages")
+    if len(allowed) == 0 {
+        return { "allowed": true, "reason": "All languages allowed (empty allow list)" }
+    }
+    
+    if array.contains(allowed, language) {
+        return { "allowed": true, "reason": "Language permitted" }
+    }
+    
+    return {
+        "allowed": false,
+        "reason": "Language not permitted for this agent"
+    }
+}
+
+export fn enforce_role(agent, action_type, target) {
+    if action_type == "execute" {
+        let res = check_language_permission(agent, target)
+        return {
+            "allowed": res.get("allowed"),
+            "reason": res.get("reason"),
+            "enforcement": "hard"
+        }
+    }
+    
+    let access = check_access(agent, target)
+    let enf = if action_type == "write" { "hard" } else { "soft" }
+    
+    return {
+        "allowed": access.get("allowed"),
+        "reason": access.get("reason"),
+        "enforcement": enf
+    }
+}
+
+export fn get_agent_permissions(agent) {
+    let restrictions = []
+    let blocked = agent.get("blocked_paths")
+    for bp in blocked {
+        restrictions.push("Cannot access " + bp)
+    }
+    
+    let allowed_langs = agent.get("allowed_languages")
+    if len(allowed_langs) > 0 {
+        restrictions.push("Limited to: " + array.join(allowed_langs, ", "))
+    }
+    
+    return {
+        "allowed_paths": agent.get("allowed_paths"),
+        "blocked_paths": agent.get("blocked_paths"),
+        "allowed_languages": agent.get("allowed_languages"),
+        "restrictions": restrictions
+    }
+}
+
+export fn validate_role_config(roles_arr) {
+    let errors = []
+    let warnings = []
+    
+    for r in roles_arr {
+        if not r.contains("name") or not r.contains("allowed_paths") or not r.contains("blocked_paths") or not r.contains("allowed_languages") {
+            errors.push("Missing required fields in role config")
+        } else {
+            let allowed = r.get("allowed_paths")
+            let blocked = r.get("blocked_paths")
+            for ap in allowed {
+                if array.contains(blocked, ap) {
+                    errors.push("Overlapping path in role " + r.get("name") + ": " + ap)
+                }
+            }
+            if len(allowed) == 0 {
+                warnings.push("Role " + r.get("name") + " has no allowed paths (effectively blocked from everything)")
+            }
+        }
+    }
+    
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings
+    }
+}
+
+fn manual_pad(str, length) {
+    let s = string(str)
+    let current = s.length()
+    if current >= length { return s }
+    let needed = length - current
+    for i in 0..needed {
+        s = s + " "
+    }
+    return s
+}
+
+export fn role_summary(agents) {
+    let report = "Agent Name          | Role           | Languages            | Path Access\n"
+    report = report + "--------------------|----------------|----------------------|------------\n"
+    for agent in agents {
+        let name = manual_pad(string(agent.get("name")), 20)
+        let role = manual_pad(models.role_name(agent.get("role")), 15)
+        let langs = manual_pad(array.join(agent.get("allowed_languages"), ", "), 21)
+        let paths = string(len(agent.get("allowed_paths"))) + " allowed"
+        
+        report = report + name + "| " + role + "| " + langs + "| " + paths + "\n"
+    }
+    return report
+}

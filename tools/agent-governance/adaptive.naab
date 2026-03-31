@@ -1,0 +1,182 @@
+use json
+use array
+use string
+use math
+import "./models.naab" as models
+
+export fn analyze_patterns(events, min_occurrences) {
+    let patterns = <<python[events, min_occurrences] -> JSON
+import json
+violations = {} # (agent, rule) -> [timestamps]
+
+for ev in events:
+    if ev.get("result") == "block":
+        agent = ev.get("agent_id")
+        rule = ev.get("rule_name")
+        ts = ev.get("timestamp")
+        key = f"{agent}:{rule}"
+        if key not in violations:
+            violations[key] = []
+        violations[key].append(ts)
+
+results = []
+for key, timestamps in violations.items():
+    if len(timestamps) >= min_occurrences:
+        agent, rule = key.split(":")
+        sorted_ts = sorted(timestamps)
+        results.append({
+            "agent_id": agent,
+            "rule_name": rule,
+            "count": len(timestamps),
+            "first_seen": sorted_ts[0],
+            "last_seen": sorted_ts[-1]
+        })
+json.dumps(results)
+>>
+    return patterns
+}
+
+export fn propose_rule(pattern, existing_rules) {
+    let agent_id = pattern.get("agent_id")
+    let rule_name = pattern.get("rule_name")
+    let count = pattern.get("count")
+    
+    let proposed = "Block agent " + agent_id + " from rule " + rule_name
+    let rationale = "Agent " + agent_id + " has violated " + rule_name + " " + string(count) + " times."
+    
+    // Calculate confidence
+    let first = pattern.get("first_seen")
+    let last = pattern.get("last_seen")
+    
+    let confidence = <<python[first, last, count]
+from datetime import datetime
+try:
+    d1 = datetime.fromisoformat(first.replace('Z', '+00:00'))
+    d2 = datetime.fromisoformat(last.replace('Z', '+00:00'))
+    span = (d2 - d1).total_seconds()
+except:
+    span = 0
+
+c_ev = min(count / 20.0, 0.5)
+c_span = min(span / 86400.0, 0.2)
+c_consistency = 0.3 # assumed constant for now
+min(c_ev + c_span + c_consistency, 1.0)
+>>
+    
+    return {
+        "proposed_rule": proposed,
+        "confidence": float(confidence),
+        "rationale": rationale,
+        "evidence_count": count
+    }
+}
+
+export fn evaluate_proposal(proposal, events) {
+    let rule_desc = proposal.get("proposed_rule")
+    
+    let results = <<python[rule_desc, events] -> JSON
+import json
+# Simple simulation: if proposed_rule contains agent X and rule Y,
+# find how many times agent X violated rule Y.
+parts = rule_desc.split(" ")
+# Block agent [2] from rule [5]
+target_agent = parts[2] if len(parts) > 2 else ""
+target_rule = parts[5] if len(parts) > 5 else ""
+
+would_catch = 0
+false_positives = 0
+total_matching_context = 0
+
+for ev in events:
+    if ev.get("agent_id") == target_agent and ev.get("rule_name") == target_rule:
+        total_matching_context += 1
+        if ev.get("result") == "block":
+            would_catch += 1
+        elif ev.get("result") == "pass":
+            false_positives += 1
+
+fp_rate = false_positives / total_matching_context if total_matching_context > 0 else 0.0
+recommendation = "reject"
+if fp_rate < 0.1: recommendation = "adopt"
+elif fp_rate < 0.3: recommendation = "review"
+
+res = {"would_catch": would_catch, "false_positive_rate": fp_rate, "recommendation": recommendation}
+json.dumps(res)
+>>
+    return results
+}
+
+export fn generate_helper_text(violation_pattern) {
+    let rule = violation_pattern.get("rule_name")
+    let count = violation_pattern.get("count")
+    
+    let text = "It looks like you've triggered the '" + rule + "' rule " + string(count) + " times. "
+    text = text + "To fix this, ensure you are following the project's standards for " + rule + ". "
+    text = text + "Example: If this is a naming violation, use snake_case for variables."
+    return text
+}
+
+export fn merge_proposals(proposals) {
+    let merged = <<python[proposals] -> JSON
+import json
+unique = {}
+for p in proposals:
+    name = p.get("proposed_rule")
+    if name not in unique:
+        unique[name] = p
+    else:
+        # Keep highest confidence, sum evidence
+        if p.get("confidence") > unique[name].get("confidence"):
+            unique[name]["confidence"] = p.get("confidence")
+        unique[name]["evidence_count"] += p.get("evidence_count")
+
+sorted_list = sorted(unique.values(), key=lambda x: x["confidence"], reverse=True)
+json.dumps(sorted_list)
+>>
+    return merged
+}
+
+export fn format_govern_json_patch(proposals) {
+    let patch = {
+        "proposed_rules": proposals
+    }
+    return json.stringify(patch)
+}
+
+export fn get_repeat_offenders(events, threshold) {
+    let offenders = <<python[events, threshold] -> JSON
+import json
+agents = {} # id -> {violations: count, rules: {name: count}}
+
+for ev in events:
+    if ev.get("result") == "block":
+        aid = ev.get("agent_id")
+        rule = ev.get("rule_name")
+        if aid not in agents:
+            agents[aid] = {"violations": 0, "rules": {}}
+        agents[aid]["violations"] += 1
+        agents[aid]["rules"][rule] = agents[aid]["rules"].get(rule, 0) + 1
+
+results = []
+for aid, data in agents.items():
+    if data["violations"] >= threshold:
+        # Sort rules by count desc
+        top_rules = sorted(data["rules"].items(), key=lambda x: x[1], reverse=True)
+        results.append({
+            "agent_id": aid,
+            "violation_count": data["violations"],
+            "top_rules": [r[0] for r in top_rules[:3]]
+        })
+json.dumps(results)
+>>
+    return offenders
+}
+
+export fn calculate_confidence(evidence_count, consistency, time_span) {
+    let c_ev = math.min(float(evidence_count) / 20.0, 0.5)
+    let c_span = math.min(float(time_span) / 86400.0, 0.2)
+    let c_cons = float(consistency) * 0.3
+    
+    let total = c_ev + c_span + c_cons
+    return math.min(math.max(total, 0.0), 1.0)
+}

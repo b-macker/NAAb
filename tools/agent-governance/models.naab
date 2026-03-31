@@ -1,0 +1,155 @@
+enum EventType {
+    GovernanceCheck,
+    HelperTriggered,
+    ExecutionComplete,
+    RuleViolation,
+    LanguageAssignment
+}
+
+enum Severity {
+    Low,
+    Medium,
+    High,
+    Critical
+}
+
+enum Enforcement {
+    Hard,
+    Soft,
+    Advisory
+}
+
+enum AgentRole {
+    Frontend,
+    Backend,
+    DataScience,
+    DevOps,
+    Security,
+    Admin
+}
+
+enum CheckResult {
+    Pass,
+    Block,
+    Warn
+}
+
+export fn create_event(agent_id, event_type, language, rule_name, result, message, timestamp) {
+    return {
+        "agent_id": agent_id,
+        "event_type": event_type,
+        "language": language,
+        "rule_name": rule_name,
+        "result": result,
+        "message": message,
+        "timestamp": timestamp,
+        "session_id": ""
+    }
+}
+
+export fn create_agent(id, name, role, allowed_paths, blocked_paths, allowed_languages) {
+    return {
+        "id": id,
+        "name": name,
+        "role": role,
+        "allowed_paths": allowed_paths,
+        "blocked_paths": blocked_paths,
+        "allowed_languages": allowed_languages
+    }
+}
+
+export fn create_rule_proposal(pattern, proposed_rule, confidence, evidence_count, source_events) {
+    return {
+        "pattern": pattern,
+        "proposed_rule": proposed_rule,
+        "confidence": confidence,
+        "evidence_count": evidence_count,
+        "source_events": source_events
+    }
+}
+
+export fn create_score_result(language, score, task_type, reasons) {
+    return {
+        "language": language,
+        "score": score,
+        "task_type": task_type,
+        "reasons": reasons
+    }
+}
+
+export fn create_session(id, agent_id, start_time) {
+    return {
+        "id": id,
+        "agent_id": agent_id,
+        "start_time": start_time,
+        "events": [],
+        "status": "active"
+    }
+}
+
+export fn validate_event(event) {
+    let errors = []
+    let required = ["agent_id", "event_type", "language", "rule_name", "result", "message", "timestamp"]
+    
+    for field in required {
+        if not event.contains(field) {
+            errors.push("Missing required field: " + field)
+        }
+    }
+    
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+export fn validate_agent(agent) {
+    let errors = []
+    let required = ["id", "name", "role", "allowed_paths", "blocked_paths", "allowed_languages"]
+    
+    for field in required {
+        if not agent.contains(field) {
+            errors.push("Missing required field: " + field)
+        }
+    }
+    
+    if agent.contains("role") {
+        let role = agent.get("role")
+        // Check if role is a valid AgentRole enum value
+        if role != AgentRole.Frontend and role != AgentRole.Backend and role != AgentRole.DataScience and role != AgentRole.DevOps and role != AgentRole.Security and role != AgentRole.Admin {
+            errors.push("Invalid agent role")
+        }
+    }
+    
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors
+    }
+}
+
+export fn event_type_name(event_type) {
+    if event_type == EventType.GovernanceCheck { return "GovernanceCheck" }
+    if event_type == EventType.HelperTriggered { return "HelperTriggered" }
+    if event_type == EventType.ExecutionComplete { return "ExecutionComplete" }
+    if event_type == EventType.RuleViolation { return "RuleViolation" }
+    if event_type == EventType.LanguageAssignment { return "LanguageAssignment" }
+    return "Unknown"
+}
+
+export fn severity_name(severity) {
+    if severity == Severity.Low { return "Low" }
+    if severity == Severity.Medium { return "Medium" }
+    if severity == Severity.High { return "High" }
+    if severity == Severity.Critical { return "Critical" }
+    return "Unknown"
+}
+
+export fn role_name(role) {
+    if role == AgentRole.Frontend { return "Frontend" }
+    if role == AgentRole.Backend { return "Backend" }
+    if role == AgentRole.DataScience { return "DataScience" }
+    if role == AgentRole.DevOps { return "DevOps" }
+    if role == AgentRole.Security { return "Security" }
+    if role == AgentRole.Admin { return "Admin" }
+    return "Unknown"
+}

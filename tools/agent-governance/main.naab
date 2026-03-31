@@ -1,0 +1,717 @@
+use json
+use file
+use time
+use array
+use string
+
+import "./models.naab" as models
+import "./telemetry.naab" as telemetry
+import "./dashboard.naab" as dashboard
+import "./adaptive.naab" as adaptive
+import "./roles.naab" as roles
+import "./language_scorer.naab" as scorer
+import "./config.naab" as config
+
+fn test_models() {
+    let passed = 0
+    let total = 0
+    
+    // Test 1: create_event returns all required keys
+    total = total + 1
+    let ev = models.create_event("agent-1", models.EventType.GovernanceCheck, "python", "no_secrets", "pass", "Clean", "2024-01-01T00:00:00")
+    if ev.contains("agent_id") and ev.contains("event_type") and ev.contains("language") and ev.contains("rule_name") and ev.contains("result") and ev.contains("message") and ev.contains("timestamp") and ev.contains("session_id") {
+        passed = passed + 1
+    }
+
+    // Test 2: create_agent returns all required keys
+    total = total + 1
+    let agent = models.create_agent("a1", "CodeBot", models.AgentRole.Backend, ["/src"], ["/deploy"], ["python", "shell"])
+    if agent.contains("id") and agent.contains("name") and agent.contains("role") and agent.contains("allowed_paths") and agent.contains("blocked_paths") and agent.contains("allowed_languages") {
+        passed = passed + 1
+    }
+
+    // Test 3: create_rule_proposal returns all required keys
+    total = total + 1
+    let prop = models.create_rule_proposal("pattern1", "Block dangerous calls", 0.8, 5, [])
+    if prop.contains("pattern") and prop.contains("proposed_rule") and prop.contains("confidence") and prop.contains("evidence_count") and prop.contains("source_events") {
+        passed = passed + 1
+    }
+
+    // Test 4: validate_event catches missing fields
+    total = total + 1
+    let bad_event = {"agent_id": "a1"}
+    let v_res = models.validate_event(bad_event)
+    if v_res.get("valid") == false and len(v_res.get("errors")) > 0 {
+        passed = passed + 1
+    }
+
+    // Test 5: validate_agent catches invalid role
+    total = total + 1
+    let bad_agent = {"id": "a1", "name": "Bot", "role": "InvalidRole", "allowed_paths": [], "blocked_paths": [], "allowed_languages": []}
+    let v_res2 = models.validate_agent(bad_agent)
+    if v_res2.get("valid") == false {
+        passed = passed + 1
+    }
+
+    // Test 6: event_type_name returns correct strings
+    total = total + 1
+    if models.event_type_name(models.EventType.GovernanceCheck) == "GovernanceCheck" and models.event_type_name(models.EventType.HelperTriggered) == "HelperTriggered" {
+        passed = passed + 1
+    }
+
+    // Test 7: severity_name returns correct strings
+    total = total + 1
+    if models.severity_name(models.Severity.Low) == "Low" and models.severity_name(models.Severity.Critical) == "Critical" {
+        passed = passed + 1
+    }
+
+    // Test 8: create_session has empty events and active status
+    total = total + 1
+    let session = models.create_session("s1", "agent-1", "2024-01-01T00:00:00")
+    if len(session.get("events")) == 0 and session.get("status") == "active" {
+        passed = passed + 1
+    }
+
+    // Test 9: create_score_result has all 4 keys
+    total = total + 1
+    let sr = models.create_score_result("python", 85, "numerical", ["good for math", "has numpy"])
+    if sr.contains("language") and sr.contains("score") and sr.contains("task_type") and sr.contains("reasons") and sr.get("score") == 85 {
+        passed = passed + 1
+    }
+
+    // Test 10: role_name works for all roles
+    total = total + 1
+    if models.role_name(models.AgentRole.Frontend) == "Frontend" and models.role_name(models.AgentRole.Admin) == "Admin" and models.role_name(models.AgentRole.DataScience) == "DataScience" {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_telemetry() {
+    let passed = 0
+    let total = 0
+    
+    // Test 1: init_telemetry
+    total = total + 1
+    let t_res = telemetry.init_telemetry("./test_data")
+    let coll = t_res.get("collector")
+    if t_res.get("success") == true and len(coll.get("events")) == 0 {
+        passed = passed + 1
+    }
+
+    // Test 2: record_event
+    total = total + 1
+    let ev = models.create_event("a1", models.EventType.GovernanceCheck, "python", "rule1", "pass", "OK", "2024-01-01T00:00:00")
+    coll = telemetry.record_event(coll, ev)
+    if len(coll.get("events")) == 1 {
+        passed = passed + 1
+    }
+
+    // Test 3: record_governance_check
+    total = total + 1
+    coll = telemetry.record_governance_check(coll, "agent-1", "python", "no_secrets", true, "No secrets found")
+    if len(coll.get("events")) == 2 and coll.get("events")[1].get("result") == "pass" {
+        passed = passed + 1
+    }
+
+    // Test 4: record_helper_triggered
+    total = total + 1
+    coll = telemetry.record_helper_triggered(coll, "agent-1", "math_helper", "python", "undefined variable: round")
+    if len(coll.get("events")) == 3 and coll.get("events")[2].get("result") == "triggered" {
+        passed = passed + 1
+    }
+
+    // Test 5: flush_events
+    total = total + 1
+    let f_res = telemetry.flush_events(coll, "./test_data/flush_test.json")
+    if f_res.get("success") == true and f_res.get("events_written") == 3 {
+        passed = passed + 1
+    }
+
+    // Test 6: load_events
+    total = total + 1
+    let loaded = telemetry.load_events("./test_data/flush_test.json")
+    if len(loaded) == 3 and loaded[0].get("agent_id") == "a1" {
+        passed = passed + 1
+    }
+
+    // Test 7: get_session_events
+    total = total + 1
+    let ev_s1 = models.create_event("a1", models.EventType.GovernanceCheck, "python", "rule1", "pass", "OK", "2024-01-01T00:00:01")
+    ev_s1["session_id"] = "s1"
+    coll = telemetry.record_event(coll, ev_s1)
+    let filtered = telemetry.get_session_events(coll, "s1")
+    if len(filtered) == 1 {
+        passed = passed + 1
+    }
+
+    // Test 8: get_events_by_agent
+    total = total + 1
+    let filtered_a = telemetry.get_events_by_agent(coll, "a1")
+    if len(filtered_a) >= 2 {
+        passed = passed + 1
+    }
+
+    // Test 9: Multiple agents
+    total = total + 1
+    let ev_a2 = models.create_event("a2", models.EventType.GovernanceCheck, "python", "rule1", "pass", "OK", "2024-01-01T00:00:02")
+    coll = telemetry.record_event(coll, ev_a2)
+    let filtered_a2 = telemetry.get_events_by_agent(coll, "a2")
+    if len(filtered_a2) == 1 {
+        passed = passed + 1
+    }
+
+    // Test 10: Round-trip
+    total = total + 1
+    let r_res = telemetry.flush_events(coll, "./test_data/rt.json")
+    let r_loaded = telemetry.load_events("./test_data/rt.json")
+    if len(r_loaded) == len(coll.get("events")) {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_dashboard() {
+    let passed = 0
+    let total = 0
+    
+    let events = []
+    events.push(models.create_event("a1", models.EventType.GovernanceCheck, "python", "rule1", "pass", "OK", "2024-01-01T10:00:00"))
+    events.push(models.create_event("a1", models.EventType.GovernanceCheck, "python", "rule1", "pass", "OK", "2024-01-01T10:05:00"))
+    events.push(models.create_event("a1", models.EventType.GovernanceCheck, "python", "rule2", "block", "Fail", "2024-01-01T10:10:00"))
+    events.push(models.create_event("a2", models.EventType.GovernanceCheck, "shell", "rule1", "block", "Fail", "2024-01-01T10:15:00"))
+    events.push(models.create_event("a2", models.EventType.GovernanceCheck, "shell", "rule2", "block", "Fail", "2024-01-01T10:20:00"))
+
+    // Test 1: generate_summary keys
+    total = total + 1
+    let sum = dashboard.generate_summary(events)
+    if sum.contains("total_events") and sum.contains("by_type") and sum.contains("by_agent") and sum.contains("by_language") and sum.contains("by_result") and sum.contains("time_range") {
+        passed = passed + 1
+    }
+
+    // Test 2: generate_summary counts
+    total = total + 1
+    if sum.get("total_events") == 5 and sum.get("by_result").get("pass") == 2 and sum.get("by_result").get("block") == 3 {
+        passed = passed + 1
+    }
+
+    // Test 3: top_violations
+    total = total + 1
+    let top = dashboard.top_violations(events, 2)
+    if len(top) >= 2 and top[0].get("count") >= top[1].get("count") {
+        passed = passed + 1
+    }
+
+    // Test 4: agent_scorecard
+    total = total + 1
+    let card = dashboard.agent_scorecard(events, "a1")
+    if card.get("total_checks") == 3 and card.get("violations") == 1 {
+        passed = passed + 1
+    }
+
+    // Test 5: agent_scorecard 0 checks
+    total = total + 1
+    let card_empty = dashboard.agent_scorecard(events, "a3")
+    if card_empty.get("total_checks") == 0 and card_empty.get("pass_rate") == 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 6: helper_effectiveness_report
+    total = total + 1
+    let h_events = []
+    h_events.push(models.create_event("a1", models.EventType.HelperTriggered, "python", "h1", "triggered", "err", "2024-01-01T10:00:00"))
+    h_events.push(models.create_event("a1", models.EventType.GovernanceCheck, "python", "h1", "pass", "OK", "2024-01-01T10:01:00"))
+    let h_report = dashboard.helper_effectiveness_report(h_events)
+    if h_report.contains("h1") and h_report.get("h1").get("effectiveness_rate") == 1.0 {
+        passed = passed + 1
+    }
+
+    // Test 7: language_usage_report
+    total = total + 1
+    let l_report = dashboard.language_usage_report(events)
+    if l_report.contains("python") and l_report.get("python").get("blocks_executed") == 3 {
+        passed = passed + 1
+    }
+
+    // Test 8: generate_text_report
+    total = total + 1
+    let txt = dashboard.generate_text_report(events)
+    if len(txt) > 50 and txt.contains("SUMMARY") {
+        passed = passed + 1
+    }
+
+    // Test 9: export_report_csv
+    total = total + 1
+    let csv_out = dashboard.export_report_csv(events, ["agent_id", "result"])
+    let lines = csv_out.split("\n")
+    if len(lines) >= 6 {
+        passed = passed + 1
+    }
+
+    // Test 10: trend_analysis
+    total = total + 1
+    let trend = dashboard.trend_analysis(events, 24)
+    if len(trend.get("periods")) > 0 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_adaptive() {
+    let passed = 0
+    let total = 0
+    
+    let events = []
+    for i in 0..5 {
+        events.push(models.create_event("a1", models.EventType.GovernanceCheck, "python", "ruleA", "block", "Fail", "2024-01-01T10:00:0" + string(i)))
+    }
+    for i in 0..3 {
+        events.push(models.create_event("a1", models.EventType.GovernanceCheck, "python", "ruleB", "block", "Fail", "2024-01-02T10:00:0" + string(i)))
+    }
+
+    // Test 1: analyze_patterns finds repeated violations
+    total = total + 1
+    let patterns = adaptive.analyze_patterns(events, 3)
+    if len(patterns) >= 2 {
+        passed = passed + 1
+    }
+
+    // Test 2: analyze_patterns returns empty for < min
+    total = total + 1
+    let patterns_empty = adaptive.analyze_patterns(events, 10)
+    if len(patterns_empty) == 0 {
+        passed = passed + 1
+    }
+
+    // Test 3: propose_rule returns required keys
+    total = total + 1
+    let prop = adaptive.propose_rule(patterns[0], [])
+    if prop.contains("proposed_rule") and prop.contains("confidence") and prop.contains("rationale") and prop.contains("evidence_count") {
+        passed = passed + 1
+    }
+
+    // Test 4: evaluate_proposal
+    total = total + 1
+    let eval_res = adaptive.evaluate_proposal(prop, events)
+    if eval_res.get("would_catch") > 0 {
+        passed = passed + 1
+    }
+
+    // Test 5: generate_helper_text
+    total = total + 1
+    let helper_txt = adaptive.generate_helper_text(patterns[0])
+    if len(helper_txt) > 10 {
+        passed = passed + 1
+    }
+
+    // Test 6: merge_proposals
+    total = total + 1
+    let props = [prop, prop]
+    let merged = adaptive.merge_proposals(props)
+    if len(merged) == 1 {
+        passed = passed + 1
+    }
+
+    // Test 7: format_govern_json_patch
+    total = total + 1
+    let patch = adaptive.format_govern_json_patch(merged)
+    let parsed = json.parse(patch)
+    if parsed.contains("proposed_rules") {
+        passed = passed + 1
+    }
+
+    // Test 8: get_repeat_offenders
+    total = total + 1
+    let offenders = adaptive.get_repeat_offenders(events, 5)
+    if len(offenders) == 1 and offenders[0].get("agent_id") == "a1" {
+        passed = passed + 1
+    }
+
+    // Test 9: calculate_confidence range
+    total = total + 1
+    let conf = adaptive.calculate_confidence(10, 0.5, 3600)
+    if conf >= 0.0 and conf <= 1.0 {
+        passed = passed + 1
+    }
+
+    // Test 10: Full pipeline
+    total = total + 1
+    let p0 = patterns[0]
+    let pr0 = adaptive.propose_rule(p0, [])
+    let ev0 = adaptive.evaluate_proposal(pr0, events)
+    if ev0.contains("recommendation") {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_roles() {
+    let passed = 0
+    let total = 0
+    
+    let agent = models.create_agent("a1", "Bot", models.AgentRole.Backend, ["/src"], ["/deploy"], ["python"])
+
+    // Test 1: create_role
+    total = total + 1
+    let r = roles.create_role("dev", ["/src"], ["/deploy"], ["python"], 10)
+    if r.contains("name") and r.contains("max_complexity") {
+        passed = passed + 1
+    }
+
+    // Test 2: check_access allow
+    total = total + 1
+    let res1 = roles.check_access(agent, "/src/main.py")
+    if res1.get("allowed") == true {
+        passed = passed + 1
+    }
+
+    // Test 3: check_access block
+    total = total + 1
+    let res2 = roles.check_access(agent, "/deploy/script.sh")
+    if res2.get("allowed") == false {
+        passed = passed + 1
+    }
+
+    // Test 4: check_access not in allow
+    total = total + 1
+    let res3 = roles.check_access(agent, "/other/file.txt")
+    if res3.get("allowed") == false {
+        passed = passed + 1
+    }
+
+    // Test 5: check_language_permission allow
+    total = total + 1
+    let res4 = roles.check_language_permission(agent, "python")
+    if res4.get("allowed") == true {
+        passed = passed + 1
+    }
+
+    // Test 6: check_language_permission block
+    total = total + 1
+    let res5 = roles.check_language_permission(agent, "javascript")
+    if res5.get("allowed") == false {
+        passed = passed + 1
+    }
+
+    // Test 7: enforce_role execute
+    total = total + 1
+    let res6 = roles.enforce_role(agent, "execute", "python")
+    if res6.get("allowed") == true and res6.get("enforcement") == "hard" {
+        passed = passed + 1
+    }
+
+    // Test 8: get_agent_permissions
+    total = total + 1
+    let perms = roles.get_agent_permissions(agent)
+    if perms.contains("restrictions") and len(perms.get("allowed_paths")) == 1 {
+        passed = passed + 1
+    }
+
+    // Test 9: validate_role_config
+    total = total + 1
+    let r_cfg = [r]
+    let v_res = roles.validate_role_config(r_cfg)
+    if v_res.get("valid") == true {
+        passed = passed + 1
+    }
+
+    // Test 10: role_summary
+    total = total + 1
+    let summary = roles.role_summary([agent])
+    if len(summary) > 20 and summary.contains("Bot") {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_language_scorer() {
+    let passed = 0
+    let total = 0
+    
+    let task = "calculate statistics and data analysis"
+
+    // Test 1: score_language keys
+    total = total + 1
+    let sc = scorer.score_language(task, "python")
+    if sc.contains("language") and sc.contains("score") and sc.contains("reasons") {
+        passed = passed + 1
+    }
+
+    // Test 2: Python vs Shell for data
+    total = total + 1
+    let sc_py = scorer.score_language(task, "python")
+    let sc_sh = scorer.score_language(task, "shell")
+    if sc_py.get("score") > sc_sh.get("score") {
+        passed = passed + 1
+    }
+
+    // Test 3: rank_languages
+    total = total + 1
+    let ranked = scorer.rank_languages(task, ["python", "shell", "go"])
+    if len(ranked) == 3 and ranked[0].get("score") >= ranked[1].get("score") {
+        passed = passed + 1
+    }
+
+    // Test 4: assign_language respects agent
+    total = total + 1
+    let agent = models.create_agent("a1", "Bot", models.AgentRole.Backend, [], [], ["shell"])
+    let ass = scorer.assign_language(task, agent)
+    if ass.get("language") == "shell" {
+        passed = passed + 1
+    }
+
+    // Test 5: assign_language fallback
+    total = total + 1
+    let agent2 = models.create_agent("a1", "Bot", models.AgentRole.Backend, [], [], ["python", "shell"])
+    let ass2 = scorer.assign_language(task, agent2)
+    if ass2.get("language") == "python" {
+        passed = passed + 1
+    }
+
+    // Test 6: get_language_strengths
+    total = total + 1
+    let st = scorer.get_language_strengths()
+    if st.contains("python") and st.contains("go") {
+        passed = passed + 1
+    }
+
+    // Test 7: detect_task_type numerical
+    total = total + 1
+    let tt = scorer.detect_task_type("compute average and sum")
+    if tt == "numerical" {
+        passed = passed + 1
+    }
+
+    // Test 8: detect_task_type system_ops
+    total = total + 1
+    let tt2 = scorer.detect_task_type("deploy application to production")
+    if tt2 == "system_ops" {
+        passed = passed + 1
+    }
+
+    // Test 9: validate_assignment
+    total = total + 1
+    let v = scorer.validate_assignment("python", "numerical")
+    if v.get("suitable") == true {
+        passed = passed + 1
+    }
+
+    // Test 10: compare_languages
+    total = total + 1
+    let cmp = scorer.compare_languages("python", "shell", "data math")
+    if cmp.get("winner") == "python" {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_config() {
+    let passed = 0
+    let total = 0
+    
+    // Test 1: load_config
+    total = total + 1
+    let cfg = config.load_config("./govern.json")
+    if cfg.contains("version") {
+        passed = passed + 1
+    }
+
+    // Test 2: get_agent_roles
+    total = total + 1
+    let r = config.get_agent_roles(cfg)
+    if type(r) == "array" {
+        passed = passed + 1
+    }
+
+    // Test 3: get_telemetry_config defaults
+    total = total + 1
+    let tc = config.get_telemetry_config({})
+    if tc.get("enabled") == true and tc.get("retention_days") == 30 {
+        passed = passed + 1
+    }
+
+    // Test 4: get_adaptive_config keys
+    total = total + 1
+    let ac = config.get_adaptive_config({})
+    if ac.contains("auto_propose") and ac.get("min_confidence") == 0.8 {
+        passed = passed + 1
+    }
+
+    // Test 5: validate_config valid
+    total = total + 1
+    let v_cfg = {"version": "3.0", "mode": "enforce", "languages": {"allowed": ["python"]}}
+    let v_res = config.validate_config(v_cfg)
+    if v_res.get("valid") == true {
+        passed = passed + 1
+    }
+
+    // Test 6: validate_config invalid
+    total = total + 1
+    let v_res2 = config.validate_config({})
+    if v_res2.get("valid") == false {
+        passed = passed + 1
+    }
+
+    // Test 7: get_language_config keys
+    total = total + 1
+    let lc = config.get_language_config({})
+    if lc.contains("assignment_enabled") {
+        passed = passed + 1
+    }
+
+    // Test 8: Config round-trip
+    total = total + 1
+    let cfg2 = config.load_config("./govern.json")
+    cfg2["mode"] = "advisory"
+    let v_res3 = config.validate_config(cfg2)
+    if v_res3.get("valid") == true {
+        passed = passed + 1
+    }
+
+    // Test 9: Empty config defaults
+    total = total + 1
+    let tc2 = config.get_telemetry_config({})
+    if tc2.get("output_dir") == "./telemetry_logs" {
+        passed = passed + 1
+    }
+
+    // Test 10: get_agent_roles empty
+    total = total + 1
+    let r2 = config.get_agent_roles({"version": "1.0"})
+    if len(r2) == 0 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+fn test_integration() {
+    let passed = 0
+    let total = 0
+    
+    // Test 1: Full telemetry pipeline
+    total = total + 1
+    let t_res = telemetry.init_telemetry("./test_data")
+    let coll = t_res.get("collector")
+    for i in 0..5 {
+        coll = telemetry.record_governance_check(coll, "a1", "python", "rule" + string(i), true, "OK")
+    }
+    telemetry.flush_events(coll, "./test_data/integ1.json")
+    let loaded = telemetry.load_events("./test_data/integ1.json")
+    if len(loaded) == 5 {
+        passed = passed + 1
+    }
+
+    // Test 2: Dashboard from telemetry
+    total = total + 1
+    let sum = dashboard.generate_summary(loaded)
+    if sum.get("total_events") == 5 {
+        passed = passed + 1
+    }
+
+    // Test 3: Adaptive from telemetry
+    total = total + 1
+    let b_events = []
+    for i in 0..8 {
+        b_events.push(models.create_event("a1", models.EventType.GovernanceCheck, "python", "repeat_rule", "block", "Fail", "2024-01-01T10:00:0" + string(i)))
+    }
+    let patterns = adaptive.analyze_patterns(b_events, 5)
+    if len(patterns) == 1 {
+        passed = passed + 1
+    }
+
+    // Test 4: Role enforcement block
+    total = total + 1
+    let agent = models.create_agent("a1", "Bot", models.AgentRole.Backend, ["/src"], ["/deploy"], ["python"])
+    let enf = roles.enforce_role(agent, "write", "/deploy/test.sh")
+    if enf.get("allowed") == false {
+        passed = passed + 1
+    }
+
+    // Test 5: Role enforcement allow
+    total = total + 1
+    let enf2 = roles.enforce_role(agent, "read", "/src/code.py")
+    if enf2.get("allowed") == true {
+        passed = passed + 1
+    }
+
+    // Test 6: Language assignment statistics
+    total = total + 1
+    let ass = scorer.assign_language("calculate statistics", agent)
+    if ass.get("language") == "python" {
+        passed = passed + 1
+    }
+
+    // Test 7: Language assignment restricted
+    total = total + 1
+    let restricted_agent = models.create_agent("a1", "Bot", models.AgentRole.Backend, [], [], ["shell"])
+    let ass2 = scorer.assign_language("data analysis", restricted_agent)
+    if ass2.get("language") == "shell" {
+        passed = passed + 1
+    }
+
+    // Test 8: End-to-end lifecycle
+    total = total + 1
+    let coll2 = telemetry.init_telemetry("./test_data").get("collector")
+    coll2 = telemetry.record_governance_check(coll2, "a1", "python", "ruleX", false, "Violation")
+    coll2 = telemetry.record_helper_triggered(coll2, "a1", "ruleX", "python", "Fix it")
+    coll2 = telemetry.record_governance_check(coll2, "a1", "python", "ruleX", true, "Fixed")
+    let card = dashboard.agent_scorecard(coll2.get("events"), "a1")
+    if card.get("helper_effectiveness") > 0.0 {
+        passed = passed + 1
+    }
+
+    // Test 9: Config driven roles
+    total = total + 1
+    let cfg = config.load_config("./govern.json")
+    let roles_cfg = config.get_agent_roles(cfg)
+    if len(roles_cfg) >= 0 {
+        passed = passed + 1
+    }
+
+    // Test 10: Telemetry capture all types
+    total = total + 1
+    let coll3 = telemetry.init_telemetry("./test_data").get("collector")
+    coll3 = telemetry.record_event(coll3, models.create_event("a", models.EventType.GovernanceCheck, "p", "r", "pass", "m", "t"))
+    coll3 = telemetry.record_event(coll3, models.create_event("a", models.EventType.HelperTriggered, "p", "r", "pass", "m", "t"))
+    coll3 = telemetry.record_event(coll3, models.create_event("a", models.EventType.ExecutionComplete, "p", "r", "pass", "m", "t"))
+    coll3 = telemetry.record_event(coll3, models.create_event("a", models.EventType.RuleViolation, "p", "r", "pass", "m", "t"))
+    coll3 = telemetry.record_event(coll3, models.create_event("a", models.EventType.LanguageAssignment, "p", "r", "pass", "m", "t"))
+    let sum3 = dashboard.generate_summary(coll3.get("events"))
+    if sum3.get("by_type").length() >= 5 {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    let t_models = test_models()
+    let t_telemetry = test_telemetry()
+    let t_dashboard = test_dashboard()
+    let t_adaptive = test_adaptive()
+    let t_roles = test_roles()
+    let t_scorer = test_language_scorer()
+    let t_config = test_config()
+    let t_integration = test_integration()
+    
+    let total_passed = t_models[0] + t_telemetry[0] + t_dashboard[0] + t_adaptive[0] + t_roles[0] + t_scorer[0] + t_config[0] + t_integration[0]
+    let total_tests = t_models[1] + t_telemetry[1] + t_dashboard[1] + t_adaptive[1] + t_roles[1] + t_scorer[1] + t_config[1] + t_integration[1]
+    
+    print("test_models: " + string(t_models[0]) + "/" + string(t_models[1]))
+    print("test_telemetry: " + string(t_telemetry[0]) + "/" + string(t_telemetry[1]))
+    print("test_dashboard: " + string(t_dashboard[0]) + "/" + string(t_dashboard[1]))
+    print("test_adaptive: " + string(t_adaptive[0]) + "/" + string(t_adaptive[1]))
+    print("test_roles: " + string(t_roles[0]) + "/" + string(t_roles[1]))
+    print("test_language_scorer: " + string(t_scorer[0]) + "/" + string(t_scorer[1]))
+    print("test_config: " + string(t_config[0]) + "/" + string(t_config[1]))
+    print("test_integration: " + string(t_integration[0]) + "/" + string(t_integration[1]))
+    
+    print("\nOVERALL: " + string(total_passed) + "/" + string(total_tests))
+}

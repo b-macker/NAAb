@@ -1,0 +1,122 @@
+use json
+use file
+
+export fn load_config(config_path) {
+    if not file.exists(config_path) {
+        return {}
+    }
+    let content = file.read(config_path)
+    if content == "" {
+        return {}
+    }
+    return json.parse(content)
+}
+
+export fn get_agent_roles(config) {
+    if config.contains("agent_roles") {
+        return config.get("agent_roles")
+    }
+    if config.contains("roles") {
+        return config.get("roles")
+    }
+    return []
+}
+
+export fn get_telemetry_config(config) {
+    let defaults = {
+        "enabled": true,
+        "output_dir": "./telemetry_logs",
+        "format": "json",
+        "retention_days": 30
+    }
+    
+    if not config.contains("telemetry") {
+        return defaults
+    }
+    
+    let tel = config.get("telemetry")
+    for key in defaults {
+        if not tel.contains(key) {
+            tel[key] = defaults.get(key)
+        }
+    }
+    return tel
+}
+
+export fn get_adaptive_config(config) {
+    let defaults = {
+        "enabled": true,
+        "auto_propose": true,
+        "auto_apply": false,
+        "min_confidence": 0.8
+    }
+    
+    if not config.contains("adaptive") {
+        return defaults
+    }
+    
+    let adp = config.get("adaptive")
+    for key in defaults {
+        if not adp.contains(key) {
+            adp[key] = defaults.get(key)
+        }
+    }
+    return adp
+}
+
+export fn get_language_config(config) {
+    let defaults = {
+        "assignment_enabled": true,
+        "scoring_enabled": true,
+        "override_level": "soft"
+    }
+    
+    if not config.contains("language_assignment") {
+        return defaults
+    }
+    
+    let lang = config.get("language_assignment")
+    for key in defaults {
+        if not lang.contains(key) {
+            lang[key] = defaults.get(key)
+        }
+    }
+    return lang
+}
+
+export fn validate_config(config) {
+    let errors = []
+    let warnings = []
+    
+    if not config.contains("version") {
+        errors.push("Missing required top-level key: version")
+    }
+    
+    if not config.contains("mode") {
+        errors.push("Missing required top-level key: mode")
+    } else {
+        let mode = config.get("mode")
+        if mode != "enforce" and mode != "advisory" and mode != "disabled" {
+            errors.push("Invalid mode: " + mode)
+        }
+    }
+    
+    if not config.contains("languages") {
+        errors.push("Missing required section: languages")
+    } else {
+        let langs = config.get("languages")
+        if not langs.contains("allowed") {
+            errors.push("Missing allowed languages list")
+        }
+    }
+    
+    if not config.contains("telemetry") {
+        warnings.push("Missing telemetry section, using defaults")
+    }
+    
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings
+    }
+}

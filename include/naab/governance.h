@@ -1163,6 +1163,26 @@ struct TaintTrackingConfig {
 };
 
 // ============================================================================
+// Telemetry Output Config
+// ============================================================================
+
+struct TelemetryOutputConfig {
+    bool enabled = false;
+    std::string output_file;  // JSONL path, append mode
+};
+
+// ============================================================================
+// Agent Role Config
+// ============================================================================
+
+struct AgentRoleConfig {
+    std::string name;
+    std::vector<std::string> allowed_languages;
+    std::vector<std::string> blocked_paths;
+    std::vector<std::string> allowed_paths;
+};
+
+// ============================================================================
 // Master Rules Structure
 // ============================================================================
 
@@ -1217,6 +1237,10 @@ struct GovernanceRules {
     EnforcementLevel no_hardcoded_results_level = EnforcementLevel::ADVISORY;
     std::string audit_level = "none";
     bool tamper_evidence = false;
+
+    // --- Agent governance ---
+    TelemetryOutputConfig telemetry_output;
+    std::vector<AgentRoleConfig> agent_roles;
 };
 
 // ============================================================================
@@ -1325,6 +1349,17 @@ public:
     bool requiresMainBlock() const { return rules_.require_main_block; }
     std::string getAuditLevel() const { return rules_.audit_level; }
     bool isTamperEvidenceEnabled() const { return rules_.tamper_evidence; }
+
+    // --- Agent identity ---
+    void setAgentId(const std::string& id) { agent_id_ = id; }
+    const std::string& getAgentId() const { return agent_id_; }
+    void applyAgentRole();
+
+    // --- Path access control ---
+    std::string checkPathAccess(const std::string& filepath, const std::string& mode);
+
+    // --- Telemetry ---
+    void writeTelemetry() const;
 
     // --- Check context (for report file/line tracking) ---
     void setCheckContext(const std::string& file, int line = 0);
@@ -1515,6 +1550,7 @@ public:
     const std::vector<CheckResult>& getCheckResults() const { return check_results_; }
     std::string formatSummary() const;
     std::string formatSummaryOneLine() const;
+    void printDashboard() const;
     void resetCheckResults() { check_results_.clear(); }
 
     // --- Advisory Output Control ---
@@ -1588,6 +1624,7 @@ private:
     std::string loaded_path_;
     GovernanceRules rules_;
     std::vector<CheckResult> check_results_;
+    std::string agent_id_ = "anonymous";
     std::string current_check_file_;    // Set by setCheckContext() for report tracking
     int current_check_line_ = 0;        // Set by setCheckContext() for report tracking
     std::unordered_set<std::string> taint_set_;

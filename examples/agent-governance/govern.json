@@ -1,0 +1,21 @@
+{
+    "version": "3.0",
+    "mode": "enforce",
+    "languages": { "allowed": ["python", "shell"] },
+    "telemetry": {
+        "enabled": true,
+        "output_file": "telemetry.jsonl"
+    },
+    "agent_roles": {
+        "data-bot": {
+            "allowed_languages": ["python"],
+            "allowed_paths": ["./data", "./output"],
+            "blocked_paths": ["./config", "./secrets"]
+        },
+        "ops-bot": {
+            "allowed_languages": ["shell"],
+            "allowed_paths": ["./config", "./output"],
+            "blocked_paths": ["./secrets"]
+        }
+    }
+}

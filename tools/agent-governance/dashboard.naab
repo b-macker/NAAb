@@ -1,0 +1,343 @@
+use json
+use array
+use string
+use csv
+use math
+import "./models.naab" as models
+
+export fn generate_summary(events) {
+    let by_type = {}
+    let by_agent = {}
+    let by_language = {}
+    let by_result = {}
+    let start_time = ""
+    let end_time = ""
+    
+    for ev in events {
+        let type_name = models.event_type_name(ev.get("event_type"))
+        by_type[type_name] = int(by_type.get(type_name, 0)) + 1
+        
+        let agent = ev.get("agent_id")
+        by_agent[agent] = int(by_agent.get(agent, 0)) + 1
+        
+        let lang = ev.get("language")
+        by_language[lang] = int(by_language.get(lang, 0)) + 1
+        
+        let res = ev.get("result")
+        by_result[res] = int(by_result.get(res, 0)) + 1
+        
+        let ts = ev.get("timestamp")
+        if start_time == "" or ts < start_time { start_time = ts }
+        if end_time == "" or ts > end_time { end_time = ts }
+    }
+    
+    return {
+        "total_events": len(events),
+        "by_type": by_type,
+        "by_agent": by_agent,
+        "by_language": by_language,
+        "by_result": by_result,
+        "time_range": { "start": start_time, "end": end_time }
+    }
+}
+
+export fn top_violations(events, limit) {
+    let counts = {}
+    let agents = {}
+    
+    for ev in events {
+        let res = ev.get("result")
+        if res == "block" or res == "warn" {
+            let rule = ev.get("rule_name")
+            counts[rule] = int(counts.get(rule, 0)) + 1
+            
+            let affected = agents.get(rule, [])
+            let aid = ev.get("agent_id")
+            if not array.contains(affected, aid) {
+                affected.push(aid)
+                agents[rule] = affected
+            }
+        }
+    }
+    
+    // Sort via Python polyglot
+    let results = <<python[counts, agents, limit] -> JSON
+import json
+data = []
+for rule, count in counts.items():
+    data.append({
+        "rule_name": rule,
+        "count": count,
+        "agents_affected": len(agents.get(rule, []))
+    })
+# Sort desc by count
+sorted_data = sorted(data, key=lambda x: x["count"], reverse=True)
+json.dumps(sorted_data[:limit])
+>>
+    return results
+}
+
+export fn agent_scorecard(events, agent_id) {
+    let total_checks = 0
+    let pass_count = 0
+    let violations = 0
+    let violation_counts = {}
+    
+    // Correlation for helper effectiveness
+    let helpers_triggered = 0
+    let led_to_fix = 0
+    
+    // Filter and process events for this agent
+    let agent_events = []
+    for ev in events {
+        if ev.get("agent_id") == agent_id {
+            agent_events.push(ev)
+            if ev.get("event_type") == models.EventType.GovernanceCheck {
+                total_checks = total_checks + 1
+                if ev.get("result") == "pass" {
+                    pass_count = pass_count + 1
+                } else if ev.get("result") == "block" {
+                    violations = violations + 1
+                    let rule = ev.get("rule_name")
+                    violation_counts[rule] = int(violation_counts.get(rule, 0)) + 1
+                }
+            }
+        }
+    }
+    
+    let most_common = ""
+    let max_v = 0
+    for rule in violation_counts {
+        let count = violation_counts.get(rule)
+        if count > max_v {
+            max_v = count
+            most_common = rule
+        }
+    }
+    
+    // Helper effectiveness calculation via Python
+    let effectiveness = <<python[agent_events]
+triggered = {}
+led_to_fix = 0
+total_triggered = 0
+
+for ev in agent_events:
+    rule = ev.get("rule_name")
+    event_type = ev.get("event_type")
+    # Using raw values as we can't easily import models in polyglot
+    # GovernanceCheck = 0, HelperTriggered = 1
+    if event_type == 1: 
+        triggered[rule] = True
+        total_triggered += 1
+    elif event_type == 0 and ev.get("result") == "pass":
+        if triggered.get(rule):
+            led_to_fix += 1
+            triggered[rule] = False
+
+total_triggered = max(total_triggered, 1)
+led_to_fix / total_triggered
+>>
+    
+    let pass_rate = if total_checks > 0 { float(pass_count) / float(total_checks) } else { 0.0 }
+    
+    return {
+        "agent_id": agent_id,
+        "total_checks": total_checks,
+        "pass_rate": pass_rate,
+        "violations": violations,
+        "most_common_violation": most_common,
+        "helper_effectiveness": float(effectiveness)
+    }
+}
+
+export fn helper_effectiveness_report(events) {
+    let report = <<python[events] -> JSON
+import json
+helpers = {} # helper_name -> {triggered_at: {agent_rule: timestamp}, led_to_fix: count, total: count}
+
+for ev in events:
+    rule = ev.get("rule_name")
+    agent = ev.get("agent_id")
+    event_type = ev.get("event_type")
+    res = ev.get("result")
+    key = f"{agent}:{rule}"
+    
+    if event_type == 1: # HelperTriggered
+        if rule not in helpers:
+            helpers[rule] = {"triggered": 0, "led_to_fix": 0}
+        helpers[rule]["triggered"] += 1
+        # Track that it was triggered for this agent+rule
+        helpers[rule][key] = True
+        
+    elif event_type == 0 and res == "pass": # GovernanceCheck
+        for h_name, h_data in helpers.items():
+            if h_data.get(key):
+                h_data["led_to_fix"] += 1
+                h_data[key] = False
+
+result = {}
+for h_name, h_data in helpers.items():
+    triggered = h_data["triggered"]
+    led_to_fix = h_data["led_to_fix"]
+    rate = led_to_fix / triggered if triggered > 0 else 0.0
+    result[h_name] = {
+        "triggered": triggered,
+        "led_to_fix": led_to_fix,
+        "effectiveness_rate": rate
+    }
+json.dumps(result)
+>>
+    return report
+}
+
+export fn language_usage_report(events) {
+    let stats = {}
+    for ev in events {
+        let lang = ev.get("language")
+        if lang == "" { lang = "unknown" }
+        
+        let s = stats.get(lang, { "blocks_executed": 0, "violations": 0, "pass_count": 0 })
+        s["blocks_executed"] = int(s["blocks_executed"]) + 1
+        if ev.get("result") == "block" {
+            s["violations"] = int(s["violations"]) + 1
+        } else if ev.get("result") == "pass" {
+            s["pass_count"] = int(s["pass_count"]) + 1
+        }
+        stats[lang] = s
+    }
+    
+    let final_report = {}
+    for lang in stats {
+        let s = stats.get(lang)
+        let total = s.get("blocks_executed")
+        let pass_rate = if total > 0 { float(s.get("pass_count")) / float(total) } else { 0.0 }
+        final_report[lang] = {
+            "blocks_executed": total,
+            "violations": s.get("violations"),
+            "pass_rate": pass_rate
+        }
+    }
+    return final_report
+}
+
+fn manual_pad(str, length) {
+    let s = string(str)
+    let current = s.length()
+    if current >= length { return s }
+    let needed = length - current
+    for i in 0..needed {
+        s = s + " "
+    }
+    return s
+}
+
+export fn generate_text_report(events) {
+    let summary = generate_summary(events)
+    let top_v = top_violations(events, 5)
+    
+    let report = "AGENT GOVERNANCE SUMMARY REPORT\n"
+    report = report + "==============================\n\n"
+    report = report + "Total Events: " + string(summary.get("total_events")) + "\n"
+    report = report + "Time Range: " + string(summary.get("time_range").get("start")) + " to " + string(summary.get("time_range").get("end")) + "\n\n"
+    
+    report = report + "BY TYPE:\n"
+    for t in summary.get("by_type") {
+        report = report + "  " + string(t) + ": " + string(summary.get("by_type").get(t)) + "\n"
+    }
+    
+    report = report + "\nBY LANGUAGE:\n"
+    for l in summary.get("by_language") {
+        report = report + "  " + string(l) + ": " + string(summary.get("by_language").get(l)) + "\n"
+    }
+    
+    report = report + "\nTOP VIOLATIONS:\n"
+    report = report + "Rule Name           | Count | Agents Affected\n"
+    report = report + "--------------------|-------|----------------\n"
+    for v in top_v {
+        let name = manual_pad(string(v.get("rule_name")), 20)
+        let count = manual_pad(string(v.get("count")), 6)
+        let affected = string(v.get("agents_affected"))
+        report = report + name + "| " + count + "| " + affected + "\n"
+    }
+    
+    return report
+}
+export fn export_report_csv(events, headers) {
+    let output = array.join(headers, ",") + "\n"
+    for ev in events {
+        let row = []
+        for h in headers {
+            row.push(string(ev.get(h, "")))
+        }
+        output = output + array.join(row, ",") + "\n"
+    }
+    return output
+}
+
+export fn trend_analysis(events, window_hours) {
+    let results = <<python[events, window_hours] -> JSON
+import json
+from datetime import datetime
+
+buckets = {}
+if not events:
+    res = {"periods": [], "violation_trend": "stable", "pass_rate_trend": "stable"}
+    json.dumps(res)
+else:
+    sorted_events = sorted(events, key=lambda x: str(x.get("timestamp", "")))
+    start_ts = sorted_events[0].get("timestamp", "")
+    try:
+        start_dt = datetime.fromisoformat(start_ts.replace('Z', '+00:00'))
+    except:
+        start_dt = datetime.now()
+
+    for ev in sorted_events:
+        ts = ev.get("timestamp", "")
+        try:
+            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        except:
+            continue
+        
+        delta = dt - start_dt
+        window_idx = int(delta.total_seconds() / (float(window_hours) * 3600.0))
+        
+        if window_idx not in buckets:
+            buckets[window_idx] = {"violation_count": 0, "pass_count": 0, "event_count": 0, "start": dt, "end": dt}
+        
+        buckets[window_idx]["event_count"] += 1
+        if ev.get("result") == "block":
+            buckets[window_idx]["violation_count"] += 1
+        elif ev.get("result") == "pass":
+            buckets[window_idx]["pass_count"] += 1
+        
+        if dt < buckets[window_idx]["start"]: buckets[window_idx]["start"] = dt
+        if dt > buckets[window_idx]["end"]: buckets[window_idx]["end"] = dt
+
+    periods = []
+    for idx in sorted(buckets.keys()):
+        b = buckets[idx]
+        pass_rate = float(b["pass_count"]) / float(b["event_count"]) if b["event_count"] > 0 else 0.0
+        periods.append({
+            "start": b["start"].isoformat(),
+            "end": b["end"].isoformat(),
+            "violation_count": b["violation_count"],
+            "pass_rate": pass_rate,
+            "event_count": b["event_count"]
+        })
+
+    v_trend = "stable"
+    p_trend = "stable"
+    if len(periods) >= 2:
+        v_diff = periods[-1]["violation_count"] - periods[0]["violation_count"]
+        if v_diff > 0: v_trend = "increasing"
+        elif v_diff < 0: v_trend = "decreasing"
+        
+        p_diff = periods[-1]["pass_rate"] - periods[0]["pass_rate"]
+        if p_diff > 0.05: p_trend = "improving"
+        elif p_diff < -0.05: p_trend = "declining"
+
+    res = {"periods": periods, "violation_trend": v_trend, "pass_rate_trend": p_trend}
+    json.dumps(res)
+>>
+    return results
+}

@@ -1,0 +1,96 @@
+use json
+use file
+use time
+import "./models.naab" as models
+
+export fn init_telemetry(output_dir) {
+    let collector = {
+        "output_dir": output_dir,
+        "events": [],
+        "session_count": 0
+    }
+    return {
+        "collector": collector,
+        "success": true
+    }
+}
+
+export fn record_event(collector, event) {
+    let validation = models.validate_event(event)
+    if not validation.get("valid") {
+        return collector
+    }
+    
+    let events = collector.get("events")
+    events.push(event)
+    collector["events"] = events
+    return collector
+}
+
+export fn record_governance_check(collector, agent_id, language, rule_name, passed, message) {
+    let result = if passed { "pass" } else { "block" }
+    let ev = models.create_event(agent_id, models.EventType.GovernanceCheck, language, rule_name, result, message, time.now())
+    return record_event(collector, ev)
+}
+
+export fn record_helper_triggered(collector, agent_id, helper_name, language, original_error) {
+    let ev = models.create_event(agent_id, models.EventType.HelperTriggered, language, helper_name, "triggered", original_error, time.now())
+    return record_event(collector, ev)
+}
+
+export fn flush_events(collector, filepath) {
+    let events = collector.get("events")
+    let json_str = json.stringify(events)
+    file.write(filepath, json_str)
+    return {
+        "success": true,
+        "events_written": len(events)
+    }
+}
+
+export fn load_events(filepath) {
+    if not file.exists(filepath) {
+        return []
+    }
+    let content = file.read(filepath)
+    if content == "" {
+        return []
+    }
+    // Auto-detect: JSONL (lines of JSON objects) vs JSON array
+    let trimmed = content.trim()
+    if trimmed.starts_with("[") {
+        return json.parse(content)
+    }
+    // JSONL: parse each line
+    let lines = content.split("\n")
+    let events = []
+    for line in lines {
+        let trimmed_line = line.trim()
+        if trimmed_line != "" {
+            events.push(json.parse(trimmed_line))
+        }
+    }
+    return events
+}
+
+export fn get_session_events(collector, session_id) {
+    let events = collector.get("events")
+    let filtered = []
+    for ev in events {
+        if ev.get("session_id") == session_id {
+            filtered.push(ev)
+        }
+    }
+    return filtered
+}
+
+export fn get_events_by_agent(collector, agent_id) {
+    let events = collector.get("events")
+    let filtered = []
+    for ev in events {
+        if ev.get("agent_id") == agent_id {
+            filtered.push(ev)
+        }
+    }
+    return filtered
+}

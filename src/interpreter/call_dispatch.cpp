@@ -1282,6 +1282,16 @@ void Interpreter::visit(ast::CallExpr& node) {
                                                   ? "read" : "write";
                             std::string err = governance_->checkFilesystemAllowed(fs_mode);
                             if (!err.empty()) throw std::runtime_error(err);
+                            // Path-level access check (first arg = file path)
+                            if (!args.empty() && args[0].isString()) {
+                                std::string perr = governance_->checkPathAccess(args[0].asString(), fs_mode);
+                                if (!perr.empty()) throw std::runtime_error(perr);
+                            }
+                            // copy/move: also check destination path (second arg)
+                            if ((func_name == "copy" || func_name == "move") && args.size() > 1 && args[1].isString()) {
+                                std::string perr = governance_->checkPathAccess(args[1].asString(), "write");
+                                if (!perr.empty()) throw std::runtime_error(perr);
+                            }
 
                             // BUG-R: Taint tracking — check if write args contain tainted data (expression-level)
                             if (func_name == "write" || func_name == "append") {

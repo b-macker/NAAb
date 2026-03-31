@@ -1325,6 +1325,22 @@ interpreter::NaabVal VM::run() {
                                                       ? "read" : "write";
                                 std::string err = governance_->checkFilesystemAllowed(fs_mode);
                                 if (!err.empty()) runtimeError("%s", err.c_str());
+                                // Path-level access check (first arg = file path)
+                                if (argc > 0) {
+                                    interpreter::NaabVal path_arg = stack_top_[-argc];
+                                    if (path_arg.isString()) {
+                                        std::string perr = governance_->checkPathAccess(path_arg.asString(), fs_mode);
+                                        if (!perr.empty()) runtimeError("%s", perr.c_str());
+                                    }
+                                }
+                                // copy/move: also check destination path (second arg)
+                                if ((method == "copy" || method == "move") && argc > 1) {
+                                    interpreter::NaabVal dest_arg = stack_top_[-argc + 1];
+                                    if (dest_arg.isString()) {
+                                        std::string perr = governance_->checkPathAccess(dest_arg.asString(), "write");
+                                        if (!perr.empty()) runtimeError("%s", perr.c_str());
+                                    }
+                                }
                             } else if (mod == "http") {
                                 std::string err = governance_->checkNetworkAllowed();
                                 if (!err.empty()) runtimeError("%s", err.c_str());

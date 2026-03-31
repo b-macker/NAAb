@@ -1,0 +1,213 @@
+{
+  "version": "3.0",
+  "mode": "enforce",
+
+  "languages": {
+    "allowed": ["python", "shell"],
+    "blocked": ["javascript", "rust", "cpp", "csharp", "go", "nim", "zig", "julia", "ruby", "php"],
+    "require_explicit": true
+  },
+
+  "capabilities": {
+    "network": { "enabled": false },
+    "filesystem": { "mode": "read_write" },
+    "shell": { "enabled": true, "blocked_commands": ["rm", "curl", "wget", "chmod", "sudo", "mkfs"] }
+  },
+
+  "limits": {
+    "execution": {
+      "call_depth": 50,
+      "loop_iterations": 200000,
+      "polyglot_blocks": 30
+    },
+    "code": {
+      "max_lines_per_block": 60,
+      "max_functions": 80,
+      "max_nesting_depth": 5
+    }
+  },
+
+  "requirements": {
+    "main_block": { "enabled": true, "level": "hard" },
+    "variable_binding": { "enabled": true, "level": "hard" },
+    "naming_conventions": {
+      "enabled": true,
+      "level": "soft",
+      "variables": "snake_case",
+      "functions": "snake_case",
+      "constants": "UPPER_SNAKE_CASE"
+    }
+  },
+
+  "restrictions": {
+    "dangerous_calls": { "enabled": true, "level": "hard" },
+    "shell_injection": { "enabled": true, "level": "hard" }
+  },
+
+  "code_quality": {
+    "no_secrets": { "enabled": true, "level": "hard" },
+    "no_placeholders": { "enabled": true, "level": "hard" },
+    "no_hardcoded_results": { "enabled": true, "level": "soft" },
+    "no_temporary_code": { "enabled": true, "level": "soft" },
+    "no_simulation_markers": { "enabled": true, "level": "hard" },
+    "complexity_floor": {
+      "enabled": true,
+      "level": "soft",
+      "min_lines_for_check": 6,
+      "rules": [
+        {
+          "names": ["test_"],
+          "min_score": 0,
+          "require_branching_or_loops": false
+        },
+        {
+          "names": ["analyze_patterns", "propose_rule", "evaluate_proposal", "trend_analysis", "helper_effectiveness", "score_language", "rank_languages", "detect_task_type"],
+          "min_score": 20,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": ["generate_summary", "generate_text_report", "generate_helper_text", "top_violations", "agent_scorecard", "merge_proposals", "get_repeat_offenders", "compare_languages"],
+          "min_score": 15,
+          "require_branching_or_loops": true
+        },
+        {
+          "names": ["event_type_name", "severity_name", "role_name", "format_recommendation"],
+          "min_score": 0,
+          "require_branching_or_loops": false
+        },
+        {
+          "names": ["create_", "get_", "init_", "load_", "record_", "flush_", "validate_", "check_", "enforce_", "assign_", "export_", "format_govern", "calculate_confidence", "language_usage", "role_summary", "main"],
+          "min_score": 3,
+          "require_branching_or_loops": false
+        }
+      ]
+    }
+  },
+
+  "contracts": {
+    "level": "soft",
+    "functions": {
+      "create_event": {
+        "return_type": "dict",
+        "return_keys": ["agent_id", "event_type", "language", "rule_name", "result", "message", "timestamp", "session_id"]
+      },
+      "create_agent": {
+        "return_type": "dict",
+        "return_keys": ["id", "name", "role", "allowed_paths", "blocked_paths", "allowed_languages"]
+      },
+      "create_rule_proposal": {
+        "return_type": "dict",
+        "return_keys": ["pattern", "proposed_rule", "confidence", "evidence_count", "source_events"]
+      },
+      "create_score_result": {
+        "return_type": "dict",
+        "return_keys": ["language", "score", "task_type", "reasons"]
+      },
+      "create_session": {
+        "return_type": "dict",
+        "return_keys": ["id", "agent_id", "start_time", "events", "status"]
+      },
+      "validate_event": {
+        "return_type": "dict",
+        "return_keys": ["valid", "errors"]
+      },
+      "validate_agent": {
+        "return_type": "dict",
+        "return_keys": ["valid", "errors"]
+      },
+      "init_telemetry": {
+        "return_type": "dict",
+        "return_keys": ["collector", "success"]
+      },
+      "flush_events": {
+        "return_type": "dict",
+        "return_keys": ["success", "events_written"]
+      },
+      "generate_summary": {
+        "return_type": "dict",
+        "return_keys": ["total_events", "by_type", "by_agent", "by_language", "by_result", "time_range"]
+      },
+      "agent_scorecard": {
+        "return_type": "dict",
+        "return_keys": ["agent_id", "total_checks", "pass_rate", "violations", "most_common_violation", "helper_effectiveness"]
+      },
+      "check_access": {
+        "return_type": "dict",
+        "return_keys": ["allowed", "reason"]
+      },
+      "check_language_permission": {
+        "return_type": "dict",
+        "return_keys": ["allowed", "reason"]
+      },
+      "enforce_role": {
+        "return_type": "dict",
+        "return_keys": ["allowed", "reason", "enforcement"]
+      },
+      "score_language": {
+        "return_type": "dict",
+        "return_keys": ["language", "score", "task_type", "reasons"]
+      },
+      "assign_language": {
+        "return_type": "dict",
+        "return_keys": ["language", "score", "alternative", "reason"]
+      },
+      "validate_config": {
+        "return_type": "dict",
+        "return_keys": ["valid", "errors", "warnings"]
+      },
+      "validate_role_config": {
+        "return_type": "dict",
+        "return_keys": ["valid", "errors", "warnings"]
+      },
+      "propose_rule": {
+        "return_type": "dict",
+        "return_keys": ["proposed_rule", "confidence", "rationale", "evidence_count"]
+      },
+      "evaluate_proposal": {
+        "return_type": "dict",
+        "return_keys": ["would_catch", "false_positive_rate", "recommendation"]
+      }
+    }
+  },
+
+  "scanner": {
+    "version": "1.0",
+    "mode": "enforce",
+    "redundancy": {
+      "generic_variable_names": { "enabled": true, "level": "soft" },
+      "single_use_variable": { "enabled": true, "level": "soft" },
+      "over_abstraction": { "enabled": true, "level": "soft" },
+      "apologetic_comments": { "enabled": true, "level": "soft" },
+      "placeholder_code": { "enabled": true, "level": "soft" },
+      "trivial_constant_alias": { "enabled": true, "level": "soft" },
+      "gaming_comments": { "enabled": true, "level": "soft" },
+      "obvious_comments": { "enabled": true, "level": "soft" },
+      "decorative_separators": { "enabled": true, "level": "advisory" }
+    },
+    "code_quality": {
+      "empty_catch": { "enabled": true, "level": "hard" },
+      "dead_conditional": { "enabled": true, "level": "hard" },
+      "dead_code_after_return": { "enabled": true, "level": "soft" },
+      "recursive_no_base_case": { "enabled": true, "level": "soft" },
+      "magic_numbers": { "enabled": true, "level": "soft", "allowed": [0, 1, -1, 2, 3, 4, 5, 6, 10, 20, 50, 100, 0.0, 0.5, 0.8, 0.95, 1.0, 3600, 86400] },
+      "complex_boolean_expr": { "enabled": true, "level": "soft", "max_operators": 4 },
+      "magic_strings": { "enabled": true, "level": "soft" }
+    },
+    "complexity": {
+      "cyclomatic_complexity": { "enabled": true, "level": "soft", "max": 15 },
+      "cognitive_complexity": { "enabled": true, "level": "soft", "max": 20 }
+    },
+    "style": {
+      "long_lines": { "enabled": true, "level": "soft", "max": 120 }
+    },
+    "lang_rules": {
+      "naab": {
+        "value_semantics_bug": { "enabled": true, "level": "hard" },
+        "missing_null_check": { "enabled": true, "level": "hard" },
+        "dict_bracket_access": { "enabled": true, "level": "hard" },
+        "python_return_in_block": { "enabled": true, "level": "hard" },
+        "top_level_let": { "enabled": true, "level": "hard" }
+      }
+    }
+  }
+}

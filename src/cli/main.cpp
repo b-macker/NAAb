@@ -224,6 +224,9 @@ void print_usage() {
     fmt::print("  --governance-junit <path>           Write JUnit governance report to file\n");
     fmt::print("  --governance-record-baselines       Record output baselines for regression detection\n");
     fmt::print("  --governance-check-baselines        Check outputs against baselines (hard enforcement)\n");
+    fmt::print("  --governance-dashboard              Print agent governance summary after execution\n");
+    fmt::print("  --agent-id <name>                  Set agent identity for telemetry and role enforcement\n");
+    fmt::print("  --governance-telemetry <path>       Write telemetry events to JSONL file (append mode)\n");
     fmt::print("\nSecurity Options:\n");
     fmt::print("  --sandbox-level <level>             Security: restricted|standard|elevated|unrestricted\n");
     fmt::print("                                      (default: standard - safe for enterprise)\n");
@@ -269,6 +272,9 @@ int main(int argc, char** argv) {
     bool global_no_color = false;
     bool global_strict_types = false;
     bool global_use_vm = true;  // VM is default since Phase 16
+    bool global_governance_dashboard = false;
+    std::string global_agent_id = "anonymous";
+    std::string global_governance_telemetry;
     int command_arg_index = 1;  // Index of the actual command/file in argv
 
     while (command_arg_index < argc) {
@@ -291,6 +297,9 @@ int main(int argc, char** argv) {
         } else if (arg == "--governance-verbose") {
             global_governance_verbose = true;
             command_arg_index++;
+        } else if (arg == "--governance-dashboard") {
+            global_governance_dashboard = true;
+            command_arg_index++;
         } else if (arg == "--verbose" || arg == "-v") {
             global_verbose = true;
             command_arg_index++;
@@ -308,6 +317,12 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--strict-types") {
             global_strict_types = true;
+            command_arg_index++;
+        } else if (arg == "--agent-id" && command_arg_index + 1 < argc) {
+            global_agent_id = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--governance-telemetry" && command_arg_index + 1 < argc) {
+            global_governance_telemetry = argv[++command_arg_index];
             command_arg_index++;
         } else if (arg == "--repl") {
             return naab::repl::run(global_no_governance);
@@ -410,6 +425,9 @@ int main(int argc, char** argv) {
         bool governance_verbose = global_governance_verbose;
         bool strict_types = global_strict_types;
         bool use_vm = global_use_vm;
+        bool governance_dashboard = global_governance_dashboard;
+        std::string agent_id = global_agent_id;
+        std::string governance_telemetry_path = global_governance_telemetry;
         bool governance_record_baselines = false;
         bool governance_check_baselines = false;
         std::string governance_report_json;
@@ -457,8 +475,14 @@ int main(int argc, char** argv) {
                 governance_report_sarif = argv[++i];
             } else if (arg == "--governance-junit" && i + 1 < argc) {
                 governance_report_junit = argv[++i];
+            } else if (arg == "--agent-id" && i + 1 < argc) {
+                agent_id = argv[++i];
+            } else if (arg == "--governance-telemetry" && i + 1 < argc) {
+                governance_telemetry_path = argv[++i];
             } else if (arg == "--governance-verbose") {
                 governance_verbose = true;
+            } else if (arg == "--governance-dashboard") {
+                governance_dashboard = true;
             } else if (arg == "--governance-record-baselines") {
                 // Will be applied after governance loads
                 governance_record_baselines = true;
@@ -491,6 +515,9 @@ int main(int argc, char** argv) {
                            "    --governance-junit <path>   Write JUnit governance report\n"
                            "    --governance-record-baselines  Record output baselines\n"
                            "    --governance-check-baselines   Check baselines (hard enforcement)\n"
+                           "    --governance-dashboard Print agent governance summary after run\n"
+                           "    --agent-id <name>     Set agent identity for telemetry/roles\n"
+                           "    --governance-telemetry <path>  Write telemetry JSONL\n"
                            "    --strict-types        Abort on type errors (pre-execution check)\n"
                            "    --vm                  Use bytecode VM (default)\n"
                            "    --tree-walk           Use tree-walk interpreter instead of VM\n\n"
@@ -804,8 +831,21 @@ int main(int argc, char** argv) {
                 interpreter.setSourceCode(source, filename);
             }
 
-            // CLI governance report path overrides (after govern.json is loaded)
+            // CLI governance overrides (after govern.json is loaded)
             // VM mode handles its own governance setup
+            if (!use_vm) {
+                auto* gov = interpreter.getGovernance();
+                if (gov) {
+                    // Agent identity and telemetry
+                    gov->setAgentId(agent_id);
+                    if (!governance_telemetry_path.empty()) {
+                        auto& r = gov->getMutableRules();
+                        r.telemetry_output.enabled = true;
+                        r.telemetry_output.output_file = governance_telemetry_path;
+                    }
+                    gov->applyAgentRole();
+                }
+            }
             if (!use_vm && (!governance_report_json.empty() || !governance_report_sarif.empty() ||
                 !governance_report_junit.empty())) {
                 auto* gov = interpreter.getGovernance();
@@ -843,6 +883,14 @@ int main(int argc, char** argv) {
                     fprintf(stderr, "[governance] Loaded: %s (mode: %s)\n",
                             vm_governance.getLoadedPath().c_str(), mode_str.c_str());
                     if (governance_override) vm_governance.setOverrideEnabled(true);
+                    // Agent identity and telemetry
+                    vm_governance.setAgentId(agent_id);
+                    if (!governance_telemetry_path.empty()) {
+                        auto& rules = vm_governance.getMutableRules();
+                        rules.telemetry_output.enabled = true;
+                        rules.telemetry_output.output_file = governance_telemetry_path;
+                    }
+                    vm_governance.applyAgentRole();
                     // Apply CLI report path overrides
                     if (!governance_report_json.empty() || !governance_report_sarif.empty() ||
                         !governance_report_junit.empty()) {
@@ -1051,7 +1099,7 @@ int main(int argc, char** argv) {
                 try {
                     auto result = bytecode_vm.execute(main_fn);
                     (void)result;
-                    if (vm_governance.isActive()) vm_governance.writeReports();
+                    // writeReports() already called inside execute() on success
                 } catch (...) {
                     if (vm_governance.isActive()) vm_governance.writeReports();
                     throw;
@@ -1061,6 +1109,11 @@ int main(int argc, char** argv) {
                 if (profile) {
                     auto report = naab::profiling::Profiler::instance().generateReport();
                     fmt::print(stderr, "{}", report.toString());
+                }
+
+                // Print governance dashboard summary
+                if (governance_dashboard && vm_governance.isActive()) {
+                    vm_governance.printDashboard();
                 }
             } else {
                 // Inner try-catch: write governance reports before re-throwing.
@@ -1073,6 +1126,12 @@ int main(int argc, char** argv) {
                     auto* gov = interpreter.getGovernance();
                     if (gov) gov->writeReports();
                     throw;  // Re-throw to outer catch
+                }
+
+                // Print governance dashboard summary
+                if (governance_dashboard) {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov) gov->printDashboard();
                 }
             }
 
