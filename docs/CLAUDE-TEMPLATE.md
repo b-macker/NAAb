@@ -359,6 +359,11 @@ main {
 26. `config` is a reserved keyword — do NOT use it as a variable name, import alias, or parameter name
 27. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
     Example: `import "types.naab" as types` then `let c = types.Color.Red`
+28. VM is the default execution engine; use `--tree-walk` for the legacy AST interpreter
+29. `--agent-id <name>` CLI flag enables multi-agent governance role enforcement via `agent_roles` in govern.json
+30. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
+31. `agent_roles` in govern.json restricts per-agent allowed languages, allowed paths, and blocked paths
+32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
 
 ## Complexity Scoring (for governance)
 
@@ -389,6 +394,21 @@ Functions shorter than `min_lines_for_check` lines skip the floor entirely.
 Do NOT pad functions with `for i in 0..1 { }` or `for i in 0..2 { }` loops to pass
 complexity checks. Instead: add real logic — input validation, edge case handling,
 error recovery with try/catch.
+
+**Anti-gaming rules (the scanner will detect these):**
+- Do NOT use `let zero = 0` or `let one = 1` to avoid magic number warnings.
+  Magic number checks automatically skip test functions — use literal numbers freely in tests.
+- Do NOT add comments mentioning "complexity", "score", "increases", or "adds" to justify
+  artificial code padding. Write natural code — if a function needs complexity, add real logic
+  (input validation, edge case handling, error recovery).
+- Do NOT add try/catch blocks around code that cannot throw. Only wrap genuinely risky
+  operations (file I/O, parsing, external calls).
+- Do NOT import modules you don't use. Only `use array`, `use json`, etc. if you actually
+  call functions from that module. The scanner detects unused imports.
+- The complexity floor ONLY applies to functions with these prefixes:
+  `simulate_*`, `compute_*`, `calculate_*`, `process_*`, `analyze_*`.
+  Regular functions (`tokenize`, `parse_factor`, `format_report`) have NO complexity floor.
+  Do NOT artificially inflate complexity of non-prefixed functions.
 
 ## Contract Patterns
 
@@ -448,15 +468,15 @@ naab-lang --scan src/ auto                 # Scan directory, auto-detect languag
 naab-lang --scan app.py python             # Scan single file
 ```
 
-### Check Categories (139 checks total)
+### Check Categories (127 checks total)
 | Category | Checks | Key Rules |
 |----------|--------|-----------|
-| redundancy | 30 | obvious_comments, over_abstraction, apologetic_comments, placeholder_code, generic_variable_names, single_use_variable, trivial_constant_alias |
-| code_quality | 20 | empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting, dead_conditional, recursive_no_base_case |
-| complexity | 9 | cyclomatic_complexity, cognitive_complexity, file_length |
-| style | 12 | inconsistent_naming, debug_leftovers, commented_out_code, long_lines |
-| security | 0 | (checks planned) |
-| lang_naab | 11 | value_semantics_bug, missing_null_check, dict_bracket_access, top_level_let, arrow_lambda, python_return_in_block |
+| redundancy | 15 | obvious_comments, over_abstraction, apologetic_comments, placeholder_code |
+| code_quality | 15 | empty_catch, magic_numbers, dead_code_after_return, god_functions, deep_nesting |
+| complexity | 8 | cyclomatic_complexity, cognitive_complexity, file_length |
+| style | 10 | inconsistent_naming, debug_leftovers, commented_out_code, long_lines |
+| security | 10 | hardcoded_credentials, sql_string_concat, shell_injection, path_traversal |
+| lang_naab | 10 | value_semantics_bug, top_level_let, arrow_lambda, python_return_in_block |
 | lang_python | 14 | bare_except, mutable_default_arg, star_import, open_without_with |
 | lang_javascript | 12 | loose_equality, var_declaration, eval_usage, prototype_pollution |
 | lang_cpp | 12 | raw_new_delete, using_namespace_std, c_style_cast, goto_usage |
@@ -485,7 +505,7 @@ naab-lang --scan app.py python             # Scan single file
   }
 }
 ```
-See `govern-template.json` for all 139 checks with their options.
+See `govern-template.json` for all 127 checks with their options.
 
 ### Output
 - Text report: `quality-report.txt` (saved automatically)

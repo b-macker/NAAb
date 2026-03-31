@@ -1,6 +1,6 @@
 # NAAb Language User Guide
-**Version**: 0.2.0
-**Last Updated**: December 30, 2024
+**Version**: 0.7.0
+**Last Updated**: March 30, 2026
 
 ## Table of Contents
 
@@ -21,17 +21,19 @@
 
 ## Introduction
 
-NAAb is a modern block assembly language designed for composing reusable code blocks across multiple programming languages. With 24,483 blocks in the registry, NAAb allows you to build applications by assembling pre-built, tested components.
+NAAb is a modern polyglot orchestration language designed for seamlessly integrating code across multiple programming languages within a single application. NAAb's core philosophy is: **Orchestrate in NAAb, Compute in the Best Language for the Task.**
 
 ### Key Features
 
-- **Multi-language support**: Execute C++, JavaScript, and Python blocks
-- **Type-safe composition**: Validate block compatibility before execution
+- **Polyglot by design**: Execute code blocks in 12 languages — Python, JavaScript, Shell, Go, Nim, Rust, C++, C#, Ruby, PHP, Zig, and Julia — all within `<< >>` blocks
+- **Bytecode VM**: Stack-based bytecode compiler and virtual machine as the default execution engine (~8x faster than tree-walking)
+- **Governance engine**: 50+ built-in checks, taint tracking, 3-tier enforcement (HARD/SOFT/ADVISORY), agent roles, and CI/CD integration
 - **Pipeline syntax**: Chain operations with `|>` operator
-- **Rich stdlib**: 13 modules (string, array, math, io, json, http, collections, etc.)
-- **Exception handling**: try/catch/finally with stack traces
+- **Rich stdlib**: 12 modules (array, string, math, json, file, time, env, io, csv, regex, crypto, debug)
+- **NaN-boxing**: 8-byte inline values for int/double/bool/null — zero heap allocation for primitives
+- **Type-safe composition**: Validate block compatibility before execution
+- **Exception handling**: try/catch with stack traces
 - **Module system**: Import/export for code organization
-- **REST API**: HTTP interface for executing NAAb programs
 
 ---
 

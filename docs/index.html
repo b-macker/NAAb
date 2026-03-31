@@ -1066,6 +1066,16 @@ mean=30, stdev=15.8
                 <h3>Interactive REPL</h3>
                 <p>Run <code>naab-lang</code> with no args for an interactive session. Persistent state, multi-line input, auto-printing.</p>
             </div>
+            <div class="f-card reveal">
+                <div class="icon icon-green">&#9889;</div>
+                <h3>Bytecode VM</h3>
+                <p>Stack-based bytecode compiler and VM. ~8x faster than tree-walking. Computed goto dispatch, NaN-boxing fast paths.</p>
+            </div>
+            <div class="f-card reveal">
+                <div class="icon icon-cyan">&#128101;</div>
+                <h3>Agent Governance</h3>
+                <p>Multi-agent role enforcement via <code>--agent-id</code>. Per-agent path/language restrictions, telemetry JSONL, dashboard output.</p>
+            </div>
         </div>
     </div>
 </section>
@@ -1108,7 +1118,7 @@ mean=30, stdev=15.8
         <div class="section-header">
             <div class="label">Architecture</div>
             <h2>Built on solid foundations</h2>
-            <p>73,000+ lines of modern C++17. Recursive descent parser, AST visitor pattern interpreter, and isolated polyglot executors.</p>
+            <p>95,000+ lines of modern C++17. Bytecode VM (default, ~8x faster) with computed goto dispatch, recursive descent parser, and isolated polyglot executors.</p>
         </div>
 
         <div class="arch-flow">
@@ -1120,10 +1130,11 @@ mean=30, stdev=15.8
             <div class="arch-arrow">&rarr;</div>
             <div class="arch-node">Governance</div>
             <div class="arch-arrow">&rarr;</div>
-            <div class="arch-node">Interpreter</div>
+            <div class="arch-node" style="border-color: var(--green);">Compiler &rarr; VM</div>
             <div class="arch-arrow">&rarr;</div>
             <div class="arch-node">Executors</div>
         </div>
+        <p style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 8px;">Default: Bytecode VM (~8x faster) &mdash; <code>--tree-walk</code> for legacy AST interpreter</p>
 
         <div class="features-grid" style="grid-template-columns: 1fr 1fr 1fr;">
             <div class="f-card" style="text-align:center;">
@@ -1175,7 +1186,7 @@ mean=30, stdev=15.8
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">5</strong> scripts</div>
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">4</strong> languages</div>
                 <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">50+</strong> checks</div>
-                <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">360</strong> regression tests</div>
+                <div style="color: var(--text-muted); font-size: 14px;"><strong style="color: var(--text); font-size: 20px;">398</strong> regression tests</div>
             </div>
             <a href="https://b-macker.github.io/naab-bolo/" class="btn btn-primary" style="display: inline-block;">Learn More</a>
         </div>

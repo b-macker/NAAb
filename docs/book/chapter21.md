@@ -1079,3 +1079,109 @@ The scanner provides 139 checks across 6 categories:
 | Language-specific | 68 | Python (14), JavaScript (12), C++ (12), Go (9), Rust (10), NAAb (11) |
 
 The scanner is configurable via the `"scanner"` section of `govern.json` and supports text, JSON, and SARIF output formats.
+
+## 21.15 Multi-Agent Governance
+
+NAAb governance v4.0 introduces multi-agent role enforcement, allowing `govern.json` to define per-agent restrictions on languages and file paths. This is designed for scenarios where multiple AI agents or automated tools interact with the same codebase.
+
+### 21.15.1 Agent Roles Configuration
+
+Add an `agent_roles` section to your `govern.json`:
+
+```json
+{
+  "agent_roles": {
+    "code-bot": {
+      "allowed_languages": ["python", "javascript"],
+      "allowed_paths": ["./src", "./lib"],
+      "blocked_paths": ["./secrets", "./.env", "./credentials"]
+    },
+    "test-bot": {
+      "allowed_languages": ["python", "shell"],
+      "allowed_paths": ["./tests", "./fixtures"],
+      "blocked_paths": ["./src"]
+    },
+    "deploy-bot": {
+      "allowed_languages": ["shell"],
+      "allowed_paths": ["./deploy", "./scripts"],
+      "blocked_paths": ["./src", "./tests"]
+    }
+  }
+}
+```
+
+Each agent role defines:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `allowed_languages` | array | Languages this agent may use in polyglot blocks |
+| `allowed_paths` | array | Filesystem paths this agent may read/write |
+| `blocked_paths` | array | Filesystem paths this agent is explicitly denied access to |
+
+### 21.15.2 CLI Usage
+
+Use the `--agent-id` flag to identify the executing agent:
+
+```bash
+# Run as a specific agent
+naab-lang --agent-id code-bot my_program.naab
+
+# Combine with governance dashboard for summary output
+naab-lang --agent-id code-bot --governance-dashboard my_program.naab
+```
+
+When `--agent-id` is provided, the governance engine:
+
+1. Looks up the agent name in `govern.json` → `agent_roles`
+2. Restricts the agent's polyglot blocks to only `allowed_languages`
+3. Restricts file operations to `allowed_paths` and blocks `blocked_paths`
+4. If the agent is not listed in `agent_roles`, default governance rules apply (no agent-specific restrictions)
+
+### 21.15.3 Governance Dashboard
+
+The `--governance-dashboard` flag outputs a governance summary to stderr after execution:
+
+```bash
+naab-lang --agent-id code-bot --governance-dashboard my_program.naab
+```
+
+Output:
+```
+=== Governance Dashboard ===
+  Agent: code-bot
+  Checks: 12 passed, 0 warned, 0 blocked
+  Languages used: python (2 blocks), javascript (1 block)
+  Paths accessed: ./src/utils.naab, ./lib/helpers.naab
+  Taint: 3 sources, 2 sanitized, 0 violations
+```
+
+### 21.15.4 Telemetry
+
+Enable JSONL telemetry output to track agent execution over time:
+
+```json
+{
+  "telemetry": {
+    "enabled": true,
+    "output_file": "telemetry.jsonl"
+  }
+}
+```
+
+Each execution appends a JSONL record with:
+- Agent ID (if provided via `--agent-id`)
+- Timestamp
+- Languages used
+- Paths accessed
+- Governance check results (passed/warned/blocked)
+- Execution duration
+
+This data can be used for trend analysis, compliance reporting, and monitoring agent behavior across runs.
+
+### 21.15.5 Best Practices for Multi-Agent Governance
+
+1. **Principle of least privilege**: Give each agent only the languages and paths it needs
+2. **Block sensitive paths**: Always block `./secrets`, `./.env`, and credential directories for all agents
+3. **Use telemetry for auditing**: Enable JSONL telemetry to maintain a log of agent activities
+4. **Combine with taint tracking**: Agent roles + taint tracking provides defense-in-depth — even if an agent accesses allowed paths, tainted data is still blocked at sinks
+5. **Test with `--governance-dashboard`**: Use the dashboard flag during development to verify agent restrictions are correctly applied

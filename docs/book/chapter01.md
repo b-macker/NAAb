@@ -10,9 +10,9 @@ This means you leverage NAAb's robust control flow, module system, and fast nati
 
 ## 1.2 Key Features at a Glance
 
-*   **Polyglot by Design**: Execute code blocks in C++, JavaScript, Python, Bash, Go, Rust, Ruby, and C# natively.
+*   **Polyglot by Design**: Execute code blocks in Python, JavaScript, Shell, Go, Nim, Rust, C++, C#, Ruby, PHP, Zig, and Julia natively.
 *   **Type-Safe Composition**: NAAb's type system helps validate the compatibility of data and function calls across language boundaries, catching errors early.
-*   **Native Performance**: A lightning-fast C++ core and Standard Library (stdlib) ensure that NAAb's orchestration layer introduces minimal overhead.
+*   **Native Performance**: A lightning-fast C++ core with a bytecode VM (default engine, ~8x faster than tree-walking) and NaN-boxing ensure that NAAb's orchestration layer introduces minimal overhead.
 *   **Block Assembly**: A powerful package management system allows you to discover, integrate, and reuse pre-built code blocks from a vast registry, fostering modularity and rapid development.
 *   **Pipeline Syntax**: A clear `|>` operator for chaining operations, enhancing readability and functional composition.
 *   **Modern Language Constructs**: Features like structs, first-class functions, and robust error handling provide a familiar yet powerful development experience.
@@ -49,7 +49,7 @@ NAAb is built to be lean and efficient. The primary tool for development is the 
     ```bash
     ./build/naab-lang --version
     ```
-    You should see output like `NAAb Block Assembly Language v0.2.0-dev`.
+    You should see output like `NAAb Polyglot Language v0.7.0`.
 
 ### 1.3.2 The NAAb REPL (Read-Eval-Print Loop)
 
@@ -131,7 +131,7 @@ This means you've written `fn main()` when you should use `main {}`.
 
 ## 1.5 Architecture and Execution Model
 
-NAAb programs are interpreted. The `naab-lang` tool reads your source code and executes it directly. For polyglot blocks, NAAb hands off code to the appropriate language executor.
+NAAb programs are compiled to bytecode and executed by a stack-based VM (default), or interpreted via AST tree-walking (`--tree-walk`). For polyglot blocks, NAAb hands off code to the appropriate language executor.
 
 ### 1.5.1 The Execution Pipeline
 
@@ -148,26 +148,36 @@ Source File (.naab)
 │  Builds Abstract Syntax Tree     │  a tree of expression/statement nodes
 └──────────────┬───────────────────┘
                ↓
-┌──────────────────────────────────┐
-│  Interpreter (src/interpreter/)  │  Visitor pattern traverses the AST.
-│  AST Visitor + Environment       │  Native code runs directly; polyglot
-│                                  │  blocks dispatch to executors.
-└──────────┬───────────┬───────────┘
-           ↓           ↓
-┌─────────────────┐  ┌────────────────────────────┐
-│  Standard       │  │  Polyglot Executors         │
-│  Library        │  │  (src/runtime/)             │
-│  (12 modules)   │  │  Python, JS, Bash, C++,    │
-│                 │  │  Rust, Go, Ruby, C#, PHP    │
-└─────────────────┘  └────────────────────────────┘
+    ┌──────────┴──────────┐
+    ↓ (default)           ↓ (--tree-walk)
+┌────────────────────┐  ┌──────────────────────────────┐
+│  Compiler → VM     │  │  Interpreter                  │
+│  (src/vm/)         │  │  (src/interpreter/)           │
+│  AST→bytecode,     │  │  AST Visitor + Environment    │
+│  computed goto,    │  │  Legacy execution path        │
+│  NaN-boxing fast   │  │                               │
+│  paths             │  │                               │
+└────────┬───────────┘  └──────────┬────────────────────┘
+         └──────────┬──────────────┘
+                    ↓
+    ┌───────────────┴───────────────┐
+    ↓                               ↓
+┌─────────────────┐  ┌─────────────────────────────────┐
+│  Standard       │  │  Polyglot Executors              │
+│  Library        │  │  (src/runtime/)                  │
+│  (12 modules)   │  │  Python, JS, Shell, C++, Rust,  │
+│                 │  │  Go, Nim, Ruby, C#, PHP, Zig,   │
+│                 │  │  Julia                           │
+└─────────────────┘  └─────────────────────────────────┘
 ```
 
 Each stage in the pipeline:
 
 1.  **Lexing**: Scans your `.naab` file into a stream of tokens. Recognizes NAAb keywords, polyglot block delimiters (`<<python`, `>>`), and keyword aliases (`fn`/`func`/`function` all map to the same token).
 2.  **Parsing**: Builds an Abstract Syntax Tree (AST) from the token stream. Each node represents a language construct (function declaration, if-statement, polyglot block, etc.).
-3.  **Interpretation**: The interpreter walks the AST using the visitor pattern. For native NAAb code, it executes directly. For polyglot blocks (`<<python ... >>`), it dispatches to the appropriate executor.
-4.  **Memory Management**: NAAb uses C++ smart pointers (RAII) for automatic memory management. You do not need to manually allocate or free memory.
+3.  **Compilation** (default path): The bytecode compiler translates the AST into a flat sequence of opcodes, with constant folding optimizations. The stack-based VM executes these opcodes using computed goto dispatch and NaN-boxing integer fast paths.
+4.  **Interpretation** (`--tree-walk` path): The legacy interpreter walks the AST using the visitor pattern. For native NAAb code, it executes directly. For polyglot blocks (`<<python ... >>`), it dispatches to the appropriate executor.
+5.  **Memory Management**: NAAb uses NaN-boxed 8-byte values for primitives (int, double, bool, null) and C++ smart pointers (RAII) for heap-allocated objects. You do not need to manually allocate or free memory.
 
 ### 1.5.2 Polyglot Execution
 

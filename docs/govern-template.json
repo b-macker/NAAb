@@ -813,6 +813,21 @@
     }
   },
 
+  "_comment_telemetry": "Telemetry — JSONL output for agent execution tracking",
+  "telemetry": {
+    "enabled": false,
+    "output_file": "telemetry.jsonl"
+  },
+
+  "_comment_agent_roles": "Agent Roles — per-agent path and language restrictions for multi-agent environments",
+  "agent_roles": {
+    "example-bot": {
+      "allowed_languages": ["python", "shell"],
+      "allowed_paths": ["./src", "./output"],
+      "blocked_paths": ["./secrets", "./.env"]
+    }
+  },
+
   "meta": {
     "schema_validation": {
       "warn_unknown_keys": true,

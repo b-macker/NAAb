@@ -65,14 +65,20 @@ src/
   lexer/          # Tokenizer
   parser/         # Recursive descent parser
   interpreter/    # AST visitor-pattern interpreter
-  stdlib/         # Standard library modules
-  runtime/        # Polyglot executors (Python, JS, Rust, C++, Go, etc.)
+  vm/             # Bytecode compiler + stack-based VM (default engine)
+  stdlib/         # Standard library modules (12 modules)
+  runtime/        # Polyglot executors + governance engine (Python, JS, Rust, C++, Go, Nim, etc.)
   cli/            # Command-line interface
   repl/           # Interactive REPL
-include/naab/     # Header files
-tests/            # Test files (.naab)
+include/naab/     # Header files (ast.h, vm.h, compiler.h, naab_val.h, etc.)
+tests/            # Test files (.naab) — 398 regression tests
 external/         # Third-party dependencies (git submodules)
 ```
+
+**Key areas for contributors:**
+- **VM** (`src/vm/`): The bytecode compiler and virtual machine — the default execution engine (~8x faster than tree-walking)
+- **Governance** (`src/runtime/governance.cpp`): Policy enforcement engine with 50+ checks, taint tracking, and agent roles
+- **Interpreter** (`src/interpreter/`): The legacy tree-walking interpreter (used via `--tree-walk`)
 
 ## License
 

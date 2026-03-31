@@ -712,6 +712,36 @@ mv govern-template.json govern.json
                     </div>
                 </div>
 
+                <!-- I2: Telemetry -->
+                <div class="accordion" data-section="telemetry">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Telemetry <span class="count">JSONL output for agent execution tracking</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="sub-section">
+                            <div class="toggle-wrap" style="margin-bottom:8px">
+                                <label class="toggle"><input type="checkbox" id="telemetry-enabled" onchange="updateJSON()"><span class="slider"></span></label>
+                                <span class="toggle-label">Enable telemetry</span>
+                            </div>
+                            <div class="form-group"><label>Output file</label><input type="text" id="telemetry-file" value="telemetry.jsonl" oninput="updateJSON()"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- I3: Agent Roles -->
+                <div class="accordion" data-section="agent_roles">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <h3>Agent Roles <span class="count">per-agent language &amp; path restrictions</span></h3>
+                        <span class="arrow">&#9654;</span>
+                    </div>
+                    <div class="accordion-body">
+                        <div class="help" style="margin-bottom:12px">Define per-agent restrictions for multi-agent governance. Use <code>--agent-id &lt;name&gt;</code> CLI flag to identify the executing agent.</div>
+                        <div id="agent-roles-list"></div>
+                        <button class="btn-secondary" style="margin-top:8px;padding:8px 16px;font-size:0.85rem;cursor:pointer" onclick="addAgentRole()">+ Add Agent Role</button>
+                    </div>
+                </div>
+
                 <!-- J: Polyglot -->
                 <div class="accordion" data-section="polyglot">
                     <div class="accordion-header" onclick="toggleAccordion(this)">
@@ -1513,6 +1543,30 @@ function updateJSON() {
         }
     }
 
+    // Telemetry
+    if (document.getElementById('telemetry-enabled')?.checked) {
+        const tel = {enabled: true};
+        const telFile = document.getElementById('telemetry-file').value;
+        if (telFile && telFile !== 'telemetry.jsonl') tel.output_file = telFile;
+        cfg.telemetry = tel;
+    }
+
+    // Agent Roles
+    const agentRoles = {};
+    document.querySelectorAll('.agent-role-entry').forEach(entry => {
+        const name = entry.querySelector('.agent-name').value.trim();
+        if (!name) return;
+        const role = {};
+        const allowedLangs = entry.querySelector('.agent-allowed-langs').value.trim();
+        if (allowedLangs) role.allowed_languages = allowedLangs.split(',').map(s => s.trim()).filter(Boolean);
+        const allowedPaths = entry.querySelector('.agent-allowed-paths').value.trim();
+        if (allowedPaths) role.allowed_paths = allowedPaths.split(',').map(s => s.trim()).filter(Boolean);
+        const blockedPaths = entry.querySelector('.agent-blocked-paths').value.trim();
+        if (blockedPaths) role.blocked_paths = blockedPaths.split(',').map(s => s.trim()).filter(Boolean);
+        agentRoles[name] = role;
+    });
+    if (Object.keys(agentRoles).length) cfg.agent_roles = agentRoles;
+
     // Polyglot
     const polyglot = {};
     if (document.getElementById('poly-require-explicit').checked) polyglot.variable_binding = {require_explicit: true};
@@ -1771,6 +1825,28 @@ function setLevelBtns(prefix, id, level) {
         b.className = 'level-btn';
         if (b.dataset.level === level) b.classList.add('active-' + level);
     });
+}
+
+// =====================================================
+// AGENT ROLES
+// =====================================================
+let agentRoleCounter = 0;
+function addAgentRole() {
+    agentRoleCounter++;
+    const container = document.getElementById('agent-roles-list');
+    const div = document.createElement('div');
+    div.className = 'agent-role-entry sub-section';
+    div.style.marginBottom = '12px';
+    div.innerHTML = `
+        <div class="form-row" style="align-items:flex-end">
+            <div class="form-group" style="flex:1"><label>Agent name</label><input type="text" class="agent-name" placeholder="e.g. example-bot" oninput="updateJSON()"></div>
+            <button style="background:var(--red);color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;margin-bottom:4px" onclick="this.parentElement.parentElement.remove();updateJSON()">Remove</button>
+        </div>
+        <div class="form-group"><label>Allowed languages (comma-separated)</label><input type="text" class="agent-allowed-langs" placeholder="python, shell" oninput="updateJSON()"></div>
+        <div class="form-group"><label>Allowed paths (comma-separated)</label><input type="text" class="agent-allowed-paths" placeholder="./src, ./output" oninput="updateJSON()"></div>
+        <div class="form-group"><label>Blocked paths (comma-separated)</label><input type="text" class="agent-blocked-paths" placeholder="./secrets, ./.env" oninput="updateJSON()"></div>
+    `;
+    container.appendChild(div);
 }
 
 // =====================================================

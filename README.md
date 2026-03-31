@@ -84,6 +84,8 @@ Prompts are suggestions. **`govern.json` is policy.** NAAb checks every polyglot
 | **CI/CD Integration** | SARIF (GitHub Code Scanning), JUnit XML (Jenkins/GitLab), JSON reports |
 | **Project Context** | Auto-reads CLAUDE.md, .editorconfig, .eslintrc, package.json to supplement governance |
 | **Developer Tools** | Interactive REPL, URL imports, LLM-friendly syntax (keyword aliases, optional semicolons), 204 error messages |
+| **Bytecode VM** | Stack-based compiler + VM (default engine, ~8x faster than tree-walking), computed goto dispatch, NaN-boxing fast paths, constant folding |
+| **Agent Governance** | Multi-agent role enforcement via `--agent-id`, per-agent path/language restrictions, telemetry JSONL, `--governance-dashboard` |
 
 ---
 
@@ -212,6 +214,30 @@ naab-lang app.naab --governance-report json > results.json
 > **[Build your govern.json interactively](https://b-macker.github.io/NAAb/governance.html)** | [Full governance reference (Chapter 21)](docs/book/chapter21.md)
 >
 > **[Security model & threat assumptions](docs/SECURITY.md)**
+
+### Agent Governance
+
+NAAb supports multi-agent environments where different AI agents have different permissions. Define per-agent roles in `govern.json`:
+
+```json
+{
+  "agent_roles": {
+    "code-bot": {
+      "allowed_languages": ["python", "javascript"],
+      "allowed_paths": ["./src", "./tests"],
+      "blocked_paths": ["./secrets", "./.env"]
+    }
+  }
+}
+```
+
+```bash
+# Run with agent identity
+naab-lang --agent-id code-bot app.naab
+
+# View governance dashboard
+naab-lang --agent-id code-bot --governance-dashboard app.naab
+```
 
 ---
 
@@ -584,7 +610,11 @@ Source Code (.naab)
     |
   Governance Engine ──> Policy checks (govern.json)
     |
-  Interpreter (visitor pattern)
+  ┌─────────────────────────────────────────────┐
+  │  Compiler ──> Bytecode ──> VM (default)     │
+  │       — OR —                                │
+  │  Interpreter (visitor pattern, --tree-walk)  │
+  └─────────────────────────────────────────────┘
     |
   ├── Native execution (NAAb code)
   ├── Python executor (C API)
@@ -594,9 +624,10 @@ Source Code (.naab)
   └── Shell executor (subprocess)
 ```
 
-- **82,000+** lines of C++17
-- **360** regression tests, **340** mono test assertions
+- **95,000+** lines of C++17
+- **398** regression tests, **331** mono test assertions
 - **14** standard library modules with **204** error messages
+- Bytecode VM default (~8x faster), tree-walker via `--tree-walk`
 - Built with Abseil, fmt, spdlog, nlohmann/json, QuickJS
 
 ---
@@ -606,7 +637,8 @@ Source Code (.naab)
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions and guidelines.
 
 ### Areas for Contribution
-- Performance optimizations
+- VM optimization (`src/vm/`)
+- Agent governance extensions (`src/runtime/governance.cpp`)
 - New standard library modules
 - Documentation and tutorials
 - IDE integrations (Vim, Emacs, IntelliJ, VS Code)

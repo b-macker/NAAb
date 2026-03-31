@@ -5,6 +5,40 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-03-30
+
+### Added
+- **Bytecode VM** — stack-based bytecode compiler and virtual machine, now the default execution engine
+  - Computed goto dispatch (GCC/Clang) for fast opcode handling
+  - NaN-boxing integer fast paths for arithmetic without unboxing
+  - Constant folding optimization pass in the compiler
+  - 47 VM bugs fixed during development and hardening
+  - Use `--tree-walk` flag to fall back to the legacy AST interpreter
+- **Agent Governance Runtime** — multi-agent role enforcement for govern.json
+  - `--agent-id <name>` CLI flag to identify the executing agent
+  - `--governance-dashboard` flag for governance summary output to stderr
+  - `agent_roles` section in govern.json for per-agent path and language restrictions
+  - Telemetry JSONL output for agent execution tracking
+- **Governance Plugins** — extend governance with custom NAAb-based check functions
+  - `governance_plugins` array in govern.json references external .naab files
+  - Each plugin defines rules with `id`, `function`, `trigger`, `level`, and help text
+- **Package Manager** — dependency management for NAAb projects
+- **Multi-Agent Integration Tests** — end-to-end tests for agent governance scenarios
+
+### Changed
+- VM is now the default execution engine (`global_use_vm = true`); tree-walker available via `--tree-walk`
+- NaN-boxing migration complete — zero `fromLegacy()`/`toLegacy()` calls remain outside core naab_val.cpp/h
+
+### Fixed
+- 47 VM bugs across phases 1-16 (control flow, closures, polyglot dispatch, governance integration)
+- Integer overflow in array indexing with large indices
+- Parallel polyglot race conditions in VM execution path
+- Gorilla test #12 fixes for edge-case governance interactions
+
+### Performance
+- VM 50ms vs Tree-walker 395ms (87% faster, ~8x speedup) on standard benchmarks
+- NaN-boxing eliminates heap allocation for int/double/bool/null values
+
 ## [0.6.0] - 2026-03-21
 
 ### Added

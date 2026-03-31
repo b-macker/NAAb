@@ -5,6 +5,40 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-03-30
+
+### Added
+- **Bytecode VM** — stack-based bytecode compiler and virtual machine, now the default execution engine
+  - Computed goto dispatch (GCC/Clang) for fast opcode handling
+  - NaN-boxing integer fast paths for arithmetic without unboxing
+  - Constant folding optimization pass in the compiler
+  - 47 VM bugs fixed during development and hardening
+  - Use `--tree-walk` flag to fall back to the legacy AST interpreter
+- **Agent Governance Runtime** — multi-agent role enforcement for govern.json
+  - `--agent-id <name>` CLI flag to identify the executing agent
+  - `--governance-dashboard` flag for governance summary output to stderr
+  - `agent_roles` section in govern.json for per-agent path and language restrictions
+  - Telemetry JSONL output for agent execution tracking
+- **Governance Plugins** — extend governance with custom NAAb-based check functions
+  - `governance_plugins` array in govern.json references external .naab files
+  - Each plugin defines rules with `id`, `function`, `trigger`, `level`, and help text
+- **Package Manager** — dependency management for NAAb projects
+- **Multi-Agent Integration Tests** — end-to-end tests for agent governance scenarios
+
+### Changed
+- VM is now the default execution engine (`global_use_vm = true`); tree-walker available via `--tree-walk`
+- NaN-boxing migration complete — zero `fromLegacy()`/`toLegacy()` calls remain outside core naab_val.cpp/h
+
+### Fixed
+- 47 VM bugs across phases 1-16 (control flow, closures, polyglot dispatch, governance integration)
+- Integer overflow in array indexing with large indices
+- Parallel polyglot race conditions in VM execution path
+- Gorilla test #12 fixes for edge-case governance interactions
+
+### Performance
+- VM 50ms vs Tree-walker 395ms (87% faster, ~8x speedup) on standard benchmarks
+- NaN-boxing eliminates heap allocation for int/double/bool/null values
+
 ## [0.6.0] - 2026-03-21
 
 ### Added
@@ -56,6 +90,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cache stored in `~/.naab/cache/` with content-hashed filenames
   - Cached modules are reused across runs (no re-download)
   - Clear error messages on download failure
+
+### Fixed
+- **BUG-E1: Type checking bypass via `callFunction()`** — pipeline (`|>`), stdlib callbacks (`array.filter_fn`), lambda calls, and method dispatch now enforce parameter type annotations. Previously only direct `fn(args)` syntax checked types.
+- **BUG-E1b: Generator parameter type bypass** — generator functions now validate parameter types at creation time, before eager body execution.
+- **BUG-E2: Generator exception safety** — if a generator body throws, interpreter state (`active_generator_`, `current_env_`, `returning_`) is now properly restored via try/catch. Previously, an exception mid-generation corrupted state for subsequent operations.
+
+### Hardening
+- **229 new edge-case assertions** across 9 test files targeting bypass paths, state consistency, and cross-feature interactions:
+  - `test_type_enforcement.naab` (41 tests) — variable/param/return type checking, nullable, union types, struct types, error messages
+  - `test_type_bypass.naab` (25 tests) — pipeline, lambda, callback, method dispatch type enforcement (BUG-E1 verification)
+  - `test_generator_state.naab` (17 tests) — exception recovery, nested generators, reuse independence, break/continue state
+  - `test_interface_invariants.naab` (25 tests) — multi-struct, multi-interface, error paths, method as callback, f-string interaction
+  - `test_match_hardened.naab` (30 tests) — guard evaluation order, destructuring edge cases, guard+destructure combos, nested match
+  - `test_fstring_hardened.naab` (26 tests) — expression types, special values, mixed syntax, complex interpolation chains
+  - `test_stdlib_path.naab` (30 tests) — all 8 path functions, edge cases (root, hidden files, no extension), error handling
+  - `test_stdlib_file_new.naab` (20 tests) — copy/move/size/basename/dirname/extension with real filesystem operations
+  - `test_v060_interactions.naab` (15 tests) — typed generators, interface+generator, match+generator, f-string everywhere, full feature pipeline
 
 ## [0.5.3] - 2026-03-21
 

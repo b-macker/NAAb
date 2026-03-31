@@ -9,6 +9,20 @@ Shell, Go, Nim, Rust, C++, C#, Ruby, PHP, Zig, Julia) inside `<< >>` blocks with
 .naab files. A govern.json file applies policy rules at execution time.
 DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 
+## Execution Engine
+NAAb uses a **bytecode VM** as the default execution engine (stack-based compiler + VM,
+~8x faster than tree-walking). Use `--tree-walk` to fall back to the legacy AST interpreter.
+- **NaN-boxing**: 8-byte inline values for int/double/bool/null — zero heap allocation for primitives
+- **Computed goto dispatch** (GCC/Clang) for fast opcode handling
+- **Constant folding** optimization pass in the compiler
+
+### Agent Governance
+Multi-agent role enforcement is available via govern.json:
+- `--agent-id <name>` — identify the executing agent for role-based governance
+- `--governance-dashboard` — output governance summary to stderr
+- `agent_roles` in govern.json — per-agent `allowed_languages`, `allowed_paths`, `blocked_paths`
+- `telemetry` in govern.json — JSONL telemetry output for agent execution tracking
+
 ## Critical Syntax Rules
 
 ### File Structure
@@ -362,6 +376,11 @@ main {
 38. `catch (e)` variable `e` is a dict `{"message": "...", "type": "PolyglotError"}` — use `e["message"]` to get the error string, NOT `e` directly with `string.contains()`.
 39. Type annotations are enforced at runtime on ALL call paths: direct calls, pipeline (`|>`), callbacks (`array.map_fn`), lambda calls, and method dispatch. Generator params are also checked at creation time.
 40. Generator bodies that throw exceptions properly restore interpreter state (active_generator_, current_env_, returning_) — safe to catch and continue.
+41. VM is the default execution engine; use `--tree-walk` for the legacy AST interpreter
+42. `--agent-id <name>` CLI flag enables multi-agent governance role enforcement via `agent_roles` in govern.json
+43. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
+44. `agent_roles` in govern.json restricts per-agent allowed languages, allowed paths, and blocked paths
+45. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
 
 ## Complexity Scoring (for governance)
 

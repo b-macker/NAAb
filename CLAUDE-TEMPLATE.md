@@ -359,6 +359,11 @@ main {
 26. `config` is a reserved keyword — do NOT use it as a variable name, import alias, or parameter name
 27. Enum values from imported modules use 3-level dot access: `module_alias.EnumName.Variant`
     Example: `import "types.naab" as types` then `let c = types.Color.Red`
+28. VM is the default execution engine; use `--tree-walk` for the legacy AST interpreter
+29. `--agent-id <name>` CLI flag enables multi-agent governance role enforcement via `agent_roles` in govern.json
+30. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
+31. `agent_roles` in govern.json restricts per-agent allowed languages, allowed paths, and blocked paths
+32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
 
 ## Complexity Scoring (for governance)
 
