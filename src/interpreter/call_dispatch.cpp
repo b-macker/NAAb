@@ -444,8 +444,11 @@ void Interpreter::visit(ast::CallExpr& node) {
                         std::string count_err = governance_->incrementAndCheckPolyglotBlockCount();
                         if (!count_err.empty()) throw std::runtime_error(count_err);
 
+                        std::string runtime_ver;
+                        auto* executor = naab::runtime::LanguageRegistry::instance().getExecutor(rt.language);
+                        if (executor) runtime_ver = executor->getRuntimeVersion();
                         governance_->logPolyglotExecution(rt.language, {}, 0,
-                            current_file_, node.getLocation().line);
+                            current_file_, node.getLocation().line, runtime_ver);
                     }
 
                     // For subprocess-based languages, accumulate code

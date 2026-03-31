@@ -38,6 +38,10 @@ public:
 
     // Get captured stdout/stderr from the executor
     virtual std::string getCapturedOutput() = 0;
+
+    // Get runtime version string (e.g., "Python 3.11.2")
+    // Default returns empty string. Override in concrete executors.
+    virtual std::string getRuntimeVersion() const { return ""; }
 };
 
 // Language Registry - manages language-specific executors

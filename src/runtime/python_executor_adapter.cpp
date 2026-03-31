@@ -102,5 +102,20 @@ std::string PyExecutorAdapter::getCapturedOutput() {
     return "";
 }
 
+std::string PyExecutorAdapter::getRuntimeVersion() const {
+    if (!cached_version_.empty()) return cached_version_;
+    FILE* pipe = popen("python3 --version 2>&1", "r");
+    if (pipe) {
+        char buf[128];
+        if (fgets(buf, sizeof(buf), pipe)) {
+            cached_version_ = std::string(buf);
+            while (!cached_version_.empty() && cached_version_.back() == '\n')
+                cached_version_.pop_back();
+        }
+        pclose(pipe);
+    }
+    return cached_version_;
+}
+
 } // namespace runtime
 } // namespace naab

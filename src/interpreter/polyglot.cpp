@@ -835,8 +835,13 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             auto audit_end = std::chrono::steady_clock::now();
             int64_t duration_us = std::chrono::duration_cast<std::chrono::microseconds>(
                 audit_end - polyglot_trace_start).count();
+            // Feature 6: Get runtime version for audit
+            std::string runtime_ver;
+            auto* executor = naab::runtime::LanguageRegistry::instance().getExecutor(language);
+            if (executor) runtime_ver = executor->getRuntimeVersion();
             governance_->logPolyglotExecution(language, bound_vars, duration_us,
-                                              current_file_, node.getLocation().line);
+                                              current_file_, node.getLocation().line,
+                                              runtime_ver);
         }
 
     } catch (const std::exception& e) {
@@ -1691,8 +1696,12 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 
                 // BUG-P: Audit logging for parallel polyglot execution
                 std::vector<std::string> bound_vars(block.read_vars.begin(), block.read_vars.end());
+                std::string runtime_ver;
+                auto* executor = naab::runtime::LanguageRegistry::instance().getExecutor(lang_str);
+                if (executor) runtime_ver = executor->getRuntimeVersion();
                 governance_->logPolyglotExecution(lang_str, bound_vars, 0,
-                    current_file_, block.node ? block.node->getLocation().line : 0);
+                    current_file_, block.node ? block.node->getLocation().line : 0,
+                    runtime_ver);
             }
 
             // Store result value

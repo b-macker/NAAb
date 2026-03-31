@@ -24,9 +24,58 @@
 
 namespace naab {
 
+namespace governance {
+    // Feature 1: Process-level flag for exit code determination
+    bool g_governance_hard_block = false;
+}
+
 // Extern: thread_local interpreter pointer set in interpreter.cpp
 namespace interpreter {
     extern thread_local Interpreter* g_current_interpreter;
+}
+
+// Feature 3: CWE/OWASP mapping for standard compliance reporting
+static const std::unordered_map<std::string, std::pair<std::vector<std::string>, std::vector<std::string>>>
+    g_cwe_owasp_map = {
+    // rule_name_suffix -> {cwe_ids, owasp_ids}
+    {"no_sql_injection",        {{"CWE-89"},  {"A03:2021"}}},
+    {"sql_string_concat",       {{"CWE-89"},  {"A03:2021"}}},
+    {"no_path_traversal",       {{"CWE-22"},  {"A01:2021"}}},
+    {"path_traversal",          {{"CWE-22"},  {"A01:2021"}}},
+    {"shell_injection",         {{"CWE-78"},  {"A03:2021"}}},
+    {"code_injection",          {{"CWE-94"},  {"A03:2021"}}},
+    {"no_unsafe_deserialization",{{"CWE-502"}, {"A08:2021"}}},
+    {"insecure_deserialization", {{"CWE-502"}, {"A08:2021"}}},
+    {"no_secrets",              {{"CWE-798"}, {"A07:2021"}}},
+    {"hardcoded_credentials",   {{"CWE-798"}, {"A07:2021"}}},
+    {"privilege_escalation",    {{"CWE-269"}, {"A04:2021"}}},
+    {"data_exfiltration",       {{"CWE-200"}, {"A01:2021"}}},
+    {"information_disclosure",  {{"CWE-200"}, {"A01:2021"}}},
+    {"crypto",                  {{"CWE-327"}, {"A02:2021"}}},
+    {"weak_crypto",             {{"CWE-327"}, {"A02:2021"}}},
+    {"no_pii",                  {{"CWE-359"}, {}}},
+    {"resource_abuse",          {{"CWE-400"}, {}}},
+    {"encoding",                {{"CWE-116"}, {}}},
+    {"insecure_random",         {{"CWE-330"}, {"A02:2021"}}},
+    {"prototype_pollution",     {{"CWE-1321"},{}}},
+    {"eval_usage",              {{"CWE-95"},  {"A03:2021"}}},
+    {"dangerous_calls",         {{"CWE-676"}, {}}},
+    {"no_hardcoded_urls",       {{"CWE-798"}, {}}},
+    {"no_hardcoded_ips",        {{"CWE-798"}, {}}},
+};
+
+static std::pair<std::vector<std::string>, std::vector<std::string>>
+lookupCweOwasp(const std::string& rule_name) {
+    auto it = g_cwe_owasp_map.find(rule_name);
+    if (it != g_cwe_owasp_map.end()) return it->second;
+    // Try suffix match (e.g., "code_quality.no_sql_injection" matches "no_sql_injection")
+    auto dot = rule_name.rfind('.');
+    if (dot != std::string::npos) {
+        auto suffix = rule_name.substr(dot + 1);
+        it = g_cwe_owasp_map.find(suffix);
+        if (it != g_cwe_owasp_map.end()) return it->second;
+    }
+    return {{}, {}};
 }
 
 namespace governance {
@@ -1552,6 +1601,47 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             rules_.agent_roles.push_back(role);
         }
     }
+
+    // --- Quality Gate (Feature 2) ---
+    if (j.contains("quality_gate") && j["quality_gate"].is_object()) {
+        auto& qg = j["quality_gate"];
+        if (qg.contains("enabled")) rules_.quality_gate.enabled = qg["enabled"].get<bool>();
+        if (qg.contains("conditions") && qg["conditions"].is_array()) {
+            for (const auto& cond : qg["conditions"]) {
+                QualityGateCondition c;
+                if (cond.contains("metric")) c.metric = cond["metric"].get<std::string>();
+                if (cond.contains("operator")) c.op = cond["operator"].get<std::string>();
+                if (cond.contains("threshold")) c.threshold = cond["threshold"].get<int>();
+                rules_.quality_gate.conditions.push_back(c);
+            }
+        }
+    }
+
+    // --- Governance Baseline (Feature 4) ---
+    if (j.contains("governance_baseline") && j["governance_baseline"].is_object()) {
+        auto& gb = j["governance_baseline"];
+        if (gb.contains("enabled")) rules_.governance_baseline.enabled = gb["enabled"].get<bool>();
+        if (gb.contains("path")) rules_.governance_baseline.path = gb["path"].get<std::string>();
+        if (gb.contains("fail_on_regression")) rules_.governance_baseline.fail_on_regression = gb["fail_on_regression"].get<bool>();
+        if (gb.contains("level")) {
+            auto lvl = gb["level"].get<std::string>();
+            if (lvl == "hard") rules_.governance_baseline.level = EnforcementLevel::HARD;
+            else if (lvl == "soft") rules_.governance_baseline.level = EnforcementLevel::SOFT;
+            else rules_.governance_baseline.level = EnforcementLevel::ADVISORY;
+        }
+    }
+
+    // --- Environment Overrides (Feature 5) ---
+    if (j.contains("environments") && j["environments"].is_object()) {
+        for (auto& [env_name, env_json] : j["environments"].items()) {
+            if (!env_json.is_object()) continue;
+            std::unordered_map<std::string, std::string> overrides;
+            for (auto& [key, val] : env_json.items()) {
+                overrides[key] = val.is_string() ? val.get<std::string>() : val.dump();
+            }
+            rules_.environments[env_name] = overrides;
+        }
+    }
 }
 
 // EVA-11/EVA-12: Governance integrity check
@@ -1704,7 +1794,9 @@ void GovernanceEngine::setCheckContext(const std::string& file, int line) {
 void GovernanceEngine::recordPass(const std::string& rule_name,
                                    EnforcementLevel level) {
     std::string cat = rule_name.substr(0, rule_name.find('.'));
-    check_results_.push_back({rule_name, level, true, "", cat, "", current_check_line_, current_check_file_});
+    auto [cwes, owasps] = lookupCweOwasp(rule_name);
+    check_results_.push_back({rule_name, level, true, "", cat, "",
+                              current_check_line_, current_check_file_, cwes, owasps});
 }
 
 std::string GovernanceEngine::enforce(
@@ -1716,7 +1808,9 @@ std::string GovernanceEngine::enforce(
     std::string cat = rule_name.substr(0, rule_name.find('.'));
     std::string sev = (level == EnforcementLevel::HARD) ? "critical" :
                       (level == EnforcementLevel::SOFT) ? "high" : "medium";
-    check_results_.push_back({rule_name, level, false, violation_message, cat, sev, current_check_line_, current_check_file_});
+    auto [cwes, owasps] = lookupCweOwasp(rule_name);
+    check_results_.push_back({rule_name, level, false, violation_message, cat, sev,
+                              current_check_line_, current_check_file_, cwes, owasps});
 
     // Audit mode: never block, just log
     if (rules_.mode == GovernanceMode::AUDIT) {
@@ -1731,6 +1825,7 @@ std::string GovernanceEngine::enforce(
             return "";  // Not enforced
 
         case EnforcementLevel::HARD:
+            g_governance_hard_block = true;
             return violation_message;
 
         case EnforcementLevel::SOFT:
@@ -2439,6 +2534,185 @@ void GovernanceEngine::printDashboard() const {
         fprintf(stderr, "Telemetry:  %zu events → %s\n",
                 check_results_.size(), rules_.telemetry_output.output_file.c_str());
     fprintf(stderr, "────────────────────────────────\n");
+}
+
+// ============================================================================
+// Feature 1: wasBlocked()
+// ============================================================================
+
+bool GovernanceEngine::wasBlocked() const {
+    for (const auto& r : check_results_) {
+        if (!r.passed && r.level == EnforcementLevel::HARD) return true;
+    }
+    return false;
+}
+
+// ============================================================================
+// Feature 2: Quality Gate Evaluation
+// ============================================================================
+
+std::string GovernanceEngine::evaluateQualityGate() const {
+    if (!rules_.quality_gate.enabled) return "";
+
+    int hard = 0, soft = 0, advisory = 0, security = 0, total_violations = 0;
+    for (const auto& r : check_results_) {
+        if (r.passed) continue;
+        total_violations++;
+        if (r.level == EnforcementLevel::HARD) hard++;
+        else if (r.level == EnforcementLevel::SOFT) soft++;
+        else advisory++;
+        if (r.severity == "critical" || r.severity == "high") security++;
+    }
+
+    for (const auto& cond : rules_.quality_gate.conditions) {
+        int value = 0;
+        if (cond.metric == "hard_violations") value = hard;
+        else if (cond.metric == "soft_violations") value = soft;
+        else if (cond.metric == "advisory_violations") value = advisory;
+        else if (cond.metric == "security_findings") value = security;
+        else if (cond.metric == "total_violations") value = total_violations;
+        else if (cond.metric == "total_checks") value = static_cast<int>(check_results_.size());
+        else continue;
+
+        bool failed = false;
+        if (cond.op == ">" && value > cond.threshold) failed = true;
+        else if (cond.op == ">=" && value >= cond.threshold) failed = true;
+        else if (cond.op == "<" && value < cond.threshold) failed = true;
+        else if (cond.op == "<=" && value <= cond.threshold) failed = true;
+        else if (cond.op == "==" && value == cond.threshold) failed = true;
+
+        if (failed) {
+            return fmt::format(
+                "[governance] Quality gate FAILED: {} {} {} (actual: {})\n",
+                cond.metric, cond.op, cond.threshold, value);
+        }
+    }
+    return "";
+}
+
+// ============================================================================
+// Feature 4: Governance Baseline
+// ============================================================================
+
+void GovernanceEngine::saveGovernanceBaseline() const {
+    if (rules_.governance_baseline.path.empty()) return;
+
+    int hard = 0, soft = 0, advisory = 0, security = 0;
+    for (const auto& r : check_results_) {
+        if (r.passed) continue;
+        if (r.level == EnforcementLevel::HARD) hard++;
+        else if (r.level == EnforcementLevel::SOFT) soft++;
+        else advisory++;
+        if (r.severity == "critical" || r.severity == "high") security++;
+    }
+
+    std::filesystem::path p(rules_.governance_baseline.path);
+    if (p.has_parent_path())
+        std::filesystem::create_directories(p.parent_path());
+
+    auto now = std::chrono::system_clock::now();
+    auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_buf;
+    localtime_r(&t, &tm_buf);
+    char ts[32];
+    std::strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", &tm_buf);
+
+    nlohmann::json baseline;
+    baseline["version"] = 1;
+    baseline["timestamp"] = std::string(ts);
+    baseline["hard_violations"] = hard;
+    baseline["soft_violations"] = soft;
+    baseline["advisory_violations"] = advisory;
+    baseline["security_findings"] = security;
+    baseline["total_checks"] = static_cast<int>(check_results_.size());
+
+    std::ofstream ofs(rules_.governance_baseline.path);
+    if (ofs.is_open()) {
+        ofs << baseline.dump(2) << "\n";
+        fprintf(stderr, "[governance] Baseline saved to %s\n",
+                rules_.governance_baseline.path.c_str());
+    }
+}
+
+std::string GovernanceEngine::checkGovernanceBaseline() const {
+    if (!rules_.governance_baseline.enabled) return "";
+
+    std::ifstream ifs(rules_.governance_baseline.path);
+    if (!ifs.is_open()) return "";  // No baseline yet — skip
+
+    nlohmann::json prev;
+    try { prev = nlohmann::json::parse(ifs); }
+    catch (...) { return ""; }
+
+    int hard = 0, soft = 0, advisory = 0, security = 0;
+    for (const auto& r : check_results_) {
+        if (r.passed) continue;
+        if (r.level == EnforcementLevel::HARD) hard++;
+        else if (r.level == EnforcementLevel::SOFT) soft++;
+        else advisory++;
+        if (r.severity == "critical" || r.severity == "high") security++;
+    }
+
+    std::vector<std::string> regressions;
+    auto check = [&](const char* name, int current, const char* key) {
+        if (prev.contains(key) && current > prev[key].get<int>()) {
+            regressions.push_back(fmt::format(
+                "  {} increased: {} -> {} (+{})",
+                name, prev[key].get<int>(), current, current - prev[key].get<int>()));
+        }
+    };
+
+    check("hard_violations", hard, "hard_violations");
+    check("soft_violations", soft, "soft_violations");
+    check("advisory_violations", advisory, "advisory_violations");
+    check("security_findings", security, "security_findings");
+
+    if (regressions.empty()) return "";
+
+    std::string msg = "[governance] Baseline REGRESSION detected:\n";
+    for (const auto& r : regressions) msg += r + "\n";
+    msg += fmt::format("  Baseline from: {}\n",
+        prev.contains("timestamp") ? prev["timestamp"].get<std::string>() : "unknown");
+    return msg;
+}
+
+// ============================================================================
+// Feature 5: Environment Selector
+// ============================================================================
+
+void GovernanceEngine::applyEnvironment(const std::string& env_name) {
+    auto it = rules_.environments.find(env_name);
+    if (it == rules_.environments.end()) {
+        fprintf(stderr, "[governance] WARNING: Environment '%s' not found in govern.json. Available:",
+                env_name.c_str());
+        for (const auto& [name, _] : rules_.environments) {
+            fprintf(stderr, " %s", name.c_str());
+        }
+        fprintf(stderr, "\n");
+        return;
+    }
+
+    for (const auto& [key, value] : it->second) {
+        if (key == "mode") {
+            if (value == "enforce") rules_.mode = GovernanceMode::ENFORCE;
+            else if (value == "audit") rules_.mode = GovernanceMode::AUDIT;
+            else if (value == "off") rules_.mode = GovernanceMode::OFF;
+        } else if (key == "quality_gate.enabled") {
+            rules_.quality_gate.enabled = (value == "true");
+        } else if (key == "governance_baseline.enabled") {
+            rules_.governance_baseline.enabled = (value == "true");
+        } else if (key == "governance_baseline.fail_on_regression") {
+            rules_.governance_baseline.fail_on_regression = (value == "true");
+        } else if (key == "output.file_output.report_sarif") {
+            rules_.output.file_output.report_sarif = value;
+        } else if (key == "output.file_output.report_json") {
+            rules_.output.file_output.report_json = value;
+        } else if (key == "output.file_output.report_junit") {
+            rules_.output.file_output.report_junit = value;
+        }
+        // Additional dot-path overrides can be added as needed
+    }
+    fprintf(stderr, "[governance] Applied environment: %s\n", env_name.c_str());
 }
 
 // ============================================================================
@@ -5366,7 +5640,8 @@ void GovernanceEngine::logAuditEvent(const std::string& event_type,
 void GovernanceEngine::logPolyglotExecution(const std::string& language,
                                               const std::vector<std::string>& bound_vars,
                                               int64_t duration_us,
-                                              const std::string& file, int line) {
+                                              const std::string& file, int line,
+                                              const std::string& runtime_version) {
     if (!rules_.audit.log_events.polyglot_executed &&
         !rules_.audit.log_events.polyglot_timing) return;
 
@@ -5377,6 +5652,7 @@ void GovernanceEngine::logPolyglotExecution(const std::string& language,
     }
 
     std::string msg = "lang=" + language;
+    if (!runtime_version.empty()) msg += " runtime=" + runtime_version;
     if (!vars_str.empty()) msg += " vars=[" + vars_str + "]";
     if (rules_.audit.log_events.polyglot_timing) {
         msg += " duration=" + std::to_string(duration_us) + "us";
@@ -5517,6 +5793,14 @@ std::string GovernanceEngine::generateJsonReport() const {
         entry["severity"] = r.severity;
         entry["file"] = r.file;
         entry["line"] = r.line;
+        if (!r.cwe_ids.empty()) {
+            entry["cwe"] = nlohmann::json::array();
+            for (const auto& c : r.cwe_ids) entry["cwe"].push_back(c);
+        }
+        if (!r.owasp_ids.empty()) {
+            entry["owasp"] = nlohmann::json::array();
+            for (const auto& o : r.owasp_ids) entry["owasp"].push_back(o);
+        }
         report["results"].push_back(entry);
     }
     return report.dump(2);
@@ -5565,6 +5849,19 @@ std::string GovernanceEngine::generateSarifReport() const {
 
         if (!r.category.empty()) {
             rule["properties"]["category"] = r.category;
+        }
+
+        // Feature 3: CWE/OWASP tags in SARIF
+        auto [cwes, owasps] = lookupCweOwasp(r.rule_name);
+        if (!cwes.empty()) {
+            rule["properties"]["cwe"] = nlohmann::json::array();
+            for (const auto& cwe : cwes) rule["properties"]["cwe"].push_back(cwe);
+            std::string cwe_num = cwes[0].substr(4); // "CWE-89" -> "89"
+            rule["helpUri"] = "https://cwe.mitre.org/data/definitions/" + cwe_num + ".html";
+        }
+        if (!owasps.empty()) {
+            rule["properties"]["owasp"] = nlohmann::json::array();
+            for (const auto& o : owasps) rule["properties"]["owasp"].push_back(o);
         }
 
         rules_arr.push_back(rule);
@@ -5831,6 +6128,10 @@ void GovernanceEngine::writeTelemetry() const {
         ev["category"] = r.category;
         ev["severity"] = r.severity;
         ev["level"] = levelToString(r.level);
+        if (!r.cwe_ids.empty()) {
+            ev["cwe"] = nlohmann::json::array();
+            for (const auto& c : r.cwe_ids) ev["cwe"].push_back(c);
+        }
         std::string line = ev.dump() + "\n";
         fwrite(line.c_str(), 1, line.size(), fp);
     }

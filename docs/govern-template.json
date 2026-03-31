@@ -1329,5 +1329,41 @@
     "show_extractions": true,
     "dry_run": false,
     "max_file_size_kb": 100
+  },
+
+  "_comment_quality_gate": "Quality Gate — aggregate pass/fail for CI/CD pipelines. Exit code 2 on failure.",
+  "quality_gate": {
+    "enabled": false,
+    "conditions": [
+      { "metric": "hard_violations", "operator": ">", "threshold": 0 },
+      { "metric": "soft_violations", "operator": ">", "threshold": 5 },
+      { "metric": "advisory_violations", "operator": ">", "threshold": 20 },
+      { "metric": "security_findings", "operator": ">", "threshold": 0 },
+      { "metric": "total_violations", "operator": ">", "threshold": 10 }
+    ]
+  },
+
+  "_comment_governance_baseline": "Governance Baseline — regression detection across runs. Use --governance-baseline-save to snapshot.",
+  "governance_baseline": {
+    "enabled": false,
+    "path": ".naab/governance-baseline.json",
+    "fail_on_regression": true,
+    "level": "soft"
+  },
+
+  "_comment_environments": "Environment Selector — use --env <name> to apply overrides. Values override top-level settings.",
+  "environments": {
+    "production": {
+      "mode": "enforce",
+      "quality_gate.enabled": "true"
+    },
+    "development": {
+      "mode": "audit",
+      "quality_gate.enabled": "false"
+    },
+    "ci": {
+      "mode": "enforce",
+      "output.file_output.report_sarif": "governance.sarif"
+    }
   }
 }

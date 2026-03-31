@@ -946,6 +946,32 @@ struct HooksConfig {
 };
 
 // ============================================================================
+// Section 12b: Quality Gate
+// ============================================================================
+
+struct QualityGateCondition {
+    std::string metric;     // "hard_violations", "soft_violations", etc.
+    std::string op;         // ">", ">=", "<", "<=", "=="
+    int threshold = 0;
+};
+
+struct QualityGateConfig {
+    bool enabled = false;
+    std::vector<QualityGateCondition> conditions;
+};
+
+// ============================================================================
+// Section 12c: Governance Baseline
+// ============================================================================
+
+struct GovernanceBaselineConfig {
+    bool enabled = false;
+    std::string path = ".naab/governance-baseline.json";
+    bool fail_on_regression = true;
+    EnforcementLevel level = EnforcementLevel::SOFT;
+};
+
+// ============================================================================
 // Section 13: Polyglot-Specific Rules
 // ============================================================================
 
@@ -1241,6 +1267,15 @@ struct GovernanceRules {
     // --- Agent governance ---
     TelemetryOutputConfig telemetry_output;
     std::vector<AgentRoleConfig> agent_roles;
+
+    // --- Quality gate (Feature 2) ---
+    QualityGateConfig quality_gate;
+
+    // --- Governance baseline (Feature 4) ---
+    GovernanceBaselineConfig governance_baseline;
+
+    // --- Environment overrides (Feature 5) ---
+    std::map<std::string, std::unordered_map<std::string, std::string>> environments;
 };
 
 // ============================================================================
@@ -1256,6 +1291,8 @@ struct CheckResult {
     std::string severity;     // "critical", "high", "medium", "low"
     int line = 0;
     std::string file;         // source file path
+    std::vector<std::string> cwe_ids;    // e.g., {"CWE-89"}
+    std::vector<std::string> owasp_ids;  // e.g., {"A03:2021"}
 };
 
 // ============================================================================
@@ -1317,6 +1354,10 @@ struct RateLimiter {
 // ============================================================================
 // Governance Engine (Main Class)
 // ============================================================================
+
+// Process-level flag for exit code determination (Feature 1)
+// Survives stack unwinding — set in enforce() when HARD violation fires
+extern bool g_governance_hard_block;
 
 class GovernanceEngine {
 public:
@@ -1553,6 +1594,19 @@ public:
     void printDashboard() const;
     void resetCheckResults() { check_results_.clear(); }
 
+    // Feature 1: Check if any HARD violation was recorded
+    bool wasBlocked() const;
+
+    // Feature 2: Quality gate evaluation — returns empty if passed, error msg if failed
+    std::string evaluateQualityGate() const;
+
+    // Feature 4: Governance baseline regression detection
+    void saveGovernanceBaseline() const;
+    std::string checkGovernanceBaseline() const;  // empty = no regression
+
+    // Feature 5: Environment selector
+    void applyEnvironment(const std::string& env_name);
+
     // --- Advisory Output Control ---
     void emitAdvisory(const std::string& msg);
     void flushGroupedAdvisories();
@@ -1579,7 +1633,8 @@ public:
                               const std::vector<std::string>& bound_vars,
                               int64_t duration_us,
                               const std::string& file = "",
-                              int line = 0);
+                              int line = 0,
+                              const std::string& runtime_version = "");
 
     void logTaintDecision(const std::string& var_name,
                           const std::string& decision,

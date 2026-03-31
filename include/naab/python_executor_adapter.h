@@ -39,8 +39,12 @@ public:
     // Get captured output
     std::string getCapturedOutput() override;
 
+    // Get runtime version (e.g., "Python 3.11.2")
+    std::string getRuntimeVersion() const override;
+
 private:
     std::unique_ptr<PythonCExecutor> executor_;
+    mutable std::string cached_version_;
 };
 
 } // namespace runtime

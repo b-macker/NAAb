@@ -227,6 +227,8 @@ void print_usage() {
     fmt::print("  --governance-dashboard              Print agent governance summary after execution\n");
     fmt::print("  --agent-id <name>                  Set agent identity for telemetry and role enforcement\n");
     fmt::print("  --governance-telemetry <path>       Write telemetry events to JSONL file (append mode)\n");
+    fmt::print("  --governance-baseline-save          Save current governance results as baseline\n");
+    fmt::print("  --env <name>                        Apply environment overrides from govern.json\n");
     fmt::print("\nSecurity Options:\n");
     fmt::print("  --sandbox-level <level>             Security: restricted|standard|elevated|unrestricted\n");
     fmt::print("                                      (default: standard - safe for enterprise)\n");
@@ -275,6 +277,8 @@ int main(int argc, char** argv) {
     bool global_governance_dashboard = false;
     std::string global_agent_id = "anonymous";
     std::string global_governance_telemetry;
+    bool global_governance_baseline_save = false;
+    std::string global_governance_env;
     int command_arg_index = 1;  // Index of the actual command/file in argv
 
     while (command_arg_index < argc) {
@@ -323,6 +327,12 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--governance-telemetry" && command_arg_index + 1 < argc) {
             global_governance_telemetry = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--governance-baseline-save") {
+            global_governance_baseline_save = true;
+            command_arg_index++;
+        } else if (arg == "--env" && command_arg_index + 1 < argc) {
+            global_governance_env = argv[++command_arg_index];
             command_arg_index++;
         } else if (arg == "--repl") {
             return naab::repl::run(global_no_governance);
@@ -430,6 +440,8 @@ int main(int argc, char** argv) {
         std::string governance_telemetry_path = global_governance_telemetry;
         bool governance_record_baselines = false;
         bool governance_check_baselines = false;
+        bool governance_baseline_save = global_governance_baseline_save;
+        std::string governance_env = global_governance_env;
         std::string governance_report_json;
         std::string governance_report_sarif;
         std::string governance_report_junit;
@@ -488,6 +500,10 @@ int main(int argc, char** argv) {
                 governance_record_baselines = true;
             } else if (arg == "--governance-check-baselines") {
                 governance_check_baselines = true;
+            } else if (arg == "--governance-baseline-save") {
+                governance_baseline_save = true;
+            } else if (arg == "--env" && i + 1 < argc) {
+                governance_env = argv[++i];
             } else if (arg == "--strict-types") {
                 strict_types = true;
             } else if (arg == "--vm") {
@@ -518,6 +534,8 @@ int main(int argc, char** argv) {
                            "    --governance-dashboard Print agent governance summary after run\n"
                            "    --agent-id <name>     Set agent identity for telemetry/roles\n"
                            "    --governance-telemetry <path>  Write telemetry JSONL\n"
+                           "    --governance-baseline-save  Save governance baseline\n"
+                           "    --env <name>          Apply environment overrides\n"
                            "    --strict-types        Abort on type errors (pre-execution check)\n"
                            "    --vm                  Use bytecode VM (default)\n"
                            "    --tree-walk           Use tree-walk interpreter instead of VM\n\n"
@@ -526,7 +544,7 @@ int main(int argc, char** argv) {
                            "  place the script in or near the modules directory, or use\n"
                            "  absolute paths in 'use' statements.\n", arg);
                 fflush(stdout);
-                return 1;
+                return 4;  // Config error exit code
             } else {
                 // Non-flag argument
                 if (filename.empty()) {
@@ -586,7 +604,7 @@ int main(int argc, char** argv) {
             );
         } else {
             fmt::print("Error: Invalid sandbox level '{}'. Use: restricted|standard|elevated|unrestricted\n", sandbox_level);
-            return 1;
+            return 4;  // Config error exit code
         }
 
         // Apply CLI overrides to security config
@@ -844,6 +862,10 @@ int main(int argc, char** argv) {
                         r.telemetry_output.output_file = governance_telemetry_path;
                     }
                     gov->applyAgentRole();
+                    // Feature 5: Apply environment overrides
+                    if (!governance_env.empty()) {
+                        gov->applyEnvironment(governance_env);
+                    }
                 }
             }
             if (!use_vm && (!governance_report_json.empty() || !governance_report_sarif.empty() ||
@@ -891,6 +913,10 @@ int main(int argc, char** argv) {
                         rules.telemetry_output.output_file = governance_telemetry_path;
                     }
                     vm_governance.applyAgentRole();
+                    // Feature 5: Apply environment overrides
+                    if (!governance_env.empty()) {
+                        vm_governance.applyEnvironment(governance_env);
+                    }
                     // Apply CLI report path overrides
                     if (!governance_report_json.empty() || !governance_report_sarif.empty() ||
                         !governance_report_junit.empty()) {
@@ -1115,6 +1141,33 @@ int main(int argc, char** argv) {
                 if (governance_dashboard && vm_governance.isActive()) {
                     vm_governance.printDashboard();
                 }
+
+                // Feature 2: Quality gate check (VM path)
+                if (vm_governance.isActive()) {
+                    std::string gate = vm_governance.evaluateQualityGate();
+                    if (!gate.empty()) {
+                        fprintf(stderr, "%s", gate.c_str());
+                        vm_governance.writeReports();
+                        fflush(stdout); fflush(stderr);
+                        _exit(2);
+                    }
+                }
+
+                // Feature 4: Baseline regression check (VM path)
+                if (vm_governance.isActive()) {
+                    std::string regression = vm_governance.checkGovernanceBaseline();
+                    if (!regression.empty()) {
+                        fprintf(stderr, "%s", regression.c_str());
+                        if (vm_governance.getRules().governance_baseline.fail_on_regression) {
+                            vm_governance.writeReports();
+                            fflush(stdout); fflush(stderr);
+                            _exit(2);
+                        }
+                    }
+                    if (governance_baseline_save) {
+                        vm_governance.saveGovernanceBaseline();
+                    }
+                }
             } else {
                 // Inner try-catch: write governance reports before re-throwing.
                 // The interpreter is alive here, so we can safely access it.
@@ -1132,6 +1185,39 @@ int main(int argc, char** argv) {
                 if (governance_dashboard) {
                     auto* gov = interpreter.getGovernance();
                     if (gov) gov->printDashboard();
+                }
+
+                // Feature 2: Quality gate check (tree-walker path)
+                {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov) {
+                        std::string gate = gov->evaluateQualityGate();
+                        if (!gate.empty()) {
+                            fprintf(stderr, "%s", gate.c_str());
+                            gov->writeReports();
+                            fflush(stdout); fflush(stderr);
+                            _exit(2);
+                        }
+                    }
+                }
+
+                // Feature 4: Baseline regression check (tree-walker path)
+                {
+                    auto* gov = interpreter.getGovernance();
+                    if (gov) {
+                        std::string regression = gov->checkGovernanceBaseline();
+                        if (!regression.empty()) {
+                            fprintf(stderr, "%s", regression.c_str());
+                            if (gov->getRules().governance_baseline.fail_on_regression) {
+                                gov->writeReports();
+                                fflush(stdout); fflush(stderr);
+                                _exit(2);
+                            }
+                        }
+                        if (governance_baseline_save) {
+                            gov->saveGovernanceBaseline();
+                        }
+                    }
                 }
             }
 
@@ -1152,11 +1238,15 @@ int main(int argc, char** argv) {
             fmt::print("{}\n", e.formatError());
             fflush(stdout);
             fflush(stderr);
+            if (naab::governance::g_governance_hard_block) _exit(3);
             _exit(1);
         } catch (const std::exception& e) {
-            fmt::print("Error: {}\n", e.what());
+            std::string msg = e.what();
+            fmt::print("Error: {}\n", msg);
             fflush(stdout);
             fflush(stderr);
+            if (naab::governance::g_governance_hard_block) _exit(3);
+            if (msg.find("Governance config error:") == 0) _exit(4);
             _exit(1);
         }
 
