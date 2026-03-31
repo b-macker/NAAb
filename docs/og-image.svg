@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e17"/>
+      <stop offset="100%" style="stop-color:#111827"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="50%" style="stop-color:#8b5cf6"/>
+      <stop offset="100%" style="stop-color:#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1200" height="4" fill="url(#accent)"/>
+  <text x="600" y="220" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="96" font-weight="800" fill="#e2e8f0">NAAb</text>
+  <text x="600" y="310" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="400" fill="#94a3b8">Polyglot Programming Language</text>
+  <text x="600" y="360" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="28" font-weight="600" fill="url(#accent)">Built-in AI Governance &amp; Bytecode VM</text>
+  <g transform="translate(240,420)" fill="none" stroke="#1e2d3d" stroke-width="1">
+    <rect x="0" y="0" width="720" height="80" rx="12"/>
+  </g>
+  <text x="600" y="470" text-anchor="middle" font-family="'SF Mono',monospace" font-size="20" fill="#64748b">12 Languages · 50+ Checks · ~8x Faster VM · Taint Tracking</text>
+  <rect x="0" y="626" width="1200" height="4" fill="url(#accent)"/>
+</svg>

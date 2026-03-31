@@ -5,21 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NAAb — The Polyglot Programming Language with Built-in LLM Governance</title>
     <meta name="description" content="NAAb is a polyglot programming language that integrates Python, JavaScript, Rust, C++, Go, Nim, Zig, Julia and more with built-in LLM governance — detecting oversimplified stubs, hallucinated APIs, and incomplete logic in AI-generated code.">
-    <meta name="keywords" content="polyglot programming language, LLM governance, AI code quality, hallucinated APIs, code generation, Python, JavaScript, Rust, C++, static analysis, polyglot, code review, enterprise">
+    <meta name="keywords" content="polyglot programming language, LLM governance, AI code quality, hallucinated APIs, code generation, bytecode VM, taint tracking, AI agent governance, multi-agent, NaN-boxing, Python, JavaScript, Rust, C++, Go, Nim, static analysis, polyglot, code review, enterprise, open source">
     <meta name="author" content="Brandon Mackert">
+    <link rel="canonical" href="https://b-macker.github.io/NAAb/">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <meta name="google-site-verification" content="Kk_M0y4J--TlKqyGB6rQmunZK2Fu4bPQv1f1bbH4P_c" />
-
     <meta name="msvalidate.01" content="D2CF5F3B85FF5E7EEF83759F03CA2807" />
-
     <meta name="yandex-verification" content="84af87a37b679873" />
 
-    <meta property="og:title" content="NAAb — Polyglot Without the Trip">
-    <meta property="og:description" content="A polyglot programming language with built-in LLM governance. Integrates 12 languages. 50+ governance checks catch hallucinated APIs, oversimplified stubs, and incomplete logic.">
+    <meta property="og:title" content="NAAb — Polyglot Programming Language with AI Governance & Bytecode VM">
+    <meta property="og:description" content="12 languages, 50+ governance checks, bytecode VM (~8x faster), taint tracking, and multi-agent role enforcement. Open source, MIT licensed.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://b-macker.github.io/NAAb/">
+    <meta property="og:image" content="https://b-macker.github.io/NAAb/og-image.svg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="NAAb">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="NAAb — Polyglot Without the Trip">
-    <meta name="twitter:description" content="A polyglot programming language with built-in LLM governance. 12 languages, 50+ checks, zero hallucinations.">
+    <meta name="twitter:title" content="NAAb — Polyglot Programming Language with AI Governance & Bytecode VM">
+    <meta name="twitter:description" content="12 languages, 50+ governance checks, bytecode VM (~8x faster), taint tracking, multi-agent enforcement. Open source.">
+    <meta name="twitter:image" content="https://b-macker.github.io/NAAb/og-image.svg">
 
     <script type="application/ld+json">
     {
@@ -35,6 +40,47 @@
         "codeRepository": "https://github.com/b-macker/NAAb",
         "author": { "@type": "Person", "name": "Brandon Mackert", "url": "https://github.com/b-macker" },
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "What is NAAb?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "NAAb is a polyglot programming language that lets you embed Python, JavaScript, Rust, C++, Go, Nim, and 6 more languages inside .naab files. It includes a built-in AI governance engine with 50+ checks to detect hallucinated APIs, oversimplified stubs, and incomplete logic in AI-generated code."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How fast is NAAb's bytecode VM?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "NAAb's stack-based bytecode VM is approximately 8x faster than the tree-walking interpreter, achieving ~50ms vs ~395ms on benchmarks. It uses computed goto dispatch, NaN-boxing fast paths, and constant folding optimizations."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What is LLM governance in NAAb?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "NAAb's governance engine (configured via govern.json) applies 50+ automated checks to AI-generated code at execution time. It detects stub patterns, hallucinated APIs, tainted data flow, and complexity violations with 3-tier enforcement (HARD block, SOFT override, ADVISORY warn). It also supports multi-agent role enforcement via agent_roles."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What languages does NAAb support?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "NAAb supports 12 languages: Python, JavaScript, Shell, Go, Nim, Rust, C++, C#, Ruby, PHP, Zig, and Julia. Each language runs in its native runtime via polyglot blocks embedded in .naab files."
+                }
+            }
+        ]
     }
     </script>
 
