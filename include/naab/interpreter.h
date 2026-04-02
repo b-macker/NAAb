@@ -17,7 +17,9 @@
 #include "naab/suggestion_system.h" // Phase 3.1: "Did you mean?" suggestions
 #include "naab/governance.h"        // Governance engine for govern.json enforcement
 #include "naab/scanner.h"           // Code quality scanner for govern.json scanner section
+#ifdef HAVE_PYBIND11
 #include <Python.h>
+#endif
 #include <chrono>
 #include <filesystem>
 #include <functional>
@@ -114,6 +116,7 @@ struct FunctionValue {
 };
 
 // Python object wrapper for method chaining
+#ifdef HAVE_PYBIND11
 struct PythonObjectValue {
     PyObject* obj;       // Owned reference
     std::string repr;    // String representation for display
@@ -157,6 +160,13 @@ struct PythonObjectValue {
         return *this;
     }
 };
+#else
+// Stub when Python is not available — keeps ValueData variant indices stable
+struct PythonObjectValue {
+    std::string repr{"<python-unavailable>"};
+    PythonObjectValue() = default;
+};
+#endif // HAVE_PYBIND11
 
 // ============================================================================
 // Error Handling - Phase 4.1

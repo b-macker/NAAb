@@ -564,7 +564,7 @@ endif()
 # Add Python libraries if pybind11 is available
 if(HAVE_PYBIND11)
     target_link_libraries(naab_runtime ${Python3_LIBRARIES})
-    target_compile_definitions(naab_runtime PRIVATE HAVE_PYBIND11=1)
+    target_compile_definitions(naab_runtime PUBLIC HAVE_PYBIND11=1)
 endif()
 
 # Add Rust support (Phase 3.1-3.3)
