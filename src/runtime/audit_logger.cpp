@@ -5,10 +5,6 @@
 #include <sstream>
 #include <ctime>
 #include <filesystem>
-#ifndef _WIN32
-#  include <sys/stat.h>
-#  include <unistd.h>
-#endif
 
 namespace naab {
 namespace security {
@@ -220,11 +216,10 @@ void AuditLogger::checkRotation() {
 
     // Get current file size
     log_stream_.flush();
-    struct stat st;
-    if (stat(log_file_path_.c_str(), &st) == 0) {
-        if (static_cast<size_t>(st.st_size) >= max_file_size_) {
-            rotateLog();
-        }
+    std::error_code ec;
+    auto file_size = std::filesystem::file_size(log_file_path_, ec);
+    if (!ec && file_size >= max_file_size_) {
+        rotateLog();
     }
 }
 
@@ -233,18 +228,19 @@ void AuditLogger::rotateLog() {
 
     // Rotate: file.log -> file.log.1, file.log.1 -> file.log.2, etc.
     // Keep up to 5 rotated files
+    std::error_code ec;
     for (int i = 4; i >= 1; i--) {
         std::string old_file = log_file_path_ + "." + std::to_string(i);
         std::string new_file = log_file_path_ + "." + std::to_string(i + 1);
 
-        if (access(old_file.c_str(), F_OK) == 0) {
-            rename(old_file.c_str(), new_file.c_str());
+        if (std::filesystem::exists(old_file, ec)) {
+            std::filesystem::rename(old_file, new_file, ec);
         }
     }
 
     // Move current log to .1
     std::string rotated = log_file_path_ + ".1";
-    rename(log_file_path_.c_str(), rotated.c_str());
+    std::filesystem::rename(log_file_path_, rotated, ec);
 
     // Stream will be reopened on next write
 }

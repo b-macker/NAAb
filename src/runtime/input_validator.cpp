@@ -4,9 +4,6 @@
 #include <climits>
 #include <cstdlib>
 #include <filesystem>
-#ifndef _WIN32
-#  include <unistd.h>
-#endif
 
 namespace naab {
 namespace security {
