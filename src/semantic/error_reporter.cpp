@@ -215,7 +215,7 @@ std::string ErrorReporter::formatWithContext(const Diagnostic& diag) const {
 
     // Source code context
     if (diag.show_source && !source_lines_.empty()) {
-        size_t start_line = std::max(1ul, diag.line - diag.context_lines);
+        size_t start_line = std::max(size_t(1), diag.line - diag.context_lines);
         size_t end_line = std::min(source_lines_.size(), diag.line + diag.context_lines);
 
         // Line number width for alignment
