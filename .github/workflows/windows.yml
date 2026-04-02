@@ -53,7 +53,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y libsqlite3-dev libcurl4-openssl-dev pkg-config
+          sudo apt-get install -y libsqlite3-dev libcurl4-openssl-dev pkg-config python3-dev
+          pip3 install pybind11
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
