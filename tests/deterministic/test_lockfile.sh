@@ -51,6 +51,12 @@ EOF
 
 mkdir -p "${TMPDIR}/.naab"
 
+# On MSYS2/Windows, python3 is native Windows and can't resolve POSIX paths
+LOCK_PY="${TMPDIR}/.naab/naab.lock"
+if command -v cygpath &>/dev/null; then
+    LOCK_PY=$(cygpath -w "${TMPDIR}/.naab/naab.lock")
+fi
+
 # ============================================================================
 # Test 1: --lock creates naab.lock file
 # ============================================================================
@@ -61,7 +67,7 @@ check "--lock creates .naab/naab.lock" "$([ -f "${TMPDIR}/.naab/naab.lock" ]; ec
 # Test 2: naab.lock is valid JSON
 # ============================================================================
 if [ -f "${TMPDIR}/.naab/naab.lock" ]; then
-    python3 -c "import json,sys; json.load(open('${TMPDIR}/.naab/naab.lock'))" 2>/dev/null
+    python3 -c "import json,sys; json.load(open('${LOCK_PY}'))" 2>/dev/null
     check "naab.lock is valid JSON" $?
 else
     FAIL=$((FAIL + 1))
@@ -74,7 +80,7 @@ fi
 if [ -f "${TMPDIR}/.naab/naab.lock" ]; then
     python3 -c "
 import json
-data = json.load(open('${TMPDIR}/.naab/naab.lock'))
+data = json.load(open('${LOCK_PY}'))
 assert 'naab_version' in data, 'missing naab_version'
 assert 'platform' in data, 'missing platform'
 assert 'runtimes' in data, 'missing runtimes'

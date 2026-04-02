@@ -34,23 +34,38 @@ echo "setting=on" > "$TEST_DIR/config/settings.txt"
 echo "supersecret" > "$TEST_DIR/secrets/key.txt"
 
 # --- Setup: govern.json with agent roles (absolute paths for prefix matching) ---
+# On MSYS2/Windows, naab-lang.exe is a native Windows binary that resolves
+# paths to Windows format (C:\...). Convert POSIX paths before embedding in JSON.
+GOV_DATA="$TEST_DIR/data"
+GOV_OUTPUT="$TEST_DIR/output"
+GOV_CONFIG="$TEST_DIR/config"
+GOV_SECRETS="$TEST_DIR/secrets"
+GOV_TELEM="$TEST_DIR/telemetry.jsonl"
+if command -v cygpath &>/dev/null; then
+    GOV_DATA=$(cygpath -w "$GOV_DATA")
+    GOV_OUTPUT=$(cygpath -w "$GOV_OUTPUT")
+    GOV_CONFIG=$(cygpath -w "$GOV_CONFIG")
+    GOV_SECRETS=$(cygpath -w "$GOV_SECRETS")
+    GOV_TELEM=$(cygpath -w "$GOV_TELEM")
+fi
+
 cat > "$TEST_DIR/govern.json" << GOVEOF
 {
     "version": "3.0",
     "mode": "enforce",
     "languages": { "allowed": ["python", "shell"] },
     "capabilities": { "filesystem": "write" },
-    "telemetry": { "enabled": true, "output_file": "$TEST_DIR/telemetry.jsonl" },
+    "telemetry": { "enabled": true, "output_file": "$GOV_TELEM" },
     "agent_roles": {
         "data-bot": {
             "allowed_languages": ["python"],
-            "allowed_paths": ["$TEST_DIR/data", "$TEST_DIR/output"],
-            "blocked_paths": ["$TEST_DIR/secrets"]
+            "allowed_paths": ["$GOV_DATA", "$GOV_OUTPUT"],
+            "blocked_paths": ["$GOV_SECRETS"]
         },
         "ops-bot": {
             "allowed_languages": ["shell"],
-            "allowed_paths": ["$TEST_DIR/config", "$TEST_DIR/output"],
-            "blocked_paths": ["$TEST_DIR/secrets"]
+            "allowed_paths": ["$GOV_CONFIG", "$GOV_OUTPUT"],
+            "blocked_paths": ["$GOV_SECRETS"]
         }
     }
 }

@@ -22,6 +22,13 @@ mkdir -p "$TMPDIR_NAAB"
 cleanup() { rm -rf "$TMPDIR_NAAB"; }
 trap cleanup EXIT
 
+# On MSYS2/Windows, convert the temp dir to a Windows path for use inside .naab scripts
+# (naab-lang.exe is a native Windows binary that can't resolve MSYS2 POSIX paths)
+TMPDIR_NAAB_WIN="$TMPDIR_NAAB"
+if command -v cygpath &>/dev/null; then
+    TMPDIR_NAAB_WIN=$(cygpath -w "$TMPDIR_NAAB")
+fi
+
 echo "=== File Sandbox Enforcement Tests ==="
 echo ""
 
@@ -62,10 +69,10 @@ EXIT_CODE=0
 check "file.append blocked under restricted (exit 1)" '[ "$EXIT_CODE" = "1" ]'
 
 # Test 5: file.read with absolute path blocked under restricted
-# /etc/os-release is a well-known readable file on most Linux systems;
-# use /proc/version as a fallback since it exists on Android/Termux
+# Use a hardcoded absolute path that doesn't exist on any platform —
+# the sandbox should block it before any filesystem access.
 cat > "${TMPDIR_NAAB}/absread_test.naab" << 'NAAB'
-main { let x = file.read("/proc/version") }
+main { let x = file.read("/etc/naab_nonexistent_test_file") }
 NAAB
 EXIT_CODE=0
 "$NAAB_BIN" --no-governance --sandbox-level restricted \
@@ -73,10 +80,10 @@ EXIT_CODE=0
 check "file.read absolute path blocked under restricted (exit 1)" '[ "$EXIT_CODE" = "1" ]'
 
 # Test 6: path traversal attempt blocked under restricted
-# normalizePath() resolves ../../.. before sandbox check, so this hits the absolute path block
-TRAVERSAL_PATH="${TMPDIR_NAAB}/../../proc/version"
-cat > "${TMPDIR_NAAB}/traversal_test.naab" << NAAB
-main { let x = file.read("${TRAVERSAL_PATH}") }
+# Use a relative traversal from the script dir that resolves outside it.
+# The sandbox resolves ../../.. before checking, hitting the absolute path block.
+cat > "${TMPDIR_NAAB}/traversal_test.naab" << 'NAAB'
+main { let x = file.read("../../etc/naab_nonexistent_test_file") }
 NAAB
 EXIT_CODE=0
 "$NAAB_BIN" --no-governance --sandbox-level restricted \
@@ -84,9 +91,10 @@ EXIT_CODE=0
 check "path traversal blocked under restricted (exit 1)" '[ "$EXIT_CODE" = "1" ]'
 
 # Test 7: file.read on local file succeeds under elevated (positive test)
+# Use Windows-compatible path so naab-lang.exe can find the file on MSYS2
 echo "test content" > "${TMPDIR_NAAB}/testdata.txt"
 cat > "${TMPDIR_NAAB}/localread_test.naab" << NAAB
-main { let x = file.read("${TMPDIR_NAAB}/testdata.txt") }
+main { let x = file.read("${TMPDIR_NAAB_WIN}/testdata.txt") }
 NAAB
 EXIT_CODE=0
 "$NAAB_BIN" --no-governance --sandbox-level elevated \
