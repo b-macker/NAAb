@@ -477,9 +477,17 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         canon = filepath;
     }
 
+    // Normalize path separators: replace backslashes with forward slashes so that
+    // govern.json paths (which may use either separator) compare correctly on Windows.
+    auto normSep = [](std::string p) {
+        std::replace(p.begin(), p.end(), '\\', '/');
+        return p;
+    };
+    const std::string canon_n = normSep(canon);
+
     // Layer 1: Base filesystem blocked_paths (deny wins)
     for (const auto& bp : rules_.capabilities.filesystem.blocked_paths) {
-        if (canon.find(bp) == 0) {
+        if (canon_n.find(normSep(bp)) == 0) {
             return enforce("capabilities.filesystem.path", EnforcementLevel::HARD,
                 formatError(EnforcementLevel::HARD,
                     "File path blocked by governance: " + filepath,
@@ -495,7 +503,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
     if (!rules_.capabilities.filesystem.allowed_paths.empty()) {
         bool base_allowed = false;
         for (const auto& ap : rules_.capabilities.filesystem.allowed_paths) {
-            if (canon.find(ap) == 0) {
+            if (canon_n.find(normSep(ap)) == 0) {
                 base_allowed = true;
                 break;
             }
@@ -517,7 +525,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
         if (role.name == agent_id_) {
             // Agent blocked_paths
             for (const auto& bp : role.blocked_paths) {
-                if (canon.find(bp) == 0) {
+                if (canon_n.find(normSep(bp)) == 0) {
                     return enforce("agent_role.path", EnforcementLevel::HARD,
                         formatError(EnforcementLevel::HARD,
                             "Agent '" + agent_id_ + "' blocked from path: " + filepath,
@@ -532,7 +540,7 @@ std::string GovernanceEngine::checkPathAccess(const std::string& filepath, const
             if (!role.allowed_paths.empty()) {
                 bool agent_allowed = false;
                 for (const auto& ap : role.allowed_paths) {
-                    if (canon.find(ap) == 0) {
+                    if (canon_n.find(normSep(ap)) == 0) {
                         agent_allowed = true;
                         break;
                     }
