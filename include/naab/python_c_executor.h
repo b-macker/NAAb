@@ -8,11 +8,14 @@
  * 5x faster than pybind11, no Android CFI crashes
  */
 
-#include "naab/python_c_wrapper.h"
 #include "naab/naab_val.h"
 #include <memory>
 #include <string>
 #include <vector>
+
+#ifdef HAVE_PYBIND11
+#include "naab/python_c_wrapper.h"
+#endif
 
 namespace naab {
 namespace runtime {
@@ -73,30 +76,10 @@ public:
     std::string getCapturedOutput();
 
 private:
-    /**
-     * Convert PyObject* to NAAb Value
-     *
-     * Handles all Python types:
-     * - None → null
-     * - bool → bool
-     * - int → int
-     * - float → double
-     * - str → string
-     * - list/tuple → vector<Value>
-     * - dict → unordered_map<string, Value>
-     *
-     * @param obj PyObject to convert (borrowed reference)
-     * @return NAAb Value
-     */
+#ifdef HAVE_PYBIND11
     interpreter::NaabVal pyObjectToValue(PyObject* obj);
-
-    /**
-     * Convert NAAb Value to PyObject*
-     *
-     * @param val NAAb Value to convert
-     * @return PyObject* (new reference, caller owns)
-     */
     PyObject* valueToPyObject(const interpreter::NaabVal& val);
+#endif
 };
 
 } // namespace runtime

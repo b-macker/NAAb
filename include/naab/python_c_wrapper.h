@@ -10,7 +10,9 @@
  */
 
 
+#ifdef HAVE_PYBIND11
 #include <Python.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +24,11 @@ extern "C" {
 typedef struct {
     int success;           // 1 = success, 0 = error
     char* error_message;   // Error message (NULL if success)
+#ifdef HAVE_PYBIND11
     PyObject* result;      // Python result object (NULL if error or void)
+#else
+    void* result;          // Opaque when Python is unavailable
+#endif
 } PythonCResult;
 
 /**
@@ -128,7 +134,11 @@ void python_c_free_result(PythonCResult* result);
  * @param obj PyObject to convert
  * @return String representation (caller must free with free())
  */
+#ifdef HAVE_PYBIND11
 char* python_c_object_to_string(PyObject* obj);
+#else
+char* python_c_object_to_string(void* obj);
+#endif
 
 /**
  * Warm up Python C API from worker thread.

@@ -20,9 +20,11 @@
 #include "naab/composition_validator.h"
 #include "naab/cpp_executor_adapter.h"
 #include "naab/js_executor_adapter.h"
+#ifdef HAVE_PYBIND11
 #include "naab/python_executor_adapter.h"
 // #include "naab/python_executor.h"  // REMOVED: Using pure C API (PythonCExecutor) now
 #include "naab/python_interpreter_manager.h"
+#endif
 #include "naab/polyglot_async_executor.h"
 #include "naab/rust_executor.h"
 #include "naab/csharp_executor.h"
