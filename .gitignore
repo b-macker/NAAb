@@ -27,6 +27,7 @@ Makefile
 # Generated files
 *.d
 *.cmake
+!cmake/*.cmake
 *_autogen/
 
 # Testing

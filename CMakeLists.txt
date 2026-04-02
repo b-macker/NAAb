@@ -11,7 +11,16 @@ set(CMAKE_CXX_STANDARD 17)
 
 include(GNUInstallDirs)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+
+if(MSVC)
+    add_compile_options(/W3 /permissive- /utf-8)
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+endif()
+
+if(WIN32)
+    add_compile_definitions(_WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
 
 # Required for building libnaab as a SHARED library: all static libs must be
 # compiled with -fPIC so their code can be linked into a position-independent DSO.
@@ -71,8 +80,8 @@ if(ENABLE_CFI)
     endif()
 endif()
 
-# Hardening flags (enabled by default)
-if(ENABLE_HARDENING)
+# Hardening flags (enabled by default, GCC/Clang only)
+if(ENABLE_HARDENING AND NOT MSVC)
     # Stack protection
     add_compile_options(-fstack-protector-strong)
 
@@ -236,9 +245,17 @@ include_directories(external/fmt/include)
 include_directories(external/spdlog/include)
 include_directories(external/cpp-httplib)
 
-# Configuration for block paths
-set(NAAB_BLOCKS_PATH "/storage/emulated/0/Download/.naab/naab/blocks/library")
-set(NAAB_DATABASE_PATH "/storage/emulated/0/Download/.naab/naab/data/naab.db")
+# Configuration for block paths — platform-aware
+if(WIN32)
+    set(NAAB_BLOCKS_PATH "$ENV{APPDATA}/.naab/blocks/library")
+    set(NAAB_DATABASE_PATH "$ENV{APPDATA}/.naab/data/naab.db")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Android" OR DEFINED ENV{ANDROID_ROOT})
+    set(NAAB_BLOCKS_PATH "/storage/emulated/0/Download/.naab/naab/blocks/library")
+    set(NAAB_DATABASE_PATH "/storage/emulated/0/Download/.naab/naab/data/naab.db")
+else()
+    set(NAAB_BLOCKS_PATH "$ENV{HOME}/.naab/blocks/library")
+    set(NAAB_DATABASE_PATH "$ENV{HOME}/.naab/data/naab.db")
+endif()
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/include/naab/config.h.in"
@@ -487,7 +504,8 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/persistent_ruby_executor.cpp     # Task 18: Persistent Ruby executor
     src/utils/paths.cpp  # Portable path resolution
     src/runtime/lockfile.cpp  # Phase 8.4: Lockfile for deterministic builds
-    src/platform/platform_posix.cpp  # Phase 7.3: Platform abstraction (POSIX)
+    # Phase 7.3: Platform abstraction — source selected at configure time
+
 )
 
 # Add Python executor if pybind11 is available
@@ -497,6 +515,15 @@ if(HAVE_PYBIND11)
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_interpreter_manager.cpp)  # Phase 2: Global Python interpreter
     # list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor.cpp)  # REMOVED: Using pure C API now, no pybind11
     list(APPEND NAAB_RUNTIME_SOURCES src/runtime/python_executor_adapter.cpp)
+endif()
+
+# Platform implementation (POSIX vs Windows)
+if(WIN32)
+    list(APPEND NAAB_RUNTIME_SOURCES src/platform/platform_win32.cpp)
+    message(STATUS "  ✓ Platform: Windows (platform_win32.cpp)")
+else()
+    list(APPEND NAAB_RUNTIME_SOURCES src/platform/platform_posix.cpp)
+    message(STATUS "  ✓ Platform: POSIX (platform_posix.cpp)")
 endif()
 
 add_library(naab_runtime ${NAAB_RUNTIME_SOURCES})
@@ -509,10 +536,12 @@ target_link_libraries(naab_runtime
     naab_security        # Phase 1: Security hardening
     tomlplusplus::tomlplusplus
     curl
-    dl
-    pthread
-    m
 )
+if(WIN32)
+    target_link_libraries(naab_runtime ws2_32 shell32)
+else()
+    target_link_libraries(naab_runtime dl pthread m)
+endif()
 
 # Add libffi if available
 if(FFI_FOUND)

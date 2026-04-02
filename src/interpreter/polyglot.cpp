@@ -215,8 +215,14 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
         if (language == "python") {
             var_declarations += var_name + " = " + serialized + "\n";
         } else if (language == "shell" || language == "sh" || language == "bash") {
-            // Use export for shell variables
+            // Variable binding syntax depends on the host shell
+#ifdef _WIN32
+            // cmd.exe syntax: SET VAR=value
+            var_declarations += "SET " + var_name + "=" + serialized + "\r\n";
+#else
+            // POSIX sh/bash syntax: export VAR=value
             var_declarations += "export " + var_name + "=" + serialized + "\n";
+#endif
         } else {
             if (language == "javascript" || language == "js") {
                 var_declarations += "const " + var_name + " = " + serialized + ";\n";

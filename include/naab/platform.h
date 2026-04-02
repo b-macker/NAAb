@@ -2,6 +2,14 @@
 //
 // NAAb Platform Abstraction Layer (Phase 7.3 — Windows Portability)
 //
+// Platform detection macros — use these instead of raw _WIN32 / __linux__ etc.
+//
+#ifdef _WIN32
+#  define NAAB_PLATFORM_WINDOWS 1
+#else
+#  define NAAB_PLATFORM_POSIX 1
+#endif
+//
 // Provides a thin POSIX-to-Win32 bridge so higher-level code can call
 // platform-neutral wrappers.  On Linux/macOS these forward directly to
 // the POSIX APIs.  On Windows they delegate to Win32 equivalents.

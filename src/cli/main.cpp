@@ -48,14 +48,17 @@
 #include "naab/package_manager.h"  // For package management commands
 #include "naab/profiler.h"   // For VM profiler integration
 #include "naab/debugger.h"   // For VM debugger integration
+#include "naab/platform.h"
 #include <fmt/core.h>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
 #include <cstdlib>
-#include <unistd.h>  // _exit()
 #include <filesystem>
+#ifndef _WIN32
+#  include <unistd.h>  // _exit()
+#endif
 #include <chrono>        // Calibration timing
 #include <map>           // Calibration data
 
@@ -239,19 +242,36 @@ void print_usage() {
 }
 
 int main(int argc, char** argv) {
+    // Enable ANSI colours + UTF-8 console on Windows; no-op on POSIX.
+    naab::platform::enableAnsiConsole();
+
     // Export interpreter path so polyglot scripts can find naab-lang
     // This solves the common problem of Python/shell scripts not knowing
     // where the NAAb interpreter is located
     {
+#ifdef _WIN32
+        // On Windows, GetModuleFileName is more reliable than argv[0].
+        std::string exe_str = naab::platform::executablePath();
+        if (!exe_str.empty()) {
+            naab::platform::setenv("NAAB_INTERPRETER_PATH", exe_str, true);
+            std::filesystem::path exe_path(exe_str);
+            naab::platform::setenv("NAAB_LANGUAGE_DIR",
+                exe_path.parent_path().parent_path().string(), true);
+        } else {
+            naab::platform::setenv("NAAB_INTERPRETER_PATH", argv[0], true);
+        }
+#else
         std::error_code ec;
         auto exe_path = std::filesystem::canonical(argv[0], ec);
         if (!ec) {
-            setenv("NAAB_INTERPRETER_PATH", exe_path.c_str(), 1);
-            setenv("NAAB_LANGUAGE_DIR", exe_path.parent_path().parent_path().c_str(), 1);
+            naab::platform::setenv("NAAB_INTERPRETER_PATH", exe_path.string(), true);
+            naab::platform::setenv("NAAB_LANGUAGE_DIR",
+                exe_path.parent_path().parent_path().string(), true);
         } else {
             // Fallback: use argv[0] as-is
-            setenv("NAAB_INTERPRETER_PATH", argv[0], 1);
+            naab::platform::setenv("NAAB_INTERPRETER_PATH", argv[0], true);
         }
+#endif
     }
 
     // Phase 7c: Initialize language executors

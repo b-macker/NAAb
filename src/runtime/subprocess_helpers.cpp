@@ -11,15 +11,21 @@
 #include <fmt/core.h>   // For fmt::format
 #include <sstream>      // For std::ostringstream
 #include <fstream>      // For std::ifstream
-
-#include <unistd.h>     // For fork, execvp, dup2, unlink, getpid, _exit
-#include <sys/wait.h>   // For waitpid, WIFEXITED, WEXITSTATUS, WIFSIGNALED
-#include <sys/resource.h> // For getrlimit, RLIMIT_AS
 #include <vector>       // For std::vector
 #include <map>          // For std::map
-#include <cstring>      // For strsignal
-#include <cstdlib>      // For mkstemp, environ
+#include <cstring>      // For strerror / strsignal
+#include <cstdlib>      // For mkstemp/environ (POSIX) or _putenv_s (Windows)
 #include <cerrno>       // For errno
+
+#ifndef _WIN32
+#  include <unistd.h>     // For fork, execvp, dup2, unlink, getpid, _exit
+#  include <sys/wait.h>   // For waitpid, WIFEXITED, WEXITSTATUS, WIFSIGNALED
+#  include <sys/resource.h> // For getrlimit, RLIMIT_AS
+#else
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
+#  include <windows.h>
+#endif
 
 namespace naab {
 namespace runtime {
@@ -32,6 +38,7 @@ static std::string readFileContents(const std::string& path) {
                         std::istreambuf_iterator<char>());
 }
 
+#ifndef _WIN32
 // Check if a process-wide memory limit (RLIMIT_AS) is currently active.
 // Returns the limit in MB if set, or 0 if unlimited.
 static size_t getActiveMemoryLimitMB() {
@@ -103,14 +110,15 @@ static std::string buildMemoryLimitError(
 
     return oss.str();
 }
+#endif // !_WIN32
 
-// Helper to execute a subprocess and capture its stdout/stderr
-// Returns exit code, fills stdout_str and stderr_str
+// Helper to execute a subprocess and capture its stdout/stderr.
+// Returns exit code, fills stdout_str and stderr_str.
 //
-// Uses fork()/execvp() to avoid shell interpretation (no command injection).
-// Output is captured via temp files redirected with dup2().
+// On POSIX: uses fork()/execvp() with temp files for output capture.
+// On Windows: uses CreateProcessA() with temp files for output capture.
 //
-// IMPORTANT: If this function returns -1 with SIGABRT, check stderr for
+// IMPORTANT: If this returns -1 with SIGABRT on POSIX, check stderr for
 // memory limit diagnostics. Process-wide RLIMIT_AS is the #1 cause of
 // mysterious subprocess failures in polyglot execution.
 int execute_subprocess_with_pipes(
@@ -119,6 +127,161 @@ int execute_subprocess_with_pipes(
     std::string& stdout_str,
     std::string& stderr_str,
     const std::map<std::string, std::string>* env) {
+
+#ifdef _WIN32
+    // =========================================================================
+    // Windows implementation — CreateProcessA + temp files
+    // =========================================================================
+    std::string tmp = naab::paths::temp_dir();
+    char stdout_tmp_buf[MAX_PATH];
+    char stderr_tmp_buf[MAX_PATH];
+    char tmp_prefix[MAX_PATH];
+
+    // GetTempPathA may return path with or without trailing backslash
+    std::string tmp_win = tmp;
+    if (!tmp_win.empty() && tmp_win.back() != '\\' && tmp_win.back() != '/') {
+        tmp_win += '\\';
+    }
+    strncpy(tmp_prefix, tmp_win.c_str(), MAX_PATH - 1);
+    tmp_prefix[MAX_PATH - 1] = '\0';
+
+    if (!::GetTempFileNameA(tmp_prefix, "nso", 0, stdout_tmp_buf) ||
+        !::GetTempFileNameA(tmp_prefix, "nse", 0, stderr_tmp_buf)) {
+        fprintf(stderr, "[subprocess] GetTempFileName failed (error %lu)\n", ::GetLastError());
+        return -1;
+    }
+    std::string stdout_tmp(stdout_tmp_buf);
+    std::string stderr_tmp(stderr_tmp_buf);
+
+    // Build flat command-line string: "program" "arg1" "arg2" ...
+    // Args containing spaces or quotes are double-quoted; internal quotes escaped.
+    auto quoteArg = [](const std::string& s) -> std::string {
+        bool needs_quote = s.empty() ||
+                           s.find(' ') != std::string::npos ||
+                           s.find('"') != std::string::npos ||
+                           s.find('\t') != std::string::npos;
+        if (!needs_quote) return s;
+        std::string result = "\"";
+        for (char c : s) {
+            if (c == '"') result += "\\\"";
+            else result += c;
+        }
+        result += '"';
+        return result;
+    };
+
+    std::string cmdline = quoteArg(command_path);
+    for (const auto& arg : args) {
+        cmdline += ' ';
+        cmdline += quoteArg(arg);
+    }
+
+    // Build custom environment block if requested (double-null-terminated)
+    std::vector<char> env_block;
+    LPVOID env_ptr = nullptr;
+    if (env && !env->empty()) {
+        // Start with current process environment
+        LPCH cur_env = ::GetEnvironmentStringsA();
+        if (cur_env) {
+            for (LPCH p = cur_env; *p; ) {
+                std::string entry(p);
+                p += entry.size() + 1;
+                // Skip keys that we're overriding
+                size_t eq = entry.find('=');
+                if (eq != std::string::npos) {
+                    std::string key = entry.substr(0, eq);
+                    if (env->count(key) == 0) {
+                        for (char c : entry) env_block.push_back(c);
+                        env_block.push_back('\0');
+                    }
+                }
+            }
+            ::FreeEnvironmentStringsA(cur_env);
+        }
+        // Add custom vars
+        for (const auto& pair : *env) {
+            std::string entry = pair.first + "=" + pair.second;
+            for (char c : entry) env_block.push_back(c);
+            env_block.push_back('\0');
+        }
+        env_block.push_back('\0');  // Double-null terminator
+        env_ptr = env_block.data();
+    }
+
+    // Open temp files as inheritable handles for stdout/stderr
+    SECURITY_ATTRIBUTES sa = {};
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+    sa.lpSecurityDescriptor = nullptr;
+
+    HANDLE hOut = ::CreateFileA(stdout_tmp.c_str(), GENERIC_WRITE,
+                                FILE_SHARE_READ, &sa, CREATE_ALWAYS,
+                                FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE hErr = ::CreateFileA(stderr_tmp.c_str(), GENERIC_WRITE,
+                                FILE_SHARE_READ, &sa, CREATE_ALWAYS,
+                                FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hOut == INVALID_HANDLE_VALUE || hErr == INVALID_HANDLE_VALUE) {
+        if (hOut != INVALID_HANDLE_VALUE) ::CloseHandle(hOut);
+        if (hErr != INVALID_HANDLE_VALUE) ::CloseHandle(hErr);
+        fprintf(stderr, "[subprocess] CreateFile for temp output failed (error %lu)\n",
+                ::GetLastError());
+        ::DeleteFileA(stdout_tmp.c_str());
+        ::DeleteFileA(stderr_tmp.c_str());
+        return -1;
+    }
+
+    STARTUPINFOA si = {};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = ::GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = hOut;
+    si.hStdError = hErr;
+
+    PROCESS_INFORMATION pi = {};
+    std::vector<char> cmdline_buf(cmdline.begin(), cmdline.end());
+    cmdline_buf.push_back('\0');
+
+    BOOL ok = ::CreateProcessA(
+        nullptr,
+        cmdline_buf.data(),
+        nullptr, nullptr,
+        TRUE,   // inherit handles
+        0,
+        env_ptr,
+        nullptr,
+        &si, &pi);
+
+    ::CloseHandle(hOut);
+    ::CloseHandle(hErr);
+
+    if (!ok) {
+        DWORD err = ::GetLastError();
+        fprintf(stderr, "[subprocess] CreateProcess failed for '%s' (error %lu)\n",
+                command_path.c_str(), err);
+        ::DeleteFileA(stdout_tmp.c_str());
+        ::DeleteFileA(stderr_tmp.c_str());
+        return (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) ? 127 : -1;
+    }
+
+    ::WaitForSingleObject(pi.hProcess, INFINITE);
+
+    DWORD exit_code = 1;
+    ::GetExitCodeProcess(pi.hProcess, &exit_code);
+    ::CloseHandle(pi.hProcess);
+    ::CloseHandle(pi.hThread);
+
+    stdout_str = readFileContents(stdout_tmp);
+    stderr_str = readFileContents(stderr_tmp);
+
+    ::DeleteFileA(stdout_tmp.c_str());
+    ::DeleteFileA(stderr_tmp.c_str());
+
+    return static_cast<int>(exit_code);
+
+#else
+    // =========================================================================
+    // POSIX implementation — fork()/execvp() + temp files
+    // =========================================================================
 
     // Create temp files for stdout and stderr capture
     std::string tmp = naab::paths::temp_dir();
@@ -214,11 +377,6 @@ int execute_subprocess_with_pipes(
         int sig = WTERMSIG(status);
 
         // Check if this looks like a memory-limit-induced crash.
-        // SIGABRT (6), SIGSEGV (11), and SIGKILL (9) are common when
-        // RLIMIT_AS prevents the child from allocating memory during
-        // exec/dynamic linking. This exact scenario (JS executor setting
-        // RLIMIT_AS=512MB, breaking all subsequent shell blocks) took
-        // hours to debug — this detection cuts that to seconds.
         if (sig == SIGABRT || sig == SIGSEGV || sig == SIGKILL) {
             size_t mem_limit = getActiveMemoryLimitMB();
             if (mem_limit > 0) {
@@ -234,6 +392,7 @@ int execute_subprocess_with_pipes(
     }
 
     return -1;
+#endif
 }
 
 } // namespace runtime

@@ -3,6 +3,7 @@
 
 #include "naab/sandbox.h"
 #include "naab/paths.h"
+#include "naab/platform.h"
 #include "naab/audit_logger.h"
 #include "naab/logger.h"
 #include <fmt/core.h>
@@ -10,8 +11,10 @@
 #include <filesystem>
 #include <thread>
 #include <cstring>
-#include <unistd.h>
-#include <sys/stat.h>
+#ifndef _WIN32
+#  include <unistd.h>
+#  include <sys/stat.h>
+#endif
 
 namespace naab {
 namespace security {
@@ -56,9 +59,9 @@ SandboxConfig SandboxConfig::fromPermissionLevel(PermissionLevel level) {
             config.max_file_size_mb = 100;
 
             // Allow read/write in temp and user dirs
-            config.allowed_read_paths.push_back("/tmp");
+            config.allowed_read_paths.push_back(naab::paths::temp_dir());
             config.allowed_read_paths.push_back(naab::paths::home());
-            config.allowed_write_paths.push_back("/tmp");
+            config.allowed_write_paths.push_back(naab::paths::temp_dir());
             break;
 
         case PermissionLevel::ELEVATED:
@@ -134,21 +137,22 @@ Sandbox::~Sandbox() {
 
 std::string Sandbox::normalizePath(const std::string& path) const {
     try {
-        // Use realpath to resolve symlinks and normalize
-        char resolved[PATH_MAX];
-        if (realpath(path.c_str(), resolved)) {
-            return std::string(resolved);
+        // Use platform-portable realpath to resolve symlinks and normalize
+        std::string resolved = naab::platform::realpath(path);
+        if (!resolved.empty()) {
+            return resolved;
         }
 
-        // If realpath fails (file doesn't exist), do basic normalization
-        std::string normalized = path;
-
-        // Remove trailing slashes
-        while (normalized.size() > 1 && normalized.back() == '/') {
-            normalized.pop_back();
+        // If realpath fails (file doesn't exist), use filesystem for basic normalization
+        std::error_code ec;
+        auto fs_path = std::filesystem::weakly_canonical(
+            std::filesystem::path(path), ec);
+        if (!ec) {
+            return fs_path.string();
         }
 
-        return normalized;
+        // Last resort: return original
+        return path;
     } catch (...) {
         return path;  // Return original on error
     }
@@ -167,7 +171,8 @@ bool Sandbox::isPathAllowed(const std::string& path,
         if (normalized.find(allowed_norm) == 0) {
             // Ensure it's actually a subdirectory (not just prefix match)
             if (normalized.size() == allowed_norm.size() ||
-                normalized[allowed_norm.size()] == '/') {
+                normalized[allowed_norm.size()] == '/' ||
+                normalized[allowed_norm.size()] == '\\') {
                 return true;
             }
         }

@@ -7,12 +7,20 @@
 #include "naab/interpreter.h"
 #include "naab/subprocess_helpers.h"
 #include "naab/sandbox.h"
+#include "naab/platform.h"
 #include <unordered_set>
 #include <unordered_map>
 #include <stdexcept>
-#include <csignal>
 #include <cstdlib>
-#include <unistd.h>
+
+#ifndef _WIN32
+#  include <csignal>
+#  include <unistd.h>
+#else
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
+#  include <windows.h>
+#endif
 
 namespace naab {
 namespace stdlib {
@@ -108,17 +116,35 @@ interpreter::NaabVal ProcessModule::call(
                 "process.kill(): pid must be a positive integer, got " + std::to_string(pid)
             );
         }
+#ifndef _WIN32
         if (::kill(static_cast<pid_t>(pid), SIGTERM) != 0) {
             throw std::runtime_error(
                 "process.kill(): failed to send SIGTERM to PID " + std::to_string(pid) +
                 " (process may not exist or permission denied)"
             );
         }
+#else
+        HANDLE h = ::OpenProcess(PROCESS_TERMINATE, FALSE, static_cast<DWORD>(pid));
+        if (!h) {
+            throw std::runtime_error(
+                "process.kill(): failed to open PID " + std::to_string(pid) +
+                " (error " + std::to_string(::GetLastError()) + ")"
+            );
+        }
+        BOOL ok = ::TerminateProcess(h, 1);
+        ::CloseHandle(h);
+        if (!ok) {
+            throw std::runtime_error(
+                "process.kill(): TerminateProcess failed for PID " + std::to_string(pid) +
+                " (error " + std::to_string(::GetLastError()) + ")"
+            );
+        }
+#endif
         return interpreter::NaabVal::makeNull();
     }
 
     if (function_name == "getpid") {
-        return interpreter::NaabVal::makeInt(static_cast<int>(::getpid()));
+        return interpreter::NaabVal::makeInt(naab::platform::getpid());
     }
 
     throw std::runtime_error(

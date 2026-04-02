@@ -6,8 +6,16 @@ namespace naab {
 namespace paths {
 
 std::string home() {
+#ifdef _WIN32
+    const char* h = std::getenv("USERPROFILE");
+    if (h && h[0]) return h;
+    const char* d = std::getenv("HOMEDRIVE");
+    const char* p = std::getenv("HOMEPATH");
+    if (d && p && d[0] && p[0]) return std::string(d) + std::string(p);
+#else
     const char* h = std::getenv("HOME");
     if (h && h[0]) return h;
+#endif
     return ".";
 }
 
@@ -18,11 +26,15 @@ std::string temp_dir() {
     if (t && t[0]) return t;
     t = std::getenv("TEMP");
     if (t && t[0]) return t;
-    // Try filesystem
+    // Try C++17 filesystem
     std::error_code ec;
     auto p = std::filesystem::temp_directory_path(ec);
     if (!ec && !p.empty()) return p.string();
+#ifdef _WIN32
+    return "C:\\Temp";
+#else
     return "/tmp";
+#endif
 }
 
 std::string history_file() {

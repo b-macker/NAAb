@@ -6,6 +6,7 @@
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
 #include "naab/sandbox.h"
+#include "naab/platform.h"
 #include "naab/utils/string_utils.h"
 #include <cstdlib>
 #include <string>
@@ -15,7 +16,13 @@
 #include <unordered_set>
 #include <algorithm>
 
+#ifndef _WIN32
 extern char **environ;
+#else
+#  define WIN32_LEAN_AND_MEAN
+#  define NOMINMAX
+#  include <windows.h>
+#endif
 
 namespace naab {
 namespace stdlib {
@@ -91,7 +98,7 @@ interpreter::NaabVal EnvModule::call(
         checkEnvSandbox("set_var", key);
         std::string value = getString(args[1]);
 
-        setenv(key.c_str(), value.c_str(), 1);
+        naab::platform::setenv(key, value, true);
         return makeNull();
     }
 
@@ -113,7 +120,7 @@ interpreter::NaabVal EnvModule::call(
         }
         std::string key = getString(args[0]);
         checkEnvSandbox("delete_var", key);
-        unsetenv(key.c_str());
+        naab::platform::unsetenv(key);
         return makeNull();
     }
 
@@ -125,15 +132,29 @@ interpreter::NaabVal EnvModule::call(
         checkEnvSandbox("get_all");
 
         std::unordered_map<std::string, std::string> env_map;
-        for (char **env = environ; *env != nullptr; env++) {
-            std::string env_str(*env);
+#ifndef _WIN32
+        for (char **ep = environ; *ep != nullptr; ep++) {
+            std::string env_str(*ep);
             size_t pos = env_str.find('=');
             if (pos != std::string::npos) {
-                std::string key = env_str.substr(0, pos);
-                std::string value = env_str.substr(pos + 1);
-                env_map[key] = value;
+                env_map[env_str.substr(0, pos)] = env_str.substr(pos + 1);
             }
         }
+#else
+        // On Windows, enumerate the process environment block
+        LPCH env_block = ::GetEnvironmentStringsA();
+        if (env_block) {
+            for (LPCH p = env_block; *p; ) {
+                std::string entry(p);
+                p += entry.size() + 1;
+                size_t pos = entry.find('=');
+                if (pos != std::string::npos && pos > 0) {
+                    env_map[entry.substr(0, pos)] = entry.substr(pos + 1);
+                }
+            }
+            ::FreeEnvironmentStringsA(env_block);
+        }
+#endif
         return makeMap(env_map);
     }
 
@@ -170,7 +191,7 @@ interpreter::NaabVal EnvModule::call(
 
         // Set environment variables
         for (const auto& pair : env_vars) {
-            setenv(pair.first.c_str(), pair.second.c_str(), 1);
+            naab::platform::setenv(pair.first, pair.second, true);
         }
 
         return makeMap(env_vars);

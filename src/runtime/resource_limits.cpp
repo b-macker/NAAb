@@ -1,10 +1,14 @@
 #include "naab/resource_limits.h"
-#include <csignal>
-#include <cstring>
 #include <cstdio>
-#include <unistd.h>
-#include <sys/resource.h>
+#include <cstring>
 #include <stdexcept>
+
+#ifndef _WIN32
+#  include <csignal>
+#  include <unistd.h>
+#  include <sys/resource.h>
+#  include <cerrno>
+#endif
 
 namespace naab {
 namespace security {
@@ -18,6 +22,7 @@ void ResourceLimiter::installSignalHandlers() {
         return;
     }
 
+#ifndef _WIN32
     // Install SIGALRM handler for execution timeout
     struct sigaction sa_alarm;
     std::memset(&sa_alarm, 0, sizeof(sa_alarm));
@@ -39,6 +44,7 @@ void ResourceLimiter::installSignalHandlers() {
     if (sigaction(SIGXCPU, &sa_cpu, nullptr) != 0) {
         throw std::runtime_error("Failed to install SIGXCPU handler");
     }
+#endif
 
     initialized_ = true;
 }
@@ -54,13 +60,22 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
 
     timeout_triggered_ = false;
 
+#ifndef _WIN32
     // Set alarm for execution timeout
     alarm(seconds);
+#else
+    // On Windows, execution timeout is enforced via WaitForSingleObject
+    // with a timeout in execute_subprocess_with_pipes (subprocess_helpers.cpp).
+    // A process-level SIGALRM equivalent is not available without Job Objects.
+    (void)seconds;
+#endif
 }
 
 void ResourceLimiter::clearTimeout() {
+#ifndef _WIN32
     // Cancel any pending alarm
     alarm(0);
+#endif
     timeout_triggered_ = false;
 }
 
@@ -76,6 +91,7 @@ void ResourceLimiter::setMemoryLimit(size_t megabytes) {
     //   - C++/Rust/C#: Compile-time or subprocess-level limits
     //
     // If you MUST use this, call disableAll() afterwards to clear it.
+#ifndef _WIN32
     fprintf(stderr,
         "[WARNING] ResourceLimiter::setMemoryLimit(%zu MB) sets process-wide RLIMIT_AS.\n"
         "  This will break ALL subsequent fork/exec/system calls.\n"
@@ -90,6 +106,15 @@ void ResourceLimiter::setMemoryLimit(size_t megabytes) {
     if (setrlimit(RLIMIT_AS, &limit) != 0) {
         throw std::runtime_error("Failed to set memory limit: " + std::string(std::strerror(errno)));
     }
+#else
+    // On Windows, use Job Objects for per-child memory limits (not yet implemented).
+    // Process-wide RLIMIT_AS has no direct equivalent.
+    fprintf(stderr,
+        "[INFO] ResourceLimiter::setMemoryLimit(%zu MB): memory limits not enforced on Windows.\n"
+        "  Use language-native limits or Job Objects for subprocess enforcement.\n",
+        megabytes);
+    (void)megabytes;
+#endif
 }
 
 void ResourceLimiter::setCpuTimeLimit(unsigned int seconds) {
@@ -97,6 +122,7 @@ void ResourceLimiter::setCpuTimeLimit(unsigned int seconds) {
         installSignalHandlers();
     }
 
+#ifndef _WIN32
     struct rlimit limit;
     limit.rlim_cur = seconds;
     limit.rlim_max = seconds;
@@ -104,11 +130,16 @@ void ResourceLimiter::setCpuTimeLimit(unsigned int seconds) {
     if (setrlimit(RLIMIT_CPU, &limit) != 0) {
         throw std::runtime_error("Failed to set CPU time limit: " + std::string(std::strerror(errno)));
     }
+#else
+    // On Windows, CPU time limits require Job Objects (not yet implemented).
+    (void)seconds;
+#endif
 }
 
 void ResourceLimiter::disableAll() {
     clearTimeout();
 
+#ifndef _WIN32
     // Remove memory limit (set to maximum)
     struct rlimit limit;
     limit.rlim_cur = RLIM_INFINITY;
@@ -116,6 +147,7 @@ void ResourceLimiter::disableAll() {
 
     setrlimit(RLIMIT_AS, &limit);
     setrlimit(RLIMIT_CPU, &limit);
+#endif
 }
 
 void ResourceLimiter::handleAlarm(int sig) {

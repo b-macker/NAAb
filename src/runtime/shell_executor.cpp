@@ -91,11 +91,18 @@ naab::interpreter::NaabVal ShellExecutor::executeWithReturn(
                        code.find('"') != std::string::npos);
 
     if (needs_shell) {
-        // Use shell to interpret command
+        // Use platform shell to interpret command
+#ifdef _WIN32
+        std::vector<std::string> args = {"/c", code};
+        exit_code = execute_subprocess_with_pipes(
+            "cmd.exe", args, stdout_output, stderr_output, nullptr
+        );
+#else
         std::vector<std::string> args = {"-c", code};
         exit_code = execute_subprocess_with_pipes(
             "sh", args, stdout_output, stderr_output, nullptr
         );
+#endif
     } else {
         // Simple command - execute directly for better performance
         std::istringstream iss(code);
