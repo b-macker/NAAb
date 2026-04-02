@@ -208,6 +208,9 @@ run_test() {
         elif [ "${MISSING_EXECUTOR_TESTS[$test_name]}" = "1" ]; then
             MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
             echo "  XFAIL: $test_name (missing executor)"
+        elif [ -f "$output_file" ] && grep -q "Python support not available" "$output_file"; then
+            MISSING_EXECUTOR=$((MISSING_EXECUTOR + 1))
+            echo "  XFAIL: $test_name (missing executor)"
         elif [ $exit_code -eq 124 ]; then
             echo "  TIMEOUT: $test_name (>$timeout_duration)"
             FAILED=$((FAILED + 1))
