@@ -52,6 +52,12 @@ jobs:
         shell: msys2 {0}
         run: cmake --build build --target naab-lang -j4
 
+      - name: Debug — verify executable and DLL deps
+        shell: msys2 {0}
+        run: |
+          ls -la build/naab-lang.exe || echo "binary not found"
+          ldd build/naab-lang.exe 2>&1 || echo "ldd failed"
+
       - name: Smoke test — pure NAAb
         shell: msys2 {0}
         run: |
