@@ -27,6 +27,15 @@ if ! command -v python3 &>/dev/null; then
     exit 0
 fi
 
+# Check if naab-lang has Python block support (disabled when built without pybind11)
+_py_probe="$TMPDIR/py_probe_audit.naab"
+printf 'main { let r = <<python\nprint(42)\n>>\nprint(r) }\n' > "$_py_probe"
+if "$NAAB_BIN" --no-governance run "$_py_probe" 2>&1 | grep -q "Python support not available"; then
+    echo "--- Serialization Audit (SKIPPED — Python blocks disabled in naab-lang) ---"
+    exit 0
+fi
+rm -f "$_py_probe"
+
 # check_roundtrip: NAAb creates value, sends to Python, Python echoes back, NAAb prints
 # Verifies the full serialize→deserialize roundtrip
 check_roundtrip() {

@@ -144,12 +144,15 @@ cat > "${QG_DIR}/govern.json" << 'EOF'
 }
 EOF
 
-# Script with marker in a comment — advisory rule fires (source scan),
+# Script with marker inside a JS block — advisory rule fires (block source scan),
 # script completes, then quality gate evaluates and fails → exit 2
-# Using a comment avoids platform-specific shell executor differences.
+# QuickJS is embedded in naab-lang on all platforms (no fork/pipe needed).
 cat > "${QG_DIR}/qgate.naab" << 'NAAB'
-// QUALITY_GATE_TEST_MARKER
 main {
+    let r = <<javascript
+// QUALITY_GATE_TEST_MARKER
+r = "done"
+>>
     print("done")
 }
 NAAB
