@@ -15,6 +15,11 @@ trap cleanup EXIT
 check() {
     local desc="$1"
     local condition="$2"
+    # Skip python3-dependent checks when python3 is unavailable
+    if [ "$HAS_PYTHON3" = "false" ] && echo "$condition" | grep -q "python3"; then
+        echo "  SKIP: $desc (python3 unavailable)"
+        return
+    fi
     if eval "$condition"; then
         echo "  PASS: $desc"
         PASS=$((PASS + 1))
@@ -26,6 +31,13 @@ check() {
 
 echo "=== NAAb Report Format Tests ==="
 echo ""
+
+# Check python3 availability; skip JSON/XML validation if absent
+HAS_PYTHON3=true
+if ! command -v python3 &>/dev/null; then
+    echo "  [INFO] python3 not found — JSON/XML validation checks will be skipped"
+    HAS_PYTHON3=false
+fi
 
 # --- Generate reports from a file with governance violations ---
 VIOLATION_FILE="${SCRIPT_DIR}/../../tests/governance_v3/test_v3_secret_detection.naab"
@@ -47,6 +59,12 @@ echo ""
 echo "--- SARIF Report Tests ---"
 
 check "SARIF file created" "[ -s '$SARIF_OUT' ]"
+
+# Diagnostic: show python3 parse error if file exists but validation fails
+if [ "$HAS_PYTHON3" = "true" ] && [ -s "$SARIF_OUT" ]; then
+    _py_err=$(python3 -c "import json; json.load(open('$SARIF_OUT'))" 2>&1) || \
+        echo "  [DIAG] python3 SARIF parse error: $_py_err" >&2
+fi
 
 check "SARIF is valid JSON" \
     "python3 -c \"import json; json.load(open('$SARIF_OUT'))\" 2>/dev/null"
