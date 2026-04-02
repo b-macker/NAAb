@@ -148,7 +148,13 @@ check "Dashboard stderr contains 'Agent:' and 'Checks:'" \
 # --- Test 8: JSONL bridge — dashboard_cli.naab reads telemetry ---
 DASHBOARD_CLI="${SCRIPT_DIR}/../../tools/agent-governance/dashboard_cli.naab"
 if [ -f "$DASHBOARD_CLI" ]; then
-    DASH_OUT=$(cd "$TEST_DIR" && TELEMETRY_FILE="$TEST_DIR/telemetry.jsonl" "$NAAB_BIN" "$DASHBOARD_CLI" 2>/dev/null)
+    # TELEMETRY_FILE is passed as an env variable — env vars are NOT translated by MSYS2,
+    # so naab-lang.exe would receive a POSIX path it can't open. Convert explicitly.
+    TELEM_FILE_ARG="$TEST_DIR/telemetry.jsonl"
+    if command -v cygpath &>/dev/null; then
+        TELEM_FILE_ARG=$(cygpath -m "$TEST_DIR/telemetry.jsonl")
+    fi
+    DASH_OUT=$(cd "$TEST_DIR" && TELEMETRY_FILE="$TELEM_FILE_ARG" "$NAAB_BIN" "$DASHBOARD_CLI" 2>/dev/null)
     check "dashboard_cli.naab output contains 'Total Events'" \
         "echo \"\$DASH_OUT\" | grep -q 'Total Events'"
 else
