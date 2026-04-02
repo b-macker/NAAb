@@ -26,7 +26,7 @@ trap cleanup EXIT
 # (naab-lang.exe is a native Windows binary that can't resolve MSYS2 POSIX paths)
 TMPDIR_NAAB_WIN="$TMPDIR_NAAB"
 if command -v cygpath &>/dev/null; then
-    TMPDIR_NAAB_WIN=$(cygpath -w "$TMPDIR_NAAB")
+    TMPDIR_NAAB_WIN=$(cygpath -m "$TMPDIR_NAAB")
 fi
 
 echo "=== File Sandbox Enforcement Tests ==="

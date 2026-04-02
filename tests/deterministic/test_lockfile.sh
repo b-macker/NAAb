@@ -54,7 +54,7 @@ mkdir -p "${TMPDIR}/.naab"
 # On MSYS2/Windows, python3 is native Windows and can't resolve POSIX paths
 LOCK_PY="${TMPDIR}/.naab/naab.lock"
 if command -v cygpath &>/dev/null; then
-    LOCK_PY=$(cygpath -w "${TMPDIR}/.naab/naab.lock")
+    LOCK_PY=$(cygpath -m "${TMPDIR}/.naab/naab.lock")
 fi
 
 # ============================================================================

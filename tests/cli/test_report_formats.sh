@@ -58,9 +58,9 @@ SARIF_PY="$SARIF_OUT"
 JUNIT_PY="$JUNIT_OUT"
 JSON_PY="$JSON_OUT"
 if command -v cygpath &>/dev/null; then
-    SARIF_PY=$(cygpath -w "$SARIF_OUT")
-    JUNIT_PY=$(cygpath -w "$JUNIT_OUT")
-    JSON_PY=$(cygpath -w "$JSON_OUT")
+    SARIF_PY=$(cygpath -m "$SARIF_OUT")
+    JUNIT_PY=$(cygpath -m "$JUNIT_OUT")
+    JSON_PY=$(cygpath -m "$JSON_OUT")
 fi
 
 # ============================================================
@@ -323,8 +323,8 @@ CLEAN_JUNIT="$TEST_DIR/clean.xml"
 CLEAN_SARIF_PY="$CLEAN_SARIF"
 CLEAN_JUNIT_PY="$CLEAN_JUNIT"
 if command -v cygpath &>/dev/null; then
-    CLEAN_SARIF_PY=$(cygpath -w "$CLEAN_SARIF")
-    CLEAN_JUNIT_PY=$(cygpath -w "$CLEAN_JUNIT")
+    CLEAN_SARIF_PY=$(cygpath -m "$CLEAN_SARIF")
+    CLEAN_JUNIT_PY=$(cygpath -m "$CLEAN_JUNIT")
 fi
 
 check "Clean file SARIF has empty results" \

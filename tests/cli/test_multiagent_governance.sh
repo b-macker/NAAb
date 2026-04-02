@@ -42,11 +42,11 @@ GOV_CONFIG="$TEST_DIR/config"
 GOV_SECRETS="$TEST_DIR/secrets"
 GOV_TELEM="$TEST_DIR/telemetry.jsonl"
 if command -v cygpath &>/dev/null; then
-    GOV_DATA=$(cygpath -w "$GOV_DATA")
-    GOV_OUTPUT=$(cygpath -w "$GOV_OUTPUT")
-    GOV_CONFIG=$(cygpath -w "$GOV_CONFIG")
-    GOV_SECRETS=$(cygpath -w "$GOV_SECRETS")
-    GOV_TELEM=$(cygpath -w "$GOV_TELEM")
+    GOV_DATA=$(cygpath -m "$GOV_DATA")
+    GOV_OUTPUT=$(cygpath -m "$GOV_OUTPUT")
+    GOV_CONFIG=$(cygpath -m "$GOV_CONFIG")
+    GOV_SECRETS=$(cygpath -m "$GOV_SECRETS")
+    GOV_TELEM=$(cygpath -m "$GOV_TELEM")
 fi
 
 cat > "$TEST_DIR/govern.json" << GOVEOF
