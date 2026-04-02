@@ -528,7 +528,7 @@ Interpreter::Interpreter()
         LOG_DEBUG("[INFO] Python interpreter initialized\n");
     }
 #else
-    fmt::print("[WARN] Python support not available (Python blocks disabled)\n");
+    fmt::print(stderr, "[WARN] Python support not available (Python blocks disabled)\n");
 #endif
 
     // Initialize C++ executor

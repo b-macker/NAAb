@@ -41,15 +41,15 @@ VERSION=$("$NAAB_BIN" --version 2>&1)
 check "--version shows 0.7.0" 'echo "$VERSION" | grep -q "0.7.0"'
 
 # Default VM execution
-OUTPUT=$("$NAAB_BIN" "$TMPFILE" 2>&1)
+OUTPUT=$("$NAAB_BIN" "$TMPFILE" 2>/dev/null)
 check "Default VM execution" '[ "$OUTPUT" = "ok" ]'
 
 # --tree-walk execution
-OUTPUT=$("$NAAB_BIN" "$TMPFILE" --tree-walk 2>&1)
+OUTPUT=$("$NAAB_BIN" "$TMPFILE" --tree-walk 2>/dev/null)
 check "--tree-walk executes correctly" '[ "$OUTPUT" = "ok" ]'
 
 # --sandbox-level unrestricted (explicit)
-OUTPUT=$("$NAAB_BIN" "$TMPFILE" --sandbox-level unrestricted 2>&1)
+OUTPUT=$("$NAAB_BIN" "$TMPFILE" --sandbox-level unrestricted 2>/dev/null)
 check "--sandbox-level unrestricted works" '[ "$OUTPUT" = "ok" ]'
 
 # --sandbox-level restricted (valid, script has no restricted ops so exit 0)
