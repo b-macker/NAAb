@@ -260,7 +260,7 @@ std::optional<types::Type> CompositionValidator::getBlockOutputType(
     try {
         auto block = loader_->getBlock(block_id);
         return parseTypeFromMetadata(block.output_type);
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         return std::nullopt;
     }
 }
@@ -271,7 +271,7 @@ std::optional<types::Type> CompositionValidator::getBlockInputType(
     try {
         auto block = loader_->getBlock(block_id);
         return parseTypeFromMetadata(block.input_types);
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         return std::nullopt;
     }
 }

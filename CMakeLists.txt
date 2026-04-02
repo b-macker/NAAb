@@ -13,7 +13,12 @@ include(GNUInstallDirs)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(MSVC)
-    add_compile_options(/W3 /permissive- /utf-8)
+    add_compile_options(/W3 /permissive- /utf-8
+        /wd4101   # unreferenced local variable (common in catch blocks)
+        /wd4244   # conversion, possible loss of data (common with int/size_t)
+        /wd4267   # conversion from size_t to smaller type
+        /wd4996   # deprecated POSIX function names
+    )
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 endif()
