@@ -14,7 +14,9 @@
 #include <regex>
 #include <chrono>
 #include <functional>
-#include <sys/file.h>
+#ifndef _WIN32
+#  include <sys/file.h>
+#endif
 #include <fmt/core.h>
 
 

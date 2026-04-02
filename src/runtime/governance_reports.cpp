@@ -14,7 +14,9 @@
 #include <regex>
 #include <chrono>
 #include <functional>
-#include <sys/file.h>
+#ifndef _WIN32
+#  include <sys/file.h>
+#endif
 #include <fmt/core.h>
 
 // Forward declarations for symbols defined in other governance translation units
@@ -540,13 +542,19 @@ void GovernanceEngine::writeTelemetry() const {
         return;
     }
     int fd = fileno(fp);
+#ifndef _WIN32
     ::flock(fd, LOCK_EX);  // Blocking exclusive lock
+#endif
 
     // ISO timestamp
     auto now = std::chrono::system_clock::now();
     auto t = std::chrono::system_clock::to_time_t(now);
     std::tm tm_buf;
+#ifdef _WIN32
+    localtime_s(&tm_buf, &t);
+#else
     localtime_r(&t, &tm_buf);
+#endif
     char ts_buf[32];
     std::strftime(ts_buf, sizeof(ts_buf), "%Y-%m-%dT%H:%M:%S", &tm_buf);
     std::string timestamp(ts_buf);
@@ -574,7 +582,9 @@ void GovernanceEngine::writeTelemetry() const {
         fwrite(line.c_str(), 1, line.size(), fp);
     }
 
+#ifndef _WIN32
     ::flock(fd, LOCK_UN);
+#endif
     fclose(fp);
 
     if (!check_results_.empty()) {
