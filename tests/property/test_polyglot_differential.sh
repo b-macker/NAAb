@@ -24,6 +24,15 @@ if ! command -v python3 &>/dev/null; then
     exit 0
 fi
 
+# Check if naab-lang has Python block support (disabled when built without pybind11)
+_py_probe="$TMPDIR/py_probe.naab"
+printf 'main { let r = <<python\nprint(42)\n>>\nprint(r) }\n' > "$_py_probe"
+if "$NAAB_BIN" --no-governance run "$_py_probe" 2>&1 | grep -q "Python support not available"; then
+    echo "--- Invariant 4: Polyglot Differential (SKIPPED — Python blocks disabled in naab-lang) ---"
+    exit 0
+fi
+rm -f "$_py_probe"
+
 # check_differential NAME NAAB_PROGRAM PYTHON_PROGRAM
 check_differential() {
     local name="$1"
