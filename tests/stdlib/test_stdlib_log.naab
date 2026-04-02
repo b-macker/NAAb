@@ -1,0 +1,164 @@
+use log
+use file
+
+function test_levels() {
+    let passed = 0
+    let total = 0
+
+    log.set_level("none")
+
+    total = total + 1
+    log.set_level("warn")
+    let lv = log.get_level()
+    if lv == "warn" { passed = passed + 1 }
+    else { io.println("[FAIL] get_level after set_level(warn): got " + lv) }
+
+    total = total + 1
+    log.set_level("debug")
+    let lv2 = log.get_level()
+    if lv2 == "debug" { passed = passed + 1 }
+    else { io.println("[FAIL] get_level after set_level(debug): got " + lv2) }
+
+    total = total + 1
+    log.set_level("none")
+    let lv3 = log.get_level()
+    if lv3 == "none" { passed = passed + 1 }
+    else { io.println("[FAIL] get_level after set_level(none): got " + lv3) }
+
+    log.set_level("none")
+    return [passed, total]
+}
+
+function test_log_calls() {
+    let passed = 0
+    let total = 0
+
+    log.set_level("none")
+
+    total = total + 1
+    log.info("test info message")
+    passed = passed + 1
+
+    total = total + 1
+    log.warn("test warn message")
+    passed = passed + 1
+
+    total = total + 1
+    log.error("test error message")
+    passed = passed + 1
+
+    total = total + 1
+    log.debug("test debug message")
+    passed = passed + 1
+
+    total = total + 1
+    log.log("warn", "test log() call")
+    passed = passed + 1
+
+    log.set_level("none")
+    return [passed, total]
+}
+
+function test_format() {
+    let passed = 0
+    let total = 0
+
+    log.set_level("none")
+
+    total = total + 1
+    log.set_format("text")
+    passed = passed + 1
+
+    total = total + 1
+    log.set_format("json")
+    passed = passed + 1
+
+    total = total + 1
+    log.set_format("text")
+    passed = passed + 1
+
+    log.set_level("none")
+    return [passed, total]
+}
+
+function test_output() {
+    let passed = 0
+    let total = 0
+
+    log.set_level("none")
+
+    total = total + 1
+    log.set_output("stderr")
+    passed = passed + 1
+
+    total = total + 1
+    log.set_output("stdout")
+    passed = passed + 1
+
+    total = total + 1
+    log.set_output("stderr")
+    passed = passed + 1
+
+    log.set_level("none")
+    return [passed, total]
+}
+
+function test_file_output() {
+    let passed = 0
+    let total = 0
+
+    let tmp = "/data/data/com.termux/files/home/.naab_stdlib_test_tmp"
+    file.create_dir(tmp)
+    let logfile = tmp + "/log_test.txt"
+
+    log.set_output(logfile)
+    log.set_level("info")
+    log.set_format("text")
+    log.info("hello from file output")
+    log.set_output("stderr")
+    log.set_level("none")
+
+    total = total + 1
+    if file.exists(logfile) { passed = passed + 1 }
+    else { io.println("[FAIL] log file not created: " + logfile) }
+
+    total = total + 1
+    let content = file.read(logfile)
+    if string.contains(content, "hello from file output") { passed = passed + 1 }
+    else { io.println("[FAIL] log file content missing message, got: " + content) }
+
+    total = total + 1
+    if string.contains(content, "[INFO]") { passed = passed + 1 }
+    else { io.println("[FAIL] log file missing [INFO] prefix, got: " + content) }
+
+    file.delete(logfile)
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_levels()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_log_calls()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_format()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_output()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_file_output()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    io.println("stdlib/log: " + ("" + total_passed) + "/" + ("" + total_tests) + " passed")
+    if total_passed != total_tests { throw "stdlib test failures" }
+}

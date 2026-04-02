@@ -1,8 +1,10 @@
 #include "lsp_server.h"
 #include <iostream>
+#include <sstream>
 #include <chrono>
 #include <cstdlib>
 #include <algorithm>
+#include <cctype>
 
 namespace naab {
 namespace lsp {
@@ -54,7 +56,10 @@ json ServerCapabilities::toJson() const {
         }},
         {"hoverProvider", true},
         {"definitionProvider", true},
-        {"documentSymbolProvider", true}
+        {"documentSymbolProvider", true},
+        {"codeActionProvider", true},
+        {"workspaceSymbolProvider", true},
+        {"renameProvider", true}
     };
 }
 
@@ -148,6 +153,12 @@ void LSPServer::dispatchRequest(const RequestMessage& request) {
         handleDefinition(request);
     } else if (request.method == "textDocument/documentSymbol") {
         handleDocumentSymbol(request);
+    } else if (request.method == "textDocument/codeAction") {
+        handleCodeAction(request);
+    } else if (request.method == "workspace/symbol") {
+        handleWorkspaceSymbol(request);
+    } else if (request.method == "textDocument/rename") {
+        handleRename(request);
     } else {
         sendError(request.id, -32601, "Method not found: " + request.method);
     }
@@ -345,6 +356,169 @@ void LSPServer::handleDocumentSymbol(const RequestMessage& request) {
     }
 
     sendResponse(request.id, symbols_json);
+}
+
+void LSPServer::handleCodeAction(const RequestMessage& request) {
+    auto params = request.params;
+    std::string uri = params["textDocument"]["uri"].get<std::string>();
+    Range range = Range::fromJson(params["range"]);
+
+    Document* doc = doc_manager_.getDocument(uri);
+    if (!doc) {
+        sendResponse(request.id, json::array());
+        return;
+    }
+
+    // Collect diagnostics that overlap the requested range
+    std::vector<Diagnostic> context_diags;
+    for (const auto& diag : doc->getDiagnostics()) {
+        if (diag.range.start.line <= range.end.line &&
+            diag.range.end.line >= range.start.line) {
+            context_diags.push_back(diag);
+        }
+    }
+
+    // Also accept explicit context.diagnostics if provided
+    if (params.contains("context") && params["context"].contains("diagnostics")) {
+        for (const auto& d : params["context"]["diagnostics"]) {
+            Diagnostic diag;
+            diag.range = Range::fromJson(d["range"]);
+            diag.severity = DiagnosticSeverity::Warning;
+            if (d.contains("code") && d["code"].is_string())
+                diag.code = d["code"].get<std::string>();
+            if (d.contains("message") && d["message"].is_string())
+                diag.message = d["message"].get<std::string>();
+            context_diags.push_back(diag);
+        }
+    }
+
+    auto actions = code_action_provider_.getCodeActions(*doc, range, context_diags);
+
+    json result = json::array();
+    for (const auto& action : actions) {
+        result.push_back(action.toJson());
+    }
+
+    sendResponse(request.id, result);
+}
+
+void LSPServer::handleWorkspaceSymbol(const RequestMessage& request) {
+    auto params = request.params;
+    std::string query;
+    if (params.contains("query") && params["query"].is_string()) {
+        query = params["query"].get<std::string>();
+    }
+
+    // Collect symbols from all open documents
+    json result = json::array();
+    for (Document* doc : doc_manager_.getAllDocuments()) {
+        auto symbols = symbol_provider_.getDocumentSymbols(*doc);
+        for (const auto& sym : symbols) {
+            // Filter by query (case-insensitive prefix or substring match)
+            if (!query.empty()) {
+                std::string sym_lower = sym.name;
+                std::string query_lower = query;
+                std::transform(sym_lower.begin(), sym_lower.end(), sym_lower.begin(), ::tolower);
+                std::transform(query_lower.begin(), query_lower.end(), query_lower.begin(), ::tolower);
+                if (sym_lower.find(query_lower) == std::string::npos) {
+                    continue;
+                }
+            }
+            // Workspace symbol includes location with URI
+            json sym_json = sym.toJson();
+            sym_json["location"] = {
+                {"uri", doc->getUri()},
+                {"range", sym_json.value("range", json::object())}
+            };
+            sym_json.erase("range");
+            result.push_back(sym_json);
+        }
+    }
+
+    sendResponse(request.id, result);
+}
+
+void LSPServer::handleRename(const RequestMessage& request) {
+    auto params = request.params;
+    std::string uri = params["textDocument"]["uri"].get<std::string>();
+    Position pos = Position::fromJson(params["position"]);
+    std::string new_name = params["newName"].get<std::string>();
+
+    Document* doc = doc_manager_.getDocument(uri);
+    if (!doc) {
+        sendResponse(request.id, nullptr);
+        return;
+    }
+
+    // Find the word at cursor position
+    std::string line_text = doc->getLineText(pos.line);
+    if (line_text.empty()) {
+        sendResponse(request.id, nullptr);
+        return;
+    }
+
+    // Find word boundaries at the cursor
+    int start_col = pos.character;
+    int end_col = pos.character;
+
+    auto is_word_char = [](char c) {
+        return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+    };
+
+    while (start_col > 0 && is_word_char(line_text[start_col - 1])) --start_col;
+    while (end_col < static_cast<int>(line_text.size()) && is_word_char(line_text[end_col])) ++end_col;
+
+    if (start_col == end_col) {
+        sendResponse(request.id, nullptr);
+        return;
+    }
+
+    std::string old_name = line_text.substr(start_col, end_col - start_col);
+    if (old_name.empty()) {
+        sendResponse(request.id, nullptr);
+        return;
+    }
+
+    // Collect all edits: scan every line of the document for occurrences of old_name
+    // as a whole word (not part of a larger identifier)
+    json changes = json::object();
+    json edits = json::array();
+
+    const std::string& text = doc->getText();
+    std::istringstream iss(text);
+    std::string cur_line;
+    int line_num = 0;
+
+    while (std::getline(iss, cur_line)) {
+        size_t search_pos = 0;
+        while ((search_pos = cur_line.find(old_name, search_pos)) != std::string::npos) {
+            // Check word boundaries
+            bool left_ok = (search_pos == 0 || !is_word_char(cur_line[search_pos - 1]));
+            bool right_ok = (search_pos + old_name.size() >= cur_line.size() ||
+                             !is_word_char(cur_line[search_pos + old_name.size()]));
+
+            if (left_ok && right_ok) {
+                edits.push_back({
+                    {"range", Range{
+                        Position{line_num, static_cast<int>(search_pos)},
+                        Position{line_num, static_cast<int>(search_pos + old_name.size())}
+                    }.toJson()},
+                    {"newText", new_name}
+                });
+            }
+
+            search_pos += old_name.size();
+        }
+        ++line_num;
+    }
+
+    if (edits.empty()) {
+        sendResponse(request.id, nullptr);
+        return;
+    }
+
+    changes[uri] = edits;
+    sendResponse(request.id, {{"changes", changes}});
 }
 
 // ============================================================================

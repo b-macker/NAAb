@@ -2,14 +2,20 @@ cmake_minimum_required(VERSION 3.15)
 
 # Project with semantic versioning
 project(naab_lang
-    VERSION 0.5.0
+    VERSION 0.7.0
     DESCRIPTION "NAAb Block Assembly Language"
     LANGUAGES C CXX
 )
 
 set(CMAKE_CXX_STANDARD 17)
+
+include(GNUInstallDirs)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+
+# Required for building libnaab as a SHARED library: all static libs must be
+# compiled with -fPIC so their code can be linked into a position-independent DSO.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # ============================================================================
@@ -343,7 +349,10 @@ add_library(naab_security
     src/runtime/crypto_utils.cpp
     src/runtime/audit_logger.cpp
     src/runtime/sandbox.cpp
-    src/runtime/governance.cpp               # Governance engine for govern.json enforcement
+    src/runtime/governance_engine.cpp        # Governance engine core (init, enforce, recordPass)
+    src/runtime/governance_config.cpp       # Governance config (loadFromJson, applyEnvironment)
+    src/runtime/governance_checks.cpp       # Governance checks (checkFileAccess, etc.)
+    src/runtime/governance_reports.cpp      # Governance reports (audit, hooks, plugins)
     src/runtime/project_context.cpp          # Project context awareness (LLM files, linters, manifests)
     src/utils/safe_regex.cpp                 # Phase 1 Item 7: Regex timeout protection
     src/runtime/tamper_evident_logger.cpp    # Phase 1 Item 8: Tamper-evident logging
@@ -477,6 +486,8 @@ set(NAAB_RUNTIME_SOURCES
     src/runtime/node_persistent_executor.cpp     # Task 18: Persistent Node.js executor
     src/runtime/persistent_ruby_executor.cpp     # Task 18: Persistent Ruby executor
     src/utils/paths.cpp  # Portable path resolution
+    src/runtime/lockfile.cpp  # Phase 8.4: Lockfile for deterministic builds
+    src/platform/platform_posix.cpp  # Phase 7.3: Platform abstraction (POSIX)
 )
 
 # Add Python executor if pybind11 is available
@@ -495,13 +506,12 @@ target_link_libraries(naab_runtime
     fmt::fmt
     SQLite::SQLite3
     quickjs
-    naab_block_enricher  # For library detection
     naab_security        # Phase 1: Security hardening
-    tomlplusplus::tomlplusplus  # For package directory resolution
-    curl  # For URL imports in module resolver
-    dl  # For dlopen/dlsym
-    pthread  # Required by QuickJS
-    m  # Math library required by QuickJS
+    tomlplusplus::tomlplusplus
+    curl
+    dl
+    pthread
+    m
 )
 
 # Add libffi if available
@@ -534,6 +544,10 @@ if(Python3_FOUND)
         NAAB_PYTHON_INCLUDE_DIR="${Python3_INCLUDE_DIRS}"
     )
 endif()
+# naab_block_enricher is defined later in CMakeLists.txt but linked here.
+# It is an implementation-only (private) dep — not needed by consumers of naab_runtime.
+# Wrapped in BUILD_INTERFACE to keep it out of the install export's INTERFACE_LINK_LIBRARIES.
+target_link_libraries(naab_runtime "$<BUILD_INTERFACE:naab_block_enricher>")
 message(STATUS "  ✓ Runtime & block loader (SQLite3)")
 
 # Manifest system
@@ -584,6 +598,11 @@ add_library(naab_stdlib
     src/stdlib/debug_impl.cpp
     src/stdlib/bolo_impl.cpp
     src/stdlib/path_impl.cpp
+    src/stdlib/dict_impl.cpp
+    src/stdlib/log_impl.cpp
+    src/stdlib/uuid_impl.cpp
+    src/stdlib/validate_impl.cpp
+    src/stdlib/process_impl.cpp
     # Utility modules
     src/utils/error_formatter.cpp
     src/utils/string_utils.cpp
@@ -597,6 +616,7 @@ target_link_libraries(naab_stdlib
     absl::strings
     curl
     naab_security  # For SafeRegex ReDoS protection
+    naab_runtime   # For process module subprocess execution
 )
 if(OPENSSL_FOUND)
     target_link_libraries(naab_stdlib OpenSSL::SSL OpenSSL::Crypto)
@@ -696,6 +716,49 @@ if(HAVE_RUST)
 endif()
 message(STATUS "  ✓ Main executable (naab-lang)")
 
+# libnaab — Embeddable library (Phase 8.1)
+# Built as STATIC on platforms where static libs lack -fPIC (e.g. Termux ARM64).
+# Downstream embedders link libnaab.a + its transitive deps.
+# Switch to SHARED when all static deps are compiled with -fPIC (CMAKE_POSITION_INDEPENDENT_CODE ON + clean rebuild).
+add_library(libnaab STATIC src/interpreter/context.cpp)
+set_target_properties(libnaab PROPERTIES
+    OUTPUT_NAME "naab"
+)
+target_compile_definitions(libnaab PRIVATE NAAB_BUILDING_DLL=1)
+target_include_directories(libnaab
+    PUBLIC  include/naab/public
+    PRIVATE include
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
+)
+target_link_libraries(libnaab
+    naab_interpreter
+    naab_vm
+    naab_runtime
+    naab_stdlib
+    fmt::fmt
+)
+install(TARGETS libnaab
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+message(STATUS "  ✓ libnaab shared library (Phase 8.1)")
+
+# naab-gov — Standalone governance + scanning CLI (Phase 8.2)
+add_executable(naab-gov src/cli/gov_main.cpp)
+target_include_directories(naab-gov PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(naab-gov
+    naab_lexer
+    naab_parser
+    naab_interpreter   # governance_engine.cpp references g_current_interpreter
+    naab_security
+    naab_scanner
+    fmt::fmt
+)
+install(TARGETS naab-gov DESTINATION ${CMAKE_INSTALL_BINDIR})
+message(STATUS "  ✓ naab-gov (standalone governance CLI, Phase 8.2)")
+
 # REPL executable
 add_executable(naab-repl
     src/repl/repl.cpp
@@ -787,6 +850,7 @@ add_executable(naab-lsp
     tools/naab-lsp/hover_provider.cpp
     tools/naab-lsp/completion_provider.cpp
     tools/naab-lsp/definition_provider.cpp
+    tools/naab-lsp/code_action_provider.cpp  # Phase 8.3: codeAction/workspaceSymbol/rename
 )
 
 target_include_directories(naab-lsp PRIVATE
@@ -800,7 +864,91 @@ target_link_libraries(naab-lsp PRIVATE
     fmt::fmt
 )
 
-install(TARGETS naab-lsp DESTINATION bin)
+install(TARGETS naab-lang DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS naab-lsp  DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(DIRECTORY include/naab/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/naab
+        FILES_MATCHING PATTERN "*.h")
+
+# ============================================================================
+# find_package(NaabLang) support (Sprint 6 / Phase 7.2)
+# Beta: for development use.
+# Usage: find_package(NaabLang 0.7 REQUIRED)
+#        target_link_libraries(my_app NaabLang::naab_interpreter)
+# NOTE: fmt, absl, and spdlog are bundled subprojects. Downstream projects
+#       must link them separately (or install them as system packages).
+# ============================================================================
+
+# Wrap bundled external deps in BUILD_INTERFACE so they are not part of the
+# installed INTERFACE_LINK_LIBRARIES. fmt/absl/spdlog are add_subdirectory
+# subprojects — they cannot be in any install(EXPORT) set.
+set(_naab_export_targets
+    naab_lexer naab_parser naab_semantic naab_analyzer
+    naab_debugger naab_scanner naab_stdlib naab_security naab_interpreter
+    naab_runtime)
+foreach(_tgt ${_naab_export_targets})
+    get_target_property(_iface ${_tgt} INTERFACE_LINK_LIBRARIES)
+    if(_iface)
+        set(_new_iface "")
+        foreach(_item IN LISTS _iface)
+            if(_item MATCHES "^naab_" OR _item MATCHES "^\\$<")
+                list(APPEND _new_iface "${_item}")
+            else()
+                list(APPEND _new_iface "$<BUILD_INTERFACE:${_item}>")
+            endif()
+        endforeach()
+        set_target_properties(${_tgt} PROPERTIES
+            INTERFACE_LINK_LIBRARIES "${_new_iface}")
+    endif()
+endforeach()
+unset(_naab_export_targets)
+unset(_tgt)
+unset(_iface)
+unset(_new_iface)
+unset(_item)
+
+# Export all naab_* targets including internal transitive deps
+install(TARGETS
+    naab_interpreter naab_security naab_stdlib naab_parser naab_lexer
+    naab_semantic naab_debugger naab_scanner naab_analyzer naab_runtime
+    EXPORT NaabLangTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(EXPORT NaabLangTargets
+    FILE NaabLangTargets.cmake
+    NAMESPACE NaabLang::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/NaabLang
+)
+
+# Install stable public API headers
+install(DIRECTORY include/naab/public/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/naab/public
+    FILES_MATCHING PATTERN "*.h"
+)
+
+# Generate and install package config files
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+    "${CMAKE_SOURCE_DIR}/cmake/NaabLangConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/NaabLangConfig.cmake"
+    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/NaabLang"
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/NaabLangConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/NaabLangConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/NaabLangConfigVersion.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/NaabLang"
+)
+
+message(STATUS "  ✓ find_package(NaabLang) support (NaabLangConfig.cmake)")
 message(STATUS "  ✓ LSP Server (naab-lsp)")
 
 # Block Enricher library

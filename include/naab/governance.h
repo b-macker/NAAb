@@ -1276,6 +1276,15 @@ struct GovernanceRules {
 
     // --- Environment overrides (Feature 5) ---
     std::map<std::string, std::unordered_map<std::string, std::string>> environments;
+
+    // --- Runtime version pinning (Phase 8.4) ---
+    struct RuntimeVersionPin {
+        std::string language;           // e.g., "python", "javascript", "go"
+        std::string required_version;   // Prefix "3.11", or ">=3.10"
+        EnforcementLevel level = EnforcementLevel::ADVISORY;
+        std::string message;            // Custom message (empty = auto-generated)
+    };
+    std::vector<RuntimeVersionPin> runtime_versions;
 };
 
 // ============================================================================
@@ -1606,6 +1615,10 @@ public:
 
     // Feature 5: Environment selector
     void applyEnvironment(const std::string& env_name);
+
+    // Phase 8.4: Runtime version pinning
+    void checkRuntimeVersions(const std::string& language,
+                               const std::string& observed_version);
 
     // --- Advisory Output Control ---
     void emitAdvisory(const std::string& msg);

@@ -88,17 +88,17 @@ bool CallbackValidator::isTypeCompatible(
     const interpreter::Value& value,
     const ast::Type& expected_type
 ) {
-    (void)value;  // TODO: Implement proper type checking
-    (void)expected_type;  // TODO: when Type API is available
-    // Simplified version: accept all types for now
-    // Value is a variant - we could check variant index but Type class
-    // doesn't expose the necessary methods yet
+    (void)value;
+    (void)expected_type;
+    // Known limitation: FFI callback type validation deferred until ast::Type
+    // exposes value-compatibility methods. All types accepted for now.
+    // See ENTERPRISE_REMEDIATION_PLAN.md §4.2.
     return true;
 }
 
 std::string CallbackValidator::getTypeName(const ast::Type& type) {
-    (void)type;  // TODO: Implement when Type API is available
-    // Simplified: return generic name
+    (void)type;
+    // Known limitation: full type name resolution deferred — see ENTERPRISE_REMEDIATION_PLAN.md §4.2.
     return "type";
 }
 

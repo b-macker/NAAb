@@ -2,6 +2,9 @@
 #include "../../external/cpp-httplib/httplib.h"
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include "naab/lexer.h"
+#include "naab/parser.h"
+#include <sstream>
 
 using json = nlohmann::json;
 
@@ -31,7 +34,7 @@ public:
         });
 
         // Execute NAAb code endpoint
-        server.Post("/api/v1/execute", [](const httplib::Request& req, httplib::Response& res) {
+        server.Post("/api/v1/execute", [this](const httplib::Request& req, httplib::Response& res) {
             try {
                 auto body = json::parse(req.body);
                 std::string code = body.value("code", "");
@@ -46,12 +49,39 @@ public:
                     return;
                 }
 
-                // TODO: Execute code using interpreter
-                // For now, return success
+                if (!interpreter) {
+                    res.status = 503;
+                    res.set_content(json{{"error","Interpreter not available"},{"status","error"}}.dump(2),
+                                    "application/json");
+                    return;
+                }
+
+                // Capture stdout during execution
+                std::ostringstream captured;
+                std::streambuf* old_buf = std::cout.rdbuf(captured.rdbuf());
+                std::string error_msg;
+                int exit_code = 0;
+
+                try {
+                    naab::lexer::Lexer lexer(code);
+                    auto tokens = lexer.tokenize();
+                    naab::parser::Parser parser(tokens);
+                    auto program = parser.parseProgram();
+                    interpreter->execute(*program);
+                } catch (const std::exception& e) {
+                    error_msg = e.what();
+                    exit_code = 1;
+                } catch (...) {
+                    error_msg = "Unknown error during execution";
+                    exit_code = 1;
+                }
+                std::cout.rdbuf(old_buf);
+
                 json response = {
-                    {"status", "success"},
-                    {"message", "Code execution not yet implemented"},
-                    {"code", code}
+                    {"status",    error_msg.empty() ? "success" : "error"},
+                    {"output",    captured.str()},
+                    {"error",     error_msg},
+                    {"exit_code", exit_code}
                 };
                 res.set_content(response.dump(2), "application/json");
 

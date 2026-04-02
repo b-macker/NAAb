@@ -380,6 +380,11 @@ void StdLib::registerModules() {
     modules_["debug"] = std::make_shared<DebugModule>();
     modules_["bolo"] = std::make_shared<BoloModule>();
     modules_["path"] = std::make_shared<PathModule>();
+    modules_["dict"]     = std::make_shared<DictModule>();
+    modules_["log"]      = std::make_shared<LogModule>();
+    modules_["uuid"]     = std::make_shared<UuidModule>();
+    modules_["validate"] = std::make_shared<ValidateModule>();
+    modules_["process"]  = std::make_shared<ProcessModule>();
 }
 
 std::shared_ptr<Module> StdLib::getModule(const std::string& name) const {

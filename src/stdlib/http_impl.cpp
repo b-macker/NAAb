@@ -3,6 +3,7 @@
 
 #include "naab/stdlib.h"
 #include "naab/interpreter.h"
+#include "naab/sandbox.h"
 #include "naab/utils/string_utils.h"
 #include <curl/curl.h>
 #include <fmt/core.h>
@@ -58,6 +59,58 @@ interpreter::NaabVal performRequest(
     const std::string& body = "",
     const std::unordered_map<std::string, std::string>& headers = {},
     int timeout_ms = 30000) {
+
+    // Security: Check sandbox permissions for network access
+    auto* sandbox = naab::security::ScopedSandbox::getCurrent();
+    if (sandbox) {
+        // Block dangerous URL schemes
+        if (url.size() >= 7 && (url.substr(0, 7) == "file://" ||
+            url.substr(0, 9) == "gopher://" || url.substr(0, 7) == "dict://")) {
+            throw std::runtime_error(
+                "Security: URL scheme not allowed: " + url + "\n\n"
+                "  Only http:// and https:// URLs are permitted.\n"
+            );
+        }
+
+        // Extract host and port from URL for sandbox check
+        std::string host;
+        int port = 0;
+        size_t scheme_end = url.find("://");
+        if (scheme_end != std::string::npos) {
+            size_t host_start = scheme_end + 3;
+            size_t at_pos = url.find('@', host_start);
+            size_t slash_pos = url.find('/', host_start);
+            if (at_pos != std::string::npos &&
+                (slash_pos == std::string::npos || at_pos < slash_pos)) {
+                host_start = at_pos + 1;
+            }
+            size_t host_end = url.find_first_of(":/", host_start);
+            if (host_end == std::string::npos) host_end = url.size();
+            host = url.substr(host_start, host_end - host_start);
+
+            if (host_end < url.size() && url[host_end] == ':') {
+                size_t port_end = url.find('/', host_end);
+                if (port_end == std::string::npos) port_end = url.size();
+                try {
+                    port = std::stoi(url.substr(host_end + 1, port_end - host_end - 1));
+                } catch (...) {}
+            } else {
+                port = (url.substr(0, 5) == "https") ? 443 : 80;
+            }
+        }
+
+        if (!host.empty() && !sandbox->canConnect(host, port)) {
+            sandbox->logViolation("http." + method, url, "NET_CONNECT capability required");
+            throw std::runtime_error(
+                "Security: HTTP request denied by sandbox\n\n"
+                "  URL: " + url + "\n"
+                "  Host: " + host + "\n"
+                "  Method: " + method + "\n\n"
+                "  The current sandbox level does not permit network connections.\n"
+                "  To allow, use: --sandbox-level elevated\n"
+            );
+        }
+    }
 
     // Initialize curl
     CURL* curl = curl_easy_init();

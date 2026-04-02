@@ -549,6 +549,10 @@ public:
         return governance_ ? governance_->lastReturnWasTainted() : false;
     }
 
+    // Get the result of the last expression executed by execute()
+    // Used by Context::eval() in the embedding API (Phase 8.1).
+    NaabVal getLastResult() const { return result_; }
+
     // Governance Plugin API (#23): Load a .naab plugin file, exports go to global_env_
     void loadPluginFile(const std::string& path);
 

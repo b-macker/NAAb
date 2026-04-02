@@ -6,6 +6,7 @@
 #include "hover_provider.h"
 #include "completion_provider.h"
 #include "definition_provider.h"
+#include "code_action_provider.h"
 #include <memory>
 #include <map>
 #include <functional>
@@ -45,6 +46,9 @@ struct ServerCapabilities {
     bool definitionProvider = true;
     bool documentSymbolProvider = true;
     bool diagnosticProvider = true;
+    bool codeActionProvider = true;
+    bool workspaceSymbolProvider = true;
+    bool renameProvider = true;
 
     json toJson() const;
 };
@@ -78,11 +82,14 @@ public:
     void handleDidChange(const NotificationMessage& notification);
     void handleDidClose(const NotificationMessage& notification);
 
-    // Feature handlers (stubs for now, implement in Week 2-3)
+    // Feature handlers
     void handleCompletion(const RequestMessage& request);
     void handleHover(const RequestMessage& request);
     void handleDefinition(const RequestMessage& request);
     void handleDocumentSymbol(const RequestMessage& request);
+    void handleCodeAction(const RequestMessage& request);
+    void handleWorkspaceSymbol(const RequestMessage& request);
+    void handleRename(const RequestMessage& request);
 
 private:
     JsonRpcTransport transport_;
@@ -93,6 +100,7 @@ private:
     HoverProvider hover_provider_;
     CompletionProvider completion_provider_;
     DefinitionProvider definition_provider_;
+    CodeActionProvider code_action_provider_;
 
     // Debouncing for document updates
     std::mutex debounce_mutex_;

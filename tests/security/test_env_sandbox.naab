@@ -1,0 +1,73 @@
+// Tests that env access is blocked under restricted sandbox
+// Run with: naab-lang tests/security/test_env_sandbox.naab --sandbox-level restricted
+use string
+main {
+    let passed = 0
+    let total = 0
+
+    print("=== ENV Sandbox Tests ===")
+    print()
+
+    // Test 1: env.get should be blocked (RESTRICTED has no SYS_ENV)
+    total = total + 1
+    try {
+        let home = env.get("HOME")
+        print("[FAIL] env.get was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "sandbox") || string.contains(msg, "Security") {
+            print("[PASS] env.get blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] env.get failed but not by sandbox: ", msg)
+        }
+    }
+
+    // Test 2: env.set_var should be blocked
+    total = total + 1
+    try {
+        env.set_var("NAAB_TEST", "should_fail")
+        print("[FAIL] env.set_var was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "sandbox") || string.contains(msg, "Security") {
+            print("[PASS] env.set_var blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] env.set_var failed but not by sandbox: ", msg)
+        }
+    }
+
+    // Test 3: env.get_all should be blocked
+    total = total + 1
+    try {
+        let all = env.get_all()
+        print("[FAIL] env.get_all was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "sandbox") || string.contains(msg, "Security") {
+            print("[PASS] env.get_all blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] env.get_all failed but not by sandbox: ", msg)
+        }
+    }
+
+    // Test 4: env.load_dotenv should be blocked
+    total = total + 1
+    try {
+        env.load_dotenv(".env")
+        print("[FAIL] env.load_dotenv was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "sandbox") || string.contains(msg, "Security") {
+            print("[PASS] env.load_dotenv blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] env.load_dotenv failed but not by sandbox: ", msg)
+        }
+    }
+
+    print()
+    print("ENV sandbox: " + ("" + passed) + "/" + ("" + total) + " passed")
+}

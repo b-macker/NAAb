@@ -28,8 +28,9 @@ SandboxConfig SandboxConfig::fromPermissionLevel(PermissionLevel level) {
 
     switch (level) {
         case PermissionLevel::RESTRICTED:
-            // Read-only, no network, no execution
-            config.capabilities.insert(Capability::FS_READ);
+            // No filesystem access, no network, no execution
+            // FS_READ is intentionally NOT granted — use STANDARD or add an explicit
+            // allowReadPath() + addCapability(FS_READ) to permit specific reads.
             config.network_enabled = false;
             config.allow_fork = false;
             config.allow_exec = false;

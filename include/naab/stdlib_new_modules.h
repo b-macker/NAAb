@@ -5,6 +5,8 @@
 
 #include "naab/stdlib.h"
 #include <functional>
+#include <fstream>
+#include <memory>
 
 namespace naab {
 namespace interpreter {
@@ -187,6 +189,64 @@ public:
 class PathModule : public Module {
 public:
     std::string getName() const override { return "path"; }
+    bool hasFunction(const std::string& name) const override;
+    interpreter::NaabVal call(
+        const std::string& function_name,
+        std::vector<interpreter::NaabVal>& args) override;
+};
+
+// Dict Module - Dictionary utilities (keys, values, has_key)
+class DictModule : public Module {
+public:
+    std::string getName() const override { return "dict"; }
+    bool hasFunction(const std::string& name) const override;
+    interpreter::NaabVal call(
+        const std::string& function_name,
+        std::vector<interpreter::NaabVal>& args) override;
+};
+
+// Log Module - Structured logging with levels, formats, and output targets
+class LogModule : public Module {
+public:
+    std::string getName() const override { return "log"; }
+    bool hasFunction(const std::string& name) const override;
+    interpreter::NaabVal call(
+        const std::string& function_name,
+        std::vector<interpreter::NaabVal>& args) override;
+private:
+    std::string level_  = "info";   // debug|info|warn|error|none
+    std::string format_ = "text";   // text|json
+    std::string output_ = "stderr"; // stderr|stdout|<filepath>
+    std::shared_ptr<std::ofstream> file_stream_;
+    bool shouldLog(const std::string& msg_level) const;
+    void writeLog(const std::string& level, const std::string& msg);
+    std::ostream& getStream();
+};
+
+// UUID Module - Random and deterministic UUID generation
+class UuidModule : public Module {
+public:
+    std::string getName() const override { return "uuid"; }
+    bool hasFunction(const std::string& name) const override;
+    interpreter::NaabVal call(
+        const std::string& function_name,
+        std::vector<interpreter::NaabVal>& args) override;
+};
+
+// Validate Module - Input validation helpers
+class ValidateModule : public Module {
+public:
+    std::string getName() const override { return "validate"; }
+    bool hasFunction(const std::string& name) const override;
+    interpreter::NaabVal call(
+        const std::string& function_name,
+        std::vector<interpreter::NaabVal>& args) override;
+};
+
+// Process Module - Subprocess management (run, exit, kill, getpid)
+class ProcessModule : public Module {
+public:
+    std::string getName() const override { return "process"; }
     bool hasFunction(const std::string& name) const override;
     interpreter::NaabVal call(
         const std::string& function_name,

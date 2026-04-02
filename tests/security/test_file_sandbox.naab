@@ -1,0 +1,73 @@
+// Tests that file operations are blocked under restricted sandbox
+// Run with: naab-lang tests/security/test_file_sandbox.naab --sandbox-level restricted
+use string
+main {
+    let passed = 0
+    let total = 0
+
+    print("=== File Sandbox Tests ===")
+    print()
+
+    // Test 1: file.write should be blocked (RESTRICTED has no FS_WRITE)
+    total = total + 1
+    try {
+        file.write("/tmp/naab_sandbox_test.txt", "should not be written")
+        print("[FAIL] file.write was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "Sandbox") || string.contains(msg, "Security") || string.contains(msg, "violation") {
+            print("[PASS] file.write blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] file.write failed but not by sandbox: ", msg)
+        }
+    }
+
+    // Test 2: file.delete should be blocked (RESTRICTED has no FS_DELETE)
+    total = total + 1
+    try {
+        file.delete("/tmp/some_file.txt")
+        print("[FAIL] file.delete was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "Sandbox") || string.contains(msg, "Security") || string.contains(msg, "violation") {
+            print("[PASS] file.delete blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] file.delete failed but not by sandbox: ", msg)
+        }
+    }
+
+    // Test 3: file.create_dir should be blocked
+    total = total + 1
+    try {
+        file.create_dir("/tmp/naab_sandbox_test_dir")
+        print("[FAIL] file.create_dir was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "Sandbox") || string.contains(msg, "Security") || string.contains(msg, "violation") {
+            print("[PASS] file.create_dir blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] file.create_dir failed but not by sandbox: ", msg)
+        }
+    }
+
+    // Test 4: file.append should be blocked
+    total = total + 1
+    try {
+        file.append("/tmp/naab_sandbox_test.txt", "data")
+        print("[FAIL] file.append was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "Sandbox") || string.contains(msg, "Security") || string.contains(msg, "violation") {
+            print("[PASS] file.append blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] file.append failed but not by sandbox: ", msg)
+        }
+    }
+
+    print()
+    print("File sandbox: " + ("" + passed) + "/" + ("" + total) + " passed")
+}

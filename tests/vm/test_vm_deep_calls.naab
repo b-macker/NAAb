@@ -1,0 +1,139 @@
+// VM deep call tests — recursion, mutual recursion, deep stack
+use string
+
+function fib(n) {
+    if n <= 1 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+function factorial(n) {
+    if n <= 1 { return 1 }
+    return n * factorial(n - 1)
+}
+
+function is_even(n) {
+    if n == 0 { return true }
+    return is_odd(n - 1)
+}
+
+function is_odd(n) {
+    if n == 0 { return false }
+    return is_even(n - 1)
+}
+
+// Count down to 0 — 50+ frames on the stack
+function countdown(n) {
+    if n == 0 { return 0 }
+    return countdown(n - 1)
+}
+
+// Accumulate via recursion
+function sum_to(n) {
+    if n == 0 { return 0 }
+    return n + sum_to(n - 1)
+}
+
+function test_fibonacci() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if fib(0) == 0 { passed = passed + 1 } else { print("[FAIL] fib(0)") }
+
+    total = total + 1
+    if fib(1) == 1 { passed = passed + 1 } else { print("[FAIL] fib(1)") }
+
+    total = total + 1
+    if fib(10) == 55 { passed = passed + 1 } else { print("[FAIL] fib(10)=" + ("" + fib(10))) }
+
+    total = total + 1
+    if fib(15) == 610 { passed = passed + 1 } else { print("[FAIL] fib(15)=" + ("" + fib(15))) }
+
+    return [passed, total]
+}
+
+function test_factorial() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if factorial(1) == 1 { passed = passed + 1 } else { print("[FAIL] factorial(1)") }
+
+    total = total + 1
+    if factorial(5) == 120 { passed = passed + 1 } else { print("[FAIL] factorial(5)=" + ("" + factorial(5))) }
+
+    total = total + 1
+    if factorial(10) == 3628800 { passed = passed + 1 } else { print("[FAIL] factorial(10)=" + ("" + factorial(10))) }
+
+    return [passed, total]
+}
+
+function test_mutual_recursion() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if is_even(0) { passed = passed + 1 } else { print("[FAIL] is_even(0)") }
+
+    total = total + 1
+    if is_odd(1) { passed = passed + 1 } else { print("[FAIL] is_odd(1)") }
+
+    total = total + 1
+    if is_even(10) { passed = passed + 1 } else { print("[FAIL] is_even(10)") }
+
+    total = total + 1
+    if is_odd(7) { passed = passed + 1 } else { print("[FAIL] is_odd(7)") }
+
+    total = total + 1
+    if !(is_even(3)) { passed = passed + 1 } else { print("[FAIL] !is_even(3)") }
+
+    return [passed, total]
+}
+
+function test_deep_stack() {
+    let passed = 0
+    let total = 0
+
+    // 50-frame deep countdown — must not crash
+    total = total + 1
+    let r = countdown(50)
+    if r == 0 { passed = passed + 1 } else { print("[FAIL] countdown(50) returned " + ("" + r)) }
+
+    // 100-frame deep countdown
+    total = total + 1
+    let r2 = countdown(100)
+    if r2 == 0 { passed = passed + 1 } else { print("[FAIL] countdown(100) returned " + ("" + r2)) }
+
+    // sum_to(20) = 210
+    total = total + 1
+    let s = sum_to(20)
+    if s == 210 { passed = passed + 1 } else { print("[FAIL] sum_to(20)=" + ("" + s)) }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_fibonacci()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_factorial()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_mutual_recursion()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_deep_stack()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    print("VM deep calls: " + ("" + total_passed) + "/" + ("" + total_tests) + " passed")
+    if total_passed != total_tests {
+        throw "VM deep call test failures"
+    }
+}

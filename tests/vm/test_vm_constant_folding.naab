@@ -1,0 +1,64 @@
+// VM constant folding tests
+// Verifies the compiler folds constant expressions correctly
+function test_folding() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let x = 2 + 3
+    if x == 5 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] 2+3: expected 5, got " + ("" + x))
+    }
+
+    total = total + 1
+    let y = 10 * 10 - 1
+    if y == 99 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] 10*10-1: expected 99, got " + ("" + y))
+    }
+
+    total = total + 1
+    let z = 100 / 4 + 1
+    if z == 26 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] 100/4+1: expected 26, got " + ("" + z))
+    }
+
+    total = total + 1
+    let neg = 0 - 42
+    if neg == -42 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] 0-42: expected -42, got " + ("" + neg))
+    }
+
+    total = total + 1
+    let mixed = 1 + 2 + 3 + 4 + 5
+    if mixed == 15 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] 1+2+3+4+5: expected 15, got " + ("" + mixed))
+    }
+
+    total = total + 1
+    let chain = (2 + 3) * (4 - 1)
+    if chain == 15 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] (2+3)*(4-1): expected 15, got " + ("" + chain))
+    }
+
+    return [passed, total]
+}
+
+main {
+    let r = test_folding()
+    print("VM constant folding: " + ("" + r[0]) + "/" + ("" + r[1]) + " passed")
+    if r[0] != r[1] {
+        throw "VM constant folding test failures"
+    }
+}

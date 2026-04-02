@@ -1,0 +1,168 @@
+// stdlib/collections tests — Set operations (set_create, set_add, set_contains, set_remove, set_size)
+use collections
+use io
+
+function test_set_create() {
+    let passed = 0
+    let total = 0
+
+    // Create empty set
+    total = total + 1
+    let s = collections.Set()
+    if collections.set_size(s) == 0 { passed = passed + 1 }
+    else { io.println("[FAIL] empty set size=" + ("" + collections.set_size(s))) }
+
+    return [passed, total]
+}
+
+function test_set_add() {
+    let passed = 0
+    let total = 0
+
+    // Add elements
+    total = total + 1
+    let s = collections.Set()
+    s = collections.set_add(s, "apple")
+    s = collections.set_add(s, "banana")
+    s = collections.set_add(s, "cherry")
+    if collections.set_size(s) == 3 { passed = passed + 1 }
+    else { io.println("[FAIL] set_add 3 elements, size=" + ("" + collections.set_size(s))) }
+
+    // Duplicate add — no increase in size
+    total = total + 1
+    s = collections.set_add(s, "apple")
+    if collections.set_size(s) == 3 { passed = passed + 1 }
+    else { io.println("[FAIL] duplicate add, size=" + ("" + collections.set_size(s))) }
+
+    // Int set
+    total = total + 1
+    let nums = collections.Set()
+    nums = collections.set_add(nums, 1)
+    nums = collections.set_add(nums, 2)
+    nums = collections.set_add(nums, 3)
+    if collections.set_size(nums) == 3 { passed = passed + 1 }
+    else { io.println("[FAIL] int set size=" + ("" + collections.set_size(nums))) }
+
+    return [passed, total]
+}
+
+function test_set_contains() {
+    let passed = 0
+    let total = 0
+
+    let s = collections.Set()
+    s = collections.set_add(s, "x")
+    s = collections.set_add(s, "y")
+
+    // Contains present element
+    total = total + 1
+    if collections.set_contains(s, "x") { passed = passed + 1 }
+    else { io.println("[FAIL] set_contains x") }
+
+    // Contains present element (2nd)
+    total = total + 1
+    if collections.set_contains(s, "y") { passed = passed + 1 }
+    else { io.println("[FAIL] set_contains y") }
+
+    // Does not contain absent element
+    total = total + 1
+    if !(collections.set_contains(s, "z")) { passed = passed + 1 }
+    else { io.println("[FAIL] set_contains z should be false") }
+
+    // Empty set contains nothing
+    total = total + 1
+    let empty = collections.Set()
+    if !(collections.set_contains(empty, "anything")) { passed = passed + 1 }
+    else { io.println("[FAIL] empty set should not contain anything") }
+
+    return [passed, total]
+}
+
+function test_set_remove() {
+    let passed = 0
+    let total = 0
+
+    let s = collections.Set()
+    s = collections.set_add(s, "a")
+    s = collections.set_add(s, "b")
+    s = collections.set_add(s, "c")
+
+    // Remove an element
+    total = total + 1
+    s = collections.set_remove(s, "b")
+    if collections.set_size(s) == 2 { passed = passed + 1 }
+    else { io.println("[FAIL] after remove size=" + ("" + collections.set_size(s))) }
+
+    // Removed element no longer present
+    total = total + 1
+    if !(collections.set_contains(s, "b")) { passed = passed + 1 }
+    else { io.println("[FAIL] removed element still present") }
+
+    // Remaining elements still present
+    total = total + 1
+    if collections.set_contains(s, "a") && collections.set_contains(s, "c") { passed = passed + 1 }
+    else { io.println("[FAIL] remaining elements missing after remove") }
+
+    // Remove non-existent element — no error, size unchanged
+    total = total + 1
+    let prev_size = collections.set_size(s)
+    s = collections.set_remove(s, "zzz")
+    if collections.set_size(s) == prev_size { passed = passed + 1 }
+    else { io.println("[FAIL] remove non-existent changed size") }
+
+    return [passed, total]
+}
+
+function test_set_size() {
+    let passed = 0
+    let total = 0
+
+    // Empty
+    total = total + 1
+    let s = collections.Set()
+    if collections.set_size(s) == 0 { passed = passed + 1 }
+    else { io.println("[FAIL] empty set size") }
+
+    // After adds
+    total = total + 1
+    s = collections.set_add(s, 10)
+    s = collections.set_add(s, 20)
+    if collections.set_size(s) == 2 { passed = passed + 1 }
+    else { io.println("[FAIL] size after 2 adds") }
+
+    // After remove
+    total = total + 1
+    s = collections.set_remove(s, 10)
+    if collections.set_size(s) == 1 { passed = passed + 1 }
+    else { io.println("[FAIL] size after remove") }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_set_create()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_set_add()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_set_contains()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_set_remove()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_set_size()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    io.println("stdlib/collections: " + ("" + total_passed) + "/" + ("" + total_tests) + " passed")
+    if total_passed != total_tests { throw "stdlib collections test failures" }
+}

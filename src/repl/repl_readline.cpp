@@ -329,6 +329,32 @@ private:
             fmt::print("State reset complete\n");
         } else if (cmd == ":stats") {
             printStats();
+        } else if (cmd.substr(0, 5) == ":type") {
+            std::string expr = (cmd.size() > 6) ? cmd.substr(6) : "";
+            if (expr.empty()) {
+                fmt::print("  Usage: :type <expression>\n");
+            } else {
+                try {
+                    std::string wrapped = "main { " + expr + " }";
+                    lexer::Lexer lx(wrapped);
+                    auto toks = lx.tokenize();
+                    parser::Parser pr(toks);
+                    auto prog = pr.parseProgram();
+                    interpreter_.execute(*prog);
+                    fmt::print("  {}\n", interpreter_.getResult().getTypeName());
+                } catch (const std::exception& e) {
+                    fmt::print("  Error: {}\n", e.what());
+                }
+            }
+        } else if (cmd == ":env") {
+            auto vars = interpreter_.getCurrentScopeVariables();
+            if (vars.empty()) {
+                fmt::print("  (empty environment)\n");
+            } else {
+                for (const auto& [name, val] : vars) {
+                    fmt::print("  {} : {} = {}\n", name, val.getTypeName(), val.toString());
+                }
+            }
         } else {
             fmt::print("Unknown command: {}\n", cmd);
             fmt::print("Type :help for available commands\n");
@@ -345,6 +371,8 @@ private:
         fmt::print("  :blocks          Show available blocks\n");
         fmt::print("  :reset           Reset interpreter state\n");
         fmt::print("  :stats           Show performance statistics\n");
+        fmt::print("  :type <expr>     Show the type of an expression\n");
+        fmt::print("  :env             Show all variables in current scope\n");
         fmt::print("\n");
         fmt::print("Keyboard Shortcuts:\n");
         fmt::print("  Up/Down          Navigate history\n");

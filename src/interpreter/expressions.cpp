@@ -1078,6 +1078,8 @@ void Interpreter::visit(ast::LiteralExpr& node) {
             } else {
                 result_ = NaabVal::makeString(raw);
             }
+            // Phase 3.2: Track allocation for automatic GC (strings are heap values)
+            trackAllocation();
             break;
         }
 

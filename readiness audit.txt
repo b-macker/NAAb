@@ -1,0 +1,306 @@
+
+  ---
+  NAAb Enterprise Readiness Audit
+
+  Executive Summary
+
+  96K lines of C++ source, 744 test files, 8 CI workflows, 16 stdlib modules, 12 polyglot
+  executors, bytecode VM with NaN-boxing. The project is a strong working concept with
+  serious governance features. Below are the gaps that separate it from enterprise-ready.
+
+  ---
+  TIER 1: Blockers (must fix for any enterprise adoption)
+
+  1.1 No File Stdlib Security (CRITICAL)
+
+  src/stdlib/file_impl.cpp has zero path validation. No realpath(), no traversal checks,
+  no allowlist. A NAAb script can file.read("/etc/passwd") regardless of sandbox level.
+  The sandbox (src/runtime/sandbox.cpp, 431 lines) checks flags but the file stdlib
+  bypasses it entirely.
+
+  Fix: Add path canonicalization + sandbox check to every file operation. The governance
+  engine already has checkPathAccess() — wire it into the stdlib.
+
+  1.2 Command Injection in Polyglot Executors (CRITICAL)
+
+  - cpp_executor.cpp:263 — calls system(full_command.c_str()) with constructed strings
+  - shell_executor.cpp — uses popen() with user-controlled code
+  - generic_subprocess_executor.cpp — same pattern
+  - subprocess_helpers.cpp:125-126 — temp file names using mkstemp but the paths pass
+  through shell
+
+  The polyglot design inherently executes arbitrary code in foreign runtimes. The sandbox
+  flags exist but aren't enforced at the executor level — they're checked in governance
+  before execution, which means bypass = full access.
+
+  Fix: Defense in depth — executors should independently verify sandbox permissions, not
+  just rely on governance pre-checks.
+
+  1.3 No install Target (HIGH)
+
+  CMakeLists.txt only installs naab-lsp (line 803). There's no install(TARGETS naab-lang
+  ...). No pkg-config file. No CMake export config. Enterprises can't integrate NAAb into
+  their build systems.
+
+  Fix: Add proper install targets, versioned headers, and a naab-lang-config.cmake.
+
+  1.4 Version Mismatch
+
+  config.h says 0.5.0 but CHANGELOG says 0.7.0. Version string is out of sync.
+
+  Fix: Single source of truth — generate from CMakeLists.txt or git tags.
+
+  ---
+  TIER 2: Significant Gaps (enterprise expectations)
+
+  2.1 Missing Stdlib Modules
+
+  Enterprises expect these and NAAb has none:
+
+  ┌──────────────┬───────────────────────────────────────────────────────┬────────────┐
+  │    Module    │                      Why Needed                       │ Difficulty │
+  ├──────────────┼───────────────────────────────────────────────────────┼────────────┤
+  │ log          │ Structured logging (levels, format, output targets)   │ Medium     │
+  ├──────────────┼───────────────────────────────────────────────────────┼────────────┤
+  │ uuid         │ Unique identifiers for records/traces                 │ Easy       │
+  ├──────────────┼───────────────────────────────────────────────────────┼────────────┤
+  │ validate     │ Input validation (email, url, types, schemas)         │ Medium     │
+  ├──────────────┼───────────────────────────────────────────────────────┼────────────┤
+  │ process      │ Spawn subprocesses, signals, exit codes               │ Medium     │
+  ├──────────────┼───────────────────────────────────────────────────────┼────────────┤
+  │ net/socket   │ TCP/UDP connections, DNS                              │ Hard       │
+  ├──────────────┼───────────────────────────────────────────────────────┼────────────┤
+  │ buffer/bytes │ Binary data manipulation                              │ Medium     │
+  ├──────────────┼───────────────────────────────────────────────────────┼────────────┤
+  │ semver       │ Version parsing/comparison (header exists, no stdlib) │ Easy       │
+  ├──────────────┼───────────────────────────────────────────────────────┼────────────┤
+  │ url          │ URL parsing, encoding, query params                   │ Easy       │
+  └──────────────┴───────────────────────────────────────────────────────┴────────────┘
+
+  2.2 No Unit Test Framework
+
+  tests/unit/ has 41 files but they use the ad-hoc [passed, total] pattern. No test
+  runner, no assertions beyond manual comparison, no test discovery. Enterprises need:
+  - Proper test assertion functions with diffs
+  - Test discovery and selective execution
+  - Coverage reporting
+  - JUnit/TAP output for CI integration
+
+  2.3 Governance.cpp is 7,484 Lines
+
+  This single file is a maintenance and auditability nightmare. It should be split into:
+  - governance_engine.cpp (core load/enforce/report)
+  - governance_checks.cpp (the 30+ check functions)
+  - governance_security.cpp (taint, secrets, injection checks)
+  - governance_reports.cpp (JSON/SARIF/JUnit/CSV/HTML output)
+  - governance_audit.cpp (audit trail, telemetry)
+
+  2.4 No LSP Implementation
+
+  tests/lsp/ exists (2 files), CMakeLists.txt builds naab-lsp, but there's no evidence of
+  actual language server features (completion, diagnostics, hover). IDE support is
+  essential for enterprise developer productivity.
+
+  2.5 GC Relies on shared_ptr Cycle Detection
+
+  46 shared_ptr in interpreter.h, zero weak_ptr anywhere. The cycle detector
+  (cycle_detector.cpp) runs periodically but this is fragile. Any environment cycle leaks
+  until GC triggers. For long-running processes (servers, daemons), this is a memory leak
+  risk.
+
+  2.6 No Async/Concurrent Primitives
+
+  AwaitExpr and YieldExpr exist in the AST but generators are eager-collected (CLAUDE.md
+  gotcha #35). No event loop, no promises, no channels. Enterprise workloads need
+  non-blocking I/O.
+
+  ---
+  TIER 3: Polish for Enterprise Confidence
+
+  3.1 Test Coverage Gaps
+
+  Area: Core language
+  Tests: 335 (chapter verification)
+  Assessment: Good
+  ────────────────────────────────────────
+  Area: Governance
+  Tests: 103 + 35 + 14
+  Assessment: Good
+  ────────────────────────────────────────
+  Area: Robustness/chaos
+  Tests: 39
+  Assessment: Good
+  ────────────────────────────────────────
+  Area: VM-specific
+  Tests: 7
+  Assessment: Low — VM is default engine
+  ────────────────────────────────────────
+  Area: Stdlib per-module
+  Tests: ~0 dedicated
+  Assessment: Missing — tested indirectly only
+  ────────────────────────────────────────
+  Area: CLI flags
+  Tests: 3
+  Assessment: Low — many flags untested
+  ────────────────────────────────────────
+  Area: Error messages
+  Tests: 9
+  Assessment: Low
+  ────────────────────────────────────────
+  Area: Security
+  Tests: 9
+  Assessment: Low for an enterprise tool
+  ────────────────────────────────────────
+  Area: Fuzz testing
+  Tests: 2 harnesses
+  Assessment: Good start, needs coverage
+  ────────────────────────────────────────
+  Area: Performance regression
+  Tests: 4
+  Assessment: Low
+
+  3.2 Tech Debt (20 TODOs in Source)
+
+  Key ones:
+  - main.cpp:620 — "TODO: Re-implement import blocking in PythonCExecutor for security"
+  - type_system.cpp:474 — "TODO: full type unification"
+  - ffi_callback_validator.cpp:91-100 — "TODO: Implement proper type checking" (3
+  instances)
+  - rest_api.cpp:49 — "TODO: Execute code using interpreter" (REST API is a stub)
+
+  3.3 REST API is Non-Functional
+
+  src/api/rest_api.cpp has a TODO at line 49. The API server doesn't actually execute
+  code. This is listed as a feature but doesn't work.
+
+  3.4 No REPL History/Completion
+
+  The REPL exists but lacks readline-style history, tab completion, or multiline editing.
+  These are table stakes for developer experience.
+
+  3.5 Documentation Gaps
+
+  - docs/book/ has 16 chapters — good
+  - docs/grammar.ebnf (443 lines) — good
+  - docs/CLAUDE.md (657 lines) — excellent LLM reference
+  - Missing: API reference docs (auto-generated from source), migration guide, embedding
+  guide, performance tuning guide
+
+  3.6 No Stable Public C/C++ API
+
+  96 headers in include/naab/ with no distinction between public and internal. Enterprises
+   embedding NAAb need a stable, versioned API surface with backward compatibility
+  guarantees.
+
+  3.7 Error Swallowing
+
+  - governance.cpp audit trail writes: catch (...) {} (line ~5363)
+  - governance_init.cpp:54 — catch (...) {} swallows governance init errors
+  - These silently drop errors that could indicate corruption
+
+  3.8 No Windows Support
+
+  Build system and executors are Linux/macOS only (popen, mkstemp, flock, localtime_r,
+  setenv). No Windows CI. Many enterprises are Windows-first.
+
+  ---
+  TIER 4: Competitive Differentiators (add real enterprise value)
+
+  4.1 Embeddable Runtime
+
+  Package NAAb as a library (libnaab.so/a) with a C API for embedding in existing
+  applications. This is how Lua, mruby, and QuickJS gained enterprise traction.
+
+  4.2 Language Server Protocol
+
+  A working LSP with completions, diagnostics, go-to-definition, and hover would
+  dramatically increase adoption. The governance engine could provide real-time rule
+  violation diagnostics.
+
+  4.3 Package Registry
+
+  Package manager exists but there's no hosted registry. Enterprise teams need private
+  registries, SLA-backed availability, and vulnerability scanning.
+
+  4.4 Governance as a Service
+
+  The governance engine is NAAb's killer feature. Spin it out as a standalone tool that
+  can lint polyglot projects (not just NAAb). SARIF output already works — integrate with
+  GitHub Code Scanning, GitLab SAST, etc.
+
+  4.5 Deterministic Builds / Reproducibility
+
+  For compliance-heavy industries (finance, healthcare), NAAb scripts should produce
+  identical results across runs. Pin polyglot runtime versions, hash dependencies, and
+  provide a lockfile mechanism.
+
+  ---
+  Priority Roadmap
+
+  Priority: P0
+  Item: File stdlib path security
+  Effort: 1 day
+  Impact: Blocks enterprise security review
+  ────────────────────────────────────────
+  Priority: P0
+  Item: Executor sandbox enforcement
+  Effort: 2 days
+  Impact: Same
+  ────────────────────────────────────────
+  Priority: P0
+  Item: Fix version string
+  Effort: 1 hour
+  Impact: Credibility
+  ────────────────────────────────────────
+  Priority: P1
+  Item: Split governance.cpp
+  Effort: 2 days
+  Impact: Maintainability, audit
+  ────────────────────────────────────────
+  Priority: P1
+  Item: CMake install targets
+  Effort: 1 day
+  Impact: Distribution
+  ────────────────────────────────────────
+  Priority: P1
+  Item: VM test coverage (expand from 7)
+  Effort: 2 days
+  Impact: Confidence in default engine
+  ────────────────────────────────────────
+  Priority: P1
+  Item: Stdlib module tests
+  Effort: 3 days
+  Impact: Regression prevention
+  ────────────────────────────────────────
+  Priority: P2
+  Item: log, uuid, validate stdlib
+  Effort: 3 days
+  Impact: Enterprise utility
+  ────────────────────────────────────────
+  Priority: P2
+  Item: REST API implementation
+  Effort: 2 days
+  Impact: Remove dead feature or ship it
+  ────────────────────────────────────────
+  Priority: P2
+  Item: Windows support
+  Effort: 5 days
+  Impact: Market reach
+  ────────────────────────────────────────
+  Priority: P3
+  Item: LSP implementation
+  Effort: 5 days
+  Impact: Developer experience
+  ────────────────────────────────────────
+  Priority: P3
+  Item: Embeddable C API
+  Effort: 3 days
+  Impact: Integration story
+  ────────────────────────────────────────
+  Priority: P3
+  Item: REPL quality (history, completion)
+  Effort: 2 days
+  Impact: DX polish
+
+  The governance engine, polyglot execution, and NaN-boxed VM are genuine differentiators.
+   The gaps are mostly about hardening what exists rather than building new features.

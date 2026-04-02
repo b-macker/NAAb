@@ -1,0 +1,88 @@
+// VM exception handling tests
+function test_exceptions() {
+    let passed = 0
+    let total = 0
+
+    // Basic throw/catch
+    total = total + 1
+    try {
+        throw "test error"
+        print("[FAIL] should not reach here")
+    } catch (e) {
+        passed = passed + 1
+    }
+
+    // Catch with message check
+    total = total + 1
+    try {
+        throw "specific message"
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "specific") {
+            passed = passed + 1
+        } else {
+            print("[FAIL] error message not preserved: " + msg)
+        }
+    }
+
+    // No throw — catch block not entered
+    total = total + 1
+    let reached = false
+    try {
+        reached = true
+    } catch (e) {
+        print("[FAIL] catch entered when no throw")
+    }
+    if reached { passed = passed + 1 }
+
+    // Nested try/catch — inner catches, outer doesn't see it
+    total = total + 1
+    let outer_caught = false
+    try {
+        try {
+            throw "inner error"
+        } catch (e) {
+            // inner handles it
+        }
+    } catch (e) {
+        outer_caught = true
+    }
+    if !outer_caught {
+        passed = passed + 1
+    } else {
+        print("[FAIL] outer catch should not have fired")
+    }
+
+    // Re-throw from catch
+    total = total + 1
+    let rethrown = false
+    try {
+        try {
+            throw "rethrow me"
+        } catch (e) {
+            throw "rethrown"
+        }
+    } catch (e) {
+        rethrown = true
+    }
+    if rethrown { passed = passed + 1 } else { print("[FAIL] rethrown should have been caught") }
+
+    // Runtime error is catchable
+    total = total + 1
+    try {
+        let arr = [1, 2, 3]
+        let x = arr[99]
+    } catch (e) {
+        passed = passed + 1
+    }
+
+    return [passed, total]
+}
+
+main {
+    let r = test_exceptions()
+    print("VM exceptions: " + ("" + r[0]) + "/" + ("" + r[1]) + " passed")
+    if r[0] != r[1] {
+        throw "VM exception test failures"
+    }
+}

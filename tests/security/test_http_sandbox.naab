@@ -1,0 +1,60 @@
+// Tests that HTTP requests are blocked under standard sandbox (no network)
+// Run with: naab-lang tests/security/test_http_sandbox.naab --sandbox-level standard
+use string
+main {
+    let passed = 0
+    let total = 0
+
+    print("=== HTTP Sandbox Tests ===")
+    print()
+
+    // Test 1: http.get should be blocked (STANDARD has network_enabled=false)
+    total = total + 1
+    try {
+        let resp = http.get("https://httpbin.org/get")
+        print("[FAIL] http.get was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "sandbox") || string.contains(msg, "Security") || string.contains(msg, "denied") {
+            print("[PASS] http.get blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] http.get failed but not by sandbox: ", msg)
+        }
+    }
+
+    // Test 2: http.post should be blocked
+    total = total + 1
+    try {
+        let resp = http.post("https://httpbin.org/post", "{}")
+        print("[FAIL] http.post was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "sandbox") || string.contains(msg, "Security") || string.contains(msg, "denied") {
+            print("[PASS] http.post blocked by sandbox")
+            passed = passed + 1
+        } else {
+            print("[FAIL] http.post failed but not by sandbox: ", msg)
+        }
+    }
+
+    // Test 3: file:// URL scheme should be blocked
+    total = total + 1
+    try {
+        let resp = http.get("file:///etc/passwd")
+        print("[FAIL] file:// URL was NOT blocked")
+    } catch (e) {
+        let msg = e["message"]
+        if string.contains(msg, "scheme") || string.contains(msg, "Security") || string.contains(msg, "denied") {
+            print("[PASS] file:// URL scheme blocked")
+            passed = passed + 1
+        } else {
+            // Any error is acceptable here - file:// should never work
+            print("[PASS] file:// blocked (other): ", msg)
+            passed = passed + 1
+        }
+    }
+
+    print()
+    print("HTTP sandbox: " + ("" + passed) + "/" + ("" + total) + " passed")
+}

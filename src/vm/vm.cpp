@@ -129,7 +129,7 @@ interpreter::NaabVal VM::execute(CompiledFunction* main_fn) {
     // Register stdlib prelude modules (same as tree-walker's auto-import)
     // Skip names that conflict with builtins (string is both a module and a function)
     static const char* prelude_modules[] = {
-        "array", "io", "file", "debug", "bolo", "env",
+        "array", "dict", "io", "file", "debug", "bolo", "env",
         "math", "json", "http", "crypto", "time", "os"
     };
     for (auto mod : prelude_modules) {
@@ -1673,16 +1673,22 @@ interpreter::NaabVal VM::run() {
                     push(it->second);
                 } else if (obj.isString()) {
                     auto& str = obj.asString();
-                    if (!index.isInt()) {
-                        runtimeError("String index must be an integer");
+                    // Allow string["message"] → returns self.
+                    // This enables e["message"] when a plain string is thrown and caught.
+                    if (index.isString() && index.asString() == "message") {
+                        push(obj);
+                    } else {
+                        if (!index.isInt()) {
+                            runtimeError("String index must be an integer");
+                        }
+                        int idx = static_cast<int>(index.asInt());
+                        int size = static_cast<int>(str.size());
+                        if (idx < 0) idx += size;
+                        if (idx < 0 || idx >= size) {
+                            runtimeError("Index %d out of bounds for string of length %d", idx, size);
+                        }
+                        push(interpreter::NaabVal::makeString(std::string(1, str[idx])));
                     }
-                    int idx = static_cast<int>(index.asInt());
-                    int size = static_cast<int>(str.size());
-                    if (idx < 0) idx += size;
-                    if (idx < 0 || idx >= size) {
-                        runtimeError("Index %d out of bounds for string of length %d", idx, size);
-                    }
-                    push(interpreter::NaabVal::makeString(std::string(1, str[idx])));
                 } else {
                     runtimeError("Cannot index into %s", obj.getTypeName().c_str());
                 }

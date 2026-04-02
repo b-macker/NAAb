@@ -1,0 +1,62 @@
+// VM deep recursion / call stack tests
+function fib(n) {
+    if n <= 1 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+function factorial(n) {
+    if n <= 1 { return 1 }
+    return n * factorial(n - 1)
+}
+
+function sum_to(n) {
+    if n <= 0 { return 0 }
+    return n + sum_to(n - 1)
+}
+
+function test_recursion() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let f10 = fib(10)
+    if f10 == 55 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] fib(10): expected 55, got " + ("" + f10))
+    }
+
+    total = total + 1
+    let f15 = fib(15)
+    if f15 == 610 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] fib(15): expected 610, got " + ("" + f15))
+    }
+
+    total = total + 1
+    let fact10 = factorial(10)
+    if fact10 == 3628800 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] factorial(10): expected 3628800, got " + ("" + fact10))
+    }
+
+    total = total + 1
+    let s100 = sum_to(100)
+    if s100 == 5050 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] sum_to(100): expected 5050, got " + ("" + s100))
+    }
+
+    return [passed, total]
+}
+
+main {
+    let r = test_recursion()
+    print("VM deep recursion: " + ("" + r[0]) + "/" + ("" + r[1]) + " passed")
+    if r[0] != r[1] {
+        throw "VM recursion test failures"
+    }
+}

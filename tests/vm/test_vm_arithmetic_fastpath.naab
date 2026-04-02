@@ -1,0 +1,92 @@
+// VM NaN-boxing int fast path tests
+// Verifies int+int stays as int and large values promote to double correctly
+function test_int_ops() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let a = 1000000
+    let b = 2000000
+    let c = a + b
+    if c == 3000000 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] int addition: expected 3000000, got " + ("" + c))
+    }
+
+    total = total + 1
+    let x = 100
+    let y = x * x
+    if y == 10000 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] int multiply: expected 10000, got " + ("" + y))
+    }
+
+    total = total + 1
+    let d = 1000 - 999
+    if d == 1 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] int subtraction: expected 1, got " + ("" + d))
+    }
+
+    total = total + 1
+    let q = 100 / 4
+    if q == 25 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] int division: expected 25, got " + ("" + q))
+    }
+
+    total = total + 1
+    let r = 17 % 5
+    if r == 2 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] int modulo: expected 2, got " + ("" + r))
+    }
+
+    return [passed, total]
+}
+
+function test_float_ops() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let f = 3.14 * 2.0
+    if f > 6.27 && f < 6.29 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] float multiply: expected ~6.28, got " + ("" + f))
+    }
+
+    total = total + 1
+    let g = 1.0 / 3.0
+    if g > 0.333 && g < 0.334 {
+        passed = passed + 1
+    } else {
+        print("[FAIL] float division: expected ~0.333, got " + ("" + g))
+    }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_int_ops()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_float_ops()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    print("VM arithmetic fast paths: " + ("" + total_passed) + "/" + ("" + total_tests) + " passed")
+    if total_passed != total_tests {
+        throw "VM arithmetic test failures"
+    }
+}

@@ -1,0 +1,66 @@
+// VM closure capture tests
+function make_counter() {
+    let n = 0
+    return fn() {
+        n = n + 1
+        return n
+    }
+}
+
+function make_adder(x) {
+    return fn(y) { return x + y }
+}
+
+function make_accumulator() {
+    let total = 0
+    return fn(v) {
+        total = total + v
+        return total
+    }
+}
+
+function test_closures() {
+    let passed = 0
+    let total = 0
+
+    // Basic counter closure
+    let counter = make_counter()
+    total = total + 1
+    if counter() == 1 { passed = passed + 1 } else { print("[FAIL] counter() == 1") }
+    total = total + 1
+    if counter() == 2 { passed = passed + 1 } else { print("[FAIL] counter() == 2") }
+    total = total + 1
+    if counter() == 3 { passed = passed + 1 } else { print("[FAIL] counter() == 3") }
+
+    // Independent closures don't share state
+    let counter2 = make_counter()
+    total = total + 1
+    if counter2() == 1 { passed = passed + 1 } else { print("[FAIL] counter2() == 1 (independence)") }
+    total = total + 1
+    if counter() == 4 { passed = passed + 1 } else { print("[FAIL] counter() == 4 (still works)") }
+
+    // Closure over parameter
+    let add5 = make_adder(5)
+    total = total + 1
+    if add5(3) == 8 { passed = passed + 1 } else { print("[FAIL] add5(3) == 8") }
+    total = total + 1
+    if add5(10) == 15 { passed = passed + 1 } else { print("[FAIL] add5(10) == 15") }
+
+    // Accumulator
+    let acc = make_accumulator()
+    acc(10)
+    acc(20)
+    let result = acc(5)
+    total = total + 1
+    if result == 35 { passed = passed + 1 } else { print("[FAIL] accumulator result == 35, got " + ("" + result)) }
+
+    return [passed, total]
+}
+
+main {
+    let r = test_closures()
+    print("VM closures: " + ("" + r[0]) + "/" + ("" + r[1]) + " passed")
+    if r[0] != r[1] {
+        throw "VM closure test failures"
+    }
+}

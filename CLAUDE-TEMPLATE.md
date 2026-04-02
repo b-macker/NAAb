@@ -42,15 +42,15 @@ DO NOT write standalone .py/.js/.go files — all code goes in .naab files.
 ### Match Expression
 ```naab
 let result = match value {
-    "attack" => { "do attack" }
-    "move" => { "do move" }
-    _ => { "default" }
+    "attack" => "do attack",
+    "move"   => "do move",
+    _        => "default"
 }
 ```
 - Arms use `=>` (fat arrow), NOT `->` or `:`
-- Each arm body is a block `{ }` — braces required
+- **Each arm body MUST be an expression** — NOT a block with statements
 - `_` is the default/wildcard pattern
-- NO commas between arms
+- Commas between arms are optional but recommended
 - match IS an expression — `let x = match ...` works
 
 ### If Expressions
@@ -364,6 +364,9 @@ main {
 30. `--governance-dashboard` outputs a governance summary to stderr (checks passed/warned/blocked)
 31. `agent_roles` in govern.json restricts per-agent allowed languages, allowed paths, and blocked paths
 32. `telemetry` in govern.json enables JSONL telemetry output for agent execution tracking (`"enabled": true, "output_file": "telemetry.jsonl"`)
+33. Match arm block bodies are parsed as **dict literals** — `1 => { var = expr }` fails with
+    "Expected ':' after dict key" because `var` is treated as a dict key and `=` is not `:`.
+    Use expression arms only: `1 => expr`. For side effects inside match, restructure with if/else.
 
 ## Complexity Scoring (for governance)
 

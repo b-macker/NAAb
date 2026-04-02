@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+# NaabLang CMake package configuration
+# Beta (Phase 7.2): API shape is stable; linking requires fmt, absl, and spdlog.
+# These are bundled subprojects in the NaabLang source tree and are not
+# installed as system packages. Downstream projects that link NaabLang::*
+# targets must also provide fmt::fmt, absl::*, and spdlog::spdlog themselves.
+
+include("${CMAKE_CURRENT_LIST_DIR}/NaabLangTargets.cmake")
+
+check_required_components(NaabLang)

@@ -43,6 +43,7 @@
 #include "naab/stdlib.h"  // For setPipeMode()
 #include "naab/governance.h"  // For governance report CLI flags
 #include "naab/scanner.h"    // For --scan command
+#include "naab/lockfile.h"   // For --lock / --lock-check flags (Phase 8.4)
 #include "governance_init.h"  // For naab-lang init --governance
 #include "naab/package_manager.h"  // For package management commands
 #include "naab/profiler.h"   // For VM profiler integration
@@ -279,7 +280,13 @@ int main(int argc, char** argv) {
     std::string global_governance_telemetry;
     bool global_governance_baseline_save = false;
     std::string global_governance_env;
+    std::string global_sandbox_level = "unrestricted";  // Default: full language power
     int command_arg_index = 1;  // Index of the actual command/file in argv
+    static size_t global_gc_threshold = 5000;
+    static bool   global_gc_stats     = false;
+    bool global_lock_update    = false;   // --lock: write/update naab.lock
+    bool global_lock_check     = false;   // --lock-check: fail on runtime drift
+    std::string global_lock_path;         // --lock-path: override lockfile location
 
     while (command_arg_index < argc) {
         std::string arg(argv[command_arg_index]);
@@ -333,6 +340,25 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--env" && command_arg_index + 1 < argc) {
             global_governance_env = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--gc-threshold" && command_arg_index + 1 < argc) {
+            try { global_gc_threshold = std::stoul(argv[command_arg_index + 1]); }
+            catch (...) { global_gc_threshold = 5000; }
+            command_arg_index += 2;
+        } else if (arg == "--gc-stats") {
+            global_gc_stats = true;
+            command_arg_index++;
+        } else if (arg == "--lock") {
+            global_lock_update = true;
+            command_arg_index++;
+        } else if (arg == "--lock-check") {
+            global_lock_check = true;
+            command_arg_index++;
+        } else if (arg == "--lock-path" && command_arg_index + 1 < argc) {
+            global_lock_path = argv[++command_arg_index];
+            command_arg_index++;
+        } else if (arg == "--sandbox-level" && command_arg_index + 1 < argc) {
+            global_sandbox_level = argv[++command_arg_index];
             command_arg_index++;
         } else if (arg == "--repl") {
             return naab::repl::run(global_no_governance);
@@ -442,10 +468,15 @@ int main(int argc, char** argv) {
         bool governance_check_baselines = false;
         bool governance_baseline_save = global_governance_baseline_save;
         std::string governance_env = global_governance_env;
+        size_t gc_threshold = global_gc_threshold;
+        bool   gc_stats     = global_gc_stats;
+        bool lock_update    = global_lock_update;
+        bool lock_check     = global_lock_check;
+        std::string lock_path = global_lock_path;
         std::string governance_report_json;
         std::string governance_report_sarif;
         std::string governance_report_junit;
-        std::string sandbox_level = "unrestricted";  // Default: full language power
+        std::string sandbox_level = global_sandbox_level;  // Inherit from global pre-scan
         unsigned int timeout = 30;
         size_t memory_limit = 512;
         bool network_enabled = false;
@@ -510,6 +541,17 @@ int main(int argc, char** argv) {
                 use_vm = true;
             } else if (arg == "--tree-walk") {
                 use_vm = false;
+            } else if (arg == "--gc-threshold" && i + 1 < argc) {
+                try { gc_threshold = std::stoul(argv[++i]); }
+                catch (...) { gc_threshold = 5000; }
+            } else if (arg == "--gc-stats") {
+                gc_stats = true;
+            } else if (arg == "--lock") {
+                lock_update = true;
+            } else if (arg == "--lock-check") {
+                lock_check = true;
+            } else if (arg == "--lock-path" && i + 1 < argc) {
+                lock_path = argv[++i];
             } else if (arg.substr(0, 2) == "--") {
                 // Unknown flag — give helpful error instead of treating as filename
                 fmt::print("Error: Unknown flag '{}'\n\n"
@@ -538,7 +580,9 @@ int main(int argc, char** argv) {
                            "    --env <name>          Apply environment overrides\n"
                            "    --strict-types        Abort on type errors (pre-execution check)\n"
                            "    --vm                  Use bytecode VM (default)\n"
-                           "    --tree-walk           Use tree-walk interpreter instead of VM\n\n"
+                           "    --tree-walk           Use tree-walk interpreter instead of VM\n"
+                           "    --gc-threshold <N>    GC collection threshold (default: 5000)\n"
+                           "    --gc-stats            Print GC statistics after execution\n\n"
                            "  Note: There is no --path flag. NAAb resolves modules relative to\n"
                            "  the script's directory. To use modules from another location,\n"
                            "  place the script in or near the modules directory, or use\n"
@@ -624,6 +668,10 @@ int main(int argc, char** argv) {
                        sandbox_level, timeout, memory_limit, network_enabled ? "enabled" : "disabled");
         }
 
+        // Activate sandbox for entire script execution (not just polyglot blocks)
+        // This makes ScopedSandbox::getCurrent() return non-null during stdlib calls
+        naab::security::ScopedSandbox script_sandbox(security_config);
+
         // Load manifest if available
         auto manifest = naab::manifest::ManifestLoader::findAndLoad(".");
         if (manifest.has_value()) {
@@ -673,6 +721,7 @@ int main(int argc, char** argv) {
                 interpreter.setGovernanceOverride(true);
             }
             interpreter.setGovernanceVerbose(governance_verbose);
+            interpreter.setGCThreshold(gc_threshold);
 
             // Phase 4.2: Enable interactive debugger
             if (debug) {
@@ -1221,8 +1270,68 @@ int main(int argc, char** argv) {
                 }
             }
 
+            if (gc_stats) {
+                fmt::print("[GC] Allocations tracked: {}, Collections run: {}\n",
+                           interpreter.getAllocationCount(),
+                           interpreter.getGCCollectionCount());
+            }
+
             if (profile) {
                 interpreter.printProfile();
+            }
+
+            // Phase 8.4: Lockfile support — record or verify observed runtime versions
+            if (lock_update || lock_check) {
+                // Discover lockfile path if not explicitly provided
+                std::string lf_path = lock_path;
+                if (lf_path.empty()) {
+                    auto script_dir = std::filesystem::absolute(filename).parent_path().string();
+                    lf_path = naab::discoverLockfilePath(script_dir);
+                    if (lf_path.empty()) {
+                        // Default: .naab/naab.lock next to the script
+                        lf_path = std::filesystem::absolute(filename).parent_path().string()
+                                  + "/.naab/naab.lock";
+                    }
+                }
+
+                // Collect observed runtime versions from all registered executors
+                auto& lang_registry = naab::runtime::LanguageRegistry::instance();
+                std::unordered_map<std::string, std::string> observed;
+                for (const auto& lang : lang_registry.supportedLanguages()) {
+                    auto* exec = lang_registry.getExecutor(lang);
+                    if (exec) {
+                        std::string ver = exec->getRuntimeVersion();
+                        if (!ver.empty()) observed[lang] = ver;
+                    }
+                }
+
+                if (lock_update) {
+                    naab::Lockfile lf = naab::Lockfile::load(lf_path);
+                    for (const auto& [lang, ver] : observed) {
+                        lf.update(lang, ver);
+                    }
+                    lf.save(lf_path);
+                    if (verbose) {
+                        fprintf(stderr, "[lock] Lockfile updated: %s\n", lf_path.c_str());
+                    }
+                }
+
+                if (lock_check) {
+                    naab::Lockfile lf = naab::Lockfile::load(lf_path);
+                    auto drifts = lf.checkDrift(observed);
+                    if (!drifts.empty()) {
+                        for (const auto& d : drifts) {
+                            fprintf(stderr, "[lock] DRIFT: %s\n", d.c_str());
+                        }
+                        fprintf(stderr, "[lock] Runtime versions differ from lockfile.\n"
+                                        "  Run with --lock to update: naab-lang --lock %s\n",
+                                filename.c_str());
+                        fflush(stdout); fflush(stderr);
+                        _exit(1);
+                    } else if (verbose) {
+                        fprintf(stderr, "[lock] All runtime versions match lockfile.\n");
+                    }
+                }
             }
 
             // Use _exit() after interpreter runs - thread pool workers and

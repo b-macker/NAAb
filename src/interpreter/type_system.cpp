@@ -471,8 +471,9 @@ void Interpreter::collectTypeConstraints(
         // If we already have a constraint for this type parameter, check compatibility
         auto it = constraints.find(type_param_name);
         if (it != constraints.end()) {
-            // TODO: In a full implementation, we'd unify the types
-            // For now, just check if they're the same
+            // Known limitation: full Hindley-Milner type unification not yet implemented.
+            // When a type parameter has conflicting constraints, a warning is emitted.
+            // Full unification is deferred — see ENTERPRISE_REMEDIATION_PLAN.md §4.2.
             if (it->second.kind != arg_type.kind) {
                 fmt::print("[WARN] Type parameter {} has conflicting constraints\n", type_param_name);
             }

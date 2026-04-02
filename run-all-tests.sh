@@ -25,6 +25,7 @@ TEST_DIRS=(
     "tests/package_manager"
     "tests/persistent"
     "tests/type_system/valid"
+    "tests/stdlib"
     "tests"
 )
 
@@ -177,9 +178,20 @@ run_test() {
         gov_flag="--governance-override"
     fi
 
+    # Security sandbox tests need the right sandbox level to actually enforce blocking
+    # Only inject for tests with "sandbox" in the name — other security tests (e.g., overflow) run normally
+    local sandbox_flag=""
+    if [[ "$test_file" == *"/security/"* ]] && [[ "$test_name" == *"sandbox"* ]]; then
+        if [[ "$test_name" == *"http"* ]]; then
+            sandbox_flag="--sandbox-level standard"
+        else
+            sandbox_flag="--sandbox-level restricted"
+        fi
+    fi
+
     # Run the test with timeout
     local output_file="$HOME/.naab_test_output_$$.txt"
-    if timeout "$timeout_duration" "$NAAB_BIN" $gov_flag run "$test_file" > "$output_file" 2>&1; then
+    if timeout "$timeout_duration" "$NAAB_BIN" $gov_flag $sandbox_flag run "$test_file" > "$output_file" 2>&1; then
         PASSED=$((PASSED + 1))
         PASSED_TESTS+=("$test_name")
         echo "  PASS: $test_name"
@@ -236,6 +248,8 @@ for dir in "${TEST_DIRS[@]}"; do
         timeout="60s"
     elif [ "$dir" = "tests/governance_v3" ] || [ "$dir" = "tests/governance_v4" ]; then
         timeout="60s"  # Governance tests run polyglot blocks
+    elif [ "$dir" = "tests/stdlib" ]; then
+        timeout="30s"
     fi
 
     # Find all .naab files
@@ -444,6 +458,202 @@ if [ -f "$MULTIAGENT_SCRIPT" ]; then
     fi
 else
     echo "  Multi-agent governance test script not found, skipping"
+fi
+
+# --- CLI Flag Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  CLI Flag Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+CLI_FLAGS_SCRIPT="tests/cli/test_cli_flags.sh"
+if [ -f "$CLI_FLAGS_SCRIPT" ]; then
+    if bash "$CLI_FLAGS_SCRIPT" 2>&1; then
+        echo ""
+        echo "  CLI flag tests: ALL PASSED"
+    else
+        echo ""
+        echo "  CLI flag tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("cli-flag-tests")
+    fi
+else
+    echo "  CLI flag test script not found, skipping"
+fi
+
+# --- GC Flag Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  GC Flag Tests (--gc-threshold, --gc-stats)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+GC_FLAGS_SCRIPT="tests/cli/test_gc_flags.sh"
+if [ -f "$GC_FLAGS_SCRIPT" ]; then
+    if bash "$GC_FLAGS_SCRIPT" 2>&1; then
+        echo ""
+        echo "  GC flag tests: ALL PASSED"
+    else
+        echo ""
+        echo "  GC flag tests: FAILURE(S)"
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("gc-flag-tests")
+    fi
+else
+    echo "  GC flag test script not found, skipping"
+fi
+
+# --- Sandbox Security Tests ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Sandbox Security Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+for sec_script in \
+    "tests/security/test_sandbox_file_restricted.sh" \
+    "tests/security/test_sandbox_http_restricted.sh" \
+    "tests/security/test_sandbox_env_restricted.sh" \
+    "tests/security/test_sandbox_symlink.sh" \
+    "tests/security/test_sandbox_exit_codes.sh"; do
+    if [ -f "$sec_script" ]; then
+        script_name=$(basename "$sec_script")
+        if bash "$sec_script" 2>&1; then
+            echo ""
+            echo "  $script_name: ALL PASSED"
+        else
+            echo ""
+            echo "  $script_name: FAILURE(S)"
+            FAILED=$((FAILED + 1))
+            FAILED_TESTS+=("$script_name")
+        fi
+    else
+        echo "  $(basename "$sec_script"): not found, skipping"
+    fi
+done
+
+# --- naab-gov CLI Tests (Phase 8.2) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  naab-gov Governance CLI Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+GOV_SCRIPT="tests/cli/test_naab_gov.sh"
+if [ -f "$GOV_SCRIPT" ]; then
+    if bash "$GOV_SCRIPT" 2>&1; then
+        echo "  test_naab_gov.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_naab_gov.sh")
+    fi
+else
+    echo "  test_naab_gov.sh: not found, skipping"
+fi
+
+# --- libnaab Embedding Tests (Phase 8.1) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  libnaab Embedding Build Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+EMBED_SCRIPT="tests/embedding/test_libnaab_build.sh"
+if [ -f "$EMBED_SCRIPT" ]; then
+    if bash "$EMBED_SCRIPT" 2>&1; then
+        echo "  test_libnaab_build.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_libnaab_build.sh")
+    fi
+else
+    echo "  test_libnaab_build.sh: not found, skipping"
+fi
+
+# --- LSP New Method Tests (Phase 8.3) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  LSP New Method Tests (codeAction/workspaceSymbol/rename)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+LSP_NEW_SCRIPT="tests/lsp/test_lsp_new_methods.sh"
+if [ -f "$LSP_NEW_SCRIPT" ] && [ -f "build/naab-lsp" ]; then
+    if bash "$LSP_NEW_SCRIPT" 2>&1; then
+        echo "  test_lsp_new_methods.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_lsp_new_methods.sh")
+    fi
+else
+    echo "  test_lsp_new_methods.sh: skipped (naab-lsp not built or script not found)"
+fi
+
+# --- Deterministic Build / Lockfile Tests (Phase 8.4) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Deterministic Build Lockfile Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+LOCK_SCRIPT="tests/deterministic/test_lockfile.sh"
+if [ -f "$LOCK_SCRIPT" ]; then
+    if bash "$LOCK_SCRIPT" 2>&1; then
+        echo "  test_lockfile.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_lockfile.sh")
+    fi
+else
+    echo "  test_lockfile.sh: not found, skipping"
+fi
+
+# --- Platform Abstraction Tests (Phase 7.3) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Platform Abstraction Tests"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PLATFORM_SCRIPT="tests/platform/test_platform_posix.sh"
+if [ -f "$PLATFORM_SCRIPT" ]; then
+    if bash "$PLATFORM_SCRIPT" 2>&1; then
+        echo "  test_platform_posix.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_platform_posix.sh")
+    fi
+else
+    echo "  test_platform_posix.sh: not found, skipping"
+fi
+
+# --- Governance Exit Code Tests (Sprint 9) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Governance Exit Code Tests (exit 2/3)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+GOV_EXIT_SCRIPT="tests/cli/test_governance_exit_codes.sh"
+if [ -f "$GOV_EXIT_SCRIPT" ]; then
+    if bash "$GOV_EXIT_SCRIPT" 2>&1; then
+        echo "  test_governance_exit_codes.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_governance_exit_codes.sh")
+    fi
+else
+    echo "  test_governance_exit_codes.sh: not found, skipping"
+fi
+
+# --- Pipe Mode Tests (Sprint 9) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Pipe Mode Tests (--pipe flag)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+PIPE_SCRIPT="tests/cli/test_pipe_mode.sh"
+if [ -f "$PIPE_SCRIPT" ]; then
+    if bash "$PIPE_SCRIPT" 2>&1; then
+        echo "  test_pipe_mode.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_pipe_mode.sh")
+    fi
+else
+    echo "  test_pipe_mode.sh: not found, skipping"
 fi
 
 # Print summary

@@ -1,0 +1,133 @@
+use path
+
+function test_basename() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let b = path.basename("/foo/bar/baz.txt")
+    if b == "baz.txt" { passed = passed + 1 }
+    else { io.println("[FAIL] basename: expected baz.txt, got " + b) }
+
+    total = total + 1
+    let b2 = path.basename("/usr/local/bin")
+    if b2 == "bin" { passed = passed + 1 }
+    else { io.println("[FAIL] basename no ext: expected bin, got " + b2) }
+
+    return [passed, total]
+}
+
+function test_dirname() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let d = path.dirname("/foo/bar/baz.txt")
+    if d == "/foo/bar" { passed = passed + 1 }
+    else { io.println("[FAIL] dirname: expected /foo/bar, got " + d) }
+
+    total = total + 1
+    let d2 = path.dirname("/usr/local/bin")
+    if d2 == "/usr/local" { passed = passed + 1 }
+    else { io.println("[FAIL] dirname dir: expected /usr/local, got " + d2) }
+
+    return [passed, total]
+}
+
+function test_extension() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let e = path.extension("file.naab")
+    if e == ".naab" { passed = passed + 1 }
+    else { io.println("[FAIL] extension: expected .naab, got " + e) }
+
+    total = total + 1
+    let e2 = path.extension("archive.tar.gz")
+    if e2 == ".gz" { passed = passed + 1 }
+    else { io.println("[FAIL] extension .gz: expected .gz, got " + e2) }
+
+    return [passed, total]
+}
+
+function test_is_absolute() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    if path.is_absolute("/usr/bin") { passed = passed + 1 }
+    else { io.println("[FAIL] is_absolute /usr/bin") }
+
+    total = total + 1
+    if path.is_absolute("relative/path") == false { passed = passed + 1 }
+    else { io.println("[FAIL] is_absolute relative should be false") }
+
+    return [passed, total]
+}
+
+function test_join() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let j = path.join("/usr", "local", "bin")
+    if j == "/usr/local/bin" { passed = passed + 1 }
+    else { io.println("[FAIL] join: expected /usr/local/bin, got " + j) }
+
+    total = total + 1
+    let j2 = path.join("/foo", "bar")
+    if j2 == "/foo/bar" { passed = passed + 1 }
+    else { io.println("[FAIL] join 2 parts: expected /foo/bar, got " + j2) }
+
+    return [passed, total]
+}
+
+function test_normalize() {
+    let passed = 0
+    let total = 0
+
+    total = total + 1
+    let n = path.normalize("/foo/../bar")
+    if n == "/bar" { passed = passed + 1 }
+    else { io.println("[FAIL] normalize: expected /bar, got " + n) }
+
+    total = total + 1
+    let n2 = path.normalize("/a/b/./c")
+    if n2 == "/a/b/c" { passed = passed + 1 }
+    else { io.println("[FAIL] normalize dot: expected /a/b/c, got " + n2) }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_basename()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_dirname()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_extension()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_is_absolute()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_join()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    let r6 = test_normalize()
+    total_passed = total_passed + r6[0]
+    total_tests = total_tests + r6[1]
+
+    io.println("stdlib/path: " + ("" + total_passed) + "/" + ("" + total_tests) + " passed")
+    if total_passed != total_tests { throw "stdlib test failures" }
+}

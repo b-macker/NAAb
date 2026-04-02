@@ -541,7 +541,7 @@ Interpreter::Interpreter()
                stdlib_->listModules().size());
 
     // Auto-import stdlib prelude (core modules available without 'use')
-    std::vector<std::string> prelude_modules = {"array", "string", "io", "file", "debug", "bolo", "env"};
+    std::vector<std::string> prelude_modules = {"array", "string", "dict", "io", "file", "debug", "bolo", "env"};
     for (const auto& mod_name : prelude_modules) {
         if (stdlib_->hasModule(mod_name)) {
             auto module = stdlib_->getModule(mod_name);

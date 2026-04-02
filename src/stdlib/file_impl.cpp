@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/sandbox.h"
 #include "naab/utils/string_utils.h"
 #include <fstream>
 #include <sstream>
@@ -17,6 +18,40 @@ namespace fs = std::filesystem;
 
 namespace naab {
 namespace stdlib {
+
+// Security: Check sandbox permissions before file operations
+static void checkFileSandbox(const std::string& path, const std::string& operation) {
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (!sandbox) return;  // No sandbox active — allow (backward compatibility)
+
+    bool allowed = false;
+    std::string capability;
+
+    if (operation == "read" || operation == "exists" || operation == "is_file" ||
+        operation == "is_dir" || operation == "list_dir" || operation == "size" ||
+        operation == "read_lines") {
+        allowed = sandbox->canRead(path);
+        capability = "FS_READ";
+    } else if (operation == "write" || operation == "append" || operation == "write_lines" ||
+               operation == "create_dir" || operation == "copy_dst" || operation == "move_dst") {
+        allowed = sandbox->canWrite(path);
+        capability = "FS_WRITE";
+    } else if (operation == "delete") {
+        allowed = sandbox->canDelete(path);
+        capability = "FS_DELETE";
+    }
+
+    if (!allowed) {
+        sandbox->logViolation("file." + operation, path, capability + " capability required");
+        throw std::runtime_error(
+            "Security: file." + operation + "() denied by sandbox\n\n"
+            "  Path: " + path + "\n\n"
+            "  The current sandbox level does not permit this file operation.\n"
+            "  To allow, use: --sandbox-level elevated\n"
+            "  Or for full access: --sandbox-level unrestricted\n"
+        );
+    }
+}
 
 // Forward declarations of helper functions
 static std::string getString(const interpreter::NaabVal& val);
@@ -43,6 +78,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("read() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "read");
         std::ifstream file(path);
         if (!file.is_open()) {
             throw std::runtime_error("Failed to open file: " + path);
@@ -58,6 +94,7 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         std::string content = getString(args[1]);
+        checkFileSandbox(path, "write");
 
         // FIX 26: Auto-create parent directories
         auto parent = fs::path(path).parent_path();
@@ -93,6 +130,7 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         std::string content = getString(args[1]);
+        checkFileSandbox(path, "write");
 
         // FIX 26: Auto-create parent directories (same as write)
         auto parent = fs::path(path).parent_path();
@@ -127,6 +165,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("exists() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "read");
         return interpreter::NaabVal::makeBool(fs::exists(path));
     }
 
@@ -135,6 +174,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("delete() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "delete");
         if (fs::exists(path)) {
             // Check if path is a directory (should not delete directories)
             if (fs::is_directory(path)) {
@@ -151,6 +191,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("list_dir() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "read");
         std::vector<interpreter::NaabVal> entries;
         if (fs::exists(path) && fs::is_directory(path)) {
             for (const auto& entry : fs::directory_iterator(path)) {
@@ -167,6 +208,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("create_dir() takes 1 or 2 arguments (path, recursive?)");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "write");
         bool recursive = true;  // Default to recursive for convenience
 
         if (args.size() == 2) {
@@ -186,6 +228,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("is_file() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "read");
         return interpreter::NaabVal::makeBool(fs::is_regular_file(path));
     }
 
@@ -194,6 +237,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("is_dir() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "read");
         return interpreter::NaabVal::makeBool(fs::is_directory(path));
     }
 
@@ -202,6 +246,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("read_lines() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "read");
         std::ifstream file(path);
         if (!file.is_open()) {
             throw std::runtime_error("Failed to open file: " + path);
@@ -222,6 +267,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("write_lines() takes exactly 2 arguments");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "write");
         auto lines = getStringArray(args[1]);
         std::ofstream file(path);
         if (!file.is_open()) {
@@ -239,6 +285,8 @@ interpreter::NaabVal FileModule::call(
         }
         std::string src = getString(args[0]);
         std::string dst = getString(args[1]);
+        checkFileSandbox(src, "read");
+        checkFileSandbox(dst, "write");
         std::error_code ec;
         fs::copy(src, dst, fs::copy_options::overwrite_existing, ec);
         if (ec) {
@@ -253,6 +301,8 @@ interpreter::NaabVal FileModule::call(
         }
         std::string src = getString(args[0]);
         std::string dst = getString(args[1]);
+        checkFileSandbox(src, "delete");
+        checkFileSandbox(dst, "write");
         std::error_code ec;
         fs::rename(src, dst, ec);
         if (ec) {
@@ -266,6 +316,7 @@ interpreter::NaabVal FileModule::call(
             throw std::runtime_error("size() takes exactly 1 argument");
         }
         std::string path = getString(args[0]);
+        checkFileSandbox(path, "read");
         std::error_code ec;
         auto sz = fs::file_size(path, ec);
         if (ec) {

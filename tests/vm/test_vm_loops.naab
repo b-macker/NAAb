@@ -1,0 +1,238 @@
+// VM loop tests — for-in, while, break, continue, nested loops
+use string
+
+function test_for_in() {
+    let passed = 0
+    let total = 0
+
+    // Basic iteration
+    total = total + 1
+    let sum = 0
+    let arr = [1, 2, 3, 4, 5]
+    for x in arr {
+        sum = sum + x
+    }
+    if sum == 15 { passed = passed + 1 } else { print("[FAIL] for-in sum, got " + ("" + sum)) }
+
+    // Index access inside loop
+    total = total + 1
+    let arr2 = [10, 20, 30]
+    let acc = 0
+    for v in arr2 {
+        acc = acc + v
+    }
+    if acc == 60 { passed = passed + 1 } else { print("[FAIL] for-in acc, got " + ("" + acc)) }
+
+    // Loop variable scoped per iteration
+    total = total + 1
+    let last = 0
+    for n in [7, 8, 9] {
+        last = n
+    }
+    if last == 9 { passed = passed + 1 } else { print("[FAIL] for-in last, got " + ("" + last)) }
+
+    // Empty array — body never runs
+    total = total + 1
+    let ran = 0
+    for x in [] {
+        ran = ran + 1
+    }
+    if ran == 0 { passed = passed + 1 } else { print("[FAIL] for-in empty ran=" + ("" + ran)) }
+
+    // Collect into new array via push
+    total = total + 1
+    let doubled = []
+    for v in [1, 2, 3] {
+        doubled.push(v * 2)
+    }
+    if doubled[0] == 2 && doubled[1] == 4 && doubled[2] == 6 {
+        passed = passed + 1
+    } else { print("[FAIL] for-in doubled") }
+
+    return [passed, total]
+}
+
+function test_while() {
+    let passed = 0
+    let total = 0
+
+    // Counter-based loop
+    total = total + 1
+    let i = 0
+    let s = 0
+    while i < 5 {
+        s = s + i
+        i = i + 1
+    }
+    if s == 10 { passed = passed + 1 } else { print("[FAIL] while sum, got " + ("" + s)) }
+
+    // Loop runs zero times when condition is false initially
+    total = total + 1
+    let count = 0
+    while count > 0 {
+        count = count - 1
+    }
+    if count == 0 { passed = passed + 1 } else { print("[FAIL] while false-init") }
+
+    // Multiplication via repeated addition
+    total = total + 1
+    let product = 0
+    let j = 0
+    while j < 6 {
+        product = product + 4
+        j = j + 1
+    }
+    if product == 24 { passed = passed + 1 } else { print("[FAIL] while product, got " + ("" + product)) }
+
+    // Countdown
+    total = total + 1
+    let k = 10
+    while k > 0 {
+        k = k - 3
+    }
+    if k <= 0 { passed = passed + 1 } else { print("[FAIL] while countdown, got " + ("" + k)) }
+
+    return [passed, total]
+}
+
+function test_break() {
+    let passed = 0
+    let total = 0
+
+    // Break exits loop immediately
+    total = total + 1
+    let i = 0
+    while i < 100 {
+        if i == 5 { break }
+        i = i + 1
+    }
+    if i == 5 { passed = passed + 1 } else { print("[FAIL] break at 5, got " + ("" + i)) }
+
+    // Break in for-in
+    total = total + 1
+    let found = -1
+    for v in [10, 20, 30, 40, 50] {
+        if v == 30 {
+            found = v
+            break
+        }
+    }
+    if found == 30 { passed = passed + 1 } else { print("[FAIL] break for-in found=" + ("" + found)) }
+
+    // Outer loop unaffected by inner break
+    total = total + 1
+    let outer_count = 0
+    let i2 = 0
+    while i2 < 3 {
+        let j = 0
+        while j < 10 {
+            if j == 2 { break }
+            j = j + 1
+        }
+        outer_count = outer_count + 1
+        i2 = i2 + 1
+    }
+    if outer_count == 3 { passed = passed + 1 } else { print("[FAIL] outer loop after inner break, got " + ("" + outer_count)) }
+
+    return [passed, total]
+}
+
+function test_continue() {
+    let passed = 0
+    let total = 0
+
+    // Continue skips rest of iteration — sum only evens
+    total = total + 1
+    let sum = 0
+    let i = 0
+    while i < 10 {
+        i = i + 1
+        if i % 2 != 0 { continue }
+        sum = sum + i
+    }
+    // Even numbers 2+4+6+8+10 = 30
+    if sum == 30 { passed = passed + 1 } else { print("[FAIL] continue even sum, got " + ("" + sum)) }
+
+    // Continue in for-in — skip zeros
+    total = total + 1
+    let non_zero_count = 0
+    for v in [1, 0, 2, 0, 3] {
+        if v == 0 { continue }
+        non_zero_count = non_zero_count + 1
+    }
+    if non_zero_count == 3 { passed = passed + 1 } else { print("[FAIL] continue skip zeros, got " + ("" + non_zero_count)) }
+
+    return [passed, total]
+}
+
+function test_nested_loops() {
+    let passed = 0
+    let total = 0
+
+    // Nested for-in loops
+    total = total + 1
+    let pairs = 0
+    for a in [1, 2, 3] {
+        for b in [1, 2, 3] {
+            pairs = pairs + 1
+        }
+    }
+    if pairs == 9 { passed = passed + 1 } else { print("[FAIL] nested loops pairs, got " + ("" + pairs)) }
+
+    // Inner break doesn't break outer
+    total = total + 1
+    let outer_iters = 0
+    for a in [1, 2, 3] {
+        outer_iters = outer_iters + 1
+        for b in [1, 2, 3, 4, 5] {
+            if b == 2 { break }
+        }
+    }
+    if outer_iters == 3 { passed = passed + 1 } else { print("[FAIL] nested inner break outer_iters=" + ("" + outer_iters)) }
+
+    // Nested while
+    total = total + 1
+    let total_inner = 0
+    let i = 0
+    while i < 4 {
+        let j = 0
+        while j < 4 {
+            total_inner = total_inner + 1
+            j = j + 1
+        }
+        i = i + 1
+    }
+    if total_inner == 16 { passed = passed + 1 } else { print("[FAIL] nested while total=" + ("" + total_inner)) }
+
+    return [passed, total]
+}
+
+main {
+    let total_passed = 0
+    let total_tests = 0
+
+    let r1 = test_for_in()
+    total_passed = total_passed + r1[0]
+    total_tests = total_tests + r1[1]
+
+    let r2 = test_while()
+    total_passed = total_passed + r2[0]
+    total_tests = total_tests + r2[1]
+
+    let r3 = test_break()
+    total_passed = total_passed + r3[0]
+    total_tests = total_tests + r3[1]
+
+    let r4 = test_continue()
+    total_passed = total_passed + r4[0]
+    total_tests = total_tests + r4[1]
+
+    let r5 = test_nested_loops()
+    total_passed = total_passed + r5[0]
+    total_tests = total_tests + r5[1]
+
+    print("VM loops: " + ("" + total_passed) + "/" + ("" + total_tests) + " passed")
+    if total_passed != total_tests {
+        throw "VM loop test failures"
+    }
+}

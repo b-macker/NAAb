@@ -31,7 +31,7 @@ static int compareValues(const interpreter::NaabVal& a, const interpreter::NaabV
 bool ArrayModule::hasFunction(const std::string& name) const {
     static const std::unordered_set<std::string> functions = {
         "length", "push", "pop", "shift", "unshift", "first", "last",
-        "map_fn", "filter_fn", "reduce_fn", "find", "slice_arr", "slice",
+        "map_fn", "filter_fn", "reduce_fn", "find", "index_of", "slice_arr", "slice",
         "reverse", "sort", "contains", "join"
     };
     return functions.count(name) > 0;
@@ -521,11 +521,30 @@ interpreter::NaabVal ArrayModule::call(
             "    len(my_array)           // built-in (simpler)\n"
         );
     }
-    if (function_name == "indexOf" || function_name == "index_of" || function_name == "findIndex") {
+    if (function_name == "index_of") {
+        if (args.size() != 2) {
+            throw std::runtime_error(
+                utils::ErrorFormatter::formatArgumentError(
+                    "array.index_of",
+                    {"array", "value"},
+                    2,
+                    static_cast<int>(args.size())
+                )
+            );
+        }
+        auto arr = getArray(args[0]);
+        auto target = args[1];
+        for (int i = 0; i < static_cast<int>(arr.size()); ++i) {
+            if (compareValues(arr[i], target) == 0) {
+                return makeInt(i);
+            }
+        }
+        return makeInt(-1);
+    }
+    if (function_name == "indexOf" || function_name == "findIndex") {
         throw std::runtime_error(
             "Unknown array function: " + function_name + "\n\n"
-            "  NAAb arrays don't have indexOf. Use array.find() with a predicate:\n"
-            "    array.find(arr, fn(x) { return x == target })\n"
+            "  Did you mean: array.index_of(arr, value)?\n"
         );
     }
 

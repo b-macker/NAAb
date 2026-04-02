@@ -1,0 +1,61 @@
+use string
+use process
+
+main {
+    let passed = 0
+    let total = 0
+
+    // Test 1: echo returns exit 0 + stdout contains expected text
+    total = total + 1
+    let r1 = process.run("echo", ["hello naab"])
+    if r1["exit_code"] == 0 && string.contains(r1["stdout"], "hello naab") {
+        passed = passed + 1
+    }
+
+    // Test 2: non-zero exit code captured correctly
+    total = total + 1
+    let r2 = process.run("sh", ["-c", "exit 42"])
+    if r2["exit_code"] == 42 {
+        passed = passed + 1
+    }
+
+    // Test 3: stderr captured separately from stdout
+    total = total + 1
+    let r3 = process.run("sh", ["-c", "echo errout >&2"])
+    if string.contains(r3["stderr"], "errout") {
+        passed = passed + 1
+    }
+
+    // Test 4: getpid() returns a positive integer
+    total = total + 1
+    let pid = process.getpid()
+    if pid > 0 {
+        passed = passed + 1
+    }
+
+    // Test 5: failed command returns non-zero exit code
+    total = total + 1
+    let r4 = process.run("sh", ["-c", "exit 1"])
+    if r4["exit_code"] != 0 {
+        passed = passed + 1
+    }
+
+    // Test 6: silent command has empty stdout and exit 0
+    total = total + 1
+    let r5 = process.run("true", [])
+    if r5["exit_code"] == 0 && r5["stdout"] == "" {
+        passed = passed + 1
+    }
+
+    // Test 7: result dict contains all required keys
+    total = total + 1
+    let r6 = process.run("echo", ["x"])
+    if "exit_code" in r6 && "stdout" in r6 && "stderr" in r6 {
+        passed = passed + 1
+    }
+
+    print("process: " + string(passed) + "/" + string(total) + " passed\n")
+    if passed != total {
+        process.exit(1)
+    }
+}

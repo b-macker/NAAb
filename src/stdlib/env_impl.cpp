@@ -5,6 +5,7 @@
 
 #include "naab/stdlib_new_modules.h"
 #include "naab/interpreter.h"
+#include "naab/sandbox.h"
 #include "naab/utils/string_utils.h"
 #include <cstdlib>
 #include <string>
@@ -18,6 +19,23 @@ extern char **environ;
 
 namespace naab {
 namespace stdlib {
+
+// Security: Check sandbox permissions for environment access
+static void checkEnvSandbox(const std::string& operation, const std::string& var_name = "") {
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (!sandbox) return;  // No sandbox active — allow
+
+    if (!sandbox->canAccessEnv(var_name)) {
+        sandbox->logViolation("env." + operation, var_name.empty() ? "(all)" : var_name,
+                              "SYS_ENV capability required");
+        throw std::runtime_error(
+            "Security: env." + operation + "() denied by sandbox\n\n"
+            "  Variable: " + (var_name.empty() ? "(all environment variables)" : var_name) + "\n\n"
+            "  The current sandbox level does not permit environment access.\n"
+            "  To allow, use: --sandbox-level standard (or higher)\n"
+        );
+    }
+}
 
 // Forward declarations
 static std::string getString(const interpreter::NaabVal& val);
@@ -52,6 +70,7 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("get() takes 1 or 2 arguments (key, default?)");
         }
         std::string key = getString(args[0]);
+        checkEnvSandbox("get", key);
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
@@ -69,6 +88,7 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("set_var() takes exactly 2 arguments (key, value)");
         }
         std::string key = getString(args[0]);
+        checkEnvSandbox("set_var", key);
         std::string value = getString(args[1]);
 
         setenv(key.c_str(), value.c_str(), 1);
@@ -81,6 +101,7 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("has() takes exactly 1 argument");
         }
         std::string key = getString(args[0]);
+        checkEnvSandbox("has", key);
         const char* value = std::getenv(key.c_str());
         return makeBool(value != nullptr);
     }
@@ -91,6 +112,7 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("delete_var() takes exactly 1 argument");
         }
         std::string key = getString(args[0]);
+        checkEnvSandbox("delete_var", key);
         unsetenv(key.c_str());
         return makeNull();
     }
@@ -100,6 +122,7 @@ interpreter::NaabVal EnvModule::call(
         if (args.size() != 0) {
             throw std::runtime_error("get_all() takes no arguments");
         }
+        checkEnvSandbox("get_all");
 
         std::unordered_map<std::string, std::string> env_map;
         for (char **env = environ; *env != nullptr; env++) {
@@ -116,6 +139,7 @@ interpreter::NaabVal EnvModule::call(
 
     // Function 6: load_dotenv - Load environment variables from .env file
     if (function_name == "load_dotenv") {
+        checkEnvSandbox("load_dotenv");
         std::string path = ".env";
         bool strict = false;  // Default: lenient mode
 
@@ -168,6 +192,7 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("get_int() takes 1 or 2 arguments (key, default?)");
         }
         std::string key = getString(args[0]);
+        checkEnvSandbox("get_int", key);
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
@@ -189,6 +214,7 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("get_float() takes 1 or 2 arguments (key, default?)");
         }
         std::string key = getString(args[0]);
+        checkEnvSandbox("get_float", key);
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
@@ -210,6 +236,7 @@ interpreter::NaabVal EnvModule::call(
             throw std::runtime_error("get_bool() takes 1 or 2 arguments (key, default?)");
         }
         std::string key = getString(args[0]);
+        checkEnvSandbox("get_bool", key);
         const char* value = std::getenv(key.c_str());
 
         if (value != nullptr) {
