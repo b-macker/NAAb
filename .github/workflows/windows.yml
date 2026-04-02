@@ -31,6 +31,7 @@ jobs:
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-python
             mingw-w64-x86_64-pybind11
+            mingw-w64-x86_64-dlfcn
 
       # Pre-build QuickJS using its own Makefile (which correctly escapes
       # CONFIG_VERSION quotes). This creates libquickjs.a so that cmake
