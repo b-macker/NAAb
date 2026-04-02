@@ -31,6 +31,17 @@ jobs:
             mingw-w64-x86_64-python
             mingw-w64-x86_64-pybind11
 
+      # Pre-build QuickJS using its own Makefile (which correctly escapes
+      # CONFIG_VERSION quotes). This creates libquickjs.a so that cmake
+      # detects it and uses the IMPORTED target instead of compiling from
+      # source — avoiding the bare `version` file being picked up as a
+      # translation unit by cmake's file-glob.
+      - name: Pre-build QuickJS
+        shell: msys2 {0}
+        run: |
+          cd external/quickjs-2021-03-27
+          make libquickjs.a -j4
+
       - name: Configure CMake
         shell: msys2 {0}
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDENING=OFF
