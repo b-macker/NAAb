@@ -549,7 +549,7 @@ target_link_libraries(naab_runtime
     curl
 )
 if(WIN32)
-    target_link_libraries(naab_runtime ws2_32 shell32)
+    target_link_libraries(naab_runtime ws2_32 shell32 dl)
 else()
     target_link_libraries(naab_runtime dl pthread m)
 endif()
