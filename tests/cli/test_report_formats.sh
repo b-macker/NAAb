@@ -52,6 +52,17 @@ echo "--- Generating reports from violation file ---"
     --governance-report "$JSON_OUT" \
     > "$TEST_DIR/stdout.txt" 2>&1 || true
 
+# On MSYS2/Windows, python3 is a native Windows binary that can't resolve
+# POSIX paths like /home/runneradmin/... — convert to Windows paths.
+SARIF_PY="$SARIF_OUT"
+JUNIT_PY="$JUNIT_OUT"
+JSON_PY="$JSON_OUT"
+if command -v cygpath &>/dev/null; then
+    SARIF_PY=$(cygpath -w "$SARIF_OUT")
+    JUNIT_PY=$(cygpath -w "$JUNIT_OUT")
+    JSON_PY=$(cygpath -w "$JSON_OUT")
+fi
+
 # ============================================================
 # SARIF Tests
 # ============================================================
@@ -60,29 +71,23 @@ echo "--- SARIF Report Tests ---"
 
 check "SARIF file created" "[ -s '$SARIF_OUT' ]"
 
-# Diagnostic: show python3 parse error if file exists but validation fails
-if [ "$HAS_PYTHON3" = "true" ] && [ -s "$SARIF_OUT" ]; then
-    _py_err=$(python3 -c "import json; json.load(open('$SARIF_OUT'))" 2>&1) || \
-        echo "  [DIAG] python3 SARIF parse error: $_py_err" >&2
-fi
-
 check "SARIF is valid JSON" \
-    "python3 -c \"import json; json.load(open('$SARIF_OUT'))\" 2>/dev/null"
+    "python3 -c \"import json; json.load(open('$SARIF_PY'))\" 2>/dev/null"
 
 check "SARIF version is 2.1.0" \
     "python3 -c \"
 import json
-d = json.load(open('$SARIF_OUT'))
+d = json.load(open('$SARIF_PY'))
 assert d['version'] == '2.1.0', f'got {d[\"version\"]}'
 \" 2>/dev/null"
 
 check "SARIF has schema field" \
-    "python3 -c 'import json; d=json.load(open(\"$SARIF_OUT\")); assert any(\"schema\" in k for k in d.keys()), \"missing schema\"' 2>/dev/null"
+    "python3 -c 'import json; d=json.load(open(\"$SARIF_PY\")); assert any(\"schema\" in k for k in d.keys()), \"missing schema\"' 2>/dev/null"
 
 check "SARIF has tool driver name" \
     "python3 -c \"
 import json
-d = json.load(open('$SARIF_OUT'))
+d = json.load(open('$SARIF_PY'))
 name = d['runs'][0]['tool']['driver']['name']
 assert 'NAAb' in name or 'naab' in name, f'got {name}'
 \" 2>/dev/null"
@@ -90,7 +95,7 @@ assert 'NAAb' in name or 'naab' in name, f'got {name}'
 check "SARIF has tool driver version" \
     "python3 -c \"
 import json
-d = json.load(open('$SARIF_OUT'))
+d = json.load(open('$SARIF_PY'))
 v = d['runs'][0]['tool']['driver']['version']
 assert v, 'empty version'
 \" 2>/dev/null"
@@ -98,7 +103,7 @@ assert v, 'empty version'
 check "SARIF has rules array" \
     "python3 -c \"
 import json
-d = json.load(open('$SARIF_OUT'))
+d = json.load(open('$SARIF_PY'))
 rules = d['runs'][0]['tool']['driver']['rules']
 assert isinstance(rules, list) and len(rules) > 0, f'rules count: {len(rules)}'
 \" 2>/dev/null"
@@ -106,7 +111,7 @@ assert isinstance(rules, list) and len(rules) > 0, f'rules count: {len(rules)}'
 check "SARIF has results with ruleId" \
     "python3 -c \"
 import json
-d = json.load(open('$SARIF_OUT'))
+d = json.load(open('$SARIF_PY'))
 results = [r for r in d['runs'][0]['results']]
 assert len(results) > 0, 'no results'
 assert all('ruleId' in r for r in results), 'missing ruleId'
@@ -115,7 +120,7 @@ assert all('ruleId' in r for r in results), 'missing ruleId'
 check "SARIF results have level (error/warning)" \
     "python3 -c \"
 import json
-d = json.load(open('$SARIF_OUT'))
+d = json.load(open('$SARIF_PY'))
 results = d['runs'][0]['results']
 for r in results:
     assert r.get('level') in ('error', 'warning', 'note'), f'bad level: {r.get(\"level\")}'
@@ -124,7 +129,7 @@ for r in results:
 check "SARIF results have message.text" \
     "python3 -c \"
 import json
-d = json.load(open('$SARIF_OUT'))
+d = json.load(open('$SARIF_PY'))
 results = d['runs'][0]['results']
 for r in results:
     assert r.get('message', {}).get('text'), 'empty message'
@@ -133,7 +138,7 @@ for r in results:
 check "SARIF has invocations" \
     "python3 -c \"
 import json
-d = json.load(open('$SARIF_OUT'))
+d = json.load(open('$SARIF_PY'))
 inv = d['runs'][0]['invocations']
 assert isinstance(inv, list) and len(inv) > 0
 assert 'executionSuccessful' in inv[0]
@@ -142,7 +147,7 @@ assert 'executionSuccessful' in inv[0]
 check "SARIF rules have ruleIndex references" \
     "python3 -c \"
 import json
-d = json.load(open('$SARIF_OUT'))
+d = json.load(open('$SARIF_PY'))
 rules = d['runs'][0]['tool']['driver']['rules']
 results = d['runs'][0]['results']
 rule_ids = [r['id'] for r in rules]
@@ -161,13 +166,13 @@ check "JUnit file created" "[ -s '$JUNIT_OUT' ]"
 check "JUnit is well-formed XML" \
     "python3 -c \"
 import xml.etree.ElementTree as ET
-ET.parse('$JUNIT_OUT')
+ET.parse('$JUNIT_PY')
 \" 2>/dev/null"
 
 check "JUnit has testsuite root" \
     "python3 -c \"
 import xml.etree.ElementTree as ET
-tree = ET.parse('$JUNIT_OUT')
+tree = ET.parse('$JUNIT_PY')
 root = tree.getroot()
 assert root.tag == 'testsuite', f'got {root.tag}'
 \" 2>/dev/null"
@@ -175,7 +180,7 @@ assert root.tag == 'testsuite', f'got {root.tag}'
 check "JUnit testsuite has tests attribute" \
     "python3 -c \"
 import xml.etree.ElementTree as ET
-root = ET.parse('$JUNIT_OUT').getroot()
+root = ET.parse('$JUNIT_PY').getroot()
 assert root.get('tests') is not None, 'missing tests attr'
 assert int(root.get('tests')) > 0, 'tests=0'
 \" 2>/dev/null"
@@ -183,14 +188,14 @@ assert int(root.get('tests')) > 0, 'tests=0'
 check "JUnit testsuite has failures attribute" \
     "python3 -c \"
 import xml.etree.ElementTree as ET
-root = ET.parse('$JUNIT_OUT').getroot()
+root = ET.parse('$JUNIT_PY').getroot()
 assert root.get('failures') is not None, 'missing failures attr'
 \" 2>/dev/null"
 
 check "JUnit testcases have name attribute" \
     "python3 -c \"
 import xml.etree.ElementTree as ET
-root = ET.parse('$JUNIT_OUT').getroot()
+root = ET.parse('$JUNIT_PY').getroot()
 tcs = root.findall('testcase')
 assert len(tcs) > 0, 'no testcases'
 for tc in tcs:
@@ -200,7 +205,7 @@ for tc in tcs:
 check "JUnit testcases have classname attribute" \
     "python3 -c \"
 import xml.etree.ElementTree as ET
-root = ET.parse('$JUNIT_OUT').getroot()
+root = ET.parse('$JUNIT_PY').getroot()
 tcs = root.findall('testcase')
 for tc in tcs:
     cn = tc.get('classname')
@@ -210,7 +215,7 @@ for tc in tcs:
 check "JUnit failures have message and type" \
     "python3 -c \"
 import xml.etree.ElementTree as ET
-root = ET.parse('$JUNIT_OUT').getroot()
+root = ET.parse('$JUNIT_PY').getroot()
 failures = root.findall('.//failure')
 assert len(failures) > 0, 'no failures found'
 for f in failures:
@@ -221,7 +226,7 @@ for f in failures:
 check "JUnit failure message contains actual error text (not just rule_name)" \
     "python3 -c \"
 import xml.etree.ElementTree as ET
-root = ET.parse('$JUNIT_OUT').getroot()
+root = ET.parse('$JUNIT_PY').getroot()
 failures = root.findall('.//failure')
 for f in failures:
     msg = f.get('message', '')
@@ -232,7 +237,7 @@ for f in failures:
 check "JUnit failure body has content" \
     "python3 -c \"
 import xml.etree.ElementTree as ET
-root = ET.parse('$JUNIT_OUT').getroot()
+root = ET.parse('$JUNIT_PY').getroot()
 failures = root.findall('.//failure')
 for f in failures:
     assert f.text and len(f.text) > 5, f'empty failure body'
@@ -247,12 +252,12 @@ echo "--- JSON Report Tests ---"
 check "JSON file created" "[ -s '$JSON_OUT' ]"
 
 check "JSON is valid" \
-    "python3 -c \"import json; json.load(open('$JSON_OUT'))\" 2>/dev/null"
+    "python3 -c \"import json; json.load(open('$JSON_PY'))\" 2>/dev/null"
 
 check "JSON has results array" \
     "python3 -c \"
 import json
-d = json.load(open('$JSON_OUT'))
+d = json.load(open('$JSON_PY'))
 assert 'results' in d, 'missing results key'
 assert isinstance(d['results'], list), 'results not a list'
 \" 2>/dev/null"
@@ -260,7 +265,7 @@ assert isinstance(d['results'], list), 'results not a list'
 check "JSON results have category field" \
     "python3 -c \"
 import json
-d = json.load(open('$JSON_OUT'))
+d = json.load(open('$JSON_PY'))
 for r in d['results']:
     assert 'category' in r, f'missing category in {r.get(\"rule\")}'
 \" 2>/dev/null"
@@ -268,7 +273,7 @@ for r in d['results']:
 check "JSON results have severity field" \
     "python3 -c \"
 import json
-d = json.load(open('$JSON_OUT'))
+d = json.load(open('$JSON_PY'))
 failed = [r for r in d['results'] if not r.get('passed')]
 for r in failed:
     assert 'severity' in r, f'missing severity in {r.get(\"rule\")}'
@@ -277,7 +282,7 @@ for r in failed:
 check "JSON has summary stats" \
     "python3 -c \"
 import json
-d = json.load(open('$JSON_OUT'))
+d = json.load(open('$JSON_PY'))
 assert 'summary' in d, 'missing summary'
 s = d['summary']
 assert 'total' in s, 'missing total'
@@ -315,14 +320,21 @@ CLEAN_JUNIT="$TEST_DIR/clean.xml"
     --governance-junit "$CLEAN_JUNIT" \
     > /dev/null 2>&1 || true
 
+CLEAN_SARIF_PY="$CLEAN_SARIF"
+CLEAN_JUNIT_PY="$CLEAN_JUNIT"
+if command -v cygpath &>/dev/null; then
+    CLEAN_SARIF_PY=$(cygpath -w "$CLEAN_SARIF")
+    CLEAN_JUNIT_PY=$(cygpath -w "$CLEAN_JUNIT")
+fi
+
 check "Clean file SARIF has empty results" \
     "python3 -c \"
 import json, os
-if not os.path.exists('$CLEAN_SARIF') or os.path.getsize('$CLEAN_SARIF') == 0:
+if not os.path.exists('$CLEAN_SARIF_PY') or os.path.getsize('$CLEAN_SARIF_PY') == 0:
     # No SARIF = no violations = OK
     pass
 else:
-    d = json.load(open('$CLEAN_SARIF'))
+    d = json.load(open('$CLEAN_SARIF_PY'))
     results = d.get('runs', [{}])[0].get('results', [])
     assert len(results) == 0, f'expected 0 results, got {len(results)}'
 \" 2>/dev/null"
@@ -330,10 +342,10 @@ else:
 check "Clean file JUnit has 0 failures" \
     "python3 -c \"
 import xml.etree.ElementTree as ET, os
-if not os.path.exists('$CLEAN_JUNIT') or os.path.getsize('$CLEAN_JUNIT') == 0:
+if not os.path.exists('$CLEAN_JUNIT_PY') or os.path.getsize('$CLEAN_JUNIT_PY') == 0:
     pass  # No JUnit = OK
 else:
-    root = ET.parse('$CLEAN_JUNIT').getroot()
+    root = ET.parse('$CLEAN_JUNIT_PY').getroot()
     failures = int(root.get('failures', 0))
     assert failures == 0, f'expected 0 failures, got {failures}'
 \" 2>/dev/null"
