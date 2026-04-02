@@ -442,6 +442,12 @@ message(STATUS "  ✓ Bytecode VM (compiler + virtual machine)")
 # QuickJS library for JavaScript execution
 # Build from source if pre-built .a doesn't exist (e.g., CI on different architecture)
 set(QUICKJS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/quickjs-2021-03-27")
+# The QuickJS make build generates a file named `version` (no extension) containing
+# the raw date string "2021-03-27".  On Windows that file ends up in an include-path
+# directory and some translation units try to compile it as C++, producing:
+#   version:1:1: error: expected unqualified-id before numeric constant
+# Overwrite it with a valid C comment so compilation always succeeds.
+file(WRITE "${QUICKJS_DIR}/version" "/* QuickJS version: 2021-03-27 */\n")
 if(EXISTS "${QUICKJS_DIR}/libquickjs.a")
     add_library(quickjs STATIC IMPORTED)
     set_target_properties(quickjs PROPERTIES
