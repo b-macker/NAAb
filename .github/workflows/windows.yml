@@ -29,8 +29,6 @@ jobs:
             mingw-w64-x86_64-sqlite3
             mingw-w64-x86_64-curl
             mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-python
-            mingw-w64-x86_64-pybind11
             mingw-w64-x86_64-dlfcn
 
       # Pre-build QuickJS using its own Makefile (which correctly escapes
@@ -46,7 +44,7 @@ jobs:
 
       - name: Configure CMake
         shell: msys2 {0}
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDENING=OFF
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDENING=OFF -DCMAKE_DISABLE_FIND_PACKAGE_Python3=TRUE
 
       - name: Build naab-lang
         shell: msys2 {0}
