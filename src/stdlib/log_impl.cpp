@@ -30,8 +30,12 @@ static int levelToInt(const std::string& level) {
 static std::string getISO8601() {
     auto now = std::chrono::system_clock::now();
     auto t = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_utc;
+    std::tm tm_utc{};
+#ifdef _WIN32
+    gmtime_s(&tm_utc, &t);
+#else
     gmtime_r(&t, &tm_utc);
+#endif
     std::ostringstream oss;
     oss << std::put_time(&tm_utc, "%FT%TZ");
     return oss.str();
