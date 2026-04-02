@@ -24,7 +24,7 @@ else()
 endif()
 
 if(WIN32)
-    add_compile_definitions(_WIN32_WINNT=0x0601 NOMINMAX WIN32_LEAN_AND_MEAN)
+    add_compile_definitions(_WIN32_WINNT=0x0A00 NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
 # Required for building libnaab as a SHARED library: all static libs must be

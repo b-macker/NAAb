@@ -8,6 +8,23 @@
 #include <unordered_map>
 #include <optional>
 
+// Windows SDK headers define macros that clash with NAAb token names:
+//   IN        -> empty (SAL annotation in <winnt.h>)
+//   CONST     -> const  (in <winnt.h>)
+//   INTERFACE -> struct (in <objbase.h>)
+// Undefine them here so the enum compiles correctly on Windows.
+#ifdef _WIN32
+#  ifdef IN
+#    undef IN
+#  endif
+#  ifdef CONST
+#    undef CONST
+#  endif
+#  ifdef INTERFACE
+#    undef INTERFACE
+#  endif
+#endif
+
 namespace naab {
 namespace lexer {
 
