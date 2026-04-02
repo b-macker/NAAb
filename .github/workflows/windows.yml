@@ -24,12 +24,14 @@ jobs:
           update: false
           install: >-
             make
+            diffutils
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-sqlite3
             mingw-w64-x86_64-curl
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-dlfcn
+            mingw-w64-x86_64-python
 
       # Pre-build QuickJS using its own Makefile (which correctly escapes
       # CONFIG_VERSION quotes). This creates libquickjs.a so that cmake

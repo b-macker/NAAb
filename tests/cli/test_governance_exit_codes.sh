@@ -144,13 +144,12 @@ cat > "${QG_DIR}/govern.json" << 'EOF'
 }
 EOF
 
-# Script with shell block containing the marker — advisory rule fires, script completes,
-# then quality gate evaluates and fails → exit 2
+# Script containing the marker as a string — advisory rule fires (source scan),
+# script completes, then quality gate evaluates and fails → exit 2
+# Using a pure NAAb string avoids platform-specific shell executor differences.
 cat > "${QG_DIR}/qgate.naab" << 'NAAB'
 main {
-    let r = <<shell
-echo "QUALITY_GATE_TEST_MARKER"
->>
+    let marker = "QUALITY_GATE_TEST_MARKER"
     print("done")
 }
 NAAB
