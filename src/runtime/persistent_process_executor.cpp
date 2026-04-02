@@ -8,12 +8,14 @@
 #include <cstring>       // For strerror
 #include <cerrno>        // For errno
 #include <climits>       // For INT_MIN, INT_MAX
+#include <stdexcept>
+#include <fmt/core.h>
+#ifndef _WIN32
 #include <csignal>       // For kill, SIGTERM, SIGKILL
 #include <fcntl.h>       // For fcntl, F_SETFL, O_NONBLOCK
 #include <poll.h>        // For poll
 #include <sys/wait.h>    // For waitpid
-#include <stdexcept>
-#include <fmt/core.h>
+#endif
 
 namespace naab {
 namespace runtime {
@@ -32,7 +34,7 @@ PersistentProcessExecutor::~PersistentProcessExecutor() {
     // pure virtual. By the time the base destructor runs, the derived class
     // is already destroyed. Derived classes must call stop() in their own
     // destructors while their vtable is still intact.
-
+#ifndef _WIN32
     // Best-effort cleanup: close fds and kill process without virtual calls
     if (stdin_pipe_fd_ >= 0) { close(stdin_pipe_fd_); stdin_pipe_fd_ = -1; }
     if (stdout_pipe_fd_ >= 0) { close(stdout_pipe_fd_); stdout_pipe_fd_ = -1; }
@@ -42,9 +44,14 @@ PersistentProcessExecutor::~PersistentProcessExecutor() {
         usleep(50000);
         waitpid(child_pid_, nullptr, WNOHANG);
     }
+#endif
 }
 
 bool PersistentProcessExecutor::start() {
+#ifdef _WIN32
+    throw std::runtime_error(fmt::format(
+        "Persistent {} executor: fork/pipe not supported on Windows", language_id_));
+#else
     if (started_ && isAlive()) {
         return true;
     }
@@ -148,9 +155,14 @@ bool PersistentProcessExecutor::start() {
     }
 
     return true;
+#endif // !_WIN32
 }
 
 void PersistentProcessExecutor::stop() {
+#ifdef _WIN32
+    started_ = false;
+    child_pid_ = -1;
+#else
     if (!started_ && child_pid_ <= 0) {
         return;
     }
@@ -193,6 +205,7 @@ void PersistentProcessExecutor::stop() {
 
     child_pid_ = -1;
     started_ = false;
+#endif // !_WIN32
 }
 
 bool PersistentProcessExecutor::restart() {
@@ -201,6 +214,9 @@ bool PersistentProcessExecutor::restart() {
 }
 
 bool PersistentProcessExecutor::isAlive() const {
+#ifdef _WIN32
+    return false;
+#else
     if (child_pid_ <= 0) return false;
 
     int status;
@@ -215,6 +231,7 @@ bool PersistentProcessExecutor::isAlive() const {
         return false;
     }
     return false;
+#endif // !_WIN32
 }
 
 bool PersistentProcessExecutor::execute(const std::string& code) {
@@ -406,6 +423,10 @@ interpreter::NaabVal PersistentProcessExecutor::parseOutput(
 // === Private methods ===
 
 bool PersistentProcessExecutor::writeToChild(const std::string& data) {
+#ifdef _WIN32
+    (void)data;
+    return false;
+#else
     if (stdin_pipe_fd_ < 0) return false;
 
     size_t total_written = 0;
@@ -420,9 +441,14 @@ bool PersistentProcessExecutor::writeToChild(const std::string& data) {
         total_written += static_cast<size_t>(written);
     }
     return true;
+#endif // !_WIN32
 }
 
 std::string PersistentProcessExecutor::readUntilSentinel(std::string& stderr_text, int timeout_ms) {
+#ifdef _WIN32
+    (void)stderr_text; (void)timeout_ms;
+    throw std::runtime_error("readUntilSentinel not supported on Windows");
+#else
     std::string accumulated;
     std::string sentinel = getSentinel();
     std::string sentinel_line = sentinel + "\n";
@@ -559,9 +585,13 @@ std::string PersistentProcessExecutor::readUntilSentinel(std::string& stderr_tex
                 language_id_));
         }
     }
+#endif // !_WIN32
 }
 
 std::string PersistentProcessExecutor::drainStderr() {
+#ifdef _WIN32
+    return "";
+#else
     if (stderr_pipe_fd_ < 0) return "";
 
     std::string result;
@@ -577,13 +607,18 @@ std::string PersistentProcessExecutor::drainStderr() {
         }
     }
     return result;
+#endif // !_WIN32
 }
 
 void PersistentProcessExecutor::setNonBlocking(int fd) {
+#ifndef _WIN32
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags >= 0) {
         fcntl(fd, F_SETFL, flags | O_NONBLOCK);
     }
+#else
+    (void)fd;
+#endif
 }
 
 } // namespace runtime
