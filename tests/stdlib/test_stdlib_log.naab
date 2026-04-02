@@ -107,7 +107,7 @@ function test_file_output() {
     let passed = 0
     let total = 0
 
-    let tmp = "/data/data/com.termux/files/home/.naab_stdlib_test_tmp"
+    let tmp = "/tmp/.naab_stdlib_test_tmp"
     file.create_dir(tmp)
     let logfile = tmp + "/log_test.txt"
 

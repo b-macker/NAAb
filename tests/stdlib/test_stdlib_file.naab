@@ -3,7 +3,7 @@ use file
 function test_write_read() {
     let passed = 0
     let total = 0
-    let tmp = "/data/data/com.termux/files/home/.naab_stdlib_test_tmp"
+    let tmp = "/tmp/.naab_stdlib_test_tmp"
 
     file.create_dir(tmp)
     let path = tmp + "/test_write_read.txt"
@@ -23,7 +23,7 @@ function test_write_read() {
 function test_exists_delete() {
     let passed = 0
     let total = 0
-    let tmp = "/data/data/com.termux/files/home/.naab_stdlib_test_tmp"
+    let tmp = "/tmp/.naab_stdlib_test_tmp"
     let path = tmp + "/test_exists.txt"
 
     file.write(path, "data")
@@ -44,7 +44,7 @@ function test_exists_delete() {
 function test_append() {
     let passed = 0
     let total = 0
-    let tmp = "/data/data/com.termux/files/home/.naab_stdlib_test_tmp"
+    let tmp = "/tmp/.naab_stdlib_test_tmp"
     let path = tmp + "/test_append.txt"
 
     file.write(path, "part1")
@@ -66,7 +66,7 @@ function test_append() {
 function test_lines() {
     let passed = 0
     let total = 0
-    let tmp = "/data/data/com.termux/files/home/.naab_stdlib_test_tmp"
+    let tmp = "/tmp/.naab_stdlib_test_tmp"
     let path = tmp + "/test_lines.txt"
 
     file.write_lines(path, ["alpha", "beta", "gamma"])
@@ -91,7 +91,7 @@ function test_lines() {
 function test_dir_ops() {
     let passed = 0
     let total = 0
-    let tmp = "/data/data/com.termux/files/home/.naab_stdlib_test_tmp"
+    let tmp = "/tmp/.naab_stdlib_test_tmp"
     let subdir = tmp + "/subdir_test"
 
     file.create_dir(subdir)

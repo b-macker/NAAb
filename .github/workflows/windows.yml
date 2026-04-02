@@ -15,8 +15,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install SQLite3 via vcpkg
+        run: vcpkg install sqlite3:x64-windows
+
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDENING=OFF
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDENING=OFF "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build naab-lang
         run: cmake --build build --config Release --target naab-lang -j4
@@ -59,8 +62,8 @@ jobs:
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build naab-lang
-        run: cmake --build build --target naab-lang -j4
+      - name: Build naab-lang and libnaab
+        run: cmake --build build --target naab-lang libnaab -j4
 
       - name: Run test suite
         run: bash run-all-tests.sh

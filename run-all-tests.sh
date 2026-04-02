@@ -106,6 +106,7 @@ MISSING_EXECUTOR_TESTS["feature_showcase.naab"]=1           # needs C++ executor
 MISSING_EXECUTOR_TESTS["quick_reference.naab"]=1            # needs C++ executor (uses /tmp)
 MISSING_EXECUTOR_TESTS["MONO_EXHAUSTIVE_TEST.naab"]=1        # needs blocks/library/ (gitignored, 132MB)
 MISSING_EXECUTOR_TESTS["test_extreme_edge_cases.naab"]=1     # needs multiple executors + blocks library
+MISSING_EXECUTOR_TESTS["polyglot_optimization_test.naab"]=1  # needs numpy, Go, Nim, Ruby
 
 # Category 3: Files that are NOT standalone tests (should not be run directly)
 declare -A SKIP_FILES
