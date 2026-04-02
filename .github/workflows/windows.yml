@@ -15,35 +15,52 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install SQLite3 via vcpkg
-        run: vcpkg install sqlite3:x64-windows
+      # MSYS2/MinGW64 provides POSIX headers required by QuickJS (sys/time.h,
+      # unistd.h, __attribute__((packed))) and produces native Windows .exe files.
+      - name: Set up MSYS2 (MinGW64)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-sqlite3
+            mingw-w64-x86_64-curl
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-python
+            mingw-w64-x86_64-pybind11
 
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDENING=OFF "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        shell: msys2 {0}
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_HARDENING=OFF
 
       - name: Build naab-lang
-        run: cmake --build build --config Release --target naab-lang -j4
+        shell: msys2 {0}
+        run: cmake --build build --target naab-lang -j4
 
       - name: Smoke test — pure NAAb
+        shell: msys2 {0}
         run: |
           echo 'main { print("hello windows") }' > hello.naab
-          .\build\Release\naab-lang.exe hello.naab
-        shell: pwsh
+          ./build/naab-lang.exe hello.naab
 
       - name: Smoke test — version flag
-        run: .\build\Release\naab-lang.exe --version
-        shell: pwsh
+        shell: msys2 {0}
+        run: ./build/naab-lang.exe --version
 
       - name: Smoke test — env stdlib
+        shell: msys2 {0}
         run: |
-          $script = 'use env` main { let p = env.get("PATH") if p != "" { print("env ok") } else { throw "PATH empty" } }'
-          $script | Out-File -Encoding utf8 envtest.naab
-          .\build\Release\naab-lang.exe envtest.naab
-        shell: pwsh
+          cat > envtest.naab << 'EOF'
+          use env
+          main { let p = env.get("PATH") if p != "" { print("env ok") } else { throw "PATH empty" } }
+          EOF
+          ./build/naab-lang.exe envtest.naab
 
-      - name: CLI tests (via Git Bash)
+      - name: CLI tests
+        shell: msys2 {0}
         run: bash run-all-tests.sh
-        shell: bash
 
   build-linux:
     runs-on: ubuntu-latest
