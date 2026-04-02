@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <climits>
 #include <cstdlib>
-#include <unistd.h>
+#include <filesystem>
+#ifndef _WIN32
+#  include <unistd.h>
+#endif
 
 namespace naab {
 namespace security {
@@ -26,15 +29,12 @@ std::string InputValidator::canonicalizePath(const std::string& path) {
         return "";
     }
 
-    char resolved_path[PATH_MAX];
-    char* result = realpath(path.c_str(), resolved_path);
-
-    if (result == nullptr) {
-        // Path doesn't exist or canonicalization failed
+    std::error_code ec;
+    auto canonical = std::filesystem::weakly_canonical(path, ec);
+    if (ec) {
         return "";
     }
-
-    return std::string(resolved_path);
+    return canonical.string();
 }
 
 bool InputValidator::isSafePath(const std::string& path, const std::string& base_path) {

@@ -4,8 +4,11 @@
 #include <iomanip>
 #include <sstream>
 #include <ctime>
-#include <sys/stat.h>
-#include <unistd.h>
+#include <filesystem>
+#ifndef _WIN32
+#  include <sys/stat.h>
+#  include <unistd.h>
+#endif
 
 namespace naab {
 namespace security {
@@ -189,10 +192,10 @@ void AuditLogger::writeLogEntry(const std::string& json) {
     }
 
     // Create directory if it doesn't exist
-    size_t last_slash = log_path.find_last_of('/');
-    if (last_slash != std::string::npos) {
-        std::string dir = log_path.substr(0, last_slash);
-        mkdir(dir.c_str(), 0755);  // Create with appropriate permissions
+    std::filesystem::path log_fs_path(log_path);
+    if (log_fs_path.has_parent_path()) {
+        std::error_code ec;
+        std::filesystem::create_directories(log_fs_path.parent_path(), ec);
     }
 
     // Check if rotation is needed
