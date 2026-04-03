@@ -225,6 +225,69 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
             }
         }
 
+        // Python-specific wrapping: wrap last expression in print()
+        if (language_id_ == "python") {
+            std::vector<std::string> lines;
+            std::istringstream stream(code);
+            std::string line;
+            while (std::getline(stream, line)) {
+                lines.push_back(line);
+            }
+
+            // Find last non-empty, non-comment, top-level line
+            int last_line_idx = -1;
+            for (int i = (int)lines.size() - 1; i >= 0; i--) {
+                std::string trimmed = lines[i];
+                size_t s = trimmed.find_first_not_of(" \t\r");
+                if (s == std::string::npos) continue;  // blank line
+                trimmed = trimmed.substr(s);
+                if (trimmed[0] == '#') continue;  // comment line
+                // Only wrap top-level lines (no leading indent in original)
+                if (lines[i][0] == ' ' || lines[i][0] == '\t') continue;
+                last_line_idx = i;
+                break;
+            }
+
+            if (last_line_idx >= 0) {
+                std::string last = lines[last_line_idx];
+                size_t s = last.find_first_not_of(" \t\r");
+                std::string trimmed_last = (s != std::string::npos) ? last.substr(s) : last;
+                // Don't double-wrap if already a print/sys.stdout statement
+                // Don't wrap statements (import, def, class, if, for, while, return, pass, raise, with, try)
+                static const std::vector<std::string> stmt_prefixes = {
+                    "print(", "print (", "sys.stdout", "import ", "from ", "def ", "class ",
+                    "if ", "for ", "while ", "return ", "pass", "raise ", "with ", "try:",
+                    "except", "else:", "elif ", "finally:", "assert ", "del ", "global ",
+                    "nonlocal ", "yield ", "async ", "await "
+                };
+                bool is_stmt = false;
+                for (const auto& pfx : stmt_prefixes) {
+                    if (trimmed_last.substr(0, pfx.size()) == pfx) { is_stmt = true; break; }
+                }
+                // Also skip if it's an assignment (contains '=' but not '==' or comparison operators)
+                if (!is_stmt) {
+                    size_t eq = trimmed_last.find('=');
+                    if (eq != std::string::npos && eq > 0) {
+                        char prev = trimmed_last[eq - 1];
+                        char next = (eq + 1 < trimmed_last.size()) ? trimmed_last[eq + 1] : 0;
+                        if (prev != '!' && prev != '<' && prev != '>' && prev != '=' && next != '=') {
+                            is_stmt = true;
+                        }
+                    }
+                }
+                if (!is_stmt) {
+                    wrapped_code = "";
+                    for (int i = 0; i < last_line_idx; i++) {
+                        wrapped_code += lines[i] + "\n";
+                    }
+                    wrapped_code += "print(" + trimmed_last + ")\n";
+                    for (int i = last_line_idx + 1; i < (int)lines.size(); i++) {
+                        wrapped_code += lines[i] + "\n";
+                    }
+                }
+            }
+        }
+
         // TypeScript-specific wrapping: wrap expressions in console.log()
         if ((language_id_ == "typescript" || language_id_ == "ts")) {
             // Check if multi-line
