@@ -38,7 +38,7 @@ echo ""
 
 # --version
 VERSION=$("$NAAB_BIN" --version 2>&1)
-check "--version shows 0.7.0" 'echo "$VERSION" | grep -q "0.7.0"'
+check "--version shows 0.8.1" 'echo "$VERSION" | grep -q "0.8.1"'
 
 # Default VM execution
 OUTPUT=$("$NAAB_BIN" "$TMPFILE" 2>/dev/null)
