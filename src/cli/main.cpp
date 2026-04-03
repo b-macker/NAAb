@@ -117,6 +117,10 @@ void initialize_executors() {
 
     // Create thread pool for parallel polyglot execution
     naab::polyglot::initializePolyglotThreadPool();
+    #else
+    // Fallback: subprocess Python (when embedded Python/pybind11 not available)
+    registry.registerExecutor("python",
+        std::make_unique<naab::runtime::GenericSubprocessExecutor>("python", "python3 {}", ".py"));
     #endif
 
     // Register Rust executor (Phase 3.1-3.3)
