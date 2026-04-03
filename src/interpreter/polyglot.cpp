@@ -440,6 +440,8 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             final_code += "\n";
         }
 
+#ifdef HAVE_PYBIND11
+        // Embedded Python (pybind11): redirect stdout to buffer, parse JSON, return via C API
         std::string preamble =
             "import sys as __naab_sys, io as __naab_io, json as __naab_json\n"
             "__naab_buf = __naab_io.StringIO()\n"
@@ -458,14 +460,11 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             "        break\n"
             "    except:\n"
             "        __naab_sys.stdout.write(__naab_l + '\\n')\n"
-#ifdef HAVE_PYBIND11
-            // pybind11: last expression value is captured by the Python C API
             "__naab_result\n";
-#else
-            // subprocess Python: must explicitly write result to stdout pipe
-            "if __naab_result is not None: __naab_sys.stdout.write(__naab_json.dumps(__naab_result) + '\\n')\n";
-#endif
         final_code = preamble + final_code + postamble;
+#endif
+        // Subprocess Python (no pybind11): auto-wrap above added print() to last expression,
+        // which writes directly to subprocess stdout. No preamble/postamble needed.
     }
 
     // FIX 19: Pre-execution advisory — check if code references NAAb variables not in binding list
