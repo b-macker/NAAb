@@ -180,8 +180,24 @@ fi
 # Update USER_GUIDE.md
 if [ -f "$USER_GUIDE" ]; then
     echo "Updating USER_GUIDE.md..."
-    _sed "s/\*\*Version\*\*: $CURRENT_VERSION/**Version**: $NEW_VERSION/" "$USER_GUIDE"
+    _sed "s/\*\*Version\*\*: $CURRENT_VERSION/\*\*Version\*\*: $NEW_VERSION/" "$USER_GUIDE"
     echo -e "${GREEN}✓${NC} USER_GUIDE.md updated"
+fi
+
+# Update docs/API_REFERENCE.md
+API_REF="$PROJECT_ROOT/docs/API_REFERENCE.md"
+if [ -f "$API_REF" ]; then
+    echo "Updating docs/API_REFERENCE.md..."
+    _sed "s/Version: $CURRENT_VERSION/Version: $NEW_VERSION/" "$API_REF"
+    echo -e "${GREEN}✓${NC} docs/API_REFERENCE.md updated"
+fi
+
+# Update docs/SECURITY_GUIDE.md
+SEC_GUIDE="$PROJECT_ROOT/docs/SECURITY_GUIDE.md"
+if [ -f "$SEC_GUIDE" ]; then
+    echo "Updating docs/SECURITY_GUIDE.md..."
+    _sed "s/\*\*Version:\*\* $CURRENT_VERSION/\*\*Version:\*\* $NEW_VERSION/" "$SEC_GUIDE"
+    echo -e "${GREEN}✓${NC} docs/SECURITY_GUIDE.md updated"
 fi
 
 # Update SECURITY.md supported versions table
@@ -229,7 +245,8 @@ if git rev-parse --git-dir > /dev/null 2>&1; then
 
     git add "$CMAKE_FILE" "$CHANGELOG" "$CONFIG_H" "$NAAB_TOML" "$GOV_MAIN" \
         "$VSCODE_PKG" "$VSCODE_LOCK" "$DEPS_LOCK" "$USER_GUIDE" "$SECURITY_MD" \
-        "$BUG_TEMPLATE" "$TEST_CLI_FLAGS" "$TEST_NAAB_GOV" 2>/dev/null || true
+        "$BUG_TEMPLATE" "$TEST_CLI_FLAGS" "$TEST_NAAB_GOV" \
+        "$PROJECT_ROOT/docs/API_REFERENCE.md" "$PROJECT_ROOT/docs/SECURITY_GUIDE.md" 2>/dev/null || true
     git commit -m "chore: bump version to $NEW_VERSION" || {
         echo -e "${YELLOW}Warning: No changes to commit${NC}"
     }
