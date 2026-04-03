@@ -369,6 +369,12 @@ interpreter::NaabVal GenericSubprocessExecutor::executeWithReturn(
             }
         }
 
+        // DEBUG: print wrapped code to stderr for Python executor
+        if (language_id_ == "python") {
+            fmt::print(stderr, "[NAAB-DBG-PY] wrapped ({} bytes):\n{}\n[/NAAB-DBG-PY]\n",
+                       wrapped_code.size(), wrapped_code);
+        }
+
         std::ofstream ofs(temp_file_path);
         if (!ofs.is_open()) {
             throw std::runtime_error("Failed to create temp file");
