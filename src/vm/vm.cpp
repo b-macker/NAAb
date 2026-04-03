@@ -2179,6 +2179,8 @@ interpreter::NaabVal VM::run() {
                     }
                     final_code += "\n";
 
+#ifdef HAVE_PYBIND11
+                    // Embedded Python (pybind11): redirect stdout to buffer, parse JSON, return via C API
                     std::string preamble =
                         "import sys as __naab_sys, io as __naab_io, json as __naab_json\n"
                         "__naab_buf = __naab_io.StringIO()\n"
@@ -2199,6 +2201,9 @@ interpreter::NaabVal VM::run() {
                         "        __naab_sys.stdout.write(__naab_l + '\\n')\n"
                         "__naab_result\n";
                     final_code = preamble + final_code + postamble;
+#endif
+                    // Subprocess Python (no pybind11): auto-wrap above added print() to last expression,
+                    // which writes directly to subprocess stdout. No preamble/postamble needed.
                 }
 
                 // Execute via language executor
