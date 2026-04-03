@@ -11,8 +11,9 @@ The NAAb Language project takes security seriously. We are committed to maintain
 
 | Version | Supported          | Security Updates |
 | ------- | ------------------ | ---------------- |
-| 0.2.x   | :white_check_mark: | Yes (current) |
-| < 0.2   | :x:                | No               |
+| 0.8.x   | :white_check_mark: | Yes (current) |
+| 0.7.x   | :white_check_mark: | Critical fixes only |
+| < 0.7   | :x:                | No               |
 
 **Note:** Once 1.0 is released, we will maintain security updates for:
 - Current major version (1.x): Full support

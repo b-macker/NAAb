@@ -22,7 +22,7 @@ Language support for NAAb (NAAb Assembles Anything in Blocks) programming langua
 ### From VSIX
 
 ```bash
-code --install-extension naab-0.1.0.vsix
+code --install-extension naab-0.8.1.vsix
 ```
 
 ### From Source
@@ -119,6 +119,16 @@ npx vsce package
 - No rename refactoring yet
 
 ## Release Notes
+
+### 0.8.1
+- Sync version with NAAb language runtime 0.8.1
+- Windows CI: fix Python `-> JSON` blocks in subprocess mode
+
+### 0.8.0
+- LSP enhancements: codeAction, workspaceSymbol, rename refactoring
+- Deterministic builds via `naab.lock`
+- Full Windows portability (MSYS2/MinGW64)
+- Enterprise governance: exit codes, quality gates, CWE/OWASP tags, baselines
 
 ### 0.1.0
 

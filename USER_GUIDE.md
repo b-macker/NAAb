@@ -1,5 +1,5 @@
 # NAAb Language User Guide
-**Version**: 0.7.0
+**Version**: 0.8.1
 **Last Updated**: March 30, 2026
 
 ## Table of Contents

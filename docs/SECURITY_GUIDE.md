@@ -1,6 +1,6 @@
 # NAAb Security Guide
 
-**Version:** 0.7.0  
+**Version:** 0.8.1  
 **Applies to:** NAAb CLI (`naab-lang`) and embedded use via the public API
 
 ---

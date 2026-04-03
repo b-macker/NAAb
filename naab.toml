@@ -1,6 +1,6 @@
 [package]
 name = "naab-lang"
-version = "0.2.0"
+version = "0.8.1"
 authors = ["NAAb Contributors"]
 description = "NAAb Block Assembly Language"
 
@@ -24,6 +24,10 @@ csharp = true
 shell = true
 ruby = true
 go = true
+nim = true
+php = true
+zig = false
+julia = false
 
 [python]
 # Python-specific config

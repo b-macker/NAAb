@@ -5,6 +5,23 @@ All notable changes to NAAb will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-04-03
+
+### Fixed
+- **Windows CI** — `vm.cpp` `OP_POLYGLOT` handler preamble/postamble now guarded with `#ifdef HAVE_PYBIND11`, fixing Python `-> JSON` blocks in subprocess mode (Windows/no pybind11)
+- **Version sync** — all version strings across configs, docs, tests, and tooling synchronized to 0.8.1
+- **CI hardening** — `ci.yml` now runs full `run-all-tests.sh` suite with pybind11 installed
+
+## [0.8.0] - 2026-04-02
+
+### Added
+- **Windows portability** — full MSYS2/MinGW64 build support, `platform_win32.cpp`, `CreateProcess` subprocess executor, GitHub CI for Windows
+- **LSP enhancements** — codeAction, workspaceSymbol, rename refactoring (Sprint 8.3)
+- **Deterministic builds** — `naab.lock` lockfile via `--lock`/`--lock-check`/`--lock-path` flags (Sprint 8.4)
+- **Enterprise governance** — exit codes (0-4), quality gates, CWE/OWASP tags, baselines, environment selector, runtime versions
+- **New stdlib modules** — `log`, `uuid`, `validate`, `process`
+- **libnaab** static library and `naab-gov` standalone CLI
+
 ## [0.7.0] - 2026-03-30
 
 ### Added

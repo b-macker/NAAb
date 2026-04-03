@@ -29,36 +29,12 @@ jobs:
             libffi-dev \
             libcurl4-openssl-dev \
             pkg-config
+          pip3 install pybind11
 
       - name: Build
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          ninja -C build naab-lang -j$(nproc)
+          ninja -C build naab-lang libnaab -j$(nproc)
 
       - name: Run tests
-        run: |
-          NAAB=build/naab-lang
-          if [ ! -f "$NAAB" ]; then
-            echo "Binary not found"
-            exit 1
-          fi
-
-          PASS=0
-          FAIL=0
-          for test_file in tests/test_match.naab tests/test_async.naab tests/test_go_executor.naab; do
-            if [ -f "$test_file" ]; then
-              echo "=== Testing: $test_file ==="
-              if timeout 60 ./$NAAB "$test_file" 2>&1; then
-                PASS=$((PASS + 1))
-              else
-                echo "FAILED: $test_file"
-                FAIL=$((FAIL + 1))
-              fi
-            fi
-          done
-
-          echo ""
-          echo "Results: $PASS passed, $FAIL failed"
-          if [ $FAIL -gt 0 ]; then
-            exit 1
-          fi
+        run: bash run-all-tests.sh

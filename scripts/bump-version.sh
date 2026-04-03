@@ -8,6 +8,17 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CMAKE_FILE="$PROJECT_ROOT/CMakeLists.txt"
 CHANGELOG="$PROJECT_ROOT/CHANGELOG.md"
+CONFIG_H="$PROJECT_ROOT/include/naab/config.h"
+NAAB_TOML="$PROJECT_ROOT/naab.toml"
+GOV_MAIN="$PROJECT_ROOT/src/cli/gov_main.cpp"
+VSCODE_PKG="$PROJECT_ROOT/vscode-naab/package.json"
+VSCODE_LOCK="$PROJECT_ROOT/vscode-naab/package-lock.json"
+DEPS_LOCK="$PROJECT_ROOT/DEPENDENCIES.lock"
+USER_GUIDE="$PROJECT_ROOT/USER_GUIDE.md"
+SECURITY_MD="$PROJECT_ROOT/SECURITY.md"
+BUG_TEMPLATE="$PROJECT_ROOT/.github/ISSUE_TEMPLATE/bug_report.yml"
+TEST_CLI_FLAGS="$PROJECT_ROOT/tests/cli/test_cli_flags.sh"
+TEST_NAAB_GOV="$PROJECT_ROOT/tests/cli/test_naab_gov.sh"
 
 # Colors for output
 RED='\033[0;31m'
@@ -110,28 +121,103 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
+_sed() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
 # Update CMakeLists.txt
 echo "Updating CMakeLists.txt..."
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    sed -i '' "s/VERSION $CURRENT_VERSION/VERSION $NEW_VERSION/" "$CMAKE_FILE"
-else
-    # Linux/Android
-    sed -i "s/VERSION $CURRENT_VERSION/VERSION $NEW_VERSION/" "$CMAKE_FILE"
+_sed "s/VERSION $CURRENT_VERSION/VERSION $NEW_VERSION/" "$CMAKE_FILE"
+echo -e "${GREEN}✓${NC} CMakeLists.txt updated"
+
+# Update include/naab/config.h
+if [ -f "$CONFIG_H" ]; then
+    echo "Updating config.h..."
+    _sed "s/NAAB_VERSION_STRING \"$CURRENT_VERSION\"/NAAB_VERSION_STRING \"$NEW_VERSION\"/" "$CONFIG_H"
+    _sed "s/NAAB_BUILD_TIMESTAMP \"[0-9-]*\"/NAAB_BUILD_TIMESTAMP \"$(date +%Y-%m-%d)\"/" "$CONFIG_H"
+    echo -e "${GREEN}✓${NC} config.h updated"
+fi
+
+# Update naab.toml
+if [ -f "$NAAB_TOML" ]; then
+    echo "Updating naab.toml..."
+    _sed "s/^version = \"$CURRENT_VERSION\"/version = \"$NEW_VERSION\"/" "$NAAB_TOML"
+    echo -e "${GREEN}✓${NC} naab.toml updated"
+fi
+
+# Update src/cli/gov_main.cpp
+if [ -f "$GOV_MAIN" ]; then
+    echo "Updating gov_main.cpp..."
+    _sed "s/NAAB_GOV_VERSION \"$CURRENT_VERSION\"/NAAB_GOV_VERSION \"$NEW_VERSION\"/" "$GOV_MAIN"
+    echo -e "${GREEN}✓${NC} gov_main.cpp updated"
+fi
+
+# Update vscode-naab/package.json
+if [ -f "$VSCODE_PKG" ]; then
+    echo "Updating vscode-naab/package.json..."
+    _sed "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" "$VSCODE_PKG"
+    echo -e "${GREEN}✓${NC} vscode-naab/package.json updated"
+fi
+
+# Update vscode-naab/package-lock.json
+if [ -f "$VSCODE_LOCK" ]; then
+    echo "Updating vscode-naab/package-lock.json..."
+    _sed "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/g" "$VSCODE_LOCK"
+    echo -e "${GREEN}✓${NC} vscode-naab/package-lock.json updated"
+fi
+
+# Update DEPENDENCIES.lock
+if [ -f "$DEPS_LOCK" ]; then
+    echo "Updating DEPENDENCIES.lock..."
+    _sed "s/naab_version: $CURRENT_VERSION/naab_version: $NEW_VERSION/" "$DEPS_LOCK"
+    echo -e "${GREEN}✓${NC} DEPENDENCIES.lock updated"
+fi
+
+# Update USER_GUIDE.md
+if [ -f "$USER_GUIDE" ]; then
+    echo "Updating USER_GUIDE.md..."
+    _sed "s/\*\*Version\*\*: $CURRENT_VERSION/**Version**: $NEW_VERSION/" "$USER_GUIDE"
+    echo -e "${GREEN}✓${NC} USER_GUIDE.md updated"
+fi
+
+# Update SECURITY.md supported versions table
+if [ -f "$SECURITY_MD" ]; then
+    echo "Updating SECURITY.md..."
+    CURRENT_MINOR="${CURRENT_VERSION%.*}"
+    NEW_MINOR="${NEW_VERSION%.*}"
+    _sed "s/| ${CURRENT_MINOR}.x/| ${NEW_MINOR}.x/g" "$SECURITY_MD"
+    echo -e "${GREEN}✓${NC} SECURITY.md updated"
+fi
+
+# Update bug report template placeholder
+if [ -f "$BUG_TEMPLATE" ]; then
+    echo "Updating bug_report.yml..."
+    _sed "s/placeholder: \"v$CURRENT_VERSION\"/placeholder: \"v$NEW_VERSION\"/" "$BUG_TEMPLATE"
+    echo -e "${GREEN}✓${NC} bug_report.yml updated"
+fi
+
+# Update version checks in CLI tests
+if [ -f "$TEST_CLI_FLAGS" ]; then
+    echo "Updating test_cli_flags.sh..."
+    _sed "s/$CURRENT_VERSION/$NEW_VERSION/g" "$TEST_CLI_FLAGS"
+    echo -e "${GREEN}✓${NC} test_cli_flags.sh updated"
+fi
+
+if [ -f "$TEST_NAAB_GOV" ]; then
+    echo "Updating test_naab_gov.sh..."
+    _sed "s/$CURRENT_VERSION/$NEW_VERSION/g" "$TEST_NAAB_GOV"
+    echo -e "${GREEN}✓${NC} test_naab_gov.sh updated"
 fi
 
 # Update CHANGELOG.md
 if [ -f "$CHANGELOG" ]; then
     echo "Updating CHANGELOG.md..."
     DATE=$(date +%Y-%m-%d)
-
-    # Add new version section to CHANGELOG
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/## \[Unreleased\]/## [Unreleased]\n\n## [$NEW_VERSION] - $DATE/" "$CHANGELOG"
-    else
-        sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [$NEW_VERSION] - $DATE/" "$CHANGELOG"
-    fi
-
+    _sed "s/## \[Unreleased\]/## [Unreleased]\n\n## [$NEW_VERSION] - $DATE/" "$CHANGELOG"
     echo -e "${GREEN}✓${NC} CHANGELOG.md updated"
 else
     echo -e "${YELLOW}Warning: CHANGELOG.md not found${NC}"
@@ -141,7 +227,9 @@ fi
 if git rev-parse --git-dir > /dev/null 2>&1; then
     echo "Creating git commit and tag..."
 
-    git add "$CMAKE_FILE" "$CHANGELOG" 2>/dev/null || true
+    git add "$CMAKE_FILE" "$CHANGELOG" "$CONFIG_H" "$NAAB_TOML" "$GOV_MAIN" \
+        "$VSCODE_PKG" "$VSCODE_LOCK" "$DEPS_LOCK" "$USER_GUIDE" "$SECURITY_MD" \
+        "$BUG_TEMPLATE" "$TEST_CLI_FLAGS" "$TEST_NAAB_GOV" 2>/dev/null || true
     git commit -m "chore: bump version to $NEW_VERSION" || {
         echo -e "${YELLOW}Warning: No changes to commit${NC}"
     }

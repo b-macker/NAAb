@@ -1,6 +1,6 @@
 # NAAb Standard Library API Reference
 
-Version: 0.7.0 | 20 modules
+Version: 0.8.1 | 20 modules
 
 ---
 
