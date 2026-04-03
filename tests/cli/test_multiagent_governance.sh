@@ -155,6 +155,9 @@ if [ -f "$DASHBOARD_CLI" ]; then
         TELEM_FILE_ARG=$(cygpath -m "$TEST_DIR/telemetry.jsonl")
     fi
     DASH_OUT=$(cd "$TEST_DIR" && TELEMETRY_FILE="$TELEM_FILE_ARG" "$NAAB_BIN" "$DASHBOARD_CLI" 2>/dev/null)
+    DASH_ERR2=$(cd "$TEST_DIR" && TELEMETRY_FILE="$TELEM_FILE_ARG" "$NAAB_BIN" "$DASHBOARD_CLI" 2>&1 >/dev/null)
+    echo "  DEBUG: DASH_OUT='$(echo "$DASH_OUT" | head -3)'"
+    echo "  DEBUG: DASH_ERR='$(echo "$DASH_ERR2" | head -3)'"
     check "dashboard_cli.naab output contains 'Total Events'" \
         "echo \"\$DASH_OUT\" | grep -q 'Total Events'"
 else
