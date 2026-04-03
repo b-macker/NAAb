@@ -458,7 +458,13 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
             "        break\n"
             "    except:\n"
             "        __naab_sys.stdout.write(__naab_l + '\\n')\n"
+#ifdef HAVE_PYBIND11
+            // pybind11: last expression value is captured by the Python C API
             "__naab_result\n";
+#else
+            // subprocess Python: must explicitly write result to stdout pipe
+            "if __naab_result is not None: __naab_sys.stdout.write(__naab_json.dumps(__naab_result) + '\\n')\n";
+#endif
         final_code = preamble + final_code + postamble;
     }
 
