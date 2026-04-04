@@ -622,6 +622,38 @@ void Interpreter::visit(ast::InlineCodeExpr& node) {
     try {
         result_ = executor->executeWithReturn(final_code);
 
+        // Finding G fix: enforce polyglot output size limits from governance config.
+        // Check both the global data.output_size limit and the per-language max_output_size.
+        if (governance_ && governance_->isActive() && result_.isString()) {
+            int sz = static_cast<int>(result_.asString().size());
+
+            // Global data.output_size limit
+            int global_limit = governance_->getRules().limits.data.output_size;
+            if (global_limit > 0 && sz > global_limit) {
+                gc_suspended_ = false;
+                throw std::runtime_error(
+                    "Governance: polyglot output exceeds configured limit\n\n"
+                    "  Output size: " + std::to_string(sz) + " bytes\n"
+                    "  Limit (limits.data.output_size): " + std::to_string(global_limit) + " bytes\n"
+                    "  Language: " + language + "\n"
+                    "  Reduce the output size or increase limits.data.output_size in govern.json.\n"
+                );
+            }
+
+            // Per-language max_output_size limit
+            const auto* lang_cfg = governance_->getLanguageConfig(language);
+            if (lang_cfg && lang_cfg->max_output_size > 0 && sz > lang_cfg->max_output_size) {
+                gc_suspended_ = false;
+                throw std::runtime_error(
+                    "Governance: polyglot output exceeds per-language limit\n\n"
+                    "  Output size: " + std::to_string(sz) + " bytes\n"
+                    "  Limit (languages." + language + ".max_output_size): "
+                    + std::to_string(lang_cfg->max_output_size) + " bytes\n"
+                    "  Reduce the output or increase max_output_size for " + language + " in govern.json.\n"
+                );
+            }
+        }
+
         // Polyglot Consensus Verification: cross-language result checking
         if (governance_ && governance_->isVerificationEnabled() && !result_.isNull()) {
             std::string result_str = result_.toString();

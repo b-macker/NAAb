@@ -53,6 +53,32 @@ static void checkFileSandbox(const std::string& path, const std::string& operati
     }
 }
 
+// Resolve path to canonical (symlink-resolved) form to close TOCTOU window between
+// checkFileSandbox() and the actual OS call. For existing paths uses canonical(); for
+// new (not-yet-created) paths resolves the parent directory and keeps the filename.
+static std::string resolveCanonical(const std::string& path) {
+    // TOCTOU mitigation only applies when a sandbox is actively enforcing access control.
+    // Without an active sandbox there is no security boundary to bypass via symlink swap,
+    // and resolving canonical paths would break environments where /tmp is itself a symlink
+    // (e.g. Termux: /tmp -> /data/data/com.termux/files/usr/tmp).
+    auto* sandbox = security::ScopedSandbox::getCurrent();
+    if (!sandbox) return path;
+    try {
+        if (fs::exists(path)) {
+            return fs::canonical(path).string();
+        }
+        // File/dir doesn't exist yet — resolve parent to eliminate symlinks there
+        fs::path p(path);
+        fs::path parent = p.parent_path();
+        if (!parent.empty() && fs::exists(parent)) {
+            return (fs::canonical(parent) / p.filename()).string();
+        }
+    } catch (const fs::filesystem_error&) {
+        // Resolution failed — fall through to original path
+    }
+    return path;
+}
+
 // Forward declarations of helper functions
 static std::string getString(const interpreter::NaabVal& val);
 static std::vector<std::string> getStringArray(const interpreter::NaabVal& val);
@@ -79,7 +105,9 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "read");
-        std::ifstream file(path);
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "read");
+        std::ifstream file(safe_path);
         if (!file.is_open()) {
             throw std::runtime_error("Failed to open file: " + path);
         }
@@ -95,9 +123,11 @@ interpreter::NaabVal FileModule::call(
         std::string path = getString(args[0]);
         std::string content = getString(args[1]);
         checkFileSandbox(path, "write");
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "write");
 
         // FIX 26: Auto-create parent directories
-        auto parent = fs::path(path).parent_path();
+        auto parent = fs::path(safe_path).parent_path();
         if (!parent.empty() && !fs::exists(parent)) {
             std::error_code ec;
             fs::create_directories(parent, ec);
@@ -111,7 +141,7 @@ interpreter::NaabVal FileModule::call(
             }
         }
 
-        std::ofstream file(path);
+        std::ofstream file(safe_path);
         if (!file.is_open()) {
             throw std::runtime_error(
                 "Failed to open file for writing: " + path + "\n\n"
@@ -131,9 +161,11 @@ interpreter::NaabVal FileModule::call(
         std::string path = getString(args[0]);
         std::string content = getString(args[1]);
         checkFileSandbox(path, "write");
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "write");
 
         // FIX 26: Auto-create parent directories (same as write)
-        auto parent = fs::path(path).parent_path();
+        auto parent = fs::path(safe_path).parent_path();
         if (!parent.empty() && !fs::exists(parent)) {
             std::error_code ec;
             fs::create_directories(parent, ec);
@@ -147,7 +179,7 @@ interpreter::NaabVal FileModule::call(
             }
         }
 
-        std::ofstream file(path, std::ios::app);
+        std::ofstream file(safe_path, std::ios::app);
         if (!file.is_open()) {
             throw std::runtime_error(
                 "Failed to open file for appending: " + path + "\n\n"
@@ -166,7 +198,9 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "read");
-        return interpreter::NaabVal::makeBool(fs::exists(path));
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "read");
+        return interpreter::NaabVal::makeBool(fs::exists(safe_path));
     }
 
     if (function_name == "delete") {
@@ -175,13 +209,15 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "delete");
-        if (fs::exists(path)) {
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "delete");
+        if (fs::exists(safe_path)) {
             // Check if path is a directory (should not delete directories)
-            if (fs::is_directory(path)) {
+            if (fs::is_directory(safe_path)) {
                 throw std::runtime_error("delete() cannot delete directory: " + path +
                                        " (use a dedicated directory removal function)");
             }
-            fs::remove(path);
+            fs::remove(safe_path);
         }
         return interpreter::NaabVal::makeNull();
     }
@@ -192,9 +228,11 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "read");
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "read");
         std::vector<interpreter::NaabVal> entries;
-        if (fs::exists(path) && fs::is_directory(path)) {
-            for (const auto& entry : fs::directory_iterator(path)) {
+        if (fs::exists(safe_path) && fs::is_directory(safe_path)) {
+            for (const auto& entry : fs::directory_iterator(safe_path)) {
                 entries.push_back(interpreter::NaabVal::makeString(
                     entry.path().filename().string()
                 ));
@@ -229,7 +267,9 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "read");
-        return interpreter::NaabVal::makeBool(fs::is_regular_file(path));
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "read");
+        return interpreter::NaabVal::makeBool(fs::is_regular_file(safe_path));
     }
 
     if (function_name == "is_dir") {
@@ -238,7 +278,9 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "read");
-        return interpreter::NaabVal::makeBool(fs::is_directory(path));
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "read");
+        return interpreter::NaabVal::makeBool(fs::is_directory(safe_path));
     }
 
     if (function_name == "read_lines") {
@@ -247,7 +289,9 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "read");
-        std::ifstream file(path);
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "read");
+        std::ifstream file(safe_path);
         if (!file.is_open()) {
             throw std::runtime_error("Failed to open file: " + path);
         }
@@ -268,8 +312,10 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "write");
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "write");
         auto lines = getStringArray(args[1]);
-        std::ofstream file(path);
+        std::ofstream file(safe_path);
         if (!file.is_open()) {
             throw std::runtime_error("Failed to open file for writing: " + path);
         }
@@ -287,8 +333,12 @@ interpreter::NaabVal FileModule::call(
         std::string dst = getString(args[1]);
         checkFileSandbox(src, "read");
         checkFileSandbox(dst, "write");
+        std::string safe_src = resolveCanonical(src);
+        if (safe_src != src) checkFileSandbox(safe_src, "read");
+        std::string safe_dst = resolveCanonical(dst);
+        if (safe_dst != dst) checkFileSandbox(safe_dst, "write");
         std::error_code ec;
-        fs::copy(src, dst, fs::copy_options::overwrite_existing, ec);
+        fs::copy(safe_src, safe_dst, fs::copy_options::overwrite_existing, ec);
         if (ec) {
             throw std::runtime_error("Failed to copy file: " + src + " -> " + dst + "\n  Error: " + ec.message());
         }
@@ -303,8 +353,12 @@ interpreter::NaabVal FileModule::call(
         std::string dst = getString(args[1]);
         checkFileSandbox(src, "delete");
         checkFileSandbox(dst, "write");
+        std::string safe_src = resolveCanonical(src);
+        if (safe_src != src) checkFileSandbox(safe_src, "delete");
+        std::string safe_dst = resolveCanonical(dst);
+        if (safe_dst != dst) checkFileSandbox(safe_dst, "write");
         std::error_code ec;
-        fs::rename(src, dst, ec);
+        fs::rename(safe_src, safe_dst, ec);
         if (ec) {
             throw std::runtime_error("Failed to move file: " + src + " -> " + dst + "\n  Error: " + ec.message());
         }
@@ -317,8 +371,10 @@ interpreter::NaabVal FileModule::call(
         }
         std::string path = getString(args[0]);
         checkFileSandbox(path, "read");
+        std::string safe_path = resolveCanonical(path);
+        if (safe_path != path) checkFileSandbox(safe_path, "read");
         std::error_code ec;
-        auto sz = fs::file_size(path, ec);
+        auto sz = fs::file_size(safe_path, ec);
         if (ec) {
             throw std::runtime_error("Failed to get file size: " + path + "\n  Error: " + ec.message());
         }

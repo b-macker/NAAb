@@ -116,6 +116,19 @@ interpreter::NaabVal ProcessModule::call(
                 "process.kill(): pid must be a positive integer, got " + std::to_string(pid)
             );
         }
+
+        // Sandbox check: SYS_EXEC required (same as process.run)
+        auto* sb = naab::security::ScopedSandbox::getCurrent();
+        if (sb && !sb->canExecuteCommand("kill")) {
+            sb->logViolation("process.kill", std::to_string(pid), "SYS_EXEC capability required");
+            throw std::runtime_error(
+                "Security: process.kill() denied by sandbox\n\n"
+                "  PID: " + std::to_string(pid) + "\n\n"
+                "  process.kill() requires SYS_EXEC capability.\n"
+                "  Use --sandbox-level elevated or higher.\n"
+            );
+        }
+
 #ifndef _WIN32
         if (::kill(static_cast<pid_t>(pid), SIGTERM) != 0) {
             throw std::runtime_error(

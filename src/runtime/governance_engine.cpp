@@ -221,6 +221,7 @@ static const std::vector<HardcodedResultPattern> HARDCODED_RESULT_PATTERNS_DB = 
 bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
     namespace fs = std::filesystem;
 
+    last_error_.clear();
     fs::path dir(start_dir);
     while (true) {
         fs::path candidate = dir / "govern.json";
@@ -272,6 +273,7 @@ bool GovernanceEngine::discoverAndLoad(const std::string& start_dir) {
         if (parent == dir) break;  // Reached root
         dir = parent;
     }
+    last_error_ = "not_found";
     return false;
 }
 

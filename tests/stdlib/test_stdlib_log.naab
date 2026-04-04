@@ -1,5 +1,6 @@
 use log
 use file
+use env
 
 function test_levels() {
     let passed = 0
@@ -107,7 +108,7 @@ function test_file_output() {
     let passed = 0
     let total = 0
 
-    let tmp = "/tmp/.naab_stdlib_test_tmp"
+    let tmp = env.get("HOME") + "/.naab_stdlib_test_tmp"
     file.create_dir(tmp)
     let logfile = tmp + "/log_test.txt"
 

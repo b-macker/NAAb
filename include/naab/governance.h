@@ -1388,6 +1388,7 @@ public:
     bool isOverrideEnabled() const { return override_enabled_; }
     void setOverrideEnabled(bool enabled) { override_enabled_ = enabled; }
     const std::string& getLoadedPath() const { return loaded_path_; }
+    const std::string& getLastError() const { return last_error_; }
     GovernanceMode getMode() const { return rules_.mode; }
     const GovernanceRules& getRules() const { return rules_; }
     GovernanceRules& getMutableRules() { return rules_; }
@@ -1690,6 +1691,7 @@ private:
     bool active_ = false;
     bool override_enabled_ = false;
     std::string loaded_path_;
+    std::string last_error_;   // "not_found" or empty when loaded successfully
     GovernanceRules rules_;
     std::vector<CheckResult> check_results_;
     std::string agent_id_ = "anonymous";

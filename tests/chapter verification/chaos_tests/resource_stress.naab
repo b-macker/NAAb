@@ -1,10 +1,11 @@
 // verification/chaos_tests/resource_stress.naab
 // Goal: Test file handle cycling for resource leaks.
 use file
+use env
 
 main {
     print("--- RESOURCE STRESS ---")
-    let path = "/tmp/naab_leak_test.txt"
+    let path = env.get("HOME") + "/.naab_leak_test.txt"
     file.write(path, "content")
 
     print("Cycling 1000 file reads...")

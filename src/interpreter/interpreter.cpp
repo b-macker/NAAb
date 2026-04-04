@@ -672,6 +672,20 @@ void Interpreter::setSourceCode(const std::string& source, const std::string& fi
             if (scanner_) {
                 scanner_->loadConfigFromPath(governance_->getLoadedPath(), true);
             }
+        } else {
+            // govern.json not found in directory hierarchy
+            if (require_governance_) {
+                throw std::runtime_error(
+                    "Governance error: --require-governance set but no govern.json found.\n\n"
+                    "  Search root: " + dir.string() + "\n"
+                    "  Create a govern.json or remove --require-governance.\n"
+                );
+            }
+            fprintf(stderr,
+                "[governance] Warning: No govern.json found in '%s' or any parent directory.\n"
+                "  Running WITHOUT governance restrictions.\n"
+                "  To enforce governance, create a govern.json or use --require-governance.\n",
+                dir.string().c_str());
         }
     }
 }

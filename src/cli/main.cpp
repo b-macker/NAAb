@@ -293,6 +293,7 @@ int main(int argc, char** argv) {
     bool global_pipe_mode = false;
     bool global_governance_override = false;
     bool global_no_governance = false;
+    bool global_require_governance = false;
     bool global_governance_verbose = false;
     bool global_verbose = false;
     bool global_profile = false;
@@ -330,6 +331,9 @@ int main(int argc, char** argv) {
             command_arg_index++;
         } else if (arg == "--no-governance") {
             global_no_governance = true;
+            command_arg_index++;
+        } else if (arg == "--require-governance") {
+            global_require_governance = true;
             command_arg_index++;
         } else if (arg == "--governance-verbose") {
             global_governance_verbose = true;
@@ -484,6 +488,7 @@ int main(int argc, char** argv) {
         bool pipe_mode = global_pipe_mode;  // Inherit from global pre-scan
         bool governance_override = global_governance_override;
         bool no_governance = global_no_governance;
+        bool require_governance = global_require_governance;
         bool governance_verbose = global_governance_verbose;
         bool strict_types = global_strict_types;
         bool use_vm = global_use_vm;
@@ -536,6 +541,8 @@ int main(int argc, char** argv) {
                 network_enabled = true;
             } else if (arg == "--no-governance") {
                 no_governance = true;
+            } else if (arg == "--require-governance") {
+                require_governance = true;
             } else if (arg == "--governance-override") {
                 governance_override = true;
             } else if (arg == "--governance-report" && i + 1 < argc) {
@@ -745,6 +752,9 @@ int main(int argc, char** argv) {
                 interpreter.disableGovernance();
             } else if (governance_override) {
                 interpreter.setGovernanceOverride(true);
+            }
+            if (require_governance) {
+                interpreter.setRequireGovernance(true);
             }
             interpreter.setGovernanceVerbose(governance_verbose);
             interpreter.setGCThreshold(gc_threshold);
@@ -972,6 +982,22 @@ int main(int argc, char** argv) {
                 auto abs_file = std::filesystem::absolute(filename);
                 auto script_dir = abs_file.parent_path();
                 bool gov_loaded = vm_governance.discoverAndLoad(script_dir.string());
+                if (!gov_loaded && !no_governance) {
+                    if (require_governance) {
+                        fmt::print(stderr,
+                            "Error: --require-governance set but no govern.json found.\n"
+                            "  Search root: {}\n"
+                            "  Create a govern.json or remove --require-governance.\n",
+                            script_dir.string());
+                        fflush(stderr);
+                        return 4;
+                    }
+                    fprintf(stderr,
+                        "[governance] Warning: No govern.json found in '%s' or any parent directory.\n"
+                        "  Running WITHOUT governance restrictions.\n"
+                        "  To enforce governance, create a govern.json or use --require-governance.\n",
+                        script_dir.string().c_str());
+                }
                 if (gov_loaded) {
                     auto mode = vm_governance.getMode();
                     std::string mode_str = (mode == naab::governance::GovernanceMode::ENFORCE) ? "enforce"

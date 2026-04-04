@@ -4,11 +4,12 @@
 
 use file
 use string
+use env
 
 fn test_file_copy_move() {
     let passed = 0
     let total = 0
-    let tmp = "/tmp"
+    let tmp = env.get("HOME") + "/.naab_test_tmp"
 
     // Setup: write a test file
     let src = tmp + "/naab_test_copy_src.txt"
@@ -49,7 +50,7 @@ fn test_file_copy_move() {
 fn test_file_metadata() {
     let passed = 0
     let total = 0
-    let tmp = "/tmp"
+    let tmp = env.get("HOME") + "/.naab_test_tmp"
 
     // Setup
     let test_file = tmp + "/naab_test_meta.txt"
@@ -167,7 +168,7 @@ fn test_file_error_handling() {
         // should recover
     }
     // Verify we can still do normal operations
-    let tmp = "/tmp/naab_recovery_test.txt"
+    let tmp = env.get("HOME") + "/.naab_recovery_test.txt"
     file.write(tmp, "ok")
     let content = file.read(tmp)
     file.delete(tmp)

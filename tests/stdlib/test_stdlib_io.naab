@@ -2,6 +2,7 @@
 use io
 use string
 use array
+use env
 
 function test_console_write() {
     let passed = 0
@@ -28,7 +29,7 @@ function test_console_write() {
 function test_file_roundtrip() {
     let passed = 0
     let total = 0
-    let path = "/tmp/.naab_io_test.txt"
+    let path = env.get("HOME") + "/.naab_io_test.txt"
     let content = "naab io test content line1\nline2\n"
 
     // write_file succeeds (returns true)
@@ -48,8 +49,8 @@ function test_file_roundtrip() {
 function test_exists() {
     let passed = 0
     let total = 0
-    let path = "/tmp/.naab_io_test.txt"
-    let nonexistent = "/tmp/.naab_io_test_MISSING_XYZ123.txt"
+    let path = env.get("HOME") + "/.naab_io_test.txt"
+    let nonexistent = env.get("HOME") + "/.naab_io_test_MISSING_XYZ123.txt"
 
     // Existing file (written by test_file_roundtrip)
     total = total + 1
@@ -66,7 +67,7 @@ function test_exists() {
 function test_list_dir() {
     let passed = 0
     let total = 0
-    let dir = "/tmp"
+    let dir = env.get("HOME")
     let path = dir + "/.naab_io_list_test.txt"
 
     // Write a file into home dir, then list home dir and verify it appears

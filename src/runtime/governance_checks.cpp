@@ -127,7 +127,16 @@ static std::string searchPatterns(const std::string& code,
             if (std::regex_search(code, match, re)) {
                 return match[0].str();
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error&) {
+            // Invalid pattern — skip silently
+        } catch (const std::bad_alloc&) {
+            // Memory exhausted during governance check — fail-safe: deny execution
+            throw std::runtime_error(
+                "Governance: memory exhausted during security check — execution halted.\n"
+                "  This is a fail-safe: governance cannot verify safety under memory pressure.\n"
+                "  Increase available memory or reduce RLIMIT_AS if set.\n"
+            );
+        }
     }
     return "";
 }
@@ -176,7 +185,14 @@ std::string GovernanceEngine::checkPii(const std::string& code, int line) {
                         "Remove personally identifiable information from code\nUse environment variables or config files instead",
                         "", ""));
             }
-        } catch (const std::regex_error&) {}
+        } catch (const std::regex_error&) {
+            // Invalid pattern — skip
+        } catch (const std::bad_alloc&) {
+            throw std::runtime_error(
+                "Governance: memory exhausted during PII check — execution halted.\n"
+                "  This is a fail-safe: governance cannot verify safety under memory pressure.\n"
+            );
+        }
     }
     recordPass("code_quality.no_pii", cfg.level);
     return "";

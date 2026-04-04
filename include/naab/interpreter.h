@@ -551,6 +551,7 @@ public:
         if (governance_) governance_->setOverrideEnabled(enabled);
     }
     void setGovernanceVerbose(bool v) { governance_verbose_ = v; }
+    void setRequireGovernance(bool v) { require_governance_ = v; }
     void disableGovernance() {
         governance_.reset();
     }
@@ -573,6 +574,7 @@ private:
     bool returning_;
     bool breaking_;
     bool continuing_;
+    bool require_governance_ = false;  // If true, abort when govern.json is not found
 
     // Phase 5: Active generator context (set when running inside a generator)
     GeneratorValue* active_generator_ = nullptr;

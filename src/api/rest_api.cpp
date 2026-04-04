@@ -5,6 +5,7 @@
 #include "naab/lexer.h"
 #include "naab/parser.h"
 #include <sstream>
+#include <filesystem>
 
 using json = nlohmann::json;
 
@@ -67,6 +68,9 @@ public:
                     auto tokens = lexer.tokenize();
                     naab::parser::Parser parser(tokens);
                     auto program = parser.parseProgram();
+                    // Initialize governance from server CWD before executing
+                    auto cwd = std::filesystem::current_path().string();
+                    interpreter->setSourceCode(code, cwd + "/api-request.naab");
                     interpreter->execute(*program);
                 } catch (const std::exception& e) {
                     error_msg = e.what();
