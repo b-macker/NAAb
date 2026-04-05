@@ -473,6 +473,9 @@ void Compiler::visit(ast::VarDeclStmt& node) {
     // Pre-flight: emit OP_GOV_TAINT_MARK to set taint on shadow taint stack
     if (rhs_tainted) {
         emitOp(OpCode::OP_GOV_TAINT_MARK, line);
+        // Finding G: check tainted RHS against sink policy at assignment point
+        int tca_idx = identifierConstant(node.getName());
+        emitWide(OpCode::OP_GOV_TAINT_CHECK_ASSIGN, static_cast<uint32_t>(tca_idx), line);
         markVarTainted(node.getName());
     } else if (governance_ && governance_->isActive()) {
         clearVarTaint(node.getName());
@@ -695,8 +698,12 @@ void Compiler::visit(ast::BinaryExpr& node) {
         }
         // Determine assignment target
         if (auto* ident = dynamic_cast<ast::IdentifierExpr*>(node.getLeft())) {
-            if (assign_tainted) markVarTainted(ident->getName());
-            else if (governance_ && governance_->isActive()) clearVarTaint(ident->getName());
+            if (assign_tainted) {
+                // Finding G: check tainted RHS against sink policy at assignment point
+                int tca_idx = identifierConstant(ident->getName());
+                emitWide(OpCode::OP_GOV_TAINT_CHECK_ASSIGN, static_cast<uint32_t>(tca_idx), line);
+                markVarTainted(ident->getName());
+            } else if (governance_ && governance_->isActive()) clearVarTaint(ident->getName());
             emitSetVariable(ident->getName(), line);
         } else if (auto* member = dynamic_cast<ast::MemberExpr*>(node.getLeft())) {
             member->getObject()->accept(*this);

@@ -68,10 +68,12 @@ public:
                     auto tokens = lexer.tokenize();
                     naab::parser::Parser parser(tokens);
                     auto program = parser.parseProgram();
-                    // Initialize governance from server CWD before executing
+                    // Finding B fix: create a fresh interpreter per request to prevent state
+                    // leakage, governance override persistence, and race conditions
+                    auto req_interpreter = std::make_shared<interpreter::Interpreter>();
                     auto cwd = std::filesystem::current_path().string();
-                    interpreter->setSourceCode(code, cwd + "/api-request.naab");
-                    interpreter->execute(*program);
+                    req_interpreter->setSourceCode(code, cwd + "/api-request.naab");
+                    req_interpreter->execute(*program);
                 } catch (const std::exception& e) {
                     error_msg = e.what();
                     exit_code = 1;

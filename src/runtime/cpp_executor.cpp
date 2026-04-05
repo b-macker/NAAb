@@ -749,6 +749,10 @@ interpreter::NaabVal CppExecutor::callWithFFI(
     std::vector<int> int_args;
     std::vector<double> double_args;
     std::vector<void*> ptr_args;
+    // Finding A fix: pre-allocate to prevent reallocation invalidating stored pointers
+    int_args.reserve(args.size());
+    double_args.reserve(args.size());
+    ptr_args.reserve(args.size());
 
     for (size_t i = 0; i < args.size(); ++i) {
         auto cpp_val = marshaller_.toCpp(args[i]);

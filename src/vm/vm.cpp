@@ -572,7 +572,7 @@ interpreter::NaabVal VM::run() {
         &&vm_OP_TRY_BEGIN, &&vm_OP_TRY_END, &&vm_OP_THROW,               // 59-61
         &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,                      // 62-64 (CATCH/FINALLY — compiler inlines)
         &&vm_OP_POLYGLOT,                                                  // 65
-        &&vm_STUB_NOP, &&vm_OP_GOV_TAINT_MARK, &&vm_STUB_NOP, &&vm_STUB_NOP, // 66-69 (GOV — 67=TAINT_MARK active)
+        &&vm_STUB_NOP, &&vm_OP_GOV_TAINT_MARK, &&vm_STUB_NOP, &&vm_OP_GOV_TAINT_CHECK_ASSIGN, // 66-69: GOV_CHECK_FUNC(stub/TODO), TAINT_MARK, TAINT_CLEAR(stub), TAINT_CHECK_ASSIGN
         &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP, &&vm_STUB_NOP,      // 70-73 (GOV — handled at AST level)
         &&vm_OP_YIELD, &&vm_OP_AWAIT,                                     // 74-75
         &&vm_STUB_NOP, &&vm_STUB_NOP,                                     // 76-77 (MAKE_GEN/ASYNC — reserved)
@@ -1344,6 +1344,13 @@ interpreter::NaabVal VM::run() {
                             } else if (mod == "http") {
                                 std::string err = governance_->checkNetworkAllowed();
                                 if (!err.empty()) runtimeError("%s", err.c_str());
+                            } else if (mod == "env") {
+                                // Finding E fix: enforce governance dangerous-call policy on env access
+                                if (governance_->isActive()) {
+                                    std::string full = "env." + method;
+                                    std::string err = governance_->checkDangerousCall("naab", full, 0);
+                                    if (!err.empty()) runtimeError("%s", err.c_str());
+                                }
                             }
                         }
 
@@ -1895,11 +1902,29 @@ interpreter::NaabVal VM::run() {
                         std::string mod = sv.substr(18);
                         interpreter::NaabVal* no_args = nullptr;
                         push(callStdlibMethod(mod, name, 0, no_args));
+                        // Finding D fix: apply taint source/sanitizer for zero-arg member access
+                        if (governance_ && governance_->isActive()) {
+                            std::string full_name = mod + "." + name;
+                            if (governance_->isTaintSource(full_name)) {
+                                peekTaint(0) = true;
+                            } else if (governance_->isSanitizer(full_name)) {
+                                peekTaint(0) = false;
+                            }
+                        }
                     } else if (sv.size() >= 12 && sv.substr(0, 12) == "__builtin__:") {
                         std::string mod = sv.substr(12);
                         if (stdlib_ && stdlib_->hasModule(mod)) {
                             interpreter::NaabVal* no_args = nullptr;
                             push(callStdlibMethod(mod, name, 0, no_args));
+                            // Finding D fix: apply taint source/sanitizer for zero-arg member access
+                            if (governance_ && governance_->isActive()) {
+                                std::string full_name = mod + "." + name;
+                                if (governance_->isTaintSource(full_name)) {
+                                    peekTaint(0) = true;
+                                } else if (governance_->isSanitizer(full_name)) {
+                                    peekTaint(0) = false;
+                                }
+                            }
                         } else {
                             runtimeError("Cannot access member '%s' on %s",
                                          name.c_str(), obj.getTypeName().c_str());
@@ -1919,7 +1944,10 @@ interpreter::NaabVal VM::run() {
                     runtimeError("Cannot access member '%s' on %s",
                                  name.c_str(), obj.getTypeName().c_str());
                 }
-                if (governance_) peekTaint(0) = member_obj_taint;
+                // Finding D fix: propagate object taint only if not already set by taint source check
+                if (governance_ && member_obj_taint && !peekTaint(0)) {
+                    peekTaint(0) = true;
+                }
             }
                 VM_NEXT();
 
@@ -2492,7 +2520,23 @@ interpreter::NaabVal VM::run() {
             }
                 VM_NEXT();
 
+            // Finding G: Check if tainted TOS value reaches a sink at assignment point
+            vm_OP_GOV_TAINT_CHECK_ASSIGN:
+            {
+                if (governance_ && governance_->isActive() && peekTaint(0)) {
+                    std::string var_name = READ_CONSTANT(arg).toString();
+                    int gov_line = CURRENT_CHUNK().getLine(
+                        static_cast<int>(frame->ip - CURRENT_CHUNK().code.data()) - 4);
+                    std::string terr = governance_->checkTaintedSink(
+                        var_name, "assignment", current_file_, gov_line);
+                    if (!terr.empty()) runtimeError("%s", terr.c_str());
+                }
+            }
+                VM_NEXT();
+
             // Reserved opcodes — no-op (compiler doesn't emit these)
+            // TODO: implement vm_OP_GOV_CHECK_FUNC when function-level governance policy
+            //       is defined in govern.json (currently opcode 66, never emitted by compiler)
             vm_STUB_NOP:
                 VM_NEXT();
 
@@ -2671,12 +2715,45 @@ bool VM::callValue(interpreter::NaabVal callee, int argc) {
     // Stdlib module markers called as functions: "use string" then "string(42)"
     // Dispatch to builtin function of the same name (e.g., string, int, float, bool)
     if (callee.isString() && callee.asString().substr(0, 18) == "__stdlib_module__:") {
-        std::string name = callee.asString().substr(18);
+        std::string mod_name = callee.asString().substr(18);
+        // Finding C fix: governance checks for direct stdlib function references via OP_CALL
+        if (governance_) {
+            if (mod_name == "file") {
+                // Conservative: treat direct file module call as "write" (most restrictive)
+                // since the specific function name is not available from the callee string
+                std::string err = governance_->checkFilesystemAllowed("write");
+                if (!err.empty()) runtimeError("%s", err.c_str());
+            } else if (mod_name == "http") {
+                std::string err = governance_->checkNetworkAllowed();
+                if (!err.empty()) runtimeError("%s", err.c_str());
+            }
+            if (governance_->isActive()) {
+                for (int ai = 0; ai < argc; ai++) {
+                    ptrdiff_t arg_offset = (stack_top_ - argc + ai) - stack_.get();
+                    if (taint_stack_[arg_offset]) {
+                        std::string arg_label = "__arg" + std::to_string(ai) + "__";
+                        governance_->markTainted(arg_label);
+                        std::string terr = governance_->checkTaintedSink(
+                            arg_label, mod_name, current_file_, 0);
+                        governance_->clearTaint(arg_label);
+                        if (!terr.empty()) runtimeError("%s", terr.c_str());
+                    }
+                }
+            }
+        }
         interpreter::NaabVal* args_ptr = stack_top_ - argc;
-        interpreter::NaabVal result = callBuiltinFunction(name, argc, args_ptr);
+        interpreter::NaabVal result = callBuiltinFunction(mod_name, argc, args_ptr);
         stack_top_ -= (argc + 1);
         syncTaintTop();
         push(std::move(result));
+        // Taint source/sanitizer post-call check
+        if (governance_ && governance_->isActive()) {
+            if (governance_->isTaintSource(mod_name)) {
+                peekTaint(0) = true;
+            } else if (governance_->isSanitizer(mod_name)) {
+                peekTaint(0) = false;
+            }
+        }
         return true;
     }
     // Block method calls: dispatch to executor->callFunction(member_path, args)
