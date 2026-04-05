@@ -13,6 +13,7 @@
 #include "naab/shell_executor.h"
 #include "naab/generic_subprocess_executor.h"
 #include "naab/audit_logger.h"
+#include "naab/sandbox.h"      // ScopedSandbox / SandboxManager for context propagation
 #include "naab/thread_pool.h"  // Thread pool for limited concurrency
 #include <fmt/format.h>
 #include <fstream>
@@ -73,7 +74,19 @@ std::future<ffi::AsyncCallbackResult> PythonAsyncExecutor::executeAsync(
     // Submit to thread pool instead of creating unlimited threads
     auto callback = makePythonCallback(code, args);
 
-    return getPolyglotThreadPool().enqueue([callback = std::move(callback), timeout]() {
+    // Capture active sandbox config from calling thread before dispatch to worker
+    security::SandboxConfig sandbox_snapshot;
+    if (auto* cur = security::ScopedSandbox::getCurrent()) {
+        sandbox_snapshot = cur->getConfig();
+    } else {
+        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
+    }
+
+    return getPolyglotThreadPool().enqueue(
+        [callback = std::move(callback), timeout,
+         sandbox_snapshot = std::move(sandbox_snapshot)]() {
+        // Reinstall sandbox context on this worker thread
+        security::ScopedSandbox worker_sandbox(sandbox_snapshot);
         // Execute callback DIRECTLY in thread pool worker - no nested threads!
         // AsyncCallbackWrapper::executeWithTimeout() creates a std::thread which
         // triggers Android bionic CFI crash (ShadowWrite CHECK failed)
@@ -162,7 +175,19 @@ std::future<ffi::AsyncCallbackResult> JavaScriptAsyncExecutor::executeAsync(
     // Submit to thread pool instead of creating unlimited threads
     auto callback = makeJavaScriptCallback(code, args);
 
-    return getPolyglotThreadPool().enqueue([callback = std::move(callback), timeout]() {
+    // Capture active sandbox config from calling thread before dispatch to worker
+    security::SandboxConfig sandbox_snapshot;
+    if (auto* cur = security::ScopedSandbox::getCurrent()) {
+        sandbox_snapshot = cur->getConfig();
+    } else {
+        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
+    }
+
+    return getPolyglotThreadPool().enqueue(
+        [callback = std::move(callback), timeout,
+         sandbox_snapshot = std::move(sandbox_snapshot)]() {
+        // Reinstall sandbox context on this worker thread
+        security::ScopedSandbox worker_sandbox(sandbox_snapshot);
         // Execute callback DIRECTLY - no nested threads (Android CFI fix)
         ffi::AsyncCallbackResult result;
         try {
@@ -238,7 +263,19 @@ std::future<ffi::AsyncCallbackResult> CppAsyncExecutor::executeAsync(
     // Submit to thread pool instead of creating unlimited threads
     auto callback = makeCppCallback(code, args);
 
-    return getPolyglotThreadPool().enqueue([callback = std::move(callback), timeout]() {
+    // Capture active sandbox config from calling thread before dispatch to worker
+    security::SandboxConfig sandbox_snapshot;
+    if (auto* cur = security::ScopedSandbox::getCurrent()) {
+        sandbox_snapshot = cur->getConfig();
+    } else {
+        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
+    }
+
+    return getPolyglotThreadPool().enqueue(
+        [callback = std::move(callback), timeout,
+         sandbox_snapshot = std::move(sandbox_snapshot)]() {
+        // Reinstall sandbox context on this worker thread
+        security::ScopedSandbox worker_sandbox(sandbox_snapshot);
         ffi::AsyncCallbackResult result;
         try {
             interpreter::NaabVal value = callback();
@@ -313,7 +350,19 @@ std::future<ffi::AsyncCallbackResult> RustAsyncExecutor::executeAsync(
     // Submit to thread pool instead of creating unlimited threads
     auto callback = makeRustCallback(code, args);
 
-    return getPolyglotThreadPool().enqueue([callback = std::move(callback), timeout]() {
+    // Capture active sandbox config from calling thread before dispatch to worker
+    security::SandboxConfig sandbox_snapshot;
+    if (auto* cur = security::ScopedSandbox::getCurrent()) {
+        sandbox_snapshot = cur->getConfig();
+    } else {
+        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
+    }
+
+    return getPolyglotThreadPool().enqueue(
+        [callback = std::move(callback), timeout,
+         sandbox_snapshot = std::move(sandbox_snapshot)]() {
+        // Reinstall sandbox context on this worker thread
+        security::ScopedSandbox worker_sandbox(sandbox_snapshot);
         ffi::AsyncCallbackResult result;
         try {
             interpreter::NaabVal value = callback();
@@ -384,7 +433,19 @@ std::future<ffi::AsyncCallbackResult> CSharpAsyncExecutor::executeAsync(
     // Submit to thread pool instead of creating unlimited threads
     auto callback = makeCSharpCallback(code, args);
 
-    return getPolyglotThreadPool().enqueue([callback = std::move(callback), timeout]() {
+    // Capture active sandbox config from calling thread before dispatch to worker
+    security::SandboxConfig sandbox_snapshot;
+    if (auto* cur = security::ScopedSandbox::getCurrent()) {
+        sandbox_snapshot = cur->getConfig();
+    } else {
+        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
+    }
+
+    return getPolyglotThreadPool().enqueue(
+        [callback = std::move(callback), timeout,
+         sandbox_snapshot = std::move(sandbox_snapshot)]() {
+        // Reinstall sandbox context on this worker thread
+        security::ScopedSandbox worker_sandbox(sandbox_snapshot);
         ffi::AsyncCallbackResult result;
         try {
             interpreter::NaabVal value = callback();
@@ -455,7 +516,19 @@ std::future<ffi::AsyncCallbackResult> ShellAsyncExecutor::executeAsync(
     // Submit to thread pool instead of creating unlimited threads
     auto callback = makeShellCallback(command, args);
 
-    return getPolyglotThreadPool().enqueue([callback = std::move(callback), timeout]() {
+    // Capture active sandbox config from calling thread before dispatch to worker
+    security::SandboxConfig sandbox_snapshot;
+    if (auto* cur = security::ScopedSandbox::getCurrent()) {
+        sandbox_snapshot = cur->getConfig();
+    } else {
+        sandbox_snapshot = security::SandboxManager::instance().getDefaultConfig();
+    }
+
+    return getPolyglotThreadPool().enqueue(
+        [callback = std::move(callback), timeout,
+         sandbox_snapshot = std::move(sandbox_snapshot)]() {
+        // Reinstall sandbox context on this worker thread
+        security::ScopedSandbox worker_sandbox(sandbox_snapshot);
         // Execute callback DIRECTLY in thread pool worker - no nested threads!
         ffi::AsyncCallbackResult result;
         try {

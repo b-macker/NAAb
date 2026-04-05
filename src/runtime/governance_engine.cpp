@@ -184,6 +184,66 @@ static const std::vector<DangerousPattern> NETWORK_IMPORT_PATTERNS = {
     {"go", "\"net/http\"",                        "net/http import (network access)", ""},
 };
 
+// Filesystem operation patterns (for capabilities.filesystem enforcement in polyglot blocks)
+static const std::vector<DangerousPattern> FILESYSTEM_IMPORT_PATTERNS = {
+    // Python — builtin file I/O
+    {"python", "\\bopen\\s*\\(",
+     "open() call (direct filesystem access)",
+     "Use NAAb stdlib file.read()/file.write() instead"},
+    {"python", "\\bio\\.open\\s*\\(",
+     "io.open() call (direct filesystem access)",
+     "Use NAAb stdlib file.read()/file.write() instead"},
+    // Python — pathlib
+    {"python", "\\bpathlib\\b",
+     "pathlib import/usage (filesystem access)",
+     "Use NAAb stdlib file module instead of pathlib"},
+    {"python", "\\bPath\\s*\\(",
+     "pathlib.Path() constructor (filesystem access)",
+     "Use NAAb stdlib file module instead of pathlib"},
+    // Python — os filesystem operations
+    {"python", "\\bos\\.listdir\\s*\\(",
+     "os.listdir() (filesystem enumeration)",
+     "Use NAAb stdlib file.list() instead"},
+    {"python", "\\bos\\.walk\\s*\\(",
+     "os.walk() (recursive filesystem traversal)",
+     "Use NAAb stdlib file.list() instead"},
+    {"python", "\\bos\\.remove\\s*\\(",
+     "os.remove() (file deletion)",
+     "Use NAAb stdlib file.delete() instead"},
+    {"python", "\\bos\\.unlink\\s*\\(",
+     "os.unlink() (file deletion)",
+     "Use NAAb stdlib file.delete() instead"},
+    {"python", "\\bos\\.rename\\s*\\(",
+     "os.rename() (file move/rename)",
+     "Avoid direct filesystem mutations in polyglot blocks"},
+    {"python", "\\bos\\.makedirs?\\s*\\(",
+     "os.makedirs() (directory creation)",
+     "Use NAAb stdlib file.create_dir() instead"},
+    {"python", "\\bos\\.path\\b",
+     "os.path (filesystem path operations)",
+     "Use NAAb stdlib path helpers instead"},
+    // Python — shutil
+    {"python", "\\bshutil\\.",
+     "shutil (high-level filesystem operations)",
+     "Use NAAb stdlib file module for safe file operations"},
+    // Python — glob
+    {"python", "\\bglob\\.(?:i)?glob\\s*\\(",
+     "glob.glob() (filesystem pattern matching)",
+     "Use NAAb stdlib file.list() instead"},
+    // JavaScript — Node.js fs
+    {"javascript",
+     "\\bfs\\.(?:read|write|open|unlink|rmdir|mkdir|readdir|exists|stat|copyFile|rename)\\b",
+     "Node.js fs module call (direct filesystem access)",
+     "Use NAAb stdlib file module instead of fs"},
+    {"javascript", "require\\s*\\(\\s*['\"]fs['\"]",
+     "require('fs') (filesystem module import)",
+     "Use NAAb stdlib file module instead of Node.js fs"},
+    // Shell — recursive/forced deletion
+    {"shell", "\\brm\\s+-[rRf]",
+     "rm -r/-f (recursive/forced file deletion)",
+     "Use NAAb stdlib file.delete() for single-file deletion"},
+};
+
 static const std::vector<std::string> PLACEHOLDER_PATTERNS_DB = {
     "TODO", "FIXME", "STUB", "PLACEHOLDER", "XXX", "TBD",
     "HACK", "IMPLEMENT_ME", "RUNTIME_COMPUTED",
@@ -441,6 +501,37 @@ std::string GovernanceEngine::checkNetworkImports(
         } catch (...) {}
     }
     recordPass("capabilities.network", EnforcementLevel::HARD);
+    return "";
+}
+
+std::string GovernanceEngine::checkFilesystemImports(
+    const std::string& language, const std::string& code, int line) {
+    // Only enforce when filesystem access is restricted (not the default "write" mode)
+    if (rules_.filesystem_mode == "write" || rules_.filesystem_mode.empty()) {
+        recordPass("capabilities.filesystem", EnforcementLevel::HARD);
+        return "";
+    }
+    for (const auto& pat : FILESYSTEM_IMPORT_PATTERNS) {
+        if (pat.language != language && pat.language != "any") continue;
+        try {
+            std::regex re(pat.pattern, std::regex::icase);
+            if (std::regex_search(code, re)) {
+                return enforce("capabilities.filesystem", EnforcementLevel::HARD,
+                    formatError(EnforcementLevel::HARD,
+                        fmt::format("Filesystem access blocked: {} in {} block",
+                                    pat.description, language),
+                        fmt::format("line {}", line),
+                        fmt::format("capabilities.filesystem = \"{}\"",
+                                    rules_.filesystem_mode),
+                        "Filesystem operations are restricted by governance policy.\n"
+                        "Use NAAb stdlib file module for controlled file access.",
+                        "", pat.safe_alternative));
+            }
+        } catch (const std::regex_error&) {
+            // Invalid pattern — skip
+        }
+    }
+    recordPass("capabilities.filesystem", EnforcementLevel::HARD);
     return "";
 }
 

@@ -1473,6 +1473,8 @@ public:
     // Capability checks for polyglot blocks
     std::string checkNetworkImports(const std::string& language,
                                      const std::string& code, int line = 0);
+    std::string checkFilesystemImports(const std::string& language,
+                                        const std::string& code, int line = 0);
 
     // Per-language checks
     std::string checkImports(const std::string& language,

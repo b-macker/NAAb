@@ -2651,6 +2651,8 @@ std::string GovernanceEngine::checkPolyglotBlock(
     // Capability checks for polyglot blocks
     err = checkNetworkImports(lang, stripped, line);
     if (!err.empty()) return err;
+    err = checkFilesystemImports(lang, stripped, line);
+    if (!err.empty()) return err;
 
     // Per-language checks
     err = checkImports(lang, stripped, line);
