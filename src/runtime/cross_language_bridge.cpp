@@ -211,7 +211,17 @@ interpreter::NaabVal CrossLanguageBridge::pythonToStruct(
 
 JSValue CrossLanguageBridge::valueToJS(
     JSContext* ctx,
-    const interpreter::NaabVal& val) {
+    const interpreter::NaabVal& val,
+    int depth) {
+
+    // V-RT-006: prevent stack overflow on deeply-nested structures.
+    // Parity with PythonCExecutor::valueToPyObject (V-RT-005) and serializeForLanguage (V-VM-002).
+    if (depth > 64) {
+        JS_ThrowRangeError(ctx,
+            "NAAb marshalling error: nested structure exceeds maximum depth (64). "
+            "Flatten the structure before passing it to a JS block.");
+        return JS_EXCEPTION;
+    }
 
     conversions_count_++;
 
@@ -235,7 +245,11 @@ JSValue CrossLanguageBridge::valueToJS(
         const auto& arr = val.asListConst();
         JSValue result = JS_NewArray(ctx);
         for (size_t i = 0; i < arr.size(); ++i) {
-            JSValue elem = valueToJS(ctx, arr[i]);
+            JSValue elem = valueToJS(ctx, arr[i], depth + 1);
+            if (JS_IsException(elem)) {
+                JS_FreeValue(ctx, result);
+                return JS_EXCEPTION;
+            }
             JS_SetPropertyUint32(ctx, result, static_cast<uint32_t>(i), elem);
         }
         return result;
@@ -244,7 +258,11 @@ JSValue CrossLanguageBridge::valueToJS(
         const auto& dict = val.asDictConst();
         JSValue result = JS_NewObject(ctx);
         for (const auto& [key, value] : dict) {
-            JSValue val_js = valueToJS(ctx, value);
+            JSValue val_js = valueToJS(ctx, value, depth + 1);
+            if (JS_IsException(val_js)) {
+                JS_FreeValue(ctx, result);
+                return JS_EXCEPTION;
+            }
             JS_SetPropertyStr(ctx, result, key.c_str(), val_js);
         }
         return result;

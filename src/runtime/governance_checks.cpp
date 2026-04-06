@@ -38,6 +38,57 @@ static std::string stripStringLiterals(const std::string& code) {
         if (escaped) { escaped = false; continue; }
         if (c == '\\' && (in_single || in_double)) { escaped = true; continue; }
 
+        // V-GOV-001: consume Python/JS string prefixes (f, b, r, u and two-letter
+        // combinations rb, br, rf, fr) before quote detection. Without this, the
+        // prefix character is left in the output, allowing f"malicious_code()" to
+        // leak the 'f' into the stripped result and fool pattern matchers.
+        if (!in_single && !in_double && !in_backtick) {
+            char lc = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (lc == 'f' || lc == 'b' || lc == 'r' || lc == 'u') {
+                // Check for two-letter prefix (rb, br, rf, fr) followed by quote
+                if (i + 2 < code.size()) {
+                    char lc2 = static_cast<char>(std::tolower(static_cast<unsigned char>(code[i+1])));
+                    char q2 = code[i+2];
+                    std::string two = {lc, lc2};
+                    if ((two == "rb" || two == "br" || two == "rf" || two == "fr") &&
+                        (q2 == '"' || q2 == '\'')) {
+                        result += "  ";  // replace two-char prefix with spaces
+                        i += 2;
+                        c = q2; // fall through to quote handling below
+                        // Re-run the quote handling with c = q2
+                        if (c == '"' && !in_single && !in_backtick && !in_double
+                            && i+2 < code.size() && code[i+1] == '"' && code[i+2] == '"') {
+                            i += 3;
+                            while (i+2 < code.size()) {
+                                if (code[i] == '"' && code[i+1] == '"' && code[i+2] == '"') { i += 2; break; }
+                                i++;
+                            }
+                            continue;
+                        }
+                        if (c == '\'' && !in_double && !in_backtick && !in_single
+                            && i+2 < code.size() && code[i+1] == '\'' && code[i+2] == '\'') {
+                            i += 3;
+                            while (i+2 < code.size()) {
+                                if (code[i] == '\'' && code[i+1] == '\'' && code[i+2] == '\'') { i += 2; break; }
+                                i++;
+                            }
+                            continue;
+                        }
+                        if (c == '"')  { in_double  = true; continue; }
+                        if (c == '\'') { in_single  = true; continue; }
+                        continue;
+                    }
+                }
+                // Check for single-letter prefix followed by quote
+                if (i + 1 < code.size() && (code[i+1] == '"' || code[i+1] == '\'')) {
+                    result += ' ';  // replace prefix with space
+                    i++;
+                    c = code[i];
+                    // fall through to standard quote handling
+                }
+            }
+        }
+
         // EVA-6: Triple-double-quote: """...""" (Python docstrings)
         if (c == '"' && !in_single && !in_backtick && !in_double
             && i+2 < code.size() && code[i+1] == '"' && code[i+2] == '"') {
@@ -1509,6 +1560,11 @@ static std::string stripComments(const std::string& code, const std::string& lan
                        language == "go" || language == "golang" ||
                        language == "cpp" || language == "c++" ||
                        language == "rust" || language == "csharp" || language == "cs");
+    // V-GOV-002: add -- line comment style for SQL, Lua, and similar languages.
+    // Without this, `-- DROP TABLE users` in a <<sql block is not stripped and the
+    // governance scanner sees "DROP TABLE users" as active code (false positive or bypass).
+    bool uses_dash_dash = (language == "sql" || language == "lua" ||
+                           language == "haskell" || language == "ada");
 
     std::string result;
     result.reserve(code.size());
@@ -1549,6 +1605,16 @@ static std::string stripComments(const std::string& code, const std::string& lan
             // Shell special case: #! (shebang) at very start is still a comment — strip it
             // Python: # at line start or after whitespace/code is always a comment
             // (strings already stripped, so no risk of matching # inside strings)
+            while (i < code.size() && code[i] != '\n') {
+                result += ' ';
+                ++i;
+            }
+            if (i < code.size()) result += '\n';
+            continue;
+        }
+
+        // V-GOV-002: -- line comment (SQL, Lua, Haskell, Ada)
+        if (uses_dash_dash && i + 1 < code.size() && code[i] == '-' && code[i+1] == '-') {
             while (i < code.size() && code[i] != '\n') {
                 result += ' ';
                 ++i;

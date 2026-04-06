@@ -27,7 +27,8 @@ namespace naab {
 namespace runtime {
 
 // Forward declarations of static helper functions
-static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val);
+// V-RT-006: toJSValue takes a depth parameter (default 0) to enforce a 64-level limit.
+static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val, int depth = 0);
 static interpreter::NaabVal fromJSValue(JSContext* ctx, JSValue val);
 
 JsExecutor::JsExecutor() : rt_(nullptr), ctx_(nullptr), timeout_triggered_(false) {
@@ -501,7 +502,14 @@ int JsExecutor::interruptHandler(JSRuntime* rt, void* opaque) {
 }
 
 // Static helper: Convert NaabVal to JSValue
-static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val) {
+// V-RT-006: depth parameter prevents stack overflow on deeply-nested structures.
+static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val, int depth) {
+    if (depth > 64) {
+        JS_ThrowRangeError(ctx,
+            "NAAb marshalling error: nested structure exceeds maximum depth (64). "
+            "Flatten the structure before passing it to a JS block.");
+        return JS_EXCEPTION;
+    }
     if (val.isNull()) {
         return JS_NULL;
     }
@@ -518,7 +526,8 @@ static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val) {
         const auto& vec = val.asListConst();
         JSValue arr = JS_NewArray(ctx);
         for (size_t i = 0; i < vec.size(); i++) {
-            JSValue elem = toJSValue(ctx, vec[i]);
+            JSValue elem = toJSValue(ctx, vec[i], depth + 1);
+            if (JS_IsException(elem)) { JS_FreeValue(ctx, arr); return JS_EXCEPTION; }
             JS_SetPropertyUint32(ctx, arr, static_cast<uint32_t>(i), elem);
         }
         return arr;
@@ -526,7 +535,8 @@ static JSValue toJSValue(JSContext* ctx, const interpreter::NaabVal& val) {
         const auto& map = val.asDictConst();
         JSValue obj = JS_NewObject(ctx);
         for (const auto& [key, value] : map) {
-            JSValue prop_val = toJSValue(ctx, value);
+            JSValue prop_val = toJSValue(ctx, value, depth + 1);
+            if (JS_IsException(prop_val)) { JS_FreeValue(ctx, obj); return JS_EXCEPTION; }
             JS_SetPropertyStr(ctx, obj, key.c_str(), prop_val);
         }
         return obj;

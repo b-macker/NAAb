@@ -939,6 +939,78 @@ else
     echo "  test_marshal_depth_rt005.sh: not found, skipping"
 fi
 
+# --- Async Isolation (V-ASYNC-001r) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Async Isolation Tests (timeout must not contaminate siblings)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+ASYNC001R_SCRIPT="tests/security/test_async_isolation_async001r.sh"
+if [ -f "$ASYNC001R_SCRIPT" ]; then
+    if bash "$ASYNC001R_SCRIPT" 2>&1; then
+        echo "  test_async_isolation_async001r.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_async_isolation_async001r.sh")
+    fi
+else
+    echo "  test_async_isolation_async001r.sh: not found, skipping"
+fi
+
+# --- Governance String Prefix Stripping (V-GOV-001) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Governance String Prefix Tests (f/b/r/u prefix handling)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+GOV001_SCRIPT="tests/security/test_gov_string_prefix_gov001.sh"
+if [ -f "$GOV001_SCRIPT" ]; then
+    if bash "$GOV001_SCRIPT" 2>&1; then
+        echo "  test_gov_string_prefix_gov001.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_gov_string_prefix_gov001.sh")
+    fi
+else
+    echo "  test_gov_string_prefix_gov001.sh: not found, skipping"
+fi
+
+# --- Governance Comment Style Stripping (V-GOV-002) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Governance Comment Style Tests (-- comment stripping for SQL/Lua)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+GOV002_SCRIPT="tests/security/test_gov_comment_styles_gov002.sh"
+if [ -f "$GOV002_SCRIPT" ]; then
+    if bash "$GOV002_SCRIPT" 2>&1; then
+        echo "  test_gov_comment_styles_gov002.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_gov_comment_styles_gov002.sh")
+    fi
+else
+    echo "  test_gov_comment_styles_gov002.sh: not found, skipping"
+fi
+
+# --- JS Marshalling Depth Limit (V-RT-006) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  JS Marshalling Depth Limit Tests (no SIGSEGV on deep nesting)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RT006_SCRIPT="tests/security/test_js_marshal_depth_rt006.sh"
+if [ -f "$RT006_SCRIPT" ]; then
+    if bash "$RT006_SCRIPT" 2>&1; then
+        echo "  test_js_marshal_depth_rt006.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_js_marshal_depth_rt006.sh")
+    fi
+else
+    echo "  test_js_marshal_depth_rt006.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

@@ -56,7 +56,8 @@ public:
     // ========================================================================
 
     // Convert NaabVal → JSValue (QuickJS)
-    JSValue valueToJS(JSContext* ctx, const interpreter::NaabVal& val);
+    // V-RT-006: depth parameter prevents stack overflow on deeply-nested structures (same guard as V-RT-005).
+    JSValue valueToJS(JSContext* ctx, const interpreter::NaabVal& val, int depth = 0);
 
     // Convert JSValue → NaabVal
     interpreter::NaabVal jsToValue(JSContext* ctx, JSValue jsval);

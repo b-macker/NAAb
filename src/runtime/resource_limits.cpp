@@ -94,6 +94,10 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
             if (ResourceLimiter::win_timer_cancel_.load(std::memory_order_relaxed)) return;
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
+        // V-ASYNC-001r (Windows): timer thread cannot set a thread_local variable of
+        // the execution thread, so we still use global_shutdown_ here. For single-tenant
+        // Windows builds this is acceptable; multi-tenant Windows would need a per-execution
+        // cancellation token (future work). The POSIX path uses thread_local only.
         if (!ResourceLimiter::win_timer_cancel_.load(std::memory_order_relaxed)) {
             ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
         }
@@ -187,8 +191,11 @@ void ResourceLimiter::disableAll() {
 
 void ResourceLimiter::handleAlarm(int sig) {
     (void)sig;  // Unused parameter
+    // V-ASYNC-001r: set only the thread-local flag, NOT global_shutdown_.
+    // global_shutdown_ is process-wide — setting it here would terminate every concurrent
+    // script in the process (multi-tenant contamination). timeout_triggered_ is thread_local
+    // so it only affects the thread whose alarm fired.
     timeout_triggered_ = true;
-    global_shutdown_.store(true, std::memory_order_relaxed);  // V-ASYNC-001: notify workers
 
     // Note: We can't throw exceptions from signal handlers
     // The timeout will be detected when control returns to normal code
@@ -196,8 +203,8 @@ void ResourceLimiter::handleAlarm(int sig) {
 
 void ResourceLimiter::handleCpuLimit(int sig) {
     (void)sig;  // Unused parameter
+    // V-ASYNC-001r: same fix — thread-local flag only, not global_shutdown_.
     timeout_triggered_ = true;
-    global_shutdown_.store(true, std::memory_order_relaxed);  // V-ASYNC-001: notify workers
 }
 
 } // namespace security
