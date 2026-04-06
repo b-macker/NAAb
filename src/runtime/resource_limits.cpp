@@ -8,6 +8,9 @@
 #  include <unistd.h>
 #  include <sys/resource.h>
 #  include <cerrno>
+#else
+#  include <thread>
+#  include <chrono>
 #endif
 
 namespace naab {
@@ -27,6 +30,9 @@ thread_local bool ResourceLimiter::timeout_triggered_ = false;
 // threads — including ThreadPool workers that never receive SIGALRM directly.
 // Cleared by setExecutionTimeout() (new request) and clearTimeout() (RAII cleanup).
 std::atomic<bool> ResourceLimiter::global_shutdown_{false};
+#ifdef _WIN32
+std::atomic<bool> ResourceLimiter::win_timer_cancel_{false};
+#endif
 
 void ResourceLimiter::installSignalHandlers() {
     if (initialized_) {
@@ -77,10 +83,21 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
     // Set alarm for execution timeout
     alarm(seconds);
 #else
-    // On Windows, execution timeout is enforced via WaitForSingleObject
-    // with a timeout in execute_subprocess_with_pipes (subprocess_helpers.cpp).
-    // A process-level SIGALRM equivalent is not available without Job Objects.
-    (void)seconds;
+    // Windows has no alarm(). Spawn a detached timer thread that polls
+    // win_timer_cancel_ every 50ms and sets global_shutdown_ at the deadline.
+    // global_shutdown_ is then picked up by isTimeoutTriggered() in VM_NEXT().
+    win_timer_cancel_.store(false, std::memory_order_relaxed);
+    std::thread([seconds]() {
+        using clock = std::chrono::steady_clock;
+        auto deadline = clock::now() + std::chrono::seconds(seconds);
+        while (clock::now() < deadline) {
+            if (ResourceLimiter::win_timer_cancel_.load(std::memory_order_relaxed)) return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        if (!ResourceLimiter::win_timer_cancel_.load(std::memory_order_relaxed)) {
+            ResourceLimiter::global_shutdown_.store(true, std::memory_order_relaxed);
+        }
+    }).detach();
 #endif
 }
 
@@ -88,6 +105,10 @@ void ResourceLimiter::clearTimeout() {
 #ifndef _WIN32
     // Cancel any pending alarm
     alarm(0);
+#else
+    // Signal the Windows timer thread to exit without setting global_shutdown_.
+    // Must be set BEFORE resetting global_shutdown_ to close the race window.
+    win_timer_cancel_.store(true, std::memory_order_relaxed);
 #endif
     timeout_triggered_ = false;
     global_shutdown_.store(false, std::memory_order_relaxed);  // V-ASYNC-001

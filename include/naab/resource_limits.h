@@ -60,6 +60,12 @@ private:
     // Set alongside timeout_triggered_ in signal handlers; cleared on each
     // new setExecutionTimeout() call and in clearTimeout().
     static std::atomic<bool> global_shutdown_;
+#ifdef _WIN32
+    // Windows has no alarm(). setExecutionTimeout() spawns a timer thread
+    // that sets global_shutdown_ after N seconds. This flag cancels it early
+    // (set by clearTimeout() when the script finishes normally).
+    static std::atomic<bool> win_timer_cancel_;
+#endif
 };
 
 // RAII helper for automatic timeout cleanup
