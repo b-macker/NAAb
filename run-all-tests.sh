@@ -867,6 +867,78 @@ else
     echo "  test_sqlite_null_reg001.sh: not found, skipping"
 fi
 
+# --- Container Taint Propagation (V-VM-003) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Container Taint Propagation Tests (dict/list mutation)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+VM003_SCRIPT="tests/security/test_container_taint_vm003.sh"
+if [ -f "$VM003_SCRIPT" ]; then
+    if bash "$VM003_SCRIPT" 2>&1; then
+        echo "  test_container_taint_vm003.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_container_taint_vm003.sh")
+    fi
+else
+    echo "  test_container_taint_vm003.sh: not found, skipping"
+fi
+
+# --- Subprocess Orphan Kill on Timeout (V-RT-003) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Subprocess Orphan Kill Tests (no orphan on timeout)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RT003_SCRIPT="tests/security/test_orphan_kill_rt003.sh"
+if [ -f "$RT003_SCRIPT" ]; then
+    if bash "$RT003_SCRIPT" 2>&1; then
+        echo "  test_orphan_kill_rt003.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_orphan_kill_rt003.sh")
+    fi
+else
+    echo "  test_orphan_kill_rt003.sh: not found, skipping"
+fi
+
+# --- Block Source Integrity (V-RT-004) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Block Source Integrity Tests (SHA-256 hash verification)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RT004_SCRIPT="tests/security/test_block_integrity_rt004.sh"
+if [ -f "$RT004_SCRIPT" ]; then
+    if bash "$RT004_SCRIPT" 2>&1; then
+        echo "  test_block_integrity_rt004.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_block_integrity_rt004.sh")
+    fi
+else
+    echo "  test_block_integrity_rt004.sh: not found, skipping"
+fi
+
+# --- Python Marshalling Depth Limit (V-RT-005) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Python Marshalling Depth Limit Tests (no SIGSEGV)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RT005_SCRIPT="tests/security/test_marshal_depth_rt005.sh"
+if [ -f "$RT005_SCRIPT" ]; then
+    if bash "$RT005_SCRIPT" 2>&1; then
+        echo "  test_marshal_depth_rt005.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_marshal_depth_rt005.sh")
+    fi
+else
+    echo "  test_marshal_depth_rt005.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

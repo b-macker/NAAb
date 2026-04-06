@@ -1575,14 +1575,44 @@ interpreter::NaabVal VM::run() {
                 // Built-in methods on arrays, dicts, strings
                 {
                     bool obj_tainted = peekTaint(argc);
+
+                    // V-VM-003: capture taint for dict/list mutation methods BEFORE pop.
+                    // dict.put(key, val): argc=2, val is args_ptr[1] = peekTaint(0)
+                    // list.push(val):     argc=1, val is args_ptr[0] = peekTaint(0)
+                    // list.insert(i,val): argc=2, val is args_ptr[1] = peekTaint(0)
+                    // list.set(i,val):    argc=2, val is args_ptr[1] = peekTaint(0)
+                    bool val_arg_tainted = false;
+                    if (governance_ && (obj.isDict() || obj.isList())) {
+                        // For single-arg mutations (push/append/add) the value IS the arg
+                        // For two-arg mutations (put/insert/set) the value is the last arg
+                        if (argc >= 1) {
+                            val_arg_tainted = peekTaint(0);  // last arg = TOS = val
+                        }
+                    }
+
                     interpreter::NaabVal* args_ptr = stack_top_ - argc;
                     interpreter::NaabVal result = callBuiltinMethod(obj, method, argc, args_ptr);
                     // Pop args + object
                     stack_top_ -= (argc + 1);
                     syncTaintTop();
                     push(std::move(result));
-                    // Built-in methods propagate taint from object
-                    peekTaint(0) = obj_tainted;
+
+                    // V-VM-003: propagate container-level taint for mutation methods.
+                    if (governance_) {
+                        bool is_mutation = (method == "put" || method == "push" ||
+                                            method == "append" || method == "add" ||
+                                            method == "insert" || method == "set");
+                        bool is_read = (method == "get");
+                        if (is_mutation && val_arg_tainted && (obj.isList() || obj.isDict())) {
+                            tainted_containers_.insert(obj.toLegacy().get());
+                        }
+                        if (is_read && tainted_containers_.count(obj.toLegacy().get()) > 0) {
+                            peekTaint(0) = true;
+                        } else {
+                            // Built-in methods propagate taint from object
+                            peekTaint(0) = obj_tainted || (tainted_containers_.count(obj.toLegacy().get()) > 0);
+                        }
+                    }
                 }
             }
             done_call_method:
@@ -1713,7 +1743,13 @@ interpreter::NaabVal VM::run() {
                 } else {
                     runtimeError("Cannot index into %s", obj.getTypeName().c_str());
                 }
-                if (governance_) peekTaint(0) = obj_taint || idx_taint;
+                if (governance_) {
+                    // V-VM-003: also check side-table for containers that had
+                    // tainted values stored into them via OP_SET_INDEX or dict.put.
+                    bool container_tainted = tainted_containers_.count(obj.toLegacy().get()) > 0;
+                    peekTaint(0) = obj_taint || idx_taint || container_tainted;
+
+                }
             }
                 VM_NEXT();
 
@@ -1740,6 +1776,11 @@ interpreter::NaabVal VM::run() {
                     dict[index.toString()] = val;
                 } else {
                     runtimeError("Cannot set index on %s", obj.getTypeName().c_str());
+                }
+                // V-VM-003: if the stored value is tainted, record the container as
+                // tainted in the side-table so future reads from it propagate taint.
+                if (governance_ && val_taint_si && (obj.isList() || obj.isDict())) {
+                    tainted_containers_.insert(obj.toLegacy().get());
                 }
                 push(val);
                 if (governance_) peekTaint(0) = val_taint_si;

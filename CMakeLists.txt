@@ -572,6 +572,12 @@ if(HAVE_RUST)
     target_compile_definitions(naab_runtime PRIVATE HAVE_RUST=1)
 endif()
 
+# V-RT-004: add OpenSSL to naab_runtime for block integrity SHA-256 checks
+if(OPENSSL_FOUND)
+    target_link_libraries(naab_runtime OpenSSL::SSL OpenSSL::Crypto)
+    target_compile_definitions(naab_runtime PRIVATE HAVE_OPENSSL=1)
+endif()
+
 target_include_directories(naab_runtime PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/external/json/single_include
 )

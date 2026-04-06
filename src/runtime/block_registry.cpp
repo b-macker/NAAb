@@ -1,6 +1,8 @@
 #include "naab/block_registry.h"
+#include "naab/audit_logger.h"  // V-RT-004: logHashMismatch on tampered blocks
 #include <fstream>
 #include <sstream>
+#include <iomanip>
 #include <algorithm>
 #include <fmt/core.h>
 #include <nlohmann/json.hpp>
@@ -8,6 +10,21 @@
 // Use POSIX directory operations for Android compatibility
 #include <dirent.h>
 #include <sys/stat.h>
+
+// V-RT-004: block source integrity verification via SHA-256
+#ifdef HAVE_OPENSSL
+#  include <openssl/sha.h>
+static std::string computeBlockSHA256(const std::string& data) {
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256(reinterpret_cast<const unsigned char*>(data.c_str()), data.size(), hash);
+    std::ostringstream oss;
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        oss << std::hex << std::setw(2) << std::setfill('0')
+            << static_cast<int>(hash[i]);
+    }
+    return oss.str();
+}
+#endif
 
 using json = nlohmann::json;
 
@@ -87,6 +104,25 @@ std::string BlockRegistry::getBlockSource(const std::string& block_id) const {
         // For regular source files, return the whole file
         source = readFile(file_path);
     }
+
+    // V-RT-004: verify source integrity against the stored code_hash (if available).
+    // This detects tampering of block files between registration and execution.
+#ifdef HAVE_OPENSSL
+    if (!metadata_opt->code_hash.empty()) {
+        std::string actual_hash = computeBlockSHA256(source);
+        if (actual_hash != metadata_opt->code_hash) {
+            naab::security::AuditLogger::logHashMismatch(
+                block_id, metadata_opt->code_hash, actual_hash);
+            throw std::runtime_error(
+                "Block integrity check failed: block '" + block_id + "' has been tampered.\n\n"
+                "  Expected hash: " + metadata_opt->code_hash + "\n"
+                "  Actual hash:   " + actual_hash + "\n\n"
+                "  The block source file does not match the registered code_hash.\n"
+                "  Re-install the block or update the hash in the metadata JSON.\n"
+            );
+        }
+    }
+#endif
 
     // Cache the source for future lookups
     source_cache_[block_id] = source;

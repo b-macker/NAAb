@@ -441,7 +441,15 @@ interpreter::NaabVal PythonCExecutor::pyObjectToValue(PyObject* obj) {
 /**
  * Convert NAAb Value to PyObject*
  */
-PyObject* PythonCExecutor::valueToPyObject(const interpreter::NaabVal& val) {
+PyObject* PythonCExecutor::valueToPyObject(const interpreter::NaabVal& val, int depth) {
+    // V-RT-005: prevent stack overflow on deeply-nested structures.
+    // Same depth limit as V-VM-002 (serializeForLanguage): 64 levels maximum.
+    if (depth > 64) {
+        PyErr_SetString(PyExc_ValueError,
+            "NAAb marshalling error: nested structure exceeds maximum depth (64). "
+            "Flatten the structure before passing it to a Python block.");
+        return nullptr;
+    }
     if (val.isNull()) { Py_RETURN_NONE; }
     if (val.isBool()) {
         if (val.asBool()) { Py_RETURN_TRUE; }
@@ -454,7 +462,8 @@ PyObject* PythonCExecutor::valueToPyObject(const interpreter::NaabVal& val) {
         const auto& arr = val.asListConst();
         PyObject* list = PyList_New(static_cast<Py_ssize_t>(arr.size()));
         for (size_t i = 0; i < arr.size(); i++) {
-            PyObject* item = valueToPyObject(arr[i]);
+            PyObject* item = valueToPyObject(arr[i], depth + 1);
+            if (!item) { Py_DECREF(list); return nullptr; }  // propagate depth error
             PyList_SET_ITEM(list, static_cast<Py_ssize_t>(i), item);
         }
         return list;
@@ -464,7 +473,8 @@ PyObject* PythonCExecutor::valueToPyObject(const interpreter::NaabVal& val) {
         PyObject* py_dict = PyDict_New();
         for (const auto& [key, value] : dict) {
             PyObject* py_key = PyUnicode_FromString(key.c_str());
-            PyObject* py_val = valueToPyObject(value);
+            PyObject* py_val = valueToPyObject(value, depth + 1);
+            if (!py_val) { Py_DECREF(py_key); Py_DECREF(py_dict); return nullptr; }
             PyDict_SetItem(py_dict, py_key, py_val);
             Py_DECREF(py_key);
             Py_DECREF(py_val);

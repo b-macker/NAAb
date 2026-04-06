@@ -7,6 +7,7 @@
 
 #include "naab/subprocess_helpers.h"
 #include "naab/paths.h"
+#include "naab/resource_limits.h"  // V-RT-003: isTimeoutTriggered() for orphan prevention
 #include <cstdio>       // For FILE, fopen, fclose, fprintf
 #include <fmt/core.h>   // For fmt::format
 #include <sstream>      // For std::ostringstream
@@ -359,9 +360,33 @@ int execute_subprocess_with_pipes(
         _exit(127);
     }
 
-    // Parent process: wait for child
+    // Parent process: wait for child.
+    // V-RT-003: use a poll loop instead of blocking waitpid(). If the execution
+    // timeout fires while we're blocked here (SA_RESTART means SIGALRM is silently
+    // restarted — it does NOT interrupt waitpid), we kill the child before it
+    // becomes an orphan. Poll every 50ms to keep CPU overhead negligible.
     int status = 0;
-    waitpid(pid, &status, 0);
+    while (true) {
+        pid_t wait_result = waitpid(pid, &status, WNOHANG);
+        if (wait_result == pid) break;          // Child exited — done
+        if (wait_result == -1) {                // waitpid error (EINTR etc.)
+            status = -1;
+            break;
+        }
+        // Child still running — check if timeout fired
+        if (naab::security::ResourceLimiter::isTimeoutTriggered()) {
+            ::kill(pid, SIGKILL);               // Kill before it becomes an orphan
+            waitpid(pid, &status, 0);           // Reap zombie (fast after SIGKILL)
+            unlink(stdout_tmp.c_str());
+            unlink(stderr_tmp.c_str());
+            throw std::runtime_error(
+                "Subprocess timeout: child process killed to prevent orphan.\n\n"
+                "  The subprocess exceeded the execution time limit and was terminated.\n"
+                "  Use --timeout N to set a longer limit.\n"
+            );
+        }
+        usleep(50000);  // 50ms poll interval
+    }
 
     // Read captured output
     stdout_str = readFileContents(stdout_tmp);

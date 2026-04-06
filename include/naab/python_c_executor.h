@@ -78,7 +78,9 @@ public:
 private:
 #ifdef HAVE_PYBIND11
     interpreter::NaabVal pyObjectToValue(PyObject* obj);
-    PyObject* valueToPyObject(const interpreter::NaabVal& val);
+    // V-RT-005: depth parameter prevents stack overflow on deeply-nested structures.
+    // Same guard as V-VM-002 (serializeForLanguage): throws at depth > 64.
+    PyObject* valueToPyObject(const interpreter::NaabVal& val, int depth = 0);
 #endif
 };
 

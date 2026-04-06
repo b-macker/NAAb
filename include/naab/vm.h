@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <optional>
 
@@ -411,6 +412,15 @@ private:
 
     // Loop iteration counters for governance (keyed by back-edge target IP)
     std::unordered_map<uint32_t*, int> loop_iter_counts_;
+
+    // V-VM-003: container-level taint side-table. When a tainted value is stored
+    // into a dict or list (OP_SET_INDEX or dict.put via CALL_METHOD), the container's
+    // underlying Value* identity is inserted here. OP_GET_INDEX and dict.get check
+    // this set so taint survives the container's pop/push cycle.
+    // NOTE: rawBits() is NOT used because NaabVal uses a handle table on ARM64 —
+    // each fromLegacy() call allocates a new handle even for the same Value object.
+    // toLegacy().get() returns the stable raw Value* shared by all NaabVal copies.
+    std::unordered_set<const void*> tainted_containers_;
 
     // Core dispatch loop
     interpreter::NaabVal run();
