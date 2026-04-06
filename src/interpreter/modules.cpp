@@ -409,10 +409,30 @@ void Interpreter::visit(ast::ImportStmt& node) {
     // Resolve relative to the file being executed, not the working directory
     std::filesystem::path current_dir = getCurrentFileDirectory();
 
-    // Resolve module path
+    // Finding E fix: for bare names (no path separator, no .naab extension) check stdlib
+    // FIRST before the filesystem resolver. This prevents a local file named "time.naab"
+    // from shadowing the trusted stdlib "time" module.
+    // A bare name is unambiguously a stdlib name — filesystem imports always have a path
+    // component (./time.naab, ../lib/time, /abs/path) or explicit .naab extension.
+    {
+        const std::string& mp = node.getModulePath();
+        bool is_bare = (mp.find('/') == std::string::npos &&
+                        mp.find('\\') == std::string::npos &&
+                        (mp.size() < 5 || mp.substr(mp.size() - 5) != ".naab"));
+        if (is_bare && stdlib_->hasModule(mp)) {
+            auto module = stdlib_->getModule(mp);
+            std::string alias = mp;
+            if (node.isWildcard()) alias = node.getWildcardAlias();
+            imported_modules_[alias] = module;
+            current_env_->define(alias, NaabVal::makeString("__stdlib_module__:" + alias));
+            return;
+        }
+    }
+
+    // Resolve module path via filesystem
     auto resolved_path = module_resolver_->resolve(node.getModulePath(), current_dir);
     if (!resolved_path) {
-        // Fall back to stdlib: import "time" as Time -> treat as stdlib time module
+        // Fall back to stdlib for non-bare names (e.g. "stdlib/time", "./time")
         std::string bare_name = node.getModulePath();
         // Strip .naab extension if present
         if (bare_name.size() > 5 && bare_name.substr(bare_name.size() - 5) == ".naab") {
@@ -427,19 +447,10 @@ void Interpreter::visit(ast::ImportStmt& node) {
         if (stdlib_->hasModule(bare_name)) {
             // Handle as stdlib module
             auto module = stdlib_->getModule(bare_name);
-            // Determine alias from import items or use module name
             std::string alias = bare_name;
             if (node.isWildcard()) {
                 alias = node.getWildcardAlias();
-            } else if (!node.getItems().empty() && !node.getItems()[0].alias.empty()) {
-                // For import "time" as Time, the alias comes from import items
-                // But wildcard import handles the alias differently
             }
-            // Check for wildcard alias pattern (import "time" as Time)
-            if (node.isWildcard()) {
-                alias = node.getWildcardAlias();
-            }
-
             imported_modules_[alias] = module;
             current_env_->define(alias, NaabVal::makeString("__stdlib_module__:" + alias));
             return;

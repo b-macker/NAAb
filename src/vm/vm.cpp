@@ -581,6 +581,9 @@ interpreter::NaabVal VM::run() {
 
     #define VM_CASE(opcode) vm_##opcode
     #define VM_NEXT() do { \
+        if (naab::security::ResourceLimiter::isTimeoutTriggered()) { \
+            runtimeError("Execution timeout: script exceeded the configured time limit"); \
+        } \
         instruction = READ_INSTR(); \
         op = decodeOp(instruction); \
         arg = decodeArg(instruction); \
@@ -603,6 +606,9 @@ interpreter::NaabVal VM::run() {
 #ifdef USE_COMPUTED_GOTO
         VM_NEXT();  // Initial dispatch (and re-dispatch after exception handling)
 #else
+        if (naab::security::ResourceLimiter::isTimeoutTriggered()) {
+            runtimeError("Execution timeout: script exceeded the configured time limit");
+        }
         instruction = READ_INSTR();
         op = decodeOp(instruction);
         arg = decodeArg(instruction);

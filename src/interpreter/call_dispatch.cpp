@@ -1306,10 +1306,59 @@ void Interpreter::visit(ast::CallExpr& node) {
                                 }
                             }
                         }
+
+                        // Finding C fix: generic coverage for modules not handled above.
+                        // Runs a dangerous_calls policy check and a taint-sink check
+                        // for ALL args across ALL stdlib modules called via function reference.
+                        // The per-module blocks above are kept for their specific checks
+                        // (capability gates, copy/move dest path, etc.); this block adds what
+                        // they omit: modules with no explicit handler AND unchecked args.
+                        {
+                            std::string full_call = module_alias + "." + func_name;
+
+                            // Dangerous-calls policy check (e.g. env.exec blocked by governance)
+                            std::string derr = governance_->checkDangerousCall(
+                                "naab", full_call, node.getLocation().line);
+                            if (!derr.empty()) throw std::runtime_error(derr);
+
+                            // env.delete_var governance (not covered by the env.set_var block)
+                            if (module_alias == "env" && func_name == "delete_var") {
+                                if (!node.getArgs().empty()) {
+                                    std::string terr = checkExpressionTaintedSink(
+                                        node.getArgs()[0].get(), "env.delete_var",
+                                        current_file_, node.getLocation().line);
+                                    if (!terr.empty()) throw std::runtime_error(terr);
+                                }
+                            }
+
+                            // Generic taint sink check: ALL args for ALL modules.
+                            // Covers crypto, collections, string, io, etc. called via reference.
+                            // Idempotent for args already checked above (returns "" if untainted).
+                            for (size_t ai = 0; ai < node.getArgs().size(); ++ai) {
+                                std::string terr = checkExpressionTaintedSink(
+                                    node.getArgs()[ai].get(), full_call,
+                                    current_file_, node.getLocation().line);
+                                if (!terr.empty()) throw std::runtime_error(terr);
+                            }
+                        }
                     }
 
                     // Call the stdlib function
                     result_ = module->call(func_name, args);
+
+                    // Finding C fix: post-call taint source marking for function references.
+                    // When a taint source (e.g. env.get, io.read_line) is called via a stored
+                    // reference rather than dot-notation, the result must still be marked tainted.
+                    // We use setLastReturnTainted() — consumed by checkRhsTainted() in VarDeclStmt
+                    // and AssignExpr exactly as it is after regular function call returns.
+                    if (governance_ && governance_->isActive()) {
+                        std::string full_call = module_alias + "." + func_name;
+                        if (governance_->isTaintSource(full_call)) {
+                            governance_->setLastReturnTainted(true);
+                        } else if (governance_->isSanitizer(full_call)) {
+                            governance_->setLastReturnTainted(false);
+                        }
+                    }
                     LOG_TRACE("[SUCCESS] Stdlib function returned\n");
 
                     // Auto-mutation: If this is a mutating function, update the original variable

@@ -40,12 +40,16 @@ public:
     // Disable all resource limits (for cleanup)
     static void disableAll();
 
+    // Check if the current thread's execution timeout has been triggered.
+    // thread_local storage ensures one request's timeout does not affect others.
+    static bool isTimeoutTriggered() { return timeout_triggered_; }
+
 private:
     static void handleAlarm(int sig);
     static void handleCpuLimit(int sig);
 
     static bool initialized_;
-    static bool timeout_triggered_;
+    static thread_local bool timeout_triggered_;
 };
 
 // RAII helper for automatic timeout cleanup

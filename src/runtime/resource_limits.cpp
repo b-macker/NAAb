@@ -15,7 +15,13 @@ namespace security {
 
 // Static member initialization
 bool ResourceLimiter::initialized_ = false;
-bool ResourceLimiter::timeout_triggered_ = false;
+// thread_local: each thread (i.e. each REST API request) has its own flag.
+// A timeout on request N cannot contaminate request N+1 running concurrently.
+// NOTE: setExecutionTimeout() must be called from the thread that will execute
+// the script — the SIGALRM signal is delivered to whichever thread handles it,
+// which on Linux is typically the signalling thread or the process's main thread.
+// For multi-tenant use, prefer per-thread alarm delivery via timer_create(CLOCK_THREAD_CPUTIME_ID).
+thread_local bool ResourceLimiter::timeout_triggered_ = false;
 
 void ResourceLimiter::installSignalHandlers() {
     if (initialized_) {

@@ -2446,11 +2446,18 @@ void Interpreter::visit(ast::TryStmt& node) {
         auto* catch_clause = node.getCatchClause();
         current_env_->define(catch_clause->error_name, error_value);
 
-        // BUG-AB + REFACTOR-2: Scoped catch variable taint — save/restore outer taint state
+        // Finding D fix + BUG-AB + REFACTOR-2: Scoped catch variable taint.
+        // Save the pre-existing taint state for the catch variable name (almost always false
+        // since this is a new variable scoped to the catch block), then mark it TAINTED.
+        // The polyglot exception message (std_error.what()) is untrusted external input:
+        // it may contain API keys, tokens, or other sensitive data from the foreign runtime.
+        // Taint it so downstream sinks (http.post, file.write, etc.) block exfiltration.
+        // The restore lambda below clears the taint when the catch block exits, so the
+        // taint does not escape the catch scope.
         bool catch_var_was_tainted2 = false;
         if (governance_ && governance_->isActive()) {
             catch_var_was_tainted2 = governance_->isTainted(catch_clause->error_name);
-            governance_->clearTaint(catch_clause->error_name);
+            governance_->markTainted(catch_clause->error_name);  // Finding D: was clearTaint
         }
 
         // BUG-1: Lambda to restore catch variable taint on ALL exit paths (happy + throw)

@@ -107,6 +107,12 @@ MISSING_EXECUTOR_TESTS["quick_reference.naab"]=1            # needs C++ executor
 MISSING_EXECUTOR_TESTS["MONO_EXHAUSTIVE_TEST.naab"]=1        # needs blocks/library/ (gitignored, 132MB)
 MISSING_EXECUTOR_TESTS["test_extreme_edge_cases.naab"]=1     # needs multiple executors + blocks library
 MISSING_EXECUTOR_TESTS["polyglot_optimization_test.naab"]=1  # needs numpy, Go, Nim, Ruby
+# Finding G: these use 'use BLOCK-...' syntax which requires tree-walk + block executors
+MISSING_EXECUTOR_TESTS["api_server.naab"]=1               # uses BLOCK-CPP-VALIDATOR, BLOCK-JS-TEMPLATE
+MISSING_EXECUTOR_TESTS["data_pipeline.naab"]=1            # uses BLOCK-CPP-MATH, BLOCK-JS-CHART
+MISSING_EXECUTOR_TESTS["multi_language_analytics.naab"]=1 # uses BLOCK-PY-*, BLOCK-CPP-*, BLOCK-JS-*
+MISSING_EXECUTOR_TESTS["web_scraper.naab"]=1              # uses BLOCK-JS-FORMAT
+MISSING_EXECUTOR_TESTS["test_llvm_block.naab"]=1          # uses BLOCK-CPP-23886 (LLVM block)
 
 # Category 3: Files that are NOT standalone tests (should not be run directly)
 declare -A SKIP_FILES
@@ -661,6 +667,114 @@ if [ -f "$PIPE_SCRIPT" ]; then
     fi
 else
     echo "  test_pipe_mode.sh: not found, skipping"
+fi
+
+# --- VM UseStatement Error Tests (Finding G) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  VM UseStatement Error Tests (clear error, not crash)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+USESTMT_SCRIPT="tests/vm/test_use_statement_error.sh"
+if [ -f "$USESTMT_SCRIPT" ]; then
+    if bash "$USESTMT_SCRIPT" 2>&1; then
+        echo "  test_use_statement_error.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_use_statement_error.sh")
+    fi
+else
+    echo "  test_use_statement_error.sh: not found, skipping"
+fi
+
+# --- Symlink TOCTOU Tests (Finding F) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Symlink TOCTOU Tests (O_NOFOLLOW in sandboxed opens)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+SYMLINK_SCRIPT="tests/security/test_sandbox_symlink_f.sh"
+if [ -f "$SYMLINK_SCRIPT" ]; then
+    if bash "$SYMLINK_SCRIPT" 2>&1; then
+        echo "  test_sandbox_symlink_f.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_sandbox_symlink_f.sh")
+    fi
+else
+    echo "  test_sandbox_symlink_f.sh: not found, skipping"
+fi
+
+# --- Stdlib Import Shadowing Tests (Finding E) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Stdlib Import Shadowing Tests (bare import = stdlib)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+SHADOW_SCRIPT="tests/security/test_stdlib_shadow_e.sh"
+if [ -f "$SHADOW_SCRIPT" ]; then
+    if bash "$SHADOW_SCRIPT" 2>&1; then
+        echo "  test_stdlib_shadow_e.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_stdlib_shadow_e.sh")
+    fi
+else
+    echo "  test_stdlib_shadow_e.sh: not found, skipping"
+fi
+
+# --- Polyglot Exception Taint Tests (Finding D) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Polyglot Exception Taint Tests (error payload tainted)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+EXCTAINT_SCRIPT="tests/security/test_polyglot_exception_taint_d.sh"
+if [ -f "$EXCTAINT_SCRIPT" ]; then
+    if bash "$EXCTAINT_SCRIPT" 2>&1; then
+        echo "  test_polyglot_exception_taint_d.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_polyglot_exception_taint_d.sh")
+    fi
+else
+    echo "  test_polyglot_exception_taint_d.sh: not found, skipping"
+fi
+
+# --- Governance Function-Reference Tests (Finding C) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Governance Function-Reference Tests (taint via ref calls)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+FUNCREF_SCRIPT="tests/security/test_governance_funcref_c.sh"
+if [ -f "$FUNCREF_SCRIPT" ]; then
+    if bash "$FUNCREF_SCRIPT" 2>&1; then
+        echo "  test_governance_funcref_c.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_governance_funcref_c.sh")
+    fi
+else
+    echo "  test_governance_funcref_c.sh: not found, skipping"
+fi
+
+# --- Execution Timeout Tests (Findings A+B) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Execution Timeout Tests (--timeout, VM + thread-local)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+TIMEOUT_SCRIPT="tests/cli/test_timeout_ab.sh"
+if [ -f "$TIMEOUT_SCRIPT" ]; then
+    if bash "$TIMEOUT_SCRIPT" 2>&1; then
+        echo "  test_timeout_ab.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_timeout_ab.sh")
+    fi
+else
+    echo "  test_timeout_ab.sh: not found, skipping"
 fi
 
 # Print summary

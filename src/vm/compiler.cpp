@@ -936,9 +936,17 @@ void Compiler::visit(ast::IfExpr& node) {
     patchJump(end_jump);
 }
 
-// UseStatement: handled by ModuleUseStmt — this node type is a no-op in the compiler
+// Finding G fix: UseStatement is the block-loading form (use BLOCK-xyz).
+// The old silent no-op caused confusing crashes later; throw at compile time instead.
+// ModuleUseStmt (use math) is fully supported — see visit(ast::ModuleUseStmt&).
 void Compiler::visit(ast::UseStatement& node) {
     (void)node;
+    throw std::runtime_error(
+        "Compiler error: 'use BLOCK-...' block-loading syntax is not supported in VM mode.\n\n"
+        "  For stdlib modules use:   use math\n"
+        "  For file modules use:     use mymodule\n"
+        "  For block-loading syntax: run with --tree-walk\n"
+    );
 }
 
 void Compiler::visit(ast::FunctionDecl& node) {

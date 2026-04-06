@@ -1223,6 +1223,11 @@ int main(int argc, char** argv) {
                     }
                 }
 
+                // Finding A fix: arm SIGALRM for NAAb VM execution itself.
+                // Previously timeout only guarded polyglot subprocesses (security_config).
+                // ScopedTimeout disarms the alarm automatically on any exit path.
+                naab::security::ScopedTimeout vm_timeout(timeout);
+
                 try {
                     auto result = bytecode_vm.execute(main_fn);
                     (void)result;
@@ -1272,6 +1277,9 @@ int main(int argc, char** argv) {
             } else {
                 // Inner try-catch: write governance reports before re-throwing.
                 // The interpreter is alive here, so we can safely access it.
+                // Finding A fix: arm SIGALRM for tree-walker execution (mirrors VM path above).
+                naab::security::ScopedTimeout tw_timeout(timeout);
+
                 // On success, writeReports() is already called inside execute().
                 try {
                     interpreter.execute(*program);

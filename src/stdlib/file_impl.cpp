@@ -13,6 +13,11 @@
 #include <vector>
 #include <memory>
 #include <unordered_set>
+#ifndef _WIN32
+#  include <fcntl.h>   // open, O_RDONLY, O_WRONLY, O_CREAT, O_NOFOLLOW
+#  include <unistd.h>  // close
+#  include <cstdio>    // fdopen, fread, fwrite, fclose
+#endif
 
 namespace fs = std::filesystem;
 
@@ -79,6 +84,60 @@ static std::string resolveCanonical(const std::string& path) {
     return path;
 }
 
+// Finding F fix: open a file refusing to follow symlinks at the final path component.
+// Closes the TOCTOU window that remains between the second checkFileSandbox() and the
+// actual open: an attacker cannot swap the verified path for a symlink after the check.
+// Only used when a sandbox is active (same guard as resolveCanonical).
+// Returns a read string on success; throws on error.
+#ifndef _WIN32
+static std::string readFileNoFollow(const std::string& path) {
+    int fd = ::open(path.c_str(), O_RDONLY | O_NOFOLLOW);
+    if (fd < 0) {
+        if (errno == ELOOP || errno == ENOTDIR) {
+            throw std::runtime_error(
+                "Security: file.read() denied — path is a symlink\n\n"
+                "  Path: " + path + "\n\n"
+                "  Symlinks are not followed when the sandbox is active.\n"
+                "  Use a direct (non-symlink) path, or run with --sandbox-level unrestricted.\n");
+        }
+        throw std::runtime_error("Failed to open file: " + path);
+    }
+    std::string result;
+    char buf[8192];
+    ssize_t n;
+    while ((n = ::read(fd, buf, sizeof(buf))) > 0) {
+        result.append(buf, static_cast<size_t>(n));
+    }
+    ::close(fd);
+    if (n < 0) throw std::runtime_error("Failed to read file: " + path);
+    return result;
+}
+
+static void writeFileNoFollow(const std::string& path, const std::string& content, bool append_mode) {
+    int flags = O_WRONLY | O_CREAT | O_NOFOLLOW | (append_mode ? O_APPEND : O_TRUNC);
+    int fd = ::open(path.c_str(), flags, 0644);
+    if (fd < 0) {
+        if (errno == ELOOP || errno == ENOTDIR) {
+            throw std::runtime_error(
+                "Security: file.write() denied — path is a symlink\n\n"
+                "  Path: " + path + "\n\n"
+                "  Symlinks are not followed when the sandbox is active.\n"
+                "  Use a direct (non-symlink) path, or run with --sandbox-level unrestricted.\n");
+        }
+        throw std::runtime_error("Failed to open file for writing: " + path);
+    }
+    const char* data = content.data();
+    size_t remaining = content.size();
+    while (remaining > 0) {
+        ssize_t written = ::write(fd, data, remaining);
+        if (written < 0) { ::close(fd); throw std::runtime_error("Failed to write file: " + path); }
+        data += written;
+        remaining -= static_cast<size_t>(written);
+    }
+    ::close(fd);
+}
+#endif
+
 // Forward declarations of helper functions
 static std::string getString(const interpreter::NaabVal& val);
 static std::vector<std::string> getStringArray(const interpreter::NaabVal& val);
@@ -107,6 +166,13 @@ interpreter::NaabVal FileModule::call(
         checkFileSandbox(path, "read");
         std::string safe_path = resolveCanonical(path);
         if (safe_path != path) checkFileSandbox(safe_path, "read");
+#ifndef _WIN32
+        // Finding F fix: use O_NOFOLLOW when sandbox is active to close the TOCTOU
+        // window between checkFileSandbox and the actual open syscall.
+        if (security::ScopedSandbox::getCurrent()) {
+            return interpreter::NaabVal::makeString(readFileNoFollow(safe_path));
+        }
+#endif
         std::ifstream file(safe_path);
         if (!file.is_open()) {
             throw std::runtime_error("Failed to open file: " + path);
@@ -141,6 +207,13 @@ interpreter::NaabVal FileModule::call(
             }
         }
 
+#ifndef _WIN32
+        // Finding F fix: O_NOFOLLOW when sandbox is active
+        if (security::ScopedSandbox::getCurrent()) {
+            writeFileNoFollow(safe_path, content, false);
+            return interpreter::NaabVal::makeNull();
+        }
+#endif
         std::ofstream file(safe_path);
         if (!file.is_open()) {
             throw std::runtime_error(
@@ -179,6 +252,13 @@ interpreter::NaabVal FileModule::call(
             }
         }
 
+#ifndef _WIN32
+        // Finding F fix: O_NOFOLLOW when sandbox is active
+        if (security::ScopedSandbox::getCurrent()) {
+            writeFileNoFollow(safe_path, content, true);
+            return interpreter::NaabVal::makeNull();
+        }
+#endif
         std::ofstream file(safe_path, std::ios::app);
         if (!file.is_open()) {
             throw std::runtime_error(

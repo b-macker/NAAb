@@ -16,6 +16,7 @@
 7. [Exit Codes](#7-exit-codes)
 8. [Audit Logging](#8-audit-logging)
 9. [Common Patterns](#9-common-patterns)
+10. [Block Metadata Integrity (`blocks.db`)](#10-block-metadata-integrity-blocksdb)
 
 ---
 
@@ -432,6 +433,52 @@ naab-lang --governance-override script.naab
 
 Does **not** override HARD blocks (exit 3). Only bypasses SOFT enforcement.
 Always audit the override in your CI/CD logs.
+
+---
+
+## 10. Block Metadata Integrity (`blocks.db`)
+
+NAAb stores block registry metadata — including the `security_audited` flag, governance
+settings, and block hashes — in an SQLite database at `~/.naab/blocks.db`.
+
+### Risk
+
+If an attacker has write access to the user's home directory, they can modify `blocks.db`
+offline (e.g. with `sqlite3`) and set `security_audited = 1` on a malicious block. NAAb
+currently trusts this flag at load time without cryptographic verification.
+
+**This is a defense-in-depth concern, not an exploitable RCE path.** Exploitation requires
+prior write access to the user's home directory, at which point the attacker already has
+equivalent access to modify NAAb scripts directly.
+
+### Interim mitigation — restrict `blocks.db` permissions
+
+```bash
+chmod 600 ~/.naab/blocks.db
+```
+
+This prevents other local users from reading or modifying the block registry. Verify the
+permission is set correctly:
+
+```bash
+ls -la ~/.naab/blocks.db
+# Expected: -rw------- 1 <you> <group> ...
+```
+
+On new installations, `blocks.db` is created with mode 600 by default. If yours was
+created by an older build, set it manually.
+
+### Planned full mitigation (ENTERPRISE_REMEDIATION_PLAN.md §5.1)
+
+A future release will add HMAC-SHA256 integrity verification for all block metadata rows:
+
+1. On first run, generate a 256-bit key stored in `~/.naab/signing.key` (mode 600)
+2. When writing a metadata row, compute `HMAC-SHA256(key, json_serialize(metadata))`
+   and store it in a `signature` column
+3. On read, verify the HMAC before trusting `security_audited` or governance fields
+4. On verification failure: treat as `security_audited = false` and log to the audit logger
+
+Until this is implemented, the filesystem permission is the primary protection.
 
 ---
 
