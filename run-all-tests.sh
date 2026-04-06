@@ -777,6 +777,96 @@ else
     echo "  test_timeout_ab.sh: not found, skipping"
 fi
 
+# --- Taint Propagation Through Polyglot Blocks (V-VM-001) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Polyglot Taint Propagation Tests (bound input → output)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+VM001_SCRIPT="tests/security/test_taint_polyglot_vm001.sh"
+if [ -f "$VM001_SCRIPT" ]; then
+    if bash "$VM001_SCRIPT" 2>&1; then
+        echo "  test_taint_polyglot_vm001.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_taint_polyglot_vm001.sh")
+    fi
+else
+    echo "  test_taint_polyglot_vm001.sh: not found, skipping"
+fi
+
+# --- Serialization Depth Limit (V-VM-002) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Serialization Depth Limit Tests (no stack overflow)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+VM002_SCRIPT="tests/security/test_serialize_depth_vm002.sh"
+if [ -f "$VM002_SCRIPT" ]; then
+    if bash "$VM002_SCRIPT" 2>&1; then
+        echo "  test_serialize_depth_vm002.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_serialize_depth_vm002.sh")
+    fi
+else
+    echo "  test_serialize_depth_vm002.sh: not found, skipping"
+fi
+
+# --- JavaScript Timeout (V-RT-002) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  JavaScript Governance Timeout Tests (--timeout respected)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RT002_SCRIPT="tests/cli/test_js_timeout_rt002.sh"
+if [ -f "$RT002_SCRIPT" ]; then
+    if bash "$RT002_SCRIPT" 2>&1; then
+        echo "  test_js_timeout_rt002.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_js_timeout_rt002.sh")
+    fi
+else
+    echo "  test_js_timeout_rt002.sh: not found, skipping"
+fi
+
+# --- Async Worker Timeout (V-ASYNC-001) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Async Timeout Tests (global_shutdown_ visible to workers)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+ASYNC001_SCRIPT="tests/cli/test_async_timeout_async001.sh"
+if [ -f "$ASYNC001_SCRIPT" ]; then
+    if bash "$ASYNC001_SCRIPT" 2>&1; then
+        echo "  test_async_timeout_async001.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_async_timeout_async001.sh")
+    fi
+else
+    echo "  test_async_timeout_async001.sh: not found, skipping"
+fi
+
+# --- SQLite NULL Safety (V-REG-001) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  SQLite NULL Column Safety Tests (no SIGSEGV on corrupt DB)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+REG001_SCRIPT="tests/security/test_sqlite_null_reg001.sh"
+if [ -f "$REG001_SCRIPT" ]; then
+    if bash "$REG001_SCRIPT" 2>&1; then
+        echo "  test_sqlite_null_reg001.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_sqlite_null_reg001.sh")
+    fi
+else
+    echo "  test_sqlite_null_reg001.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

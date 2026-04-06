@@ -492,8 +492,12 @@ int JsExecutor::interruptHandler(JSRuntime* rt, void* opaque) {
     (void)rt;  // Unused
     JsExecutor* executor = static_cast<JsExecutor*>(opaque);
 
-    // Return 1 to interrupt execution if timeout triggered
-    return executor->timeout_triggered_ ? 1 : 0;
+    // V-RT-002 fix: also respect the process-level ResourceLimiter timeout so that
+    // --timeout N / ScopedTimeout correctly interrupts JavaScript blocks.
+    // executor->timeout_triggered_ is set by the internal 30s watchdog thread;
+    // ResourceLimiter::isTimeoutTriggered() reflects the governance/CLI --timeout value.
+    return (executor->timeout_triggered_ ||
+            naab::security::ResourceLimiter::isTimeoutTriggered()) ? 1 : 0;
 }
 
 // Static helper: Convert NaabVal to JSValue

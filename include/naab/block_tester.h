@@ -3,6 +3,7 @@
 // NAAb Block Testing Framework
 // Tests individual blocks in isolation before using them
 
+#include "naab/naab_val.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -91,7 +92,7 @@ private:
 
     // Check a single assertion
     bool checkAssertion(const Assertion& assertion,
-                        const std::shared_ptr<interpreter::Value>& result,
+                        const interpreter::NaabVal& result,
                         std::string& error_message);
 
     // Parse JSON test definition

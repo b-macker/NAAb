@@ -168,10 +168,10 @@ TestResult BlockTester::runSingleTest(const BlockTest& test) {
 }
 
 bool BlockTester::checkAssertion(const Assertion& assertion,
-                                  const std::shared_ptr<interpreter::Value>& result,
+                                  const interpreter::NaabVal& result,
                                   std::string& error_message) {
     // Get actual value as string
-    std::string actual = result->toString();
+    std::string actual = result.toString();
 
     switch (assertion.type) {
         case AssertionType::EQUALS:
@@ -190,7 +190,12 @@ bool BlockTester::checkAssertion(const Assertion& assertion,
 
         case AssertionType::GREATER_THAN:
             try {
-                int actual_int = result->toInt();
+                if (!result.isInt() && !result.isDouble()) {
+                    error_message = "Cannot compare as integers";
+                    return false;
+                }
+                int actual_int = result.isInt() ? static_cast<int>(result.asInt())
+                                                : static_cast<int>(result.asDouble());
                 int expected_int = std::stoi(assertion.expected);
                 if (actual_int <= expected_int) {
                     error_message = fmt::format("{} not > {}", actual_int, expected_int);
@@ -204,7 +209,12 @@ bool BlockTester::checkAssertion(const Assertion& assertion,
 
         case AssertionType::LESS_THAN:
             try {
-                int actual_int = result->toInt();
+                if (!result.isInt() && !result.isDouble()) {
+                    error_message = "Cannot compare as integers";
+                    return false;
+                }
+                int actual_int = result.isInt() ? static_cast<int>(result.asInt())
+                                                : static_cast<int>(result.asDouble());
                 int expected_int = std::stoi(assertion.expected);
                 if (actual_int >= expected_int) {
                     error_message = fmt::format("{} not < {}", actual_int, expected_int);
@@ -224,14 +234,13 @@ bool BlockTester::checkAssertion(const Assertion& assertion,
             return true;
 
         case AssertionType::TYPE_IS:
-            // Check type - simplified for demo
             if (assertion.expected == "int") {
-                if (!std::holds_alternative<int>(result->data)) {
+                if (!result.isInt()) {
                     error_message = fmt::format("Expected type: int, Got: {}", actual);
                     return false;
                 }
             } else if (assertion.expected == "string") {
-                if (!std::holds_alternative<std::string>(result->data)) {
+                if (!result.isString()) {
                     error_message = fmt::format("Expected type: string, Got: {}", actual);
                     return false;
                 }

@@ -1917,7 +1917,15 @@ void Interpreter::executePolyglotGroupParallel(const DependencyGroup& group) {
 }
 
 // Phase 2.2: Serialize a value for injection into target language
-std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::string& language) {
+std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::string& language, int depth) {
+    // V-VM-002: prevent unbounded recursion on deeply-nested structures
+    if (depth > 64) {
+        throw std::runtime_error(
+            "Serialization error: nested structure exceeds maximum depth (64).\n\n"
+            "  Polyglot blocks cannot serialize structures nested more than 64 levels.\n"
+            "  Flatten the structure before passing it to a polyglot block.\n"
+        );
+    }
     if (nval.isNull()) {
         // Null/void — language-specific null literals
         if (language == "python") return "None";
@@ -1994,7 +2002,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "array(";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i], language, depth + 1);
             }
             result += ")";
             return result;
@@ -2005,7 +2013,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "vec![";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i], language, depth + 1);
             }
             result += "]";
             return result;
@@ -2016,7 +2024,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "[]interface{}{";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i], language, depth + 1);
             }
             result += "}";
             return result;
@@ -2027,7 +2035,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "new System.Collections.Generic.List<object>{";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i], language, depth + 1);
             }
             result += "}";
             return result;
@@ -2040,7 +2048,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
                 // Serialize all as strings for simplicity
-                auto elem_str = serializeValueForLanguage(list[i], language);
+                auto elem_str = serializeValueForLanguage(list[i], language, depth + 1);
                 result += elem_str;
             }
             result += "}";
@@ -2052,7 +2060,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             std::string result = "@[";
             for (size_t i = 0; i < list.size(); i++) {
                 if (i > 0) result += ", ";
-                result += serializeValueForLanguage(list[i], language);
+                result += serializeValueForLanguage(list[i], language, depth + 1);
             }
             result += "]";
             return result;
@@ -2062,7 +2070,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
         std::string result = "[";
         for (size_t i = 0; i < list.size(); i++) {
             if (i > 0) result += ", ";
-            result += serializeValueForLanguage(list[i], language);
+            result += serializeValueForLanguage(list[i], language, depth + 1);
         }
         result += "]";
         return result;
@@ -2093,7 +2101,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language, depth + 1);
             }
             result += "}";
             return result;
@@ -2106,7 +2114,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\" => " + serializeValueForLanguage(val, language, depth + 1);
             }
             result += ")";
             return result;
@@ -2119,7 +2127,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language, depth + 1);
             }
             result += "}";
             return result;
@@ -2130,7 +2138,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             // Generate a block expression that creates a HashMap
             std::string result = "{ let mut __m = std::collections::HashMap::new(); ";
             for (const auto& [key, val] : dict) {
-                result += "__m.insert(\"" + escapeKey(key) + "\".to_string(), " + serializeValueForLanguage(val, language) + "); ";
+                result += "__m.insert(\"" + escapeKey(key) + "\".to_string(), " + serializeValueForLanguage(val, language, depth + 1) + "); ";
             }
             result += "__m }";
             return result;
@@ -2143,7 +2151,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language) + "}";
+                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language, depth + 1) + "}";
             }
             result += "}";
             return result;
@@ -2156,7 +2164,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             for (const auto& [key, val] : dict) {
                 if (!first) result += ", ";
                 first = false;
-                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language) + "}";
+                result += "{\"" + escapeKey(key) + "\", " + serializeValueForLanguage(val, language, depth + 1) + "}";
             }
             result += "}";
             return result;
@@ -2168,7 +2176,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
         for (const auto& [key, val] : dict) {
             if (!first) result += ", ";
             first = false;
-            result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language);
+            result += "\"" + escapeKey(key) + "\": " + serializeValueForLanguage(val, language, depth + 1);
         }
         result += "}";
         return result;
@@ -2183,7 +2191,7 @@ std::string Interpreter::serializeValueForLanguage(NaabVal nval, const std::stri
             if (!first) result += ", ";
             first = false;
             const auto& field = struct_val->definition->fields[i];
-            result += "\"" + field.name + "\": " + serializeValueForLanguage(struct_val->field_values[i], language);
+            result += "\"" + field.name + "\": " + serializeValueForLanguage(struct_val->field_values[i], language, depth + 1);
         }
         result += "}";
         return result;

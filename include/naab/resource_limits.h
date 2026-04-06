@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <string>
 #include <stdexcept>
@@ -40,9 +41,14 @@ public:
     // Disable all resource limits (for cleanup)
     static void disableAll();
 
-    // Check if the current thread's execution timeout has been triggered.
-    // thread_local storage ensures one request's timeout does not affect others.
-    static bool isTimeoutTriggered() { return timeout_triggered_; }
+    // Check if timeout has been triggered on this thread OR process-wide.
+    // thread_local flag: set when this specific thread received SIGALRM.
+    // global_shutdown_: set by the signal handler; visible to ALL threads,
+    // including async worker threads that never receive SIGALRM directly.
+    // Together they cover both the main execution thread and ThreadPool workers.
+    static bool isTimeoutTriggered() {
+        return timeout_triggered_ || global_shutdown_.load(std::memory_order_relaxed);
+    }
 
 private:
     static void handleAlarm(int sig);
@@ -50,6 +56,10 @@ private:
 
     static bool initialized_;
     static thread_local bool timeout_triggered_;
+    // V-ASYNC-001: process-wide flag visible to all threads (async workers).
+    // Set alongside timeout_triggered_ in signal handlers; cleared on each
+    // new setExecutionTimeout() call and in clearTimeout().
+    static std::atomic<bool> global_shutdown_;
 };
 
 // RAII helper for automatic timeout cleanup

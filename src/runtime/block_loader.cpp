@@ -49,11 +49,20 @@ public:
         }
     }
 
+    // V-REG-001: safely extract column text, returning empty string on NULL.
+    // sqlite3_column_text() returns NULL if the column value is SQL NULL or if
+    // the database is corrupted. Constructing std::string from a NULL pointer is
+    // undefined behavior and causes SIGSEGV.
+    static std::string safeColumnText(sqlite3_stmt* stmt, int col) {
+        const unsigned char* text = sqlite3_column_text(stmt, col);
+        return text ? reinterpret_cast<const char*>(text) : "";
+    }
+
     BlockMetadata parseRow(sqlite3_stmt* stmt) {
         BlockMetadata meta;
-        meta.block_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-        meta.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        meta.language = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        meta.block_id  = safeColumnText(stmt, 0);
+        meta.name      = safeColumnText(stmt, 1);
+        meta.language  = safeColumnText(stmt, 2);
 
         const char* category = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
         meta.category = category ? category : "";
@@ -61,8 +70,8 @@ public:
         const char* subcategory = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
         meta.subcategory = subcategory ? subcategory : "";
 
-        meta.file_path = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
-        meta.code_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
+        meta.file_path = safeColumnText(stmt, 5);
+        meta.code_hash = safeColumnText(stmt, 6);
         meta.token_count = sqlite3_column_int(stmt, 7);
         meta.times_used = sqlite3_column_int(stmt, 8);
 

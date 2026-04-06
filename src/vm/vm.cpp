@@ -336,7 +336,15 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
 // Polyglot Helpers (standalone — no Interpreter dependency)
 // ============================================================================
 
-static std::string serializeForLanguage(const interpreter::NaabVal& nval, const std::string& language) {
+static std::string serializeForLanguage(const interpreter::NaabVal& nval, const std::string& language, int depth = 0) {
+    // V-VM-002: prevent unbounded recursion on deeply-nested structures
+    if (depth > 64) {
+        throw std::runtime_error(
+            "Serialization error: nested structure exceeds maximum depth (64).\n\n"
+            "  Polyglot blocks cannot serialize structures nested more than 64 levels.\n"
+            "  Flatten the structure before passing it to a polyglot block.\n"
+        );
+    }
     if (nval.isNull()) {
         if (language == "python") return "None";
         if (language == "go") return "nil";
@@ -388,7 +396,7 @@ static std::string serializeForLanguage(const interpreter::NaabVal& nval, const 
         std::string result = prefix;
         for (size_t i = 0; i < list.size(); i++) {
             if (i > 0) result += ", ";
-            result += serializeForLanguage(list[i], language);
+            result += serializeForLanguage(list[i], language, depth + 1);
         }
         result += suffix;
         return result;
@@ -411,11 +419,11 @@ static std::string serializeForLanguage(const interpreter::NaabVal& nval, const 
             if (!first) result += ", ";
             first = false;
             if (language == "ruby")
-                result += "\"" + escapeKey(key) + "\" => " + serializeForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\" => " + serializeForLanguage(val, language, depth + 1);
             else if (language == "go")
-                result += "\"" + escapeKey(key) + "\": " + serializeForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\": " + serializeForLanguage(val, language, depth + 1);
             else
-                result += "\"" + escapeKey(key) + "\": " + serializeForLanguage(val, language);
+                result += "\"" + escapeKey(key) + "\": " + serializeForLanguage(val, language, depth + 1);
         }
         result += "}";
         if (language == "go") { result = "map[string]interface{}" + result; }
@@ -2295,9 +2303,17 @@ interpreter::NaabVal VM::run() {
                     }
 
                     push(result);
-                    // Governance: mark polyglot output as tainted if configured
+                    // Governance: mark polyglot output as tainted if:
+                    // (a) any bound input was tainted — V-VM-001: taint propagates through
+                    //     the block so downstream sinks can still catch the laundered value, OR
+                    // (b) polyglot_output / polyglot_output:<lang> is a configured taint source.
                     if (governance_ && governance_->isActive()) {
-                        if (governance_->isTaintSource("polyglot_output") ||
+                        bool any_input_tainted = false;
+                        for (bool bt : bound_taints) {
+                            if (bt) { any_input_tainted = true; break; }
+                        }
+                        if (any_input_tainted ||
+                            governance_->isTaintSource("polyglot_output") ||
                             governance_->isTaintSource("polyglot_output:" + language)) {
                             peekTaint(0) = true;
                         }

@@ -22,6 +22,11 @@ bool ResourceLimiter::initialized_ = false;
 // which on Linux is typically the signalling thread or the process's main thread.
 // For multi-tenant use, prefer per-thread alarm delivery via timer_create(CLOCK_THREAD_CPUTIME_ID).
 thread_local bool ResourceLimiter::timeout_triggered_ = false;
+// V-ASYNC-001: process-wide shutdown flag. Set by signal handlers alongside
+// timeout_triggered_. Unlike the thread_local flag, this is visible to ALL
+// threads — including ThreadPool workers that never receive SIGALRM directly.
+// Cleared by setExecutionTimeout() (new request) and clearTimeout() (RAII cleanup).
+std::atomic<bool> ResourceLimiter::global_shutdown_{false};
 
 void ResourceLimiter::installSignalHandlers() {
     if (initialized_) {
@@ -64,6 +69,8 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
         installSignalHandlers();
     }
 
+    // V-ASYNC-001: reset both flags at the start of each new execution budget.
+    global_shutdown_.store(false, std::memory_order_relaxed);
     timeout_triggered_ = false;
 
 #ifndef _WIN32
@@ -83,6 +90,7 @@ void ResourceLimiter::clearTimeout() {
     alarm(0);
 #endif
     timeout_triggered_ = false;
+    global_shutdown_.store(false, std::memory_order_relaxed);  // V-ASYNC-001
 }
 
 void ResourceLimiter::setMemoryLimit(size_t megabytes) {
@@ -159,6 +167,7 @@ void ResourceLimiter::disableAll() {
 void ResourceLimiter::handleAlarm(int sig) {
     (void)sig;  // Unused parameter
     timeout_triggered_ = true;
+    global_shutdown_.store(true, std::memory_order_relaxed);  // V-ASYNC-001: notify workers
 
     // Note: We can't throw exceptions from signal handlers
     // The timeout will be detected when control returns to normal code
@@ -167,6 +176,7 @@ void ResourceLimiter::handleAlarm(int sig) {
 void ResourceLimiter::handleCpuLimit(int sig) {
     (void)sig;  // Unused parameter
     timeout_triggered_ = true;
+    global_shutdown_.store(true, std::memory_order_relaxed);  // V-ASYNC-001: notify workers
 }
 
 } // namespace security
