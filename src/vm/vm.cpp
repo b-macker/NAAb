@@ -3,6 +3,7 @@
 #include "naab/debugger.h"
 #include "naab/governance.h"
 #include "naab/interpreter.h"
+#include "../interpreter/cycle_detector.h"  // V-RT-008: GC for VM
 #include "naab/profiler.h"
 #include "naab/json_result_parser.h"
 #include "naab/language_registry.h"
@@ -86,6 +87,7 @@ VM::VM()
     , taint_stack_(std::make_unique<bool[]>(STACK_MAX))
     , taint_top_(taint_stack_.get())
     , frames_(std::make_unique<CallFrame[]>(FRAMES_MAX))
+    , gc_detector_(std::make_unique<interpreter::CycleDetector>())  // V-RT-008
 {
     std::memset(taint_stack_.get(), 0, STACK_MAX * sizeof(bool));
 }
@@ -327,6 +329,14 @@ interpreter::NaabVal VM::callBuiltinFunction(const std::string& name, int argc,
         runtimeError("__slice() requires a list or string");
     }
     if (name == "gc_collect") {
+        // V-RT-008: collect VM stack values and globals as GC roots
+        if (gc_detector_ && gc_threshold_ > 0) {
+            std::vector<interpreter::NaabVal> roots;
+            roots.reserve(static_cast<size_t>(stack_top_ - stack_.get()) + globals_.size());
+            for (auto* p = stack_.get(); p < stack_top_; ++p) roots.push_back(*p);
+            for (auto& [k, v] : globals_) roots.push_back(v);
+            gc_detector_->detectAndCollect(nullptr, roots, {});
+        }
         return interpreter::NaabVal::makeNull();
     }
     runtimeError("Unknown built-in function '%s'", name.c_str());
@@ -1176,6 +1186,16 @@ interpreter::NaabVal VM::run() {
                     count++;
                     std::string err = governance_->checkLoopIterations(static_cast<size_t>(count));
                     if (!err.empty()) runtimeError("%s", err.c_str());
+                }
+                // V-RT-008: periodic GC at loop back-edges to reclaim cycle garbage
+                if (gc_detector_ && gc_threshold_ > 0 &&
+                    ++gc_instruction_count_ >= gc_threshold_) {
+                    gc_instruction_count_ = 0;
+                    std::vector<interpreter::NaabVal> roots;
+                    roots.reserve(static_cast<size_t>(stack_top_ - stack_.get()) + globals_.size());
+                    for (auto* p = stack_.get(); p < stack_top_; ++p) roots.push_back(*p);
+                    for (auto& [k, v] : globals_) roots.push_back(v);
+                    gc_detector_->detectAndCollect(nullptr, roots, {});
                 }
             }
                 VM_NEXT();
@@ -2344,20 +2364,12 @@ interpreter::NaabVal VM::run() {
                     }
 
                     push(result);
-                    // Governance: mark polyglot output as tainted if:
-                    // (a) any bound input was tainted — V-VM-001: taint propagates through
-                    //     the block so downstream sinks can still catch the laundered value, OR
-                    // (b) polyglot_output / polyglot_output:<lang> is a configured taint source.
+                    // V-GOV-006: All polyglot block outputs are unconditionally tainted when
+                    // governance is active. Foreign-language data is untrusted by definition —
+                    // the marshalling layer (JSON/subprocess) cannot preserve taint metadata,
+                    // so we conservatively taint all cross-language return values.
                     if (governance_ && governance_->isActive()) {
-                        bool any_input_tainted = false;
-                        for (bool bt : bound_taints) {
-                            if (bt) { any_input_tainted = true; break; }
-                        }
-                        if (any_input_tainted ||
-                            governance_->isTaintSource("polyglot_output") ||
-                            governance_->isTaintSource("polyglot_output:" + language)) {
-                            peekTaint(0) = true;
-                        }
+                        peekTaint(0) = true;
                     }
                 } catch (const std::exception& e) {
                     runtimeError("Polyglot %s error: %s", language.c_str(), e.what());

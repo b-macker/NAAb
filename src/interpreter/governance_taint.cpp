@@ -176,19 +176,13 @@ bool Interpreter::checkRhsTainted(ast::Expr* rhs_expr) {
             if (governance_->isTaintSource(id->getName())) return true;
         }
     }
-    // Polyglot output source (FIX-DX-12: per-language taint)
-    if (auto* ice = dynamic_cast<ast::InlineCodeExpr*>(rhs_expr)) {
-        if (governance_->isTaintSource("polyglot_output") ||
-            governance_->isTaintSource("polyglot_output:" + ice->getLanguage()))
-            return true;
-        // Finding F fix: auto-propagate taint from bound input variables to return value.
-        // If any variable passed INTO the polyglot block is tainted, the return value
-        // inherits that taint — prevents silent "laundering" through polyglot calls.
-        if (governance_->getRules().taint_tracking.enabled) {
-            for (const auto& bv : ice->getBoundVariables()) {
-                if (governance_->isTainted(bv)) return true;
-            }
-        }
+    // Polyglot output source
+    if (dynamic_cast<ast::InlineCodeExpr*>(rhs_expr) != nullptr) {
+        // V-GOV-006: All polyglot block outputs are unconditionally tainted when
+        // governance is active. Foreign-language data is untrusted by definition —
+        // the marshalling layer (JSON/subprocess) cannot preserve taint metadata,
+        // so we conservatively taint all cross-language return values.
+        return true;
     }
 
     // 2. Propagation (tainted variable in expression tree)

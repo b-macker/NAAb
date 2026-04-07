@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Test V-GOV-007: naab-lang must fail-closed (exit 4) when no govern.json
+# is found and --no-governance is not specified.
+
+NAAB="${NAAB_BIN:-$(dirname "$0")/../../build/naab-lang}"
+PASS=0; FAIL=0; SKIP=0
+
+pass() { echo "  PASS: $1"; ((PASS++)); }
+fail() { echo "  FAIL: $1"; ((FAIL++)); }
+skip() { echo "  SKIP: $1"; ((SKIP++)); }
+
+# Use a temp dir that is NOT under .naab/language/tests/ so it won't
+# inherit tests/govern.json through the upward-search logic.
+WORK_DIR=$(mktemp -d -p "$HOME" .naab_gov007_XXXXXX 2>/dev/null || mktemp -d)
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+echo "=== V-GOV-007: Fail-Closed Default Governance ==="
+
+# Minimal NAAb script — just prints hello (no polyglot, no special operations)
+cat > "$WORK_DIR/hello.naab" <<'EOF'
+use io
+main {
+    io.write("hello\n")
+}
+EOF
+
+# T1: No govern.json, no --no-governance → must exit 4 (config error)
+echo ""
+echo "[T1] No govern.json, no --no-governance → must exit 4"
+output=$("$NAAB" "$WORK_DIR/hello.naab" 2>&1) || exit_code=$?
+exit_code=${exit_code:-0}
+if [[ $exit_code -eq 4 ]]; then
+    pass "T1: exit 4 — fail-closed default governance"
+elif [[ $exit_code -eq 0 ]]; then
+    fail "T1: exit 0 — ran without govern.json (fail-open, V-GOV-007 not fixed)"
+else
+    # Check for governance-related error message even if exit code differs
+    if echo "$output" | grep -qiE "(govern|require|no govern.json|missing.*govern)"; then
+        pass "T1: governance error message present (exit $exit_code)"
+    else
+        fail "T1: unexpected exit $exit_code without governance message: ${output:0:200}"
+    fi
+fi
+
+# T2: --no-governance → explicit opt-out, must succeed (exit 0)
+echo ""
+echo "[T2] --no-governance explicit opt-out → script runs normally"
+output=$("$NAAB" --no-governance "$WORK_DIR/hello.naab" 2>&1)
+exit_code=$?
+if [[ $exit_code -eq 0 ]]; then
+    pass "T2: --no-governance: script ran successfully without govern.json"
+else
+    fail "T2: --no-governance should allow running without govern.json (exit $exit_code): ${output:0:200}"
+fi
+
+# T3: govern.json present in script directory → must succeed (exit 0)
+echo ""
+echo "[T3] With govern.json present → script runs normally"
+cat > "$WORK_DIR/govern.json" <<'EOF'
+{
+  "mode": "off"
+}
+EOF
+output=$("$NAAB" "$WORK_DIR/hello.naab" 2>&1)
+exit_code=$?
+if [[ $exit_code -eq 0 ]]; then
+    pass "T3: govern.json present → script ran successfully"
+elif [[ $exit_code -eq 4 ]]; then
+    fail "T3: exit 4 even with govern.json present — discoverAndLoad may not be finding it"
+else
+    fail "T3: unexpected exit $exit_code with govern.json present: ${output:0:200}"
+fi
+
+echo ""
+echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"
+[ $FAIL -eq 0 ]

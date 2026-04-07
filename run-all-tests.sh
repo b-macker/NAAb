@@ -1065,6 +1065,60 @@ else
     echo "  test_alarm_delivery_rt007.sh: not found, skipping"
 fi
 
+# --- Polyglot Return Taint (V-GOV-006) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Polyglot Return Taint Tests (unconditional taint from polyglot outputs)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+GOV006_SCRIPT="tests/security/test_polyglot_taint_gov006.sh"
+if [ -f "$GOV006_SCRIPT" ]; then
+    if bash "$GOV006_SCRIPT" 2>&1; then
+        echo "  test_polyglot_taint_gov006.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_polyglot_taint_gov006.sh")
+    fi
+else
+    echo "  test_polyglot_taint_gov006.sh: not found, skipping"
+fi
+
+# --- Fail-Closed Default Governance (V-GOV-007) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Fail-Closed Governance Tests (exit 4 when no govern.json)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+GOV007_SCRIPT="tests/security/test_require_governance_gov007.sh"
+if [ -f "$GOV007_SCRIPT" ]; then
+    if bash "$GOV007_SCRIPT" 2>&1; then
+        echo "  test_require_governance_gov007.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_require_governance_gov007.sh")
+    fi
+else
+    echo "  test_require_governance_gov007.sh: not found, skipping"
+fi
+
+# --- VM GC Cycle Detection (V-RT-008) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  VM GC Tests (gc_collect() implemented, periodic trigger fires)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RT008_SCRIPT="tests/security/test_vm_gc_rt008.sh"
+if [ -f "$RT008_SCRIPT" ]; then
+    if bash "$RT008_SCRIPT" 2>&1; then
+        echo "  test_vm_gc_rt008.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_vm_gc_rt008.sh")
+    fi
+else
+    echo "  test_vm_gc_rt008.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

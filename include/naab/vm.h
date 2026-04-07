@@ -25,6 +25,7 @@ namespace debugger { class Debugger; }
 namespace stdlib { class StdLib; }
 namespace modules { class ModuleResolver; }
 namespace runtime { class Executor; }
+namespace interpreter { class CycleDetector; }  // V-RT-008: GC
 
 namespace vm {
 
@@ -341,6 +342,7 @@ public:
     void setModuleResolver(modules::ModuleResolver* mr) { module_resolver_ = mr; }
     void setGovernanceVerbose(bool v) { governance_verbose_ = v; }
     governance::GovernanceEngine* getGovernance() const { return governance_; }
+    void setGCThreshold(size_t t) { gc_threshold_ = t; }  // V-RT-008
 
     // Debugger: get current scope variables (slot → name mapping)
     std::map<std::string, interpreter::NaabVal> getCurrentScopeVariables() const;
@@ -421,6 +423,14 @@ private:
     // each fromLegacy() call allocates a new handle even for the same Value object.
     // toLegacy().get() returns the stable raw Value* shared by all NaabVal copies.
     std::unordered_set<const void*> tainted_containers_;
+
+    // V-RT-008: GC cycle detector + instruction-count trigger
+    // gc_detector_ runs mark-and-sweep on the VM stack + globals as roots.
+    // gc_instruction_count_ increments at each OP_JUMP_BACK (loop back-edge).
+    // gc_threshold_ matches the tree-walker's global_gc_threshold (default 5000).
+    std::unique_ptr<interpreter::CycleDetector> gc_detector_;
+    size_t gc_instruction_count_ = 0;
+    size_t gc_threshold_ = 5000;
 
     // Core dispatch loop
     interpreter::NaabVal run();

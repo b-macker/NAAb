@@ -293,7 +293,9 @@ int main(int argc, char** argv) {
     bool global_pipe_mode = false;
     bool global_governance_override = false;
     bool global_no_governance = false;
-    bool global_require_governance = false;
+    // V-GOV-007: fail-closed by default — require govern.json unless explicitly opted out.
+    // Use --no-governance to run without a governance file (must be explicit).
+    bool global_require_governance = true;
     bool global_governance_verbose = false;
     bool global_verbose = false;
     bool global_profile = false;
@@ -1051,6 +1053,7 @@ int main(int argc, char** argv) {
                     if (governance_verbose) bytecode_vm.setGovernanceVerbose(true);
                     bytecode_vm.setGovernance(&vm_governance);
                 }
+                bytecode_vm.setGCThreshold(gc_threshold);  // V-RT-008
 
                 // Profiler
                 bytecode_vm.setProfileMode(profile);

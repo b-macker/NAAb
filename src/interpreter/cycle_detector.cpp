@@ -99,14 +99,13 @@ size_t CycleDetector::detectAndCollect(
     const std::vector<NaabVal>& extra_roots,
     const std::vector<std::shared_ptr<Environment>>& extra_envs)
 {
-    if (!root_env) {
-        return 0;
-    }
-
-    // Phase 1: Mark — find all reachable values from roots
+    // V-RT-008: allow null root_env for VM caller (VM uses flat stack, not Environment).
+    // If root_env is null, skip env traversal — use extra_roots and extra_envs only.
     std::unordered_set<uint64_t> reachable;
 
-    markFromEnvironment(root_env, reachable);
+    if (root_env) {
+        markFromEnvironment(root_env, reachable);
+    }
 
     // Mark additional environments (e.g., env_stack_ entries)
     for (const auto& env : extra_envs) {
