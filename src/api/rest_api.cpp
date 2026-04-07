@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 #include "naab/lexer.h"
 #include "naab/parser.h"
+#include "naab/error_sanitizer.h"
 #include <sstream>
 #include <filesystem>
 
@@ -75,7 +76,8 @@ public:
                     req_interpreter->setSourceCode(code, cwd + "/api-request.naab");
                     req_interpreter->execute(*program);
                 } catch (const std::exception& e) {
-                    error_msg = e.what();
+                    // V-ERR-002: sanitize error messages before returning to caller
+                    error_msg = naab::error::ErrorSanitizer::sanitize(e.what());
                     exit_code = 1;
                 } catch (...) {
                     error_msg = "Unknown error during execution";
@@ -103,7 +105,8 @@ public:
                 res.status = 500;
                 json error_response = {
                     {"error", "Internal server error"},
-                    {"message", e.what()},
+                    // V-ERR-002: sanitize before returning to caller
+                    {"message", naab::error::ErrorSanitizer::sanitize(e.what())},
                     {"status", "error"}
                 };
                 res.set_content(error_response.dump(2), "application/json");
@@ -282,6 +285,39 @@ public:
             res.set_content(error_response.dump(2), "application/json");
         });
     }
+
+    // V-API-001: apply body size cap and optional API key auth.
+    // Called after construction so the outer RestApiServer members are set.
+    void applySecurityConfig(const std::string& api_key, size_t max_body_bytes) {
+        // Body size cap — reject oversized requests before handlers run
+        server.set_payload_max_length(max_body_bytes);
+
+        // API key guard — skip if no key configured (auth disabled)
+        if (api_key.empty()) return;
+
+        server.set_pre_routing_handler(
+            [api_key](const httplib::Request& req, httplib::Response& res) {
+                // /health is always public — no key required
+                if (req.path == "/health") {
+                    return httplib::Server::HandlerResponse::Unhandled;
+                }
+                bool ok = false;
+                if (req.has_header("Authorization")) {
+                    ok = (req.get_header_value("Authorization") == "Bearer " + api_key);
+                }
+                if (!ok && req.has_header("X-API-Key")) {
+                    ok = (req.get_header_value("X-API-Key") == api_key);
+                }
+                if (!ok) {
+                    res.status = 401;
+                    res.set_content(
+                        nlohmann::json{{"error","Unauthorized"},{"status","error"}}.dump(2),
+                        "application/json");
+                    return httplib::Server::HandlerResponse::Handled;
+                }
+                return httplib::Server::HandlerResponse::Unhandled;
+            });
+    }
 };
 
 // RestApiServer implementation
@@ -291,6 +327,18 @@ RestApiServer::RestApiServer(int port, const std::string& host)
       host_(host),
       running_(false) {
     spdlog::info("REST API server created on {}:{}", host_, port_);
+}
+
+void RestApiServer::setApiKey(const std::string& key) {
+    api_key_ = key;
+    impl_->applySecurityConfig(api_key_, max_body_bytes_);
+    spdlog::info("REST API: API key authentication enabled");
+}
+
+void RestApiServer::setMaxBodySize(size_t bytes) {
+    max_body_bytes_ = bytes;
+    impl_->applySecurityConfig(api_key_, max_body_bytes_);
+    spdlog::info("REST API: max body size set to {} bytes", bytes);
 }
 
 RestApiServer::~RestApiServer() {

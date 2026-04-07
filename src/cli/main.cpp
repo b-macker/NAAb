@@ -12,6 +12,7 @@
 #include "naab/module_resolver.h"
 #include "naab/type_checker.h"
 #include "naab/error_reporter.h"
+#include "naab/error_sanitizer.h"
 #include "../formatter/formatter.h"
 #include "naab/language_registry.h"
 #include "naab/block_search_index.h"
@@ -1407,18 +1408,21 @@ int main(int argc, char** argv) {
 
         } catch (const naab::interpreter::NaabError& e) {
             // NaabError has full stack trace - print it
-            fmt::print("{}\n", e.formatError());
+            // V-ERR-002: sanitize before displaying to prevent sensitive data leakage
+            fmt::print("{}\n", naab::error::ErrorSanitizer::sanitize(e.formatError()));
             fflush(stdout);
             fflush(stderr);
             if (naab::governance::g_governance_hard_block) _exit(3);
             _exit(1);
         } catch (const std::exception& e) {
-            std::string msg = e.what();
+            // V-ERR-002: keep raw_msg for exit-code detection; display sanitized version
+            std::string raw_msg = e.what();
+            std::string msg = naab::error::ErrorSanitizer::sanitize(raw_msg);
             fmt::print("Error: {}\n", msg);
             fflush(stdout);
             fflush(stderr);
             if (naab::governance::g_governance_hard_block) _exit(3);
-            if (msg.find("Governance config error:") == 0) _exit(4);
+            if (raw_msg.find("Governance config error:") == 0) _exit(4);
             _exit(1);
         }
 
@@ -2235,18 +2239,30 @@ int main(int argc, char** argv) {
     } else if (command == "api") {
         // Start REST API server (Phase 4.7)
         int port = 8080; // Default port
-        if (argc >= 3) {
-            try {
-                port = std::stoi(argv[2]);
-            } catch (...) {
-                fmt::print("Error: Invalid port number\n");
-                return 1;
+        std::string api_key;
+        size_t max_body = 1048576; // 1 MiB default
+
+        // Scan all argv for api flags (port is positional arg 2 if numeric)
+        for (int i = 2; i < argc; ++i) {
+            std::string arg = argv[i];
+            if (arg == "--api-key" && i + 1 < argc) {
+                api_key = argv[++i];
+            } else if (arg == "--max-body" && i + 1 < argc) {
+                try { max_body = static_cast<size_t>(std::stoull(argv[++i])); }
+                catch (...) { fmt::print("Error: Invalid --max-body value\n"); return 1; }
+            } else if (i == 2 && arg[0] != '-') {
+                try { port = std::stoi(arg); }
+                catch (...) { fmt::print("Error: Invalid port number\n"); return 1; }
             }
         }
 
         try {
             // Create REST API server
             naab::api::RestApiServer server(port, "0.0.0.0");
+
+            // V-API-001: apply body size cap and optional API key auth
+            server.setMaxBodySize(max_body);
+            if (!api_key.empty()) server.setApiKey(api_key);
 
             // Set up block loader for API endpoints
             std::string db_path = NAAB_DATABASE_PATH;

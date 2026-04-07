@@ -51,6 +51,8 @@ static void printHelp() {
         "\n"
         "lint OPTIONS:\n"
         "  --config <govern.json>  Use this govern.json instead of auto-discovery\n"
+        "  --config-from-file      Discover govern.json from the scanned file's directory\n"
+        "                          (default: discover from CWD — safer for untrusted files)\n"
         "  --sarif <file>          Write findings as SARIF to <file>\n"
         "  --junit <file>          Write findings as JUnit XML to <file>\n"
         "  --env <name>            Apply named environment overlay from govern.json\n"
@@ -84,6 +86,7 @@ static int cmdLint(const std::vector<std::string>& args) {
     std::string sarif_path;
     std::string junit_path;
     std::string env_name;
+    bool config_from_file = false; // V-GOV-009: opt-in to source-relative discovery
 
     // Parse args
     for (size_t i = 0; i < args.size(); ++i) {
@@ -95,6 +98,8 @@ static int cmdLint(const std::vector<std::string>& args) {
             junit_path = args[++i];
         } else if (args[i] == "--env" && i + 1 < args.size()) {
             env_name = args[++i];
+        } else if (args[i] == "--config-from-file") {
+            config_from_file = true;
         } else if (args[i][0] != '-') {
             source_path = args[i];
         } else {
@@ -136,8 +141,14 @@ static int cmdLint(const std::vector<std::string>& args) {
             return 4;
         }
     } else {
-        // Discover from source file's directory upward
-        std::string dir = fs::path(fs::absolute(source_path)).parent_path().string();
+        // V-GOV-009: discover from CWD (caller's project root) by default.
+        // An attacker-supplied file sitting next to its own govern.json cannot
+        // override the scanner's governance policy this way.
+        // Use --config-from-file to opt back into source-relative discovery
+        // (useful in monorepos where each subdirectory owns its govern.json).
+        std::string dir = config_from_file
+            ? fs::path(fs::absolute(source_path)).parent_path().string()
+            : fs::current_path().string();
         loaded = engine.discoverAndLoad(dir);
         if (!loaded) {
             std::cerr << "naab-gov lint: no govern.json found (starting from "
@@ -270,8 +281,8 @@ static int cmdScan(const std::vector<std::string>& args) {
 
     naab::scanner::ScannerEngine scanner;
 
-    // Load config (discovered from target path)
-    scanner.loadConfig(target_path);
+    // V-GOV-009: discover governance config from CWD, not the target path
+    scanner.loadConfig(fs::current_path().string());
 
     // Run scan
     naab::scanner::ScanResult result = scanner.scan(target_path, language);
