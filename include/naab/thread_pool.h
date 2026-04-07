@@ -8,6 +8,8 @@
 #include <functional>
 #include <future>
 #include <memory>
+#include <stdexcept>
+#include <string>
 
 namespace naab {
 namespace runtime {
@@ -16,13 +18,15 @@ namespace runtime {
 // Limits concurrent threads to avoid exhaustion on Android
 class ThreadPool {
 public:
-    // Create thread pool with specified number of worker threads
-    // Default: 8 workers (good balance for most devices)
-    explicit ThreadPool(size_t num_threads = 8);
+    // Create thread pool with specified number of worker threads.
+    // Default: 8 workers. max_queue_size (default 1000) caps the pending task
+    // queue — enqueue() throws when the queue is full (V-ASYNC-002).
+    explicit ThreadPool(size_t num_threads = 8, size_t max_queue_size = 1000);
 
     ~ThreadPool();
 
-    // Submit a task and get a future for the result
+    // Submit a task and get a future for the result.
+    // Throws std::runtime_error if the queue is full (>= max_queue_size tasks pending).
     template<typename F, typename... Args>
     auto enqueue(F&& f, Args&&... args)
         -> std::future<typename std::result_of<F(Args...)>::type>;
@@ -49,6 +53,10 @@ private:
 
     // Shutdown flag
     bool stop_;
+
+    // V-ASYNC-002: maximum number of tasks allowed in the queue at once.
+    // Prevents memory exhaustion when async tasks are spawned in a tight loop.
+    size_t max_queue_size_;
 };
 
 // Template implementation must be in header
@@ -70,6 +78,17 @@ auto ThreadPool::enqueue(F&& f, Args&&... args)
         // Don't allow enqueueing after stopping the pool
         if (stop_) {
             throw std::runtime_error("ThreadPool: Cannot enqueue on stopped pool");
+        }
+
+        // V-ASYNC-002: reject when queue is full to prevent memory exhaustion.
+        // Caller (async dispatch) should propagate this as a runtime error.
+        if (tasks_.size() >= max_queue_size_) {
+            throw std::runtime_error(
+                "Async queue full: " + std::to_string(max_queue_size_) +
+                " tasks pending. Await existing tasks before enqueuing more.\n\n"
+                "  Fix: add 'await' calls between async spawning loops,\n"
+                "  or reduce the number of concurrent async tasks.\n"
+            );
         }
 
         tasks_.emplace([task]() { (*task)(); });

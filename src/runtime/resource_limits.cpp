@@ -8,6 +8,9 @@
 #  include <unistd.h>
 #  include <sys/resource.h>
 #  include <cerrno>
+#  include <pthread.h>
+#  include <thread>
+#  include <chrono>
 #else
 #  include <thread>
 #  include <chrono>
@@ -32,6 +35,9 @@ thread_local bool ResourceLimiter::timeout_triggered_ = false;
 std::atomic<bool> ResourceLimiter::global_shutdown_{false};
 #ifdef _WIN32
 std::atomic<bool> ResourceLimiter::win_timer_cancel_{false};
+#else
+// V-RT-007: cancel flag for the POSIX timer thread (set by clearTimeout()).
+std::atomic<bool> ResourceLimiter::posix_timer_cancel_{false};
 #endif
 
 void ResourceLimiter::installSignalHandlers() {
@@ -80,8 +86,24 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
     timeout_triggered_ = false;
 
 #ifndef _WIN32
-    // Set alarm for execution timeout
-    alarm(seconds);
+    // V-RT-007: capture the calling thread's id by value so the timer thread
+    // can call pthread_kill() on the exact thread, not a random one in the pool.
+    // tid is NOT stored as a static — it lives in the lambda closure so each
+    // concurrent call to setExecutionTimeout() has its own independent timer.
+    pthread_t tid = pthread_self();
+    posix_timer_cancel_.store(false, std::memory_order_relaxed);
+    std::thread([seconds, tid]() {
+        using clock = std::chrono::steady_clock;
+        auto deadline = clock::now() + std::chrono::seconds(seconds);
+        while (clock::now() < deadline) {
+            if (ResourceLimiter::posix_timer_cancel_.load(std::memory_order_relaxed)) return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        if (!ResourceLimiter::posix_timer_cancel_.load(std::memory_order_relaxed)) {
+            pthread_kill(tid, SIGALRM);
+        }
+    }).detach();
+    alarm(0);  // cancel any prior system-level alarm
 #else
     // Windows has no alarm(). Spawn a detached timer thread that polls
     // win_timer_cancel_ every 50ms and sets global_shutdown_ at the deadline.
@@ -107,7 +129,8 @@ void ResourceLimiter::setExecutionTimeout(unsigned int seconds) {
 
 void ResourceLimiter::clearTimeout() {
 #ifndef _WIN32
-    // Cancel any pending alarm
+    // V-RT-007: cancel the posix timer thread and any residual system alarm.
+    posix_timer_cancel_.store(true, std::memory_order_relaxed);
     alarm(0);
 #else
     // Signal the Windows timer thread to exit without setting global_shutdown_.

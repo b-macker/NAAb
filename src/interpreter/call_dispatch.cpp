@@ -143,9 +143,13 @@ NaabVal Interpreter::callFunction(NaabVal fn,
         std::string gov_path;
         // BUG-AC: Capture taint state to propagate to async interpreter
         std::unordered_set<std::string> parent_taint;
+        // V-GOV-004: Capture counter state so async tasks inherit parent's accumulated counts.
+        // Without this, each async task starts with polyglot_block_count_=0, bypassing limits.
+        naab::governance::GovernanceEngine::CounterState parent_counters;
         if (governance_ && governance_->isActive()) {
             gov_path = governance_->getLoadedPath();
-            parent_taint = governance_->saveTaintState();
+            parent_taint    = governance_->saveTaintState();
+            parent_counters = governance_->saveCounterState();
         }
 
         // BUG-AwaitExpr fix: Create FutureValue BEFORE lambda so lambda can capture taint flag
@@ -154,7 +158,7 @@ NaabVal Interpreter::callFunction(NaabVal fn,
         future_val->func_name = func->name;  // BUG-K: for return contract check at await
         auto taint_flag = future_val->return_tainted;  // shared_ptr copy for lifetime safety
 
-        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path, parent_taint, taint_flag]() -> NaabVal {
+        auto shared_future = std::async(std::launch::async, [body, func_env, global, func_name, gov_path, parent_taint, parent_counters, taint_flag]() -> NaabVal {
             Interpreter async_interp;
             async_interp.setGlobalEnv(global);
 
@@ -168,6 +172,8 @@ NaabVal Interpreter::callFunction(NaabVal fn,
                     if (!parent_taint.empty()) {
                         gov->restoreTaintState(parent_taint);
                     }
+                    // V-GOV-004: Restore parent counter state so limits are not bypassed
+                    gov->restoreCounterState(parent_counters);
                 }
             }
 

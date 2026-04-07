@@ -2867,6 +2867,26 @@ void GovernanceEngine::restoreTaintState(const std::unordered_set<std::string>& 
     taint_set_ = state;
 }
 
+// V-GOV-004: counter state save/restore for async task inheritance.
+// Each async task creates a fresh Interpreter with zeroed counters; restoring
+// the parent's counters ensures limits like polyglot_blocks are enforced
+// across the full execution (parent + all async tasks combined).
+GovernanceEngine::CounterState GovernanceEngine::saveCounterState() const {
+    CounterState s;
+    s.polyglot_block_count = polyglot_block_count_;
+    s.total_polyglot_lines = total_polyglot_lines_;
+    s.advisory_count       = advisory_count_;
+    s.advisory_suppressed  = advisory_suppressed_;
+    return s;
+}
+
+void GovernanceEngine::restoreCounterState(const CounterState& s) {
+    polyglot_block_count_ = s.polyglot_block_count;
+    total_polyglot_lines_ = s.total_polyglot_lines;
+    advisory_count_       = s.advisory_count;
+    advisory_suppressed_  = s.advisory_suppressed;
+}
+
 // BUG-D: Track function return taint
 bool GovernanceEngine::lastReturnWasTainted() const {
     return last_return_tainted_;

@@ -1011,6 +1011,60 @@ else
     echo "  test_js_marshal_depth_rt006.sh: not found, skipping"
 fi
 
+# --- Async Governance Counter Inheritance (V-GOV-004) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  Async Governance Counter Tests (counters inherited by async tasks)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+GOV004_SCRIPT="tests/security/test_async_counter_gov004.sh"
+if [ -f "$GOV004_SCRIPT" ]; then
+    if bash "$GOV004_SCRIPT" 2>&1; then
+        echo "  test_async_counter_gov004.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_async_counter_gov004.sh")
+    fi
+else
+    echo "  test_async_counter_gov004.sh: not found, skipping"
+fi
+
+# --- ThreadPool Queue Cap (V-ASYNC-002) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  ThreadPool Queue Cap Tests (queue-full error, not OOM)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+ASYNC002_SCRIPT="tests/security/test_queue_cap_async002.sh"
+if [ -f "$ASYNC002_SCRIPT" ]; then
+    if bash "$ASYNC002_SCRIPT" 2>&1; then
+        echo "  test_queue_cap_async002.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_queue_cap_async002.sh")
+    fi
+else
+    echo "  test_queue_cap_async002.sh: not found, skipping"
+fi
+
+# --- Reliable POSIX Alarm Delivery (V-RT-007) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "  POSIX Alarm Delivery Tests (--timeout hits correct thread)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
+RT007_SCRIPT="tests/security/test_alarm_delivery_rt007.sh"
+if [ -f "$RT007_SCRIPT" ]; then
+    if bash "$RT007_SCRIPT" 2>&1; then
+        echo "  test_alarm_delivery_rt007.sh: ALL PASSED"
+    else
+        FAILED=$((FAILED + 1))
+        FAILED_TESTS+=("test_alarm_delivery_rt007.sh")
+    fi
+else
+    echo "  test_alarm_delivery_rt007.sh: not found, skipping"
+fi
+
 # Print summary
 echo ""
 echo "═══════════════════════════════════════════════════════════"

@@ -1678,6 +1678,19 @@ public:
     std::unordered_set<std::string> saveTaintState() const;
     void restoreTaintState(const std::unordered_set<std::string>& state);
 
+    // V-GOV-004: counter state snapshot for async task inheritance.
+    // Mirrors saveTaintState/restoreTaintState — counters reset to zero in each
+    // new Interpreter; async tasks must inherit parent's accumulated counts so
+    // that limits like polyglot_blocks are not bypassed by spawning async tasks.
+    struct CounterState {
+        int polyglot_block_count = 0;
+        int total_polyglot_lines = 0;
+        int advisory_count       = 0;
+        int advisory_suppressed  = 0;
+    };
+    CounterState saveCounterState() const;
+    void restoreCounterState(const CounterState& state);
+
     // BUG-D: Track if last function return was tainted
     bool lastReturnWasTainted() const;
     void setLastReturnTainted(bool v);

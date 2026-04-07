@@ -6,8 +6,8 @@
 namespace naab {
 namespace runtime {
 
-ThreadPool::ThreadPool(size_t num_threads)
-    : stop_(false)
+ThreadPool::ThreadPool(size_t num_threads, size_t max_queue_size)
+    : stop_(false), max_queue_size_(max_queue_size)
 {
     // Create worker threads
     workers_.reserve(num_threads);

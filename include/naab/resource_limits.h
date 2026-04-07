@@ -65,6 +65,10 @@ private:
     // that sets global_shutdown_ after N seconds. This flag cancels it early
     // (set by clearTimeout() when the script finishes normally).
     static std::atomic<bool> win_timer_cancel_;
+#else
+    // V-RT-007: cancel flag for the POSIX timer thread. The target tid is
+    // captured by value in the detached lambda — no static storage needed.
+    static std::atomic<bool> posix_timer_cancel_;
 #endif
 };
 
