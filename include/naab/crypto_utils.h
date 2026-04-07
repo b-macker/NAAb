@@ -24,9 +24,14 @@ public:
     // Convert hexadecimal string to binary data
     static std::string fromHex(const std::string& hex);
 
-private:
-    // Constant-time string comparison
+    // Compute HMAC-SHA256 of data with key; returns hex string.
+    // Only available when OpenSSL is present (HAVE_OPENSSL defined).
+    static std::string hmacSha256(const std::string& data, const std::string& key);
+
+    // Constant-time string comparison (prevents timing attacks on HMAC/hash comparisons).
     static bool constantTimeCompare(const std::string& a, const std::string& b);
+
+private:
 };
 
 } // namespace security

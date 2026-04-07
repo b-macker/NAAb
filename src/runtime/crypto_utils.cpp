@@ -1,5 +1,7 @@
 #include "naab/crypto_utils.h"
 #include <openssl/sha.h>
+#include <openssl/hmac.h>
+#include <openssl/evp.h>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -77,6 +79,16 @@ std::string CryptoUtils::fromHex(const std::string& hex) {
     }
 
     return result;
+}
+
+std::string CryptoUtils::hmacSha256(const std::string& data, const std::string& key) {
+    unsigned char digest[EVP_MAX_MD_SIZE];
+    unsigned int digest_len = 0;
+    HMAC(EVP_sha256(),
+         key.data(), static_cast<int>(key.size()),
+         reinterpret_cast<const unsigned char*>(data.data()), data.size(),
+         digest, &digest_len);
+    return toHex(digest, digest_len);
 }
 
 bool CryptoUtils::constantTimeCompare(const std::string& a, const std::string& b) {

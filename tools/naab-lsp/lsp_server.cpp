@@ -481,10 +481,20 @@ void LSPServer::handleRename(const RequestMessage& request) {
 
     // Collect all edits: scan every line of the document for occurrences of old_name
     // as a whole word (not part of a larger identifier)
+    // V-LSP-001: bounds to prevent DoS on large documents
+    constexpr size_t MAX_RENAME_FILE_BYTES = 1 * 1024 * 1024;  // 1 MiB
+    constexpr size_t MAX_RENAME_EDITS     = 10000;
+
     json changes = json::object();
     json edits = json::array();
 
     const std::string& text = doc->getText();
+    if (text.size() > MAX_RENAME_FILE_BYTES) {
+        sendError(request.id, -32603,
+            "Rename aborted: document exceeds 1 MiB size limit");
+        return;
+    }
+
     std::istringstream iss(text);
     std::string cur_line;
     int line_num = 0;
@@ -505,6 +515,11 @@ void LSPServer::handleRename(const RequestMessage& request) {
                     }.toJson()},
                     {"newText", new_name}
                 });
+                if (edits.size() >= MAX_RENAME_EDITS) {
+                    sendError(request.id, -32603,
+                        "Rename aborted: too many occurrences (limit: 10000 edits)");
+                    return;
+                }
             }
 
             search_pos += old_name.size();

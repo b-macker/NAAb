@@ -5,12 +5,14 @@
 
 #include "naab/lockfile.h"
 #include "naab/config.h"
+#include "naab/crypto_utils.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
 #include <sstream>
 #include <chrono>
 #include <ctime>
+#include <cstdlib>
 
 namespace naab {
 
@@ -113,9 +115,18 @@ void Lockfile::save(const std::string& path) const {
         j["runtimes"].push_back(entry);
     }
 
+    std::string content = j.dump(2) + "\n";
     std::ofstream ofs(path);
     if (ofs.is_open()) {
-        ofs << j.dump(2) << "\n";
+        ofs << content;
+    }
+
+    // V-SC-001: write HMAC-SHA256 sidecar when NAAB_LOCK_KEY is set
+    const char* lock_key = std::getenv("NAAB_LOCK_KEY");
+    if (lock_key && *lock_key) {
+        std::string sig = naab::security::CryptoUtils::hmacSha256(content, lock_key);
+        std::ofstream sigf(path + ".sig");
+        if (sigf.is_open()) sigf << sig << "\n";
     }
 }
 
@@ -180,6 +191,34 @@ std::vector<std::string> Lockfile::checkDrift(
         }
     }
     return drifts;
+}
+
+// ============================================================================
+// Lockfile::verifySignature
+// ============================================================================
+
+bool Lockfile::verifySignature(const std::string& lock_path) {
+    const char* key_env = std::getenv("NAAB_LOCK_KEY");
+    if (!key_env || !*key_env) {
+        fprintf(stderr, "[lock] Warning: NAAB_LOCK_KEY not set; lockfile integrity unverified.\n");
+        return true;  // No key = can't verify = warn but proceed
+    }
+    // Read lock file content
+    std::ifstream lf(lock_path);
+    if (!lf.is_open()) return true;  // File doesn't exist yet, nothing to verify
+    std::ostringstream ss; ss << lf.rdbuf();
+    std::string content = ss.str();
+    // Read signature sidecar
+    std::ifstream sf(lock_path + ".sig");
+    if (!sf.is_open()) {
+        fprintf(stderr, "[lock] TAMPER: %s.sig missing but NAAB_LOCK_KEY is set.\n",
+                lock_path.c_str());
+        return false;
+    }
+    std::string stored_sig; std::getline(sf, stored_sig);
+    // Compute expected HMAC and compare with constant-time comparison
+    std::string expected = naab::security::CryptoUtils::hmacSha256(content, key_env);
+    return naab::security::CryptoUtils::constantTimeCompare(expected, stored_sig);
 }
 
 // ============================================================================

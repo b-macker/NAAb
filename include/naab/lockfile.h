@@ -46,6 +46,11 @@ struct Lockfile {
     // Empty = no drift, all runtimes match.
     std::vector<std::string> checkDrift(
         const std::unordered_map<std::string, std::string>& observed) const;
+
+    // Verify the HMAC-SHA256 signature sidecar for a lockfile.
+    // Returns true if NAAB_LOCK_KEY is absent (unverified, warns) OR if signature matches.
+    // Returns false (tamper detected) if key is set but signature is wrong or missing.
+    static bool verifySignature(const std::string& lock_path);
 };
 
 // Discover lockfile path: looks for .naab/naab.lock alongside the nearest govern.json.

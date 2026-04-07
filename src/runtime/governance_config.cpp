@@ -6,6 +6,7 @@
 #include "naab/interpreter.h"
 #include "naab/analyzer/task_pattern_detector.h"
 #include "naab/analyzer/syntactic_analyzer.h"
+#include "naab/safe_regex.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
@@ -926,6 +927,26 @@ static void loadFromJson(const nlohmann::json& j, GovernanceRules& rules_) {
             if (cr.contains("tags")) for (auto& t : cr["tags"]) rule.tags.push_back(t.get<std::string>());
             // Compile regex
             if (!rule.pattern.empty() && rule.enabled) {
+                // V-GOV-010: validate pattern complexity before compiling to prevent ReDoS
+                bool pattern_safe = true;
+                if (rule.pattern.size() > 1000) {
+                    fprintf(stderr, "[governance] Warning: Unsafe regex in custom rule '%s' — skipped: "
+                            "pattern exceeds 1000 character limit (%zu chars)\n",
+                            rule.id.c_str(), rule.pattern.size());
+                    pattern_safe = false;
+                } else {
+                    naab::regex_safety::SafeRegex safe_re;
+                    auto complexity = safe_re.analyzePattern(rule.pattern);
+                    if (!complexity.is_safe) {
+                        fprintf(stderr, "[governance] Warning: Unsafe regex in custom rule '%s' — skipped: %s\n",
+                                rule.id.c_str(), complexity.warning.c_str());
+                        pattern_safe = false;
+                    }
+                }
+                if (!pattern_safe) {
+                    rules_.custom_rules.push_back(std::move(rule));
+                    continue;
+                }
                 try {
                     auto flags = std::regex::ECMAScript;
                     if (!rule.case_sensitive) flags |= std::regex::icase;

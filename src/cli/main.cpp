@@ -1381,6 +1381,15 @@ int main(int argc, char** argv) {
                 }
 
                 if (lock_check) {
+                    // V-SC-001: verify HMAC-SHA256 signature before accepting lockfile
+                    if (!naab::Lockfile::verifySignature(lf_path)) {
+                        fprintf(stderr, "[lock] TAMPER DETECTED: lockfile signature mismatch.\n"
+                                        "  The lockfile may have been modified by an attacker.\n"
+                                        "  Re-run with --lock to regenerate: naab-lang --lock %s\n",
+                                        filename.c_str());
+                        fflush(stderr);
+                        _exit(1);
+                    }
                     naab::Lockfile lf = naab::Lockfile::load(lf_path);
                     auto drifts = lf.checkDrift(observed);
                     if (!drifts.empty()) {
